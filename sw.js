@@ -52,6 +52,7 @@ self.addEventListener("fetch", event => {
   const isHttp = requestUrl.protocol.startsWith("http");
 
   if (!isHttp) return;
+  if (requestUrl.origin !== location.origin) return;
 
   event.respondWith((async () => {
     const cache = await caches.open(CACHE_NAME);
