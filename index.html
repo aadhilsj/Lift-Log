@@ -422,7 +422,7 @@ const Nav = ({page,setPage,user,onSwitch,syncing,lastSyncedAt,syncError}) => Rea
             ? React.createElement('div',{className:"sync-pill sync-ok"},`Synced ${formatSyncTime(lastSyncedAt)}`)
             : null,
       React.createElement('div',{style:{display:"flex",gap:2}},
-        [["today","Today","📍"],["month","Risk","💸"],["history","History","📊"]].map(([id,label,icon])=>
+        [["today","Today","📍"],["month","Results","🏁"],["history","History","📊"]].map(([id,label,icon])=>
           React.createElement('button',{key:id,onClick:()=>setPage(id),className:`tab${page===id?" on":""}`,style:{padding:"6px 10px"}},
             React.createElement('span',{className:"nav-label"},label),
             React.createElement('span',{className:"nav-icon",style:{fontSize:16}},icon)
@@ -456,7 +456,7 @@ const Nav = ({page,setPage,user,onSwitch,syncing,lastSyncedAt,syncError}) => Rea
   ),
   React.createElement('div',{className:"mobile-only mobile-bottom-nav"},
     React.createElement('div',{className:"mobile-bottom-nav-grid"},
-      [["today","Today","📍"],["month","Risk","💸"],["history","History","📊"]].map(([id,label,icon])=>
+      [["today","Today","📍"],["month","Results","🏁"],["history","History","📊"]].map(([id,label,icon])=>
         React.createElement('button',{key:id,onClick:()=>setPage(id),className:`mobile-tab${page===id?" on":""}`},
           React.createElement('span',{style:{fontSize:18,lineHeight:1}},icon),
           React.createElement('span',{style:{fontSize:11,fontWeight:700}},label)
