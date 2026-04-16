@@ -61,6 +61,8 @@
     .install-btn.secondary { background:transparent;color:var(--muted);border:1px solid var(--border2); }
     .sync-pill { display:inline-flex;align-items:center;gap:7px;padding:6px 10px;border-radius:999px;background:rgba(14,14,18,.86);border:1px solid var(--border);font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted); }
     .sync-dot { width:7px;height:7px;border-radius:50%;background:var(--blue);box-shadow:0 0 0 0 rgba(91,141,239,.35);animation:glow 1.8s infinite; }
+    .sync-ok { color:var(--green); }
+    .sync-error { color:var(--red); }
 
     /* ── MOBILE STYLES ── */
     @media (max-width: 768px) {
@@ -193,6 +195,7 @@ function checkRollover(data) {
 async function fetchData() {
   try {
     const res = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}/latest`, {
+      cache: "no-store",
       headers: { "X-Master-Key": JSONBIN_MASTER_KEY, "X-Access-Key": JSONBIN_ACCESS_KEY }
     });
     if(!res.ok){ console.error("Fetch failed:", res.status, await res.text()); return null; }
@@ -205,6 +208,7 @@ async function saveData(data) {
   try {
     const res = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}`, {
       method: "PUT",
+      cache: "no-store",
       headers: { "Content-Type":"application/json", "X-Master-Key": JSONBIN_MASTER_KEY, "X-Access-Key": JSONBIN_ACCESS_KEY },
       body: JSON.stringify(data)
     });
@@ -236,6 +240,9 @@ const isMobile = () => window.innerWidth <= 768;
 const isStandalone = () => window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
 const isIos = () => /iphone|ipad|ipod/i.test(window.navigator.userAgent);
 const isSafari = () => /^((?!chrome|android).)*safari/i.test(window.navigator.userAgent);
+const formatSyncTime = date => date
+  ? date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+  : "";
 
 const Avatar = ({name,size=32,muted=false}) => (
   React.createElement('div',{style:{width:size,height:size,borderRadius:"50%",background:muted?"var(--s3)":avatarColor(name),display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Outfit',sans-serif",fontWeight:800,fontSize:size*.38,color:muted?"var(--muted)":"#fff",flexShrink:0}},name[0])
@@ -405,14 +412,20 @@ const ExcuseModal = ({user,isExcused,onConfirm,onClose}) => React.createElement(
 );
 
 // ─── NAV ──────────────────────────────────────────────────────────────────────
-const Nav = ({page,setPage,user,onSwitch,syncing}) => React.createElement(React.Fragment,null,
+const Nav = ({page,setPage,user,onSwitch,syncing,lastSyncedAt,syncError}) => React.createElement(React.Fragment,null,
   React.createElement('nav',{className:"desktop-only",style:{background:"var(--s1)",borderBottom:"1px solid var(--border)",padding:"0 16px",display:"flex",alignItems:"center",justifyContent:"space-between",height:52,position:"sticky",top:0,zIndex:100}},
     React.createElement('div',{style:{fontFamily:"'Outfit',sans-serif",fontWeight:900,fontSize:18,letterSpacing:"-.02em",flexShrink:0}},"LIFT",React.createElement('span',{style:{color:"var(--green)"}},"LOG")),
     React.createElement('div',{style:{display:"flex",alignItems:"center",gap:10}},
-      syncing && React.createElement('div',{className:"sync-pill"},
-        React.createElement('span',{className:"sync-dot"}),
-        React.createElement('span',null,"Syncing")
-      ),
+      syncing
+        ? React.createElement('div',{className:"sync-pill"},
+            React.createElement('span',{className:"sync-dot"}),
+            React.createElement('span',null,"Syncing")
+          )
+        : syncError
+          ? React.createElement('div',{className:"sync-pill sync-error"},"Sync failed")
+          : lastSyncedAt
+            ? React.createElement('div',{className:"sync-pill sync-ok"},`Synced ${formatSyncTime(lastSyncedAt)}`)
+            : null,
       React.createElement('div',{style:{display:"flex",gap:2}},
         [["today","Today","🏠"],["month","Risk","📅"],["history","History","📊"]].map(([id,label,icon])=>
           React.createElement('button',{key:id,onClick:()=>setPage(id),className:`tab${page===id?" on":""}`,style:{padding:"6px 10px"}},
@@ -432,7 +445,13 @@ const Nav = ({page,setPage,user,onSwitch,syncing}) => React.createElement(React.
     React.createElement('div',{style:{height:56,padding:"0 14px",display:"flex",alignItems:"center",justifyContent:"space-between"}},
       React.createElement('div',null,
         React.createElement('div',{style:{fontFamily:"'Outfit',sans-serif",fontWeight:900,fontSize:18,letterSpacing:"-.02em"}},"LIFT",React.createElement('span',{style:{color:"var(--green)"}},"LOG")),
-        syncing && React.createElement('div',{className:"mono",style:{fontSize:9,color:"var(--blue)",marginTop:2,textTransform:"uppercase",letterSpacing:".08em"}},"Syncing")
+        syncing
+          ? React.createElement('div',{className:"mono",style:{fontSize:9,color:"var(--blue)",marginTop:2,textTransform:"uppercase",letterSpacing:".08em"}},"Syncing")
+          : syncError
+            ? React.createElement('div',{className:"mono",style:{fontSize:9,color:"var(--red)",marginTop:2,textTransform:"uppercase",letterSpacing:".08em"}},"Sync failed")
+            : lastSyncedAt
+              ? React.createElement('div',{className:"mono",style:{fontSize:9,color:"var(--green)",marginTop:2,textTransform:"uppercase",letterSpacing:".08em"}},`Synced ${formatSyncTime(lastSyncedAt)}`)
+              : null
       ),
       React.createElement('button',{onClick:onSwitch,style:{display:"flex",alignItems:"center",gap:7,background:"var(--s2)",border:"1px solid var(--border)",borderRadius:999,padding:"4px 10px 4px 5px",flexShrink:0}},
         React.createElement(Avatar,{name:user,size:22}),
@@ -1138,6 +1157,8 @@ const App = () => {
   const [installDismissed,setInstallDismissed]=useState(()=>{try{return localStorage.getItem(INSTALL_DISMISSED_KEY)==="1";}catch{return false;}});
   const [standalone,setStandalone]=useState(()=>isStandalone());
   const [syncing,setSyncing]=useState(false);
+  const [syncError,setSyncError]=useState(false);
+  const [lastSyncedAt,setLastSyncedAt]=useState(null);
   const [isMobileView,setIsMobileView]=useState(()=>isMobile());
 
   useEffect(()=>{
@@ -1206,9 +1227,15 @@ const App = () => {
 
     const load = async () => {
       setSyncing(true);
+      setSyncError(false);
       try {
         const data = await fetchData();
-        if(data) applyData(data, true);
+        if(data){
+          applyData(data, true);
+          setLastSyncedAt(new Date());
+        } else {
+          setSyncError(true);
+        }
       } finally {
         setLoading(false);
         setSyncing(false);
@@ -1219,10 +1246,26 @@ const App = () => {
     // Refresh every 30 seconds to pick up changes from other devices
     const interval = setInterval(()=>{
       fetchData().then(data=>{
-        if(data) applyData(data, true);
-      }).catch(()=>{});
+        if(data){
+          applyData(data, true);
+          setLastSyncedAt(new Date());
+          setSyncError(false);
+        } else {
+          setSyncError(true);
+        }
+      }).catch(()=>setSyncError(true));
     }, 30000);
-    return ()=>clearInterval(interval);
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") load();
+    };
+    const handleFocus = () => load();
+    document.addEventListener("visibilitychange", handleVisibility);
+    window.addEventListener("focus", handleFocus);
+    return ()=>{
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", handleVisibility);
+      window.removeEventListener("focus", handleFocus);
+    };
   },[applyData]);
 
   const handleSave=useCallback(async(newData)=>{
@@ -1257,7 +1300,7 @@ const App = () => {
   if(!user) return React.createElement(WhoAreYou,{onSelect:selectUser});
 
   return React.createElement(React.Fragment,null,
-    React.createElement(Nav,{page,setPage,user,onSwitch:handleSwitch,syncing}),
+    React.createElement(Nav,{page,setPage,user,onSwitch:handleSwitch,syncing,lastSyncedAt,syncError}),
     React.createElement('div',{style:{paddingBottom:isMobileView?"calc(86px + env(safe-area-inset-bottom))":0}},
       page==="today"  &&React.createElement(TodayPage,  {user,logs,setLogs,excused,setExcused,monthHistory,saving,onSave:handleSave}),
       page==="month"  &&React.createElement(MonthPage,  {logs,excused,monthHistory}),
