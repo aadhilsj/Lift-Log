@@ -4,6 +4,14 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
   <title>Lift Log</title>
+  <meta name="theme-color" content="#07070a"/>
+  <meta name="description" content="Track workouts, monthly targets, standings, and history with Lift Log."/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="apple-mobile-web-app-title" content="Lift Log"/>
+  <link rel="manifest" href="./manifest.webmanifest"/>
+  <link rel="icon" href="./icon.svg" type="image/svg+xml"/>
+  <link rel="apple-touch-icon" href="./icon-512.png"/>
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet"/>
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -45,6 +53,12 @@
     input[type="date"]::-webkit-calendar-picker-indicator { filter:invert(.5); }
     .spinner { width:36px;height:36px;border:3px solid var(--border);border-top-color:var(--green);border-radius:50%;animation:spin .8s linear infinite; }
     .card { background:var(--s1);border:1px solid var(--border);border-radius:var(--r); }
+    .install-banner { position:fixed;left:16px;right:16px;bottom:16px;z-index:160;display:flex;justify-content:center;pointer-events:none; }
+    .install-card { width:min(100%,460px);padding:14px 16px;border-radius:16px;background:rgba(14,14,18,.96);border:1px solid rgba(91,141,239,.28);box-shadow:0 20px 50px rgba(0,0,0,.35);backdrop-filter:blur(14px);pointer-events:auto; }
+    .install-actions { display:flex;gap:10px;margin-top:12px; }
+    .install-btn { flex:1;min-height:42px;border-radius:11px;font-size:13px;font-weight:800; }
+    .install-btn.primary { background:var(--green);color:#04110a; }
+    .install-btn.secondary { background:transparent;color:var(--muted);border:1px solid var(--border2); }
 
     /* ── MOBILE STYLES ── */
     @media (max-width: 768px) {
@@ -57,6 +71,8 @@
       .mobile-scroll { overflow-x:auto !important; -webkit-overflow-scrolling:touch; }
       .nav-label { display:none; }
       .nav-icon { display:block !important; }
+      .install-banner { left:12px; right:12px; bottom:12px; }
+      .install-actions { flex-direction:column; }
     }
     @media (min-width: 769px) {
       .mobile-only { display:none !important; }
@@ -91,6 +107,7 @@ const localISO = d => {
 };
 const TODAY_ISO = localISO(TODAY);
 const curKey    = `${CUR_YEAR}-${CUR_MONTH}`;
+const INSTALL_DISMISSED_KEY = "ll_pwa_install_dismissed";
 
 // Allow logging back 2 months
 const twoMonthsAgo = new Date(CUR_YEAR, CUR_MONTH - 2, 1);
@@ -192,6 +209,9 @@ async function saveData(data) {
 const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
 const isMobile = () => window.innerWidth <= 768;
+const isStandalone = () => window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+const isIos = () => /iphone|ipad|ipod/i.test(window.navigator.userAgent);
+const isSafari = () => /^((?!chrome|android).)*safari/i.test(window.navigator.userAgent);
 
 const Avatar = ({name,size=32,muted=false}) => (
   React.createElement('div',{style:{width:size,height:size,borderRadius:"50%",background:muted?"var(--s3)":avatarColor(name),display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Outfit',sans-serif",fontWeight:800,fontSize:size*.38,color:muted?"var(--muted)":"#fff",flexShrink:0}},name[0])
@@ -220,6 +240,29 @@ const Card = ({children,style={},className=""}) => React.createElement('div',{cl
 const Spinner = () => React.createElement('div',{style:{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minHeight:"100vh",gap:16}},
   React.createElement('div',{className:"spinner"}),
   React.createElement('div',{style:{color:"var(--muted)",fontSize:13,fontFamily:"'JetBrains Mono',monospace"}},"Loading Lift Log...")
+);
+
+const InstallBanner = ({installReady,onInstall,onDismiss,showIosHint}) => (
+  React.createElement('div',{className:"install-banner"},
+    React.createElement('div',{className:"install-card pi"},
+      React.createElement('div',{style:{display:"flex",alignItems:"center",gap:12}},
+        React.createElement('div',{style:{width:42,height:42,borderRadius:12,background:"linear-gradient(135deg,#101820,#1fce65)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0}},"🏋️"),
+        React.createElement('div',null,
+          React.createElement('div',{style:{fontWeight:800,fontSize:15}},"Install Lift Log"),
+          React.createElement('div',{style:{fontSize:12,color:"var(--muted)",marginTop:3,lineHeight:1.45}},
+            installReady
+              ? "Add Lift Log to your home screen for a full-screen app experience and faster reloads."
+              : "On iPhone, tap Share and choose Add to Home Screen to install Lift Log."
+          )
+        )
+      ),
+      React.createElement('div',{className:"install-actions"},
+        installReady && React.createElement('button',{className:"install-btn primary",onClick:onInstall},"Install App"),
+        showIosHint && React.createElement('button',{className:"install-btn secondary",onClick:onDismiss},"Hide Tip"),
+        installReady && React.createElement('button',{className:"install-btn secondary",onClick:onDismiss},"Maybe Later")
+      )
+    )
+  )
 );
 
 // ─── WHO ARE YOU ──────────────────────────────────────────────────────────────
@@ -1037,6 +1080,41 @@ const App = () => {
   const [logs,setLogs]=useState({});
   const [excused,setExcused]=useState({});
   const [monthHistory,setMonthHistory]=useState([]);
+  const [installPrompt,setInstallPrompt]=useState(null);
+  const [installDismissed,setInstallDismissed]=useState(()=>{try{return localStorage.getItem(INSTALL_DISMISSED_KEY)==="1";}catch{return false;}});
+  const [standalone,setStandalone]=useState(()=>isStandalone());
+
+  useEffect(()=>{
+    if(!("serviceWorker" in navigator)) return;
+    navigator.serviceWorker.register("./sw.js").catch(err=>console.error("Service worker registration failed", err));
+  },[]);
+
+  useEffect(()=>{
+    const syncStandalone = () => setStandalone(isStandalone());
+    const handleBeforeInstallPrompt = event => {
+      event.preventDefault();
+      setInstallPrompt(event);
+      setInstallDismissed(false);
+      try { localStorage.removeItem(INSTALL_DISMISSED_KEY); } catch {}
+    };
+    const handleInstalled = () => {
+      setInstallPrompt(null);
+      setStandalone(true);
+      setInstallDismissed(true);
+      try { localStorage.setItem(INSTALL_DISMISSED_KEY, "1"); } catch {}
+    };
+
+    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    window.addEventListener("appinstalled", handleInstalled);
+    window.addEventListener("resize", syncStandalone);
+    syncStandalone();
+
+    return () => {
+      window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+      window.removeEventListener("appinstalled", handleInstalled);
+      window.removeEventListener("resize", syncStandalone);
+    };
+  },[]);
 
   useEffect(()=>{
     const load = () => fetchData().then(data=>{
@@ -1074,6 +1152,23 @@ const App = () => {
 
   const selectUser=name=>{try{localStorage.setItem("ll_user",name);}catch{}setUser(name);};
   const handleSwitch=()=>{try{localStorage.removeItem("ll_user");}catch{}setUser(null);};
+  const dismissInstall = () => {
+    setInstallDismissed(true);
+    try { localStorage.setItem(INSTALL_DISMISSED_KEY, "1"); } catch {}
+  };
+  const installApp = async () => {
+    if(!installPrompt) return;
+    try {
+      await installPrompt.prompt();
+      await installPrompt.userChoice;
+    } catch (e) {
+      console.error("Install prompt failed", e);
+    } finally {
+      setInstallPrompt(null);
+    }
+  };
+  const showIosHint = !standalone && !installDismissed && isIos() && isSafari() && !installPrompt;
+  const showInstallBanner = !standalone && !installDismissed && (Boolean(installPrompt) || showIosHint);
 
   if(loading) return React.createElement(Spinner);
   if(!user) return React.createElement(WhoAreYou,{onSelect:selectUser});
@@ -1082,7 +1177,13 @@ const App = () => {
     React.createElement(Nav,{page,setPage,user,onSwitch:handleSwitch}),
     page==="today"  &&React.createElement(TodayPage,  {user,logs,setLogs,excused,setExcused,monthHistory,saving,onSave:handleSave}),
     page==="month"  &&React.createElement(MonthPage,  {logs,excused,monthHistory}),
-    page==="history"&&React.createElement(HistoryPage,{logs,excused,monthHistory})
+    page==="history"&&React.createElement(HistoryPage,{logs,excused,monthHistory}),
+    showInstallBanner && React.createElement(InstallBanner,{
+      installReady:Boolean(installPrompt),
+      onInstall:installApp,
+      onDismiss:dismissInstall,
+      showIosHint
+    })
   );
 };
 
