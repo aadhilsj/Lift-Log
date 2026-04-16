@@ -93,10 +93,6 @@
   <div id="root"></div>
   <script type="text/babel" data-presets="react">
 
-const JSONBIN_MASTER_KEY = "$2a$10$kSWJI9a9oo0zyoxJu4m03u793Cr6jq59Y9s6zyatxxNqzBFfDeoUS";
-const JSONBIN_ACCESS_KEY = "$2a$10$EKPe7czcS5Yqun7TkKvz.e7sJASKZ7xL0sq9TigEY4P2M7YgVz7TS";
-const BIN_ID = "69d986cc36566621a89de1ef";
-
 const NAMES         = ["Aadhil","Isira","Rahul","Kisal","Rishane","Deyhan","Aysha","Nishara"];
 const WORKOUT_TYPES = ["Gym","Run","Sport","Hike","Other"];
 const MIN_TARGET    = 12;
@@ -194,22 +190,21 @@ function checkRollover(data) {
 // ─── JSONBIN ──────────────────────────────────────────────────────────────────
 async function fetchData() {
   try {
-    const res = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}/latest`, {
+    const res = await fetch("./api/lift-log", {
       cache: "no-store",
-      headers: { "X-Master-Key": JSONBIN_MASTER_KEY, "X-Access-Key": JSONBIN_ACCESS_KEY }
+      headers: { "Accept":"application/json" }
     });
     if(!res.ok){ console.error("Fetch failed:", res.status, await res.text()); return null; }
-    const json = await res.json();
-    return json.record;
+    return await res.json();
   } catch(e){ console.error("Fetch error:", e); return null; }
 }
 
 async function saveData(data) {
   try {
-    const res = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}`, {
+    const res = await fetch("./api/lift-log", {
       method: "PUT",
       cache: "no-store",
-      headers: { "Content-Type":"application/json", "X-Master-Key": JSONBIN_MASTER_KEY, "X-Access-Key": JSONBIN_ACCESS_KEY },
+      headers: { "Content-Type":"application/json" },
       body: JSON.stringify(data)
     });
     if(!res.ok) console.error("Save failed:", res.status, await res.text());
