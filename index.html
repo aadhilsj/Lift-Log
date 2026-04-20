@@ -207,9 +207,11 @@ async function saveData(data) {
       headers: { "Content-Type":"application/json" },
       body: JSON.stringify(data)
     });
-    if(!res.ok) console.error("Save failed:", res.status, await res.text());
-    else console.log("Saved OK");
+    if(!res.ok){ console.error("Save failed:", res.status, await res.text()); return null; }
+    console.log("Saved OK");
+    return await res.json();
   } catch(e){ console.error("Save error:", e); }
+  return null;
 }
 
 function readCachedData() {
@@ -634,19 +636,19 @@ const TodayPage = ({user,logs,setLogs,excused,setExcused,monthHistory,saving,onS
     const newLog={date:isoDate,type:wType,id:Date.now()};
     const newLogs={...logs,[user]:[...(logs[user]||[]),newLog]};
     setLogs(newLogs);
-    onSave({logs:newLogs,excused,monthHistory,lastMonth:curKey});
+    onSave({actor:user,logs:newLogs,excused,monthHistory,lastMonth:curKey});
     setShowLog(false);
   };
   const doDelete=()=>{
     const newLogs={...logs,[user]:(logs[user]||[]).filter(l=>l.id!==deleteLog.id)};
     setLogs(newLogs);
-    onSave({logs:newLogs,excused,monthHistory,lastMonth:curKey});
+    onSave({actor:user,logs:newLogs,excused,monthHistory,lastMonth:curKey});
     setDeleteLog(null);
   };
   const toggleExcuse=()=>{
     const newExcused={...excused,[user]:{...(excused[user]||{}),[curKey]:!isExcused}};
     setExcused(newExcused);
-    onSave({logs,excused:newExcused,monthHistory,lastMonth:curKey});
+    onSave({actor:user,logs,excused:newExcused,monthHistory,lastMonth:curKey});
     setShowExcuse(false);
   };
 
@@ -1238,7 +1240,7 @@ const App = () => {
     };
 
     load();
-    // Refresh every 30 seconds to pick up changes from other devices
+    // Refresh every 10 seconds to keep multiple active users closely in sync.
     const interval = setInterval(()=>{
       fetchData().then(data=>{
         if(data){
@@ -1249,7 +1251,7 @@ const App = () => {
           setSyncError(true);
         }
       }).catch(()=>setSyncError(true));
-    }, 30000);
+    }, 10000);
     const handleVisibility = () => {
       if (document.visibilityState === "visible") load();
     };
@@ -1267,9 +1269,21 @@ const App = () => {
     const payload = {...newData,lastMonth:curKey};
     writeCachedData(payload);
     setSaving(true);
-    try{ await saveData(payload); }catch(e){console.error("Save failed",e);}
+    try{
+      const saved = await saveData(payload);
+      if(saved){
+        applyData(saved, false);
+        setLastSyncedAt(new Date());
+        setSyncError(false);
+      } else {
+        setSyncError(true);
+      }
+    }catch(e){
+      console.error("Save failed",e);
+      setSyncError(true);
+    }
     setSaving(false);
-  },[]);
+  },[applyData]);
 
   const selectUser=name=>{try{localStorage.setItem("ll_user",name);}catch{}setUser(name);};
   const handleSwitch=()=>{try{localStorage.removeItem("ll_user");}catch{}setUser(null);};
