@@ -7,7 +7,11 @@ function normalizeState(data) {
     logs: data?.logs || {},
     excused: data?.excused || {},
     monthHistory: Array.isArray(data?.monthHistory) ? data.monthHistory : [],
-    lastMonth: data?.lastMonth || null
+    lastMonth: data?.lastMonth || null,
+    meta: {
+      revision: Number.isFinite(Number(data?.meta?.revision)) ? Number(data.meta.revision) : 0,
+      updatedAt: data?.meta?.updatedAt || null
+    }
   };
 }
 
@@ -39,7 +43,11 @@ function mergeState(current, incoming) {
     logs: { ...base.logs },
     excused: { ...base.excused },
     monthHistory: base.monthHistory,
-    lastMonth: next.lastMonth || base.lastMonth
+    lastMonth: next.lastMonth || base.lastMonth,
+    meta: {
+      revision: Math.max(base.meta.revision, next.meta.revision) + 1,
+      updatedAt: new Date().toISOString()
+    }
   };
 
   if (actor) {
