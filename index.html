@@ -63,6 +63,8 @@
     .sync-dot { width:7px;height:7px;border-radius:50%;background:var(--blue);box-shadow:0 0 0 0 rgba(91,141,239,.35);animation:glow 1.8s infinite; }
     .sync-ok { color:var(--green); }
     .sync-error { color:var(--red); }
+    .icon-btn { width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;border-radius:999px;background:var(--s2);border:1px solid var(--border);color:var(--muted);font-size:15px;line-height:1;flex-shrink:0; }
+    .icon-btn:disabled { opacity:.55; cursor:default; }
 
     /* ── MOBILE STYLES ── */
     @media (max-width: 768px) {
@@ -413,7 +415,7 @@ const ExcuseModal = ({user,isExcused,onConfirm,onClose}) => React.createElement(
 );
 
 // ─── NAV ──────────────────────────────────────────────────────────────────────
-const Nav = ({page,setPage,user,onSwitch,syncing,lastSyncedAt,syncError}) => React.createElement(React.Fragment,null,
+const Nav = ({page,setPage,user,onSwitch,syncing,lastSyncedAt,syncError,onRefresh}) => React.createElement(React.Fragment,null,
   React.createElement('nav',{className:"desktop-only",style:{background:"var(--s1)",borderBottom:"1px solid var(--border)",padding:"0 16px",display:"flex",alignItems:"center",justifyContent:"space-between",height:52,position:"sticky",top:0,zIndex:100}},
     React.createElement('div',{style:{fontFamily:"'Outfit',sans-serif",fontWeight:900,fontSize:18,letterSpacing:"-.02em",flexShrink:0}},"LIFT",React.createElement('span',{style:{color:"var(--green)"}},"LOG")),
     React.createElement('div',{style:{display:"flex",alignItems:"center",gap:10}},
@@ -454,9 +456,14 @@ const Nav = ({page,setPage,user,onSwitch,syncing,lastSyncedAt,syncError}) => Rea
               ? React.createElement('div',{className:"mono",style:{fontSize:9,color:"var(--green)",marginTop:2,textTransform:"uppercase",letterSpacing:".08em"}},`Synced ${formatSyncTime(lastSyncedAt)}`)
               : null
       ),
-      React.createElement('button',{onClick:onSwitch,style:{display:"flex",alignItems:"center",gap:7,background:"var(--s2)",border:"1px solid var(--border)",borderRadius:999,padding:"4px 10px 4px 5px",flexShrink:0}},
-        React.createElement(Avatar,{name:user,size:22}),
-        React.createElement('span',{className:"mono",style:{fontSize:11,color:"var(--muted)"}},user)
+      React.createElement('div',{style:{display:"flex",alignItems:"center",gap:8}},
+        React.createElement('button',{onClick:onRefresh,disabled:syncing,className:"icon-btn",title:syncing?"Syncing":"Refresh"},
+          syncing ? "↻" : "⟳"
+        ),
+        React.createElement('button',{onClick:onSwitch,style:{display:"flex",alignItems:"center",gap:7,background:"var(--s2)",border:"1px solid var(--border)",borderRadius:999,padding:"4px 10px 4px 5px",flexShrink:0}},
+          React.createElement(Avatar,{name:user,size:22}),
+          React.createElement('span',{className:"mono",style:{fontSize:11,color:"var(--muted)"}},user)
+        )
       )
     )
   ),
@@ -1197,6 +1204,23 @@ const App = () => {
     return true;
   },[]);
 
+  const refreshNow = useCallback(async () => {
+    setSyncing(true);
+    setSyncError(false);
+    try {
+      const data = await fetchData();
+      if(data){
+        const applied = applyData(data, true);
+        if (applied) setLastSyncedAt(new Date());
+      } else {
+        setSyncError(true);
+      }
+    } finally {
+      setLoading(false);
+      setSyncing(false);
+    }
+  },[applyData]);
+
   useEffect(()=>{
     const syncStandalone = () => setStandalone(isStandalone());
     const handleBeforeInstallPrompt = event => {
@@ -1231,24 +1255,7 @@ const App = () => {
       setLoading(false);
     }
 
-    const load = async () => {
-      setSyncing(true);
-      setSyncError(false);
-      try {
-        const data = await fetchData();
-        if(data){
-          const applied = applyData(data, true);
-          if (applied) setLastSyncedAt(new Date());
-        } else {
-          setSyncError(true);
-        }
-      } finally {
-        setLoading(false);
-        setSyncing(false);
-      }
-    };
-
-    load();
+    refreshNow();
     // Refresh every 10 seconds to keep multiple active users closely in sync.
     const interval = setInterval(()=>{
       fetchData().then(data=>{
@@ -1264,9 +1271,9 @@ const App = () => {
       }).catch(()=>setSyncError(true));
     }, 10000);
     const handleVisibility = () => {
-      if (document.visibilityState === "visible") load();
+      if (document.visibilityState === "visible") refreshNow();
     };
-    const handleFocus = () => load();
+    const handleFocus = () => refreshNow();
     document.addEventListener("visibilitychange", handleVisibility);
     window.addEventListener("focus", handleFocus);
     return ()=>{
@@ -1274,7 +1281,7 @@ const App = () => {
       document.removeEventListener("visibilitychange", handleVisibility);
       window.removeEventListener("focus", handleFocus);
     };
-  },[applyData]);
+  },[applyData, refreshNow]);
 
   const handleSave=useCallback(async(newData)=>{
     const payload = {...newData,lastMonth:curKey};
@@ -1322,7 +1329,7 @@ const App = () => {
   if(!user) return React.createElement(WhoAreYou,{onSelect:selectUser});
 
   return React.createElement(React.Fragment,null,
-    React.createElement(Nav,{page,setPage,user,onSwitch:handleSwitch,syncing,lastSyncedAt,syncError}),
+    React.createElement(Nav,{page,setPage,user,onSwitch:handleSwitch,syncing,lastSyncedAt,syncError,onRefresh:refreshNow}),
     React.createElement('div',{style:{paddingBottom:isMobileView?"calc(86px + env(safe-area-inset-bottom))":0}},
       page==="today"  &&React.createElement(TodayPage,  {user,logs,setLogs,excused,setExcused,monthHistory,saving,onSave:handleSave}),
       page==="month"  &&React.createElement(MonthPage,  {logs,excused,monthHistory}),
