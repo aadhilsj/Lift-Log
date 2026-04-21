@@ -230,6 +230,10 @@ function writeCachedData(data) {
   } catch {}
 }
 
+function getRevision(data) {
+  return Number.isFinite(Number(data?.meta?.revision)) ? Number(data.meta.revision) : 0;
+}
+
 // ─── ATOMS ────────────────────────────────────────────────────────────────────
 const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
@@ -1157,6 +1161,7 @@ const App = () => {
   const [syncError,setSyncError]=useState(false);
   const [lastSyncedAt,setLastSyncedAt]=useState(null);
   const [isMobileView,setIsMobileView]=useState(()=>isMobile());
+  const latestRevisionRef = useRef(getRevision(readCachedData()));
 
   useEffect(()=>{
     if(!("serviceWorker" in navigator)) return;
@@ -1178,8 +1183,12 @@ const App = () => {
           logs: data.logs || {},
           excused: data.excused || {},
           monthHistory: data.monthHistory || [],
-          lastMonth: data.lastMonth || curKey
+          lastMonth: data.lastMonth || curKey,
+          meta: data.meta || { revision: 0, updatedAt: null }
         };
+    const incomingRevision = getRevision(resolved);
+    if (incomingRevision < latestRevisionRef.current) return false;
+    latestRevisionRef.current = incomingRevision;
     setLogs(resolved.logs || {});
     setExcused(resolved.excused || {});
     setMonthHistory(resolved.monthHistory || []);
@@ -1228,8 +1237,8 @@ const App = () => {
       try {
         const data = await fetchData();
         if(data){
-          applyData(data, true);
-          setLastSyncedAt(new Date());
+          const applied = applyData(data, true);
+          if (applied) setLastSyncedAt(new Date());
         } else {
           setSyncError(true);
         }
@@ -1244,9 +1253,11 @@ const App = () => {
     const interval = setInterval(()=>{
       fetchData().then(data=>{
         if(data){
-          applyData(data, true);
-          setLastSyncedAt(new Date());
-          setSyncError(false);
+          const applied = applyData(data, true);
+          if (applied) {
+            setLastSyncedAt(new Date());
+            setSyncError(false);
+          }
         } else {
           setSyncError(true);
         }
@@ -1272,9 +1283,11 @@ const App = () => {
     try{
       const saved = await saveData(payload);
       if(saved){
-        applyData(saved, false);
-        setLastSyncedAt(new Date());
-        setSyncError(false);
+        const applied = applyData(saved, false);
+        if (applied) {
+          setLastSyncedAt(new Date());
+          setSyncError(false);
+        }
       } else {
         setSyncError(true);
       }
