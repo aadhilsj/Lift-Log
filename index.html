@@ -65,6 +65,7 @@
     .sync-error { color:var(--red); }
     .icon-btn { width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;border-radius:999px;background:var(--s2);border:1px solid var(--border);color:var(--muted);font-size:15px;line-height:1;flex-shrink:0; }
     .icon-btn:disabled { opacity:.55; cursor:default; }
+    .spin-icon { display:inline-block; animation:spin .8s linear infinite; }
 
     /* ── MOBILE STYLES ── */
     @media (max-width: 768px) {
@@ -415,7 +416,7 @@ const ExcuseModal = ({user,isExcused,onConfirm,onClose}) => React.createElement(
 );
 
 // ─── NAV ──────────────────────────────────────────────────────────────────────
-const Nav = ({page,setPage,user,onSwitch,syncing,lastSyncedAt,syncError,onRefresh}) => React.createElement(React.Fragment,null,
+const Nav = ({page,setPage,user,onSwitch,syncing,lastSyncedAt,syncError,onRefresh,showJustSynced}) => React.createElement(React.Fragment,null,
   React.createElement('nav',{className:"desktop-only",style:{background:"var(--s1)",borderBottom:"1px solid var(--border)",padding:"0 16px",display:"flex",alignItems:"center",justifyContent:"space-between",height:52,position:"sticky",top:0,zIndex:100}},
     React.createElement('div',{style:{fontFamily:"'Outfit',sans-serif",fontWeight:900,fontSize:18,letterSpacing:"-.02em",flexShrink:0}},"LIFT",React.createElement('span',{style:{color:"var(--green)"}},"LOG")),
     React.createElement('div',{style:{display:"flex",alignItems:"center",gap:10}},
@@ -426,8 +427,10 @@ const Nav = ({page,setPage,user,onSwitch,syncing,lastSyncedAt,syncError,onRefres
           )
         : syncError
           ? React.createElement('div',{className:"sync-pill sync-error"},"Sync failed")
-          : lastSyncedAt
-            ? React.createElement('div',{className:"sync-pill sync-ok"},`Synced ${formatSyncTime(lastSyncedAt)}`)
+          : showJustSynced
+            ? React.createElement('div',{className:"sync-pill sync-ok"},"Synced just now")
+            : lastSyncedAt
+              ? React.createElement('div',{className:"sync-pill sync-ok"},`Synced ${formatSyncTime(lastSyncedAt)}`)
             : null,
       React.createElement('div',{style:{display:"flex",gap:2}},
         [["today","Today","📍"],["month","Results","🏁"],["history","History","📊"]].map(([id,label,icon])=>
@@ -452,13 +455,15 @@ const Nav = ({page,setPage,user,onSwitch,syncing,lastSyncedAt,syncError,onRefres
           ? React.createElement('div',{className:"mono",style:{fontSize:9,color:"var(--blue)",marginTop:2,textTransform:"uppercase",letterSpacing:".08em"}},"Syncing")
           : syncError
             ? React.createElement('div',{className:"mono",style:{fontSize:9,color:"var(--red)",marginTop:2,textTransform:"uppercase",letterSpacing:".08em"}},"Sync failed")
-            : lastSyncedAt
-              ? React.createElement('div',{className:"mono",style:{fontSize:9,color:"var(--green)",marginTop:2,textTransform:"uppercase",letterSpacing:".08em"}},`Synced ${formatSyncTime(lastSyncedAt)}`)
+            : showJustSynced
+              ? React.createElement('div',{className:"mono",style:{fontSize:9,color:"var(--green)",marginTop:2,textTransform:"uppercase",letterSpacing:".08em"}},"Synced just now")
+              : lastSyncedAt
+                ? React.createElement('div',{className:"mono",style:{fontSize:9,color:"var(--green)",marginTop:2,textTransform:"uppercase",letterSpacing:".08em"}},`Synced ${formatSyncTime(lastSyncedAt)}`)
               : null
       ),
       React.createElement('div',{style:{display:"flex",alignItems:"center",gap:8}},
         React.createElement('button',{onClick:onRefresh,disabled:syncing,className:"icon-btn",title:syncing?"Syncing":"Refresh"},
-          syncing ? "↻" : "⟳"
+          React.createElement('span',{className:syncing?"spin-icon":""}, syncing ? "↻" : "⟳")
         ),
         React.createElement('button',{onClick:onSwitch,style:{display:"flex",alignItems:"center",gap:7,background:"var(--s2)",border:"1px solid var(--border)",borderRadius:999,padding:"4px 10px 4px 5px",flexShrink:0}},
           React.createElement(Avatar,{name:user,size:22}),
@@ -1167,8 +1172,10 @@ const App = () => {
   const [syncing,setSyncing]=useState(false);
   const [syncError,setSyncError]=useState(false);
   const [lastSyncedAt,setLastSyncedAt]=useState(null);
+  const [showJustSynced,setShowJustSynced]=useState(false);
   const [isMobileView,setIsMobileView]=useState(()=>isMobile());
   const latestRevisionRef = useRef(getRevision(readCachedData()));
+  const justSyncedTimerRef = useRef(null);
 
   useEffect(()=>{
     if(!("serviceWorker" in navigator)) return;
@@ -1204,6 +1211,12 @@ const App = () => {
     return true;
   },[]);
 
+  const flashJustSynced = useCallback(() => {
+    setShowJustSynced(true);
+    if (justSyncedTimerRef.current) clearTimeout(justSyncedTimerRef.current);
+    justSyncedTimerRef.current = setTimeout(() => setShowJustSynced(false), 2500);
+  },[]);
+
   const refreshNow = useCallback(async () => {
     setSyncing(true);
     setSyncError(false);
@@ -1211,7 +1224,9 @@ const App = () => {
       const data = await fetchData();
       if(data){
         const applied = applyData(data, true);
-        if (applied) setLastSyncedAt(new Date());
+        setLastSyncedAt(new Date());
+        flashJustSynced();
+        if (!applied) setSyncError(false);
       } else {
         setSyncError(true);
       }
@@ -1219,7 +1234,7 @@ const App = () => {
       setLoading(false);
       setSyncing(false);
     }
-  },[applyData]);
+  },[applyData, flashJustSynced]);
 
   useEffect(()=>{
     const syncStandalone = () => setStandalone(isStandalone());
@@ -1283,6 +1298,8 @@ const App = () => {
     };
   },[applyData, refreshNow]);
 
+  useEffect(()=>()=>{ if (justSyncedTimerRef.current) clearTimeout(justSyncedTimerRef.current); },[]);
+
   const handleSave=useCallback(async(newData)=>{
     const payload = {...newData,lastMonth:curKey};
     writeCachedData(payload);
@@ -1329,7 +1346,7 @@ const App = () => {
   if(!user) return React.createElement(WhoAreYou,{onSelect:selectUser});
 
   return React.createElement(React.Fragment,null,
-    React.createElement(Nav,{page,setPage,user,onSwitch:handleSwitch,syncing,lastSyncedAt,syncError,onRefresh:refreshNow}),
+    React.createElement(Nav,{page,setPage,user,onSwitch:handleSwitch,syncing,lastSyncedAt,syncError,onRefresh:refreshNow,showJustSynced}),
     React.createElement('div',{style:{paddingBottom:isMobileView?"calc(86px + env(safe-area-inset-bottom))":0}},
       page==="today"  &&React.createElement(TodayPage,  {user,logs,setLogs,excused,setExcused,monthHistory,saving,onSave:handleSave}),
       page==="month"  &&React.createElement(MonthPage,  {logs,excused,monthHistory}),
