@@ -168,6 +168,23 @@ function calcPenalties(activeCounts) {
   return {winners,losers,perLoser,totalPot,perWinner};
 }
 
+function buildSettlementMap(counts, excusedByName) {
+  const activeCounts = NAMES
+    .filter(name => !excusedByName?.[name])
+    .map(name => ({ name, count: counts?.[name] || 0 }));
+  const { losers } = calcPenalties(activeCounts);
+  return Object.fromEntries(
+    losers.map(loser => [
+      loser.name,
+      { status: "outstanding", settledAt: null, updatedAt: null }
+    ])
+  );
+}
+
+function getMonthSettlements(month) {
+  return month?.settlements || buildSettlementMap(month?.counts || {}, month?.excused || {});
+}
+
 // ─── AUTO ROLLOVER ────────────────────────────────────────────────────────────
 function checkRollover(data) {
   const { logs, excused, monthHistory, lastMonth } = data;
@@ -190,7 +207,7 @@ function checkRollover(data) {
   const counts  = Object.fromEntries(NAMES.map(n => [n, (logs[n]||[]).length]));
   const exc     = Object.fromEntries(NAMES.map(n => [n, excused[n]?.[prevKey]||false]));
 
-  const snapshot = { key: prevKey, label, year: prevYear, month: prevMonth, counts, excused: exc };
+  const snapshot = { key: prevKey, label, year: prevYear, month: prevMonth, counts, excused: exc, settlements: buildSettlementMap(counts, exc) };
   const newHistory = [...(monthHistory||[]), snapshot];
 
   // Clear current logs and excused for new month
@@ -225,6 +242,20 @@ async function saveData(data) {
     return await res.json();
   } catch(e){ console.error("Save error:", e); }
   return null;
+}
+
+async function updateSettlementData(monthKey, player, settled, pin) {
+  try {
+    const res = await fetch("./api/lift-log", {
+      method: "POST",
+      cache: "no-store",
+      headers: { "Content-Type":"application/json" },
+      body: JSON.stringify({ action: "settlement", monthKey, player, settled, pin })
+    });
+    if(!res.ok){ console.error("Settlement update failed:", res.status, await res.text()); return { ok:false, error: res.status===401?"Invalid PIN":"Unable to update settlement" }; }
+    return { ok:true, data: await res.json() };
+  } catch(e){ console.error("Settlement update error:", e); }
+  return { ok:false, error:"Unable to update settlement" };
 }
 
 function readCachedData() {
@@ -920,9 +951,11 @@ const TodayPage = ({user,logs,setLogs,excused,setExcused,monthHistory,saving,onS
 };
 
 // ─── MONTH PAGE ───────────────────────────────────────────────────────────────
-const MonthPage = ({logs,excused,monthHistory}) => {
+const MonthPage = ({logs,excused,monthHistory,onSettlementChange}) => {
   const [selIdx,setSelIdx]=useState(null); // null = current month
   const [viewPlayer,setViewPlayer]=useState(null);
+  const [showSettlements,setShowSettlements]=useState(false);
+  const [settlementBusy,setSettlementBusy]=useState(null);
 
   const isCurrent=selIdx===null;
   const histReversed=[...monthHistory].reverse();
@@ -935,6 +968,7 @@ const MonthPage = ({logs,excused,monthHistory}) => {
   const activeCounts=counts.filter(u=>!u.isOut);
   const sorted=[...counts].sort((a,b)=>{if(a.isOut&&!b.isOut)return 1;if(!a.isOut&&b.isOut)return -1;return b.count-a.count;});
   const {winners,losers,perLoser,totalPot,perWinner}=calcPenalties(activeCounts);
+  const settlements = !isCurrent && selMonth ? getMonthSettlements(selMonth) : {};
   const hasActivity=activeCounts.some(u=>u.count>0);
   // At Risk = active, not a loser, not a winner, and currently tagged at-risk.
   const atRisk=isCurrent?activeCounts.filter(u=>{
@@ -950,6 +984,18 @@ const MonthPage = ({logs,excused,monthHistory}) => {
     React.createElement('option',{value:""},"Current Month"),
     histReversed.map((m,i)=>React.createElement('option',{key:m.key,value:i},m.label))
   );
+
+  const handleSettlementToggle = async (player, settled) => {
+    const pin = window.prompt(`Enter admin PIN to mark ${player} as ${settled?"settled":"outstanding"}.`);
+    if (!pin) return;
+    setSettlementBusy(player);
+    try {
+      const result = await onSettlementChange(selMonth.key, player, settled, pin);
+      if (!result.ok) window.alert(result.error || "Unable to update settlement.");
+    } finally {
+      setSettlementBusy(null);
+    }
+  };
 
   if(viewPlayer) return React.createElement('div',{style:{maxWidth:740,margin:"0 auto"}},
     React.createElement(PlayerProfile,{name:viewPlayer,logs,excused,monthHistory,onBack:()=>setViewPlayer(null)})
@@ -1030,6 +1076,39 @@ const MonthPage = ({logs,excused,monthHistory}) => {
       : hasActivity&&React.createElement(Card,{style:{padding:"14px 22px",background:"var(--green-bg)",border:"1px solid #1fce6522"}},
           React.createElement('span',{className:"mono",style:{fontSize:13,color:"var(--green)"}},"✓ No losers — everyone on track.")
         ),
+    !isCurrent&&losers.length>0&&React.createElement(Card,{style:{overflow:"hidden"}},
+      React.createElement('button',{onClick:()=>setShowSettlements(v=>!v),style:{width:"100%",background:"transparent",padding:"14px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",borderBottom:showSettlements?"1px solid var(--border)":"none"}},
+        React.createElement('div',null,
+          React.createElement('div',{style:{fontWeight:800,fontSize:14}},"Settlements"),
+          React.createElement('div',{className:"mono",style:{fontSize:10,color:"var(--muted)",marginTop:4}},
+            `${Object.values(settlements).filter(s=>s.status==="settled").length}/${losers.length} settled`
+          )
+        ),
+        React.createElement('span',{style:{fontSize:18,color:"var(--muted)"}},showSettlements?"▾":"▸")
+      ),
+      showSettlements&&React.createElement('div',{style:{padding:"12px 16px",display:"flex",flexDirection:"column",gap:10}},
+        losers.map(loser=>{
+          const settlement = settlements[loser.name] || { status:"outstanding", settledAt:null };
+          const isSettled = settlement.status === "settled";
+          return React.createElement('div',{key:loser.name,style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,background:"var(--s2)",border:"1px solid var(--border)",borderRadius:10,padding:"10px 12px"}},
+            React.createElement('div',{style:{display:"flex",alignItems:"center",gap:10}},
+              React.createElement(Avatar,{name:loser.name,size:26}),
+              React.createElement('div',null,
+                React.createElement('div',{style:{fontWeight:700,fontSize:14}},loser.name),
+                React.createElement('div',{className:"mono",style:{fontSize:10,color:"var(--muted)",marginTop:3}},`owes $${perLoser}${isSettled&&settlement.settledAt?` · settled ${settlement.settledAt}`:""}`)
+              )
+            ),
+            React.createElement('div',{style:{display:"flex",alignItems:"center",gap:8}},
+              React.createElement('span',{className:"mono",style:{fontSize:10,color:isSettled?"var(--green)":"var(--amber)",textTransform:"uppercase",letterSpacing:".08em"}},isSettled?"Settled":"Outstanding"),
+              React.createElement('button',{onClick:()=>handleSettlementToggle(loser.name,!isSettled),disabled:settlementBusy===loser.name,style:{background:isSettled?"var(--green-dim)":"var(--amber-dim)",border:`1px solid ${isSettled?"var(--green)":"var(--amber)"}`,color:isSettled?"var(--green)":"var(--amber)",padding:"7px 10px",borderRadius:8,fontSize:11,fontWeight:800}},
+                settlementBusy===loser.name?"Saving...":isSettled?"Mark Outstanding":"Mark Settled"
+              )
+            )
+          );
+        }),
+        Object.values(settlements).every(s=>s.status==="settled")&&React.createElement('div',{className:"mono",style:{fontSize:11,color:"var(--green)",paddingTop:4}},"✓ All settlements complete")
+      )
+    ),
     atRisk.length>0&&isCurrent&&React.createElement(Card,{style:{padding:"18px 22px",background:"rgba(240,165,0,.05)",border:"1px solid rgba(240,165,0,.2)"}},
       React.createElement('span',{className:"mono",style:{fontSize:9,color:"var(--amber)",textTransform:"uppercase",letterSpacing:".12em",display:"block",marginBottom:12}},
         `AT RISK — ${atRisk.length} within striking distance of falling behind`
@@ -1345,6 +1424,18 @@ const App = () => {
     setSaving(false);
   },[applyData]);
 
+  const handleSettlementChange = useCallback(async(monthKey, player, settled, pin)=>{
+    const result = await updateSettlementData(monthKey, player, settled, pin);
+    if(result.ok && result.data){
+      const applied = applyData(result.data, false);
+      if (applied) {
+        setLastSyncedAt(new Date());
+        setSyncError(false);
+      }
+    }
+    return result;
+  },[applyData]);
+
   const selectUser=name=>{try{localStorage.setItem("ll_user",name);}catch{}setUser(name);};
   const handleSwitch=()=>{try{localStorage.removeItem("ll_user");}catch{}setUser(null);};
   const dismissInstall = () => {
@@ -1372,7 +1463,7 @@ const App = () => {
     React.createElement(Nav,{page,setPage,user,onSwitch:handleSwitch,syncing,lastSyncedAt,syncError,onRefresh:refreshNow,showJustSynced}),
     React.createElement('div',{style:{paddingBottom:isMobileView?"calc(86px + env(safe-area-inset-bottom))":0}},
       page==="today"  &&React.createElement(TodayPage,  {user,logs,setLogs,excused,setExcused,monthHistory,saving,onSave:handleSave}),
-      page==="month"  &&React.createElement(MonthPage,  {logs,excused,monthHistory}),
+      page==="month"  &&React.createElement(MonthPage,  {logs,excused,monthHistory,onSettlementChange:handleSettlementChange}),
       page==="history"&&React.createElement(HistoryPage,{logs,excused,monthHistory})
     ),
     showInstallBanner && React.createElement(InstallBanner,{
