@@ -117,6 +117,7 @@ const TODAY_ISO = localISO(TODAY);
 const curKey    = `${CUR_YEAR}-${CUR_MONTH}`;
 const INSTALL_DISMISSED_KEY = "ll_pwa_install_dismissed";
 const LOCAL_CACHE_KEY = "ll_cached_data_v1";
+const getDaysLeft = () => DAYS_IN_MON - DAY_OF_MON;
 
 // Allow logging back 2 months
 const twoMonthsAgo = new Date(CUR_YEAR, CUR_MONTH - 2, 1);
@@ -128,7 +129,16 @@ const fmtISO = iso => {
 };
 
 const getExpected = () => Math.ceil((MIN_TARGET/DAYS_IN_MON)*DAY_OF_MON);
-const getStatus   = n => { const e=getExpected(); const diff=n-e; return diff>=0?"on-track":diff>=-3?"at-risk":"behind"; };
+const getStatus   = n => {
+  const e = getExpected();
+  const diff = n - e;
+  const daysLeft = getDaysLeft();
+  if (n + daysLeft < MIN_TARGET) return "cooked";
+  if (diff >= 2) return "cruising";
+  if (diff >= 0) return "on-track";
+  if (diff >= -3) return "at-risk";
+  return "behind";
+};
 const getDiff     = n => n - getExpected(); // positive = ahead, negative = behind
 const diffLabel   = n => { const d=getDiff(n); return d>0?`+${d} ahead`:d<0?`${d} behind`:"on pace"; };
 const lastWorkout = (userLogs) => {
@@ -253,9 +263,15 @@ const Avatar = ({name,size=32,muted=false}) => (
 );
 
 const StatusBadge = ({status}) => {
-  const map={"on-track":["var(--green-dim)","var(--green)"],"at-risk":["var(--amber-dim)","var(--amber)"],"behind":["rgba(232,69,69,.25)","var(--red)"]};
+  const map={
+    "cruising":["rgba(91,141,239,.18)","var(--blue)"],
+    "on-track":["var(--green-dim)","var(--green)"],
+    "at-risk":["var(--amber-dim)","var(--amber)"],
+    "behind":["rgba(232,69,69,.25)","var(--red)"],
+    "cooked":["rgba(232,69,69,.35)","#ff8e8e"]
+  };
   const [bg,fg]=map[status]||map.behind;
-  const labels={"on-track":"On Track","at-risk":"At Risk","behind":"Behind"};
+  const labels={"cruising":"Cruising","on-track":"On Track","at-risk":"At Risk","behind":"Behind","cooked":"Cooked"};
   return React.createElement('span',{style:{background:bg,color:fg,border:`1px solid ${fg}40`,padding:"2px 8px",borderRadius:4,fontSize:10,fontFamily:"'JetBrains Mono',monospace",fontWeight:700,letterSpacing:".05em",textTransform:"uppercase",whiteSpace:"nowrap"}},labels[status]);
 };
 
@@ -668,7 +684,7 @@ const TodayPage = ({user,logs,setLogs,excused,setExcused,monthHistory,saving,onS
     setShowExcuse(false);
   };
 
-  const barColor=s=>s==="on-track"?"var(--green)":s==="at-risk"?"var(--amber)":"var(--red)";
+  const barColor=s=>s==="cruising"?"var(--blue)":s==="on-track"?"var(--green)":s==="at-risk"?"var(--amber)":"var(--red)";
 
   if(viewPlayer) return React.createElement('div',{style:{maxWidth:1060,margin:"0 auto"}},
     React.createElement(PlayerProfile,{name:viewPlayer,logs,excused,monthHistory,onBack:()=>setViewPlayer(null)})
@@ -709,7 +725,7 @@ const TodayPage = ({user,logs,setLogs,excused,setExcused,monthHistory,saving,onS
         const aArr=boardRanked.filter(x=>!x.isOut);
         const aIdx=aArr.findIndex(x=>x.name===u.name);
         return React.createElement('div',{key:u.name,onClick:()=>setViewPlayer(u.name),
-          style:{padding:"10px 14px",borderBottom:i<boardRanked.length-1?"1px solid var(--border)":"none",background:isMe&&!u.isOut?"rgba(91,141,239,.05)":u.status==="behind"&&!u.isOut?"rgba(232,69,69,.04)":"transparent",borderLeft:isMe&&!u.isOut?`3px solid ${avatarColor(user)}`:u.status==="behind"&&!u.isOut?"3px solid rgba(232,69,69,.4)":"3px solid transparent",opacity:u.isOut?.45:1,cursor:"pointer"}},
+          style:{padding:"10px 14px",borderBottom:i<boardRanked.length-1?"1px solid var(--border)":"none",background:isMe&&!u.isOut?"rgba(91,141,239,.05)":u.status==="cooked"&&!u.isOut?"rgba(232,69,69,.09)":u.status==="behind"&&!u.isOut?"rgba(232,69,69,.04)":u.status==="cruising"&&!u.isOut?"rgba(91,141,239,.07)":"transparent",borderLeft:isMe&&!u.isOut?`3px solid ${avatarColor(user)}`:u.status==="cooked"&&!u.isOut?"3px solid rgba(255,142,142,.75)":u.status==="behind"&&!u.isOut?"3px solid rgba(232,69,69,.4)":u.status==="cruising"&&!u.isOut?"3px solid rgba(91,141,239,.5)":"3px solid transparent",opacity:u.isOut?.45:1,cursor:"pointer"}},
           React.createElement('div',{style:{display:"flex",alignItems:"center",gap:8,marginBottom:u.isOut?0:6}},
             React.createElement('div',{style:{minWidth:20}},u.isOut?React.createElement('span',{style:{fontSize:12}},"💤"):React.createElement(RankIcon,{rank:aIdx+1})),
             React.createElement(Avatar,{name:u.name,size:22,muted:u.isOut}),
@@ -724,7 +740,7 @@ const TodayPage = ({user,logs,setLogs,excused,setExcused,monthHistory,saving,onS
           !u.isOut&&React.createElement('div',{style:{paddingLeft:28}},
             React.createElement(Bar,{value:u.count,max:MIN_TARGET,color:barColor(u.status)}),
             React.createElement('div',{style:{display:"flex",justifyContent:"space-between",marginTop:4}},
-              React.createElement('span',{className:"mono",style:{fontSize:10,fontWeight:700,color:getDiff(u.count)>0?"var(--green)":getDiff(u.count)<0?"var(--red)":"var(--amber)"}},diffLabel(u.count)),
+              React.createElement('span',{className:"mono",style:{fontSize:10,fontWeight:700,color:u.status==="cruising"?"var(--blue)":u.status==="on-track"?"var(--green)":u.status==="at-risk"?"var(--amber)":"var(--red)"}},u.status==="cooked"?"target out of reach":diffLabel(u.count)),
               React.createElement('span',{className:"mono",style:{fontSize:10,fontWeight:700,color:lastWorkout(logs[u.name])==='today'?'var(--green)':lastWorkout(logs[u.name])==='1 day ago'?'var(--amber)':'var(--red)'}},lastWorkout(logs[u.name])?`last: ${lastWorkout(logs[u.name])}`:"no logs")
             )
           )
@@ -751,12 +767,16 @@ const TodayPage = ({user,logs,setLogs,excused,setExcused,monthHistory,saving,onS
     // Pace + sit out mobile
     !isExcused&&React.createElement(Card,{style:{padding:14}},
       React.createElement('span',{className:"lbl"},"Pace Check"),
-      React.createElement(Bar,{value:me.count,max:Math.max(expected,1),color:me.count>=expected?"var(--green)":"var(--amber)",h:5}),
+      React.createElement(Bar,{value:me.count,max:Math.max(expected,1),color:barColor(me.status),h:5}),
       React.createElement('div',{style:{marginTop:10,marginBottom:2}},
-        React.createElement('div',{style:{fontSize:14,fontWeight:800,color:me.count>=expected?"var(--green)":getDiff(me.count)<=-4?"var(--red)":"var(--amber)"}},
-          me.count>=expected
-            ? `✓ You are ${me.count-expected===0?"on pace":`${me.count-expected} workout${me.count-expected!==1?"s":""} ahead`}`
-            : `⚠ You are ${expected-me.count} workout${expected-me.count!==1?"s":""} behind pace`
+        React.createElement('div',{style:{fontSize:14,fontWeight:800,color:me.status==="cruising"?"var(--blue)":me.status==="on-track"?"var(--green)":me.status==="at-risk"?"var(--amber)":"var(--red)"}},
+          me.status==="cooked"
+            ? `✕ Even perfect attendance from here won't get you to ${MIN_TARGET}`
+            : me.status==="cruising"
+              ? `⬆ You are cruising at ${me.count-expected} workout${me.count-expected!==1?"s":""} ahead of pace`
+              : me.count>=expected
+                ? `✓ You are ${me.count-expected===0?"on pace":`${me.count-expected} workout${me.count-expected!==1?"s":""} ahead`}`
+                : `⚠ You are ${expected-me.count} workout${expected-me.count!==1?"s":""} behind pace`
         )
       ),
       React.createElement('div',{style:{display:"flex",justifyContent:"space-between",marginTop:4}},
@@ -817,11 +837,11 @@ const TodayPage = ({user,logs,setLogs,excused,setExcused,monthHistory,saving,onS
           const aIdx=aArr.findIndex(x=>x.name===u.name);
           return React.createElement('div',{key:u.name,onClick:()=>setViewPlayer(u.name),
             style:{padding:"11px 15px",borderBottom:i<boardRanked.length-1?"1px solid var(--border)":"none",
-              background:isMe&&!u.isOut?"rgba(91,141,239,.05)":u.status==="behind"&&!u.isOut?"rgba(232,69,69,.04)":"transparent",
-              borderLeft:isMe&&!u.isOut?`2px solid ${avatarColor(user)}`:u.status==="behind"&&!u.isOut?"2px solid rgba(232,69,69,.4)":"2px solid transparent",
+              background:isMe&&!u.isOut?"rgba(91,141,239,.05)":u.status==="cooked"&&!u.isOut?"rgba(232,69,69,.09)":u.status==="behind"&&!u.isOut?"rgba(232,69,69,.04)":u.status==="cruising"&&!u.isOut?"rgba(91,141,239,.07)":"transparent",
+              borderLeft:isMe&&!u.isOut?`2px solid ${avatarColor(user)}`:u.status==="cooked"&&!u.isOut?"2px solid rgba(255,142,142,.75)":u.status==="behind"&&!u.isOut?"2px solid rgba(232,69,69,.4)":u.status==="cruising"&&!u.isOut?"2px solid rgba(91,141,239,.5)":"2px solid transparent",
               opacity:u.isOut?.45:1,cursor:"pointer",transition:"background .15s"},
             onMouseEnter:e=>e.currentTarget.style.background=isMe&&!u.isOut?"rgba(91,141,239,.08)":"var(--s2)",
-            onMouseLeave:e=>e.currentTarget.style.background=isMe&&!u.isOut?"rgba(91,141,239,.05)":u.status==="behind"&&!u.isOut?"rgba(232,69,69,.04)":"transparent"},
+            onMouseLeave:e=>e.currentTarget.style.background=isMe&&!u.isOut?"rgba(91,141,239,.05)":u.status==="cooked"&&!u.isOut?"rgba(232,69,69,.09)":u.status==="behind"&&!u.isOut?"rgba(232,69,69,.04)":u.status==="cruising"&&!u.isOut?"rgba(91,141,239,.07)":"transparent"},
             React.createElement('div',{style:{display:"flex",alignItems:"center",gap:9,marginBottom:u.isOut?0:7}},
               React.createElement('div',{style:{minWidth:22}},u.isOut?React.createElement('span',{style:{fontSize:13}},"💤"):React.createElement(RankIcon,{rank:aIdx+1})),
               React.createElement(Avatar,{name:u.name,size:24,muted:u.isOut}),
@@ -836,7 +856,7 @@ const TodayPage = ({user,logs,setLogs,excused,setExcused,monthHistory,saving,onS
             !u.isOut&&React.createElement('div',{style:{paddingLeft:31}},
               React.createElement(Bar,{value:u.count,max:MIN_TARGET,color:barColor(u.status)}),
               React.createElement('div',{style:{display:"flex",justifyContent:"space-between",marginTop:4}},
-                React.createElement('span',{className:"mono",style:{fontSize:10,fontWeight:700,color:getDiff(u.count)>0?"var(--green)":getDiff(u.count)<0?"var(--red)":"var(--amber)"}},diffLabel(u.count)),
+                React.createElement('span',{className:"mono",style:{fontSize:10,fontWeight:700,color:u.status==="cruising"?"var(--blue)":u.status==="on-track"?"var(--green)":u.status==="at-risk"?"var(--amber)":"var(--red)"}},u.status==="cooked"?"target out of reach":diffLabel(u.count)),
                 React.createElement('span',{className:"mono",style:{fontSize:10,fontWeight:700,color:lastWorkout(logs[u.name])==='today'?'var(--green)':lastWorkout(logs[u.name])==='1 day ago'?'var(--amber)':'var(--red)'}},lastWorkout(logs[u.name])?`last: ${lastWorkout(logs[u.name])}`:"no logs yet")
               )
             )
@@ -862,12 +882,16 @@ const TodayPage = ({user,logs,setLogs,excused,setExcused,monthHistory,saving,onS
         ),
         !isExcused&&React.createElement(Card,{style:{padding:15}},
           React.createElement('span',{className:"lbl"},"Pace Check"),
-          React.createElement(Bar,{value:me.count,max:Math.max(expected,1),color:me.count>=expected?"var(--green)":"var(--amber)",h:5}),
+          React.createElement(Bar,{value:me.count,max:Math.max(expected,1),color:barColor(me.status),h:5}),
           React.createElement('div',{style:{marginTop:10,marginBottom:2}},
-            React.createElement('div',{style:{fontSize:15,fontWeight:800,color:me.count>=expected?"var(--green)":getDiff(me.count)<=-4?"var(--red)":"var(--amber)"}},
-              me.count>=expected
-                ? `✓ You are ${me.count-expected===0?"on pace":`${me.count-expected} workout${me.count-expected!==1?"s":""} ahead of pace`}`
-                : `⚠ You are ${expected-me.count} workout${expected-me.count!==1?"s":""} behind pace`
+            React.createElement('div',{style:{fontSize:15,fontWeight:800,color:me.status==="cruising"?"var(--blue)":me.status==="on-track"?"var(--green)":me.status==="at-risk"?"var(--amber)":"var(--red)"}},
+              me.status==="cooked"
+                ? `✕ Even perfect attendance from here won't get you to ${MIN_TARGET}`
+                : me.status==="cruising"
+                  ? `⬆ You are cruising at ${me.count-expected} workout${me.count-expected!==1?"s":""} ahead of pace`
+                  : me.count>=expected
+                    ? `✓ You are ${me.count-expected===0?"on pace":`${me.count-expected} workout${me.count-expected!==1?"s":""} ahead of pace`}`
+                    : `⚠ You are ${expected-me.count} workout${expected-me.count!==1?"s":""} behind pace`
             )
           ),
           React.createElement('div',{style:{display:"flex",justifyContent:"space-between",marginTop:4}},
@@ -912,12 +936,11 @@ const MonthPage = ({logs,excused,monthHistory}) => {
   const sorted=[...counts].sort((a,b)=>{if(a.isOut&&!b.isOut)return 1;if(!a.isOut&&b.isOut)return -1;return b.count-a.count;});
   const {winners,losers,perLoser,totalPot,perWinner}=calcPenalties(activeCounts);
   const hasActivity=activeCounts.some(u=>u.count>0);
-  // At Risk = active, not a loser, not a winner, but within 3 of pace
+  // At Risk = active, not a loser, not a winner, and currently tagged at-risk.
   const atRisk=isCurrent?activeCounts.filter(u=>{
-    const diff=getDiff(u.count);
     const isWinner=winners.find(w=>w.name===u.name);
     const isLoser=losers.find(l=>l.name===u.name);
-    return !isWinner&&!isLoser&&diff<0&&diff>=-3;
+    return !isWinner&&!isLoser&&getStatus(u.count)==="at-risk";
   }):[];
 
   const monthLabel=isCurrent?`${MONTH_NAMES[CUR_MONTH]} ${CUR_YEAR}`:selMonth.label;
