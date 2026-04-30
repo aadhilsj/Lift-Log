@@ -3,6 +3,8 @@ const JSONBIN_MASTER_KEY = "$2a$10$kSWJI9a9oo0zyoxJu4m03u793Cr6jq59Y9s6zyatxxNqz
 const JSONBIN_ACCESS_KEY = "$2a$10$EKPe7czcS5Yqun7TkKvz.e7sJASKZ7xL0sq9TigEY4P2M7YgVz7TS";
 const MIN_TARGET = 12;
 const LEAGUE_TIME_ZONE = "Europe/Oslo";
+const NAMES = ["Aadhil","Isira","Rahul","Kisal","Rishane","Deyhan","Aysha","Nishara"];
+const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
 function normalizeState(data) {
   return {
@@ -78,6 +80,12 @@ function buildDefaultSettlements(month) {
   );
 }
 
+function buildMonthLogsSnapshot(logsByName) {
+  return Object.fromEntries(
+    NAMES.map(name => [name, [...(logsByName?.[name] || [])]])
+  );
+}
+
 function normalizeMonthHistory(monthHistory) {
   return (Array.isArray(monthHistory) ? monthHistory : []).map(month => ({
     ...month,
@@ -96,12 +104,12 @@ function rolloverStateIfNeeded(data) {
   const curDate = new Date(cy, cm, 1);
   if (lastDate >= curDate) return base;
 
-  const label = `${["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][lm]} '${String(ly).slice(2)}`;
+  const label = `${MONTH_NAMES[lm]} '${String(ly).slice(2)}`;
   const counts = Object.fromEntries(
-    ["Aadhil","Isira","Rahul","Kisal","Rishane","Deyhan","Aysha","Nishara"].map(name => [name, (base.logs?.[name] || []).length])
+    NAMES.map(name => [name, (base.logs?.[name] || []).length])
   );
   const excused = Object.fromEntries(
-    ["Aadhil","Isira","Rahul","Kisal","Rishane","Deyhan","Aysha","Nishara"].map(name => [name, base.excused?.[name]?.[base.lastMonth] || false])
+    NAMES.map(name => [name, base.excused?.[name]?.[base.lastMonth] || false])
   );
   const snapshot = {
     key: base.lastMonth,
@@ -110,6 +118,7 @@ function rolloverStateIfNeeded(data) {
     month: lm,
     counts,
     excused,
+    logsByUser: buildMonthLogsSnapshot(base.logs),
     settlements: buildDefaultSettlements({ counts, excused })
   };
 
