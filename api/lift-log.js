@@ -3,6 +3,7 @@ const JSONBIN_MASTER_KEY = "$2a$10$kSWJI9a9oo0zyoxJu4m03u793Cr6jq59Y9s6zyatxxNqz
 const JSONBIN_ACCESS_KEY = "$2a$10$EKPe7czcS5Yqun7TkKvz.e7sJASKZ7xL0sq9TigEY4P2M7YgVz7TS";
 const MIN_TARGET = 12;
 const LEAGUE_TIME_ZONE = "Europe/Oslo";
+const LEAGUE_CUTOFF_HOUR = 2;
 const NAMES = ["Aadhil","Isira","Rahul","Kisal","Rishane","Deyhan","Aysha","Nishara"];
 const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
@@ -24,13 +25,23 @@ function getLeagueDateParts() {
     timeZone: LEAGUE_TIME_ZONE,
     year: "numeric",
     month: "2-digit",
-    day: "2-digit"
+    day: "2-digit",
+    hour: "2-digit",
+    hour12: false
   }).formatToParts(new Date());
 
+  const year = Number(parts.find(part => part.type === "year").value);
+  const month = Number(parts.find(part => part.type === "month").value);
+  const day = Number(parts.find(part => part.type === "day").value);
+  const hour = Number(parts.find(part => part.type === "hour").value);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (hour < LEAGUE_CUTOFF_HOUR) {
+    date.setUTCDate(date.getUTCDate() - 1);
+  }
   return {
-    year: Number(parts.find(part => part.type === "year").value),
-    month: Number(parts.find(part => part.type === "month").value),
-    day: Number(parts.find(part => part.type === "day").value)
+    year: date.getUTCFullYear(),
+    month: date.getUTCMonth() + 1,
+    day: date.getUTCDate()
   };
 }
 
