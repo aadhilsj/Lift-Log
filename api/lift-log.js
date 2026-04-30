@@ -2,6 +2,7 @@ const BIN_ID = "69d986cc36566621a89de1ef";
 const JSONBIN_MASTER_KEY = "$2a$10$kSWJI9a9oo0zyoxJu4m03u793Cr6jq59Y9s6zyatxxNqzBFfDeoUS";
 const JSONBIN_ACCESS_KEY = "$2a$10$EKPe7czcS5Yqun7TkKvz.e7sJASKZ7xL0sq9TigEY4P2M7YgVz7TS";
 const MIN_TARGET = 12;
+const LEAGUE_TIME_ZONE = "Europe/Oslo";
 
 function normalizeState(data) {
   return {
@@ -14,6 +15,36 @@ function normalizeState(data) {
       updatedAt: data?.meta?.updatedAt || null
     }
   };
+}
+
+function getLeagueDateParts() {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: LEAGUE_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).formatToParts(new Date());
+
+  return {
+    year: Number(parts.find(part => part.type === "year").value),
+    month: Number(parts.find(part => part.type === "month").value),
+    day: Number(parts.find(part => part.type === "day").value)
+  };
+}
+
+function getLeagueMonthKey() {
+  const today = getLeagueDateParts();
+  return `${today.year}-${today.month - 1}`;
+}
+
+function compareMonthKeys(a, b) {
+  if (!a && !b) return 0;
+  if (!a) return -1;
+  if (!b) return 1;
+  const [ay, am] = a.split("-").map(Number);
+  const [by, bm] = b.split("-").map(Number);
+  if (ay !== by) return ay - by;
+  return am - bm;
 }
 
 function calcPenalties(activeCounts) {
@@ -54,6 +85,46 @@ function normalizeMonthHistory(monthHistory) {
   }));
 }
 
+function rolloverStateIfNeeded(data) {
+  const base = normalizeState(data);
+  const expectedKey = getLeagueMonthKey();
+  if (!base.lastMonth || base.lastMonth === expectedKey) return base;
+
+  const [ly, lm] = base.lastMonth.split("-").map(Number);
+  const [cy, cm] = expectedKey.split("-").map(Number);
+  const lastDate = new Date(ly, lm, 1);
+  const curDate = new Date(cy, cm, 1);
+  if (lastDate >= curDate) return base;
+
+  const label = `${["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][lm]} '${String(ly).slice(2)}`;
+  const counts = Object.fromEntries(
+    ["Aadhil","Isira","Rahul","Kisal","Rishane","Deyhan","Aysha","Nishara"].map(name => [name, (base.logs?.[name] || []).length])
+  );
+  const excused = Object.fromEntries(
+    ["Aadhil","Isira","Rahul","Kisal","Rishane","Deyhan","Aysha","Nishara"].map(name => [name, base.excused?.[name]?.[base.lastMonth] || false])
+  );
+  const snapshot = {
+    key: base.lastMonth,
+    label,
+    year: ly,
+    month: lm,
+    counts,
+    excused,
+    settlements: buildDefaultSettlements({ counts, excused })
+  };
+
+  return {
+    logs: {},
+    excused: {},
+    monthHistory: [...normalizeMonthHistory(base.monthHistory), snapshot],
+    lastMonth: expectedKey,
+    meta: {
+      revision: base.meta.revision + 1,
+      updatedAt: new Date().toISOString()
+    }
+  };
+}
+
 async function fetchCurrentState() {
   const upstream = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}/latest`, {
     headers: {
@@ -70,19 +141,21 @@ async function fetchCurrentState() {
   }
 
   const json = JSON.parse(text);
-  return normalizeState(json.record || {});
+  return rolloverStateIfNeeded(json.record || {});
 }
 
 function mergeState(current, incoming) {
-  const base = normalizeState(current);
+  const base = rolloverStateIfNeeded(current);
   const next = normalizeState(incoming);
   const actor = incoming?.actor || null;
+  const leagueMonthKey = getLeagueMonthKey();
+  const incomingMonthKey = next.lastMonth || null;
 
   const merged = {
     logs: { ...base.logs },
     excused: { ...base.excused },
     monthHistory: normalizeMonthHistory(base.monthHistory),
-    lastMonth: next.lastMonth || base.lastMonth,
+    lastMonth: actor ? base.lastMonth : (compareMonthKeys(next.lastMonth, base.lastMonth) >= 0 ? (next.lastMonth || base.lastMonth) : base.lastMonth),
     meta: {
       revision: Math.max(base.meta.revision, next.meta.revision) + 1,
       updatedAt: new Date().toISOString()
@@ -90,6 +163,11 @@ function mergeState(current, incoming) {
   };
 
   if (actor) {
+    if (incomingMonthKey && incomingMonthKey !== leagueMonthKey) {
+      const error = new Error("Month changed. Refresh before logging.");
+      error.status = 409;
+      throw error;
+    }
     if (next.logs && Object.prototype.hasOwnProperty.call(next.logs, actor)) {
       merged.logs[actor] = next.logs[actor] || [];
     }
@@ -101,7 +179,7 @@ function mergeState(current, incoming) {
     merged.excused = next.excused;
   }
 
-  if (next.monthHistory.length > base.monthHistory.length || (next.lastMonth && next.lastMonth !== base.lastMonth)) {
+  if (!actor && compareMonthKeys(next.lastMonth, base.lastMonth) >= 0 && (next.monthHistory.length > base.monthHistory.length || (next.lastMonth && next.lastMonth !== base.lastMonth))) {
     merged.monthHistory = normalizeMonthHistory(next.monthHistory);
   }
 
@@ -121,7 +199,7 @@ function applySettlementUpdate(current, payload) {
     throw error;
   }
 
-  const base = normalizeState(current);
+  const base = rolloverStateIfNeeded(current);
   const monthHistory = normalizeMonthHistory(base.monthHistory);
   const monthIndex = monthHistory.findIndex(month => month.key === payload?.monthKey);
   if (monthIndex === -1) {
