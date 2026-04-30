@@ -99,11 +99,25 @@
 const NAMES         = ["Aadhil","Isira","Rahul","Kisal","Rishane","Deyhan","Aysha","Nishara"];
 const WORKOUT_TYPES = ["Gym","Run","Sport","Hike","Other"];
 const MIN_TARGET    = 12;
-const TODAY         = new Date();
-const CUR_MONTH     = TODAY.getMonth();
-const CUR_YEAR      = TODAY.getFullYear();
+const LEAGUE_TIME_ZONE = "Europe/Oslo";
+const getLeagueDateParts = () => {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: LEAGUE_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).formatToParts(new Date());
+  return {
+    year: Number(parts.find(part => part.type === "year").value),
+    month: Number(parts.find(part => part.type === "month").value),
+    day: Number(parts.find(part => part.type === "day").value)
+  };
+};
+const LEAGUE_TODAY   = getLeagueDateParts();
+const CUR_MONTH     = LEAGUE_TODAY.month - 1;
+const CUR_YEAR      = LEAGUE_TODAY.year;
 const DAYS_IN_MON   = new Date(CUR_YEAR, CUR_MONTH+1, 0).getDate();
-const DAY_OF_MON    = TODAY.getDate();
+const DAY_OF_MON    = LEAGUE_TODAY.day;
 const MONTH_NAMES   = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const AVATAR_COLORS = ["#5b8def","#22d46c","#f5a623","#f04f4f","#ec4899","#14b8a6","#f97316","#a78bfa"];
 const avatarColor   = n => AVATAR_COLORS[NAMES.indexOf(n) % AVATAR_COLORS.length];
@@ -113,7 +127,7 @@ const localISO = d => {
   const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,"0"), day=String(d.getDate()).padStart(2,"0");
   return `${y}-${m}-${day}`;
 };
-const TODAY_ISO = localISO(TODAY);
+const TODAY_ISO = `${CUR_YEAR}-${String(CUR_MONTH+1).padStart(2,"0")}-${String(DAY_OF_MON).padStart(2,"0")}`;
 const curKey    = `${CUR_YEAR}-${CUR_MONTH}`;
 const INSTALL_DISMISSED_KEY = "ll_pwa_install_dismissed";
 const LOCAL_CACHE_KEY = "ll_cached_data_v1";
@@ -1416,13 +1430,15 @@ const App = () => {
         }
       } else {
         setSyncError(true);
+        await refreshNow();
       }
     }catch(e){
       console.error("Save failed",e);
       setSyncError(true);
+      await refreshNow();
     }
     setSaving(false);
-  },[applyData]);
+  },[applyData, refreshNow]);
 
   const handleSettlementChange = useCallback(async(monthKey, player, settled, pin)=>{
     const result = await updateSettlementData(monthKey, player, settled, pin);
