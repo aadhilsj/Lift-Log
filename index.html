@@ -199,6 +199,12 @@ function getMonthSettlements(month) {
   return month?.settlements || buildSettlementMap(month?.counts || {}, month?.excused || {});
 }
 
+function buildMonthLogsSnapshot(logsByName) {
+  return Object.fromEntries(
+    NAMES.map(name => [name, [...(logsByName?.[name] || [])]])
+  );
+}
+
 // ─── AUTO ROLLOVER ────────────────────────────────────────────────────────────
 function checkRollover(data) {
   const { logs, excused, monthHistory, lastMonth } = data;
@@ -221,7 +227,16 @@ function checkRollover(data) {
   const counts  = Object.fromEntries(NAMES.map(n => [n, (logs[n]||[]).length]));
   const exc     = Object.fromEntries(NAMES.map(n => [n, excused[n]?.[prevKey]||false]));
 
-  const snapshot = { key: prevKey, label, year: prevYear, month: prevMonth, counts, excused: exc, settlements: buildSettlementMap(counts, exc) };
+  const snapshot = {
+    key: prevKey,
+    label,
+    year: prevYear,
+    month: prevMonth,
+    counts,
+    excused: exc,
+    logsByUser: buildMonthLogsSnapshot(logs),
+    settlements: buildSettlementMap(counts, exc)
+  };
   const newHistory = [...(monthHistory||[]), snapshot];
 
   // Clear current logs and excused for new month
@@ -577,15 +592,19 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack}) => {
     : (selHistMonth?.excused?.[name]||false);
 
   // Logs for selected period
-  const selLogs = isCurMonth ? (logs[name]||[]) : [];
+  const selLogs = isCurMonth ? (logs[name]||[]) : (selHistMonth?.logsByUser?.[name] || []);
+  const hasDetailedLogs = isCurMonth || Boolean(selHistMonth?.logsByUser);
   const hasHistory=monthHistory.length>0;
   const netPL=closedStats.moneyWon-closedStats.moneyLost;
   const needed=Math.max(0,MIN_TARGET-selCount);
   const tBreak={};WORKOUT_TYPES.forEach(t=>tBreak[t]=0);
   selLogs.forEach(l=>{if(tBreak[l.type]!==undefined)tBreak[l.type]++;});
   const maxT=Math.max(...Object.values(tBreak),1);
-  const firstDay=new Date(CUR_YEAR,CUR_MONTH,1).getDay();
-  const calDays=[...Array(firstDay).fill(null),...Array.from({length:DAYS_IN_MON},(_,i)=>i+1)];
+  const selYear = isCurMonth ? CUR_YEAR : (selHistMonth?.year ?? CUR_YEAR);
+  const selMonthNum = isCurMonth ? CUR_MONTH : (selHistMonth?.month ?? CUR_MONTH);
+  const selDaysInMonth = new Date(selYear, selMonthNum + 1, 0).getDate();
+  const firstDay=new Date(selYear, selMonthNum, 1).getDay();
+  const calDays=[...Array(firstDay).fill(null),...Array.from({length:selDaysInMonth},(_,i)=>i+1)];
   const logsByDay={};selLogs.forEach(l=>{const d=parseInt(l.date.split("-")[2]);logsByDay[d]=l;});
   const selLabel=isCurMonth?`${MONTH_NAMES[CUR_MONTH]} '${String(CUR_YEAR).slice(2)}`:selHistMonth?.label;
 
@@ -642,7 +661,9 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack}) => {
     ),
     !isExcusedThisMonth&&React.createElement(Card,{className:"fu3",style:{padding:"16px"}},
       React.createElement('div',{style:{fontWeight:800,fontSize:14,marginBottom:14}},`Workout Breakdown — ${selLabel}`),
-      selCount===0
+      !hasDetailedLogs
+        ? React.createElement('div',{style:{color:"var(--muted)",fontSize:13,textAlign:"center",padding:"8px 0"}},"Detailed logs were not saved for this month.")
+        : selCount===0
         ? React.createElement('div',{style:{color:"var(--muted)",fontSize:13,textAlign:"center",padding:"8px 0"}},"No workouts logged yet.")
         : WORKOUT_TYPES.map(t=>React.createElement('div',{key:t,style:{display:"flex",alignItems:"center",gap:10,marginBottom:9}},
             React.createElement('span',{style:{fontSize:18,minWidth:22}},WORKOUT_ICONS[t]),
@@ -659,13 +680,13 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack}) => {
       React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3}},
         calDays.map((day,i)=>{
           if(!day) return React.createElement('div',{key:`e${i}`});
-          const isToday=day===DAY_OF_MON,log=logsByDay[day],isFuture=day>DAY_OF_MON;
+          const isToday=isCurMonth&&day===DAY_OF_MON,log=logsByDay[day],isFuture=isCurMonth&&day>DAY_OF_MON;
           return React.createElement('div',{key:day,style:{aspectRatio:"1",display:"flex",alignItems:"center",justifyContent:"center",borderRadius:6,fontSize:log?13:10,fontFamily:log?"inherit":"'JetBrains Mono',monospace",fontWeight:log?700:400,background:log?avatarColor(name):isToday?"var(--s2)":"transparent",color:log?"#fff":isFuture?"var(--muted2)":isToday?"var(--text)":"var(--muted)",border:isToday&&!log?"1px solid var(--border2)":"1px solid transparent"}},log?WORKOUT_ICONS[log.type]:day);
         })
       ),
-      selCount>0&&React.createElement('div',{style:{marginTop:14,borderTop:"1px solid var(--border)",paddingTop:12}},
+      hasDetailedLogs&&selCount>0&&React.createElement('div',{style:{marginTop:14,borderTop:"1px solid var(--border)",paddingTop:12}},
         React.createElement('span',{className:"lbl",style:{marginBottom:8}},"All Logs"),
-        ([...(logs[name]||[])]).sort((a,b)=>b.date.localeCompare(a.date)).map((l,i,arr)=>
+        ([...selLogs]).sort((a,b)=>b.date.localeCompare(a.date)).map((l,i,arr)=>
           React.createElement('div',{key:l.id,style:{display:"flex",alignItems:"center",gap:10,paddingBottom:7,marginBottom:7,borderBottom:i<arr.length-1?"1px solid var(--border)":"none"}},
             React.createElement('span',{style:{fontSize:16}},WORKOUT_ICONS[l.type]),
             React.createElement('div',{style:{flex:1,fontWeight:600,fontSize:14}},l.type),
