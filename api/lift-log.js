@@ -86,6 +86,21 @@ function buildMonthLogsSnapshot(logsByName) {
   );
 }
 
+function rebuildMonthSnapshot(month, logsByUser) {
+  const nextLogsByUser = buildMonthLogsSnapshot(logsByUser);
+  const counts = Object.fromEntries(
+    NAMES.map(name => [name, (nextLogsByUser[name] || []).length])
+  );
+  const excused = month?.excused || Object.fromEntries(NAMES.map(name => [name, false]));
+  return {
+    ...month,
+    counts,
+    excused,
+    logsByUser: nextLogsByUser,
+    settlements: buildDefaultSettlements({ counts, excused })
+  };
+}
+
 function normalizeMonthHistory(monthHistory) {
   return (Array.isArray(monthHistory) ? monthHistory : []).map(month => ({
     ...month,
@@ -182,6 +197,19 @@ function mergeState(current, incoming) {
     }
     if (next.excused && Object.prototype.hasOwnProperty.call(next.excused, actor)) {
       merged.excused[actor] = next.excused[actor] || {};
+    }
+    if (Array.isArray(next.monthHistory) && next.monthHistory.length) {
+      const nextHistory = normalizeMonthHistory(next.monthHistory);
+      merged.monthHistory = merged.monthHistory.map(baseMonth => {
+        const incomingMonth = nextHistory.find(month => month.key === baseMonth.key);
+        if (!incomingMonth?.logsByUser || !Object.prototype.hasOwnProperty.call(incomingMonth.logsByUser, actor)) {
+          return baseMonth;
+        }
+        return rebuildMonthSnapshot(baseMonth, {
+          ...(baseMonth.logsByUser || {}),
+          [actor]: incomingMonth.logsByUser[actor] || []
+        });
+      });
     }
   } else {
     merged.logs = next.logs;
