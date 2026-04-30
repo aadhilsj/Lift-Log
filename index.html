@@ -205,6 +205,26 @@ function buildMonthLogsSnapshot(logsByName) {
   );
 }
 
+function getMonthKeyFromISO(iso) {
+  const [year, month] = iso.split("-").map(Number);
+  return `${year}-${month - 1}`;
+}
+
+function rebuildMonthSnapshot(month, logsByUser) {
+  const nextLogsByUser = buildMonthLogsSnapshot(logsByUser);
+  const counts = Object.fromEntries(
+    NAMES.map(name => [name, (nextLogsByUser[name] || []).length])
+  );
+  const excused = month?.excused || Object.fromEntries(NAMES.map(name => [name, false]));
+  return {
+    ...month,
+    counts,
+    excused,
+    logsByUser: nextLogsByUser,
+    settlements: buildSettlementMap(counts, excused)
+  };
+}
+
 // ─── AUTO ROLLOVER ────────────────────────────────────────────────────────────
 function checkRollover(data) {
   const { logs, excused, monthHistory, lastMonth } = data;
@@ -732,6 +752,24 @@ const TodayPage = ({user,logs,setLogs,excused,setExcused,monthHistory,saving,onS
 
   const doLog=(wType,isoDate)=>{
     const newLog={date:isoDate,type:wType,id:Date.now()};
+    const targetKey = getMonthKeyFromISO(isoDate);
+    if (targetKey !== curKey) {
+      const monthIndex = monthHistory.findIndex(month => month.key === targetKey);
+      if (monthIndex === -1) {
+        window.alert("That month is already closed and no editable snapshot was found.");
+        return;
+      }
+      const targetMonth = monthHistory[monthIndex];
+      const nextMonthLogs = [...(targetMonth.logsByUser?.[user] || []), newLog];
+      const nextMonthHistory = [...monthHistory];
+      nextMonthHistory[monthIndex] = rebuildMonthSnapshot(targetMonth, {
+        ...(targetMonth.logsByUser || {}),
+        [user]: nextMonthLogs
+      });
+      onSave({actor:user,logs,excused,monthHistory:nextMonthHistory,lastMonth:curKey});
+      setShowLog(false);
+      return;
+    }
     const newLogs={...logs,[user]:[...(logs[user]||[]),newLog]};
     setLogs(newLogs);
     onSave({actor:user,logs:newLogs,excused,monthHistory,lastMonth:curKey});
@@ -1172,9 +1210,19 @@ const MonthPage = ({logs,excused,monthHistory,onSettlementChange}) => {
 const HistoryPage = ({logs,excused,monthHistory}) => {
   const [selected,setSelected]=useState(null);
 
+  const currentMonthSnapshot = useMemo(() => ({
+    key: curKey,
+    label: `${MONTH_NAMES[CUR_MONTH]} '${String(CUR_YEAR).slice(2)}`,
+    counts: Object.fromEntries(NAMES.map(name => [name, (logs[name]||[]).length])),
+    excused: Object.fromEntries(NAMES.map(name => [name, excused[name]?.[curKey]||false])),
+    logsByUser: buildMonthLogsSnapshot(logs),
+    isCurrent: true
+  }), [logs, excused]);
+
+  const fullHistory = useMemo(() => [...monthHistory, currentMonthSnapshot], [monthHistory, currentMonthSnapshot]);
+
   const allTime=useMemo(()=>NAMES.map(name=>{
-    const allMonths=[...monthHistory,{key:curKey,counts:Object.fromEntries(NAMES.map(n=>[n,(logs[n]||[]).length])),excused:Object.fromEntries(NAMES.map(n=>[n,excused[n]?.[curKey]||false]))}];
-    const participated=allMonths.filter(m=>!m.excused?.[name]);
+    const participated=fullHistory.filter(m=>!m.excused?.[name]);
     const total=participated.reduce((s,m)=>s+(m.counts[name]||0),0);
     const closedP=monthHistory.filter(m=>!m.excused?.[name]);
     const closedTotal=closedP.reduce((s,m)=>s+(m.counts[name]||0),0);
@@ -1188,14 +1236,23 @@ const HistoryPage = ({logs,excused,monthHistory}) => {
       if(losers.find(l=>l.name===name)){moneyLost+=perLoser;}
     });
     return {name,total,avg,wins,moneyWon,moneyLost};
-  }),[logs,excused,monthHistory]);
+  }),[fullHistory, monthHistory]);
 
   const groupMonthlyAvg=useMemo(()=>{
-    const allMonths=[...monthHistory,{key:curKey,label:`${MONTH_NAMES[CUR_MONTH]} '${String(CUR_YEAR).slice(2)}`,counts:Object.fromEntries(NAMES.map(n=>[n,(logs[n]||[]).length])),excused:Object.fromEntries(NAMES.map(n=>[n,excused[n]?.[curKey]||false])),isCurrent:true}];
-    return allMonths.map(m=>{const active=NAMES.filter(n=>!m.excused?.[n]);const vals=active.map(n=>m.counts[n]||0);const avg=vals.length?vals.reduce((a,b)=>a+b,0)/vals.length:0;return {label:m.label||m.key,avg,isCurrent:!!m.isCurrent};});
-  },[logs,excused,monthHistory]);
+    return fullHistory.map(m=>{const active=NAMES.filter(n=>!m.excused?.[n]);const vals=active.map(n=>m.counts[n]||0);const avg=vals.length?vals.reduce((a,b)=>a+b,0)/vals.length:0;return {label:m.label||m.key,avg,isCurrent:!!m.isCurrent};});
+  },[fullHistory]);
 
-  const groupTypeBreakdown=useMemo(()=>{const c={};WORKOUT_TYPES.forEach(t=>c[t]=0);NAMES.forEach(n=>(logs[n]||[]).forEach(l=>{if(c[l.type]!==undefined)c[l.type]++;}));return c;},[logs]);
+  const groupTypeBreakdown=useMemo(()=>{
+    const c={};WORKOUT_TYPES.forEach(t=>c[t]=0);
+    fullHistory.forEach(month=>{
+      NAMES.forEach(name=>{
+        (month.logsByUser?.[name] || []).forEach(log=>{
+          if(c[log.type]!==undefined)c[log.type]++;
+        });
+      });
+    });
+    return c;
+  },[fullHistory]);
   const totalGroupLogs=Object.values(groupTypeBreakdown).reduce((a,b)=>a+b,0);
   const maxTypeCount=Math.max(...Object.values(groupTypeBreakdown),1);
   const sortedAll=[...allTime].sort((a,b)=>b.total-a.total);
@@ -1210,7 +1267,7 @@ const HistoryPage = ({logs,excused,monthHistory}) => {
 
   return React.createElement('div',{style:{maxWidth:960,margin:"0 auto",padding:"16px",display:"flex",flexDirection:"column",gap:12}},
     React.createElement('div',{className:"fu"},
-      React.createElement('span',{className:"mono",style:{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".12em",display:"block",marginBottom:3}},"Fresh start · Apr '26"),
+      React.createElement('span',{className:"mono",style:{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".12em",display:"block",marginBottom:3}},`Fresh start · ${monthHistory[0]?.label || currentMonthSnapshot.label}`),
       React.createElement('div',{style:{fontSize:24,fontWeight:800}},"History")
     ),
     // Summary cards — 2x2 on mobile, 4 on desktop
