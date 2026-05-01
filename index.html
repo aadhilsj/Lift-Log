@@ -1415,6 +1415,27 @@ const App = () => {
   const latestRevisionRef = useRef(getRevision(readCachedData()));
   const justSyncedTimerRef = useRef(null);
 
+  const buildOptimisticState = useCallback((incoming) => {
+    const actor = incoming?.actor || null;
+    const nextLogs = actor
+      ? { ...logs, ...(incoming.logs && Object.prototype.hasOwnProperty.call(incoming.logs, actor) ? { [actor]: incoming.logs[actor] || [] } : {}) }
+      : (incoming.logs || logs);
+    const nextExcused = actor
+      ? { ...excused, ...(incoming.excused && Object.prototype.hasOwnProperty.call(incoming.excused, actor) ? { [actor]: incoming.excused[actor] || {} } : {}) }
+      : (incoming.excused || excused);
+    const nextMonthHistory = incoming.monthHistory || monthHistory;
+    return {
+      logs: nextLogs,
+      excused: nextExcused,
+      monthHistory: nextMonthHistory,
+      lastMonth: incoming.lastMonth || curKey,
+      meta: {
+        revision: latestRevisionRef.current,
+        updatedAt: new Date().toISOString()
+      }
+    };
+  }, [logs, excused, monthHistory]);
+
   useEffect(()=>{
     if(!("serviceWorker" in navigator)) return;
     navigator.serviceWorker.register("./sw.js").catch(err=>console.error("Service worker registration failed", err));
@@ -1540,7 +1561,7 @@ const App = () => {
 
   const handleSave=useCallback(async(newData)=>{
     const payload = {...newData,lastMonth:curKey};
-    writeCachedData(payload);
+    writeCachedData(buildOptimisticState(payload));
     setSaving(true);
     try{
       const saved = await saveData(payload);
@@ -1560,7 +1581,7 @@ const App = () => {
       await refreshNow();
     }
     setSaving(false);
-  },[applyData, refreshNow]);
+  },[applyData, buildOptimisticState, refreshNow]);
 
   const handleSettlementChange = useCallback(async(monthKey, player, settled, pin)=>{
     const result = await updateSettlementData(monthKey, player, settled, pin);
