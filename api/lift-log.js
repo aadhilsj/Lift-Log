@@ -4,8 +4,9 @@ const JSONBIN_ACCESS_KEY = "$2a$10$EKPe7czcS5Yqun7TkKvz.e7sJASKZ7xL0sq9TigEY4P2M
 const MIN_TARGET = 12;
 const LEAGUE_TIME_ZONE = "Europe/Oslo";
 const LEAGUE_CUTOFF_HOUR = 2;
-const NAMES = ["Aadhil","Isira","Rahul","Kisal","Rishane","Deyhan","Aysha","Nishara"];
+const NAMES = ["Aadhil","Isira","Rahul","Kisal","Rishane","Deyhan","Aysha","Nishara","Abhishek"];
 const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const JOINED_MONTH_BY_NAME = { Abhishek: "2026-4" };
 
 function normalizeState(data) {
   return {
@@ -60,6 +61,11 @@ function compareMonthKeys(a, b) {
   return am - bm;
 }
 
+function isJoinedForMonth(name, monthKey) {
+  const joinedMonth = JOINED_MONTH_BY_NAME[name];
+  return !joinedMonth || compareMonthKeys(monthKey, joinedMonth) >= 0;
+}
+
 function calcPenalties(activeCounts) {
   if (!activeCounts.length) return { winners: [], losers: [], perLoser: 0, totalPot: 0, perWinner: 0 };
   const sorted = [...activeCounts].sort((a, b) => b.count - a.count);
@@ -75,7 +81,9 @@ function calcPenalties(activeCounts) {
 }
 
 function buildDefaultSettlements(month) {
+  const monthKey = month.key || `${month.year}-${month.month}`;
   const activeCounts = Object.keys(month.counts || {})
+    .filter(name => isJoinedForMonth(name, monthKey))
     .filter(name => !(month.excused?.[name]))
     .map(name => ({ name, count: month.counts?.[name] || 0 }));
   const { losers } = calcPenalties(activeCounts);
@@ -98,11 +106,13 @@ function buildMonthLogsSnapshot(logsByName) {
 }
 
 function rebuildMonthSnapshot(month, logsByUser) {
+  const monthKey = month?.key;
+  const relevantNames = NAMES.filter(name => isJoinedForMonth(name, monthKey));
   const nextLogsByUser = buildMonthLogsSnapshot(logsByUser);
   const counts = Object.fromEntries(
-    NAMES.map(name => [name, (nextLogsByUser[name] || []).length])
+    relevantNames.map(name => [name, (nextLogsByUser[name] || []).length])
   );
-  const excused = month?.excused || Object.fromEntries(NAMES.map(name => [name, false]));
+  const excused = month?.excused || Object.fromEntries(relevantNames.map(name => [name, false]));
   return {
     ...month,
     counts,
@@ -131,11 +141,12 @@ function rolloverStateIfNeeded(data) {
   if (lastDate >= curDate) return base;
 
   const label = `${MONTH_NAMES[lm]} '${String(ly).slice(2)}`;
+  const relevantNames = NAMES.filter(name => isJoinedForMonth(name, base.lastMonth));
   const counts = Object.fromEntries(
-    NAMES.map(name => [name, (base.logs?.[name] || []).length])
+    relevantNames.map(name => [name, (base.logs?.[name] || []).length])
   );
   const excused = Object.fromEntries(
-    NAMES.map(name => [name, base.excused?.[name]?.[base.lastMonth] || false])
+    relevantNames.map(name => [name, base.excused?.[name]?.[base.lastMonth] || false])
   );
   const snapshot = {
     key: base.lastMonth,
