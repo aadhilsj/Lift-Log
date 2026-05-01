@@ -96,11 +96,12 @@
   <div id="root"></div>
   <script type="text/babel" data-presets="react">
 
-const NAMES         = ["Aadhil","Isira","Rahul","Kisal","Rishane","Deyhan","Aysha","Nishara"];
+const NAMES         = ["Aadhil","Isira","Rahul","Kisal","Rishane","Deyhan","Aysha","Nishara","Abhishek"];
 const WORKOUT_TYPES = ["Gym","Run","Sport","Hike","Other"];
 const MIN_TARGET    = 12;
 const LEAGUE_TIME_ZONE = "Europe/Oslo";
 const LEAGUE_CUTOFF_HOUR = 2;
+const JOINED_MONTH_BY_NAME = { Abhishek: "2026-4" };
 const getLeagueDateParts = () => {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: LEAGUE_TIME_ZONE,
@@ -130,7 +131,7 @@ const CUR_YEAR      = LEAGUE_TODAY.year;
 const DAYS_IN_MON   = new Date(CUR_YEAR, CUR_MONTH+1, 0).getDate();
 const DAY_OF_MON    = LEAGUE_TODAY.day;
 const MONTH_NAMES   = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-const AVATAR_COLORS = ["#5b8def","#22d46c","#f5a623","#f04f4f","#ec4899","#14b8a6","#f97316","#a78bfa"];
+const AVATAR_COLORS = ["#5b8def","#22d46c","#f5a623","#f04f4f","#ec4899","#14b8a6","#f97316","#a78bfa","#38bdf8"];
 const avatarColor   = n => AVATAR_COLORS[NAMES.indexOf(n) % AVATAR_COLORS.length];
 const WORKOUT_ICONS = { Gym:"🏋️", Run:"🏃", Sport:"⚽", Hike:"🥾", Other:"💪" };
 
@@ -195,6 +196,7 @@ function calcPenalties(activeCounts) {
 
 function buildSettlementMap(counts, excusedByName) {
   const activeCounts = NAMES
+    .filter(name => Object.prototype.hasOwnProperty.call(counts || {}, name))
     .filter(name => !excusedByName?.[name])
     .map(name => ({ name, count: counts?.[name] || 0 }));
   const { losers } = calcPenalties(activeCounts);
@@ -221,12 +223,29 @@ function getMonthKeyFromISO(iso) {
   return `${year}-${month - 1}`;
 }
 
+function compareMonthKeys(a, b) {
+  if (!a && !b) return 0;
+  if (!a) return -1;
+  if (!b) return 1;
+  const [ay, am] = a.split("-").map(Number);
+  const [by, bm] = b.split("-").map(Number);
+  if (ay !== by) return ay - by;
+  return am - bm;
+}
+
+function isJoinedForMonth(name, monthKey) {
+  const joinedMonth = JOINED_MONTH_BY_NAME[name];
+  return !joinedMonth || compareMonthKeys(monthKey, joinedMonth) >= 0;
+}
+
 function rebuildMonthSnapshot(month, logsByUser) {
+  const monthKey = month?.key;
+  const relevantNames = NAMES.filter(name => isJoinedForMonth(name, monthKey));
   const nextLogsByUser = buildMonthLogsSnapshot(logsByUser);
   const counts = Object.fromEntries(
-    NAMES.map(name => [name, (nextLogsByUser[name] || []).length])
+    relevantNames.map(name => [name, (nextLogsByUser[name] || []).length])
   );
-  const excused = month?.excused || Object.fromEntries(NAMES.map(name => [name, false]));
+  const excused = month?.excused || Object.fromEntries(relevantNames.map(name => [name, false]));
   return {
     ...month,
     counts,
@@ -255,8 +274,9 @@ function checkRollover(data) {
   const prevKey   = `${prevYear}-${prevMonth}`;
   const label     = `${MONTH_NAMES[prevMonth]} '${String(prevYear).slice(2)}`;
 
-  const counts  = Object.fromEntries(NAMES.map(n => [n, (logs[n]||[]).length]));
-  const exc     = Object.fromEntries(NAMES.map(n => [n, excused[n]?.[prevKey]||false]));
+  const relevantNames = NAMES.filter(name => isJoinedForMonth(name, prevKey));
+  const counts  = Object.fromEntries(relevantNames.map(n => [n, (logs[n]||[]).length]));
+  const exc     = Object.fromEntries(relevantNames.map(n => [n, excused[n]?.[prevKey]||false]));
 
   const snapshot = {
     key: prevKey,
@@ -597,19 +617,22 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack}) => {
   const histReversed=[...monthHistory].reverse();
   const isCurMonth=selMonthIdx===null;
   const selHistMonth=isCurMonth?null:histReversed[selMonthIdx];
+  const selectedMonthKey = isCurMonth ? curKey : selHistMonth?.key;
+  const isJoinedThisMonth = isJoinedForMonth(name, selectedMonthKey);
 
   // Closed month all-time stats
   const closedStats=useMemo(()=>{
     let wins=0,moneyWon=0,moneyLost=0,closedTotal=0;
     monthHistory.forEach(m=>{
+      if(!isJoinedForMonth(name, m.key)) return;
       if(m.excused?.[name]) return;
-      const ac=NAMES.filter(n=>!m.excused?.[n]).map(n=>({name:n,count:m.counts[n]||0}));
+      const ac=NAMES.filter(n=>isJoinedForMonth(n, m.key) && !m.excused?.[n]).map(n=>({name:n,count:m.counts[n]||0}));
       const {winners,losers,perLoser,perWinner}=calcPenalties(ac);
       closedTotal+=m.counts[name]||0;
       if(winners.find(w=>w.name===name)){wins++;moneyWon+=perWinner;}
       if(losers.find(l=>l.name===name)){moneyLost+=perLoser;}
     });
-    const participated=monthHistory.filter(m=>!m.excused?.[name]);
+    const participated=monthHistory.filter(m=>isJoinedForMonth(name, m.key) && !m.excused?.[name]);
     const avg=participated.length?(closedTotal/participated.length).toFixed(1):"—";
     return {wins,moneyWon,moneyLost,avg};
   },[name,monthHistory]);
@@ -653,6 +676,13 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack}) => {
       )
     : null;
 
+  const notJoinedBanner = !isJoinedThisMonth
+    ? React.createElement('div',{style:{background:"rgba(101,101,122,.12)",border:"1px solid var(--border2)",borderRadius:10,padding:"12px 16px",display:"flex",alignItems:"center",gap:10}},
+        React.createElement('span',{style:{fontSize:18}},"⏳"),
+        React.createElement('div',{style:{fontSize:13,color:"var(--muted)",marginLeft:4}},"Not joined")
+      )
+    : null;
+
   const stats=[
     {label:"Workouts",val:selCount||"—",sub:selLabel,color:"var(--text)"},
     {label:"Monthly Avg",val:closedStats.avg,sub:"per month (closed)",color:"var(--text)"},
@@ -674,23 +704,23 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack}) => {
       monthSelector
     ),
     // Sit out banner
-    sitOutBanner,
+    notJoinedBanner || sitOutBanner,
     // Stats — always show summary cards
-    !isExcusedThisMonth&&React.createElement('div',{className:"fu2",style:{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}},
+    isJoinedThisMonth&&!isExcusedThisMonth&&React.createElement('div',{className:"fu2",style:{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}},
       stats.slice(0,3).map(x=>React.createElement(Card,{key:x.label,style:{padding:"12px 14px"}},
         React.createElement('span',{className:"lbl"},x.label),
         React.createElement('div',{style:{fontSize:22,fontWeight:800,color:x.color,lineHeight:1}},x.val),
         React.createElement('div',{style:{fontSize:11,color:"var(--muted)",marginTop:3}},x.sub)
       ))
     ),
-    !isExcusedThisMonth&&React.createElement('div',{className:"fu2",style:{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:8}},
+    isJoinedThisMonth&&!isExcusedThisMonth&&React.createElement('div',{className:"fu2",style:{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:8}},
       stats.slice(3).map(x=>React.createElement(Card,{key:x.label,style:{padding:"12px 14px"}},
         React.createElement('span',{className:"lbl"},x.label),
         React.createElement('div',{style:{fontSize:22,fontWeight:800,color:x.color,lineHeight:1}},x.val),
         React.createElement('div',{style:{fontSize:11,color:"var(--muted)",marginTop:3}},x.sub)
       ))
     ),
-    !isExcusedThisMonth&&React.createElement(Card,{className:"fu3",style:{padding:"16px"}},
+    isJoinedThisMonth&&!isExcusedThisMonth&&React.createElement(Card,{className:"fu3",style:{padding:"16px"}},
       React.createElement('div',{style:{fontWeight:800,fontSize:14,marginBottom:14}},`Workout Breakdown — ${selLabel}`),
       !hasDetailedLogs
         ? React.createElement('div',{style:{color:"var(--muted)",fontSize:13,textAlign:"center",padding:"8px 0"}},"Detailed logs were not saved for this month.")
@@ -703,7 +733,7 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack}) => {
             React.createElement('span',{className:"mono",style:{fontSize:13,fontWeight:700,minWidth:18,textAlign:"right",color:tBreak[t]>0?"var(--text)":"var(--muted2)"}},tBreak[t])
           ))
     ),
-    !isExcusedThisMonth&&React.createElement(Card,{className:"fu4",style:{padding:16}},
+    isJoinedThisMonth&&!isExcusedThisMonth&&React.createElement(Card,{className:"fu4",style:{padding:16}},
       React.createElement('div',{style:{fontWeight:800,fontSize:14,marginBottom:12}},`${selLabel} · Log`),
       React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3,marginBottom:5}},
         ["S","M","T","W","T","F","S"].map((d,i)=>React.createElement('div',{key:i,className:"mono",style:{textAlign:"center",fontSize:9,color:"var(--muted2)",padding:"1px 0"}},d))
@@ -740,7 +770,7 @@ const TodayPage = ({user,logs,setLogs,excused,setExcused,monthHistory,saving,onS
   const isExcused=excused[user]?.[curKey]||false;
   const expected=getExpected();
 
-  const board=NAMES.map(name=>{
+  const board=NAMES.filter(name=>isJoinedForMonth(name, curKey)).map(name=>{
     const count=(logs[name]||[]).length;
     const isOut=excused[name]?.[curKey]||false;
     return {name,count,isOut,status:isOut?"excused":getStatus(count)};
@@ -1045,9 +1075,10 @@ const MonthPage = ({logs,excused,monthHistory,onSettlementChange}) => {
   const histReversed=[...monthHistory].reverse();
   const selMonth=isCurrent?null:histReversed[selIdx];
 
+  const relevantNames = NAMES.filter(name => isJoinedForMonth(name, isCurrent ? curKey : selMonth.key));
   const counts=isCurrent
-    ? NAMES.map(n=>({name:n,count:(logs[n]||[]).length,isOut:excused[n]?.[curKey]||false}))
-    : NAMES.map(n=>({name:n,count:selMonth.counts[n]||0,isOut:selMonth.excused?.[n]||false}));
+    ? relevantNames.map(n=>({name:n,count:(logs[n]||[]).length,isOut:excused[n]?.[curKey]||false}))
+    : relevantNames.map(n=>({name:n,count:selMonth.counts[n]||0,isOut:selMonth.excused?.[n]||false}));
 
   const activeCounts=counts.filter(u=>!u.isOut);
   const sorted=[...counts].sort((a,b)=>{if(a.isOut&&!b.isOut)return 1;if(!a.isOut&&b.isOut)return -1;return b.count-a.count;});
@@ -1224,8 +1255,8 @@ const HistoryPage = ({logs,excused,monthHistory}) => {
   const currentMonthSnapshot = useMemo(() => ({
     key: curKey,
     label: `${MONTH_NAMES[CUR_MONTH]} '${String(CUR_YEAR).slice(2)}`,
-    counts: Object.fromEntries(NAMES.map(name => [name, (logs[name]||[]).length])),
-    excused: Object.fromEntries(NAMES.map(name => [name, excused[name]?.[curKey]||false])),
+    counts: Object.fromEntries(NAMES.filter(name=>isJoinedForMonth(name, curKey)).map(name => [name, (logs[name]||[]).length])),
+    excused: Object.fromEntries(NAMES.filter(name=>isJoinedForMonth(name, curKey)).map(name => [name, excused[name]?.[curKey]||false])),
     logsByUser: buildMonthLogsSnapshot(logs),
     isCurrent: true
   }), [logs, excused]);
@@ -1233,15 +1264,16 @@ const HistoryPage = ({logs,excused,monthHistory}) => {
   const fullHistory = useMemo(() => [...monthHistory, currentMonthSnapshot], [monthHistory, currentMonthSnapshot]);
 
   const allTime=useMemo(()=>NAMES.map(name=>{
-    const participated=fullHistory.filter(m=>!m.excused?.[name]);
+    const participated=fullHistory.filter(m=>isJoinedForMonth(name, m.key) && !m.excused?.[name]);
     const total=participated.reduce((s,m)=>s+(m.counts[name]||0),0);
-    const closedP=monthHistory.filter(m=>!m.excused?.[name]);
+    const closedP=monthHistory.filter(m=>isJoinedForMonth(name, m.key) && !m.excused?.[name]);
     const closedTotal=closedP.reduce((s,m)=>s+(m.counts[name]||0),0);
     const avg=closedP.length?(closedTotal/closedP.length).toFixed(1):"—";
     let wins=0,moneyWon=0,moneyLost=0;
     monthHistory.forEach(m=>{
+      if(!isJoinedForMonth(name, m.key)) return;
       if(m.excused?.[name]) return;
-      const ac=NAMES.filter(n=>!m.excused?.[n]).map(n=>({name:n,count:m.counts[n]||0}));
+      const ac=NAMES.filter(n=>isJoinedForMonth(n, m.key) && !m.excused?.[n]).map(n=>({name:n,count:m.counts[n]||0}));
       const {winners,losers,perLoser,perWinner}=calcPenalties(ac);
       if(winners.find(w=>w.name===name)){wins++;moneyWon+=perWinner;}
       if(losers.find(l=>l.name===name)){moneyLost+=perLoser;}
@@ -1250,13 +1282,14 @@ const HistoryPage = ({logs,excused,monthHistory}) => {
   }),[fullHistory, monthHistory]);
 
   const groupMonthlyAvg=useMemo(()=>{
-    return fullHistory.map(m=>{const active=NAMES.filter(n=>!m.excused?.[n]);const vals=active.map(n=>m.counts[n]||0);const avg=vals.length?vals.reduce((a,b)=>a+b,0)/vals.length:0;return {label:m.label||m.key,avg,isCurrent:!!m.isCurrent};});
+    return fullHistory.map(m=>{const active=NAMES.filter(n=>isJoinedForMonth(n, m.key) && !m.excused?.[n]);const vals=active.map(n=>m.counts[n]||0);const avg=vals.length?vals.reduce((a,b)=>a+b,0)/vals.length:0;return {label:m.label||m.key,avg,isCurrent:!!m.isCurrent};});
   },[fullHistory]);
 
   const groupTypeBreakdown=useMemo(()=>{
     const c={};WORKOUT_TYPES.forEach(t=>c[t]=0);
     fullHistory.forEach(month=>{
       NAMES.forEach(name=>{
+        if(!isJoinedForMonth(name, month.key)) return;
         (month.logsByUser?.[name] || []).forEach(log=>{
           if(c[log.type]!==undefined)c[log.type]++;
         });
