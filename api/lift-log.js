@@ -1,6 +1,3 @@
-const BIN_ID = "69d986cc36566621a89de1ef";
-const JSONBIN_MASTER_KEY = "$2a$10$kSWJI9a9oo0zyoxJu4m03u793Cr6jq59Y9s6zyatxxNqzBFfDeoUS";
-const JSONBIN_ACCESS_KEY = "$2a$10$EKPe7czcS5Yqun7TkKvz.e7sJASKZ7xL0sq9TigEY4P2M7YgVz7TS";
 const MIN_TARGET = 12;
 const LEAGUE_TIME_ZONE = "Europe/Oslo";
 const LEAGUE_CUTOFF_HOUR = 2;
@@ -8,7 +5,6 @@ const NAMES = ["Aadhil","Isira","Rahul","Kisal","Rishane","Deyhan","Aysha","Nish
 const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const JOINED_MONTH_BY_NAME = { Abhishek: "2026-4" };
 
-const STORAGE_BACKEND = process.env.STORAGE_BACKEND || (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY ? "supabase" : "jsonbin");
 const SUPABASE_URL = process.env.SUPABASE_URL || "";
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 
@@ -176,56 +172,11 @@ function rolloverStateIfNeeded(data) {
 }
 
 async function fetchCurrentState() {
-  if (STORAGE_BACKEND === "supabase") {
-    return await fetchCurrentStateFromSupabase();
-  }
-  return await fetchCurrentStateFromJsonBin();
+  return await fetchCurrentStateFromSupabase();
 }
 
 async function persistState(nextState, reason) {
-  if (STORAGE_BACKEND === "supabase") {
-    return await persistStateToSupabase(nextState, reason);
-  }
-  return await persistStateToJsonBin(nextState);
-}
-
-async function fetchCurrentStateFromJsonBin() {
-  const upstream = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}/latest`, {
-    headers: {
-      "X-Master-Key": JSONBIN_MASTER_KEY,
-      "X-Access-Key": JSONBIN_ACCESS_KEY
-    }
-  });
-
-  const text = await upstream.text();
-  if (!upstream.ok) {
-    const error = new Error(text || "Failed to read current state");
-    error.status = upstream.status;
-    throw error;
-  }
-
-  const json = JSON.parse(text);
-  return rolloverStateIfNeeded(json.record || {});
-}
-
-async function persistStateToJsonBin(nextState) {
-  const upstream = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}`, {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Master-Key": JSONBIN_MASTER_KEY,
-      "X-Access-Key": JSONBIN_ACCESS_KEY
-    },
-    body: JSON.stringify(nextState)
-  });
-
-  const text = await upstream.text();
-  if (!upstream.ok) {
-    const error = new Error(text || "Failed to persist current state");
-    error.status = upstream.status;
-    throw error;
-  }
-  return nextState;
+  return await persistStateToSupabase(nextState, reason);
 }
 
 async function fetchCurrentStateFromSupabase() {
@@ -322,7 +273,7 @@ async function supabaseFetch(path, options = {}) {
 
 function assertSupabaseConfigured() {
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-    const error = new Error("Supabase backend selected but SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is missing");
+    const error = new Error("SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is missing");
     error.status = 500;
     throw error;
   }
