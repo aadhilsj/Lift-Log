@@ -8,6 +8,10 @@ const NAMES = ["Aadhil","Isira","Rahul","Kisal","Rishane","Deyhan","Aysha","Nish
 const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const JOINED_MONTH_BY_NAME = { Abhishek: "2026-4" };
 
+const STORAGE_BACKEND = process.env.STORAGE_BACKEND || (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY ? "supabase" : "jsonbin");
+const SUPABASE_URL = process.env.SUPABASE_URL || "";
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+
 function normalizeState(data) {
   return {
     logs: data?.logs || {},
@@ -71,8 +75,8 @@ function calcPenalties(activeCounts) {
   const sorted = [...activeCounts].sort((a, b) => b.count - a.count);
   const topCount = sorted[0].count;
   if (topCount === 0) return { winners: [], losers: [], perLoser: 0, totalPot: 0, perWinner: 0 };
-  const winners = sorted.filter(u => u.count === topCount);
-  const losers = activeCounts.filter(u => u.count < MIN_TARGET && u.count < topCount);
+  const winners = sorted.filter(user => user.count === topCount);
+  const losers = activeCounts.filter(user => user.count < MIN_TARGET && user.count < topCount);
   const n = losers.length;
   const perLoser = n === 0 ? 0 : 20 + (n - 1) * 5;
   const totalPot = n * perLoser;
@@ -172,6 +176,20 @@ function rolloverStateIfNeeded(data) {
 }
 
 async function fetchCurrentState() {
+  if (STORAGE_BACKEND === "supabase") {
+    return await fetchCurrentStateFromSupabase();
+  }
+  return await fetchCurrentStateFromJsonBin();
+}
+
+async function persistState(nextState, reason) {
+  if (STORAGE_BACKEND === "supabase") {
+    return await persistStateToSupabase(nextState, reason);
+  }
+  return await persistStateToJsonBin(nextState);
+}
+
+async function fetchCurrentStateFromJsonBin() {
   const upstream = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}/latest`, {
     headers: {
       "X-Master-Key": JSONBIN_MASTER_KEY,
@@ -188,6 +206,126 @@ async function fetchCurrentState() {
 
   const json = JSON.parse(text);
   return rolloverStateIfNeeded(json.record || {});
+}
+
+async function persistStateToJsonBin(nextState) {
+  const upstream = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Master-Key": JSONBIN_MASTER_KEY,
+      "X-Access-Key": JSONBIN_ACCESS_KEY
+    },
+    body: JSON.stringify(nextState)
+  });
+
+  const text = await upstream.text();
+  if (!upstream.ok) {
+    const error = new Error(text || "Failed to persist current state");
+    error.status = upstream.status;
+    throw error;
+  }
+  return nextState;
+}
+
+async function fetchCurrentStateFromSupabase() {
+  assertSupabaseConfigured();
+  const response = await supabaseFetch("/rest/v1/lift_log_state?id=eq.true&select=state", {
+    method: "GET",
+    headers: {
+      Accept: "application/json"
+    }
+  });
+
+  const rows = await response.json();
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return rolloverStateIfNeeded({});
+  }
+  return rolloverStateIfNeeded(rows[0]?.state || {});
+}
+
+async function persistStateToSupabase(nextState, reason) {
+  assertSupabaseConfigured();
+  const safeState = normalizeState(nextState);
+
+  await createSupabaseBackup(safeState, reason);
+
+  const response = await supabaseFetch("/rest/v1/lift_log_state?id=eq.true", {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      Prefer: "return=representation"
+    },
+    body: JSON.stringify({
+      state: safeState,
+      revision: safeState.meta.revision,
+      updated_at: safeState.meta.updatedAt || new Date().toISOString()
+    })
+  });
+
+  const rows = await response.json();
+  if (Array.isArray(rows) && rows.length > 0) {
+    return rolloverStateIfNeeded(rows[0]?.state || safeState);
+  }
+
+  await supabaseFetch("/rest/v1/lift_log_state", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Prefer: "return=representation,resolution=merge-duplicates"
+    },
+    body: JSON.stringify([{
+      id: true,
+      state: safeState,
+      revision: safeState.meta.revision,
+      updated_at: safeState.meta.updatedAt || new Date().toISOString()
+    }])
+  });
+
+  return safeState;
+}
+
+async function createSupabaseBackup(state, reason) {
+  const backupPayload = {
+    state_revision: state.meta.revision,
+    state,
+    reason
+  };
+
+  await supabaseFetch("/rest/v1/lift_log_backups", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(backupPayload)
+  });
+}
+
+async function supabaseFetch(path, options = {}) {
+  const response = await fetch(`${SUPABASE_URL}${path}`, {
+    ...options,
+    headers: {
+      apikey: SUPABASE_SERVICE_ROLE_KEY,
+      Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+      ...options.headers
+    }
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    const error = new Error(text || "Supabase request failed");
+    error.status = response.status;
+    throw error;
+  }
+  return response;
+}
+
+function assertSupabaseConfigured() {
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+    const error = new Error("Supabase backend selected but SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is missing");
+    error.status = 500;
+    throw error;
+  }
 }
 
 function mergeState(current, incoming) {
@@ -327,22 +465,8 @@ export default async function handler(req, res) {
       const payload = await readJson(req);
       const current = await fetchCurrentState();
       const merged = mergeState(current, payload);
-      const upstream = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Master-Key": JSONBIN_MASTER_KEY,
-          "X-Access-Key": JSONBIN_ACCESS_KEY
-        },
-        body: JSON.stringify(merged)
-      });
-
-      const text = await upstream.text();
-      if (!upstream.ok) {
-        return res.status(upstream.status).send(text);
-      }
-
-      return res.status(200).json(merged);
+      const persisted = await persistState(merged, payload?.actor ? `player-update:${payload.actor}` : "full-state-update");
+      return res.status(200).json(persisted);
     }
 
     if (req.method === "POST") {
@@ -353,22 +477,8 @@ export default async function handler(req, res) {
 
       const current = await fetchCurrentState();
       const updated = applySettlementUpdate(current, payload);
-      const upstream = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Master-Key": JSONBIN_MASTER_KEY,
-          "X-Access-Key": JSONBIN_ACCESS_KEY
-        },
-        body: JSON.stringify(updated)
-      });
-
-      const text = await upstream.text();
-      if (!upstream.ok) {
-        return res.status(upstream.status).send(text);
-      }
-
-      return res.status(200).json(updated);
+      const persisted = await persistState(updated, `settlement:${payload.monthKey}:${payload.player}`);
+      return res.status(200).json(persisted);
     }
 
     res.setHeader("Allow", "GET, PUT, POST");
