@@ -143,6 +143,7 @@ const TODAY_ISO = `${CUR_YEAR}-${String(CUR_MONTH+1).padStart(2,"0")}-${String(D
 const curKey    = `${CUR_YEAR}-${CUR_MONTH}`;
 const INSTALL_DISMISSED_KEY = "ll_pwa_install_dismissed";
 const LOCAL_CACHE_KEY = "ll_cached_data_v1";
+const SYNC_POLL_INTERVAL_MS = 3000;
 const getDaysLeft = () => DAYS_IN_MON - DAY_OF_MON + 1;
 
 // Allow logging back 2 months
@@ -1530,7 +1531,7 @@ const App = () => {
     }
 
     refreshNow();
-    // Refresh every 10 seconds to keep multiple active users closely in sync.
+    // Poll every few seconds so active devices converge faster without going fully realtime.
     const interval = setInterval(()=>{
       fetchData().then(data=>{
         if(data){
@@ -1543,7 +1544,7 @@ const App = () => {
           setSyncError(true);
         }
       }).catch(()=>setSyncError(true));
-    }, 10000);
+    }, SYNC_POLL_INTERVAL_MS);
     const handleVisibility = () => {
       if (document.visibilityState === "visible") refreshNow();
     };
