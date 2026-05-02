@@ -297,7 +297,7 @@ function checkRollover(data) {
   return { logs: newLogs, excused: newExcused, monthHistory: newHistory, lastMonth: expectedKey };
 }
 
-// ─── JSONBIN ──────────────────────────────────────────────────────────────────
+// ─── API SYNC ─────────────────────────────────────────────────────────────────
 async function fetchData() {
   try {
     const res = await fetch("./api/lift-log", {
