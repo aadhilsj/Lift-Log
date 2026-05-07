@@ -1448,7 +1448,7 @@ const App = () => {
     return () => window.removeEventListener("resize", syncViewport);
   },[]);
 
-  const applyData = useCallback((data, persistRemoteRollover=false) => {
+  const applyData = useCallback((data) => {
     if(!data) return false;
     const rolled = checkRollover(data);
     const resolved = rolled
@@ -1467,7 +1467,6 @@ const App = () => {
     setExcused(resolved.excused || {});
     setMonthHistory(resolved.monthHistory || []);
     writeCachedData(resolved);
-    if(rolled && persistRemoteRollover) saveData(resolved);
     return true;
   },[]);
 
@@ -1483,7 +1482,7 @@ const App = () => {
     try {
       const data = await fetchData();
       if(data){
-        const applied = applyData(data, true);
+        const applied = applyData(data);
         setLastSyncedAt(new Date());
         flashJustSynced();
         if (!applied) setSyncError(false);
@@ -1535,7 +1534,7 @@ const App = () => {
     const interval = setInterval(()=>{
       fetchData().then(data=>{
         if(data){
-          const applied = applyData(data, true);
+          const applied = applyData(data);
           if (applied) {
             setLastSyncedAt(new Date());
             setSyncError(false);
