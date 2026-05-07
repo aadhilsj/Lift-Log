@@ -414,6 +414,9 @@ export default async function handler(req, res) {
 
     if (req.method === "PUT") {
       const payload = await readJson(req);
+      if (!payload?.actor) {
+        return res.status(400).json({ error: "Full-state updates are disabled" });
+      }
       const current = await fetchCurrentState();
       const merged = mergeState(current, payload);
       const persisted = await persistState(merged, payload?.actor ? `player-update:${payload.actor}` : "full-state-update");
