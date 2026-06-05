@@ -1164,11 +1164,11 @@ async function syncAuthSessionData(sessionOverride) {
 }
 
 async function postApi(action, payload = {}, options = {}) {
-  const { auth = true, sessionOverride = null } = options;
+  const { auth = true } = options;
   try {
     const headers = { "Content-Type":"application/json" };
     if (auth) {
-      const session = sessionOverride || await getCurrentAuthSession();
+      const session = await getCurrentAuthSession();
       if (!session?.accessToken) return { ok:false, error:"You need to sign in again" };
       headers.Authorization = `Bearer ${session.accessToken}`;
     }
@@ -1290,33 +1290,16 @@ async function verifyOtpData(email, code) {
     const session = mapSupabaseSession(data?.session);
     if (!session) return { ok:false, error:"Unable to verify code" };
     const synced = await syncAuthSessionData(session);
-    if (!synced.ok) {
-      return {
-        ok:true,
-        state:null,
-        session,
-        syncError: synced.error || "Unable to sync account"
-      };
-    }
+    if (!synced.ok) return { ok:false, error:synced.error || "Unable to sync account" };
     return { ok:true, state: synced.state, session: { ...synced.session, accessToken: session.accessToken } };
   } catch(e){ console.error("Verify OTP error:", e); }
   return { ok:false, error:"Unable to verify code" };
 }
 
-async function upsertProfileData(payload, sessionOverride = null) {
-  try {
-    const result = await postApi("upsert-profile", payload, { sessionOverride });
-    if (!result.ok) return { ok:false, error: result.error || "Unable to save profile" };
-    try {
-      return { ok:true, data: normalizeAppState(result.body), syncError:"" };
-    } catch (error) {
-      console.error("Profile sync normalize error:", error);
-      return { ok:true, data: null, syncError: error instanceof Error ? error.message : "Unable to sync account" };
-    }
-  } catch (error) {
-    console.error("Profile save error:", error);
-  }
-  return { ok:false, error:"Unable to save profile" };
+async function upsertProfileData(payload) {
+  const result = await postApi("upsert-profile", payload);
+  if (!result.ok) return { ok:false, error: result.error || "Unable to save profile" };
+  return { ok:true, data: normalizeAppState(result.body) };
 }
 
 async function joinGroupData(payload) {
@@ -4702,7 +4685,6 @@ const App = () => {
   const [appState,setAppState]=useState(()=>cached||buildEmptyAppState());
   const [selectedGroupId,setSelectedGroupId]=useState(()=>{try{return localStorage.getItem(LOCAL_GROUP_KEY)||null;}catch{return null;}});
   const [authSession,setAuthSession]=useState(null);
-  const [pendingAuthSession,setPendingAuthSession]=useState(null);
   const [authStep,setAuthStep]=useState(null);
   const [authIntent,setAuthIntent]=useState(null);
   const [authEmail,setAuthEmail]=useState("");
@@ -5274,7 +5256,6 @@ const App = () => {
     setAuthCode("");
     setAuthError("");
     setDevOtpCode("");
-    setPendingAuthSession(null);
   };
   const continueAfterAuth = async (nextSession = authSession, nextProfile = profile) => {
     if (authIntent?.type === "create") {
@@ -5307,53 +5288,35 @@ const App = () => {
       setAuthError(result?.error || "Unable to verify code");
       return;
     }
-    if (result.state) applyData(result.state);
-    const nextSession = {
+    applyData(result.state);
+    persistSession({
       userId: result.session.userId,
       email: result.session.email,
       accessToken: result.session.accessToken || authSession?.accessToken || null
-    };
-    persistSession(nextSession);
-    setPendingAuthSession(nextSession);
-    const nextProfile = getProfileForSession(result.state || appState, nextSession);
-    const needsProfileSetup = typeof result.session.needsProfileSetup === "boolean"
-      ? result.session.needsProfileSetup
-      : !nextProfile?.displayName;
-    if (needsProfileSetup) {
-      setAuthDisplayName(nextProfile?.displayName || (authEmail.split("@")[0] || "").replace(/[._-]+/g," "));
+    });
+    if (result.session.needsProfileSetup) {
+      setAuthDisplayName((authEmail.split("@")[0] || "").replace(/[._-]+/g," "));
       setAuthStep("name");
-      setAuthError("");
       return;
     }
     closeAuth();
-    if (result.syncError) {
-      refreshNow();
-    }
     continueAfterAuth(
-      nextSession,
-      nextProfile
+      { userId: result.session.userId, email: result.session.email, accessToken: result.session.accessToken || authSession?.accessToken || null },
+      getProfileForSession(result.state, { userId: result.session.userId, email: result.session.email })
     );
   };
   const handleSaveProfile = async () => {
     setSavingProfile(true);
     setAuthError("");
-    const activeSession = pendingAuthSession || authSession || await getCurrentAuthSession();
-    const result = await upsertProfileData(
-      { userId: activeSession?.userId, email: activeSession?.email, displayName: authDisplayName.trim() },
-      activeSession
-    );
+    const result = await upsertProfileData({ userId: authSession?.userId, email: authSession?.email, displayName: authDisplayName.trim() });
     setSavingProfile(false);
     if (!result?.ok) {
       setAuthError(result?.error || "Unable to save profile");
       return;
     }
-    if (activeSession?.userId) persistSession(activeSession);
-    const applied = result.data ? applyData(result.data) : false;
-    if (!applied) {
-      await refreshNow();
-    }
+    applyData(result.data);
     closeAuth();
-    continueAfterAuth(activeSession, getProfileForSession(result.data || appState, activeSession));
+    continueAfterAuth(authSession, getProfileForSession(result.data, authSession));
   };
   const handleJoinGroup = async () => {
     if (!authSession?.userId) {
