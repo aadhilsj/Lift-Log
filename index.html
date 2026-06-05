@@ -985,7 +985,8 @@ function syncActiveGroupGlobals(group) {
 }
 
 function getMonthKeyFromISO(iso) {
-  const [year, month] = iso.split("-").map(Number);
+  const [year, month] = String(iso || "").split("-").map(Number);
+  if (!Number.isFinite(year) || !Number.isFinite(month)) return null;
   return `${year}-${month - 1}`;
 }
 
