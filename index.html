@@ -5348,9 +5348,8 @@ const App = () => {
       return;
     }
     if (activeSession?.userId) persistSession(activeSession);
-    if (result.data) {
-      applyData(result.data);
-    } else {
+    const applied = result.data ? applyData(result.data) : false;
+    if (!applied) {
       await refreshNow();
     }
     closeAuth();
