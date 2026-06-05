@@ -1290,16 +1290,33 @@ async function verifyOtpData(email, code) {
     const session = mapSupabaseSession(data?.session);
     if (!session) return { ok:false, error:"Unable to verify code" };
     const synced = await syncAuthSessionData(session);
-    if (!synced.ok) return { ok:false, error:synced.error || "Unable to sync account" };
+    if (!synced.ok) {
+      return {
+        ok:true,
+        state:null,
+        session,
+        syncError: synced.error || "Unable to sync account"
+      };
+    }
     return { ok:true, state: synced.state, session: { ...synced.session, accessToken: session.accessToken } };
   } catch(e){ console.error("Verify OTP error:", e); }
   return { ok:false, error:"Unable to verify code" };
 }
 
 async function upsertProfileData(payload) {
-  const result = await postApi("upsert-profile", payload);
-  if (!result.ok) return { ok:false, error: result.error || "Unable to save profile" };
-  return { ok:true, data: normalizeAppState(result.body) };
+  try {
+    const result = await postApi("upsert-profile", payload);
+    if (!result.ok) return { ok:false, error: result.error || "Unable to save profile" };
+    try {
+      return { ok:true, data: normalizeAppState(result.body), syncError:"" };
+    } catch (error) {
+      console.error("Profile sync normalize error:", error);
+      return { ok:true, data: null, syncError: error instanceof Error ? error.message : "Unable to sync account" };
+    }
+  } catch (error) {
+    console.error("Profile save error:", error);
+  }
+  return { ok:false, error:"Unable to save profile" };
 }
 
 async function joinGroupData(payload) {
@@ -5288,21 +5305,30 @@ const App = () => {
       setAuthError(result?.error || "Unable to verify code");
       return;
     }
-    applyData(result.state);
-    persistSession({
+    if (result.state) applyData(result.state);
+    const nextSession = {
       userId: result.session.userId,
       email: result.session.email,
       accessToken: result.session.accessToken || authSession?.accessToken || null
-    });
-    if (result.session.needsProfileSetup) {
-      setAuthDisplayName((authEmail.split("@")[0] || "").replace(/[._-]+/g," "));
+    };
+    persistSession(nextSession);
+    const nextProfile = getProfileForSession(result.state || appState, nextSession);
+    const needsProfileSetup = typeof result.session.needsProfileSetup === "boolean"
+      ? result.session.needsProfileSetup
+      : !nextProfile?.displayName;
+    if (needsProfileSetup) {
+      setAuthDisplayName(nextProfile?.displayName || (authEmail.split("@")[0] || "").replace(/[._-]+/g," "));
       setAuthStep("name");
+      setAuthError("");
       return;
     }
     closeAuth();
+    if (result.syncError) {
+      refreshNow();
+    }
     continueAfterAuth(
-      { userId: result.session.userId, email: result.session.email, accessToken: result.session.accessToken || authSession?.accessToken || null },
-      getProfileForSession(result.state, { userId: result.session.userId, email: result.session.email })
+      nextSession,
+      nextProfile
     );
   };
   const handleSaveProfile = async () => {
@@ -5314,9 +5340,13 @@ const App = () => {
       setAuthError(result?.error || "Unable to save profile");
       return;
     }
-    applyData(result.data);
+    if (result.data) {
+      applyData(result.data);
+    } else {
+      await refreshNow();
+    }
     closeAuth();
-    continueAfterAuth(authSession, getProfileForSession(result.data, authSession));
+    continueAfterAuth(authSession, getProfileForSession(result.data || appState, authSession));
   };
   const handleJoinGroup = async () => {
     if (!authSession?.userId) {
