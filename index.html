@@ -162,7 +162,7 @@ const WORKOUT_TYPES = ["Gym","Run","Pilates","Sports","Other"];
 const DEFAULT_MIN_TARGET = 12;
 const DEFAULT_GROUP_TIME_ZONE = "Europe/Oslo";
 const LEAGUE_CUTOFF_HOUR = 5;
-const DEFAULT_FINE_AMOUNT = 100;
+const DEFAULT_FINE_AMOUNT = 20;
 const DEFAULT_FEE_MODEL = "escalating";
 const DEFAULT_ESCALATION_STEP_AMOUNT = null;
 const DEFAULT_CURRENCY = "NOK";
@@ -232,7 +232,8 @@ const avatarColor = (name, explicitUserId = "") => {
 };
 const WORKOUT_TYPE_ALIASES = {
   Sport: "Sports",
-  Hike: "Other"
+  Hike: "Other",
+  Hiking: "Other"
 };
 const CURRENCY_OPTIONS = [
   { code:"NOK", label:"Norwegian Krone" },
@@ -577,6 +578,12 @@ function normalizeWorkoutType(type) {
   return WORKOUT_TYPES.includes(normalized) ? normalized : "Other";
 }
 
+function normalizeLoggedWorkoutType(type, logDate = "") {
+  const normalized = normalizeWorkoutType(type);
+  if (normalized === "Pilates" && typeof logDate === "string" && logDate && logDate < "2026-06-06") return "Other";
+  return normalized;
+}
+
 function normalizeReactions(reactions) {
   if (!reactions || typeof reactions !== "object") return {};
   return Object.fromEntries(
@@ -624,10 +631,10 @@ function normalizeLogEntry(log) {
   return {
     ...log,
     id: log?.id || `log-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-    type: normalizeWorkoutType(log?.type),
+    type: normalizeLoggedWorkoutType(log?.type, log?.date),
     note: typeof log?.note === "string" ? log.note.slice(0,280) : "",
     photoUrl: shouldKeepLogPhoto(log) ? photoUrl : "",
-    createdAt: log?.createdAt || new Date().toISOString(),
+    createdAt: log?.createdAt || (typeof log?.date === "string" && log.date ? `${log.date}T12:00:00.000Z` : new Date().toISOString()),
     verifiedVia: log?.verifiedVia === "strava" ? "strava" : "photo",
     reactions: normalizeReactions(log?.reactions),
     flagStatus: normalizeFlagStatus(log?.flagStatus),
@@ -715,27 +722,78 @@ function getCountedLogCount(logs) {
   return getCountedLogs(logs).length;
 }
 
+function getMonthPartsFromKey(key) {
+  const [year, monthIndex] = String(key || "").split("-").map(Number);
+  if (!Number.isFinite(year) || !Number.isFinite(monthIndex)) return null;
+  return { year, monthIndex };
+}
+
+function formatMonthLabelFromKey(key) {
+  const parts = getMonthPartsFromKey(key);
+  if (!parts || !MONTH_NAMES[parts.monthIndex]) return null;
+  return `${MONTH_NAMES[parts.monthIndex]} '${String(parts.year).slice(2)}`;
+}
+
+function deriveMonthKeyFromLogs(logsByUser) {
+  const keys = Object.values(logsByUser || {})
+    .flatMap(logs => (Array.isArray(logs) ? logs : []))
+    .map(log => getMonthKeyFromISO(log?.date))
+    .filter(Boolean)
+    .sort(compareMonthKeys);
+  return keys[0] || null;
+}
+
+function isLegacyPlaceholderMonthSettings(monthSettings) {
+  if (!monthSettings) return true;
+  const normalized = buildNormalizedSettings(monthSettings);
+  return normalized.fineAmount === 100 && normalized.currency === "NOK" && normalized.escalationStepAmount === null;
+}
+
+function resolveHistoricalMonthSettings(monthSettings, groupSettings) {
+  const normalizedGroupSettings = buildNormalizedSettings(groupSettings);
+  if (isLegacyPlaceholderMonthSettings(monthSettings)) return normalizedGroupSettings;
+  const normalizedMonthSettings = buildNormalizedSettings(monthSettings || groupSettings);
+  if (
+    normalizedGroupSettings.feeModel === "escalating" &&
+    normalizedMonthSettings.feeModel === "flat" &&
+    normalizedMonthSettings.escalationStepAmount === null &&
+    normalizedMonthSettings.fineAmount === normalizedGroupSettings.fineAmount
+  ) {
+    return normalizedGroupSettings;
+  }
+  return normalizedMonthSettings;
+}
+
 function normalizeMonthHistoryState(monthHistory, memberOrder, joinedMonthByName, settings) {
+  const currentMonthKey = getLeagueMonthKey(settings?.timeZone || DEFAULT_GROUP_TIME_ZONE);
   return (Array.isArray(monthHistory) ? monthHistory : []).map(month => {
-    const relevantNames = memberOrder.filter(name => {
-      const joinedMonth = joinedMonthByName?.[name];
-      return !joinedMonth || compareMonthKeys(month?.key, joinedMonth) >= 0;
-    });
     const logsByUser = Object.fromEntries(
       memberOrder.map(name => [name, [...(month?.logsByUser?.[name] || [])].map(log => normalizeLogEntry({ ...log, photoUrl: "" }))])
     );
+    const derivedMonthKey = deriveMonthKeyFromLogs(logsByUser) || month?.key || null;
+    if (derivedMonthKey && derivedMonthKey === currentMonthKey) return null;
+    const monthKey = derivedMonthKey || month?.key;
+    const monthParts = getMonthPartsFromKey(monthKey);
+    const relevantNames = memberOrder.filter(name => {
+      const joinedMonth = joinedMonthByName?.[name];
+      return !joinedMonth || compareMonthKeys(monthKey, joinedMonth) >= 0;
+    });
     const counts = Object.fromEntries(
       relevantNames.map(name => [name, Number(month?.counts?.[name] || getCountedLogCount(logsByUser[name]))])
     );
     const excused = month?.excused || Object.fromEntries(relevantNames.map(name => [name, false]));
     return {
       ...month,
+      key: monthKey,
+      year: monthParts?.year ?? month?.year,
+      month: monthParts?.monthIndex ?? month?.month,
+      label: formatMonthLabelFromKey(monthKey) || month?.label,
       counts,
       excused,
       logsByUser,
-      settings: buildNormalizedSettings(month?.settings || settings)
+      settings: resolveHistoricalMonthSettings(month?.settings, settings)
     };
-  });
+  }).filter(Boolean).sort((a, b) => compareMonthKeys(a.key, b.key));
 }
 
 function normalizeGroupState(group) {
@@ -1208,7 +1266,10 @@ async function sendOtpData(email) {
     const client = await getSupabaseAuthClient();
     const { error } = await client.auth.signInWithOtp({
       email,
-      options: { shouldCreateUser: true }
+      options: {
+        shouldCreateUser: true,
+        emailRedirectTo: `${window.location.origin}${window.location.pathname}`
+      }
     });
     if (error) return { ok:false, error:error.message || "Unable to send code" };
     return { ok:true, devCode:null };
@@ -1918,6 +1979,7 @@ const StepperField = ({value,onChange,min=1,max=Infinity,compact=false,suffix=nu
 };
 
 const GroupSettingsFields = ({settings,setSettings,showAdvanced,setShowAdvanced,showValidation=false,compact=false}) => {
+  const desktopNumericWidth = compact && !isMobile() ? 54 : 39;
   const toggleType = type => setSettings(current => ({
     ...current,
     acceptedWorkoutTypes: current.acceptedWorkoutTypes.includes(type)
@@ -1937,7 +1999,7 @@ const GroupSettingsFields = ({settings,setSettings,showAdvanced,setShowAdvanced,
           compact,
           arrowColor:"#4ECDC4"
         }),
-        React.createElement('input',{type:"number",min:1,value:settings.fineAmount,onChange:e=>setSettings(current=>({...current,fineAmount:e.target.value})),style:{...inputShellStyle,width:39,fontSize:compact?12:15,padding:compact?"7px 9px":inputShellStyle.padding,borderRadius:compact?8:inputShellStyle.borderRadius,textAlign:"center"}})
+        React.createElement('input',{type:"number",min:1,value:settings.fineAmount,onChange:e=>setSettings(current=>({...current,fineAmount:e.target.value})),style:{...inputShellStyle,width:desktopNumericWidth,fontSize:compact?12:15,padding:compact?"7px 9px":inputShellStyle.padding,borderRadius:compact?8:inputShellStyle.borderRadius,textAlign:"center"}})
       )
     ),
     React.createElement(SettingsField,{title:"How fines are calculated",compact},
@@ -1993,7 +2055,7 @@ const GroupSettingsFields = ({settings,setSettings,showAdvanced,setShowAdvanced,
     showAdvanced && React.createElement('div',{style:{display:"grid",gap:compact?9:18,marginBottom:compact?8:18}},
       React.createElement(SettingsField,{title:"Minimum run distance",description:"If Strava is enabled later, runs shorter than this will not count automatically.",compact},
         React.createElement('div',{style:{display:"flex",alignItems:"stretch",gap:8,flexWrap:"wrap"}},
-          React.createElement('input',{type:"number",min:0.5,step:0.5,value:settings.minRunDistance,onChange:e=>setSettings(current=>({...current,minRunDistance:e.target.value})),style:{...inputShellStyle,width:39,fontSize:compact?12:15,padding:compact?"7px 9px":inputShellStyle.padding,borderRadius:compact?8:inputShellStyle.borderRadius,textAlign:"center"}}),
+          React.createElement('input',{type:"number",min:0.5,step:0.5,value:settings.minRunDistance,onChange:e=>setSettings(current=>({...current,minRunDistance:e.target.value})),style:{...inputShellStyle,width:desktopNumericWidth,fontSize:compact?12:15,padding:compact?"7px 9px":inputShellStyle.padding,borderRadius:compact?8:inputShellStyle.borderRadius,textAlign:"center"}}),
           React.createElement('div',{style:{display:"flex",gap:8}},
             DISTANCE_UNIT_OPTIONS.map(option=>{
               const active = settings.distanceUnit === option.value;
@@ -3039,9 +3101,8 @@ const Nav = ({page,setPage,user,groupName,canEditGroup,onOpenSettings,onOpenProf
   const navItems = [["today","Today","today"],["activity","Activity","activity"],["month","Results","results"],["history","History","history"]];
   return React.createElement(React.Fragment,null,
   React.createElement('nav',{className:"desktop-only",style:{background:"var(--s1)",borderBottom:"1px solid var(--border)",padding:"0 16px",display:"flex",alignItems:"center",justifyContent:"space-between",height:52,position:"sticky",top:0,zIndex:100}},
-    React.createElement('div',{style:{display:"flex",flexDirection:"column",justifyContent:"center",minWidth:0,lineHeight:1,gap:1}},
-      React.createElement(AnteWordmark,{size:24}),
-      React.createElement('button',{type:"button",onClick:onSwitchGroup,style:{padding:0,background:"transparent",color:"#4ECDC4",fontSize:11,fontWeight:500,textAlign:"left",lineHeight:1.05,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:220}},groupName)
+    React.createElement('div',{style:{display:"flex",alignItems:"center",minWidth:0,lineHeight:1}},
+      React.createElement(AnteWordmark,{size:24})
     ),
     React.createElement('div',{style:{display:"flex",alignItems:"center",gap:10}},
       React.createElement('div',{style:{display:"flex",gap:2}},
@@ -3060,6 +3121,12 @@ const Nav = ({page,setPage,user,groupName,canEditGroup,onOpenSettings,onOpenProf
         onMouseEnter:e=>e.currentTarget.style.borderColor="var(--border2)",onMouseLeave:e=>e.currentTarget.style.borderColor="var(--border)"},
         React.createElement(AppIcon,{name:"profile",size:14})
       )
+    )
+  ),
+  React.createElement('div',{className:"desktop-only",style:{background:"var(--s1)",borderBottom:"1px solid var(--border)",padding:"10px 16px 12px",display:"flex",justifyContent:"center"}},
+    React.createElement('button',{type:"button",onClick:onSwitchGroup,style:{display:"inline-flex",alignItems:"center",gap:8,padding:"10px 18px",borderRadius:999,background:"rgba(78,205,196,.12)",border:"1px solid rgba(78,205,196,.2)",color:"#4ECDC4",fontSize:14,fontWeight:700}},
+      groupName,
+      React.createElement('span',{style:{fontSize:11,opacity:.85}},"▾")
     )
   ),
   React.createElement('div',{className:"mobile-only mobile-nav-shell"},
@@ -3628,6 +3695,42 @@ const TodayPage = ({user,currentGroupId,groups,logs,excused,monthHistory,saving,
     {label:"Need",val:needed===0?"✓":needed,sub:needed===0?"target hit!":`to hit ${MIN_TARGET}`,meta:currentMonthOverride?.prorated?"prorated":null,color:"#4ECDC4"},
     {label:"Streak",val:streak,sub:`day${streak!==1?"s":""}`,color:streak>=5?"var(--gold)":streak>=3?"var(--amber)":"var(--text)"}
   ];
+  const desktopMonthFirstDay = new Date(CUR_YEAR, CUR_MONTH, 1).getDay();
+  const desktopCalendarDays = [...Array(desktopMonthFirstDay).fill(null), ...Array.from({length:DAYS_IN_MON}, (_, i) => i + 1)];
+  const desktopLogsByDay = {};
+  (logs[user] || []).forEach(log => {
+    const day = Number(String(log.date || "").split("-")[2]);
+    if (Number.isFinite(day)) desktopLogsByDay[day] = log;
+  });
+  const desktopCalendarCard = !isExcused && React.createElement(Card,{style:{padding:15}},
+    React.createElement('span',{className:"lbl"},`${MONTH_NAMES[CUR_MONTH]} · Your Log`),
+    React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(7,minmax(0,1fr))",gap:6,marginTop:8}},
+      ["S","M","T","W","T","F","S"].map((d, i)=>React.createElement('div',{key:`desktop-head-${d}-${i}`,className:"mono",style:{fontSize:10,color:"var(--muted)",textAlign:"center"}},d)),
+      desktopCalendarDays.map((day,index)=>{
+        const log = day ? desktopLogsByDay[day] : null;
+        const isToday = day === DAY_OF_MON;
+        return React.createElement('div',{key:`desktop-day-${index}`,style:{
+          aspectRatio:"1 / 1",
+          minHeight:34,
+          borderRadius:10,
+          border:log?"1px solid rgba(78,205,196,.2)":`1px solid ${isToday ? "rgba(78,205,196,.28)" : "var(--border)"}`,
+          background:log?"#1A2E4A":"var(--s2)",
+          display:"flex",
+          alignItems:"center",
+          justifyContent:"center",
+          color:log?"#4ECDC4":isToday?"#4ECDC4":"var(--muted)",
+          fontSize:11,
+          fontWeight:log?700:500
+        }},
+          !day
+            ? null
+            : log
+              ? React.createElement(WorkoutTypeIcon,{type:log.type,size:16})
+              : day
+        );
+      })
+    )
+  );
   const leaderboardCloseText = closeMeta ? `closes ${closeMeta.closeDate} · ${closeMeta.closeTime} · ${closeMeta.offsetLabel}` : `${boardRanked.filter(u=>!u.isOut).length} active`;
 
   const mobileView = React.createElement('div',{className:"mobile-only",style:{padding:"12px 14px",display:"flex",flexDirection:"column",gap:12}},
@@ -3803,7 +3906,8 @@ const TodayPage = ({user,currentGroupId,groups,logs,excused,monthHistory,saving,
             competitionStatusBody,
             competitionAction
           )
-        )
+        ),
+        desktopCalendarCard
       )
     )
   );

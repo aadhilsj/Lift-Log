@@ -1,9 +1,9 @@
 const DEFAULT_MIN_TARGET = 12;
 const WORKOUT_TYPES = ["Gym", "Run", "Pilates", "Sports", "Other"];
-const WORKOUT_TYPE_ALIASES = { Sport: "Sports", Hike: "Other" };
+const WORKOUT_TYPE_ALIASES = { Sport: "Sports", Hike: "Other", Hiking: "Other" };
 const DEFAULT_GROUP_TIME_ZONE = "Europe/Oslo";
 const LEAGUE_CUTOFF_HOUR = 5;
-const DEFAULT_FINE_AMOUNT = 100;
+const DEFAULT_FINE_AMOUNT = 20;
 const DEFAULT_FEE_MODEL = "escalating";
 const DEFAULT_ESCALATION_STEP_AMOUNT = null;
 const DEFAULT_CURRENCY = "NOK";
@@ -333,15 +333,23 @@ function normalizeWorkoutType(type) {
   return WORKOUT_TYPES.includes(normalized) ? normalized : "Other";
 }
 
+function normalizeLoggedWorkoutType(type, logDate = "") {
+  const normalized = normalizeWorkoutType(type);
+  if (normalized === "Pilates" && typeof logDate === "string" && logDate && logDate < "2026-06-06") {
+    return "Other";
+  }
+  return normalized;
+}
+
 function normalizeLogEntry(log) {
   const photoUrl = typeof log?.photoUrl === "string" ? log.photoUrl : "";
   return {
     ...log,
     id: log?.id || `log-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-    type: normalizeWorkoutType(log?.type),
+    type: normalizeLoggedWorkoutType(log?.type, log?.date),
     note: typeof log?.note === "string" ? log.note.slice(0, 280) : "",
     photoUrl: shouldKeepLogPhoto(log) ? photoUrl : "",
-    createdAt: log?.createdAt || new Date().toISOString(),
+    createdAt: log?.createdAt || (typeof log?.date === "string" && log.date ? `${log.date}T12:00:00.000Z` : new Date().toISOString()),
     verifiedVia: log?.verifiedVia === "strava" ? "strava" : "photo",
     reactions: normalizeReactions(log?.reactions),
     flagStatus: normalizeFlagStatus(log?.flagStatus),
@@ -435,22 +443,73 @@ function normalizeExcused(excused, memberOrder) {
   return normalized;
 }
 
+function getMonthPartsFromKey(key) {
+  const [year, monthIndex] = String(key || "").split("-").map(Number);
+  if (!Number.isFinite(year) || !Number.isFinite(monthIndex)) return null;
+  return { year, monthIndex };
+}
+
+function formatMonthLabelFromKey(key) {
+  const parts = getMonthPartsFromKey(key);
+  if (!parts || !MONTH_NAMES[parts.monthIndex]) return null;
+  return `${MONTH_NAMES[parts.monthIndex]} '${String(parts.year).slice(2)}`;
+}
+
+function deriveMonthKeyFromLogs(logsByUser) {
+  const keys = Object.values(logsByUser || {})
+    .flatMap(logs => (Array.isArray(logs) ? logs : []))
+    .map(log => getMonthKeyFromISO(log?.date))
+    .filter(Boolean)
+    .sort(compareMonthKeys);
+  return keys[0] || null;
+}
+
+function isLegacyPlaceholderMonthSettings(monthSettings) {
+  if (!monthSettings) return true;
+  const normalized = buildNormalizedSettings(monthSettings);
+  return normalized.fineAmount === 100 && normalized.currency === "NOK" && normalized.escalationStepAmount === null;
+}
+
+function resolveHistoricalMonthSettings(monthSettings, groupSettings) {
+  const normalizedGroupSettings = buildNormalizedSettings(groupSettings);
+  if (isLegacyPlaceholderMonthSettings(monthSettings)) return normalizedGroupSettings;
+  const normalizedMonthSettings = buildNormalizedSettings(monthSettings || groupSettings);
+  if (
+    normalizedGroupSettings.feeModel === "escalating" &&
+    normalizedMonthSettings.feeModel === "flat" &&
+    normalizedMonthSettings.escalationStepAmount === null &&
+    normalizedMonthSettings.fineAmount === normalizedGroupSettings.fineAmount
+  ) {
+    return normalizedGroupSettings;
+  }
+  return normalizedMonthSettings;
+}
+
 function normalizeMonthHistory(monthHistory, memberOrder, joinedMonthByName, settings) {
+  const currentMonthKey = getLeagueMonthKey(settings?.timeZone || DEFAULT_GROUP_TIME_ZONE);
   return monthHistory.map(month => {
-    const relevantNames = memberOrder.filter(name => isJoinedForMonth(joinedMonthByName, name, month?.key));
     const logsByUser = buildMonthLogsSnapshot(month?.logsByUser || {}, memberOrder);
+    const derivedMonthKey = deriveMonthKeyFromLogs(logsByUser) || month?.key || null;
+    if (derivedMonthKey && derivedMonthKey === currentMonthKey) return null;
+    const monthKey = derivedMonthKey || month?.key;
+    const monthParts = getMonthPartsFromKey(monthKey);
+    const relevantNames = memberOrder.filter(name => isJoinedForMonth(joinedMonthByName, name, monthKey));
     const counts = Object.fromEntries(relevantNames.map(name => [name, Number(month?.counts?.[name] || getCountedLogCount(logsByUser[name]) || 0)]));
     const excused = month?.excused || Object.fromEntries(relevantNames.map(name => [name, false]));
-    const monthSettings = buildNormalizedSettings(month?.settings || settings);
+    const monthSettings = resolveHistoricalMonthSettings(month?.settings, settings);
     return {
       ...month,
+      key: monthKey,
+      year: monthParts?.year ?? month?.year,
+      month: monthParts?.monthIndex ?? month?.month,
+      label: formatMonthLabelFromKey(monthKey) || month?.label,
       counts,
       excused,
       logsByUser,
       settings: monthSettings,
-      settlements: month?.settlements || buildDefaultSettlements({ counts, excused, key: month?.key }, relevantNames, monthSettings)
+      settlements: month?.settlements || buildDefaultSettlements({ counts, excused, key: monthKey }, relevantNames, monthSettings)
     };
-  });
+  }).filter(Boolean).sort((a, b) => compareMonthKeys(a.key, b.key));
 }
 
 function getLeagueDateParts(timeZone = DEFAULT_GROUP_TIME_ZONE) {
