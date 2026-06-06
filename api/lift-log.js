@@ -1141,6 +1141,23 @@ async function fetchProjectionRows(path) {
   return await response.json();
 }
 
+async function fetchProjectionDiagnostics() {
+  const [meta, groups, monthHistory, monthLogs] = await Promise.all([
+    fetchProjectionMeta(),
+    fetchProjectionRows("/rest/v1/lift_log_projection_groups?select=group_id"),
+    fetchProjectionRows("/rest/v1/lift_log_projection_month_history?select=group_id,month_key"),
+    fetchProjectionRows("/rest/v1/lift_log_projection_month_logs?select=group_id,month_key")
+  ]);
+
+  return {
+    available: !!meta.available,
+    sourceRevision: Number(meta.sourceRevision || 0),
+    groupCount: Array.isArray(groups) ? groups.length : 0,
+    monthHistoryCount: Array.isArray(monthHistory) ? monthHistory.length : 0,
+    monthLogCount: Array.isArray(monthLogs) ? monthLogs.length : 0
+  };
+}
+
 function buildReactionLookup(rows, keyBuilder) {
   const map = new Map();
   for (const row of rows) {
@@ -1656,6 +1673,26 @@ function applySettlementUpdate(current, payload) {
       updatedAt: new Date().toISOString()
     }
   };
+}
+
+function assertGroupAdmin(state, groupId, user, actorDisplayName) {
+  const group = state.groups?.[groupId];
+  if (!group) {
+    const error = new Error("Bloc not found");
+    error.status = 404;
+    throw error;
+  }
+
+  const isAdmin = group.adminUserId
+    ? group.adminUserId === user.id
+    : group.adminName === actorDisplayName;
+  if (!isAdmin) {
+    const error = new Error("Only the admin can rebuild the projection");
+    error.status = 403;
+    throw error;
+  }
+
+  return group;
 }
 
 function applyCreateGroup(current, payload) {
@@ -2670,6 +2707,34 @@ export default async function handler(req, res) {
         const updated = applySettlementUpdate(current, payload);
         const persisted = await persistState(updated, `settlement:${payload.groupId}:${payload.monthKey}:${payload.player}`);
         return res.status(200).json(persisted);
+      }
+
+      if (payload?.action === "projection-status") {
+        const auth = await requireAuthenticatedContext(req, payload, current);
+        const groupId = String(payload?.groupId || auth.state.defaultGroupId || "").trim();
+        const actor = resolveDisplayNameForUser(auth.state, groupId, auth.user.id, auth.user.email);
+        assertGroupAdmin(auth.state, groupId, auth.user, actor);
+        return res.status(200).json({
+          ok: true,
+          blobRevision: auth.state.meta.revision,
+          projection: await fetchProjectionDiagnostics()
+        });
+      }
+
+      if (payload?.action === "rebuild-projection") {
+        const auth = await requireAuthenticatedContext(req, payload, current);
+        const groupId = String(payload?.groupId || auth.state.defaultGroupId || "").trim();
+        const actor = resolveDisplayNameForUser(auth.state, groupId, auth.user.id, auth.user.email);
+        assertGroupAdmin(auth.state, groupId, auth.user, actor);
+        const before = await fetchProjectionDiagnostics();
+        await syncProjectionState(auth.state);
+        const after = await fetchProjectionDiagnostics();
+        return res.status(200).json({
+          ok: true,
+          blobRevision: auth.state.meta.revision,
+          before,
+          after
+        });
       }
 
       if (payload?.action === "create-group") {
