@@ -5404,26 +5404,6 @@ const App = () => {
       })
     );
   }
-  if (!profile?.displayName) {
-    return React.createElement(AuthFlowModal,{
-      step:"name",
-      email:authEmail || authSession.email || "",
-      setEmail:setAuthEmail,
-      code:authCode,
-      setCode:setAuthCode,
-      displayName:authDisplayName,
-      setDisplayName:setAuthDisplayName,
-      onClose:()=>{},
-      onSendOtp:handleSendOtp,
-      onVerifyOtp:handleVerifyOtp,
-      onSaveProfile:handleSaveProfile,
-      sending:sendingOtp,
-      verifying:verifyingOtp,
-      savingProfile,
-      error:authError,
-      devCode:devOtpCode
-    });
-  }
   if(!selectedGroupId || !currentGroup || !visibleGroups.some(group => group.id === selectedGroupId)) {
     return React.createElement(React.Fragment,null,
       showJoinModal && React.createElement(JoinGroupModal,{inviteContext,joinCode,setJoinCode,onClose:()=>setShowJoinModal(false),onJoin:handleJoinGroup,joining:joiningGroup,error:inviteError}),
