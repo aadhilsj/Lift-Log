@@ -1423,7 +1423,7 @@ async function syncProjectionState(state) {
   await supabaseFetch("/rest/v1/rpc/sync_lift_log_projection", {
     method: "POST",
     headers: { "Content-Type": "application/json", Prefer: "return=minimal" },
-    body: JSON.stringify(payload)
+    body: JSON.stringify({ payload })
   });
 }
 
