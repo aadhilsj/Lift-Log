@@ -378,6 +378,16 @@ function normalizeLoggedWorkoutType(type, logDate = "") {
   return normalized;
 }
 
+function resolveLogCreatedAt(log) {
+  const rawCreatedAt = typeof log?.createdAt === "string" ? log.createdAt : "";
+  const parsedCreatedAt = Date.parse(rawCreatedAt);
+  if (Number.isFinite(parsedCreatedAt) && parsedCreatedAt <= Date.now()) {
+    return new Date(parsedCreatedAt).toISOString();
+  }
+  if (typeof log?.date === "string" && log.date) return `${log.date}T00:00:00.000Z`;
+  return new Date().toISOString();
+}
+
 function normalizeLogEntry(log) {
   const photoUrl = typeof log?.photoUrl === "string" ? log.photoUrl : "";
   return {
@@ -386,7 +396,7 @@ function normalizeLogEntry(log) {
     type: normalizeLoggedWorkoutType(log?.type, log?.date),
     note: typeof log?.note === "string" ? log.note.slice(0, 280) : "",
     photoUrl: shouldKeepLogPhoto(log) ? photoUrl : "",
-    createdAt: log?.createdAt || (typeof log?.date === "string" && log.date ? `${log.date}T12:00:00.000Z` : new Date().toISOString()),
+    createdAt: resolveLogCreatedAt(log),
     verifiedVia: log?.verifiedVia === "strava" ? "strava" : "photo",
     reactions: normalizeReactions(log?.reactions),
     flagStatus: normalizeFlagStatus(log?.flagStatus),
