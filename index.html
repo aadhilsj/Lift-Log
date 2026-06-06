@@ -2006,8 +2006,8 @@ const StepperField = ({value,onChange,min=1,max=Infinity,compact=false,suffix=nu
 
 const GroupSettingsFields = ({settings,setSettings,showAdvanced,setShowAdvanced,showValidation=false,compact=false}) => {
   const desktopNumericWidth = compact && !isMobile() ? 54 : 39;
-  const fineCurrencyWidth = compact && isMobile() ? 80 : 60;
-  const fineAmountWidth = compact && isMobile() ? 85 : 45;
+  const fineCurrencyWidth = compact && isMobile() ? 110 : 85;
+  const fineAmountWidth = compact && isMobile() ? 95 : 75;
   const toggleType = type => setSettings(current => ({
     ...current,
     acceptedWorkoutTypes: current.acceptedWorkoutTypes.includes(type)
