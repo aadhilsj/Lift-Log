@@ -115,7 +115,44 @@ function migrateAuthIdentity(base, nextUserId, email) {
 
   const directProfile = base.profiles?.[normalizedUserId] || null;
   if (directProfile) {
-    return { state: base, profile: directProfile, changed: false };
+    // Profile found — ensure the userId is wired into group memberships so the
+    // primary lookup works (legacy groups have empty memberships objects).
+    const displayName = directProfile.displayName || "";
+    const needsMembership = displayName && Object.values(base.groups || {}).some(group =>
+      group.memberOrder?.includes(displayName) && !group.memberships?.[normalizedUserId]
+    );
+    if (!needsMembership) return { state: base, profile: directProfile, changed: false };
+
+    const nextGroups = Object.fromEntries(
+      Object.entries(base.groups || {}).map(([groupId, group]) => {
+        if (!group.memberOrder?.includes(displayName) || group.memberships?.[normalizedUserId]) {
+          return [groupId, group];
+        }
+        const isAdmin = group.adminName === displayName;
+        return [groupId, normalizeGroup({
+          ...group,
+          adminUserId: isAdmin ? normalizedUserId : (group.adminUserId || null),
+          memberships: {
+            ...group.memberships,
+            [normalizedUserId]: {
+              userId: normalizedUserId,
+              displayName,
+              role: isAdmin ? "admin" : "member",
+              joinedAt: null
+            }
+          }
+        })];
+      })
+    );
+    return {
+      state: {
+        ...base,
+        groups: nextGroups,
+        meta: { revision: base.meta.revision + 1, updatedAt: new Date().toISOString() }
+      },
+      profile: directProfile,
+      changed: true
+    };
   }
 
   const profileEntry = findProfileEntryByEmail(base.profiles, normalizedEmail);
