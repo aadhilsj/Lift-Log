@@ -746,7 +746,9 @@ async function fetchCurrentState() {
 
 async function persistState(nextState, reason) {
   const persisted = await persistStateToSupabase(nextState, reason);
-  await ensureProjectionStateUpToDate(persisted);
+  // Fire-and-forget: projection syncs in background after blob write completes.
+  // The app gets its response immediately; reads fall back to blob if projection lags.
+  ensureProjectionStateUpToDate(persisted).catch(err => console.error("Projection sync failed:", err));
   return persisted;
 }
 
