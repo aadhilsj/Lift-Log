@@ -1537,6 +1537,8 @@ function flattenFeedPosts(group) {
   return group.memberOrder.flatMap(name =>
     (group.logs?.[name] || []).map(log => ({ ...normalizeLogEntry(log), owner: name }))
   ).sort((a, b) => {
+    const dateCompare = String(b.date || "").localeCompare(String(a.date || ""));
+    if (dateCompare !== 0) return dateCompare;
     const aKey = a.createdAt || `${a.date}T00:00:00.000Z`;
     const bKey = b.createdAt || `${b.date}T00:00:00.000Z`;
     return bKey.localeCompare(aKey);
@@ -3302,18 +3304,24 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview}) => 
       !feedPosts.length
         ? React.createElement('div',{style:{padding:"18px 15px",fontSize:13,color:"var(--muted)"}},"No workouts logged yet.")
         : React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:6,padding:10}},
-            feedPosts.map(post=>{
+            feedPosts.map((post,index)=>{
+              const showDateHeader = index === 0 || feedPosts[index - 1]?.date !== post.date;
               const hasThumbnail = Boolean(post.photoUrl);
               const isOwner = post.owner === currentUser;
               const canFlag = !isOwner && post.verifiedVia !== "strava";
               const reactionEntries = Object.entries(post.reactions || {}).sort((a,b)=>b[1].length-a[1].length);
               const categoryIcon = React.createElement(WorkoutTypeIcon,{type:post.type,size:13});
-              return React.createElement('div',{key:`${post.owner}-${post.id}`,style:{
-                border:`0.5px solid ${post.flagStatus==="flagged"?"rgba(232,69,69,.35)":"#0D2E2E"}`,
-                borderRadius:10,
-                background:"#080F0F",
-                overflow:"hidden"
-              }},
+              return React.createElement(React.Fragment,{key:`${post.owner}-${post.id}`},
+                showDateHeader && React.createElement('div',{style:{display:"flex",alignItems:"center",gap:10,padding:"6px 2px 2px"}},
+                  React.createElement('span',{className:"mono",style:{fontSize:10,color:"#4ECDC4",letterSpacing:".08em",textTransform:"uppercase",whiteSpace:"nowrap"}},formatShortDate(post.date)),
+                  React.createElement('div',{style:{height:1,flex:1,background:"rgba(78,205,196,.18)"}})
+                ),
+                React.createElement('div',{style:{
+                  border:`0.5px solid ${post.flagStatus==="flagged"?"rgba(232,69,69,.35)":"#0D2E2E"}`,
+                  borderRadius:10,
+                  background:"#080F0F",
+                  overflow:"hidden"
+                }},
                 hasThumbnail
                 ? React.createElement('div',{style:{padding:"10px 14px 10px"}},
                     React.createElement('div',{style:{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:12}},
@@ -3408,6 +3416,7 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview}) => 
                       )
                     )
                   )
+                )
               );
             })
           )
