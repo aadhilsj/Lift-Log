@@ -736,14 +736,7 @@ function rolloverStateIfNeeded(data) {
 }
 
 async function fetchCurrentState() {
-  const [blobState, projectionState] = await Promise.all([
-    fetchCurrentStateFromSupabase(),
-    fetchStateFromProjection()
-  ]);
-  if (projectionState && projectionState.meta.revision === blobState.meta.revision) {
-    return projectionState;
-  }
-  return blobState;
+  return fetchCurrentStateFromSupabase();
 }
 
 async function persistState(nextState, reason) {
