@@ -305,6 +305,11 @@ function getTimeContextForGroup(group) {
   };
 }
 
+function getLeagueMonthKey(timeZone = DEFAULT_GROUP_TIME_ZONE) {
+  const { year, month } = getLeagueDateParts(timeZone || DEFAULT_GROUP_TIME_ZONE);
+  return `${year}-${month - 1}`;
+}
+
 refreshActiveTimeContext(DEFAULT_GROUP_TIME_ZONE);
 
 const fmtISO = iso => {
