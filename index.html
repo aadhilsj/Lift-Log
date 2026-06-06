@@ -2132,10 +2132,6 @@ const GroupCreateModal = ({onCreate,onClose,creating,defaultCreatorName="",defau
           React.createElement('input',{value,onChange:e=>setter(e.target.value),placeholder,style:{width:"100%",background:"var(--s2)",border:"1px solid var(--border)",borderRadius:9,padding:"12px 13px",color:"var(--text)",fontSize:14,outline:"none"}})
         )
       ),
-      lockCreatorName && React.createElement('div',{style:{marginBottom:12,padding:"12px 13px",borderRadius:10,border:"1px solid rgba(91,141,239,.18)",background:"rgba(91,141,239,.06)"}},
-        React.createElement('div',{className:"lbl",style:{marginBottom:4}},"Creating as"),
-        React.createElement('div',{style:{fontSize:14,fontWeight:700,color:"#f5f7ff"}},creatorName)
-      ),
       React.createElement(GroupSettingsFields,{settings,setSettings,showAdvanced,setShowAdvanced,showValidation:submitAttempted}),
       React.createElement('div',{style:{display:"flex",gap:9,marginTop:18}},
         React.createElement('button',{onClick:onClose,style:{flex:1,background:"var(--s2)",border:"1px solid var(--border)",color:"var(--muted)",padding:"14px",borderRadius:10,fontSize:15,fontWeight:600}},"Cancel"),
