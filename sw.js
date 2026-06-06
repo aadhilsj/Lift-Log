@@ -1,4 +1,4 @@
-const CACHE_NAME = "lift-log-v46";
+const CACHE_NAME = "lift-log-v47";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -53,6 +53,7 @@ self.addEventListener("fetch", event => {
 
   if (!isHttp) return;
   if (requestUrl.origin !== location.origin) return;
+  if (requestUrl.pathname.startsWith("/api/")) return;
 
   event.respondWith((async () => {
     const cache = await caches.open(CACHE_NAME);
