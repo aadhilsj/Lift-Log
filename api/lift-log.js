@@ -736,11 +736,15 @@ function rolloverStateIfNeeded(data) {
 }
 
 async function fetchCurrentState() {
-  return await fetchCurrentStateFromSupabase();
+  const state = await fetchCurrentStateFromSupabase();
+  await ensureProjectionStateUpToDate(state);
+  return state;
 }
 
 async function persistState(nextState, reason) {
-  return await persistStateToSupabase(nextState, reason);
+  const persisted = await persistStateToSupabase(nextState, reason);
+  await ensureProjectionStateUpToDate(persisted);
+  return persisted;
 }
 
 async function fetchCurrentStateFromSupabase() {
@@ -807,6 +811,339 @@ async function createSupabaseBackup(state, reason) {
       reason
     })
   });
+}
+
+const PROJECTION_DELETE_STEPS = [
+  ["/rest/v1/lift_log_projection_month_log_reactions?group_id=not.is.null", "month log reactions"],
+  ["/rest/v1/lift_log_projection_month_logs?group_id=not.is.null", "month logs"],
+  ["/rest/v1/lift_log_projection_month_counts?group_id=not.is.null", "month counts"],
+  ["/rest/v1/lift_log_projection_month_history?group_id=not.is.null", "month history"],
+  ["/rest/v1/lift_log_projection_sit_out_requests?group_id=not.is.null", "sit-out requests"],
+  ["/rest/v1/lift_log_projection_season_overrides?group_id=not.is.null", "season overrides"],
+  ["/rest/v1/lift_log_projection_log_reactions?group_id=not.is.null", "log reactions"],
+  ["/rest/v1/lift_log_projection_group_logs?group_id=not.is.null", "group logs"],
+  ["/rest/v1/lift_log_projection_group_joined_months?group_id=not.is.null", "joined months"],
+  ["/rest/v1/lift_log_projection_group_memberships?group_id=not.is.null", "memberships"],
+  ["/rest/v1/lift_log_projection_groups?group_id=not.is.null", "groups"],
+  ["/rest/v1/lift_log_projection_pending_otps?email=not.is.null", "pending otps"],
+  ["/rest/v1/lift_log_projection_profiles?user_id=not.is.null", "profiles"],
+  ["/rest/v1/lift_log_projection_meta?id=eq.true", "projection meta"]
+];
+
+function projectionSchemaMissing(error) {
+  const message = String(error?.message || "");
+  return error?.status === 404 ||
+    message.includes("lift_log_projection_") ||
+    message.includes("relation") ||
+    message.includes("Could not find the table");
+}
+
+function cleanProjectionValue(value) {
+  return value == null ? null : value;
+}
+
+function buildProjectionPayload(state) {
+  const safeState = normalizeState(state);
+  const groups = Object.values(safeState.groups || {});
+  const profiles = Object.values(safeState.profiles || {}).map(profile => ({
+    user_id: profile.id,
+    email: profile.email,
+    display_name: profile.displayName || "",
+    created_at: profile.createdAt || new Date().toISOString()
+  }));
+  const pendingOtps = Object.entries(safeState.pendingOtps || {}).map(([email, otp]) => ({
+    email,
+    code: otp.code,
+    expires_at: otp.expiresAt,
+    user_id: cleanProjectionValue(otp.userId)
+  }));
+  const groupRows = [];
+  const membershipRows = [];
+  const joinedMonthRows = [];
+  const groupLogRows = [];
+  const logReactionRows = [];
+  const seasonOverrideRows = [];
+  const sitOutRequestRows = [];
+  const monthHistoryRows = [];
+  const monthCountRows = [];
+  const monthLogRows = [];
+  const monthLogReactionRows = [];
+
+  for (const group of groups) {
+    groupRows.push({
+      group_id: group.id,
+      name: group.name,
+      admin_name: group.adminName,
+      admin_user_id: cleanProjectionValue(group.adminUserId),
+      invite_code: group.inviteCode,
+      created_at: group.createdAt || new Date().toISOString(),
+      last_month_key: cleanProjectionValue(group.lastMonth),
+      min_target: group.settings.minTarget,
+      fine_amount: group.settings.fineAmount,
+      fee_model: group.settings.feeModel,
+      escalation_step_amount: cleanProjectionValue(group.settings.escalationStepAmount),
+      currency: group.settings.currency,
+      min_run_distance: group.settings.minRunDistance,
+      distance_unit: group.settings.distanceUnit,
+      strava_enabled: group.settings.stravaEnabled !== false,
+      time_zone: group.settings.timeZone,
+      accepted_workout_types: group.settings.acceptedWorkoutTypes || []
+    });
+
+    for (const membership of Object.values(group.memberships || {})) {
+      membershipRows.push({
+        group_id: group.id,
+        user_id: membership.userId,
+        display_name: membership.displayName,
+        role: membership.role,
+        joined_at: cleanProjectionValue(membership.joinedAt)
+      });
+    }
+
+    for (const [displayName, joinedMonthKey] of Object.entries(group.joinedMonthByName || {})) {
+      joinedMonthRows.push({
+        group_id: group.id,
+        display_name: displayName,
+        joined_month_key: joinedMonthKey
+      });
+    }
+
+    for (const [ownerDisplayName, logs] of Object.entries(group.logs || {})) {
+      for (const log of Array.isArray(logs) ? logs : []) {
+        const normalizedLog = normalizeLogEntry(log);
+        groupLogRows.push({
+          group_id: group.id,
+          log_id: String(normalizedLog.id),
+          owner_display_name: ownerDisplayName,
+          workout_date: normalizedLog.date,
+          workout_type: normalizedLog.type,
+          note: normalizedLog.note || "",
+          photo_url: normalizedLog.photoUrl || "",
+          created_at: normalizedLog.createdAt,
+          verified_via: normalizedLog.verifiedVia,
+          flag_status: cleanProjectionValue(normalizedLog.flagStatus),
+          flag_reason: normalizedLog.flagReason || "",
+          flag_response: normalizedLog.flagResponse || "",
+          flagged_by: cleanProjectionValue(normalizedLog.flaggedBy),
+          decision_by: cleanProjectionValue(normalizedLog.decisionBy),
+          decision_at: cleanProjectionValue(normalizedLog.decisionAt)
+        });
+        for (const [emoji, reactors] of Object.entries(normalizedLog.reactions || {})) {
+          for (const reactorDisplayName of reactors) {
+            logReactionRows.push({
+              group_id: group.id,
+              log_id: String(normalizedLog.id),
+              emoji,
+              reactor_display_name: reactorDisplayName
+            });
+          }
+        }
+      }
+    }
+
+    for (const [monthKey, override] of Object.entries(group.seasonOverrides || {})) {
+      seasonOverrideRows.push({
+        group_id: group.id,
+        month_key: monthKey,
+        prorated: !!override.prorated,
+        prorated_mas: cleanProjectionValue(override.proratedMas),
+        chosen_at: cleanProjectionValue(override.chosenAt),
+        chosen_by: cleanProjectionValue(override.chosenBy),
+        chosen_by_user_id: cleanProjectionValue(override.chosenByUserId)
+      });
+    }
+
+    for (const [monthKey, requests] of Object.entries(group.sitOutRequests || {})) {
+      for (const [memberName, request] of Object.entries(requests || {})) {
+        sitOutRequestRows.push({
+          group_id: group.id,
+          month_key: monthKey,
+          member_name: memberName,
+          status: request.status || "pending",
+          reason: request.reason || "",
+          exceptional: !!request.exceptional,
+          requested_at: cleanProjectionValue(request.requestedAt),
+          requested_by: request.requestedBy || memberName,
+          requested_by_user_id: cleanProjectionValue(request.requestedByUserId),
+          target_approver_name: cleanProjectionValue(request.targetApproverName),
+          target_approver_user_id: cleanProjectionValue(request.targetApproverUserId),
+          decided_at: cleanProjectionValue(request.decidedAt),
+          decided_by: cleanProjectionValue(request.decidedBy),
+          decided_by_user_id: cleanProjectionValue(request.decidedByUserId),
+          auto_approved: !!request.autoApproved
+        });
+      }
+    }
+
+    for (const month of Array.isArray(group.monthHistory) ? group.monthHistory : []) {
+      const monthSettings = buildNormalizedSettings(month.settings || group.settings);
+      monthHistoryRows.push({
+        group_id: group.id,
+        month_key: month.key,
+        label: month.label || formatMonthLabelFromKey(month.key) || month.key,
+        year: month.year,
+        month: month.month,
+        min_target: monthSettings.minTarget,
+        fine_amount: monthSettings.fineAmount,
+        fee_model: monthSettings.feeModel,
+        escalation_step_amount: cleanProjectionValue(monthSettings.escalationStepAmount),
+        currency: monthSettings.currency,
+        min_run_distance: monthSettings.minRunDistance,
+        distance_unit: monthSettings.distanceUnit,
+        strava_enabled: monthSettings.stravaEnabled !== false,
+        time_zone: monthSettings.timeZone,
+        accepted_workout_types: monthSettings.acceptedWorkoutTypes || []
+      });
+
+      const names = uniqueNames([
+        ...Object.keys(month.counts || {}),
+        ...Object.keys(month.excused || {}),
+        ...Object.keys(month.settlements || {}),
+        ...Object.keys(month.logsByUser || {})
+      ]);
+      for (const displayName of names) {
+        const settlement = month.settlements?.[displayName] || null;
+        monthCountRows.push({
+          group_id: group.id,
+          month_key: month.key,
+          display_name: displayName,
+          workout_count: Number(month.counts?.[displayName] || 0),
+          excused: !!month.excused?.[displayName],
+          settlement_status: cleanProjectionValue(settlement?.status),
+          settlement_settled_at: cleanProjectionValue(settlement?.settledAt),
+          settlement_updated_at: cleanProjectionValue(settlement?.updatedAt)
+        });
+      }
+
+      for (const [ownerDisplayName, logs] of Object.entries(month.logsByUser || {})) {
+        for (const log of Array.isArray(logs) ? logs : []) {
+          const normalizedLog = normalizeLogEntry(log);
+          monthLogRows.push({
+            group_id: group.id,
+            month_key: month.key,
+            log_id: String(normalizedLog.id),
+            owner_display_name: ownerDisplayName,
+            workout_date: normalizedLog.date,
+            workout_type: normalizedLog.type,
+            note: normalizedLog.note || "",
+            photo_url: normalizedLog.photoUrl || "",
+            created_at: normalizedLog.createdAt,
+            verified_via: normalizedLog.verifiedVia,
+            flag_status: cleanProjectionValue(normalizedLog.flagStatus),
+            flag_reason: normalizedLog.flagReason || "",
+            flag_response: normalizedLog.flagResponse || "",
+            flagged_by: cleanProjectionValue(normalizedLog.flaggedBy),
+            decision_by: cleanProjectionValue(normalizedLog.decisionBy),
+            decision_at: cleanProjectionValue(normalizedLog.decisionAt)
+          });
+          for (const [emoji, reactors] of Object.entries(normalizedLog.reactions || {})) {
+            for (const reactorDisplayName of reactors) {
+              monthLogReactionRows.push({
+                group_id: group.id,
+                month_key: month.key,
+                log_id: String(normalizedLog.id),
+                emoji,
+                reactor_display_name: reactorDisplayName
+              });
+            }
+          }
+        }
+      }
+    }
+  }
+
+  return {
+    meta: [{
+      id: true,
+      source_revision: safeState.meta.revision,
+      source_updated_at: cleanProjectionValue(safeState.meta.updatedAt),
+      default_group_id: cleanProjectionValue(safeState.defaultGroupId),
+      group_order: safeState.groupOrder || [],
+      updated_at: new Date().toISOString()
+    }],
+    profiles,
+    pendingOtps,
+    groups: groupRows,
+    memberships: membershipRows,
+    joinedMonths: joinedMonthRows,
+    groupLogs: groupLogRows,
+    logReactions: logReactionRows,
+    seasonOverrides: seasonOverrideRows,
+    sitOutRequests: sitOutRequestRows,
+    monthHistory: monthHistoryRows,
+    monthCounts: monthCountRows,
+    monthLogs: monthLogRows,
+    monthLogReactions: monthLogReactionRows
+  };
+}
+
+async function replaceProjectionTable(path, rows) {
+  if (!rows.length) return;
+  const chunkSize = 500;
+  for (let index = 0; index < rows.length; index += chunkSize) {
+    await supabaseFetch(path, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Prefer: "return=minimal"
+      },
+      body: JSON.stringify(rows.slice(index, index + chunkSize))
+    });
+  }
+}
+
+async function fetchProjectionMeta() {
+  try {
+    const response = await supabaseFetch("/rest/v1/lift_log_projection_meta?id=eq.true&select=source_revision", {
+      method: "GET",
+      headers: { Accept: "application/json" }
+    });
+    const rows = await response.json();
+    return {
+      available: true,
+      sourceRevision: Number(rows?.[0]?.source_revision || 0)
+    };
+  } catch (error) {
+    if (projectionSchemaMissing(error)) return { available: false, sourceRevision: 0 };
+    throw error;
+  }
+}
+
+async function syncProjectionState(state) {
+  const payload = buildProjectionPayload(state);
+  for (const [path] of PROJECTION_DELETE_STEPS) {
+    await supabaseFetch(path, {
+      method: "DELETE",
+      headers: { Prefer: "return=minimal" }
+    });
+  }
+
+  await replaceProjectionTable("/rest/v1/lift_log_projection_profiles", payload.profiles);
+  await replaceProjectionTable("/rest/v1/lift_log_projection_pending_otps", payload.pendingOtps);
+  await replaceProjectionTable("/rest/v1/lift_log_projection_groups", payload.groups);
+  await replaceProjectionTable("/rest/v1/lift_log_projection_group_memberships", payload.memberships);
+  await replaceProjectionTable("/rest/v1/lift_log_projection_group_joined_months", payload.joinedMonths);
+  await replaceProjectionTable("/rest/v1/lift_log_projection_group_logs", payload.groupLogs);
+  await replaceProjectionTable("/rest/v1/lift_log_projection_log_reactions", payload.logReactions);
+  await replaceProjectionTable("/rest/v1/lift_log_projection_season_overrides", payload.seasonOverrides);
+  await replaceProjectionTable("/rest/v1/lift_log_projection_sit_out_requests", payload.sitOutRequests);
+  await replaceProjectionTable("/rest/v1/lift_log_projection_month_history", payload.monthHistory);
+  await replaceProjectionTable("/rest/v1/lift_log_projection_month_counts", payload.monthCounts);
+  await replaceProjectionTable("/rest/v1/lift_log_projection_month_logs", payload.monthLogs);
+  await replaceProjectionTable("/rest/v1/lift_log_projection_month_log_reactions", payload.monthLogReactions);
+  await replaceProjectionTable("/rest/v1/lift_log_projection_meta", payload.meta);
+}
+
+async function ensureProjectionStateUpToDate(state) {
+  try {
+    const safeState = normalizeState(state);
+    const projection = await fetchProjectionMeta();
+    if (!projection.available) return;
+    if (projection.sourceRevision === safeState.meta.revision) return;
+    await syncProjectionState(safeState);
+  } catch (error) {
+    console.error("Projection sync failed:", error);
+  }
 }
 
 async function supabaseFetch(path, options = {}) {
