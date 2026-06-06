@@ -2004,6 +2004,8 @@ const StepperField = ({value,onChange,min=1,max=Infinity,compact=false,suffix=nu
 
 const GroupSettingsFields = ({settings,setSettings,showAdvanced,setShowAdvanced,showValidation=false,compact=false}) => {
   const desktopNumericWidth = compact && !isMobile() ? 54 : 39;
+  const fineCurrencyWidth = compact && isMobile() ? 83 : 70;
+  const fineAmountWidth = compact && isMobile() ? 51 : desktopNumericWidth;
   const toggleType = type => setSettings(current => ({
     ...current,
     acceptedWorkoutTypes: current.acceptedWorkoutTypes.includes(type)
@@ -2018,12 +2020,12 @@ const GroupSettingsFields = ({settings,setSettings,showAdvanced,setShowAdvanced,
         React.createElement(SelectField,{
           value:settings.currency,
           onChange:e=>setSettings(current=>({...current,currency:e.target.value})),
-          width:70,
+          width:fineCurrencyWidth,
           options:CURRENCY_OPTIONS.map(option=>({value:option.code,label:option.code})),
           compact,
           arrowColor:"#4ECDC4"
         }),
-        React.createElement('input',{type:"number",min:1,value:settings.fineAmount,onChange:e=>setSettings(current=>({...current,fineAmount:e.target.value})),style:{...inputShellStyle,width:desktopNumericWidth,fontSize:compact?12:15,padding:compact?"7px 9px":inputShellStyle.padding,borderRadius:compact?8:inputShellStyle.borderRadius,textAlign:"center"}})
+        React.createElement('input',{type:"number",min:1,value:settings.fineAmount,onChange:e=>setSettings(current=>({...current,fineAmount:e.target.value})),style:{...inputShellStyle,width:fineAmountWidth,fontSize:compact?12:15,padding:compact?"7px 9px":inputShellStyle.padding,borderRadius:compact?8:inputShellStyle.borderRadius,textAlign:"center"}})
       )
     ),
     React.createElement(SettingsField,{title:"How fines are calculated",compact},
@@ -2110,7 +2112,6 @@ const GroupCreateModal = ({onCreate,onClose,creating,defaultCreatorName="",defau
   const compactMobile = isMobile();
   const [groupName,setGroupName]=useState("");
   const [creatorName,setCreatorName]=useState(defaultCreatorName);
-  const [extraMembers,setExtraMembers]=useState("");
   const [showAdvanced,setShowAdvanced]=useState(false);
   const [settings,setSettings]=useState({...SETTINGS_DEFAULTS,timeZone:defaultTimeZone});
   const [submitAttempted,setSubmitAttempted]=useState(false);
@@ -2121,11 +2122,10 @@ const GroupCreateModal = ({onCreate,onClose,creating,defaultCreatorName="",defau
   return React.createElement('div',{className:`overlay${compactMobile ? " center-mobile" : ""}`,onClick:onClose},
     React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{maxWidth:440}},
       React.createElement('div',{style:{fontWeight:800,fontSize:20,marginBottom:6}},"Create a Bloc"),
-      React.createElement('div',{style:{color:"var(--muted)",fontSize:13,lineHeight:1.5,marginBottom:18}},"Set the rules up front so this Bloc is ready to use outside your own circle."),
+      React.createElement('div',{style:{color:"var(--muted)",fontSize:13,lineHeight:1.5,marginBottom:18}},"Set the rules up front. Once the Bloc is created, invite people with the code or invite link so they can join as themselves."),
       [
         ["Bloc name",groupName,setGroupName,"Sunday Runners"],
-        ...(!lockCreatorName ? [["Your name",creatorName,setCreatorName,"Aadhil"]] : []),
-        ["Other members (comma separated)",extraMembers,setExtraMembers,"Isira, Rahul, Kisal"]
+        ...(!lockCreatorName ? [["Your name",creatorName,setCreatorName,"Aadhil"]] : [])
       ].map(([label,value,setter,placeholder])=>
         React.createElement('label',{key:label,style:{display:"block",marginBottom:12}},
           React.createElement('span',{className:"lbl"},label),
@@ -2145,7 +2145,6 @@ const GroupCreateModal = ({onCreate,onClose,creating,defaultCreatorName="",defau
           onCreate({
           groupName,
           creatorName,
-          extraMembers,
           ...normalizedSettings,
           groupTimeZone: normalizedSettings.timeZone
         });
