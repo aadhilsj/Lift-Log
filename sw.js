@@ -1,9 +1,8 @@
-const CACHE_NAME = "lift-log-v48";
+const CACHE_NAME = "ante-v49";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./manifest.webmanifest",
-  "./icon.svg",
   "./icon-192.png",
   "./icon-512.png",
   "https://unpkg.com/react@18/umd/react.production.min.js",

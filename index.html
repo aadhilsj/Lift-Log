@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
-  <title>Anté</title>
+  <title>Antè</title>
   <meta name="theme-color" content="#07070a"/>
-  <meta name="description" content="Anté is a monthly fitness accountability app built around Blocs, proof, and consequences."/>
+  <meta name="description" content="Antè is a monthly fitness accountability app built around Blocs, proof, and consequences."/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
-  <meta name="apple-mobile-web-app-title" content="Anté"/>
+  <meta name="apple-mobile-web-app-title" content="Antè"/>
   <link rel="manifest" href="./manifest.webmanifest"/>
-  <link rel="icon" href="./icon.svg" type="image/svg+xml"/>
+  <link rel="icon" href="./icon-192.png" type="image/png"/>
   <link rel="apple-touch-icon" href="./icon-512.png"/>
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=Raleway:wght@800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet"/>
@@ -156,7 +156,7 @@
   <script type="text/babel" data-presets="react">
 
 const LEGACY_GROUP_ID = "legacy-group";
-const DEFAULT_GROUP_NAME = "Anté OG";
+const DEFAULT_GROUP_NAME = "Antè OG";
 const DEFAULT_NAMES = ["Aadhil","Isira","Rahul","Kisal","Rishane","Deyhan","Aysha","Nishara","Abhishek"];
 const WORKOUT_TYPES = ["Gym","Run","Pilates","Sports","Other"];
 const DEFAULT_MIN_TARGET = 12;
@@ -1880,7 +1880,7 @@ const AnteWordmark = ({size=56,stacked=false,subtle=false}) => React.createEleme
   React.createElement(React.Fragment,null,"ANT",React.createElement('span',{style:{color:"var(--cyan)"}},"É"))
 );
 
-const Spinner = ({label="Loading Anté..."}) => React.createElement('div',{style:{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minHeight:"100vh",gap:16}},
+const Spinner = ({label="Loading Antè..."}) => React.createElement('div',{style:{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minHeight:"100vh",gap:16}},
   React.createElement('div',{className:"spinner"}),
   React.createElement('div',{style:{color:"var(--muted)",fontSize:13,fontFamily:"'JetBrains Mono',monospace"}},label)
 );
@@ -1891,11 +1891,11 @@ const InstallBanner = ({installReady,onInstall,onDismiss,showIosHint}) => (
       React.createElement('div',{style:{display:"flex",alignItems:"center",gap:12}},
         React.createElement('div',{style:{width:isMobile()?36:42,height:isMobile()?36:42,borderRadius:12,background:"linear-gradient(135deg,#101820,#1fce65)",display:"flex",alignItems:"center",justifyContent:"center",color:"#08110f",flexShrink:0}},React.createElement(AppIcon,{name:"today",size:isMobile()?18:20,stroke:"#08110f"})),
         React.createElement('div',null,
-          React.createElement('div',{style:{fontWeight:800,fontSize:15}},"Install Anté"),
+          React.createElement('div',{style:{fontWeight:800,fontSize:15}},"Install Antè"),
           React.createElement('div',{style:{fontSize:12,color:"var(--muted)",marginTop:3,lineHeight:1.45}},
             installReady
-              ? "Add Anté to your home screen for a full-screen app experience and faster reloads."
-              : "On iPhone, tap Share and choose Add to Home Screen to install Anté."
+              ? "Add Antè to your home screen for a full-screen app experience and faster reloads."
+              : "On iPhone, tap Share and choose Add to Home Screen to install Antè."
           )
         )
       ),
@@ -2252,7 +2252,7 @@ const PreviewLanding = ({inviteContext,onCreate,onJoin,onSignIn}) => {
       React.createElement('span',{style:{color:"#4ECDC4"}},"Bloc"),
       " that keeps you showing up."
     ),
-    React.createElement('div',{style:{color:"#2A5555",fontSize:13,lineHeight:1.5,maxWidth:540,margin:"0 auto"}},"See how Anté works")
+    React.createElement('div',{style:{color:"#2A5555",fontSize:13,lineHeight:1.5,maxWidth:540,margin:"0 auto"}},"See how Antè works")
   );
 
   const previewHeader = React.createElement('div',{
@@ -2399,7 +2399,7 @@ const JoinGroupModal = ({inviteContext,joinCode,setJoinCode,onClose,onJoin,joini
 const AuthFlowModal = ({step,email,setEmail,code,setCode,displayName,setDisplayName,onClose,onSendOtp,onVerifyOtp,onSaveProfile,sending,verifying,savingProfile,error,devCode}) => React.createElement('div',{className:"overlay center-mobile",onClick:onClose},
   React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{maxWidth:420}},
     React.createElement('div',{style:{fontWeight:800,fontSize:20,marginBottom:6}},
-      step==="name" ? "Set your Anté name" : "Continue with email"
+      step==="name" ? "Set your Antè name" : "Continue with email"
     ),
     React.createElement('div',{style:{color:"var(--muted)",fontSize:13,lineHeight:1.6,marginBottom:18}},
       step==="email" ? "Use a one-time code to create your account or sign back in."
@@ -2611,7 +2611,7 @@ const GroupHome = ({groups,currentIdentity,currentEmail,onOpenProfile,onOpenGrou
       React.createElement('div',{className:"fu",style:{textAlign:"center",marginBottom:compactMobile?16:32,maxWidth:560}},
         React.createElement('span',{className:"mono",style:{fontSize:10,color:"var(--cyan)",letterSpacing:".2em",textTransform:"uppercase"}},"Your Blocs"),
       React.createElement('div',{style:{margin:compactMobile?"6px 0 8px":"14px 0"}},React.createElement(AnteWordmark,{size:compactMobile?38:58})),
-      React.createElement('div',{style:{color:"var(--muted)",fontSize:compactMobile?12:16,fontWeight:500,lineHeight:1.45,marginBottom:compactMobile?10:14,maxWidth:compactMobile?340:560}},"Choose a Bloc to enter, or create a new one. Anté keeps each Bloc separate, with its own rules, invites, and stakes.")
+      React.createElement('div',{style:{color:"var(--muted)",fontSize:compactMobile?12:16,fontWeight:500,lineHeight:1.45,marginBottom:compactMobile?10:14,maxWidth:compactMobile?340:560}},"Choose a Bloc to enter, or create a new one. Antè keeps each Bloc separate, with its own rules, invites, and stakes.")
       ),
       React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(228px,1fr))",gap:compactMobile?7:12,width:"100%",maxWidth:744,marginBottom:compactMobile?30:34}},
         groups.map((group,index)=>{
@@ -5451,7 +5451,7 @@ const App = () => {
     setShowJoinModal(false);
   };
 
-  if(loading || !authReady) return React.createElement(Spinner,{label:"Opening Anté..."});
+  if(loading || !authReady) return React.createElement(Spinner,{label:"Opening Antè..."});
   if(!authSession?.userId) {
     return React.createElement(React.Fragment,null,
       React.createElement(PreviewLanding,{

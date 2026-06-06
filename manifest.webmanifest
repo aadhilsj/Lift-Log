@@ -1,7 +1,7 @@
 {
-  "name": "Lift Log",
-  "short_name": "Lift Log",
-  "description": "Track workouts, monthly targets, standings, and history with Lift Log.",
+  "name": "Antè",
+  "short_name": "Antè",
+  "description": "Track workouts, monthly targets, standings, and history with Antè.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
