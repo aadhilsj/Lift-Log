@@ -737,7 +737,6 @@ function rolloverStateIfNeeded(data) {
 
 async function fetchCurrentState() {
   const blobState = await fetchCurrentStateFromSupabase();
-  await ensureProjectionStateUpToDate(blobState);
   const projectionState = await fetchStateFromProjection();
   if (projectionState && projectionState.meta.revision === blobState.meta.revision) {
     return projectionState;
@@ -747,7 +746,7 @@ async function fetchCurrentState() {
 
 async function persistState(nextState, reason) {
   const persisted = await persistStateToSupabase(nextState, reason);
-  await ensureProjectionStateUpToDate(persisted);
+  ensureProjectionStateUpToDate(persisted).catch(err => console.error("Projection sync failed:", err));
   return persisted;
 }
 
@@ -1168,38 +1167,21 @@ function buildProjectionLog(row, reactions) {
   };
 }
 
-async function fetchStateFromProjectionMeta(metaRow) {
-  const [
-    profileRows,
-    pendingOtpRows,
-    groupRows,
-    membershipRows,
-    joinedMonthRows,
-    groupExcusedRows,
-    groupLogRows,
-    logReactionRows,
-    seasonOverrideRows,
-    sitOutRequestRows,
-    monthHistoryRows,
-    monthCountRows,
-    monthLogRows,
-    monthLogReactionRows
-  ] = await Promise.all([
-    fetchProjectionRows("/rest/v1/lift_log_projection_profiles?select=*"),
-    fetchProjectionRows("/rest/v1/lift_log_projection_pending_otps?select=*"),
-    fetchProjectionRows("/rest/v1/lift_log_projection_groups?select=*"),
-    fetchProjectionRows("/rest/v1/lift_log_projection_group_memberships?select=*"),
-    fetchProjectionRows("/rest/v1/lift_log_projection_group_joined_months?select=*"),
-    fetchProjectionRows("/rest/v1/lift_log_projection_group_excused?select=*"),
-    fetchProjectionRows("/rest/v1/lift_log_projection_group_logs?select=*"),
-    fetchProjectionRows("/rest/v1/lift_log_projection_log_reactions?select=*"),
-    fetchProjectionRows("/rest/v1/lift_log_projection_season_overrides?select=*"),
-    fetchProjectionRows("/rest/v1/lift_log_projection_sit_out_requests?select=*"),
-    fetchProjectionRows("/rest/v1/lift_log_projection_month_history?select=*"),
-    fetchProjectionRows("/rest/v1/lift_log_projection_month_counts?select=*"),
-    fetchProjectionRows("/rest/v1/lift_log_projection_month_logs?select=*"),
-    fetchProjectionRows("/rest/v1/lift_log_projection_month_log_reactions?select=*")
-  ]);
+async function fetchStateFromProjectionMeta(metaRow, payload) {
+  const profileRows        = Array.isArray(payload.profiles)        ? payload.profiles        : [];
+  const pendingOtpRows     = Array.isArray(payload.pendingOtps)     ? payload.pendingOtps     : [];
+  const groupRows          = Array.isArray(payload.groups)          ? payload.groups          : [];
+  const membershipRows     = Array.isArray(payload.memberships)     ? payload.memberships     : [];
+  const joinedMonthRows    = Array.isArray(payload.joinedMonths)    ? payload.joinedMonths    : [];
+  const groupExcusedRows   = Array.isArray(payload.groupExcused)    ? payload.groupExcused    : [];
+  const groupLogRows       = Array.isArray(payload.groupLogs)       ? payload.groupLogs       : [];
+  const logReactionRows    = Array.isArray(payload.logReactions)    ? payload.logReactions    : [];
+  const seasonOverrideRows = Array.isArray(payload.seasonOverrides) ? payload.seasonOverrides : [];
+  const sitOutRequestRows  = Array.isArray(payload.sitOutRequests)  ? payload.sitOutRequests  : [];
+  const monthHistoryRows   = Array.isArray(payload.monthHistory)    ? payload.monthHistory    : [];
+  const monthCountRows     = Array.isArray(payload.monthCounts)     ? payload.monthCounts     : [];
+  const monthLogRows       = Array.isArray(payload.monthLogs)       ? payload.monthLogs       : [];
+  const monthLogReactionRows = Array.isArray(payload.monthLogReactions) ? payload.monthLogReactions : [];
 
   const profiles = Object.fromEntries(
     profileRows.map(row => [row.user_id, {
@@ -1399,9 +1381,14 @@ async function fetchStateFromProjectionMeta(metaRow) {
 
 async function fetchStateFromProjection() {
   try {
-    const projection = await fetchProjectionMeta();
-    if (!projection.available || !projection.row) return null;
-    return await fetchStateFromProjectionMeta(projection.row);
+    const response = await supabaseFetch("/rest/v1/rpc/read_lift_log_projection", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({})
+    });
+    const payload = await response.json();
+    if (!payload || !Array.isArray(payload.meta) || !payload.meta[0]) return null;
+    return await fetchStateFromProjectionMeta(payload.meta[0], payload);
   } catch (error) {
     if (projectionSchemaMissing(error)) return null;
     console.error("Projection fetch failed:", error);
@@ -1411,28 +1398,11 @@ async function fetchStateFromProjection() {
 
 async function syncProjectionState(state) {
   const payload = buildProjectionPayload(state);
-  for (const [path] of PROJECTION_DELETE_STEPS) {
-    await supabaseFetch(path, {
-      method: "DELETE",
-      headers: { Prefer: "return=minimal" }
-    });
-  }
-
-  await replaceProjectionTable("/rest/v1/lift_log_projection_profiles", payload.profiles);
-  await replaceProjectionTable("/rest/v1/lift_log_projection_pending_otps", payload.pendingOtps);
-  await replaceProjectionTable("/rest/v1/lift_log_projection_groups", payload.groups);
-  await replaceProjectionTable("/rest/v1/lift_log_projection_group_memberships", payload.memberships);
-  await replaceProjectionTable("/rest/v1/lift_log_projection_group_joined_months", payload.joinedMonths);
-  await replaceProjectionTable("/rest/v1/lift_log_projection_group_excused", payload.groupExcused);
-  await replaceProjectionTable("/rest/v1/lift_log_projection_group_logs", payload.groupLogs);
-  await replaceProjectionTable("/rest/v1/lift_log_projection_log_reactions", payload.logReactions);
-  await replaceProjectionTable("/rest/v1/lift_log_projection_season_overrides", payload.seasonOverrides);
-  await replaceProjectionTable("/rest/v1/lift_log_projection_sit_out_requests", payload.sitOutRequests);
-  await replaceProjectionTable("/rest/v1/lift_log_projection_month_history", payload.monthHistory);
-  await replaceProjectionTable("/rest/v1/lift_log_projection_month_counts", payload.monthCounts);
-  await replaceProjectionTable("/rest/v1/lift_log_projection_month_logs", payload.monthLogs);
-  await replaceProjectionTable("/rest/v1/lift_log_projection_month_log_reactions", payload.monthLogReactions);
-  await replaceProjectionTable("/rest/v1/lift_log_projection_meta", payload.meta);
+  await supabaseFetch("/rest/v1/rpc/sync_lift_log_projection", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Prefer: "return=minimal" },
+    body: JSON.stringify(payload)
+  });
 }
 
 async function ensureProjectionStateUpToDate(state) {
