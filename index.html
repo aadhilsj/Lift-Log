@@ -5404,13 +5404,33 @@ const App = () => {
       })
     );
   }
+  if(authStep === "name") {
+    return React.createElement(AuthFlowModal,{
+      step:"name",
+      email:authEmail || authSession.email || "",
+      setEmail:setAuthEmail,
+      code:authCode,
+      setCode:setAuthCode,
+      displayName:authDisplayName,
+      setDisplayName:setAuthDisplayName,
+      onClose:closeAuth,
+      onSendOtp:handleSendOtp,
+      onVerifyOtp:handleVerifyOtp,
+      onSaveProfile:handleSaveProfile,
+      sending:sendingOtp,
+      verifying:verifyingOtp,
+      savingProfile,
+      error:authError,
+      devCode:devOtpCode
+    });
+  }
   if(!selectedGroupId || !currentGroup || !visibleGroups.some(group => group.id === selectedGroupId)) {
     return React.createElement(React.Fragment,null,
       showJoinModal && React.createElement(JoinGroupModal,{inviteContext,joinCode,setJoinCode,onClose:()=>setShowJoinModal(false),onJoin:handleJoinGroup,joining:joiningGroup,error:inviteError}),
       showProfileModal && React.createElement(ProfileModal,{email:authSession?.email,onSignOut:handleSwitchUser,onClose:()=>setShowProfileModal(false),onDeleteAccount:handleDeleteAccount}),
       React.createElement(GroupHome,{
         groups: visibleGroups,
-        currentIdentity: profile.displayName,
+        currentIdentity: profile?.displayName || authSession?.email?.split("@")[0] || "",
         currentEmail: authSession?.email,
         onOpenProfile:()=>setShowProfileModal(true),
         creating: creatingGroup,
