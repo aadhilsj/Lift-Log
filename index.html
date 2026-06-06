@@ -4956,14 +4956,6 @@ const App = () => {
 
   useEffect(()=>{
     if(selectedGroupId && appState.groups?.[selectedGroupId]) return;
-    const visibleIds = appState.groupOrder.filter(groupId => {
-      const group = appState.groups?.[groupId];
-      return Boolean(getMembershipForUser(group, authSession, profile));
-    });
-    if(visibleIds.length===1){
-      persistGroupSelection(visibleIds[0]);
-      return;
-    }
     if(selectedGroupId && !appState.groups?.[selectedGroupId]) {
       persistGroupSelection(null);
     }
