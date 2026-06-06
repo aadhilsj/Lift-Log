@@ -737,9 +737,10 @@ function rolloverStateIfNeeded(data) {
 
 async function fetchCurrentState() {
   const blobState = await fetchCurrentStateFromSupabase();
-  // Projection read disabled: mirror writes but always read from blob until
-  // the read-path reconstruction is verified safe under concurrent saves.
-  ensureProjectionStateUpToDate(blobState).catch(() => {});
+  const projectionState = await fetchStateFromProjection();
+  if (projectionState && projectionState.meta.revision === blobState.meta.revision) {
+    return projectionState;
+  }
   return blobState;
 }
 
@@ -1409,28 +1410,11 @@ async function fetchStateFromProjection() {
 
 async function syncProjectionState(state) {
   const payload = buildProjectionPayload(state);
-  for (const [path] of PROJECTION_DELETE_STEPS) {
-    await supabaseFetch(path, {
-      method: "DELETE",
-      headers: { Prefer: "return=minimal" }
-    });
-  }
-
-  await replaceProjectionTable("/rest/v1/lift_log_projection_profiles", payload.profiles);
-  await replaceProjectionTable("/rest/v1/lift_log_projection_pending_otps", payload.pendingOtps);
-  await replaceProjectionTable("/rest/v1/lift_log_projection_groups", payload.groups);
-  await replaceProjectionTable("/rest/v1/lift_log_projection_group_memberships", payload.memberships);
-  await replaceProjectionTable("/rest/v1/lift_log_projection_group_joined_months", payload.joinedMonths);
-  await replaceProjectionTable("/rest/v1/lift_log_projection_group_excused", payload.groupExcused);
-  await replaceProjectionTable("/rest/v1/lift_log_projection_group_logs", payload.groupLogs);
-  await replaceProjectionTable("/rest/v1/lift_log_projection_log_reactions", payload.logReactions);
-  await replaceProjectionTable("/rest/v1/lift_log_projection_season_overrides", payload.seasonOverrides);
-  await replaceProjectionTable("/rest/v1/lift_log_projection_sit_out_requests", payload.sitOutRequests);
-  await replaceProjectionTable("/rest/v1/lift_log_projection_month_history", payload.monthHistory);
-  await replaceProjectionTable("/rest/v1/lift_log_projection_month_counts", payload.monthCounts);
-  await replaceProjectionTable("/rest/v1/lift_log_projection_month_logs", payload.monthLogs);
-  await replaceProjectionTable("/rest/v1/lift_log_projection_month_log_reactions", payload.monthLogReactions);
-  await replaceProjectionTable("/rest/v1/lift_log_projection_meta", payload.meta);
+  await supabaseFetch("/rest/v1/rpc/sync_lift_log_projection", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Prefer: "return=minimal" },
+    body: JSON.stringify(payload)
+  });
 }
 
 async function ensureProjectionStateUpToDate(state) {
