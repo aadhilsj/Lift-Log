@@ -1521,6 +1521,11 @@ function formatRelativeTime(value) {
   return fmtISO(value.slice(0, 10));
 }
 
+function isRecentPastTimestamp(value, now = Date.now()) {
+  const diffMs = now - new Date(value).getTime();
+  return Number.isFinite(diffMs) && diffMs >= 0 && diffMs < 86400000;
+}
+
 async function compressImageFile(file, maxSize = 1280, quality = 0.82) {
   const dataUrl = await new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -1546,7 +1551,13 @@ async function compressImageFile(file, maxSize = 1280, quality = 0.82) {
 function flattenFeedPosts(group) {
   if (!group) return [];
   return group.memberOrder.flatMap(name =>
-    (group.logs?.[name] || []).map(log => ({ ...normalizeLogEntry(log), owner: name }))
+    (group.logs?.[name] || []).map(log => {
+      const normalizedLog = normalizeLogEntry(log);
+      return {
+        ...normalizedLog,
+        owner: name
+      };
+    })
   ).sort((a, b) => {
     const dateCompare = String(b.date || "").localeCompare(String(a.date || ""));
     if (dateCompare !== 0) return dateCompare;
@@ -3231,7 +3242,7 @@ const ImageLightbox = ({src,alt,onClose,canFlag,onFlag}) => React.createElement(
   )
 );
 
-const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview}) => {
+const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clockTick}) => {
   const [flagTarget,setFlagTarget]=useState(null);
   const [flagReason,setFlagReason]=useState("");
   const [responseTarget,setResponseTarget]=useState(null);
@@ -3316,15 +3327,17 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview}) => 
         ? React.createElement('div',{style:{padding:"18px 15px",fontSize:13,color:"var(--muted)"}},"No workouts logged yet.")
         : React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:6,padding:10}},
             feedPosts.map((post,index)=>{
-              const showDateHeader = index === 0 || feedPosts[index - 1]?.date !== post.date;
+              const displayDate = post.date;
+              const showDateHeader = index === 0 || feedPosts[index - 1]?.date !== displayDate;
               const hasThumbnail = Boolean(post.photoUrl);
               const isOwner = post.owner === currentUser;
               const canFlag = !isOwner && post.verifiedVia !== "strava";
               const reactionEntries = Object.entries(post.reactions || {}).sort((a,b)=>b[1].length-a[1].length);
               const categoryIcon = React.createElement(WorkoutTypeIcon,{type:post.type,size:13});
+              const showRelativeTime = isRecentPastTimestamp(post.createdAt, clockTick || Date.now());
               return React.createElement(React.Fragment,{key:`${post.owner}-${post.id}`},
                 showDateHeader && React.createElement('div',{style:{display:"flex",alignItems:"center",gap:10,padding:"6px 2px 2px"}},
-                  React.createElement('span',{className:"mono",style:{fontSize:10,color:"#4ECDC4",letterSpacing:".08em",textTransform:"uppercase",whiteSpace:"nowrap"}},formatShortDate(post.date)),
+                  React.createElement('span',{className:"mono",style:{fontSize:10,color:"#4ECDC4",letterSpacing:".08em",textTransform:"uppercase",whiteSpace:"nowrap"}},formatShortDate(displayDate)),
                   React.createElement('div',{style:{height:1,flex:1,background:"rgba(78,205,196,.18)"}})
                 ),
                 React.createElement('div',{style:{
@@ -3345,8 +3358,8 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview}) => 
                               React.createElement('span',{style:{display:"inline-flex",alignItems:"center",justifyContent:"center",color:"var(--cyan)"}},categoryIcon),
                               React.createElement('span',null,post.type)
                             ),
-                            React.createElement('span',{className:"mono",style:{fontSize:11,color:"var(--muted2)",flexShrink:0}},formatShortDate(post.date)),
-                            (Date.now()-new Date(post.createdAt).getTime()<86400000)&&React.createElement('span',{className:"mono",style:{fontSize:9,color:"var(--muted)",opacity:0.6,flexShrink:0}},formatRelativeTime(post.createdAt)),
+                            React.createElement('span',{className:"mono",style:{fontSize:11,color:"var(--muted2)",flexShrink:0}},formatShortDate(displayDate)),
+                            showRelativeTime && React.createElement('span',{className:"mono",style:{fontSize:9,color:"var(--muted)",opacity:0.6,flexShrink:0}},formatRelativeTime(post.createdAt)),
                             post.verifiedVia==="strava" && React.createElement('span',{className:"mono",style:{fontSize:10,color:"var(--cyan)",letterSpacing:".06em",textTransform:"uppercase",marginLeft:"auto"}},"Strava")
                           ),
                           post.note && React.createElement('div',{style:{fontSize:12,lineHeight:1.3,color:"var(--text-soft)",fontStyle:"italic",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},post.note)
@@ -3381,8 +3394,8 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview}) => 
                         React.createElement('span',{style:{display:"inline-flex",alignItems:"center",justifyContent:"center",color:"var(--cyan)"}},categoryIcon),
                         React.createElement('span',null,post.type)
                       ),
-                      React.createElement('span',{className:"mono",style:{fontSize:10,color:"var(--muted2)",marginLeft:"auto",flexShrink:0}},formatShortDate(post.date)),
-                      (Date.now()-new Date(post.createdAt).getTime()<86400000)&&React.createElement('span',{className:"mono",style:{fontSize:8,color:"var(--muted)",opacity:0.6,flexShrink:0}},formatRelativeTime(post.createdAt)),
+                      React.createElement('span',{className:"mono",style:{fontSize:10,color:"var(--muted2)",marginLeft:"auto",flexShrink:0}},formatShortDate(displayDate)),
+                      showRelativeTime && React.createElement('span',{className:"mono",style:{fontSize:8,color:"var(--muted)",opacity:0.6,flexShrink:0}},formatRelativeTime(post.createdAt)),
                       post.verifiedVia==="strava" && React.createElement('span',{className:"mono",style:{fontSize:10,color:"var(--cyan)",letterSpacing:".06em",textTransform:"uppercase",flexShrink:0}},"Strava")
                     ),
                     React.createElement('div',{style:{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",marginLeft:-2}},
@@ -3985,7 +3998,7 @@ const TodayPage = ({user,currentGroupId,groups,logs,excused,monthHistory,saving,
   );
 };
 
-const ActivityPage = ({group,currentUser,onLogMutation}) => {
+const ActivityPage = ({group,currentUser,onLogMutation,clockTick}) => {
   const wrapStyle = {maxWidth:1060,margin:"0 auto",padding:"20px 16px"};
   const handleReaction = (owner, logId, emoji) => onLogMutation({ action:"reaction", groupId:group.id, actor:currentUser, owner, logId, emoji });
   const handleFlag = async (owner, logId, reason) => {
@@ -3996,7 +4009,7 @@ const ActivityPage = ({group,currentUser,onLogMutation}) => {
   const handleReview = (owner, logId, decision) => onLogMutation({ action:"flag-review", groupId:group.id, actor:currentUser, owner, logId, decision });
 
   return React.createElement('div',{style:wrapStyle},
-    React.createElement(ActivityFeed,{group,currentUser,onReact:handleReaction,onFlag:handleFlag,onRespond:handleRespond,onReview:handleReview})
+    React.createElement(ActivityFeed,{group,currentUser,onReact:handleReaction,onFlag:handleFlag,onRespond:handleRespond,onReview:handleReview,clockTick})
   );
 };
 
@@ -5505,7 +5518,7 @@ const App = () => {
     React.createElement(Nav,{page,setPage:handleNavSelect,user:currentUser,groupName:currentGroup.name,canEditGroup:isGroupAdmin,onOpenSettings:()=>setShowSettings(true),onOpenProfile:()=>{setProfileError("");setShowProfileModal(true);},onSwitchUser:handleSwitchUser,onSwitchGroup:handleSwitchGroup,syncing,lastSyncedAt,syncError,onRefresh:refreshNow,showJustSynced,activityAlertCount}),
     React.createElement('div',{style:{paddingBottom:isMobileView?(page==="today"?"calc(156px + env(safe-area-inset-bottom))":"calc(86px + env(safe-area-inset-bottom))"):0}},
       page==="today"  &&React.createElement(TodayPage,  {user:currentUser,currentGroupId:selectedGroupId,groups,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,saving,onSave:handleSave,onMultiLog:handleMultiLog,onLogMutation:handleLogMutation,clockTick,onViewLastMonth:()=>{setMonthInitialIdx(0);setPage("month");},onSitOutRequest:handleSitOutRequest,navResetToken}),
-      page==="activity"&&React.createElement(ActivityPage,{group:currentGroup,currentUser,onLogMutation:handleLogMutation}),
+      page==="activity"&&React.createElement(ActivityPage,{group:currentGroup,currentUser,onLogMutation:handleLogMutation,clockTick}),
       page==="month"  &&React.createElement(MonthPage,  {logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,groupSettings:currentGroup.settings,onSettlementChange:handleSettlementChange,currentUser,isAdmin:isGroupAdmin,initialSelIdx:monthInitialIdx,onStartNextMonth:()=>{setMonthInitialIdx(null);setPage("today");},navResetToken}),
       page==="history"&&React.createElement(HistoryPage,{logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,groupSettings:currentGroup.settings,navResetToken})
     ),
