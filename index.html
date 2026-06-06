@@ -1383,6 +1383,18 @@ async function mutateLogData(payload) {
   return { ok:true, data: normalizeAppState(result.body) };
 }
 
+async function fetchProjectionStatusData(groupId) {
+  const result = await postApi("projection-status", { groupId });
+  if (!result.ok) return { ok:false, error: result.error || "Unable to load projection status" };
+  return { ok:true, status: result.body };
+}
+
+async function rebuildProjectionData(groupId) {
+  const result = await postApi("rebuild-projection", { groupId });
+  if (!result.ok) return { ok:false, error: result.error || "Unable to rebuild projection" };
+  return { ok:true, status: result.body };
+}
+
 function readCachedData() {
   try {
     const raw = localStorage.getItem(LOCAL_CACHE_KEY);
@@ -2442,6 +2454,10 @@ const GroupSettingsModal = ({group,actor,actorUserId,onSave,onClose,saving,onRev
   const [kickingUserId,setKickingUserId]=useState(null);
   const [confirmKick,setConfirmKick]=useState(null);
   const [removedTypeWarnings,setRemovedTypeWarnings]=useState(null);
+  const [projectionStatus,setProjectionStatus]=useState(null);
+  const [projectionLoading,setProjectionLoading]=useState(false);
+  const [projectionRepairing,setProjectionRepairing]=useState(false);
+  const [projectionError,setProjectionError]=useState("");
   const inviteLink = `${window.location.origin}${window.location.pathname}?invite=${group.inviteCode}`;
   const normalizedSettings = buildNormalizedSettings(settings);
   const escalationStepMissing = normalizedSettings.feeModel === "escalating" && normalizedSettings.escalationStepAmount === null;
@@ -2452,6 +2468,59 @@ const GroupSettingsModal = ({group,actor,actorUserId,onSave,onClose,saving,onRev
     document.body.style.overflow = "hidden";
     return ()=>{ document.body.style.overflow = ""; };
   },[]);
+
+  useEffect(()=>{
+    if (!onSave) return;
+    let active = true;
+    (async()=>{
+      setProjectionLoading(true);
+      setProjectionError("");
+      const result = await fetchProjectionStatusData(group.id);
+      if (!active) return;
+      if (result?.ok) setProjectionStatus(result.status);
+      else setProjectionError(result?.error || "Unable to load projection status");
+      setProjectionLoading(false);
+    })();
+    return ()=>{ active = false; };
+  },[group.id, onSave]);
+
+  const projectionHealthy = projectionStatus?.ok
+    && projectionStatus?.projection?.sourceRevision === projectionStatus?.blobRevision
+    && projectionStatus?.projection?.monthLogCount > 0;
+  const projectionLag = projectionStatus?.ok
+    ? Math.max(0, Number(projectionStatus.blobRevision || 0) - Number(projectionStatus.projection?.sourceRevision || 0))
+    : null;
+
+  const refreshProjectionStatus = async () => {
+    setProjectionLoading(true);
+    setProjectionError("");
+    const result = await fetchProjectionStatusData(group.id);
+    if (result?.ok) setProjectionStatus(result.status);
+    else setProjectionError(result?.error || "Unable to load projection status");
+    setProjectionLoading(false);
+  };
+
+  const repairProjection = async () => {
+    setProjectionRepairing(true);
+    setProjectionError("");
+    const result = await rebuildProjectionData(group.id);
+    if (result?.ok) {
+      setProjectionStatus({
+        ok: true,
+        blobRevision: result.status.blobRevision,
+        projection: {
+          available: result.status.after?.available,
+          sourceRevision: result.status.after?.sourceRevision,
+          groupCount: result.status.after?.groupCount,
+          monthHistoryCount: result.status.after?.monthHistoryCount,
+          monthLogCount: result.status.after?.monthLogCount
+        }
+      });
+    } else {
+      setProjectionError(result?.error || "Unable to rebuild projection");
+    }
+    setProjectionRepairing(false);
+  };
 
   return React.createElement(React.Fragment,null,
     React.createElement('div',{onClick:onClose,style:{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",zIndex:999}}),
@@ -2476,6 +2545,29 @@ const GroupSettingsModal = ({group,actor,actorUserId,onSave,onClose,saving,onRev
       ),
       React.createElement(SettingsField,{title:"Bloc name",compact:true},
         React.createElement('input',{value:groupName,onChange:e=>onSave&&setGroupName(e.target.value),readOnly:!onSave,style:{width:"85%",background:"var(--s2)",border:"1px solid var(--border)",borderRadius:8,padding:"7px 9px",color:onSave?"var(--text)":"var(--muted)",fontSize:12,outline:"none",cursor:onSave?"text":"default"}})
+      ),
+      onSave && React.createElement('div',{style:{marginBottom:14,padding:"11px 12px",borderRadius:10,background:"#080F0F",border:"0.5px solid #0D1F1E",display:"grid",gap:8}},
+        React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10}},
+          React.createElement('div',{style:{fontWeight:800,fontSize:13}},"Projection health"),
+          React.createElement('div',{style:{display:"flex",gap:8}},
+            React.createElement('button',{type:"button",disabled:projectionLoading||projectionRepairing,onClick:refreshProjectionStatus,style:{padding:"6px 9px",borderRadius:8,background:"var(--s2)",border:"1px solid var(--border)",color:"var(--muted)",fontSize:11,fontWeight:700}},projectionLoading?"Refreshing...":"Refresh"),
+            !projectionHealthy && React.createElement('button',{type:"button",disabled:projectionLoading||projectionRepairing,onClick:repairProjection,style:{padding:"6px 9px",borderRadius:8,background:"#4ECDC4",color:"#04110a",fontSize:11,fontWeight:800}},projectionRepairing?"Repairing...":"Repair")
+          )
+        ),
+        projectionError
+          ? React.createElement('div',{style:{fontSize:12,color:"var(--red)",lineHeight:1.5}},projectionError)
+          : projectionStatus
+            ? React.createElement(React.Fragment,null,
+                React.createElement('div',{style:{fontSize:12,color:projectionHealthy?"#4ECDC4":"var(--amber)",fontWeight:700}},
+                  projectionHealthy ? "Healthy" : "Out of sync"
+                ),
+                React.createElement('div',{style:{fontSize:12,color:"var(--muted)",lineHeight:1.55}},
+                  `Blob rev ${projectionStatus.blobRevision} · Projection rev ${projectionStatus.projection?.sourceRevision || 0}`,
+                  projectionLag ? ` · Lag ${projectionLag}` : "",
+                  ` · Month logs ${projectionStatus.projection?.monthLogCount || 0}`
+                )
+              )
+            : React.createElement('div',{style:{fontSize:12,color:"var(--muted)"}},"Loading projection status...")
       ),
       pendingSitOuts.length>0 && React.createElement('div',{style:{marginBottom:14,padding:"11px 12px",borderRadius:10,background:"#080F0F",border:"0.5px solid #0D1F1E",display:"grid",gap:8}},
         React.createElement('div',{style:{fontWeight:800,fontSize:13}},"Pending sit-out requests"),
