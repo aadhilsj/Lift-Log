@@ -3508,15 +3508,18 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,groupSettings,onDe
     deleteTarget && React.createElement(DeleteModal,{log:deleteTarget,onClose:()=>setDeleteTarget(null),onConfirm:async()=>{ await onDeleteLog(deleteTarget); setDeleteTarget(null); }}),
     React.createElement('div',{style:{maxWidth:740,margin:"0 auto",padding:"16px",display:"flex",flexDirection:"column",gap:12}},
     // Header row
-    React.createElement('div',{className:"fu",style:{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10}},
-      React.createElement('div',{style:{display:"flex",alignItems:"center",gap:12}},
-        React.createElement('button',{onClick:onBack,style:{background:"var(--s2)",border:"1px solid var(--border)",color:"var(--muted)",padding:"5px 10px",borderRadius:7,fontSize:13,fontFamily:"'JetBrains Mono',monospace",lineHeight:1.1}},"← Back"),
-        React.createElement('div',{style:{display:"flex",alignItems:"center",gap:11}},
-          React.createElement(Avatar,{name,size:36}),
-          React.createElement('div',null,React.createElement('span',{className:"lbl"},"Player Profile"),React.createElement('div',{style:{fontSize:22,fontWeight:800}},name))
+    React.createElement('div',{className:"fu",style:{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:14}},
+      React.createElement('div',{style:{display:"flex",alignItems:"center",gap:11,minWidth:0,flex:1}},
+        React.createElement(Avatar,{name,size:36}),
+        React.createElement('div',{style:{minWidth:0}},
+          React.createElement('span',{className:"lbl"},"Player Profile"),
+          React.createElement('div',{style:{fontSize:22,fontWeight:800,lineHeight:1.1}},name)
         )
       ),
-      monthSelector
+      React.createElement('div',{style:{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:8,flexShrink:0}},
+        React.createElement('button',{onClick:onBack,style:{background:"var(--s2)",border:"1px solid var(--border)",color:"var(--muted)",padding:"5px 10px",borderRadius:7,fontSize:13,fontFamily:"'JetBrains Mono',monospace",lineHeight:1.1}},"← Back"),
+        monthSelector
+      )
     ),
     // Sit out banner
     notJoinedBanner || sitOutBanner,
