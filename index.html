@@ -1938,7 +1938,7 @@ const SettingsField = ({title,description,children,compact=false}) => React.crea
   children
 );
 
-const SelectField = ({value,onChange,options,width,maxWidth,compact=false,arrowColor}) => (
+const SelectField = ({value,onChange,options,width,maxWidth,compact=false,arrowColor,textAlign}) => (
   React.createElement('div',{style:{position:"relative",width:width || "100%",maxWidth:maxWidth || "100%" }},
     React.createElement('select',{
       value,
@@ -1952,7 +1952,9 @@ const SelectField = ({value,onChange,options,width,maxWidth,compact=false,arrowC
         paddingRight:compact?28:32,
         padding:compact?"8px 28px 8px 10px":inputShellStyle.padding,
         fontSize:compact?12:inputShellStyle.fontSize,
-        borderRadius:compact?8:inputShellStyle.borderRadius
+        borderRadius:compact?8:inputShellStyle.borderRadius,
+        textAlign:textAlign || "left",
+        textAlignLast:textAlign || "left"
       }
     },
       options.map(option=>React.createElement('option',{key:option.value,value:option.value},option.label))
@@ -2004,8 +2006,8 @@ const StepperField = ({value,onChange,min=1,max=Infinity,compact=false,suffix=nu
 
 const GroupSettingsFields = ({settings,setSettings,showAdvanced,setShowAdvanced,showValidation=false,compact=false}) => {
   const desktopNumericWidth = compact && !isMobile() ? 54 : 39;
-  const fineCurrencyWidth = compact && isMobile() ? 158 : 120;
-  const fineAmountWidth = compact && isMobile() ? 126 : desktopNumericWidth + 50;
+  const fineCurrencyWidth = compact && isMobile() ? 80 : 60;
+  const fineAmountWidth = compact && isMobile() ? 85 : 45;
   const toggleType = type => setSettings(current => ({
     ...current,
     acceptedWorkoutTypes: current.acceptedWorkoutTypes.includes(type)
@@ -2021,6 +2023,7 @@ const GroupSettingsFields = ({settings,setSettings,showAdvanced,setShowAdvanced,
           value:settings.currency,
           onChange:e=>setSettings(current=>({...current,currency:e.target.value})),
           width:fineCurrencyWidth,
+          textAlign:"center",
           options:CURRENCY_OPTIONS.map(option=>({value:option.code,label:option.code})),
           compact,
           arrowColor:"#4ECDC4"
