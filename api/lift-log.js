@@ -2043,8 +2043,11 @@ export default async function handler(req, res) {
           const userId = String(payload?.userId || "").trim();
           const email = String(payload?.email || "").trim().toLowerCase();
           if (userId && email) {
-            const existing = current.profiles?.[userId] || null;
-            if (!existing?.displayName) {
+            // Allow fallback for: (a) new profiles, or (b) updating your own existing profile
+            // (where userId or email already matches an existing profile).
+            const existing = current.profiles?.[userId] ||
+              Object.values(current.profiles || {}).find(p => p?.email === email) || null;
+            if (!existing?.displayName || existing?.email === email) {
               const migrated = migrateAuthIdentity(rolloverStateIfNeeded(current), userId, email);
               auth = {
                 state: migrated.state,
