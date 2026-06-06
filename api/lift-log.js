@@ -737,11 +737,9 @@ function rolloverStateIfNeeded(data) {
 
 async function fetchCurrentState() {
   const blobState = await fetchCurrentStateFromSupabase();
-  await ensureProjectionStateUpToDate(blobState);
-  const projectionState = await fetchStateFromProjection();
-  if (projectionState && projectionState.meta.revision === blobState.meta.revision) {
-    return projectionState;
-  }
+  // Projection read disabled: mirror writes but always read from blob until
+  // the read-path reconstruction is verified safe under concurrent saves.
+  ensureProjectionStateUpToDate(blobState).catch(() => {});
   return blobState;
 }
 
