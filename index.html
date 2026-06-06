@@ -5051,6 +5051,12 @@ const App = () => {
 
   const handleMultiLog = useCallback(async({ workoutType, isoDate, targetGroupIds, note, photoUrl }) => {
     if(!selectedGroupId || !currentUser) return { ok:false, error:"No Bloc selected" };
+    // Optimistic update: add log to UI immediately so the screen responds instantly.
+    if(currentGroup) {
+      const optimisticLog = { id:`opt-${Date.now()}`, date:isoDate, type:workoutType, note:note||"", photoUrl:photoUrl||"", createdAt:new Date().toISOString(), verifiedVia:"manual", reactions:{} };
+      const userLogs = Array.isArray(currentGroup.logs?.[currentUser]) ? currentGroup.logs[currentUser] : [];
+      applyData(buildOptimisticState({ groupId:selectedGroupId, group:{ ...currentGroup, logs:{ ...currentGroup.logs, [currentUser]:[...userLogs, optimisticLog] } } }));
+    }
     setSaving(true);
     try {
       const result = await multiLogData({
@@ -5082,7 +5088,7 @@ const App = () => {
     } finally {
       setSaving(false);
     }
-  },[applyData, currentUser, refreshNow, selectedGroupId, authSession]);
+  },[applyData, buildOptimisticState, currentGroup, currentUser, refreshNow, selectedGroupId, authSession]);
 
   const handleUpdateGroupSettings = useCallback(async(groupName, settings)=>{
     if(!selectedGroupId || !currentUser) return { ok:false, error:"No Bloc selected" };
@@ -5107,6 +5113,25 @@ const App = () => {
   },[applyData, currentUser, refreshNow, selectedGroupId, authSession]);
 
   const handleLogMutation = useCallback(async(payload)=>{
+    // Optimistic update for delete-log: remove the entry immediately.
+    if(payload.action === "delete-log" && payload.logId && currentGroup) {
+      const optimisticLogs = Object.fromEntries(
+        Object.entries(currentGroup.logs || {}).map(([name, logs]) => [name, logs.filter(l => l.id !== payload.logId)])
+      );
+      applyData(buildOptimisticState({ groupId: payload.groupId || selectedGroupId, group: { ...currentGroup, logs: optimisticLogs } }));
+    }
+    // Optimistic update for reaction: toggle the reactor immediately.
+    if(payload.action === "reaction" && payload.logId && payload.emoji && payload.actor && currentGroup) {
+      const optimisticLogs = Object.fromEntries(
+        Object.entries(currentGroup.logs || {}).map(([name, logs]) => [name, logs.map(l => {
+          if(l.id !== payload.logId) return l;
+          const reactors = Array.isArray(l.reactions?.[payload.emoji]) ? l.reactions[payload.emoji] : [];
+          const already = reactors.includes(payload.actor);
+          return { ...l, reactions: { ...l.reactions, [payload.emoji]: already ? reactors.filter(r => r !== payload.actor) : [...reactors, payload.actor] } };
+        })])
+      );
+      applyData(buildOptimisticState({ groupId: payload.groupId || selectedGroupId, group: { ...currentGroup, logs: optimisticLogs } }));
+    }
     setSaving(true);
     try {
       const result = await mutateLogData({ ...payload, actorUserId: authSession?.userId || payload.actorUserId });
@@ -5124,7 +5149,7 @@ const App = () => {
     } finally {
       setSaving(false);
     }
-  },[applyData, refreshNow, authSession]);
+  },[applyData, buildOptimisticState, currentGroup, refreshNow, selectedGroupId, authSession]);
 
   const handleSettlementChange = useCallback(async(monthKey, player, settled, pin)=>{
     if(!selectedGroupId) return { ok:false, error:"No Bloc selected" };
