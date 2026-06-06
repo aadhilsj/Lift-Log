@@ -4797,6 +4797,7 @@ const App = () => {
   const [authReady,setAuthReady]=useState(false);
   const latestRevisionRef = useRef(getRevision(cached));
   const justSyncedTimerRef = useRef(null);
+  const optimisticMutationRef = useRef(null);
 
   const persistGroupSelection = useCallback((groupId) => {
     try {
@@ -4835,6 +4836,16 @@ const App = () => {
     return nextState;
   }, [appState]);
 
+  const beginOptimisticMutation = useCallback(() => {
+    optimisticMutationRef.current = {
+      baseRevision: latestRevisionRef.current
+    };
+  },[]);
+
+  const clearOptimisticMutation = useCallback(() => {
+    optimisticMutationRef.current = null;
+  },[]);
+
   useEffect(()=>{
     if(!("serviceWorker" in navigator)) return;
     navigator.serviceWorker.register("./sw.js").catch(err=>console.error("Service worker registration failed", err));
@@ -4869,12 +4880,17 @@ const App = () => {
   }, [joinCode]);
 
 
-  const applyData = useCallback((data) => {
+  const applyData = useCallback((data, { optimistic=false } = {}) => {
     if(!data) return false;
     const resolved = normalizeAppState(data);
     const incomingRevision = getRevision(resolved);
-    if (incomingRevision < latestRevisionRef.current) return false;
-    latestRevisionRef.current = incomingRevision;
+    const pendingOptimistic = optimisticMutationRef.current;
+    if (!optimistic && pendingOptimistic) {
+      if (incomingRevision <= pendingOptimistic.baseRevision) return false;
+      optimisticMutationRef.current = null;
+    }
+    if (!optimistic && incomingRevision < latestRevisionRef.current) return false;
+    latestRevisionRef.current = Math.max(latestRevisionRef.current, incomingRevision);
     setAppState(resolved);
     writeCachedData(resolved);
     return true;
@@ -5032,22 +5048,24 @@ const App = () => {
     try{
       const saved = await saveData(payload);
       if(saved){
-        const applied = applyData(saved, false);
+        const applied = applyData(saved);
         if (applied) {
           setLastSyncedAt(new Date());
           setSyncError(false);
         }
       } else {
+        clearOptimisticMutation();
         setSyncError(true);
         await refreshNow();
       }
     }catch(e){
       console.error("Save failed",e);
+      clearOptimisticMutation();
       setSyncError(true);
       await refreshNow();
     }
     setSaving(false);
-  },[applyData, buildOptimisticState, currentGroup, currentUser, refreshNow, selectedGroupId]);
+  },[applyData, buildOptimisticState, clearOptimisticMutation, currentGroup, currentUser, refreshNow, selectedGroupId]);
 
   const handleMultiLog = useCallback(async({ workoutType, isoDate, targetGroupIds, note, photoUrl }) => {
     if(!selectedGroupId || !currentUser) return { ok:false, error:"No Bloc selected" };
@@ -5055,7 +5073,8 @@ const App = () => {
     if(currentGroup) {
       const optimisticLog = { id:`opt-${Date.now()}`, date:isoDate, type:workoutType, note:note||"", photoUrl:photoUrl||"", createdAt:new Date().toISOString(), verifiedVia:"manual", reactions:{} };
       const userLogs = Array.isArray(currentGroup.logs?.[currentUser]) ? currentGroup.logs[currentUser] : [];
-      applyData(buildOptimisticState({ groupId:selectedGroupId, group:{ ...currentGroup, logs:{ ...currentGroup.logs, [currentUser]:[...userLogs, optimisticLog] } } }));
+      beginOptimisticMutation();
+      applyData(buildOptimisticState({ groupId:selectedGroupId, group:{ ...currentGroup, logs:{ ...currentGroup.logs, [currentUser]:[...userLogs, optimisticLog] } } }), { optimistic:true });
     }
     setSaving(true);
     try {
@@ -5076,19 +5095,21 @@ const App = () => {
           setSyncError(false);
         }
       } else {
+        clearOptimisticMutation();
         setSyncError(true);
         await refreshNow();
       }
       return result;
     } catch(e){
       console.error("Multi-group log failed", e);
+      clearOptimisticMutation();
       setSyncError(true);
       await refreshNow();
       return { ok:false, error:"Unable to save workout" };
     } finally {
       setSaving(false);
     }
-  },[applyData, buildOptimisticState, currentGroup, currentUser, refreshNow, selectedGroupId, authSession]);
+  },[applyData, beginOptimisticMutation, buildOptimisticState, clearOptimisticMutation, currentGroup, currentUser, refreshNow, selectedGroupId, authSession]);
 
   const handleUpdateGroupSettings = useCallback(async(groupName, settings)=>{
     if(!selectedGroupId || !currentUser) return { ok:false, error:"No Bloc selected" };
@@ -5118,7 +5139,8 @@ const App = () => {
       const optimisticLogs = Object.fromEntries(
         Object.entries(currentGroup.logs || {}).map(([name, logs]) => [name, logs.filter(l => l.id !== payload.logId)])
       );
-      applyData(buildOptimisticState({ groupId: payload.groupId || selectedGroupId, group: { ...currentGroup, logs: optimisticLogs } }));
+      beginOptimisticMutation();
+      applyData(buildOptimisticState({ groupId: payload.groupId || selectedGroupId, group: { ...currentGroup, logs: optimisticLogs } }), { optimistic:true });
     }
     // Optimistic update for reaction: toggle the reactor immediately.
     if(payload.action === "reaction" && payload.logId && payload.emoji && payload.actor && currentGroup) {
@@ -5130,7 +5152,8 @@ const App = () => {
           return { ...l, reactions: { ...l.reactions, [payload.emoji]: already ? reactors.filter(r => r !== payload.actor) : [...reactors, payload.actor] } };
         })])
       );
-      applyData(buildOptimisticState({ groupId: payload.groupId || selectedGroupId, group: { ...currentGroup, logs: optimisticLogs } }));
+      beginOptimisticMutation();
+      applyData(buildOptimisticState({ groupId: payload.groupId || selectedGroupId, group: { ...currentGroup, logs: optimisticLogs } }), { optimistic:true });
     }
     setSaving(true);
     try {
@@ -5142,20 +5165,27 @@ const App = () => {
           setSyncError(false);
         }
       } else {
+        clearOptimisticMutation();
         setSyncError(true);
         await refreshNow();
       }
       return result;
+    } catch (e) {
+      console.error("Log mutation failed", e);
+      clearOptimisticMutation();
+      setSyncError(true);
+      await refreshNow();
+      return { ok:false, error:"Unable to save change" };
     } finally {
       setSaving(false);
     }
-  },[applyData, buildOptimisticState, currentGroup, refreshNow, selectedGroupId, authSession]);
+  },[applyData, beginOptimisticMutation, buildOptimisticState, clearOptimisticMutation, currentGroup, refreshNow, selectedGroupId, authSession]);
 
   const handleSettlementChange = useCallback(async(monthKey, player, settled, pin)=>{
     if(!selectedGroupId) return { ok:false, error:"No Bloc selected" };
     const result = await updateSettlementData(selectedGroupId, monthKey, player, settled, pin);
     if(result.ok && result.data){
-      const applied = applyData(result.data, false);
+      const applied = applyData(result.data);
       if (applied) {
         setLastSyncedAt(new Date());
         setSyncError(false);
