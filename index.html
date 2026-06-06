@@ -895,6 +895,7 @@ function normalizeAppState(data) {
     groups: { [legacyGroup.id]: legacyGroup },
     groupOrder: [legacyGroup.id],
     defaultGroupId: legacyGroup.id,
+    profiles: normalizeProfiles(data?.profiles),
     meta: {
       revision: Number.isFinite(Number(data?.meta?.revision)) ? Number(data.meta.revision) : 0,
       updatedAt: data?.meta?.updatedAt || null
