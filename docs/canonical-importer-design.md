@@ -2,6 +2,10 @@
 
 This document defines how we import the current blob-backed state into the canonical relational schema in [`supabase/canonical-schema.sql`](/Users/opera_user/Documents/Codex%20Space/Lift%20Log/supabase/canonical-schema.sql).
 
+That canonical schema currently targets the private `ante_core` schema for the
+first rollout, so additive production testing does not expose unfinished tables
+through the `public` Data API surface.
+
 It is a design for migration tooling only. It does not change production behavior.
 
 ## Importer Goal

@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 const DEFAULT_CANONICAL_DIR = path.resolve("migration-output/canonical-live-backup");
+const TARGET_SCHEMA = "ante_core";
 
 const TABLES = [
   { name: "profiles", conflict: ["id"] },
@@ -70,7 +71,7 @@ function buildTableStatements(tableName, rows, conflictColumns) {
   const valueLines = rows.map(row => `  (${columns.map(column => toSqlLiteral(row[column])).join(", ")})`);
 
   const statements = [
-    `insert into public.${tableName} (${columns.join(", ")})`,
+    `insert into ${TARGET_SCHEMA}.${tableName} (${columns.join(", ")})`,
     "values",
     `${valueLines.join(",\n")}`,
     `on conflict (${conflictColumns.join(", ")}) do update`,

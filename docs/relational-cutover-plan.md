@@ -130,7 +130,12 @@ These are useful references, but they should not be declared canonical as-is.
 
 ## Canonical Relational Target
 
-New canonical tables should be introduced beside the current blob/projection system:
+New canonical tables should be introduced beside the current blob/projection system.
+For the first rollout, they should live in a private schema, `ante_core`, not in
+`public`. That keeps the additive rollout isolated from the Data API until access
+patterns and RLS are ready.
+
+The canonical table set is:
 
 - `profiles`
 - `payment_methods`
