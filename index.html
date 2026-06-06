@@ -2131,7 +2131,7 @@ const GroupCreateModal = ({onCreate,onClose,creating,defaultCreatorName="",defau
         ...(!lockCreatorName ? [["Your name",creatorName,setCreatorName,"Aadhil"]] : [])
       ].map(([label,value,setter,placeholder])=>
         React.createElement('label',{key:label,style:{display:"block",marginBottom:12}},
-          React.createElement('span',{className:"lbl"},label),
+          React.createElement('span',{className:"lbl",style:label==="Bloc name"?{fontSize:12,fontWeight:700,letterSpacing:".08em",color:"var(--text-soft)",marginBottom:7}:{}} ,label),
           React.createElement('input',{value,onChange:e=>setter(e.target.value),placeholder,style:{width:"100%",background:"var(--s2)",border:"1px solid var(--border)",borderRadius:9,padding:"12px 13px",color:"var(--text)",fontSize:14,outline:"none"}})
         )
       ),
