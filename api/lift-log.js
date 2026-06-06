@@ -736,9 +736,13 @@ function rolloverStateIfNeeded(data) {
 }
 
 async function fetchCurrentState() {
-  const state = await fetchCurrentStateFromSupabase();
-  await ensureProjectionStateUpToDate(state);
-  return state;
+  const blobState = await fetchCurrentStateFromSupabase();
+  await ensureProjectionStateUpToDate(blobState);
+  const projectionState = await fetchStateFromProjection();
+  if (projectionState && projectionState.meta.revision === blobState.meta.revision) {
+    return projectionState;
+  }
+  return blobState;
 }
 
 async function persistState(nextState, reason) {
@@ -822,6 +826,7 @@ const PROJECTION_DELETE_STEPS = [
   ["/rest/v1/lift_log_projection_season_overrides?group_id=not.is.null", "season overrides"],
   ["/rest/v1/lift_log_projection_log_reactions?group_id=not.is.null", "log reactions"],
   ["/rest/v1/lift_log_projection_group_logs?group_id=not.is.null", "group logs"],
+  ["/rest/v1/lift_log_projection_group_excused?group_id=not.is.null", "group excused"],
   ["/rest/v1/lift_log_projection_group_joined_months?group_id=not.is.null", "joined months"],
   ["/rest/v1/lift_log_projection_group_memberships?group_id=not.is.null", "memberships"],
   ["/rest/v1/lift_log_projection_groups?group_id=not.is.null", "groups"],
@@ -860,6 +865,7 @@ function buildProjectionPayload(state) {
   const groupRows = [];
   const membershipRows = [];
   const joinedMonthRows = [];
+  const groupExcusedRows = [];
   const groupLogRows = [];
   const logReactionRows = [];
   const seasonOverrideRows = [];
@@ -878,6 +884,7 @@ function buildProjectionPayload(state) {
       invite_code: group.inviteCode,
       created_at: group.createdAt || new Date().toISOString(),
       last_month_key: cleanProjectionValue(group.lastMonth),
+      member_order: group.memberOrder || [],
       min_target: group.settings.minTarget,
       fine_amount: group.settings.fineAmount,
       fee_model: group.settings.feeModel,
@@ -906,6 +913,17 @@ function buildProjectionPayload(state) {
         display_name: displayName,
         joined_month_key: joinedMonthKey
       });
+    }
+
+    for (const [displayName, months] of Object.entries(group.excused || {})) {
+      for (const [monthKey, excused] of Object.entries(months || {})) {
+        groupExcusedRows.push({
+          group_id: group.id,
+          display_name: displayName,
+          month_key: monthKey,
+          excused: !!excused
+        });
+      }
     }
 
     for (const [ownerDisplayName, logs] of Object.entries(group.logs || {})) {
@@ -1066,6 +1084,7 @@ function buildProjectionPayload(state) {
     groups: groupRows,
     memberships: membershipRows,
     joinedMonths: joinedMonthRows,
+    groupExcused: groupExcusedRows,
     groupLogs: groupLogRows,
     logReactions: logReactionRows,
     seasonOverrides: seasonOverrideRows,
@@ -1094,18 +1113,299 @@ async function replaceProjectionTable(path, rows) {
 
 async function fetchProjectionMeta() {
   try {
-    const response = await supabaseFetch("/rest/v1/lift_log_projection_meta?id=eq.true&select=source_revision", {
+    const response = await supabaseFetch("/rest/v1/lift_log_projection_meta?id=eq.true&select=source_revision,source_updated_at,default_group_id,group_order", {
       method: "GET",
       headers: { Accept: "application/json" }
     });
     const rows = await response.json();
     return {
       available: true,
-      sourceRevision: Number(rows?.[0]?.source_revision || 0)
+      sourceRevision: Number(rows?.[0]?.source_revision || 0),
+      row: rows?.[0] || null
     };
   } catch (error) {
-    if (projectionSchemaMissing(error)) return { available: false, sourceRevision: 0 };
+    if (projectionSchemaMissing(error)) return { available: false, sourceRevision: 0, row: null };
     throw error;
+  }
+}
+
+async function fetchProjectionRows(path) {
+  const response = await supabaseFetch(path, {
+    method: "GET",
+    headers: { Accept: "application/json" }
+  });
+  return await response.json();
+}
+
+function buildReactionLookup(rows, keyBuilder) {
+  const map = new Map();
+  for (const row of rows) {
+    const key = keyBuilder(row);
+    if (!map.has(key)) map.set(key, {});
+    const reactions = map.get(key);
+    if (!reactions[row.emoji]) reactions[row.emoji] = [];
+    reactions[row.emoji].push(row.reactor_display_name);
+  }
+  return map;
+}
+
+function buildProjectionLog(row, reactions) {
+  return {
+    id: row.log_id,
+    date: row.workout_date,
+    type: row.workout_type,
+    note: row.note || "",
+    photoUrl: row.photo_url || "",
+    createdAt: row.created_at,
+    verifiedVia: row.verified_via,
+    reactions: reactions || {},
+    flagStatus: row.flag_status || null,
+    flagReason: row.flag_reason || "",
+    flagResponse: row.flag_response || "",
+    flaggedBy: row.flagged_by || null,
+    decisionBy: row.decision_by || null,
+    decisionAt: row.decision_at || null
+  };
+}
+
+async function fetchStateFromProjectionMeta(metaRow) {
+  const [
+    profileRows,
+    pendingOtpRows,
+    groupRows,
+    membershipRows,
+    joinedMonthRows,
+    groupExcusedRows,
+    groupLogRows,
+    logReactionRows,
+    seasonOverrideRows,
+    sitOutRequestRows,
+    monthHistoryRows,
+    monthCountRows,
+    monthLogRows,
+    monthLogReactionRows
+  ] = await Promise.all([
+    fetchProjectionRows("/rest/v1/lift_log_projection_profiles?select=*"),
+    fetchProjectionRows("/rest/v1/lift_log_projection_pending_otps?select=*"),
+    fetchProjectionRows("/rest/v1/lift_log_projection_groups?select=*"),
+    fetchProjectionRows("/rest/v1/lift_log_projection_group_memberships?select=*"),
+    fetchProjectionRows("/rest/v1/lift_log_projection_group_joined_months?select=*"),
+    fetchProjectionRows("/rest/v1/lift_log_projection_group_excused?select=*"),
+    fetchProjectionRows("/rest/v1/lift_log_projection_group_logs?select=*"),
+    fetchProjectionRows("/rest/v1/lift_log_projection_log_reactions?select=*"),
+    fetchProjectionRows("/rest/v1/lift_log_projection_season_overrides?select=*"),
+    fetchProjectionRows("/rest/v1/lift_log_projection_sit_out_requests?select=*"),
+    fetchProjectionRows("/rest/v1/lift_log_projection_month_history?select=*"),
+    fetchProjectionRows("/rest/v1/lift_log_projection_month_counts?select=*"),
+    fetchProjectionRows("/rest/v1/lift_log_projection_month_logs?select=*"),
+    fetchProjectionRows("/rest/v1/lift_log_projection_month_log_reactions?select=*")
+  ]);
+
+  const profiles = Object.fromEntries(
+    profileRows.map(row => [row.user_id, {
+      id: row.user_id,
+      email: row.email,
+      displayName: row.display_name,
+      createdAt: row.created_at
+    }])
+  );
+
+  const pendingOtps = Object.fromEntries(
+    pendingOtpRows.map(row => [row.email, {
+      code: row.code,
+      expiresAt: row.expires_at,
+      userId: row.user_id || null
+    }])
+  );
+
+  const groupReactionLookup = buildReactionLookup(
+    logReactionRows,
+    row => `${row.group_id}:${row.log_id}`
+  );
+  const monthReactionLookup = buildReactionLookup(
+    monthLogReactionRows,
+    row => `${row.group_id}:${row.month_key}:${row.log_id}`
+  );
+
+  const groups = {};
+  for (const groupRow of groupRows) {
+    const groupId = groupRow.group_id;
+    const memberOrder = Array.isArray(groupRow.member_order) ? groupRow.member_order : membershipRows
+      .filter(row => row.group_id === groupId)
+      .sort((a, b) => {
+        const aAdmin = a.role === "admin" ? 0 : 1;
+        const bAdmin = b.role === "admin" ? 0 : 1;
+        if (aAdmin !== bAdmin) return aAdmin - bAdmin;
+        return String(a.joined_at || "").localeCompare(String(b.joined_at || "")) || a.display_name.localeCompare(b.display_name);
+      })
+      .map(row => row.display_name);
+
+    const memberships = Object.fromEntries(
+      membershipRows
+        .filter(row => row.group_id === groupId)
+        .map(row => [row.user_id, {
+          userId: row.user_id,
+          displayName: row.display_name,
+          role: row.role,
+          joinedAt: row.joined_at || null
+        }])
+    );
+
+    const joinedMonthByName = Object.fromEntries(
+      joinedMonthRows
+        .filter(row => row.group_id === groupId)
+        .map(row => [row.display_name, row.joined_month_key])
+    );
+
+    const logs = {};
+    for (const row of groupLogRows.filter(item => item.group_id === groupId)) {
+      const owner = row.owner_display_name;
+      if (!logs[owner]) logs[owner] = [];
+      logs[owner].push(buildProjectionLog(row, groupReactionLookup.get(`${groupId}:${row.log_id}`)));
+    }
+
+    const excused = {};
+    for (const row of groupExcusedRows.filter(item => item.group_id === groupId)) {
+      if (!excused[row.display_name]) excused[row.display_name] = {};
+      excused[row.display_name][row.month_key] = !!row.excused;
+    }
+
+    const seasonOverrides = Object.fromEntries(
+      seasonOverrideRows
+        .filter(row => row.group_id === groupId)
+        .map(row => [row.month_key, {
+          prorated: !!row.prorated,
+          proratedMas: row.prorated_mas,
+          chosenAt: row.chosen_at,
+          chosenBy: row.chosen_by,
+          chosenByUserId: row.chosen_by_user_id
+        }])
+    );
+
+    const sitOutRequests = {};
+    for (const row of sitOutRequestRows.filter(item => item.group_id === groupId)) {
+      if (!sitOutRequests[row.month_key]) sitOutRequests[row.month_key] = {};
+      sitOutRequests[row.month_key][row.member_name] = {
+        memberName: row.member_name,
+        monthKey: row.month_key,
+        status: row.status,
+        reason: row.reason || "",
+        exceptional: !!row.exceptional,
+        requestedAt: row.requested_at,
+        requestedBy: row.requested_by,
+        requestedByUserId: row.requested_by_user_id,
+        targetApproverName: row.target_approver_name,
+        targetApproverUserId: row.target_approver_user_id,
+        decidedAt: row.decided_at,
+        decidedBy: row.decided_by,
+        decidedByUserId: row.decided_by_user_id,
+        autoApproved: !!row.auto_approved
+      };
+    }
+
+    const monthHistory = monthHistoryRows
+      .filter(row => row.group_id === groupId)
+      .map(row => {
+        const monthKey = row.month_key;
+        const monthCountsForKey = monthCountRows.filter(item => item.group_id === groupId && item.month_key === monthKey);
+        const counts = Object.fromEntries(monthCountsForKey.map(item => [item.display_name, Number(item.workout_count || 0)]));
+        const excused = Object.fromEntries(monthCountsForKey.map(item => [item.display_name, !!item.excused]));
+        const settlements = Object.fromEntries(
+          monthCountsForKey
+            .filter(item => item.settlement_status)
+            .map(item => [item.display_name, {
+              status: item.settlement_status,
+              settledAt: item.settlement_settled_at,
+              updatedAt: item.settlement_updated_at
+            }])
+        );
+        const logsByUser = {};
+        for (const logRow of monthLogRows.filter(item => item.group_id === groupId && item.month_key === monthKey)) {
+          const owner = logRow.owner_display_name;
+          if (!logsByUser[owner]) logsByUser[owner] = [];
+          logsByUser[owner].push(buildProjectionLog(
+            logRow,
+            monthReactionLookup.get(`${groupId}:${monthKey}:${logRow.log_id}`)
+          ));
+        }
+        return {
+          key: monthKey,
+          label: row.label,
+          year: row.year,
+          month: row.month,
+          counts,
+          excused,
+          logsByUser,
+          settings: {
+            minTarget: row.min_target,
+            fineAmount: row.fine_amount,
+            feeModel: row.fee_model,
+            escalationStepAmount: row.escalation_step_amount,
+            currency: row.currency,
+            minRunDistance: row.min_run_distance,
+            distanceUnit: row.distance_unit,
+            stravaEnabled: row.strava_enabled,
+            timeZone: row.time_zone,
+            acceptedWorkoutTypes: row.accepted_workout_types || []
+          },
+          settlements
+        };
+      });
+
+    groups[groupId] = {
+      id: groupId,
+      name: groupRow.name,
+      adminName: groupRow.admin_name,
+      adminUserId: groupRow.admin_user_id,
+      inviteCode: groupRow.invite_code,
+      createdAt: groupRow.created_at,
+      memberOrder,
+      memberships,
+      joinedMonthByName,
+      settings: {
+        minTarget: groupRow.min_target,
+        fineAmount: groupRow.fine_amount,
+        feeModel: groupRow.fee_model,
+        escalationStepAmount: groupRow.escalation_step_amount,
+        currency: groupRow.currency,
+        minRunDistance: groupRow.min_run_distance,
+        distanceUnit: groupRow.distance_unit,
+        stravaEnabled: groupRow.strava_enabled,
+        timeZone: groupRow.time_zone,
+        acceptedWorkoutTypes: groupRow.accepted_workout_types || []
+      },
+      logs,
+      excused,
+      seasonOverrides,
+      sitOutRequests,
+      monthHistory,
+      lastMonth: groupRow.last_month_key
+    };
+  }
+
+  return normalizeState({
+    version: 2,
+    groups,
+    groupOrder: Array.isArray(metaRow?.group_order) ? metaRow.group_order : Object.keys(groups),
+    defaultGroupId: metaRow?.default_group_id || Object.keys(groups)[0] || null,
+    profiles,
+    pendingOtps,
+    meta: {
+      revision: Number(metaRow?.source_revision || 0),
+      updatedAt: metaRow?.source_updated_at || null
+    }
+  });
+}
+
+async function fetchStateFromProjection() {
+  try {
+    const projection = await fetchProjectionMeta();
+    if (!projection.available || !projection.row) return null;
+    return await fetchStateFromProjectionMeta(projection.row);
+  } catch (error) {
+    if (projectionSchemaMissing(error)) return null;
+    console.error("Projection fetch failed:", error);
+    return null;
   }
 }
 
@@ -1123,6 +1423,7 @@ async function syncProjectionState(state) {
   await replaceProjectionTable("/rest/v1/lift_log_projection_groups", payload.groups);
   await replaceProjectionTable("/rest/v1/lift_log_projection_group_memberships", payload.memberships);
   await replaceProjectionTable("/rest/v1/lift_log_projection_group_joined_months", payload.joinedMonths);
+  await replaceProjectionTable("/rest/v1/lift_log_projection_group_excused", payload.groupExcused);
   await replaceProjectionTable("/rest/v1/lift_log_projection_group_logs", payload.groupLogs);
   await replaceProjectionTable("/rest/v1/lift_log_projection_log_reactions", payload.logReactions);
   await replaceProjectionTable("/rest/v1/lift_log_projection_season_overrides", payload.seasonOverrides);

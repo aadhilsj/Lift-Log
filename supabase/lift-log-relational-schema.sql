@@ -32,6 +32,7 @@ create table if not exists public.lift_log_projection_groups (
   invite_code text not null unique,
   created_at timestamptz not null,
   last_month_key text,
+  member_order text[] not null default '{}',
   min_target integer not null,
   fine_amount integer not null,
   fee_model text not null,
@@ -43,6 +44,9 @@ create table if not exists public.lift_log_projection_groups (
   time_zone text not null,
   accepted_workout_types text[] not null default '{}'
 );
+
+alter table public.lift_log_projection_groups
+  add column if not exists member_order text[] not null default '{}';
 
 create table if not exists public.lift_log_projection_group_memberships (
   group_id text not null references public.lift_log_projection_groups(group_id) on delete cascade,
@@ -61,6 +65,14 @@ create table if not exists public.lift_log_projection_group_joined_months (
   display_name text not null,
   joined_month_key text not null,
   primary key (group_id, display_name)
+);
+
+create table if not exists public.lift_log_projection_group_excused (
+  group_id text not null references public.lift_log_projection_groups(group_id) on delete cascade,
+  display_name text not null,
+  month_key text not null,
+  excused boolean not null default false,
+  primary key (group_id, display_name, month_key)
 );
 
 create table if not exists public.lift_log_projection_group_logs (
@@ -204,6 +216,7 @@ alter table public.lift_log_projection_pending_otps enable row level security;
 alter table public.lift_log_projection_groups enable row level security;
 alter table public.lift_log_projection_group_memberships enable row level security;
 alter table public.lift_log_projection_group_joined_months enable row level security;
+alter table public.lift_log_projection_group_excused enable row level security;
 alter table public.lift_log_projection_group_logs enable row level security;
 alter table public.lift_log_projection_log_reactions enable row level security;
 alter table public.lift_log_projection_season_overrides enable row level security;
