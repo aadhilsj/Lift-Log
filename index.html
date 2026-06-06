@@ -3539,7 +3539,7 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,groupSettings,onDe
   ];
 
   return React.createElement(React.Fragment,null,
-    deleteTarget && React.createElement(DeleteModal,{log:deleteTarget,onClose:()=>setDeleteTarget(null),onConfirm:async()=>{ await onDeleteLog(deleteTarget); setDeleteTarget(null); }}),
+    deleteTarget && React.createElement(DeleteModal,{log:deleteTarget,onClose:()=>setDeleteTarget(null),onConfirm:async()=>{ const log = deleteTarget; setDeleteTarget(null); await onDeleteLog(log); }}),
     React.createElement('div',{style:{maxWidth:740,margin:"0 auto",padding:"16px",display:"flex",flexDirection:"column",gap:12}},
     // Header row
     compactMobile
@@ -3676,8 +3676,8 @@ const TodayPage = ({user,currentGroupId,groups,logs,excused,monthHistory,saving,
 
   const doLog=async ({ workoutType, isoDate, targetGroupIds, note, photoUrl })=>{
     if (Array.isArray(targetGroupIds) && targetGroupIds.length) {
+      setShowLog(false);
       const result = await onMultiLog({ workoutType, isoDate, targetGroupIds, note, photoUrl });
-      if (result?.ok) setShowLog(false);
       return;
     }
     const newLog={date:isoDate,type:workoutType,id:String(Date.now()),note,photoUrl,createdAt:new Date().toISOString(),verifiedVia:"photo",reactions:{},flagStatus:null,flagReason:"",flagResponse:"",flaggedBy:null,decisionBy:null,decisionAt:null};
@@ -3695,13 +3695,13 @@ const TodayPage = ({user,currentGroupId,groups,logs,excused,monthHistory,saving,
         ...(targetMonth.logsByUser || {}),
         [user]: nextMonthLogs
       });
-      onSave({actor:user,logs,excused,monthHistory:nextMonthHistory,lastMonth:curKey});
       setShowLog(false);
+      onSave({actor:user,logs,excused,monthHistory:nextMonthHistory,lastMonth:curKey});
       return;
     }
     const newLogs={...logs,[user]:[...(logs[user]||[]),newLog]};
-    onSave({actor:user,logs:newLogs,excused,monthHistory,lastMonth:curKey});
     setShowLog(false);
+    onSave({actor:user,logs:newLogs,excused,monthHistory,lastMonth:curKey});
   };
 
   const submitSitOut = async (reason) => {
@@ -3991,7 +3991,7 @@ const TodayPage = ({user,currentGroupId,groups,logs,excused,monthHistory,saving,
 
   return React.createElement(React.Fragment,null,
     showLog&&React.createElement(LogModal,{user,currentGroupId,groups,onConfirm:doLog,onClose:()=>setShowLog(false)}),
-    deleteTarget && React.createElement(DeleteModal,{log:deleteTarget,onClose:()=>setDeleteTarget(null),onConfirm:async()=>{ await onLogMutation({action:"delete-log",groupId:currentGroupId,actor:user,logId:deleteTarget.id}); setDeleteTarget(null); }}),
+    deleteTarget && React.createElement(DeleteModal,{log:deleteTarget,onClose:()=>setDeleteTarget(null),onConfirm:async()=>{ const logId = deleteTarget.id; setDeleteTarget(null); await onLogMutation({action:"delete-log",groupId:currentGroupId,actor:user,logId}); }}),
     showExcuse && sitOutMode && React.createElement(SitOutModal,{mode:sitOutMode,monthName:monthSummary ? MONTH_NAMES[monthSummary.month] : MONTH_NAMES[CUR_MONTH],adminName:sitOutApproverName,onClose:()=>{setShowExcuse(false);setSitOutError("");},onSubmit:submitSitOut,submitting:sitOutSubmitting,error:sitOutError}),
     mobileView,
     desktopView
