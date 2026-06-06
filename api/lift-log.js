@@ -735,7 +735,15 @@ function rolloverStateIfNeeded(data) {
   };
 }
 
-async function fetchCurrentState() {
+async function fetchReadableCurrentState() {
+  return fetchCurrentStateFromSupabase();
+}
+
+// Mutations must always hydrate from the blob source of truth.
+// Projection reads are safe for GET optimization, but using a lagging or
+// lossy projection snapshot as the base for writes can permanently erase
+// data from the blob on the next persist.
+async function fetchWritableCurrentState() {
   return fetchCurrentStateFromSupabase();
 }
 
@@ -2630,13 +2638,13 @@ export default async function handler(req, res) {
       if (url.searchParams.get("config") === "auth") {
         return res.status(200).json(getClientAuthConfig());
       }
-      const current = await fetchCurrentState();
+      const current = await fetchReadableCurrentState();
       return res.status(200).json(current);
     }
 
     if (req.method === "PUT") {
       const payload = await readJson(req);
-      const current = await fetchCurrentState();
+      const current = await fetchWritableCurrentState();
       const auth = await requireAuthenticatedContext(req, payload, current);
       const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
       const merged = mergeState(auth.state, { ...payload, actor });
@@ -2646,7 +2654,7 @@ export default async function handler(req, res) {
 
     if (req.method === "POST") {
       const payload = await readJson(req);
-      const current = await fetchCurrentState();
+      const current = await fetchWritableCurrentState();
 
       if (payload?.action === "auth-sync") {
         const authUser = await fetchAuthenticatedUser(readBearerToken(req, payload));
