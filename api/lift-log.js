@@ -841,6 +841,33 @@ async function deleteProfileFromCanonical(userId) {
   }
 }
 
+async function syncBlocToCanonical(group, adminUserId) {
+  try {
+    await supabaseFetch("/rest/v1/rpc/upsert_ante_core_bloc", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({
+        p_legacy_group_key:       group.id,
+        p_name:                   group.name,
+        p_admin_auth_user_id:     adminUserId || group.adminUserId || null,
+        p_invite_code:            group.inviteCode,
+        p_time_zone:              group.settings?.timeZone       ?? null,
+        p_currency:               group.settings?.currency       ?? null,
+        p_min_target:             group.settings?.minTarget      ?? null,
+        p_fine_amount:            group.settings?.fineAmount     ?? null,
+        p_fee_model:              group.settings?.feeModel       ?? null,
+        p_escalation_step_amount: group.settings?.escalationStepAmount ?? null,
+        p_min_run_distance:       group.settings?.minRunDistance  ?? null,
+        p_distance_unit:          group.settings?.distanceUnit   ?? null,
+        p_strava_enabled:         group.settings?.stravaEnabled  ?? true,
+        p_accepted_workout_types: group.settings?.acceptedWorkoutTypes ?? []
+      })
+    });
+  } catch (err) {
+    console.error("Canonical bloc sync failed:", err?.message || err);
+  }
+}
+
 async function fetchBlobRevision() {
   try {
     const response = await supabaseFetch("/rest/v1/lift_log_state?id=eq.true&select=revision", {
@@ -2945,6 +2972,7 @@ export default async function handler(req, res) {
         const creatorName = auth.profile?.displayName || String(payload?.creatorName || "").trim();
         const created = applyCreateGroup(auth.state, { ...payload, actorUserId: auth.user.id, creatorName });
         const persisted = await persistState(created.state, `create-group:${created.createdGroupId}`);
+        await syncBlocToCanonical(persisted.groups[created.createdGroupId], auth.user.id);
         return res.status(200).json({ state: persisted, createdGroupId: created.createdGroupId });
       }
 
@@ -3034,6 +3062,7 @@ export default async function handler(req, res) {
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
         const updated = applyUpdateSettings(auth.state, { ...payload, actor, actorUserId: auth.user.id });
         const persisted = await persistState(updated, `settings:${payload.groupId}:${actor || auth.user.id}`);
+        await syncBlocToCanonical(persisted.groups[payload.groupId], auth.user.id);
         return res.status(200).json(persisted);
       }
 
