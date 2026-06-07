@@ -2415,17 +2415,6 @@ const PreviewLanding = ({inviteContext,onCreate,onJoin,onSignIn}) => {
     style:{width:"100%",maxWidth:440,marginBottom:20,background:"linear-gradient(180deg,rgba(24,24,31,.98),rgba(17,17,23,.98))",border:"1px solid rgba(62,62,82,.9)",borderRadius:18,overflow:"hidden"}
   }, [previewHeader].concat(previewRows));
 
-  const invitePill = inviteContext
-    ? React.createElement('div',{
-        key:"preview-invite",
-        className:"fu3",
-        style:{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",borderRadius:999,background:"rgba(21,21,26,.86)",border:"1px solid rgba(62,62,82,.8)",marginBottom:14}
-      },
-        React.createElement('span',{className:"mono",style:{fontSize:10,color:"var(--cyan)",letterSpacing:".12em",textTransform:"uppercase"}},inviteContext.inviteCode),
-        React.createElement('span',{style:{fontSize:13,color:"var(--muted)"}},`${inviteContext.memberCount} members · ${inviteContext.minTarget}/month`)
-      )
-    : null;
-
   const actions = React.createElement('div',{
     key:"preview-actions",
     className:"fu4",
@@ -2444,7 +2433,7 @@ const PreviewLanding = ({inviteContext,onCreate,onJoin,onSignIn}) => {
     style:{background:"transparent",padding:0,marginTop:10,color:"rgba(78,205,196,.9)",fontSize:13,fontWeight:500,textAlign:"center",textDecoration:"underline",textUnderlineOffset:"2px"}
   },"Already have an account? Sign in");
 
-  const children = inviteContext ? [hero, previewCard, invitePill, actions, signInLink] : [hero, actions, signInLink];
+  const children = [hero, previewCard, actions, signInLink];
   return React.createElement('div',{style:{minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"32px 18px",background:"transparent"}},children);
 };
 
