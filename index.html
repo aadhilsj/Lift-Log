@@ -499,6 +499,19 @@ function getCurrentMemberTarget(displayName, monthKey = curKey, baseTarget = MIN
   return Math.max(1, Math.round((joinedSummary.daysRemaining / joinedSummary.daysInMonth) * baseTarget));
 }
 
+function getCurrentMemberTargetInfo(displayName, monthKey = curKey, baseTarget = MIN_TARGET) {
+  const joinedMonth = JOINED_MONTH_BY_NAME?.[displayName];
+  if (!joinedMonth || joinedMonth !== monthKey) return { target: baseTarget, joinDay: 1 };
+  const joinedSummary = getLeagueMonthSummaryForTimestamp(ACTIVE_MEMBER_JOINED_AT_BY_NAME?.[displayName], ACTIVE_GROUP_TIME_ZONE);
+  if (!joinedSummary || joinedSummary.monthKey !== monthKey || joinedSummary.day <= 1) return { target: baseTarget, joinDay: 1 };
+  const joinDay = joinedSummary.daysInMonth - joinedSummary.daysRemaining + 1;
+  return {
+    target: Math.max(1, Math.round((joinedSummary.daysRemaining / joinedSummary.daysInMonth) * baseTarget)),
+    joinDay,
+    proratedDays: joinedSummary.daysRemaining
+  };
+}
+
 function getCurrentSitOutRequest(group, memberName, monthKey = curKey) {
   return normalizeSitOutRequests(group?.sitOutRequests)?.[monthKey]?.[memberName] || null;
 }
@@ -3787,12 +3800,16 @@ const TodayPage = ({user,currentGroupId,groups,logs,excused,monthHistory,saving,
   const currentMonthOverride = currentGroup ? getSeasonOverrideForMonth(currentGroup, curKey) : null;
   const isGroupAdmin = currentGroup?.adminName === user;
   const sitOutApproverName = isGroupAdmin ? (deputyAdmin?.displayName || "a deputy admin") : (currentGroup?.adminName || "the admin");
-  const myTarget = currentGroup ? getMemberTargetForMonth(currentGroup, user, curKey) : MIN_TARGET;
+  const { target: myTarget, joinDay: myJoinDay = 1, proratedDays: myProratedDays } = currentGroup
+    ? getMemberTargetInfoForMonth(currentGroup, user, curKey)
+    : { target: MIN_TARGET };
 
   const myLogs=logs[user]||[];
   const countedMyLogs = getCountedLogs(myLogs);
   const isExcused=excused[user]?.[curKey]||false;
-  const expected=getExpected(myTarget);
+  const expected = myProratedDays
+    ? Math.ceil((myTarget / myProratedDays) * Math.max(0, DAY_OF_MON - myJoinDay + 1))
+    : getExpected(myTarget);
   const sitOutMode = currentSitOutRequest?.status === "pending"
     ? null
     : (recentSitOutCount >= 1 ? "exceptional" : ((monthSummary?.day || DAY_OF_MON) <= 5 ? "instant" : "request"));
@@ -4526,7 +4543,19 @@ const MonthPage = ({logs,excused,monthHistory,groupSettings,onSettlementChange,c
 
   const relevantNames = NAMES.filter(name => isJoinedForMonth(name, isCurrent ? curKey : selMonth.key));
   const counts=isCurrent
-    ? relevantNames.map(n=>({name:n,count:getCountedLogCount(logs[n]||[]),isOut:excused[n]?.[curKey]||false,target:getCurrentMemberTarget(n, curKey, MIN_TARGET)}))
+    ? relevantNames.map(n=>{
+        const { target, joinDay=1, proratedDays } = getCurrentMemberTargetInfo(n, curKey, MIN_TARGET);
+        const count = getCountedLogCount(logs[n]||[]);
+        const isOut = excused[n]?.[curKey]||false;
+        let memberDiffLabel = null;
+        if (!isOut && proratedDays) {
+          const daysActive = Math.max(0, DAY_OF_MON - joinDay + 1);
+          const exp = Math.ceil((target / proratedDays) * daysActive);
+          const d = count - exp;
+          memberDiffLabel = d > 0 ? `+${d} ahead` : d < 0 ? `${d} behind` : "on pace";
+        }
+        return { name:n, count, isOut, target, memberDiffLabel, joinDay, proratedDays };
+      })
     : relevantNames.map(n=>({name:n,count:selMonth.counts[n]||0,isOut:selMonth.excused?.[n]||false,target:selMonth.memberTargets?.[n] || selMonth.settings?.minTarget || MIN_TARGET}));
 
   const activeCounts=counts.filter(u=>!u.isOut);
@@ -4541,7 +4570,20 @@ const MonthPage = ({logs,excused,monthHistory,groupSettings,onSettlementChange,c
   const atRisk=isCurrent?activeCounts.filter(u=>{
     const isWinner=winners.find(w=>w.name===u.name);
     const isLoser=losers.find(l=>l.name===u.name);
-    return !isWinner&&!isLoser&&getStatus(u.count, u.target)==="at-risk";
+    let status;
+    if (u.proratedDays) {
+      const daysActive = Math.max(0, DAY_OF_MON - (u.joinDay||1) + 1);
+      const exp = Math.ceil((u.target / u.proratedDays) * daysActive);
+      const daysLeft = getDaysLeft();
+      if (u.count + daysLeft < u.target) status = "cooked";
+      else if (u.count - exp >= 2) status = "cruising";
+      else if (u.count >= exp) status = "on-track";
+      else if (u.count >= exp - 3) status = "at-risk";
+      else status = "behind";
+    } else {
+      status = getStatus(u.count, u.target);
+    }
+    return !isWinner&&!isLoser&&status==="at-risk";
   }):[];
 
   const monthLabel=isCurrent?`${MONTH_NAMES[CUR_MONTH]} ${CUR_YEAR}`:selMonth.label;
@@ -5451,7 +5493,7 @@ const App = () => {
       alert(result.error || "Unable to remove member");
     }
     return result;
-  },[selectedGroupId, authSession, applyData]);
+  },[selectedGroupId, authSession, currentUser, applyData]);
 
   const handleLeaveBloc = useCallback(async()=>{
     if (!selectedGroupId || !authSession?.userId) return { ok:false };

@@ -2442,6 +2442,10 @@ function applyJoinGroup(current, payload) {
   // linking their account), leave joinedMonthByName untouched so their full
   // participation history remains valid.
   const isNewToMemberOrder = !group.memberOrder.includes(profile.displayName);
+  // If this member was previously kicked or left, remove them from leftMemberNames
+  // so normalizeGroup doesn't immediately filter them back out.
+  const nextLeftMemberNames = (Array.isArray(group.leftMemberNames) ? group.leftMemberNames : [])
+    .filter(n => n !== profile.displayName);
   const nextGroup = normalizeGroup({
     ...group,
     memberOrder: uniqueNames([...group.memberOrder, profile.displayName]),
@@ -2456,7 +2460,8 @@ function applyJoinGroup(current, payload) {
         role: "member",
         joinedAt: new Date().toISOString()
       }
-    }
+    },
+    leftMemberNames: nextLeftMemberNames
   });
   return {
     state: {
