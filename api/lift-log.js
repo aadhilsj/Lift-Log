@@ -813,6 +813,22 @@ function rolloverStateIfNeeded(data) {
   };
 }
 
+async function syncProfileToCanonical(userId, email, displayName) {
+  try {
+    await supabaseFetch("/rest/v1/rpc/upsert_ante_core_profile", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({
+        p_auth_user_id: userId,
+        p_email:        email,
+        p_display_name: displayName
+      })
+    });
+  } catch (err) {
+    console.error("Canonical profile sync failed:", err?.message || err);
+  }
+}
+
 async function fetchBlobRevision() {
   try {
     const response = await supabaseFetch("/rest/v1/lift_log_state?id=eq.true&select=revision", {
@@ -877,7 +893,18 @@ async function fetchReadableCurrentState() {
   if (!baseState) baseState = await fetchCurrentStateFromSupabase();
 
   const anteProfiles = await anteProfilesPromise;
-  if (anteProfiles) return { ...baseState, profiles: anteProfiles };
+  if (anteProfiles) {
+    // Only overlay canonical profiles whose userId already exists in blob
+    // state. If a user was deleted from the blob (delete-account), their row
+    // may still be present in ante_core.profiles until canonical deletion is
+    // implemented. Filtering here prevents stale canonical rows from
+    // resurrecting a deleted user in the returned state.
+    const blobProfileKeys = new Set(Object.keys(baseState.profiles || {}));
+    const filtered = Object.fromEntries(
+      Object.entries(anteProfiles).filter(([userId]) => blobProfileKeys.has(userId))
+    );
+    if (Object.keys(filtered).length > 0) return { ...baseState, profiles: { ...(baseState.profiles || {}), ...filtered } };
+  }
   return baseState;
 }
 
@@ -2856,6 +2883,13 @@ export default async function handler(req, res) {
         const authUser = await fetchAuthenticatedUser(readBearerToken(req, payload));
         const synced = applyAuthSync(current, authUser);
         const state = synced.changed ? await persistState(synced.state, `auth-sync:${authUser.id}`) : synced.state;
+        // Dual-write profile to canonical if the blob profile was updated and
+        // already has a display name. New users with no display name yet will
+        // trigger canonical sync when they complete upsert-profile instead.
+        const canonicalDisplayName = state.profiles?.[authUser.id]?.displayName || "";
+        if (synced.changed && canonicalDisplayName) {
+          await syncProfileToCanonical(authUser.id, authUser.email, canonicalDisplayName);
+        }
         return res.status(200).json({ ok: true, state, session: synced.session });
       }
 
@@ -2943,6 +2977,9 @@ export default async function handler(req, res) {
         }
         const updated = applyUpsertProfile(auth.state, { ...payload, userId: auth.user.id, email: auth.user.email });
         const persisted = await persistState(updated, `profile:${auth.user.id}`);
+        // Dual-write to canonical. applyUpsertProfile already validated that
+        // displayName is non-empty, so this call is always safe to fire here.
+        await syncProfileToCanonical(auth.user.id, auth.user.email, String(payload?.displayName || "").trim());
         return res.status(200).json(persisted);
       }
 
