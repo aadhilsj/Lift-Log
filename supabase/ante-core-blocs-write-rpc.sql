@@ -93,7 +93,7 @@ begin
     p_currency,
     p_min_target,
     p_fine_amount,
-    p_fee_model,
+    p_fee_model::ante_core.fee_model_type,
     p_escalation_step_amount,
     p_min_run_distance,
     p_distance_unit,
