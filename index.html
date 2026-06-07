@@ -511,6 +511,17 @@ function getMonthSettlements(month) {
   return month?.settlements || buildSettlementMap(month?.counts || {}, month?.excused || {}, month?.settings || {});
 }
 
+function normalizeSettlementsForRelevantNames(settlements, month, relevantNames) {
+  const defaults = buildSettlementMap(month?.counts || {}, month?.excused || {}, month?.settings || {});
+  if (!settlements || typeof settlements !== "object") return defaults;
+  return {
+    ...defaults,
+    ...Object.fromEntries(
+      Object.entries(settlements).filter(([name]) => relevantNames.includes(name))
+    )
+  };
+}
+
 function fmtCurrency(amount, currency) {
   const symbols = {USD:"$",EUR:"€",GBP:"£",NOK:"kr",SEK:"kr",DKK:"kr",AUD:"A$",CAD:"C$",CHF:"CHF",INR:"₹",SGD:"S$",NZD:"NZ$",LKR:"Rs"};
   const sym = symbols[currency] || currency || DEFAULT_CURRENCY;
@@ -806,7 +817,16 @@ function normalizeMonthHistoryState(monthHistory, memberOrder, joinedMonthByName
       counts,
       excused,
       logsByUser,
-      settings: resolveHistoricalMonthSettings(month?.settings, settings)
+      settings: resolveHistoricalMonthSettings(month?.settings, settings),
+      settlements: normalizeSettlementsForRelevantNames(
+        month?.settlements,
+        {
+          counts,
+          excused,
+          settings: resolveHistoricalMonthSettings(month?.settings, settings)
+        },
+        relevantNames
+      )
     };
   }).filter(Boolean).sort((a, b) => compareMonthKeys(a.key, b.key));
 }
@@ -832,6 +852,12 @@ function normalizeGroupState(group) {
   memberOrder.forEach(name => {
     excused[name] = group?.excused?.[name] && typeof group.excused[name] === "object" ? group.excused[name] : {};
   });
+  const memberships = normalizeMemberships(group?.memberships, memberOrder, group?.adminName, group?.adminUserId);
+  const joinedMonthByName = inferJoinedMonthByName(
+    group?.joinedMonthByName,
+    memberships,
+    group?.settings?.timeZone || DEFAULT_GROUP_TIME_ZONE
+  );
   return {
     id: group?.id,
     name: String(group?.name || "Untitled Group").trim(),
@@ -840,14 +866,14 @@ function normalizeGroupState(group) {
     inviteCode: String(group?.inviteCode || "").trim().toUpperCase(),
     createdAt: group?.createdAt || new Date().toISOString(),
     memberOrder,
-    memberships: normalizeMemberships(group?.memberships, memberOrder, group?.adminName, group?.adminUserId),
-    joinedMonthByName: group?.joinedMonthByName && typeof group.joinedMonthByName === "object" ? group.joinedMonthByName : {},
+    memberships,
+    joinedMonthByName,
     settings: buildNormalizedSettings(group?.settings),
     logs: normalizedLogs,
     excused,
     seasonOverrides: normalizeSeasonOverrides(group?.seasonOverrides),
     sitOutRequests: normalizeSitOutRequests(group?.sitOutRequests),
-    monthHistory: normalizeMonthHistoryState(monthHistory, memberOrder, group?.joinedMonthByName, group?.settings),
+    monthHistory: normalizeMonthHistoryState(monthHistory, memberOrder, joinedMonthByName, group?.settings),
     lastMonth: group?.lastMonth || curKey
   };
 }
@@ -1004,6 +1030,39 @@ function getMonthKeyFromISO(iso) {
   const [year, month] = String(iso || "").split("-").map(Number);
   if (!Number.isFinite(year) || !Number.isFinite(month)) return null;
   return `${year}-${month - 1}`;
+}
+
+function getLeagueMonthKeyForTimestamp(value, timeZone = DEFAULT_GROUP_TIME_ZONE) {
+  const date = new Date(value);
+  if (!value || Number.isNaN(date.getTime())) return null;
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    hour12: false
+  }).formatToParts(date);
+  const year = Number(parts.find(part => part.type === "year")?.value);
+  const month = Number(parts.find(part => part.type === "month")?.value);
+  const day = Number(parts.find(part => part.type === "day")?.value);
+  const hour = Number(parts.find(part => part.type === "hour")?.value);
+  if (![year, month, day, hour].every(Number.isFinite)) return null;
+
+  const leagueDate = new Date(Date.UTC(year, month - 1, day));
+  if (hour < LEAGUE_CUTOFF_HOUR) leagueDate.setUTCDate(leagueDate.getUTCDate() - 1);
+  return `${leagueDate.getUTCFullYear()}-${leagueDate.getUTCMonth()}`;
+}
+
+function inferJoinedMonthByName(joinedMonthByName, memberships, timeZone = DEFAULT_GROUP_TIME_ZONE) {
+  const next = joinedMonthByName && typeof joinedMonthByName === "object" ? { ...joinedMonthByName } : {};
+  Object.values(memberships || {}).forEach(membership => {
+    const displayName = String(membership?.displayName || "").trim();
+    if (!displayName || next[displayName]) return;
+    const inferredMonthKey = getLeagueMonthKeyForTimestamp(membership?.joinedAt, timeZone);
+    if (inferredMonthKey) next[displayName] = inferredMonthKey;
+  });
+  return next;
 }
 
 function compareMonthKeys(a, b) {
