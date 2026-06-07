@@ -829,6 +829,18 @@ async function syncProfileToCanonical(userId, email, displayName) {
   }
 }
 
+async function deleteProfileFromCanonical(userId) {
+  try {
+    await supabaseFetch("/rest/v1/rpc/delete_ante_core_profile", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ p_auth_user_id: userId })
+    });
+  } catch (err) {
+    console.error("Canonical profile delete failed:", err?.message || err);
+  }
+}
+
 async function fetchBlobRevision() {
   try {
     const response = await supabaseFetch("/rest/v1/lift_log_state?id=eq.true&select=revision", {
@@ -3093,6 +3105,7 @@ export default async function handler(req, res) {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const updated = applyDeleteAccount(auth.state, { ...payload, userId: auth.user.id });
         const persisted = await persistState(updated, `delete-account:${auth.user.id}`);
+        await deleteProfileFromCanonical(auth.user.id);
         return res.status(200).json({ ok: true, state: persisted });
       }
 
