@@ -2444,7 +2444,7 @@ const PreviewLanding = ({inviteContext,onCreate,onJoin,onSignIn}) => {
     style:{background:"transparent",padding:0,marginTop:10,color:"rgba(78,205,196,.9)",fontSize:13,fontWeight:500,textAlign:"center",textDecoration:"underline",textUnderlineOffset:"2px"}
   },"Already have an account? Sign in");
 
-  const children = invitePill ? [hero, previewCard, invitePill, actions, signInLink] : [hero, previewCard, actions, signInLink];
+  const children = inviteContext ? [hero, previewCard, invitePill, actions, signInLink] : [hero, actions, signInLink];
   return React.createElement('div',{style:{minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"32px 18px",background:"transparent"}},children);
 };
 
@@ -5521,6 +5521,7 @@ const App = () => {
     const result = await leaveBlocData({ groupId: selectedGroupId, userId: authSession.userId });
     if (result.ok && result.state) {
       applyData(result.state);
+      resetInviteFlow({ clearUrl:true });
       setShowProfileModal(false);
       persistGroupSelection(null);
       setLastSyncedAt(new Date());
@@ -5529,7 +5530,7 @@ const App = () => {
       alert(result.error || "Unable to leave Bloc");
     }
     return result;
-  },[selectedGroupId, authSession, applyData, persistGroupSelection]);
+  },[selectedGroupId, authSession, applyData, persistGroupSelection, resetInviteFlow]);
 
   const handleSwitchUser=async()=>{
     try { await signOutAuthSession(); } catch (error) { console.error("Sign out failed:", error); }
@@ -5646,7 +5647,7 @@ const App = () => {
       ? result.session.needsProfileSetup
       : !nextProfile?.displayName;
 
-    if (needsProfileSetup) {
+    if (needsProfileSetup && authIntent?.type !== "join") {
       const freshData = await fetchData();
       if (freshData) {
         applyData(freshData);
@@ -5689,6 +5690,7 @@ const App = () => {
     closeAuth();
     if (pendingJoinAfterProfile && activeSession?.userId) {
       setPendingJoinAfterProfile(false);
+      setShowJoinModal(true);
       setJoiningGroup(true);
       setInviteError("");
       const joinResult = await joinGroupData({ userId: activeSession.userId, inviteCode: joinCode.trim().toUpperCase() });
@@ -5700,6 +5702,7 @@ const App = () => {
         return;
       }
       applyData(joinResult.state);
+      resetInviteFlow({ clearUrl:true });
       persistGroupSelection(joinResult.joinedGroupId);
       setPage("today");
       setShowJoinModal(false);
@@ -5729,6 +5732,7 @@ const App = () => {
       return;
     }
     applyData(result.state);
+    resetInviteFlow({ clearUrl:true });
     persistGroupSelection(result.joinedGroupId);
     setPage("today");
     setShowJoinModal(false);
