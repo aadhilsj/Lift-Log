@@ -33,6 +33,7 @@ create or replace function public.upsert_ante_core_season(
   p_currency               text,
   p_min_run_distance       integer,
   p_distance_unit          text,
+  p_time_zone              text,
   p_strava_enabled         boolean,
   p_accepted_workout_types text[]
 )
@@ -77,6 +78,7 @@ begin
     currency,
     min_run_distance,
     distance_unit,
+    time_zone,
     strava_enabled,
     accepted_workout_types,
     created_at,
@@ -98,6 +100,7 @@ begin
     p_currency,
     p_min_run_distance,
     p_distance_unit,
+    p_time_zone,
     p_strava_enabled,
     coalesce(p_accepted_workout_types, '{}'),
     now(),
@@ -115,6 +118,7 @@ begin
       currency               = excluded.currency,
       min_run_distance       = excluded.min_run_distance,
       distance_unit          = excluded.distance_unit,
+      time_zone              = excluded.time_zone,
       strava_enabled         = excluded.strava_enabled,
       accepted_workout_types = excluded.accepted_workout_types,
       -- Preserve original created_at; only bump updated_at.
