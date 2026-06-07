@@ -1270,6 +1270,13 @@ async function syncAuthSessionData(sessionOverride) {
   return { ok:false, error:"Unable to sync account" };
 }
 
+async function refreshAuthSession() {
+  const client = await getSupabaseAuthClient();
+  const { data, error } = await client.auth.refreshSession();
+  if (error || !data?.session) return null;
+  return mapSupabaseSession(data.session);
+}
+
 async function postApi(action, payload = {}, options = {}) {
   const { auth = true, sessionOverride = null } = options;
   try {
@@ -1287,6 +1294,22 @@ async function postApi(action, payload = {}, options = {}) {
     });
     const body = await res.json().catch(()=>null);
     if (!res.ok) {
+      // On 401, try refreshing the session and retrying once
+      if (res.status === 401 && auth && !sessionOverride) {
+        const refreshed = await refreshAuthSession();
+        if (refreshed?.accessToken) {
+          const retryHeaders = { "Content-Type":"application/json", Authorization:`Bearer ${refreshed.accessToken}` };
+          const retryRes = await fetch("./api/lift-log", {
+            method: "POST",
+            cache: "no-store",
+            headers: retryHeaders,
+            body: JSON.stringify({ action, ...payload })
+          });
+          const retryBody = await retryRes.json().catch(()=>null);
+          if (!retryRes.ok) return { ok:false, error: retryBody?.details || retryBody?.error || "Request failed", body: retryBody };
+          return { ok:true, body: retryBody };
+        }
+      }
       return { ok:false, error: body?.details || body?.error || "Request failed", body };
     }
     return { ok:true, body };
