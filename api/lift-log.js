@@ -870,6 +870,7 @@ async function syncSeasonToCanonical(group, monthKey, status) {
         p_currency:               group.settings?.currency       ?? null,
         p_min_run_distance:       group.settings?.minRunDistance  ?? null,
         p_distance_unit:          group.settings?.distanceUnit   ?? null,
+        p_time_zone:              group.settings?.timeZone       ?? DEFAULT_GROUP_TIME_ZONE,
         p_strava_enabled:         group.settings?.stravaEnabled  ?? true,
         p_accepted_workout_types: group.settings?.acceptedWorkoutTypes ?? []
       })
