@@ -544,6 +544,18 @@ function normalizeMonthHistory(monthHistory, memberOrder, joinedMonthByName, set
     const counts = Object.fromEntries(relevantNames.map(name => [name, Number(month?.counts?.[name] || getCountedLogCount(logsByUser[name]) || 0)]));
     const excused = month?.excused || Object.fromEntries(relevantNames.map(name => [name, false]));
     const monthSettings = resolveHistoricalMonthSettings(month?.settings, settings);
+    const monthGroup = {
+      settings,
+      memberships: month?.memberships || {},
+      joinedMonthByName,
+      seasonOverrides: month?.seasonOverrides || {}
+    };
+    const memberTargets = Object.fromEntries(
+      relevantNames.map(name => [
+        name,
+        month?.memberTargets?.[name] || getMemberTargetForMonth(monthGroup, name, monthKey, monthSettings)
+      ])
+    );
     return {
       ...month,
       key: monthKey,
@@ -553,8 +565,9 @@ function normalizeMonthHistory(monthHistory, memberOrder, joinedMonthByName, set
       counts,
       excused,
       logsByUser,
+      memberTargets,
       settings: monthSettings,
-      settlements: month?.settlements || buildDefaultSettlements({ counts, excused, key: monthKey }, relevantNames, monthSettings)
+      settlements: month?.settlements || buildDefaultSettlements({ counts, excused, key: monthKey }, relevantNames, monthSettings, memberTargets)
     };
   }).filter(Boolean).sort((a, b) => compareMonthKeys(a.key, b.key));
 }
@@ -589,6 +602,65 @@ function getLeagueMonthKey(timeZone = DEFAULT_GROUP_TIME_ZONE) {
   return `${today.year}-${today.month - 1}`;
 }
 
+function getLeagueMonthSummaryForTimestamp(value, timeZone = DEFAULT_GROUP_TIME_ZONE) {
+  const date = new Date(value);
+  if (!value || Number.isNaN(date.getTime())) return null;
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    hour12: false
+  }).formatToParts(date);
+  const year = Number(parts.find(part => part.type === "year")?.value);
+  const month = Number(parts.find(part => part.type === "month")?.value);
+  const day = Number(parts.find(part => part.type === "day")?.value);
+  const hour = Number(parts.find(part => part.type === "hour")?.value);
+  if (![year, month, day, hour].every(Number.isFinite)) return null;
+
+  const leagueDate = new Date(Date.UTC(year, month - 1, day));
+  if (hour < LEAGUE_CUTOFF_HOUR) leagueDate.setUTCDate(leagueDate.getUTCDate() - 1);
+  const leagueYear = leagueDate.getUTCFullYear();
+  const leagueMonthIndex = leagueDate.getUTCMonth();
+  const daysInMonth = new Date(leagueYear, leagueMonthIndex + 1, 0).getDate();
+  const leagueDay = leagueDate.getUTCDate();
+  return {
+    monthKey: `${leagueYear}-${leagueMonthIndex}`,
+    day: leagueDay,
+    daysInMonth,
+    daysRemaining: Math.max(1, daysInMonth - leagueDay + 1)
+  };
+}
+
+function getSeasonOverrideForMonth(group, monthKey) {
+  return normalizeSeasonOverrides(group?.seasonOverrides)?.[monthKey] || null;
+}
+
+function getEffectiveTargetForMonth(group, monthKey, settingsOverride = null) {
+  const baseTarget = Number(settingsOverride?.minTarget || group?.settings?.minTarget || DEFAULT_MIN_TARGET);
+  const override = getSeasonOverrideForMonth(group, monthKey);
+  return override?.prorated && Number.isFinite(Number(override?.proratedMas))
+    ? Math.max(1, Math.round(Number(override.proratedMas)))
+    : baseTarget;
+}
+
+function getMemberTargetForMonth(group, displayName, monthKey, settingsOverride = null) {
+  const baseTarget = getEffectiveTargetForMonth(group, monthKey, settingsOverride);
+  const joinedMonth = group?.joinedMonthByName?.[displayName];
+  if (!joinedMonth || joinedMonth !== monthKey) return baseTarget;
+  const membership = Object.values(group?.memberships || {}).find(entry => entry?.displayName === displayName);
+  const joinedSummary = getLeagueMonthSummaryForTimestamp(membership?.joinedAt, group?.settings?.timeZone || DEFAULT_GROUP_TIME_ZONE);
+  if (!joinedSummary || joinedSummary.monthKey !== monthKey || joinedSummary.day <= 1) return baseTarget;
+  return Math.max(1, Math.round((joinedSummary.daysRemaining / joinedSummary.daysInMonth) * baseTarget));
+}
+
+function getMemberTargetsForMonth(group, relevantNames, monthKey, settingsOverride = null) {
+  return Object.fromEntries(
+    relevantNames.map(name => [name, getMemberTargetForMonth(group, name, monthKey, settingsOverride)])
+  );
+}
+
 function getMonthKeyFromISO(isoDate) {
   const [year, month] = String(isoDate || "").split("-").map(Number);
   if (!Number.isFinite(year) || !Number.isFinite(month)) return null;
@@ -617,7 +689,7 @@ function calcPenalties(activeCounts, settings) {
   const topCount = sorted[0].count;
   if (topCount === 0) return { winners: [], losers: [], perLoser: 0, totalPot: 0, perWinner: 0, loserAmounts: {} };
   const winners = sorted.filter(user => user.count === topCount);
-  const losers = activeCounts.filter(user => user.count < minTarget && user.count < topCount);
+  const losers = activeCounts.filter(user => user.count < (Number(user?.target) || minTarget) && user.count < topCount);
   const n = losers.length;
   const baseFine = Number(settings?.fineAmount || DEFAULT_FINE_AMOUNT);
   const feeModel = normalizeFeeModel(settings?.feeModel);
@@ -632,10 +704,10 @@ function calcPenalties(activeCounts, settings) {
   return { winners, losers, perLoser, totalPot, perWinner, loserAmounts };
 }
 
-function buildDefaultSettlements(month, relevantNames, settings) {
+function buildDefaultSettlements(month, relevantNames, settings, memberTargets = {}) {
   const activeCounts = relevantNames
     .filter(name => !(month.excused?.[name]))
-    .map(name => ({ name, count: month.counts?.[name] || 0 }));
+    .map(name => ({ name, count: month.counts?.[name] || 0, target: memberTargets?.[name] || Number(settings?.minTarget || DEFAULT_MIN_TARGET) }));
   const { losers } = calcPenalties(activeCounts, settings);
   return Object.fromEntries(
     losers.map(loser => [
@@ -664,13 +736,15 @@ function rebuildMonthSnapshot(group, month, logsByUser) {
   );
   const excused = month?.excused || Object.fromEntries(relevantNames.map(name => [name, false]));
   const settings = buildNormalizedSettings(month?.settings || group.settings);
+  const memberTargets = getMemberTargetsForMonth(group, relevantNames, monthKey, settings);
   return {
     ...month,
     counts,
     excused,
     logsByUser: nextLogsByUser,
+    memberTargets,
     settings,
-    settlements: buildDefaultSettlements({ counts, excused }, relevantNames, settings)
+    settlements: buildDefaultSettlements({ counts, excused }, relevantNames, settings, memberTargets)
   };
 }
 
@@ -692,6 +766,7 @@ function rolloverGroupIfNeeded(group) {
   const excused = Object.fromEntries(
     relevantNames.map(name => [name, group.excused?.[name]?.[group.lastMonth] || false])
   );
+  const memberTargets = getMemberTargetsForMonth(group, relevantNames, group.lastMonth, group.settings);
   const snapshot = {
     key: group.lastMonth,
     label,
@@ -700,8 +775,9 @@ function rolloverGroupIfNeeded(group) {
     counts,
     excused,
     logsByUser: buildMonthLogsSnapshot(group.logs, group.memberOrder),
+    memberTargets,
     settings: buildNormalizedSettings(group.settings),
-    settlements: buildDefaultSettlements({ counts, excused }, relevantNames, group.settings)
+    settlements: buildDefaultSettlements({ counts, excused }, relevantNames, group.settings, memberTargets)
   };
 
   return normalizeGroup({
