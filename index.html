@@ -158,7 +158,7 @@
 const LEGACY_GROUP_ID = "legacy-group";
 const DEFAULT_GROUP_NAME = "Antè OG";
 const DEFAULT_NAMES = ["Aadhil","Isira","Rahul","Kisal","Rishane","Deyhan","Aysha","Nishara","Abhishek"];
-const WORKOUT_TYPES = ["Gym","Run","Pilates","Sports","Other"];
+const WORKOUT_TYPES = ["Gym","Run","Sports","Pilates","Other"];
 const DEFAULT_MIN_TARGET = 12;
 const DEFAULT_GROUP_TIME_ZONE = "Europe/Oslo";
 const LEAGUE_CUTOFF_HOUR = 5;
@@ -211,10 +211,10 @@ const getLeagueDateParts = (timeZone = ACTIVE_GROUP_TIME_ZONE) => {
 };
 const MONTH_NAMES   = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const AVATAR_COLORS = [
-  "#7B8FA1","#9B7BB0","#6BAA8E","#C17F5A","#7A9CC7",
-  "#B5856A","#8A7BA8","#5F9E8F","#C4916B","#7EB3A0",
-  "#A67C9B","#6E8F7A","#9E8A6B","#7A8FA6","#B07A8A",
-  "#8C9E6B","#A08CB0","#6B9EA8","#B09A6B","#7A6B9E"
+  "#C84B68","#9B50D0","#4870D0","#C44A7A","#5A7AAF",
+  "#D44A50","#6055D4","#BF5A45","#A06090","#3A78C0",
+  "#B055D0","#C85040","#7A8FAF","#8A7AC8","#BF4A90",
+  "#3A6EAF","#D45060","#7A50CC","#A05070","#5A6FD4"
 ];
 let ACTIVE_SESSION_USER_ID = "";
 let ACTIVE_NAME_TO_USER_ID = {};
@@ -227,7 +227,7 @@ function hashString(value) {
 const resolveAvatarUserId = name => ACTIVE_NAME_TO_USER_ID?.[name] || "";
 const avatarColor = (name, explicitUserId = "") => {
   const userId = explicitUserId || resolveAvatarUserId(name) || String(name || "");
-  if (ACTIVE_SESSION_USER_ID && userId === ACTIVE_SESSION_USER_ID) return "#4ECDC4";
+  if (ACTIVE_SESSION_USER_ID && userId === ACTIVE_SESSION_USER_ID) return "#E8A23A";
   return AVATAR_COLORS[hashString(userId) % AVATAR_COLORS.length];
 };
 const WORKOUT_TYPE_ALIASES = {
@@ -1405,8 +1405,9 @@ function getRevision(data) {
 
 function getAcceptedWorkoutTypes(group) {
   const accepted = group?.settings?.acceptedWorkoutTypes;
-  if (Array.isArray(accepted) && accepted.length) return accepted;
-  return [...WORKOUT_TYPES];
+  const base = Array.isArray(accepted) && accepted.length ? accepted : [...WORKOUT_TYPES];
+  // Always sort by canonical WORKOUT_TYPES order so stored legacy ordering never shows through.
+  return [...base].sort((a, b) => WORKOUT_TYPES.indexOf(a) - WORKOUT_TYPES.indexOf(b));
 }
 
 function groupCountsWorkoutType(group, workoutType) {
@@ -2376,8 +2377,8 @@ const ProfileModal = ({email,onSignOut,onClose,showDisplayName,currentDisplayNam
 const JoinGroupModal = ({inviteContext,joinCode,setJoinCode,onClose,onJoin,joining,error}) => {
   const isFull = inviteContext && inviteContext.memberCount >= 20;
   const canJoin = joinCode.trim() && !joining && !isFull;
-  return React.createElement('div',{className:"overlay",onClick:onClose,style:{background:"rgba(5,9,9,0.85)"}},
-    React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{maxWidth:420}},
+  return React.createElement('div',{className:"overlay center-mobile",onClick:onClose,style:{background:"rgba(5,9,9,0.85)"}},
+    React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{maxWidth:380}},
       React.createElement('div',{style:{fontWeight:800,fontSize:20,marginBottom:6}},inviteContext?"Join this Bloc":"Join a Bloc"),
       React.createElement('div',{style:{color:"var(--muted)",fontSize:13,lineHeight:1.6,marginBottom:18}},inviteContext
         ? `${inviteContext.groupName} is waiting for you. Sign in, then confirm the invite code below to join.`
@@ -2617,19 +2618,20 @@ const GroupHome = ({groups,currentIdentity,currentEmail,onOpenProfile,onOpenGrou
         groups.map((group,index)=>{
           const preview = getGroupMemberPreview(group, currentIdentity);
           const acceptedTypes = getAcceptedWorkoutTypes(group);
-          return React.createElement('button',{key:group.id,onClick:()=>onOpenGroup(group.id),style:{background:"linear-gradient(180deg,rgba(10,15,15,.98),rgba(8,12,12,.98))",border:compactMobile?"1px solid rgba(18,36,36,.96)":"0.5px solid #0D1F1E",boxShadow:compactMobile?"0 0 0 1px rgba(10,27,27,.28), 0 14px 30px rgba(0,0,0,.16)":"none",borderRadius:compactMobile?15:18,padding:compactMobile?"12px 10px":"15px 16px",textAlign:"left",animation:`fadeUp .35s ${index*.04}s ease both`}},
+          return React.createElement('button',{key:group.id,onClick:()=>onOpenGroup(group.id),onMouseEnter:e=>{e.currentTarget.style.border="1px solid rgba(78,205,196,.22)";e.currentTarget.style.boxShadow="0 0 0 1px rgba(78,205,196,.08), 0 18px 36px rgba(0,0,0,.28)";e.currentTarget.style.transform="translateY(-1px)"},onMouseLeave:e=>{e.currentTarget.style.border=compactMobile?"1px solid rgba(18,36,36,.96)":"0.5px solid #0D1F1E";e.currentTarget.style.boxShadow=compactMobile?"0 0 0 1px rgba(10,27,27,.28), 0 14px 30px rgba(0,0,0,.16)":"0 2px 12px rgba(0,0,0,.18)";e.currentTarget.style.transform="translateY(0)"},style:{background:"linear-gradient(180deg,rgba(10,15,15,.98),rgba(8,12,12,.98))",border:compactMobile?"1px solid rgba(18,36,36,.96)":"0.5px solid #0D1F1E",boxShadow:compactMobile?"0 0 0 1px rgba(10,27,27,.28), 0 14px 30px rgba(0,0,0,.16)":"0 2px 12px rgba(0,0,0,.18)",borderRadius:compactMobile?15:18,padding:compactMobile?"12px 10px":"15px 16px",textAlign:"left",cursor:"pointer",transition:"border .15s, box-shadow .15s, transform .15s",animation:`fadeUp .35s ${index*.04}s ease both`}},
             React.createElement('div',{style:{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:8,marginBottom:compactMobile?6:10}},
               React.createElement('div',{style:{fontSize:compactMobile?17:21,fontWeight:900,color:"#f5f7ff",letterSpacing:"-.03em",lineHeight:1.15}},group.name),
               React.createElement('div',{style:{display:"flex",flexDirection:"column",alignItems:"flex-end",flexShrink:0,gap:2}},
                 React.createElement('span',{className:"mono",style:{fontSize:compactMobile?11:12,letterSpacing:".04em"}},
                   React.createElement('span',{style:{color:"#4ECDC4",fontWeight:700}},group.settings.minTarget),
                   React.createElement('span',{style:{color:"var(--muted)"}}, " / month")
-                )
+                ),
+                React.createElement('span',{style:{fontSize:14,color:"var(--muted)",lineHeight:1,marginTop:2}},"›")
               )
             ),
             React.createElement('div',{style:{marginBottom:6}},
               React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,marginBottom:4}},
-                React.createElement('span',{style:{fontSize:10,fontWeight:600,color:"#4ECDC4",letterSpacing:".08em",textTransform:"uppercase",fontFamily:"'Outfit',sans-serif"}},"Accepted"),
+                React.createElement('span',{style:{fontSize:10,fontWeight:600,color:"#4ECDC4",letterSpacing:".08em",textTransform:"uppercase",fontFamily:"'Outfit',sans-serif"}},"Workout types"),
                 React.createElement('span',{style:{fontSize:compactMobile?10:11,color:"var(--muted)"}},
                   `${group.memberOrder.length}/20 member${group.memberOrder.length===1?"":"s"}`
                 )
@@ -2893,7 +2895,7 @@ const LogModal = ({user,currentGroupId,groups,onConfirm,onClose}) => {
   const eligibleGroups = useMemo(() => {
     if (!wType || !isCurrentMonthSelection) return [];
     return groups
-      .filter(group => group.memberOrder.includes(user) && groupCountsWorkoutType(group, wType))
+      .filter(group => group.id !== currentGroupId && group.memberOrder.includes(user) && groupCountsWorkoutType(group, wType))
       .map(group => {
         const alreadyLoggedHere = (group.logs?.[user] || []).some(log => log.date === selDate);
         return {
@@ -2972,7 +2974,7 @@ const LogModal = ({user,currentGroupId,groups,onConfirm,onClose}) => {
   const handleCropCancel = () => setCropSource(null);
 
   const needsNote = wType === "Other";
-  const canSubmit = Boolean(wType && photoUrl && !alreadyLogged && (!needsNote || note.trim()) && (!isCurrentMonthSelection || selectedGroupIds.length));
+  const canSubmit = Boolean(wType && photoUrl && !alreadyLogged && (!needsNote || note.trim()));
 
   if (cropSource) return React.createElement(CropModal, {imageSrc:cropSource, onConfirm:handleCropConfirm, onCancel:handleCropCancel});
 
@@ -3016,9 +3018,9 @@ const LogModal = ({user,currentGroupId,groups,onConfirm,onClose}) => {
       ),
       photoError && React.createElement('div',{style:{fontSize:12,color:"var(--red)",marginBottom:7}},photoError),
       React.createElement('span',{className:"lbl",style:{marginBottom:6,color:"var(--text)",fontSize:10,fontWeight:500}},needsNote?"Describe your workout":"Add a note (optional)"),
-      React.createElement('textarea',{value:note,onChange:e=>setNote(e.target.value.slice(0,280)),rows:compactMobile?2:3,placeholder:needsNote?"What did you do? e.g. swim, home workout, martial arts":"Any context for your Bloc? e.g. trail run, home workout",style:{width:"100%",resize:"none",background:"var(--s2)",border:`1px solid ${needsNote&&!note.trim()?"rgba(240,165,0,.28)":"var(--border)"}`,borderRadius:10,padding:compactMobile?"9px 11px":"10px 13px",color:"var(--text)",fontSize:compactMobile?13:14,outline:"none",marginBottom:compactMobile?8:12,boxSizing:"border-box"}}),
+      React.createElement('textarea',{value:note,onChange:e=>setNote(e.target.value.slice(0,280)),rows:compactMobile?2:3,placeholder:needsNote?"e.g. swim, home workout, martial arts":"e.g. trail run, home workout, yoga",style:{width:"100%",resize:"none",background:"var(--s2)",border:`1px solid ${needsNote&&!note.trim()?"rgba(240,165,0,.28)":"var(--border)"}`,borderRadius:10,padding:compactMobile?"9px 11px":"10px 13px",color:"var(--text)",fontSize:compactMobile?13:14,outline:"none",marginBottom:compactMobile?8:12,boxSizing:"border-box"}}),
       React.createElement('div',{className:"mono",style:{fontSize:10,color:"var(--muted)",marginTop:compactMobile?-3:-6,marginBottom:compactMobile?8:10,textAlign:"right"}},`${note.length}/280`),
-      wType && React.createElement('div',{style:{marginBottom:compactMobile?10:16}},
+      wType && eligibleGroups.length > 0 && React.createElement('div',{style:{marginBottom:compactMobile?10:16}},
         React.createElement('span',{className:"lbl",style:{marginBottom:6,color:"var(--text)",fontSize:10,fontWeight:500}},"Also Log To"),
         React.createElement('div',{style:{display:"flex",flexWrap:"wrap",gap:8}},
           eligibleGroups.map(group => React.createElement('button',{
@@ -3860,7 +3862,7 @@ const TodayPage = ({user,currentGroupId,groups,logs,excused,monthHistory,saving,
             React.createElement(Bar,{value:u.count,max:MIN_TARGET,color:barColor(u.status),h:2}),
             React.createElement('div',{style:{display:"flex",justifyContent:"space-between",marginTop:4}},
               React.createElement('span',{className:"mono",style:{fontSize:10,fontWeight:700,color:groupStatusColor(u.status)}},u.status==="cooked"?"target out of reach":diffLabel(u.count)),
-              React.createElement('span',{className:"mono",style:{fontSize:10,fontWeight:700,color:lastWorkout(logs[u.name])==='today'?'var(--green)':lastWorkout(logs[u.name])==='1 day ago'?'var(--amber)':'#1E4040'}},lastWorkout(logs[u.name])?`last: ${lastWorkout(logs[u.name])}`:"no logs")
+              React.createElement('span',{className:"mono",style:{fontSize:10,fontWeight:700,color:lastWorkout(logs[u.name])==='today'?'var(--green)':lastWorkout(logs[u.name])==='1 day ago'?'var(--amber)':'#C97B2E'}},lastWorkout(logs[u.name])?`last: ${lastWorkout(logs[u.name])}`:"no logs")
             )
           )
         );
@@ -3951,7 +3953,7 @@ const TodayPage = ({user,currentGroupId,groups,logs,excused,monthHistory,saving,
               React.createElement(Bar,{value:u.count,max:MIN_TARGET,color:barColor(u.status),h:2}),
               React.createElement('div',{style:{display:"flex",justifyContent:"space-between",marginTop:4}},
                 React.createElement('span',{className:"mono",style:{fontSize:10,fontWeight:700,color:groupStatusColor(u.status)}},u.status==="cooked"?"target out of reach":diffLabel(u.count)),
-                React.createElement('span',{className:"mono",style:{fontSize:10,fontWeight:700,color:lastWorkout(logs[u.name])==='today'?'var(--green)':lastWorkout(logs[u.name])==='1 day ago'?'var(--amber)':'#1E4040'}},lastWorkout(logs[u.name])?`last: ${lastWorkout(logs[u.name])}`:"no logs yet")
+                React.createElement('span',{className:"mono",style:{fontSize:10,fontWeight:700,color:lastWorkout(logs[u.name])==='today'?'var(--green)':lastWorkout(logs[u.name])==='1 day ago'?'var(--amber)':'#C97B2E'}},lastWorkout(logs[u.name])?`last: ${lastWorkout(logs[u.name])}`:"no logs yet")
               )
             )
           );
