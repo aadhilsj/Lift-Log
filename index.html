@@ -3416,9 +3416,9 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
                     post.flagReason && React.createElement('div',{style:{fontSize:12,color:"#ffd7d7",lineHeight:1.45,marginBottom:post.flagResponse?8:0}},React.createElement('strong',null,"Flag reason: "),post.flagReason),
                     post.flagResponse && React.createElement('div',{style:{fontSize:12,color:"var(--text)",lineHeight:1.45}},React.createElement('strong',null,"Response: "),post.flagResponse)
                   ),
-                  (post.flagStatus==="approved" || post.flagStatus==="rejected") && React.createElement('div',{style:{padding:"9px 11px",borderRadius:10,background:post.flagStatus==="approved"?"rgba(31,206,101,.08)":"rgba(232,69,69,.08)",border:`1px solid ${post.flagStatus==="approved"?"rgba(31,206,101,.22)":"rgba(232,69,69,.22)"}`,marginBottom:8,fontSize:12,color:post.flagStatus==="approved"?"#d8ffe7":"#ffd7d7"}},
+                  post.flagStatus==="rejected" && React.createElement('div',{style:{padding:"9px 11px",borderRadius:10,background:"rgba(232,69,69,.08)",border:"1px solid rgba(232,69,69,.22)",marginBottom:8,fontSize:12,color:"#ffd7d7"}},
                     isAdmin && post.flaggedBy && React.createElement('div',{style:{marginBottom:6,color:"var(--amber)"}},React.createElement('strong',null,"Original flag by: "),post.flaggedBy),
-                    `${post.decisionBy || "Admin"} ${post.flagStatus === "approved" ? "approved" : "rejected"} this workout.`
+                    `${post.decisionBy || "Admin"} rejected this workout.`
                   ),
                   React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"flex-end",gap:8,flexWrap:"wrap",marginTop:post.flagStatus ? 8 : 0}},
                     React.createElement('div',{style:{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}},
@@ -3451,8 +3451,9 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,groupSettings,onDe
   const currency = groupSettings?.currency || DEFAULT_CURRENCY;
   const [selMonthIdx,setSelMonthIdx]=useState(null); // null = current month
   const histReversed=[...monthHistory].reverse();
+  const visibleHistoryMonths=histReversed.filter(m=>isJoinedForMonth(name, m?.key));
   const isCurMonth=selMonthIdx===null;
-  const selHistMonth=isCurMonth?null:histReversed[selMonthIdx];
+  const selHistMonth=isCurMonth?null:visibleHistoryMonths[selMonthIdx];
   const selectedMonthKey = isCurMonth ? curKey : selHistMonth?.key;
   const isJoinedThisMonth = isJoinedForMonth(name, selectedMonthKey);
 
@@ -3508,7 +3509,7 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,groupSettings,onDe
     arrowColor:"#4ECDC4",
     options:[
       {value:"",label:`${MONTH_NAMES[CUR_MONTH]} '${String(CUR_YEAR).slice(2)} (Current)`},
-      ...histReversed.map((m,i)=>({value:i,label:m.label}))
+      ...visibleHistoryMonths.map((m,i)=>({value:i,label:m.label}))
     ]
   });
 
@@ -5357,6 +5358,7 @@ const App = () => {
   const visibleGroups = groups.filter(group => Boolean(getMembershipForUser(group, authSession, profile)));
   const activityAlertCount = currentGroup && currentUser ? getActivityAlertCount(currentGroup, currentUser) : 0;
   const openAuth = intent => {
+    setShowJoinModal(false);
     setAuthIntent(intent);
     setAuthStep("email");
     setAuthEmail(authSession?.email || "");
@@ -5379,6 +5381,7 @@ const App = () => {
       return;
     }
     if (authIntent?.type === "join") {
+      if (!String(nextProfile?.displayName || "").trim()) return;
       setShowJoinModal(true);
       if (inviteContext?.inviteCode) setJoinCode(inviteContext.inviteCode);
     }
@@ -5430,6 +5433,7 @@ const App = () => {
     }
 
     if (needsProfileSetup) {
+      setShowJoinModal(false);
       setAuthDisplayName(nextProfile?.displayName || (authEmail.split("@")[0] || "").replace(/[._-]+/g," "));
       setAuthStep("name");
       setAuthError("");
@@ -5529,7 +5533,7 @@ const App = () => {
   }
   if(!selectedGroupId || !currentGroup || !visibleGroups.some(group => group.id === selectedGroupId)) {
     return React.createElement(React.Fragment,null,
-      showJoinModal && React.createElement(JoinGroupModal,{inviteContext,joinCode,setJoinCode,onClose:()=>setShowJoinModal(false),onJoin:handleJoinGroup,joining:joiningGroup,error:inviteError}),
+      showJoinModal && !authStep && React.createElement(JoinGroupModal,{inviteContext,joinCode,setJoinCode,onClose:()=>setShowJoinModal(false),onJoin:handleJoinGroup,joining:joiningGroup,error:inviteError}),
       showProfileModal && React.createElement(ProfileModal,{email:authSession?.email,onSignOut:handleSwitchUser,onClose:()=>setShowProfileModal(false),onDeleteAccount:handleDeleteAccount}),
       React.createElement(GroupHome,{
         groups: visibleGroups,
@@ -5554,7 +5558,7 @@ const App = () => {
   }
 
   return React.createElement(React.Fragment,null,
-    showJoinModal && React.createElement(JoinGroupModal,{inviteContext,joinCode,setJoinCode,onClose:()=>setShowJoinModal(false),onJoin:handleJoinGroup,joining:joiningGroup,error:inviteError}),
+    showJoinModal && !authStep && React.createElement(JoinGroupModal,{inviteContext,joinCode,setJoinCode,onClose:()=>setShowJoinModal(false),onJoin:handleJoinGroup,joining:joiningGroup,error:inviteError}),
     showProfileModal && React.createElement(ProfileModal,{email:authSession?.email,onSignOut:handleSwitchUser,onClose:()=>setShowProfileModal(false),showDisplayName:true,currentDisplayName:currentUser,onSaveDisplayName:handleSaveProfileFromModal,saving:profileSaving,saveError:profileError,onLeaveBloc:handleLeaveBloc,onDeleteAccount:handleDeleteAccount}),
     showSettings && React.createElement(GroupSettingsModal,{group:currentGroup,actor:currentUser,actorUserId:authSession?.userId,onSave:isGroupAdmin?handleUpdateGroupSettings:null,onClose:()=>setShowSettings(false),saving:savingSettings,onReviewSitOut:isGroupAdmin?handleSitOutReview:null,onKickMember:isGroupAdmin?handleKickMember:null}),
     prorationGroup && React.createElement(ProrationChoiceModal,{
