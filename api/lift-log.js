@@ -735,7 +735,40 @@ function rolloverStateIfNeeded(data) {
   };
 }
 
+async function fetchBlobRevision() {
+  try {
+    const response = await supabaseFetch("/rest/v1/lift_log_state?id=eq.true&select=revision", {
+      method: "GET",
+      headers: { Accept: "application/json" }
+    });
+    const rows = await response.json();
+    const revision = Number(rows?.[0]?.revision);
+    return Number.isFinite(revision) ? revision : null;
+  } catch {
+    return null;
+  }
+}
+
 async function fetchReadableCurrentState() {
+  try {
+    const [blobRevision, projectionMeta] = await Promise.all([
+      fetchBlobRevision(),
+      fetchProjectionMeta().catch(() => ({ available: false, sourceRevision: 0, row: null }))
+    ]);
+
+    const projectionFresh =
+      blobRevision !== null &&
+      projectionMeta.available &&
+      projectionMeta.sourceRevision >= blobRevision;
+
+    if (projectionFresh) {
+      const fromProjection = await fetchStateFromProjection();
+      if (fromProjection) return fromProjection;
+    }
+  } catch {
+    // fall through to blob
+  }
+
   return fetchCurrentStateFromSupabase();
 }
 
