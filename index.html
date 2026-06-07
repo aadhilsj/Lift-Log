@@ -476,6 +476,21 @@ function getMemberTargetForMonth(group, displayName, monthKey, settingsOverride 
   return Math.max(1, Math.round((joinedSummary.daysRemaining / joinedSummary.daysInMonth) * baseTarget));
 }
 
+function getMemberTargetInfoForMonth(group, displayName, monthKey, settingsOverride = null) {
+  const baseTarget = getEffectiveTargetForMonth(group, monthKey, settingsOverride);
+  const joinedMonth = group?.joinedMonthByName?.[displayName];
+  if (!joinedMonth || joinedMonth !== monthKey) return { target: baseTarget, joinDay: 1 };
+  const membership = Object.values(group?.memberships || {}).find(entry => entry?.displayName === displayName);
+  const joinedSummary = getLeagueMonthSummaryForTimestamp(membership?.joinedAt, group?.settings?.timeZone || DEFAULT_GROUP_TIME_ZONE);
+  if (!joinedSummary || joinedSummary.monthKey !== monthKey || joinedSummary.day <= 1) return { target: baseTarget, joinDay: 1 };
+  const joinDay = joinedSummary.daysInMonth - joinedSummary.daysRemaining + 1;
+  return {
+    target: Math.max(1, Math.round((joinedSummary.daysRemaining / joinedSummary.daysInMonth) * baseTarget)),
+    joinDay,
+    proratedDays: joinedSummary.daysRemaining
+  };
+}
+
 function getCurrentMemberTarget(displayName, monthKey = curKey, baseTarget = MIN_TARGET) {
   const joinedMonth = JOINED_MONTH_BY_NAME?.[displayName];
   if (!joinedMonth || joinedMonth !== monthKey) return baseTarget;
@@ -1719,9 +1734,11 @@ function getGroupMemberPreview(group, userName) {
   if (!isJoinedForGroupMonth(group, userName, monthKey)) return null;
   const count = (group.logs?.[userName] || []).length;
   const isOut = group.excused?.[userName]?.[monthKey] || false;
-  const minTarget = getMemberTargetForMonth(group, userName, monthKey);
+  const { target: minTarget, joinDay = 1, proratedDays } = getMemberTargetInfoForMonth(group, userName, monthKey);
   if (isOut) return { count, status: "excused", needed: Math.max(0, minTarget - count) };
-  const expected = Math.ceil((minTarget / context.daysInMonth) * context.day);
+  const activeDays = proratedDays || context.daysInMonth;
+  const daysActive = Math.max(0, context.day - joinDay + 1);
+  const expected = Math.ceil((minTarget / activeDays) * daysActive);
   const daysLeft = context.daysInMonth - context.day + 1;
   let status = "behind";
   if (count + daysLeft < minTarget) status = "cooked";
