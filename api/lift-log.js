@@ -251,6 +251,7 @@ function normalizeGroup(group) {
     ...monthHistory.flatMap(month => Object.keys(month?.logsByUser || {}))
   ];
   const memberOrder = uniqueNames(inferredMembers);
+  const joinedMonthByName = group?.joinedMonthByName && typeof group.joinedMonthByName === "object" ? group.joinedMonthByName : {};
   const normalizedLogs = Object.fromEntries(
     memberOrder.map(name => [
       name,
@@ -259,11 +260,6 @@ function normalizeGroup(group) {
   );
   const normalizedExcused = normalizeExcused(group?.excused, memberOrder);
   const memberships = normalizeMemberships(group?.memberships, memberOrder, group?.adminName, group?.adminUserId);
-  const joinedMonthByName = inferJoinedMonthByName(
-    group?.joinedMonthByName,
-    memberships,
-    group?.settings?.timeZone || DEFAULT_GROUP_TIME_ZONE
-  );
   const adminUserId = normalizeAdminUserId(group?.adminUserId, memberships, group?.adminName);
   const normalized = {
     id: typeof group?.id === "string" && group.id ? group.id : `group-${Date.now()}`,
@@ -351,7 +347,7 @@ function normalizeMemberships(memberships, memberOrder, adminName, adminUserId) 
       userId: id,
       displayName,
       role: membership?.role === "admin" ? "admin" : "member",
-      joinedAt: membership?.joinedAt || null
+      joinedAt: membership?.joinedAt || new Date().toISOString()
     };
   }
   if (adminUserId && normalized[adminUserId]) normalized[adminUserId].role = "admin";
@@ -558,12 +554,7 @@ function normalizeMonthHistory(monthHistory, memberOrder, joinedMonthByName, set
       excused,
       logsByUser,
       settings: monthSettings,
-      settlements: normalizeSettlementsForRelevantNames(
-        month?.settlements,
-        { counts, excused, key: monthKey },
-        relevantNames,
-        monthSettings
-      )
+      settlements: month?.settlements || buildDefaultSettlements({ counts, excused, key: monthKey }, relevantNames, monthSettings)
     };
   }).filter(Boolean).sort((a, b) => compareMonthKeys(a.key, b.key));
 }
@@ -596,39 +587,6 @@ function getLeagueDateParts(timeZone = DEFAULT_GROUP_TIME_ZONE) {
 function getLeagueMonthKey(timeZone = DEFAULT_GROUP_TIME_ZONE) {
   const today = getLeagueDateParts(timeZone);
   return `${today.year}-${today.month - 1}`;
-}
-
-function getLeagueMonthKeyForTimestamp(value, timeZone = DEFAULT_GROUP_TIME_ZONE) {
-  const date = new Date(value);
-  if (!value || Number.isNaN(date.getTime())) return null;
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    hour12: false
-  }).formatToParts(date);
-  const year = Number(parts.find(part => part.type === "year")?.value);
-  const month = Number(parts.find(part => part.type === "month")?.value);
-  const day = Number(parts.find(part => part.type === "day")?.value);
-  const hour = Number(parts.find(part => part.type === "hour")?.value);
-  if (![year, month, day, hour].every(Number.isFinite)) return null;
-
-  const leagueDate = new Date(Date.UTC(year, month - 1, day));
-  if (hour < LEAGUE_CUTOFF_HOUR) leagueDate.setUTCDate(leagueDate.getUTCDate() - 1);
-  return `${leagueDate.getUTCFullYear()}-${leagueDate.getUTCMonth()}`;
-}
-
-function inferJoinedMonthByName(joinedMonthByName, memberships, timeZone = DEFAULT_GROUP_TIME_ZONE) {
-  const next = joinedMonthByName && typeof joinedMonthByName === "object" ? { ...joinedMonthByName } : {};
-  for (const membership of Object.values(memberships || {})) {
-    const displayName = String(membership?.displayName || "").trim();
-    if (!displayName || next[displayName]) continue;
-    const inferredMonthKey = getLeagueMonthKeyForTimestamp(membership?.joinedAt, timeZone);
-    if (inferredMonthKey) next[displayName] = inferredMonthKey;
-  }
-  return next;
 }
 
 function getMonthKeyFromISO(isoDate) {
@@ -689,17 +647,6 @@ function buildDefaultSettlements(month, relevantNames, settings) {
       }
     ])
   );
-}
-
-function normalizeSettlementsForRelevantNames(settlements, month, relevantNames, settings) {
-  const defaults = buildDefaultSettlements(month, relevantNames, settings);
-  if (!settlements || typeof settlements !== "object") return defaults;
-  return {
-    ...defaults,
-    ...Object.fromEntries(
-      Object.entries(settlements).filter(([name]) => relevantNames.includes(name))
-    )
-  };
 }
 
 function buildMonthLogsSnapshot(logsByName, memberOrder) {
