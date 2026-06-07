@@ -2359,9 +2359,17 @@ function applyJoinGroup(current, payload) {
     error.status = 403;
     throw error;
   }
+  // Only record a join month for members who are genuinely new to this Bloc.
+  // If the display name already exists in memberOrder (legacy name-only member
+  // linking their account), leave joinedMonthByName untouched so their full
+  // participation history remains valid.
+  const isNewToMemberOrder = !group.memberOrder.includes(profile.displayName);
   const nextGroup = normalizeGroup({
     ...group,
     memberOrder: uniqueNames([...group.memberOrder, profile.displayName]),
+    joinedMonthByName: isNewToMemberOrder
+      ? { ...(group.joinedMonthByName || {}), [profile.displayName]: getLeagueMonthKey(group.settings?.timeZone) }
+      : (group.joinedMonthByName || {}),
     memberships: {
       ...(group.memberships || {}),
       [userId]: {

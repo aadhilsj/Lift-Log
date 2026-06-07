@@ -2320,18 +2320,12 @@ const ProfileModal = ({email,onSignOut,onClose,showDisplayName,currentDisplayNam
     React.createElement('div',{onClick:e=>e.stopPropagation(),style:{position:"fixed",top:"50%",left:"50%",transform:"translate(-50%,-50%)",zIndex:1051,width:"calc(100% - 40px)",maxWidth:400,background:"#080F0F",border:"0.5px solid #0D1F1E",borderRadius:20,padding:"18px 16px",boxSizing:"border-box"}},
       React.createElement('button',{onClick:onClose,style:{position:"absolute",top:12,right:14,background:"transparent",border:"none",color:"var(--muted)",fontSize:20,lineHeight:1,padding:4,cursor:"pointer"}},"×"),
       React.createElement('div',{style:{fontWeight:800,fontSize:18,marginBottom:14}},"Account"),
-      showDisplayName && React.createElement('label',{style:{display:"block",marginBottom:12}},
-        React.createElement('span',{className:"lbl",style:{marginBottom:6}},"Display name"),
-        React.createElement('input',{value:name,onChange:e=>setName(e.target.value),placeholder:"Your name in this Bloc",style:{width:"100%",background:"var(--s2)",border:"1px solid var(--border)",borderRadius:10,padding:"11px 13px",color:"var(--text)",fontSize:14,outline:"none",boxSizing:"border-box"}}),
-        saveError && React.createElement('div',{style:{fontSize:12,color:"var(--red)",marginTop:6}},saveError)
-      ),
       React.createElement('label',{style:{display:"block",marginBottom:showDisplayName?12:16}},
         React.createElement('span',{className:"lbl",style:{marginBottom:6}},"Email"),
         React.createElement('div',{style:{padding:"11px 13px",borderRadius:10,background:"var(--s2)",border:"1px solid var(--border)",fontSize:14,color:"var(--muted)"}},email||"—")
       ),
       showDisplayName
         ? React.createElement(React.Fragment,null,
-            React.createElement('button',{onClick:()=>onSaveDisplayName&&onSaveDisplayName(name),disabled:!name.trim()||saving,style:{width:"100%",background:name.trim()&&!saving?"var(--green)":"var(--s3)",color:name.trim()&&!saving?"#000":"var(--muted2)",padding:"11px",borderRadius:10,fontSize:14,fontWeight:800,marginBottom:12}},saving?"Saving...":"Save"),
             showLeaveConfirm
               ? React.createElement('div',{style:{padding:"12px",borderRadius:10,background:"rgba(60,10,10,.6)",border:"1px solid rgba(180,60,60,.22)"}},
                   React.createElement('div',{style:{fontSize:12,color:"rgba(200,160,160,.8)",marginBottom:10,lineHeight:1.5}},`Leave this Bloc? You'll be removed from this month's stakes.`),
