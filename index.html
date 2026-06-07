@@ -2450,9 +2450,17 @@ const ProfileModal = ({email,onSignOut,onClose,showDisplayName,currentDisplayNam
               React.createElement('button',{type:"button",disabled:deleting,onClick:async()=>{setDeleting(true);setDeleteError("");const r=await onDeleteAccount();if(r&&!r.ok){setDeleteError(r.error||"Unable to delete account");setDeleting(false);}},style:{flex:1,background:"var(--red-dim)",border:"1px solid rgba(212,74,74,.35)",color:"var(--red)",padding:"9px",borderRadius:9,fontSize:12,fontWeight:800}},deleting?"Deleting...":"Delete account")
             )
           )
-        : React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"center",gap:24}},
-            onDeleteAccount && React.createElement('button',{type:"button",onClick:()=>setShowDeleteConfirm(true),style:deleteAccountLink},"Delete account"),
-            React.createElement('button',{onClick:onSignOut,style:signOutLink},"Sign out")
+        : React.createElement(React.Fragment,null,
+            onSaveDisplayName && React.createElement('label',{style:{display:"block",marginBottom:12}},
+              React.createElement('span',{className:"lbl",style:{marginBottom:6}},"Display name"),
+              React.createElement('input',{value:name,onChange:e=>setName(e.target.value),placeholder:"Your name",style:{width:"100%",background:"var(--s2)",border:"1px solid var(--border)",borderRadius:10,padding:"12px 13px",color:"var(--text)",fontSize:15,outline:"none",boxSizing:"border-box"}})
+            ),
+            saveError && React.createElement('div',{style:{fontSize:11,color:"var(--red)",marginBottom:8}},saveError),
+            onSaveDisplayName && React.createElement('button',{disabled:!name.trim()||saving||name.trim()===currentDisplayName,onClick:()=>onSaveDisplayName(name.trim()),style:{width:"100%",background:name.trim()&&name.trim()!==currentDisplayName&&!saving?"var(--green)":"var(--s3)",color:name.trim()&&name.trim()!==currentDisplayName&&!saving?"#000":"var(--muted2)",padding:"12px",borderRadius:10,fontSize:14,fontWeight:800,border:"none",marginBottom:14,cursor:"pointer"}},saving?"Saving...":"Save name"),
+            React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"center",gap:24}},
+              onDeleteAccount && React.createElement('button',{type:"button",onClick:()=>setShowDeleteConfirm(true),style:deleteAccountLink},"Delete account"),
+              React.createElement('button',{onClick:onSignOut,style:signOutLink},"Sign out")
+            )
           )
     )
   );
@@ -5629,7 +5637,7 @@ const App = () => {
   if(!selectedGroupId || !currentGroup || !visibleGroups.some(group => group.id === selectedGroupId)) {
     return React.createElement(React.Fragment,null,
       showJoinModal && !authStep && React.createElement(JoinGroupModal,{inviteContext,joinCode,setJoinCode,onClose:()=>setShowJoinModal(false),onJoin:handleJoinGroup,joining:joiningGroup,error:inviteError}),
-      showProfileModal && React.createElement(ProfileModal,{email:authSession?.email,onSignOut:handleSwitchUser,onClose:()=>setShowProfileModal(false),onDeleteAccount:handleDeleteAccount}),
+      showProfileModal && React.createElement(ProfileModal,{email:authSession?.email,onSignOut:handleSwitchUser,onClose:()=>{setProfileError("");setShowProfileModal(false);},currentDisplayName:profile?.displayName||"",onSaveDisplayName:handleSaveProfileFromModal,saving:profileSaving,saveError:profileError,onDeleteAccount:handleDeleteAccount}),
       React.createElement(GroupHome,{
         groups: visibleGroups,
         currentIdentity: profile?.displayName || authSession?.email?.split("@")[0] || "",
