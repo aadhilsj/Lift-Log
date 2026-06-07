@@ -842,27 +842,34 @@ async function deleteProfileFromCanonical(userId) {
 }
 
 async function syncBlocToCanonical(group, adminUserId) {
+  if (!group) {
+    console.error("Canonical bloc sync failed: group is undefined");
+    return;
+  }
+  const payload = {
+    p_legacy_group_key:       group.id,
+    p_name:                   group.name,
+    p_admin_auth_user_id:     adminUserId || group.adminUserId || null,
+    p_invite_code:            group.inviteCode,
+    p_time_zone:              group.settings?.timeZone       ?? null,
+    p_currency:               group.settings?.currency       ?? null,
+    p_min_target:             group.settings?.minTarget      ?? null,
+    p_fine_amount:            group.settings?.fineAmount     ?? null,
+    p_fee_model:              group.settings?.feeModel       ?? null,
+    p_escalation_step_amount: group.settings?.escalationStepAmount ?? null,
+    p_min_run_distance:       group.settings?.minRunDistance  ?? null,
+    p_distance_unit:          group.settings?.distanceUnit   ?? null,
+    p_strava_enabled:         group.settings?.stravaEnabled  ?? true,
+    p_accepted_workout_types: group.settings?.acceptedWorkoutTypes ?? []
+  };
+  console.log("syncBlocToCanonical payload:", JSON.stringify(payload));
   try {
     await supabaseFetch("/rest/v1/rpc/upsert_ante_core_bloc", {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify({
-        p_legacy_group_key:       group.id,
-        p_name:                   group.name,
-        p_admin_auth_user_id:     adminUserId || group.adminUserId || null,
-        p_invite_code:            group.inviteCode,
-        p_time_zone:              group.settings?.timeZone       ?? null,
-        p_currency:               group.settings?.currency       ?? null,
-        p_min_target:             group.settings?.minTarget      ?? null,
-        p_fine_amount:            group.settings?.fineAmount     ?? null,
-        p_fee_model:              group.settings?.feeModel       ?? null,
-        p_escalation_step_amount: group.settings?.escalationStepAmount ?? null,
-        p_min_run_distance:       group.settings?.minRunDistance  ?? null,
-        p_distance_unit:          group.settings?.distanceUnit   ?? null,
-        p_strava_enabled:         group.settings?.stravaEnabled  ?? true,
-        p_accepted_workout_types: group.settings?.acceptedWorkoutTypes ?? []
-      })
+      body: JSON.stringify(payload)
     });
+    console.log("syncBlocToCanonical success:", group.id);
   } catch (err) {
     console.error("Canonical bloc sync failed:", err?.message || err);
   }
