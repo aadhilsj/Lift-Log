@@ -5043,7 +5043,8 @@ const App = () => {
         lastMonth: newData.lastMonth || curKey
       })
     };
-    writeCachedData(buildOptimisticState(payload));
+    beginOptimisticMutation();
+    applyData(buildOptimisticState(payload), { optimistic:true });
     setSaving(true);
     try{
       const saved = await saveData(payload);
@@ -5065,7 +5066,7 @@ const App = () => {
       await refreshNow();
     }
     setSaving(false);
-  },[applyData, buildOptimisticState, clearOptimisticMutation, currentGroup, currentUser, refreshNow, selectedGroupId]);
+  },[applyData, beginOptimisticMutation, buildOptimisticState, clearOptimisticMutation, currentGroup, currentUser, refreshNow, selectedGroupId]);
 
   const handleMultiLog = useCallback(async({ workoutType, isoDate, targetGroupIds, note, photoUrl }) => {
     if(!selectedGroupId || !currentUser) return { ok:false, error:"No Bloc selected" };
