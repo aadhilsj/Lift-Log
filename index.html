@@ -2519,15 +2519,18 @@ const ProfileModal = ({email,onSignOut,onClose,showDisplayName,currentDisplayNam
   );
 };
 
-const JoinGroupModal = ({inviteContext,joinCode,setJoinCode,onClose,onJoin,joining,error}) => {
+const JoinGroupModal = ({inviteContext,joinCode,setJoinCode,onClose,onJoin,joining,error,signedIn=false}) => {
   const isFull = inviteContext && inviteContext.memberCount >= 20;
   const canJoin = joinCode.trim() && !joining && !isFull;
+  const helperCopy = inviteContext
+    ? (signedIn
+        ? `${inviteContext.groupName} is ready. Confirm the invite code below to join.`
+        : `${inviteContext.groupName} is waiting for you. Confirm the invite code below to join.`)
+    : "Enter a Bloc invite code. You can always ask the admin to share the link instead.";
   return React.createElement('div',{className:"overlay center-mobile",onClick:onClose,style:{background:"rgba(5,9,9,0.85)"}},
     React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{maxWidth:380}},
       React.createElement('div',{style:{fontWeight:800,fontSize:20,marginBottom:6}},inviteContext?"Join this Bloc":"Join a Bloc"),
-      React.createElement('div',{style:{color:"var(--muted)",fontSize:13,lineHeight:1.6,marginBottom:18}},inviteContext
-        ? `${inviteContext.groupName} is waiting for you. Sign in, then confirm the invite code below to join.`
-        : "Enter a Bloc invite code. You can always ask the admin to share the link instead."),
+      React.createElement('div',{style:{color:"var(--muted)",fontSize:13,lineHeight:1.6,marginBottom:18}},helperCopy),
       React.createElement('label',{style:{display:"block",marginBottom:18}},
         React.createElement('span',{className:"lbl"},"Invite code"),
         React.createElement('input',{value:joinCode,onChange:e=>setJoinCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,8)),placeholder:"OGGROUP",style:{width:"100%",background:"var(--s2)",border:"1px solid var(--border)",borderRadius:10,padding:"12px 13px",color:"var(--text)",fontSize:15,outline:"none",textTransform:"uppercase"}})
@@ -4976,6 +4979,7 @@ const App = () => {
   const [savingProfile,setSavingProfile]=useState(false);
   const [showJoinModal,setShowJoinModal]=useState(false);
   const [queuedCreate,setQueuedCreate]=useState(false);
+  const [pendingJoinAfterProfile,setPendingJoinAfterProfile]=useState(false);
   const [joinCode,setJoinCode]=useState(()=>{
     try {
       const params = new URLSearchParams(window.location.search);
@@ -5012,6 +5016,23 @@ const App = () => {
   const persistSession = useCallback((session) => {
     setAuthSession(session?.userId ? session : null);
   },[]);
+
+  const clearInviteParamFromUrl = useCallback(() => {
+    try {
+      const url = new URL(window.location.href);
+      if (!url.searchParams.has("invite")) return;
+      url.searchParams.delete("invite");
+      const next = `${url.pathname}${url.search}${url.hash}`;
+      window.history.replaceState({}, "", next);
+    } catch {}
+  },[]);
+
+  const resetInviteFlow = useCallback(({ clearUrl=false } = {}) => {
+    setInviteContext(null);
+    setInviteError("");
+    setJoinCode("");
+    if (clearUrl) clearInviteParamFromUrl();
+  },[clearInviteParamFromUrl]);
 
   const profile = getProfileForSession(appState, authSession);
   const currentGroup = selectedGroupId ? appState.groups?.[selectedGroupId] || null : null;
@@ -5531,6 +5552,7 @@ const App = () => {
     if (!result?.ok) return result;
     if (result.state) applyData(result.state);
     try { await signOutAuthSession(); } catch (error) { console.error("Sign out failed:", error); }
+    resetInviteFlow({ clearUrl:true });
     persistSession(null);
     persistGroupSelection(null);
     setShowProfileModal(false);
@@ -5586,7 +5608,6 @@ const App = () => {
       return;
     }
     if (authIntent?.type === "join") {
-      if (!String(nextProfile?.displayName || "").trim()) return;
       setShowJoinModal(true);
       if (inviteContext?.inviteCode) setJoinCode(inviteContext.inviteCode);
     }
@@ -5637,7 +5658,7 @@ const App = () => {
       }
     }
 
-    if (needsProfileSetup) {
+    if (needsProfileSetup && authIntent?.type !== "join") {
       setShowJoinModal(false);
       setAuthDisplayName(nextProfile?.displayName || (authEmail.split("@")[0] || "").replace(/[._-]+/g," "));
       setAuthStep("name");
@@ -5666,11 +5687,37 @@ const App = () => {
       await refreshNow();
     }
     closeAuth();
+    if (pendingJoinAfterProfile && activeSession?.userId) {
+      setPendingJoinAfterProfile(false);
+      setJoiningGroup(true);
+      setInviteError("");
+      const joinResult = await joinGroupData({ userId: activeSession.userId, inviteCode: joinCode.trim().toUpperCase() });
+      setJoiningGroup(false);
+      if (!joinResult?.ok) {
+        setInviteError(joinResult?.error || "Unable to join Bloc");
+        setShowJoinModal(true);
+        if (inviteContext?.inviteCode) setJoinCode(inviteContext.inviteCode);
+        return;
+      }
+      applyData(joinResult.state);
+      persistGroupSelection(joinResult.joinedGroupId);
+      setPage("today");
+      setShowJoinModal(false);
+      return;
+    }
     continueAfterAuth(activeSession, getProfileForSession(result.data || appState, activeSession));
   };
   const handleJoinGroup = async () => {
     if (!authSession?.userId) {
       openAuth({ type:"join" });
+      return;
+    }
+    if (!String(profile?.displayName || "").trim()) {
+      setPendingJoinAfterProfile(true);
+      setShowJoinModal(false);
+      setAuthDisplayName((authSession?.email?.split("@")[0] || "").replace(/[._-]+/g," "));
+      setAuthError("");
+      setAuthStep("name");
       return;
     }
     setJoiningGroup(true);
@@ -5738,7 +5785,7 @@ const App = () => {
   }
   if(!selectedGroupId || !currentGroup || !visibleGroups.some(group => group.id === selectedGroupId)) {
     return React.createElement(React.Fragment,null,
-      showJoinModal && !authStep && React.createElement(JoinGroupModal,{inviteContext,joinCode,setJoinCode,onClose:()=>setShowJoinModal(false),onJoin:handleJoinGroup,joining:joiningGroup,error:inviteError}),
+      showJoinModal && !authStep && React.createElement(JoinGroupModal,{inviteContext,joinCode,setJoinCode,onClose:()=>setShowJoinModal(false),onJoin:handleJoinGroup,joining:joiningGroup,error:inviteError,signedIn:true}),
       showProfileModal && React.createElement(ProfileModal,{email:authSession?.email,onSignOut:handleSwitchUser,onClose:()=>{setProfileError("");setShowProfileModal(false);},currentDisplayName:profile?.displayName||"",onSaveDisplayName:handleSaveProfileFromModal,saving:profileSaving,saveError:profileError,onDeleteAccount:handleDeleteAccount}),
       React.createElement(GroupHome,{
         groups: visibleGroups,
@@ -5763,7 +5810,7 @@ const App = () => {
   }
 
   return React.createElement(React.Fragment,null,
-    showJoinModal && !authStep && React.createElement(JoinGroupModal,{inviteContext,joinCode,setJoinCode,onClose:()=>setShowJoinModal(false),onJoin:handleJoinGroup,joining:joiningGroup,error:inviteError}),
+    showJoinModal && !authStep && React.createElement(JoinGroupModal,{inviteContext,joinCode,setJoinCode,onClose:()=>setShowJoinModal(false),onJoin:handleJoinGroup,joining:joiningGroup,error:inviteError,signedIn:true}),
     showProfileModal && React.createElement(ProfileModal,{email:authSession?.email,onSignOut:handleSwitchUser,onClose:()=>setShowProfileModal(false),showDisplayName:true,currentDisplayName:currentUser,onSaveDisplayName:handleSaveProfileFromModal,saving:profileSaving,saveError:profileError,onLeaveBloc:handleLeaveBloc,onDeleteAccount:handleDeleteAccount}),
     showSettings && React.createElement(GroupSettingsModal,{group:currentGroup,actor:currentUser,actorUserId:authSession?.userId,onSave:isGroupAdmin?handleUpdateGroupSettings:null,onClose:()=>setShowSettings(false),saving:savingSettings,onReviewSitOut:isGroupAdmin?handleSitOutReview:null,onKickMember:isGroupAdmin?handleKickMember:null}),
     prorationGroup && React.createElement(ProrationChoiceModal,{
