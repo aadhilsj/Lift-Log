@@ -841,6 +841,48 @@ async function deleteProfileFromCanonical(userId) {
   }
 }
 
+async function syncSeasonToCanonical(group, monthKey, status) {
+  if (!group || !monthKey) return;
+  const parts = getMonthPartsFromKey(monthKey);
+  if (!parts) return;
+  const { year, monthIndex } = parts;
+  const label = formatMonthLabelFromKey(monthKey);
+  if (!label) return;
+  // month_start: first day of the month as a date string (YYYY-MM-DD)
+  const monthStart = `${year}-${String(monthIndex + 1).padStart(2, "0")}-01`;
+  try {
+    await supabaseFetch("/rest/v1/rpc/upsert_ante_core_season", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({
+        p_legacy_group_key:       group.id,
+        p_month_key:              monthKey,
+        p_month_start:            monthStart,
+        p_label:                  label,
+        p_year:                   year,
+        p_month_index:            monthIndex,
+        p_status:                 status,
+        p_closed_at:              null,
+        p_min_target:             group.settings?.minTarget      ?? null,
+        p_fine_amount:            group.settings?.fineAmount     ?? null,
+        p_fee_model:              group.settings?.feeModel       ?? null,
+        p_escalation_step_amount: group.settings?.escalationStepAmount ?? null,
+        p_currency:               group.settings?.currency       ?? null,
+        p_min_run_distance:       group.settings?.minRunDistance  ?? null,
+        p_distance_unit:          group.settings?.distanceUnit   ?? null,
+        p_strava_enabled:         group.settings?.stravaEnabled  ?? true,
+        p_accepted_workout_types: group.settings?.acceptedWorkoutTypes ?? []
+      })
+    });
+  } catch (err) {
+    // Silently skip if bloc not yet in canonical (legacy groups pre-dating blocs slice).
+    // All other errors are logged.
+    if (!/bloc not found/i.test(err?.message || "")) {
+      console.error("Canonical season sync failed:", err?.message || err);
+    }
+  }
+}
+
 async function syncBlocToCanonical(group, adminUserId) {
   if (!group) return;
   try {
@@ -2973,7 +3015,9 @@ export default async function handler(req, res) {
         const creatorName = auth.profile?.displayName || String(payload?.creatorName || "").trim();
         const created = applyCreateGroup(auth.state, { ...payload, actorUserId: auth.user.id, creatorName });
         const persisted = await persistState(created.state, `create-group:${created.createdGroupId}`);
-        await syncBlocToCanonical(persisted.groups[created.createdGroupId], auth.user.id);
+        const newGroup = persisted.groups[created.createdGroupId];
+        await syncBlocToCanonical(newGroup, auth.user.id);
+        await syncSeasonToCanonical(newGroup, newGroup?.lastMonth, "open");
         return res.status(200).json({ state: persisted, createdGroupId: created.createdGroupId });
       }
 
@@ -3072,6 +3116,7 @@ export default async function handler(req, res) {
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
         const updated = applySeasonProrationChoice(auth.state, { ...payload, actor, actorUserId: auth.user.id });
         const persisted = await persistState(updated, `season-proration:${payload.groupId}:${payload.choice}`);
+        await syncSeasonToCanonical(persisted.groups[payload.groupId], persisted.groups[payload.groupId]?.lastMonth, "open");
         return res.status(200).json(persisted);
       }
 
