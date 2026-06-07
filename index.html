@@ -158,7 +158,7 @@
 const LEGACY_GROUP_ID = "legacy-group";
 const DEFAULT_GROUP_NAME = "Antè OG";
 const DEFAULT_NAMES = ["Aadhil","Isira","Rahul","Kisal","Rishane","Deyhan","Aysha","Nishara","Abhishek"];
-const WORKOUT_TYPES = ["Gym","Run","Sports","Pilates","Other"];
+const WORKOUT_TYPES = ["Gym","Run","Pilates","Sports","Other"];
 const DEFAULT_MIN_TARGET = 12;
 const DEFAULT_GROUP_TIME_ZONE = "Europe/Oslo";
 const LEAGUE_CUTOFF_HOUR = 5;
@@ -3917,7 +3917,7 @@ const TodayPage = ({user,currentGroupId,groups,logs,excused,monthHistory,saving,
             React.createElement('button',{onClick:()=>setShowLog(true),style:{background:"var(--green)",color:"#000",padding:"11px 24px",borderRadius:10,fontSize:14,fontWeight:800,border:"none",animation:"glow 2.5s infinite"},onMouseEnter:e=>e.currentTarget.style.transform="translateY(-1px)",onMouseLeave:e=>e.currentTarget.style.transform="translateY(0)"},"+ Log Workout")
           )
     ),
-    saving&&React.createElement('div',{style:{fontSize:12,color:"var(--muted)",fontFamily:"'JetBrains Mono',monospace",textAlign:"right"}},"Saving..."),
+    React.createElement('div',{style:{fontSize:12,color:"var(--muted)",fontFamily:"'JetBrains Mono',monospace",textAlign:"right",visibility:saving?"visible":"hidden"}},"Saving..."),
     lastMonthBanner,
     !isExcused&&React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}},
       statCards.map(s=>React.createElement(Card,{key:s.label,style:{padding:"14px 15px",background:"#080F0F",border:"0.5px solid #122424"}},
@@ -5045,7 +5045,8 @@ const App = () => {
         lastMonth: newData.lastMonth || curKey
       })
     };
-    writeCachedData(buildOptimisticState(payload));
+    beginOptimisticMutation();
+    applyData(buildOptimisticState(payload), { optimistic:true });
     setSaving(true);
     try{
       const saved = await saveData(payload);
@@ -5067,7 +5068,7 @@ const App = () => {
       await refreshNow();
     }
     setSaving(false);
-  },[applyData, buildOptimisticState, clearOptimisticMutation, currentGroup, currentUser, refreshNow, selectedGroupId]);
+  },[applyData, beginOptimisticMutation, buildOptimisticState, clearOptimisticMutation, currentGroup, currentUser, refreshNow, selectedGroupId]);
 
   const handleMultiLog = useCallback(async({ workoutType, isoDate, targetGroupIds, note, photoUrl }) => {
     if(!selectedGroupId || !currentUser) return { ok:false, error:"No Bloc selected" };
