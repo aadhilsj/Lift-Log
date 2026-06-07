@@ -2974,7 +2974,7 @@ const LogModal = ({user,currentGroupId,groups,onConfirm,onClose}) => {
   const handleCropCancel = () => setCropSource(null);
 
   const needsNote = wType === "Other";
-  const canSubmit = Boolean(wType && photoUrl && !alreadyLogged && (!needsNote || note.trim()) && (!isCurrentMonthSelection || selectedGroupIds.length));
+  const canSubmit = Boolean(wType && photoUrl && !alreadyLogged && (!needsNote || note.trim()));
 
   if (cropSource) return React.createElement(CropModal, {imageSrc:cropSource, onConfirm:handleCropConfirm, onCancel:handleCropCancel});
 
