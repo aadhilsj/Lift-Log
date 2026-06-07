@@ -879,12 +879,13 @@ function normalizeMonthHistoryState(monthHistory, memberOrder, joinedMonthByName
 function normalizeGroupState(group) {
   const logs = group?.logs && typeof group.logs === "object" ? group.logs : {};
   const monthHistory = Array.isArray(group?.monthHistory) ? group.monthHistory : [];
+  const leftMemberNames = new Set(Array.isArray(group?.leftMemberNames) ? group.leftMemberNames : []);
   const memberOrder = uniqueNames([
     ...(Array.isArray(group?.memberOrder) ? group.memberOrder : []),
     ...Object.keys(logs),
     ...monthHistory.flatMap(month => Object.keys(month?.counts || {})),
     ...monthHistory.flatMap(month => Object.keys(month?.logsByUser || {}))
-  ]);
+  ].filter(n => !leftMemberNames.has(n)));
   const normalizedLogs = Object.fromEntries(
     memberOrder.map(name => [
       name,
@@ -908,6 +909,7 @@ function normalizeGroupState(group) {
     memberOrder,
     memberships,
     joinedMonthByName: group?.joinedMonthByName && typeof group.joinedMonthByName === "object" ? group.joinedMonthByName : {},
+    leftMemberNames: [...leftMemberNames],
     settings: buildNormalizedSettings(group?.settings),
     logs: normalizedLogs,
     excused,
@@ -1037,7 +1039,8 @@ function getProfileForSession(appState, session) {
 function getMembershipForUser(group, session, profile) {
   if (!group || !session?.userId) return null;
   if (group.memberships?.[session.userId]) return group.memberships[session.userId];
-  if (profile?.displayName && group.memberOrder.includes(profile.displayName)) {
+  const leftNames = new Set(Array.isArray(group.leftMemberNames) ? group.leftMemberNames : []);
+  if (profile?.displayName && !leftNames.has(profile.displayName) && group.memberOrder.includes(profile.displayName)) {
     return {
       userId: session.userId,
       displayName: profile.displayName,
@@ -4004,7 +4007,6 @@ const TodayPage = ({user,currentGroupId,groups,logs,excused,monthHistory,saving,
             React.createElement('button',{onClick:()=>setShowLog(true),style:{background:"var(--green)",color:"#000",padding:"11px 24px",borderRadius:10,fontSize:14,fontWeight:800,border:"none",animation:"glow 2.5s infinite"},onMouseEnter:e=>e.currentTarget.style.transform="translateY(-1px)",onMouseLeave:e=>e.currentTarget.style.transform="translateY(0)"},"+ Log Workout")
           )
     ),
-    React.createElement('div',{style:{fontSize:12,color:"var(--muted)",fontFamily:"'JetBrains Mono',monospace",textAlign:"right",visibility:saving?"visible":"hidden"}},"Saving..."),
     lastMonthBanner,
     !isExcused&&React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}},
       statCards.map(s=>React.createElement(Card,{key:s.label,style:{padding:"14px 15px",background:"#080F0F",border:"0.5px solid #122424"}},

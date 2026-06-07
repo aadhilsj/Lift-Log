@@ -244,12 +244,13 @@ function normalizeLegacyGroup(data) {
 function normalizeGroup(group) {
   const logs = group?.logs && typeof group.logs === "object" ? group.logs : {};
   const monthHistory = Array.isArray(group?.monthHistory) ? group.monthHistory : [];
+  const leftMemberNames = new Set(Array.isArray(group?.leftMemberNames) ? group.leftMemberNames : []);
   const inferredMembers = [
     ...(Array.isArray(group?.memberOrder) ? group.memberOrder : []),
     ...Object.keys(logs),
     ...monthHistory.flatMap(month => Object.keys(month?.counts || {})),
     ...monthHistory.flatMap(month => Object.keys(month?.logsByUser || {}))
-  ];
+  ].filter(n => !leftMemberNames.has(n));
   const memberOrder = uniqueNames(inferredMembers);
   const joinedMonthByName = group?.joinedMonthByName && typeof group.joinedMonthByName === "object" ? group.joinedMonthByName : {};
   const normalizedLogs = Object.fromEntries(
@@ -271,6 +272,7 @@ function normalizeGroup(group) {
     memberOrder,
     memberships,
     joinedMonthByName,
+    leftMemberNames: [...leftMemberNames],
     settings: buildNormalizedSettings(group?.settings),
     logs: normalizedLogs,
     excused: normalizedExcused,
@@ -2573,12 +2575,14 @@ function applyLeaveBloc(current, payload) {
     nextAdminName = newAdmin.displayName;
   }
 
+  const nextLeftMemberNames = [...new Set([...(Array.isArray(group.leftMemberNames) ? group.leftMemberNames : []), displayName])];
   const nextGroup = normalizeGroup({
     ...group,
     adminUserId: nextAdminUserId,
     adminName: nextAdminName,
     memberOrder: nextMemberOrder,
-    memberships: nextMemberships
+    memberships: nextMemberships,
+    leftMemberNames: nextLeftMemberNames
   });
   return {
     ...base,
