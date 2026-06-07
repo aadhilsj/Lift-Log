@@ -127,7 +127,7 @@ end;
 $$;
 
 -- Harden access: deny all by default, then grant narrowly.
-revoke execute on function public.upsert_ante_core_season(text, text, date, text, integer, integer, text, timestamptz, integer, integer, text, integer, text, integer, text, boolean, text[]) from public;
-revoke execute on function public.upsert_ante_core_season(text, text, date, text, integer, integer, text, timestamptz, integer, integer, text, integer, text, integer, text, boolean, text[]) from anon;
-revoke execute on function public.upsert_ante_core_season(text, text, date, text, integer, integer, text, timestamptz, integer, integer, text, integer, text, integer, text, boolean, text[]) from authenticated;
-grant  execute on function public.upsert_ante_core_season(text, text, date, text, integer, integer, text, timestamptz, integer, integer, text, integer, text, integer, text, boolean, text[]) to service_role;
+revoke execute on function public.upsert_ante_core_season(text, text, date, text, integer, integer, text, timestamptz, integer, integer, text, integer, text, integer, text, text, boolean, text[]) from public;
+revoke execute on function public.upsert_ante_core_season(text, text, date, text, integer, integer, text, timestamptz, integer, integer, text, integer, text, integer, text, text, boolean, text[]) from anon;
+revoke execute on function public.upsert_ante_core_season(text, text, date, text, integer, integer, text, timestamptz, integer, integer, text, integer, text, integer, text, text, boolean, text[]) from authenticated;
+grant  execute on function public.upsert_ante_core_season(text, text, date, text, integer, integer, text, timestamptz, integer, integer, text, integer, text, integer, text, text, boolean, text[]) to service_role;
