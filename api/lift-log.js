@@ -827,7 +827,34 @@ async function fetchBlobRevision() {
   }
 }
 
+async function fetchAnteProfiles() {
+  try {
+    const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_profiles", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({})
+    });
+    const rows = await response.json();
+    if (!Array.isArray(rows) || rows.length === 0) return null;
+    const raw = Object.fromEntries(
+      rows.map(row => [row.user_id, {
+        id:          row.user_id,
+        email:       row.email,
+        displayName: row.display_name,
+        createdAt:   row.created_at
+      }])
+    );
+    const normalized = normalizeProfiles(raw);
+    return Object.keys(normalized).length > 0 ? normalized : null;
+  } catch {
+    return null;
+  }
+}
+
 async function fetchReadableCurrentState() {
+  const anteProfilesPromise = fetchAnteProfiles();
+
+  let baseState;
   try {
     const [blobRevision, projectionMeta] = await Promise.all([
       fetchBlobRevision(),
@@ -841,13 +868,17 @@ async function fetchReadableCurrentState() {
 
     if (projectionFresh) {
       const fromProjection = await fetchStateFromProjection();
-      if (fromProjection) return fromProjection;
+      if (fromProjection) baseState = fromProjection;
     }
   } catch {
     // fall through to blob
   }
 
-  return fetchCurrentStateFromSupabase();
+  if (!baseState) baseState = await fetchCurrentStateFromSupabase();
+
+  const anteProfiles = await anteProfilesPromise;
+  if (anteProfiles) return { ...baseState, profiles: anteProfiles };
+  return baseState;
 }
 
 // Mutations must always hydrate from the blob source of truth.
