@@ -3269,7 +3269,7 @@ const SitOutModal = ({mode,monthName,adminName,onClose,onSubmit,submitting,error
   );
 };
 
-const ProrationChoiceModal = ({monthName,fullMas,daysRemaining,daysInMonth,proratedMas,onKeep,onProrate,saving}) => React.createElement('div',{className:"overlay"},
+const ProrationChoiceModal = ({monthName,fullMas,daysRemaining,daysInMonth,proratedMas,onKeep,onProrate,savingChoice}) => React.createElement('div',{className:"overlay"},
   React.createElement('div',{className:"modal pi",style:{maxWidth:430}},
     React.createElement('div',{style:{fontWeight:800,fontSize:20,marginBottom:10}},"You're starting mid-month."),
     React.createElement('div',{style:{color:"var(--muted)",fontSize:13,lineHeight:1.6,marginBottom:18}},
@@ -3277,8 +3277,8 @@ const ProrationChoiceModal = ({monthName,fullMas,daysRemaining,daysInMonth,prora
     ),
     React.createElement('div',{style:{fontSize:13,color:"var(--text-soft)",marginBottom:14}},"Which do you want for this first month?"),
     React.createElement('div',{style:{display:"flex",gap:9}},
-      React.createElement('button',{onClick:onKeep,style:{flex:1,background:"var(--s2)",border:"1px solid var(--border)",color:"var(--text)",padding:"14px",borderRadius:10,fontSize:15,fontWeight:700}},saving?"Saving...":`Keep ${fullMas}`),
-      React.createElement('button',{onClick:onProrate,style:{flex:1,background:"#4ECDC4",color:"#050909",padding:"14px",borderRadius:10,fontSize:15,fontWeight:800}},saving?"Saving...":`Prorate to ${proratedMas}`)
+      React.createElement('button',{onClick:onKeep,disabled:!!savingChoice,style:{flex:1,background:"var(--s2)",border:"1px solid var(--border)",color:"var(--text)",padding:"14px",borderRadius:10,fontSize:15,fontWeight:700}},savingChoice==="keep"?"Saving...":`Keep ${fullMas}`),
+      React.createElement('button',{onClick:onProrate,disabled:!!savingChoice,style:{flex:1,background:"#4ECDC4",color:"#050909",padding:"14px",borderRadius:10,fontSize:15,fontWeight:800}},savingChoice==="prorate"?"Saving...":`Prorate to ${proratedMas}`)
     )
   )
 );
@@ -4979,7 +4979,7 @@ const App = () => {
   const [inviteError,setInviteError]=useState("");
   const [joiningGroup,setJoiningGroup]=useState(false);
   const [pendingProrationGroupId,setPendingProrationGroupId]=useState(null);
-  const [prorationSaving,setProrationSaving]=useState(false);
+  const [prorationSavingChoice,setProrationSavingChoice]=useState(null);
   const [installPrompt,setInstallPrompt]=useState(null);
   const [installDismissed,setInstallDismissed]=useState(()=>{try{return localStorage.getItem(INSTALL_DISMISSED_KEY)==="1";}catch{return false;}});
   const [standalone,setStandalone]=useState(()=>isStandalone());
@@ -5427,14 +5427,14 @@ const App = () => {
 
   const handleSeasonProrationChoice = useCallback(async(choice)=>{
     if (!pendingProrationGroupId || !currentUser) return;
-    setProrationSaving(true);
+    setProrationSavingChoice(choice);
     const result = await saveSeasonProrationChoice({
       groupId: pendingProrationGroupId,
       actor: currentUser,
       actorUserId: authSession?.userId,
       choice
     });
-    setProrationSaving(false);
+    setProrationSavingChoice(null);
     if (result?.ok && result.data) {
       applyData(result.data);
       setPendingProrationGroupId(null);
@@ -5807,14 +5807,14 @@ const App = () => {
     showProfileModal && React.createElement(ProfileModal,{email:authSession?.email,onSignOut:handleSwitchUser,onClose:()=>setShowProfileModal(false),showDisplayName:true,currentDisplayName:currentUser,onSaveDisplayName:handleSaveProfileFromModal,saving:profileSaving,saveError:profileError,onLeaveBloc:handleLeaveBloc,onDeleteAccount:handleDeleteAccount}),
     showSettings && React.createElement(GroupSettingsModal,{group:currentGroup,actor:currentUser,actorUserId:authSession?.userId,onSave:isGroupAdmin?handleUpdateGroupSettings:null,onClose:()=>setShowSettings(false),saving:savingSettings,onReviewSitOut:isGroupAdmin?handleSitOutReview:null,onKickMember:isGroupAdmin?handleKickMember:null}),
     prorationGroup && React.createElement(ProrationChoiceModal,{
-      monthName: MONTH_NAMES[getCurrentMonthSummary(prorationGroup).month],
+      monthName: getCurrentMonthSummary(prorationGroup).monthName,
       fullMas: prorationGroup.settings?.minTarget || MIN_TARGET,
       daysRemaining: getCurrentMonthSummary(prorationGroup).daysRemaining,
       daysInMonth: getCurrentMonthSummary(prorationGroup).daysInMonth,
       proratedMas: Math.max(1, Math.round((getCurrentMonthSummary(prorationGroup).daysRemaining / getCurrentMonthSummary(prorationGroup).daysInMonth) * (prorationGroup.settings?.minTarget || MIN_TARGET))),
       onKeep:()=>handleSeasonProrationChoice("keep"),
       onProrate:()=>handleSeasonProrationChoice("prorate"),
-      saving:prorationSaving
+      savingChoice:prorationSavingChoice
     }),
     React.createElement(Nav,{page,setPage:handleNavSelect,user:currentUser,groupName:currentGroup.name,canEditGroup:isGroupAdmin,onOpenSettings:()=>setShowSettings(true),onOpenProfile:()=>{setProfileError("");setShowProfileModal(true);},onSwitchUser:handleSwitchUser,onSwitchGroup:handleSwitchGroup,syncing,lastSyncedAt,syncError,onRefresh:refreshNow,showJustSynced,activityAlertCount}),
     React.createElement('div',{style:{paddingBottom:isMobileView?(page==="today"?"calc(156px + env(safe-area-inset-bottom))":"calc(86px + env(safe-area-inset-bottom))"):0}},
