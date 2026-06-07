@@ -1,5 +1,5 @@
 const DEFAULT_MIN_TARGET = 12;
-const WORKOUT_TYPES = ["Gym", "Run", "Pilates", "Sports", "Other"];
+const WORKOUT_TYPES = ["Gym", "Run", "Sports", "Pilates", "Other"];
 const WORKOUT_TYPE_ALIASES = { Sport: "Sports", Hike: "Other", Hiking: "Other" };
 const DEFAULT_GROUP_TIME_ZONE = "Europe/Oslo";
 const LEAGUE_CUTOFF_HOUR = 5;
