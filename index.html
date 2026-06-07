@@ -1691,6 +1691,30 @@ async function compressImageFile(file, maxSize = 1280, quality = 0.82) {
   return canvas.toDataURL("image/jpeg", quality);
 }
 
+async function compressImageDataUrl(dataUrl, maxSize = 720, quality = 0.72) {
+  const image = await new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = dataUrl;
+  });
+  const scale = Math.min(1, maxSize / Math.max(image.width, image.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(image.width * scale));
+  canvas.height = Math.max(1, Math.round(image.height * scale));
+  const context = canvas.getContext("2d");
+  context.drawImage(image, 0, 0, canvas.width, canvas.height);
+  return canvas.toDataURL("image/jpeg", quality);
+}
+
+function estimateDataUrlBytes(dataUrl) {
+  const normalized = String(dataUrl || "");
+  const commaIndex = normalized.indexOf(",");
+  const base64 = commaIndex >= 0 ? normalized.slice(commaIndex + 1) : normalized;
+  const padding = base64.endsWith("==") ? 2 : base64.endsWith("=") ? 1 : 0;
+  return Math.max(0, Math.floor((base64.length * 3) / 4) - padding);
+}
+
 function flattenFeedPosts(group) {
   if (!group) return [];
   return group.memberOrder.flatMap(name =>
@@ -3013,6 +3037,7 @@ const CropModal = ({imageSrc, onConfirm, onCancel}) => {
 
 const LogModal = ({user,currentGroupId,groups,onConfirm,onClose}) => {
   const compactMobile = isMobile();
+  const MAX_LOG_PHOTO_BYTES = 900 * 1024;
   const [wType,setWType]=useState(null);
   const [selDate,setSelDate]=useState(TODAY_ISO);
   const [note,setNote]=useState("");
@@ -3093,16 +3118,13 @@ const LogModal = ({user,currentGroupId,groups,onConfirm,onClose}) => {
     setCropSource(null);
     setUploading(true);
     try {
-      const img = await new Promise((resolve, reject) => {
-        const i = new Image(); i.onload = () => resolve(i); i.onerror = reject; i.src = croppedDataUrl;
-      });
-      const canvas = document.createElement('canvas');
-      const size = Math.min(img.width, 1080);
-      canvas.width = size; canvas.height = size;
-      canvas.getContext('2d').drawImage(img, 0, 0, size, size);
-      setPhotoUrl(canvas.toDataURL('image/jpeg', 0.82));
+      const compressed = await compressImageDataUrl(croppedDataUrl, 720, 0.72);
+      if (estimateDataUrlBytes(compressed) > MAX_LOG_PHOTO_BYTES) {
+        throw new Error("Photo is still too large after compression");
+      }
+      setPhotoUrl(compressed);
     } catch {
-      setPhotoError("Unable to process that image");
+      setPhotoError("Photo is too large or couldn't be processed. Try a tighter crop or another image.");
     } finally {
       setUploading(false);
     }
@@ -5269,12 +5291,14 @@ const App = () => {
       } else {
         clearOptimisticMutation();
         setSyncError(true);
+        window.alert("Workout couldn't be saved. Please try again. If this keeps happening, use a smaller photo.");
         await refreshNow();
       }
     }catch(e){
       console.error("Save failed",e);
       clearOptimisticMutation();
       setSyncError(true);
+      window.alert("Workout couldn't be saved. Please try again. If this keeps happening, use a smaller photo.");
       await refreshNow();
     }
     setSaving(false);
