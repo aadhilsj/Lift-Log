@@ -3915,7 +3915,7 @@ const TodayPage = ({user,currentGroupId,groups,logs,excused,monthHistory,saving,
             React.createElement('button',{onClick:()=>setShowLog(true),style:{background:"var(--green)",color:"#000",padding:"11px 24px",borderRadius:10,fontSize:14,fontWeight:800,border:"none",animation:"glow 2.5s infinite"},onMouseEnter:e=>e.currentTarget.style.transform="translateY(-1px)",onMouseLeave:e=>e.currentTarget.style.transform="translateY(0)"},"+ Log Workout")
           )
     ),
-    saving&&React.createElement('div',{style:{fontSize:12,color:"var(--muted)",fontFamily:"'JetBrains Mono',monospace",textAlign:"right"}},"Saving..."),
+    React.createElement('div',{style:{fontSize:12,color:"var(--muted)",fontFamily:"'JetBrains Mono',monospace",textAlign:"right",visibility:saving?"visible":"hidden"}},"Saving..."),
     lastMonthBanner,
     !isExcused&&React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}},
       statCards.map(s=>React.createElement(Card,{key:s.label,style:{padding:"14px 15px",background:"#080F0F",border:"0.5px solid #122424"}},
