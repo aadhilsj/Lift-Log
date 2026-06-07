@@ -2516,10 +2516,12 @@ function applyKickMember(current, payload) {
   if (targetUserId) delete nextMemberships[targetUserId];
   else if (targetMembership?.userId) delete nextMemberships[targetMembership.userId];
   const nextMemberOrder = group.memberOrder.filter(n => n !== resolvedDisplayName);
+  const nextLeftMemberNames = [...new Set([...(Array.isArray(group.leftMemberNames) ? group.leftMemberNames : []), resolvedDisplayName])];
   const nextGroup = normalizeGroup({
     ...group,
     memberOrder: nextMemberOrder,
-    memberships: nextMemberships
+    memberships: nextMemberships,
+    leftMemberNames: nextLeftMemberNames
   });
   return {
     ...base,
