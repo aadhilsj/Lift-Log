@@ -1019,8 +1019,43 @@ async function fetchCurrentStateFromSupabase() {
   return rolloverStateIfNeeded(rows[0]?.state || {});
 }
 
+function collectStoragePhotoUrls(state) {
+  const urls = new Set();
+  const prefix = `${SUPABASE_URL}/storage/v1/object/public/workout-photos/`;
+  for (const group of Object.values(state?.groups || {})) {
+    for (const logs of Object.values(group?.logs || {})) {
+      for (const log of (Array.isArray(logs) ? logs : [])) {
+        const url = typeof log?.photoUrl === "string" ? log.photoUrl : "";
+        if (url.startsWith(prefix)) urls.add(url);
+      }
+    }
+  }
+  return urls;
+}
+
+async function deleteStoragePhotos(urls) {
+  if (!urls.length) return;
+  const prefix = `${SUPABASE_URL}/storage/v1/object/public/workout-photos/`;
+  const paths = urls
+    .filter(url => url.startsWith(prefix))
+    .map(url => url.slice(prefix.length));
+  if (!paths.length) return;
+  try {
+    await supabaseFetch("/storage/v1/object/workout-photos", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prefixes: paths })
+    });
+  } catch (err) {
+    console.error("Storage photo cleanup failed:", err?.message || err);
+  }
+}
+
 async function persistStateToSupabase(nextState, reason) {
   assertSupabaseConfigured();
+  // Collect Storage URLs before normalisation — normaliseLogEntry strips
+  // expired ones (72h window). After persist we delete the stripped files.
+  const urlsBefore = collectStoragePhotoUrls(nextState);
   const safeState = normalizeState(nextState);
   await createSupabaseBackup(safeState, reason);
 
@@ -1038,25 +1073,32 @@ async function persistStateToSupabase(nextState, reason) {
   });
 
   const rows = await response.json();
-  if (Array.isArray(rows) && rows.length > 0) {
-    return rolloverStateIfNeeded(rows[0]?.state || safeState);
+  const persistedState = Array.isArray(rows) && rows.length > 0
+    ? rolloverStateIfNeeded(rows[0]?.state || safeState)
+    : null;
+
+  if (!persistedState) {
+    await supabaseFetch("/rest/v1/lift_log_state", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Prefer: "return=representation,resolution=merge-duplicates"
+      },
+      body: JSON.stringify([{
+        id: true,
+        state: safeState,
+        revision: safeState.meta.revision,
+        updated_at: safeState.meta.updatedAt || new Date().toISOString()
+      }])
+    });
   }
 
-  await supabaseFetch("/rest/v1/lift_log_state", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Prefer: "return=representation,resolution=merge-duplicates"
-    },
-    body: JSON.stringify([{
-      id: true,
-      state: safeState,
-      revision: safeState.meta.revision,
-      updated_at: safeState.meta.updatedAt || new Date().toISOString()
-    }])
-  });
+  // Best-effort: delete Storage photos that were stripped by normalisation.
+  const urlsAfter = collectStoragePhotoUrls(safeState);
+  const stripped = [...urlsBefore].filter(url => !urlsAfter.has(url));
+  deleteStoragePhotos(stripped).catch(err => console.error("Storage cleanup error:", err?.message || err));
 
-  return safeState;
+  return persistedState || safeState;
 }
 
 async function createSupabaseBackup(state, reason) {
