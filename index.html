@@ -3092,7 +3092,8 @@ const LogModal = ({user,currentGroupId,groups,onConfirm,onClose}) => {
       return;
     }
     setSelectedGroupIds(eligibleGroups.filter(group => !group.disabled).map(group => group.id));
-  }, [eligibleGroups, wType]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wType]); // intentionally omit eligibleGroups — only reset on workout type change, not on every state update
 
   useEffect(() => {
     const bodyStyle = document.body.style;

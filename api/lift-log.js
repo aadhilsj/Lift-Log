@@ -2050,7 +2050,9 @@ function applyMultiLog(current, payload) {
   const logId = Date.now();
   const updatedGroups = { ...base.groups };
 
-  for (const groupId of targetGroupIds) {
+  // Always include the source group — targetGroupIds only contains the additional blocs.
+  const allTargetIds = [...new Set([sourceGroupId, ...targetGroupIds])];
+  for (const groupId of allTargetIds) {
     const group = updatedGroups[groupId];
     if (!group) continue;
     if (!group.memberOrder.includes(actor)) continue;
