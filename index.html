@@ -5301,7 +5301,7 @@ const App = () => {
     try{
       const saved = await saveData(payload);
       if(saved){
-        const applied = applyData(saved);
+        const applied = applyData(saved, { fromMutation: true });
         if (applied) {
           setLastSyncedAt(new Date());
           setSyncError(false);
@@ -5344,7 +5344,7 @@ const App = () => {
         targetGroupIds
       });
       if(result.ok && result.data){
-        const applied = applyData(result.data);
+        const applied = applyData(result.data, { fromMutation: true });
         if (applied) {
           setLastSyncedAt(new Date());
           setSyncError(false);

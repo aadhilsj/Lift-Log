@@ -953,24 +953,11 @@ async function fetchAnteProfiles() {
 async function fetchReadableCurrentState() {
   const anteProfilesPromise = fetchAnteProfiles();
 
-  let baseState;
-  try {
-    const [blobRevision, projectionMeta] = await Promise.all([
-      fetchBlobRevision(),
-      fetchProjectionMeta().catch(() => ({ available: false, sourceRevision: 0, row: null }))
-    ]);
-
-    // Projection read disabled: the read_lift_log_projection RPC times out
-    // (~28s) on every call, causing loading hangs and near-30s Vercel function
-    // durations. All GETs now read directly from the blob, which is fast and
-    // always correct. Re-enable once the RPC is optimised (or drop entirely
-    // when the blob is retired in favour of ante_core).
-    const projectionFresh = false;
-  } catch {
-    // fall through to blob
-  }
-
-  if (!baseState) baseState = await fetchCurrentStateFromSupabase();
+  // Projection read path removed: read_lift_log_projection RPC timed out on
+  // every call (~28-60s), causing loading screen hangs. All GETs read directly
+  // from the blob, which is fast and always correct. Projection tables remain
+  // intact for future use but are no longer consulted on read.
+  const baseState = await fetchCurrentStateFromSupabase();
 
   const anteProfiles = await anteProfilesPromise;
   if (anteProfiles) {
@@ -998,7 +985,8 @@ async function fetchWritableCurrentState() {
 
 async function persistState(nextState, reason) {
   const persisted = await persistStateToSupabase(nextState, reason);
-  ensureProjectionStateUpToDate(persisted).catch(err => console.error("Projection sync failed:", err));
+  // Projection sync disabled alongside the projection read path.
+  // ensureProjectionStateUpToDate(persisted).catch(err => console.error("Projection sync failed:", err));
   return persisted;
 }
 
