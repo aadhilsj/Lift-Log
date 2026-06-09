@@ -960,15 +960,12 @@ async function fetchReadableCurrentState() {
       fetchProjectionMeta().catch(() => ({ available: false, sourceRevision: 0, row: null }))
     ]);
 
-    const projectionFresh =
-      blobRevision !== null &&
-      projectionMeta.available &&
-      projectionMeta.sourceRevision >= blobRevision;
-
-    if (projectionFresh) {
-      const fromProjection = await fetchStateFromProjection();
-      if (fromProjection) baseState = fromProjection;
-    }
+    // Projection read disabled: the read_lift_log_projection RPC times out
+    // (~28s) on every call, causing loading hangs and near-30s Vercel function
+    // durations. All GETs now read directly from the blob, which is fast and
+    // always correct. Re-enable once the RPC is optimised (or drop entirely
+    // when the blob is retired in favour of ante_core).
+    const projectionFresh = false;
   } catch {
     // fall through to blob
   }
