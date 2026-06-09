@@ -5127,13 +5127,18 @@ const App = () => {
   }, [joinCode]);
 
 
-  const applyData = useCallback((data, { optimistic=false } = {}) => {
+  const applyData = useCallback((data, { optimistic=false, fromMutation=false } = {}) => {
     if(!data) return false;
     const resolved = normalizeAppState(data);
     const incomingRevision = getRevision(resolved);
     const pendingOptimistic = optimisticMutationRef.current;
     if (!optimistic && pendingOptimistic) {
-      if (incomingRevision <= pendingOptimistic.baseRevision) return false;
+      // While a mutation is in flight, block all background polls and refreshes.
+      // Only the mutation's own response (fromMutation:true) is allowed to clear
+      // the optimistic state and apply. This prevents a concurrent poll carrying
+      // another user's revision from wiping the local optimistic update before
+      // the mutation completes.
+      if (!fromMutation) return false;
       optimisticMutationRef.current = null;
     }
     if (!optimistic && incomingRevision < latestRevisionRef.current) return false;
@@ -5409,7 +5414,7 @@ const App = () => {
     try {
       const result = await mutateLogData({ ...payload, actorUserId: authSession?.userId || payload.actorUserId });
       if(result.ok && result.data){
-        const applied = applyData(result.data);
+        const applied = applyData(result.data, { fromMutation: true });
         if (applied) {
           setLastSyncedAt(new Date());
           setSyncError(false);
