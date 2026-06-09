@@ -1019,43 +1019,58 @@ async function fetchCurrentStateFromSupabase() {
   return rolloverStateIfNeeded(rows[0]?.state || {});
 }
 
-function collectStoragePhotoUrls(state) {
-  const urls = new Set();
-  const prefix = `${SUPABASE_URL}/storage/v1/object/public/workout-photos/`;
-  for (const group of Object.values(state?.groups || {})) {
-    for (const logs of Object.values(group?.logs || {})) {
-      for (const log of (Array.isArray(logs) ? logs : [])) {
-        const url = typeof log?.photoUrl === "string" ? log.photoUrl : "";
-        if (url.startsWith(prefix)) urls.add(url);
-      }
-    }
-  }
-  return urls;
+async function deleteStoragePhotos(paths) {
+  if (!paths.length) return;
+  await supabaseFetch("/storage/v1/object/workout-photos", {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ prefixes: paths })
+  });
 }
 
-async function deleteStoragePhotos(urls) {
-  if (!urls.length) return;
-  const prefix = `${SUPABASE_URL}/storage/v1/object/public/workout-photos/`;
-  const paths = urls
-    .filter(url => url.startsWith(prefix))
-    .map(url => url.slice(prefix.length));
-  if (!paths.length) return;
+async function cleanupExpiredStoragePhotos() {
+  // Files are stored as {userId}/{Date.now()}.jpg — parse the timestamp
+  // from the filename to determine age. Delete anything older than 72h.
   try {
-    await supabaseFetch("/storage/v1/object/workout-photos", {
-      method: "DELETE",
+    const foldersRes = await supabaseFetch("/storage/v1/object/list/workout-photos", {
+      method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prefixes: paths })
+      body: JSON.stringify({ prefix: "", limit: 1000, offset: 0 })
     });
+    const folders = await foldersRes.json();
+    if (!Array.isArray(folders)) return;
+
+    const expiredPaths = [];
+    for (const folder of folders) {
+      // Folders have metadata: null; files have metadata: {...} — skip files at root
+      if (!folder?.name || folder.metadata) continue;
+      const filesRes = await supabaseFetch("/storage/v1/object/list/workout-photos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prefix: `${folder.name}/`, limit: 1000, offset: 0 })
+      });
+      const files = await filesRes.json();
+      if (!Array.isArray(files)) continue;
+      for (const file of files) {
+        if (!file?.name) continue;
+        const timestamp = parseInt(file.name, 10);
+        if (Number.isFinite(timestamp) && Date.now() - timestamp > UNFLAGGED_IMAGE_RETENTION_MS) {
+          expiredPaths.push(`${folder.name}/${file.name}`);
+        }
+      }
+    }
+
+    if (expiredPaths.length) {
+      await deleteStoragePhotos(expiredPaths);
+      console.log(`Storage cleanup: deleted ${expiredPaths.length} expired photo(s)`);
+    }
   } catch (err) {
-    console.error("Storage photo cleanup failed:", err?.message || err);
+    console.error("Storage expiry cleanup failed:", err?.message || err);
   }
 }
 
 async function persistStateToSupabase(nextState, reason) {
   assertSupabaseConfigured();
-  // Collect Storage URLs before normalisation — normaliseLogEntry strips
-  // expired ones (72h window). After persist we delete the stripped files.
-  const urlsBefore = collectStoragePhotoUrls(nextState);
   const safeState = normalizeState(nextState);
   await createSupabaseBackup(safeState, reason);
 
@@ -1093,10 +1108,8 @@ async function persistStateToSupabase(nextState, reason) {
     });
   }
 
-  // Best-effort: delete Storage photos that were stripped by normalisation.
-  const urlsAfter = collectStoragePhotoUrls(safeState);
-  const stripped = [...urlsBefore].filter(url => !urlsAfter.has(url));
-  deleteStoragePhotos(stripped).catch(err => console.error("Storage cleanup error:", err?.message || err));
+  // Best-effort: scan bucket and delete files older than 72h.
+  cleanupExpiredStoragePhotos().catch(err => console.error("Storage cleanup error:", err?.message || err));
 
   return persistedState || safeState;
 }
