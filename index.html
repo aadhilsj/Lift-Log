@@ -5309,14 +5309,14 @@ const App = () => {
       } else {
         clearOptimisticMutation();
         setSyncError(true);
-        window.alert("Workout couldn't be saved. Please try again. If this keeps happening, use a smaller photo.");
+        window.alert("Workout couldn't be saved. Please check your connection and try again.");
         await refreshNow();
       }
     }catch(e){
       console.error("Save failed",e);
       clearOptimisticMutation();
       setSyncError(true);
-      window.alert("Workout couldn't be saved. Please try again. If this keeps happening, use a smaller photo.");
+      window.alert("Workout couldn't be saved. Please check your connection and try again.");
       await refreshNow();
     }
     setSaving(false);
