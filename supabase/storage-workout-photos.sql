@@ -1,0 +1,103 @@
+-- Supabase Storage — workout-photos bucket
+--
+-- PURPOSE:
+--   Hosts workout photo uploads from the Antè app.
+--   Replaces the previous approach of storing base64-encoded images inside
+--   the blob state, which caused 900 KB request size errors and egress bloat.
+--
+-- STATUS: LIVE IN PRODUCTION (bucket and policies applied via Supabase UI)
+--
+-- ─────────────────────────────────────────────────────────────────────────────
+-- BUCKET CONFIGURATION (applied via Supabase Storage UI — not SQL)
+-- ─────────────────────────────────────────────────────────────────────────────
+--
+--   Name:             workout-photos
+--   Public:           true  (files served via public URL, no auth needed to read)
+--   File size limit:  5 MB
+--   Allowed MIME:     image/jpeg, image/png, image/gif, image/webp, image/*
+--
+-- ─────────────────────────────────────────────────────────────────────────────
+-- RLS POLICIES (applied via Supabase UI — reproduced here for reference)
+-- ─────────────────────────────────────────────────────────────────────────────
+--
+-- Policy 1: Authenticated users may upload to their own folder only.
+--
+--   CREATE POLICY "Authenticated users can upload their own photos"
+--   ON storage.objects FOR INSERT
+--   TO authenticated
+--   WITH CHECK (
+--     bucket_id = 'workout-photos'
+--     AND (storage.foldername(name))[1] = auth.uid()::text
+--   );
+--
+-- Policy 2: Service role may delete any file (used by server-side cleanup).
+--
+--   CREATE POLICY "Service role can delete photos"
+--   ON storage.objects FOR DELETE
+--   TO service_role
+--   USING (bucket_id = 'workout-photos');
+--
+-- ─────────────────────────────────────────────────────────────────────────────
+-- FILE PATH CONVENTION
+-- ─────────────────────────────────────────────────────────────────────────────
+--
+--   Path:   {userId}/{Date.now()}.jpg
+--   e.g.:   a1b2c3d4-xxxx-xxxx-xxxx-xxxxxxxxxxxx/1749480123456.jpg
+--
+--   userId  = Supabase Auth UUID of the uploading user
+--   filename = Unix timestamp (ms) at upload time — used for expiry calculation
+--
+-- ─────────────────────────────────────────────────────────────────────────────
+-- EXPIRY / CLEANUP (implemented in api/lift-log.js — not SQL)
+-- ─────────────────────────────────────────────────────────────────────────────
+--
+--   cleanupExpiredStoragePhotos() runs fire-and-forget after every persist.
+--   It scans all folders, parses the timestamp from each filename, and deletes
+--   files older than UNFLAGGED_IMAGE_RETENTION_MS (72 hours).
+--
+--   Resolved/flagged photos follow separate retention via shouldKeepLogPhoto():
+--     - flagged:           kept until resolved
+--     - approved/rejected: kept 24h after decisionAt (RESOLVED_IMAGE_RETENTION_MS)
+--     - unflagged:         kept 72h after createdAt  (UNFLAGGED_IMAGE_RETENTION_MS)
+--
+--   The blob normaliser (normalizeLogEntry / shouldKeepLogPhoto) strips the
+--   photoUrl field from expired log entries at the same time the Storage file
+--   is deleted — so the two stay in sync.
+--
+-- ─────────────────────────────────────────────────────────────────────────────
+-- PRE-STORAGE PHOTOS (base64 legacy)
+-- ─────────────────────────────────────────────────────────────────────────────
+--
+--   Photos logged before Storage went live are stored as base64 data: URLs
+--   directly in the blob. They are NOT in this bucket and are NOT affected by
+--   the cleanup logic (shouldKeepLogPhoto only matches http/https URLs starting
+--   with the Supabase Storage origin; data: URLs never match).
+--   These will naturally expire out of the blob via the normal 72h normaliser.
+--
+-- ─────────────────────────────────────────────────────────────────────────────
+-- RELATIONSHIP TO ante_core MIGRATION
+-- ─────────────────────────────────────────────────────────────────────────────
+--
+--   The ante_core.workout_logs table has a photo_url text column ready to
+--   receive Storage URLs. Once the workout logs dual-write slice is implemented,
+--   photo_url will be written there alongside the rest of the log data.
+--   No schema change needed — the column already exists.
+--
+-- ─────────────────────────────────────────────────────────────────────────────
+-- TO VERIFY CURRENT BUCKET STATE
+-- ─────────────────────────────────────────────────────────────────────────────
+--
+-- List all files currently in the bucket (run in Supabase SQL editor):
+--
+--   select name, metadata, created_at
+--   from storage.objects
+--   where bucket_id = 'workout-photos'
+--   order by created_at desc;
+--
+-- Count files by user folder:
+--
+--   select split_part(name, '/', 1) as user_id, count(*) as file_count
+--   from storage.objects
+--   where bucket_id = 'workout-photos'
+--   group by 1
+--   order by 2 desc;

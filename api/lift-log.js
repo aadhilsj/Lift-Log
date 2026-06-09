@@ -795,21 +795,36 @@ function rolloverStateIfNeeded(data) {
   const base = normalizeState(data);
   let changed = false;
   const groups = {};
+  const rollovers = [];
+  const rolledAt = new Date().toISOString();
   for (const [groupId, group] of Object.entries(base.groups)) {
     const nextGroup = rolloverGroupIfNeeded(group);
     groups[groupId] = nextGroup;
-    if (JSON.stringify(nextGroup) !== JSON.stringify(group)) changed = true;
+    if (JSON.stringify(nextGroup) !== JSON.stringify(group)) {
+      changed = true;
+      // Record which month closed and which opened so persistState can
+      // fire the canonical season syncs without re-deriving this info.
+      rollovers.push({
+        groupId,
+        closedMonthKey: group.lastMonth,
+        newMonthKey:    nextGroup.lastMonth,
+        closedAt:       rolledAt
+      });
+    }
   }
 
   if (!changed) return base;
 
+  // _rollovers is ephemeral metadata — normalizeState strips it before the
+  // blob write, so it never reaches the database. persistState reads it first.
   return {
     ...base,
     groups,
     meta: {
       revision: base.meta.revision + 1,
-      updatedAt: new Date().toISOString()
-    }
+      updatedAt: rolledAt
+    },
+    _rollovers: rollovers
   };
 }
 
@@ -841,7 +856,7 @@ async function deleteProfileFromCanonical(userId) {
   }
 }
 
-async function syncSeasonToCanonical(group, monthKey, status) {
+async function syncSeasonToCanonical(group, monthKey, status, closedAt = null) {
   if (!group || !monthKey) return;
   const parts = getMonthPartsFromKey(monthKey);
   if (!parts) return;
@@ -862,7 +877,7 @@ async function syncSeasonToCanonical(group, monthKey, status) {
         p_year:                   year,
         p_month_index:            monthIndex,
         p_status:                 status,
-        p_closed_at:              null,
+        p_closed_at:              closedAt || null,
         p_min_target:             group.settings?.minTarget      ?? null,
         p_fine_amount:            group.settings?.fineAmount     ?? null,
         p_fee_model:              group.settings?.feeModel       ?? null,
@@ -984,7 +999,26 @@ async function fetchWritableCurrentState() {
 }
 
 async function persistState(nextState, reason) {
+  // Extract rollover metadata before persistStateToSupabase — normalizeState
+  // strips _rollovers from the blob write, so we must read it here first.
+  const rollovers = Array.isArray(nextState._rollovers) ? nextState._rollovers : [];
+
   const persisted = await persistStateToSupabase(nextState, reason);
+
+  // Best-effort canonical season rollover syncs. Failures are logged but never
+  // propagated — the blob rollover already succeeded at this point.
+  for (const { groupId, closedMonthKey, newMonthKey, closedAt } of rollovers) {
+    const group = persisted.groups?.[groupId];
+    if (!group) continue;
+    // Close the old season.
+    syncSeasonToCanonical(group, closedMonthKey, "closed", closedAt)
+      .catch(err => console.error(`Season rollover canonical sync failed (close ${groupId}/${closedMonthKey}):`, err?.message || err));
+    // Open the new season.
+    syncSeasonToCanonical(group, newMonthKey, "open")
+      .catch(err => console.error(`Season rollover canonical sync failed (open ${groupId}/${newMonthKey}):`, err?.message || err));
+    console.log(`Season rollover canonical sync fired: ${groupId} ${closedMonthKey} → ${newMonthKey}`);
+  }
+
   // Projection sync disabled alongside the projection read path.
   // ensureProjectionStateUpToDate(persisted).catch(err => console.error("Projection sync failed:", err));
   return persisted;
