@@ -1715,6 +1715,21 @@ function estimateDataUrlBytes(dataUrl) {
   return Math.max(0, Math.floor((base64.length * 3) / 4) - padding);
 }
 
+async function uploadPhotoToStorage(dataUrl) {
+  const userId = ACTIVE_SESSION_USER_ID;
+  if (!userId) throw new Error("Not signed in");
+  // Convert data URL to Blob via fetch (works in all modern browsers)
+  const blob = await (await fetch(dataUrl)).blob();
+  const path = `${userId}/${Date.now()}.jpg`;
+  const client = await getSupabaseAuthClient();
+  const { error } = await client.storage
+    .from("workout-photos")
+    .upload(path, blob, { contentType: "image/jpeg", upsert: false });
+  if (error) throw error;
+  const { data } = client.storage.from("workout-photos").getPublicUrl(path);
+  return data.publicUrl;
+}
+
 function flattenFeedPosts(group) {
   if (!group) return [];
   return group.memberOrder.flatMap(name =>
@@ -3037,7 +3052,6 @@ const CropModal = ({imageSrc, onConfirm, onCancel}) => {
 
 const LogModal = ({user,currentGroupId,groups,onConfirm,onClose}) => {
   const compactMobile = isMobile();
-  const MAX_LOG_PHOTO_BYTES = 900 * 1024;
   const [wType,setWType]=useState(null);
   const [selDate,setSelDate]=useState(TODAY_ISO);
   const [note,setNote]=useState("");
@@ -3119,12 +3133,10 @@ const LogModal = ({user,currentGroupId,groups,onConfirm,onClose}) => {
     setUploading(true);
     try {
       const compressed = await compressImageDataUrl(croppedDataUrl, 720, 0.72);
-      if (estimateDataUrlBytes(compressed) > MAX_LOG_PHOTO_BYTES) {
-        throw new Error("Photo is still too large after compression");
-      }
-      setPhotoUrl(compressed);
+      const storageUrl = await uploadPhotoToStorage(compressed);
+      setPhotoUrl(storageUrl);
     } catch {
-      setPhotoError("Photo is too large or couldn't be processed. Try a tighter crop or another image.");
+      setPhotoError("Photo couldn't be uploaded. Please check your connection and try again.");
     } finally {
       setUploading(false);
     }
