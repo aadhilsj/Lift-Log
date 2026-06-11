@@ -3111,32 +3111,7 @@ export default async function handler(req, res) {
       }
 
       if (payload?.action === "upsert-profile") {
-        let auth;
-        try {
-          auth = await requireAuthenticatedContext(req, payload, current);
-        } catch (authErr) {
-          // Fallback for when the Vercel function can't reach Supabase auth endpoint
-          // (e.g. local Supabase during preview deployment). Only allowed for initial
-          // profile setup — accounts that have no displayName yet.
-          const userId = String(payload?.userId || "").trim();
-          const email = String(payload?.email || "").trim().toLowerCase();
-          if (userId && email) {
-            // Allow fallback for: (a) new profiles, or (b) updating your own existing profile
-            // (where userId or email already matches an existing profile).
-            const existing = current.profiles?.[userId] ||
-              Object.values(current.profiles || {}).find(p => p?.email === email) || null;
-            if (!existing?.displayName || existing?.email === email) {
-              const migrated = migrateAuthIdentity(rolloverStateIfNeeded(current), userId, email);
-              auth = {
-                state: migrated.state,
-                user: { id: userId, email },
-                profile: migrated.state.profiles?.[userId] || null,
-                needsPersist: false
-              };
-            }
-          }
-          if (!auth) throw authErr;
-        }
+        const auth = await requireAuthenticatedContext(req, payload, current);
         const updated = applyUpsertProfile(auth.state, { ...payload, userId: auth.user.id, email: auth.user.email });
         const persisted = await persistState(updated, `profile:${auth.user.id}`);
         // Dual-write to canonical. applyUpsertProfile already validated that
