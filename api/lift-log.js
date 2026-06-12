@@ -1006,6 +1006,58 @@ async function upsertSeasonMemberStatusToCanonical(group, closedMonthKey, displa
   }
 }
 
+async function upsertWorkoutLogToCanonical(group, monthKey, ownerDisplayName, ownerAuthUserId, log) {
+  if (!group || !monthKey || !ownerDisplayName || !log?.id || !log?.date || !log?.type || !log?.createdAt || !log?.verifiedVia) return;
+  try {
+    await supabaseFetch("/rest/v1/rpc/upsert_ante_core_workout_log", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({
+        p_id:                 String(log.id),
+        p_legacy_group_key:   group.id,
+        p_month_key:          monthKey,
+        p_owner_display_name: ownerDisplayName,
+        p_owner_auth_user_id: ownerAuthUserId || null,
+        p_workout_date:       log.date,
+        p_workout_type:       log.type,
+        p_note:               log.note || "",
+        p_photo_url:          log.photoUrl || "",
+        p_created_at:         log.createdAt,
+        p_verified_via:       log.verifiedVia,
+        p_flag_status:        log.flagStatus,
+        p_flag_reason:        log.flagReason || "",
+        p_flag_response:      log.flagResponse || "",
+        p_flagged_by:         log.flaggedBy || null,
+        p_decision_by:        log.decisionBy || null,
+        p_decision_at:        log.decisionAt || null
+      })
+    });
+  } catch (err) {
+    console.error("Canonical workout log sync failed:", err?.message || err);
+  }
+}
+
+async function deleteWorkoutLogFromCanonical(logId) {
+  if (!logId) return;
+  try {
+    await supabaseFetch("/rest/v1/rpc/delete_ante_core_workout_log", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ p_id: String(logId) })
+    });
+  } catch (err) {
+    console.error("Canonical workout log delete failed:", err?.message || err);
+  }
+}
+
+function findAuthUserIdForDisplayName(group, displayName) {
+  if (!group || !displayName) return null;
+  for (const [userId, membership] of Object.entries(group.memberships || {})) {
+    if (membership?.displayName === displayName) return userId;
+  }
+  return null;
+}
+
 async function fetchBlobRevision() {
   try {
     const response = await supabaseFetch("/rest/v1/lift_log_state?id=eq.true&select=revision", {
@@ -2623,8 +2675,25 @@ export default async function handler(req, res) {
       if (payload?.action === "multi-log") {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actor = resolveDisplayNameForUser(auth.state, payload.sourceGroupId, auth.user.id, auth.user.email);
+        const allTargetIds = [...new Set([payload.sourceGroupId, ...(Array.isArray(payload.targetGroupIds) ? payload.targetGroupIds.filter(Boolean) : [])])];
+        const beforeLogIdsByGroup = Object.fromEntries(
+          allTargetIds.map(groupId => [
+            groupId,
+            new Set((auth.state.groups?.[groupId]?.logs?.[actor] || []).map(log => String(log?.id)))
+          ])
+        );
         const updated = applyMultiLog(auth.state, { ...payload, actor, actorUserId: auth.user.id });
         const persisted = await persistState(updated, `multi-log:${actor || auth.user.id}:${payload.date}:${payload.workoutType}`);
+        for (const groupId of allTargetIds) {
+          const group = persisted.groups?.[groupId];
+          if (!group) continue;
+          const beforeIds = beforeLogIdsByGroup[groupId] || new Set();
+          const ownerLogs = group.logs?.[actor] || [];
+          const newLogs = ownerLogs.filter(log => !beforeIds.has(String(log?.id)));
+          for (const log of newLogs) {
+            await upsertWorkoutLogToCanonical(group, group.lastMonth, actor, auth.user.id, log);
+          }
+        }
         return res.status(200).json(persisted);
       }
 
@@ -2675,6 +2744,11 @@ export default async function handler(req, res) {
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
         const result = applyFlagLog(auth.state, { ...payload, actor, actorUserId: auth.user.id });
         const persisted = await persistState(result.updated, result.reason);
+        const group = persisted.groups?.[payload.groupId];
+        const log = group?.logs?.[payload.owner]?.find(entry => String(entry?.id) === String(payload.logId));
+        if (group && log) {
+          await upsertWorkoutLogToCanonical(group, group.lastMonth, payload.owner, findAuthUserIdForDisplayName(group, payload.owner), log);
+        }
         return res.status(200).json(persisted);
       }
 
@@ -2683,6 +2757,11 @@ export default async function handler(req, res) {
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
         const result = applyRespondToFlag(auth.state, { ...payload, actor, actorUserId: auth.user.id });
         const persisted = await persistState(result.updated, result.reason);
+        const group = persisted.groups?.[payload.groupId];
+        const log = group?.logs?.[payload.owner]?.find(entry => String(entry?.id) === String(payload.logId));
+        if (group && log) {
+          await upsertWorkoutLogToCanonical(group, group.lastMonth, payload.owner, findAuthUserIdForDisplayName(group, payload.owner), log);
+        }
         return res.status(200).json(persisted);
       }
 
@@ -2691,6 +2770,11 @@ export default async function handler(req, res) {
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
         const result = applyReviewFlag(auth.state, { ...payload, actor, actorUserId: auth.user.id });
         const persisted = await persistState(result.updated, result.reason);
+        const group = persisted.groups?.[payload.groupId];
+        const log = group?.logs?.[payload.owner]?.find(entry => String(entry?.id) === String(payload.logId));
+        if (group && log) {
+          await upsertWorkoutLogToCanonical(group, group.lastMonth, payload.owner, findAuthUserIdForDisplayName(group, payload.owner), log);
+        }
         return res.status(200).json(persisted);
       }
 
@@ -2699,6 +2783,7 @@ export default async function handler(req, res) {
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
         const result = applyDeleteLog(auth.state, { ...payload, actor, actorUserId: auth.user.id });
         const persisted = await persistState(result.updated, result.reason);
+        await deleteWorkoutLogFromCanonical(payload.logId);
         return res.status(200).json(persisted);
       }
 
