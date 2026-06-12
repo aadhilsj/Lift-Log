@@ -1006,6 +1006,25 @@ async function upsertSeasonMemberStatusToCanonical(group, closedMonthKey, displa
   }
 }
 
+async function updateSeasonMemberSettlementInCanonical(legacyGroupKey, monthKey, displayName, status, settledAt) {
+  if (!legacyGroupKey || !monthKey || !displayName || !status) return;
+  try {
+    await supabaseFetch("/rest/v1/rpc/update_ante_core_season_member_settlement", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({
+        p_legacy_group_key: legacyGroupKey,
+        p_month_key:        monthKey,
+        p_display_name:     displayName,
+        p_status:           status,
+        p_settled_at:       settledAt || null
+      })
+    });
+  } catch (err) {
+    console.error("Canonical settlement sync failed:", err?.message || err);
+  }
+}
+
 async function toggleWorkoutReactionInCanonical(logId, reactorAuthUserId, reactorDisplayName, emoji, isAdding) {
   if (!logId || !reactorDisplayName || !emoji) return;
   const rpc = isAdding
@@ -2622,9 +2641,24 @@ export default async function handler(req, res) {
       }
 
       if (payload?.action === "settlement") {
-        await requireAuthenticatedContext(req, payload, current);
-        const updated = applySettlementUpdate(current, payload);
+        const auth = await requireAuthenticatedContext(req, payload, current);
+        const updated = applySettlementUpdate(auth.state, payload);
         const persisted = await persistState(updated, `settlement:${payload.groupId}:${payload.monthKey}:${payload.player}`);
+        // Best-effort canonical settlement sync. Derive the values from the
+        // persisted blob monthHistory entry so canonical exactly mirrors what
+        // was successfully written to the blob.
+        const persistedSettlement = persisted.groups?.[payload.groupId]?.monthHistory
+          ?.find(m => m.key === payload.monthKey)
+          ?.settlements?.[payload.player];
+        if (persistedSettlement) {
+          updateSeasonMemberSettlementInCanonical(
+            payload.groupId,
+            payload.monthKey,
+            payload.player,
+            persistedSettlement.status,
+            persistedSettlement.settledAt || null
+          ).catch(err => console.error("Canonical settlement sync failed:", err?.message || err));
+        }
         return res.status(200).json(persisted);
       }
 
