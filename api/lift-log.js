@@ -1025,6 +1025,24 @@ async function updateSeasonMemberSettlementInCanonical(legacyGroupKey, monthKey,
   }
 }
 
+async function upsertSeasonMemberExcusedInCanonical(legacyGroupKey, monthKey, displayName, authUserId) {
+  if (!legacyGroupKey || !monthKey || !displayName) return;
+  try {
+    await supabaseFetch("/rest/v1/rpc/upsert_ante_core_season_member_excused", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({
+        p_legacy_group_key: legacyGroupKey,
+        p_month_key:        monthKey,
+        p_display_name:     displayName,
+        p_auth_user_id:     authUserId || null
+      })
+    });
+  } catch (err) {
+    console.error("Canonical excused sync failed:", err?.message || err);
+  }
+}
+
 async function toggleWorkoutReactionInCanonical(logId, reactorAuthUserId, reactorDisplayName, emoji, isAdding) {
   if (!logId || !reactorDisplayName || !emoji) return;
   const rpc = isAdding
@@ -2787,6 +2805,16 @@ export default async function handler(req, res) {
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
         const updated = applySitOutRequest(auth.state, { ...payload, actor, actorUserId: auth.user.id });
         const persisted = await persistState(updated, `sitout-request:${payload.groupId}:${actor || auth.user.id}`);
+        // Canonical excused sync — auto-approve path only.
+        // The blob sets status="approved" + autoApproved=true when the request qualifies
+        // (day ≤ 5, non-exceptional, non-admin, no recent sit-out). Only fire if both
+        // flags are present so we never double-write for pending requests.
+        const autoMonthKey = persisted.groups?.[payload.groupId]?.lastMonth;
+        const autoRequest  = persisted.groups?.[payload.groupId]?.sitOutRequests?.[autoMonthKey]?.[actor];
+        if (autoMonthKey && autoRequest?.status === "approved" && autoRequest?.autoApproved) {
+          upsertSeasonMemberExcusedInCanonical(payload.groupId, autoMonthKey, actor, auth.user.id)
+            .catch(err => console.error("Canonical excused sync failed:", err?.message || err));
+        }
         return res.status(200).json(persisted);
       }
 
@@ -2795,6 +2823,17 @@ export default async function handler(req, res) {
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
         const updated = applySitOutReview(auth.state, { ...payload, actor, actorUserId: auth.user.id });
         const persisted = await persistState(updated, `sitout-review:${payload.groupId}:${payload.memberName}:${payload.decision}`);
+        // Canonical excused sync — approve path only.
+        // payload.decision is the raw client value "approve"; blob normalizes to "approved".
+        // Subject's auth user id is read from the persisted request (stored at request time),
+        // not from the reviewer's auth.user.id.
+        if (payload.decision === "approve" && payload.memberName && payload.monthKey) {
+          const reviewedRequest = persisted.groups?.[payload.groupId]
+            ?.sitOutRequests?.[payload.monthKey]?.[payload.memberName];
+          const subjectUserId = reviewedRequest?.requestedByUserId || null;
+          upsertSeasonMemberExcusedInCanonical(payload.groupId, payload.monthKey, payload.memberName, subjectUserId)
+            .catch(err => console.error("Canonical excused sync failed:", err?.message || err));
+        }
         return res.status(200).json(persisted);
       }
 
