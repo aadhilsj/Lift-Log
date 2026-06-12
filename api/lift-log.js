@@ -927,6 +927,64 @@ async function syncBlocToCanonical(group, adminUserId) {
   }
 }
 
+async function syncBlocMemberToCanonical(group, authUserId, role) {
+  if (!group || !authUserId) return;
+  const membership = group.memberships?.[authUserId];
+  const displayName = membership?.displayName;
+  // No-op if the membership has no displayName — profile-less or legacy member.
+  if (!displayName) return;
+  const joinedAt       = membership?.joinedAt || null;
+  const joinedMonthKey = group.joinedMonthByName?.[displayName] || null;
+  try {
+    await supabaseFetch("/rest/v1/rpc/upsert_ante_core_bloc_member", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({
+        p_legacy_group_key: group.id,
+        p_auth_user_id:     authUserId,
+        p_display_name:     displayName,
+        p_role:             role,
+        p_joined_at:        joinedAt,
+        p_joined_month_key: joinedMonthKey
+      })
+    });
+  } catch (err) {
+    console.error("Canonical bloc member sync failed:", err?.message || err);
+  }
+}
+
+async function removeBlocMemberFromCanonical(legacyGroupKey, authUserId) {
+  if (!legacyGroupKey || !authUserId) return;
+  try {
+    await supabaseFetch("/rest/v1/rpc/remove_ante_core_bloc_member", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({
+        p_legacy_group_key: legacyGroupKey,
+        p_auth_user_id:     authUserId
+      })
+    });
+  } catch (err) {
+    console.error("Canonical bloc member remove failed:", err?.message || err);
+  }
+}
+
+async function updateBlocAdminInCanonical(legacyGroupKey, newAdminAuthUserId) {
+  if (!legacyGroupKey || !newAdminAuthUserId) return;
+  try {
+    await supabaseFetch("/rest/v1/rpc/update_ante_core_bloc_admin", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({
+        p_legacy_group_key:       legacyGroupKey,
+        p_new_admin_auth_user_id: newAdminAuthUserId
+      })
+    });
+  } catch (err) {
+    console.error("Canonical bloc admin transfer failed:", err?.message || err);
+  }
+}
+
 async function fetchBlobRevision() {
   try {
     const response = await supabaseFetch("/rest/v1/lift_log_state?id=eq.true&select=revision", {
@@ -2447,6 +2505,7 @@ export default async function handler(req, res) {
         const newGroup = persisted.groups[created.createdGroupId];
         await syncBlocToCanonical(newGroup, auth.user.id);
         await syncSeasonToCanonical(newGroup, newGroup?.lastMonth, "open");
+        await syncBlocMemberToCanonical(newGroup, auth.user.id, "admin");
         return res.status(200).json({ state: persisted, createdGroupId: created.createdGroupId });
       }
 
@@ -2476,6 +2535,7 @@ export default async function handler(req, res) {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const joined = applyJoinGroup(auth.state, { ...payload, userId: auth.user.id });
         const persisted = await persistState(joined.state, `join-group:${joined.joinedGroupId}:${auth.user.id}`);
+        await syncBlocMemberToCanonical(persisted.groups[joined.joinedGroupId], auth.user.id, "member");
         return res.status(200).json({ state: persisted, joinedGroupId: joined.joinedGroupId });
       }
 
@@ -2488,13 +2548,29 @@ export default async function handler(req, res) {
         const actorDisplayName = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
         const updated = applyKickMember(auth.state, { ...payload, actorUserId: auth.user.id, actorDisplayName });
         const persisted = await persistState(updated, `kick-member:${payload.groupId}:${payload.targetUserId}`);
+        // No-op if targetUserId is absent — name-only (profile-less) members have
+        // no ante_core.profiles row and therefore no bloc_members row to remove.
+        if (payload.targetUserId) {
+          await removeBlocMemberFromCanonical(payload.groupId, payload.targetUserId);
+        }
         return res.status(200).json({ ok: true, state: persisted });
       }
 
       if (payload?.action === "leave-bloc") {
         const auth = await requireAuthenticatedContext(req, payload, current);
+        // Capture admin status before the leave is applied.
+        const wasAdmin = auth.state.groups?.[payload.groupId]?.adminUserId === auth.user.id;
         const updated = applyLeaveBloc(auth.state, { ...payload, userId: auth.user.id });
         const persisted = await persistState(updated, `leave-bloc:${payload.groupId}:${auth.user.id}`);
+        await removeBlocMemberFromCanonical(payload.groupId, auth.user.id);
+        // If the leaver was admin and the bloc still exists (not last-member deletion),
+        // propagate the admin transfer. newAdminUserId is null if the bloc was deleted.
+        if (wasAdmin) {
+          const newAdminUserId = persisted.groups?.[payload.groupId]?.adminUserId;
+          if (newAdminUserId) {
+            await updateBlocAdminInCanonical(payload.groupId, newAdminUserId);
+          }
+        }
         return res.status(200).json({ ok: true, state: persisted, leftGroupId: payload.groupId });
       }
 
@@ -2584,7 +2660,18 @@ export default async function handler(req, res) {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const updated = applyDeleteAccount(auth.state, { ...payload, userId: auth.user.id });
         const persisted = await persistState(updated, `delete-account:${auth.user.id}`);
+        // deleteProfileFromCanonical hard-deletes the profile row; ON DELETE CASCADE
+        // removes all bloc_members rows and ON DELETE SET NULL nulls blocs.admin_profile_id.
         await deleteProfileFromCanonical(auth.user.id);
+        // Re-wire admin_profile_id for any surviving blocs where this user was admin.
+        // Fired best-effort after the profile delete so the new admin's profile still exists.
+        for (const [groupId, group] of Object.entries(auth.state.groups || {})) {
+          if (group.adminUserId !== auth.user.id) continue;
+          const survivingGroup = persisted.groups?.[groupId];
+          if (!survivingGroup?.adminUserId) continue;
+          updateBlocAdminInCanonical(groupId, survivingGroup.adminUserId)
+            .catch(err => console.error(`Canonical bloc admin transfer failed (delete-account ${groupId}):`, err?.message || err));
+        }
         return res.status(200).json({ ok: true, state: persisted });
       }
 
