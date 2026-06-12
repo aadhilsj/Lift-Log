@@ -1006,6 +1006,26 @@ async function upsertSeasonMemberStatusToCanonical(group, closedMonthKey, displa
   }
 }
 
+async function toggleWorkoutReactionInCanonical(logId, reactorAuthUserId, reactorDisplayName, emoji, isAdding) {
+  if (!logId || !reactorDisplayName || !emoji) return;
+  const rpc = isAdding
+    ? "/rest/v1/rpc/upsert_ante_core_workout_reaction"
+    : "/rest/v1/rpc/delete_ante_core_workout_reaction";
+  try {
+    await supabaseFetch(rpc, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(isAdding
+        ? { p_workout_log_id: String(logId), p_reactor_auth_user_id: reactorAuthUserId || null,
+            p_reactor_display_name: reactorDisplayName, p_emoji: emoji }
+        : { p_workout_log_id: String(logId), p_reactor_display_name: reactorDisplayName, p_emoji: emoji }
+      )
+    });
+  } catch (err) {
+    console.error("Canonical workout reaction sync failed:", err?.message || err);
+  }
+}
+
 async function upsertWorkoutLogToCanonical(group, monthKey, ownerDisplayName, ownerAuthUserId, log) {
   if (!group || !monthKey || !ownerDisplayName || !log?.id || !log?.date || !log?.type || !log?.createdAt || !log?.verifiedVia) return;
   try {
@@ -2734,8 +2754,20 @@ export default async function handler(req, res) {
       if (payload?.action === "reaction") {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
+        // Normalize emoji the same way applyToggleReaction does so the blob lookup
+        // and the canonical RPC call use the same key.
+        const emoji = String(payload?.emoji || "").trim();
         const result = applyToggleReaction(auth.state, { ...payload, actor, actorUserId: auth.user.id });
         const persisted = await persistState(result.updated, result.reason);
+        // Best-effort canonical reaction sync. Direction is derived from the persisted blob:
+        // if actor is now present in reactions[emoji] → they added it; otherwise → removed it.
+        const persistedLog = persisted.groups?.[payload.groupId]?.logs?.[payload.owner]
+          ?.find(e => String(e?.id) === String(payload.logId));
+        if (persistedLog) {
+          const isAdding = (persistedLog.reactions?.[emoji] || []).includes(actor);
+          toggleWorkoutReactionInCanonical(payload.logId, auth.user.id, actor, emoji, isAdding)
+            .catch(err => console.error("Canonical workout reaction sync failed:", err?.message || err));
+        }
         return res.status(200).json(persisted);
       }
 
