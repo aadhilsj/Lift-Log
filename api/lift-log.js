@@ -2585,8 +2585,21 @@ export default async function handler(req, res) {
       const current = await fetchWritableCurrentState();
       const auth = await requireAuthenticatedContext(req, payload, current);
       const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
+      // Snapshot the actor's existing log IDs before the merge so we can
+      // identify any newly added logs afterwards and upsert them canonically.
+      const beforeLogIds = new Set(
+        (auth.state.groups?.[payload.groupId]?.logs?.[actor] || []).map(l => String(l?.id))
+      );
       const merged = mergeState(auth.state, { ...payload, actor });
       const persisted = await persistState(merged, `player-update:${payload.groupId}:${actor || auth.user.id}`);
+      // Best-effort canonical upsert for each log that is new in this save.
+      const group = persisted.groups?.[payload.groupId];
+      if (group) {
+        const newLogs = (group.logs?.[actor] || []).filter(l => !beforeLogIds.has(String(l?.id)));
+        for (const log of newLogs) {
+          await upsertWorkoutLogToCanonical(group, group.lastMonth, actor, auth.user.id, log);
+        }
+      }
       return res.status(200).json(persisted);
     }
 
