@@ -985,6 +985,27 @@ async function updateBlocAdminInCanonical(legacyGroupKey, newAdminAuthUserId) {
   }
 }
 
+async function upsertSeasonMemberStatusToCanonical(group, closedMonthKey, displayName, authUserId, workoutCount, excused) {
+  if (!group || !closedMonthKey || !displayName) return;
+  try {
+    await supabaseFetch("/rest/v1/rpc/upsert_ante_core_season_member_status", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({
+        p_legacy_group_key: group.id,
+        p_month_key:        closedMonthKey,
+        p_display_name:     displayName,
+        p_auth_user_id:     authUserId || null,
+        p_workout_count:    workoutCount,
+        p_excused:          excused,
+        p_joined_for_month: true
+      })
+    });
+  } catch (err) {
+    console.error("Canonical season member status sync failed:", err?.message || err);
+  }
+}
+
 async function fetchBlobRevision() {
   try {
     const response = await supabaseFetch("/rest/v1/lift_log_state?id=eq.true&select=revision", {
@@ -1068,12 +1089,37 @@ async function persistState(nextState, reason) {
   for (const { groupId, closedMonthKey, newMonthKey, closedAt } of rollovers) {
     const group = persisted.groups?.[groupId];
     if (!group) continue;
-    // Close the old season.
-    syncSeasonToCanonical(group, closedMonthKey, "closed", closedAt)
-      .catch(err => console.error(`Season rollover canonical sync failed (close ${groupId}/${closedMonthKey}):`, err?.message || err));
+    // Close the old season first so season_member_status writes can resolve the
+    // canonical season row deterministically.
+    try {
+      await syncSeasonToCanonical(group, closedMonthKey, "closed", closedAt);
+    } catch (err) {
+      console.error(`Season rollover canonical sync failed (close ${groupId}/${closedMonthKey}):`, err?.message || err);
+    }
     // Open the new season.
     syncSeasonToCanonical(group, newMonthKey, "open")
       .catch(err => console.error(`Season rollover canonical sync failed (open ${groupId}/${newMonthKey}):`, err?.message || err));
+    // Write one season_member_status row per relevant member for the closed month.
+    // The closed-month snapshot was appended to monthHistory by rolloverGroupIfNeeded,
+    // so it is present in persisted state at this point.
+    const closedSnapshot = group.monthHistory?.find(m => m.key === closedMonthKey);
+    if (closedSnapshot) {
+      // Build a displayName → authUserId reverse map from group.memberships.
+      const authUserIdByName = Object.fromEntries(
+        Object.entries(group.memberships || {}).map(([uid, m]) => [m.displayName, uid])
+      );
+      for (const memberName of Object.keys(closedSnapshot.counts || {})) {
+        const memberAuthUserId = authUserIdByName[memberName] || null;
+        await upsertSeasonMemberStatusToCanonical(
+          group,
+          closedMonthKey,
+          memberName,
+          memberAuthUserId,
+          closedSnapshot.counts[memberName] ?? 0,
+          closedSnapshot.excused[memberName] ?? false
+        );
+      }
+    }
     console.log(`Season rollover canonical sync fired: ${groupId} ${closedMonthKey} → ${newMonthKey}`);
   }
 
