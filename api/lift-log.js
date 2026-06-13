@@ -1064,6 +1064,36 @@ async function upsertSeasonOverrideInCanonical(legacyGroupKey, monthKey, prorate
   }
 }
 
+async function upsertSitOutRequestInCanonical(legacyGroupKey, monthKey, memberName, request) {
+  // memberName is passed explicitly from the blob map key — do not rely on request.memberName.
+  if (!legacyGroupKey || !monthKey || !memberName) return;
+  try {
+    await supabaseFetch("/rest/v1/rpc/upsert_ante_core_sit_out_request", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({
+        p_legacy_group_key:        legacyGroupKey,
+        p_month_key:               monthKey,
+        p_display_name:            memberName,
+        p_requested_by_user_id:    request?.requestedByUserId    || null,
+        p_status:                  request?.status               || "pending",
+        p_reason:                  request?.reason               || "",
+        p_exceptional:             !!request?.exceptional,
+        p_requested_at:            request?.requestedAt          || null,
+        p_requested_by:            request?.requestedBy          || null,
+        p_target_approver_name:    request?.targetApproverName   || null,
+        p_target_approver_user_id: request?.targetApproverUserId || null,
+        p_decided_at:              request?.decidedAt            || null,
+        p_decided_by:              request?.decidedBy            || null,
+        p_decided_by_user_id:      request?.decidedByUserId      || null,
+        p_auto_approved:           !!request?.autoApproved
+      })
+    });
+  } catch (err) {
+    console.error("Canonical sit-out request sync failed:", err?.message || err);
+  }
+}
+
 async function toggleWorkoutReactionInCanonical(logId, reactorAuthUserId, reactorDisplayName, emoji, isAdding) {
   if (!logId || !reactorDisplayName || !emoji) return;
   const rpc = isAdding
@@ -2855,6 +2885,12 @@ export default async function handler(req, res) {
           upsertSeasonMemberExcusedInCanonical(payload.groupId, autoMonthKey, actor, auth.user.id)
             .catch(err => console.error("Canonical excused sync failed:", err?.message || err));
         }
+        // Canonical sit-out request sync — fires for both pending and auto-approved outcomes.
+        // memberName is passed as the explicit blob map key (actor), not read from request object.
+        if (autoMonthKey && autoRequest) {
+          upsertSitOutRequestInCanonical(payload.groupId, autoMonthKey, actor, autoRequest)
+            .catch(err => console.error("Canonical sit-out request sync failed:", err?.message || err));
+        }
         return res.status(200).json(persisted);
       }
 
@@ -2873,6 +2909,16 @@ export default async function handler(req, res) {
           const subjectUserId = reviewedRequest?.requestedByUserId || null;
           upsertSeasonMemberExcusedInCanonical(payload.groupId, payload.monthKey, payload.memberName, subjectUserId)
             .catch(err => console.error("Canonical excused sync failed:", err?.message || err));
+        }
+        // Canonical sit-out request sync — fires for both approve and decline outcomes.
+        // memberName is passed from payload (the authoritative map key), not read from request object.
+        if (payload.memberName && payload.monthKey) {
+          const reviewedRequest = persisted.groups?.[payload.groupId]
+            ?.sitOutRequests?.[payload.monthKey]?.[payload.memberName];
+          if (reviewedRequest) {
+            upsertSitOutRequestInCanonical(payload.groupId, payload.monthKey, payload.memberName, reviewedRequest)
+              .catch(err => console.error("Canonical sit-out request sync failed:", err?.message || err));
+          }
         }
         return res.status(200).json(persisted);
       }
