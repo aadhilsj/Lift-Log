@@ -1043,6 +1043,27 @@ async function upsertSeasonMemberExcusedInCanonical(legacyGroupKey, monthKey, di
   }
 }
 
+async function upsertSeasonOverrideInCanonical(legacyGroupKey, monthKey, prorated, proratedMas, chosenAt, chosenBy, chosenByUserId) {
+  if (!legacyGroupKey || !monthKey) return;
+  try {
+    await supabaseFetch("/rest/v1/rpc/upsert_ante_core_season_override", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({
+        p_legacy_group_key:   legacyGroupKey,
+        p_month_key:          monthKey,
+        p_prorated:           !!prorated,
+        p_prorated_mas:       proratedMas ?? null,
+        p_chosen_at:          chosenAt   || null,
+        p_chosen_by:          chosenBy   || null,
+        p_chosen_by_user_id:  chosenByUserId || null
+      })
+    });
+  } catch (err) {
+    console.error("Canonical season override sync failed:", err?.message || err);
+  }
+}
+
 async function toggleWorkoutReactionInCanonical(logId, reactorAuthUserId, reactorDisplayName, emoji, isAdding) {
   if (!logId || !reactorDisplayName || !emoji) return;
   const rpc = isAdding
@@ -2797,6 +2818,25 @@ export default async function handler(req, res) {
         const updated = applySeasonProrationChoice(auth.state, { ...payload, actor, actorUserId: auth.user.id });
         const persisted = await persistState(updated, `season-proration:${payload.groupId}:${payload.choice}`);
         await syncSeasonToCanonical(persisted.groups[payload.groupId], persisted.groups[payload.groupId]?.lastMonth, "open");
+        // Canonical season override sync — fire after syncSeasonToCanonical so the
+        // parent seasons row is guaranteed to exist before the override upsert.
+        // Source is the persisted blob, not raw payload.
+        const overrideGroup  = persisted.groups?.[payload.groupId];
+        const overrideMonthKey = overrideGroup?.lastMonth;
+        const persistedOverride = overrideMonthKey
+          ? overrideGroup?.seasonOverrides?.[overrideMonthKey]
+          : null;
+        if (persistedOverride) {
+          upsertSeasonOverrideInCanonical(
+            payload.groupId,
+            overrideMonthKey,
+            persistedOverride.prorated,
+            persistedOverride.proratedMas,
+            persistedOverride.chosenAt,
+            persistedOverride.chosenBy,
+            persistedOverride.chosenByUserId || null
+          ).catch(err => console.error("Canonical season override sync failed:", err?.message || err));
+        }
         return res.status(200).json(persisted);
       }
 
