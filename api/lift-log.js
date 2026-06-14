@@ -2839,6 +2839,7 @@ export default async function handler(req, res) {
         const updated = applyUpdateSettings(auth.state, { ...payload, actor, actorUserId: auth.user.id });
         const persisted = await persistState(updated, `settings:${payload.groupId}:${actor || auth.user.id}`);
         await syncBlocToCanonical(persisted.groups[payload.groupId], auth.user.id);
+        await syncSeasonToCanonical(persisted.groups[payload.groupId], persisted.groups[payload.groupId]?.lastMonth, "open");
         return res.status(200).json(persisted);
       }
 
