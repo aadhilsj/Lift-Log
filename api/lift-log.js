@@ -1180,6 +1180,22 @@ async function fetchBlobRevision() {
   }
 }
 
+async function fetchAnteBlocs() {
+  try {
+    const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_blocs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({})
+    });
+    const rows = await response.json();
+    if (!Array.isArray(rows) || rows.length === 0) return null;
+    // Return a map keyed by legacy_group_key for O(1) lookup in the overlay.
+    return Object.fromEntries(rows.map(row => [row.legacy_group_key, row]));
+  } catch {
+    return null;
+  }
+}
+
 async function fetchAnteProfiles() {
   try {
     const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_profiles", {
@@ -1206,12 +1222,46 @@ async function fetchAnteProfiles() {
 
 async function fetchReadableCurrentState() {
   const anteProfilesPromise = fetchAnteProfiles();
+  const anteBlocsPromise    = fetchAnteBlocs();
 
   // Projection read path removed: read_lift_log_projection RPC timed out on
   // every call (~28-60s), causing loading screen hangs. All GETs read directly
   // from the blob, which is fast and always correct. Projection tables remain
   // intact for future use but are no longer consulted on read.
   const baseState = await fetchCurrentStateFromSupabase();
+
+  // Overlay canonical bloc settings (name + all settings fields) onto the
+  // blob-backed groups. Only blocs whose legacy_group_key exists in the blob
+  // are overlaid — prevents stale canonical rows from injecting phantom groups.
+  // Blob is the fallback when a canonical row is absent or the RPC errors.
+  const anteBlocs = await anteBlocsPromise;
+  let state = baseState;
+  if (anteBlocs && Object.keys(anteBlocs).length > 0) {
+    const overlaidGroups = Object.fromEntries(
+      Object.entries(state.groups || {}).map(([groupId, group]) => {
+        const bloc = anteBlocs[groupId];
+        if (!bloc) return [groupId, group];
+        return [groupId, {
+          ...group,
+          name: bloc.name || group.name,
+          settings: buildNormalizedSettings({
+            ...group.settings,
+            timeZone:              bloc.time_zone              ?? group.settings?.timeZone,
+            currency:              bloc.currency               ?? group.settings?.currency,
+            minTarget:             bloc.min_target             ?? group.settings?.minTarget,
+            fineAmount:            bloc.fine_amount            ?? group.settings?.fineAmount,
+            feeModel:              bloc.fee_model              ?? group.settings?.feeModel,
+            escalationStepAmount:  bloc.escalation_step_amount ?? group.settings?.escalationStepAmount,
+            minRunDistance:        bloc.min_run_distance       ?? group.settings?.minRunDistance,
+            distanceUnit:          bloc.distance_unit          ?? group.settings?.distanceUnit,
+            stravaEnabled:         bloc.strava_enabled         ?? group.settings?.stravaEnabled,
+            acceptedWorkoutTypes:  bloc.accepted_workout_types ?? group.settings?.acceptedWorkoutTypes
+          })
+        }];
+      })
+    );
+    state = { ...state, groups: overlaidGroups };
+  }
 
   const anteProfiles = await anteProfilesPromise;
   if (anteProfiles) {
@@ -1220,13 +1270,13 @@ async function fetchReadableCurrentState() {
     // may still be present in ante_core.profiles until canonical deletion is
     // implemented. Filtering here prevents stale canonical rows from
     // resurrecting a deleted user in the returned state.
-    const blobProfileKeys = new Set(Object.keys(baseState.profiles || {}));
+    const blobProfileKeys = new Set(Object.keys(state.profiles || {}));
     const filtered = Object.fromEntries(
       Object.entries(anteProfiles).filter(([userId]) => blobProfileKeys.has(userId))
     );
-    if (Object.keys(filtered).length > 0) return { ...baseState, profiles: { ...(baseState.profiles || {}), ...filtered } };
+    if (Object.keys(filtered).length > 0) return { ...state, profiles: { ...(state.profiles || {}), ...filtered } };
   }
-  return baseState;
+  return state;
 }
 
 // Mutations must always hydrate from the blob source of truth.
