@@ -648,6 +648,19 @@ function getSeasonProrationSummaryForMonth(group, monthKey, settingsOverride = n
   return chosenSummary;
 }
 
+function getEffectiveJoinedMonthForMember(group, displayName, monthKey) {
+  const explicitJoinedMonth = group?.joinedMonthByName?.[displayName];
+  if (explicitJoinedMonth) return explicitJoinedMonth;
+  const membership = Object.values(group?.memberships || {}).find(entry => entry?.displayName === displayName) || null;
+  if (!membership || membership.role !== "admin" || group?.adminName !== displayName) return null;
+  const timeZone = group?.settings?.timeZone || DEFAULT_GROUP_TIME_ZONE;
+  const joinedSummary = getLeagueMonthSummaryForTimestamp(membership?.joinedAt, timeZone);
+  const createdSummary = getLeagueMonthSummaryForTimestamp(group?.createdAt, timeZone);
+  if (!joinedSummary || !createdSummary) return null;
+  if (joinedSummary.monthKey !== monthKey || createdSummary.monthKey !== monthKey) return null;
+  return monthKey;
+}
+
 function getJoinedTargetInfo(baseTarget, joinedSummary, prorationSummary = null) {
   if (!joinedSummary || joinedSummary.day <= 1) return { target: baseTarget, joinDay: 1 };
   const joinDay = joinedSummary.daysInMonth - joinedSummary.daysRemaining + 1;
@@ -682,7 +695,7 @@ function getEffectiveTargetForMonth(group, monthKey, settingsOverride = null) {
 
 function getMemberTargetForMonth(group, displayName, monthKey, settingsOverride = null) {
   const baseTarget = getEffectiveTargetForMonth(group, monthKey, settingsOverride);
-  const joinedMonth = group?.joinedMonthByName?.[displayName];
+  const joinedMonth = getEffectiveJoinedMonthForMember(group, displayName, monthKey);
   if (!joinedMonth || joinedMonth !== monthKey) return baseTarget;
   const membership = Object.values(group?.memberships || {}).find(entry => entry?.displayName === displayName);
   const joinedSummary = getLeagueMonthSummaryForTimestamp(membership?.joinedAt, group?.settings?.timeZone || DEFAULT_GROUP_TIME_ZONE);
@@ -1779,6 +1792,7 @@ function applyCreateGroup(current, payload) {
 
   const base = rolloverStateIfNeeded(current);
   const id = generateGroupId(groupName);
+  const createdMonthKey = getLeagueMonthKey(settings.timeZone);
   const group = normalizeGroup({
     id,
     name: groupName,
@@ -1795,12 +1809,12 @@ function applyCreateGroup(current, payload) {
         joinedAt: new Date().toISOString()
       }
     } : {},
-    joinedMonthByName: {},
+    joinedMonthByName: creatorName ? { [creatorName]: createdMonthKey } : {},
     settings,
     logs: {},
     excused: {},
     monthHistory: [],
-    lastMonth: getLeagueMonthKey(settings.timeZone)
+    lastMonth: createdMonthKey
   });
 
   return {

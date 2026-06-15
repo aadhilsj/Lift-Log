@@ -178,6 +178,8 @@ let MIN_TARGET = DEFAULT_MIN_TARGET;
 let JOINED_MONTH_BY_NAME = { ...DEFAULT_JOINED_MONTH_BY_NAME };
 let ACTIVE_MEMBER_JOINED_AT_BY_NAME = {};
 let ACTIVE_SEASON_OVERRIDES = {};
+let ACTIVE_GROUP_CREATED_AT = null;
+let ACTIVE_ADMIN_NAME = "";
 let ACTIVE_GROUP_TIME_ZONE = DEFAULT_GROUP_TIME_ZONE;
 let LEAGUE_TODAY = null;
 let CUR_MONTH = 0;
@@ -332,6 +334,28 @@ const getStatus   = (n, target = MIN_TARGET) => {
 };
 const getDiff     = (n, target = MIN_TARGET) => n - getExpected(target); // positive = ahead, negative = behind
 const diffLabel   = (n, target = MIN_TARGET) => { const d=getDiff(n, target); return d>0?`+${d} ahead`:d<0?`${d} behind`:"on pace"; };
+function getPaceCheckMessage({ status, count, expected, target, isFirstActiveDay }) {
+  if (status === "cooked") {
+    return `✕ Even perfect attendance from here won't get you to ${target}`;
+  }
+  if (isFirstActiveDay && count < expected) {
+    return "Log a workout today to stay on track";
+  }
+  if (status === "cruising") {
+    const ahead = count - expected;
+    return `⬆ You are cruising at ${ahead} workout${ahead !== 1 ? "s" : ""} ahead of pace`;
+  }
+  if (count >= expected) {
+    const ahead = count - expected;
+    return ahead === 0
+      ? "✓ You are on pace"
+      : `✓ You are ${ahead} workout${ahead !== 1 ? "s" : ""} ahead of pace`;
+  }
+  const behind = expected - count;
+  return behind === 1
+    ? "Log a workout today to stay on track"
+    : `⚠ You are ${behind} workout${behind !== 1 ? "s" : ""} behind pace`;
+}
 const lastWorkout = (userLogs) => {
   const counted = getCountedLogs(userLogs);
   if(!counted.length) return null;
@@ -500,9 +524,22 @@ function getLeagueMonthSummaryForTimestamp(value, timeZone = DEFAULT_GROUP_TIME_
   };
 }
 
+function getEffectiveJoinedMonthForMember(group, displayName, monthKey) {
+  const explicitJoinedMonth = group?.joinedMonthByName?.[displayName];
+  if (explicitJoinedMonth) return explicitJoinedMonth;
+  const membership = Object.values(group?.memberships || {}).find(entry => entry?.displayName === displayName) || null;
+  if (!membership || membership.role !== "admin" || group?.adminName !== displayName) return null;
+  const timeZone = group?.settings?.timeZone || DEFAULT_GROUP_TIME_ZONE;
+  const joinedSummary = getLeagueMonthSummaryForTimestamp(membership?.joinedAt, timeZone);
+  const createdSummary = getLeagueMonthSummaryForTimestamp(group?.createdAt, timeZone);
+  if (!joinedSummary || !createdSummary) return null;
+  if (joinedSummary.monthKey !== monthKey || createdSummary.monthKey !== monthKey) return null;
+  return monthKey;
+}
+
 function getMemberTargetForMonth(group, displayName, monthKey, settingsOverride = null) {
   const baseTarget = getEffectiveTargetForMonth(group, monthKey, settingsOverride);
-  const joinedMonth = group?.joinedMonthByName?.[displayName];
+  const joinedMonth = getEffectiveJoinedMonthForMember(group, displayName, monthKey);
   if (!joinedMonth || joinedMonth !== monthKey) return baseTarget;
   const membership = Object.values(group?.memberships || {}).find(entry => entry?.displayName === displayName);
   const joinedSummary = getLeagueMonthSummaryForTimestamp(membership?.joinedAt, group?.settings?.timeZone || DEFAULT_GROUP_TIME_ZONE);
@@ -512,7 +549,7 @@ function getMemberTargetForMonth(group, displayName, monthKey, settingsOverride 
 
 function getMemberTargetInfoForMonth(group, displayName, monthKey, settingsOverride = null) {
   const baseTarget = getEffectiveTargetForMonth(group, monthKey, settingsOverride);
-  const joinedMonth = group?.joinedMonthByName?.[displayName];
+  const joinedMonth = getEffectiveJoinedMonthForMember(group, displayName, monthKey);
   if (!joinedMonth || joinedMonth !== monthKey) return { target: baseTarget, joinDay: 1 };
   const membership = Object.values(group?.memberships || {}).find(entry => entry?.displayName === displayName);
   const joinedSummary = getLeagueMonthSummaryForTimestamp(membership?.joinedAt, group?.settings?.timeZone || DEFAULT_GROUP_TIME_ZONE);
@@ -520,8 +557,20 @@ function getMemberTargetInfoForMonth(group, displayName, monthKey, settingsOverr
   return getJoinedTargetInfo(baseTarget, joinedSummary, getSeasonProrationSummaryForMonth(group, monthKey, settingsOverride));
 }
 
+function getActiveJoinedMonthForMember(displayName, monthKey) {
+  const explicitJoinedMonth = JOINED_MONTH_BY_NAME?.[displayName];
+  if (explicitJoinedMonth) return explicitJoinedMonth;
+  const joinedAt = ACTIVE_MEMBER_JOINED_AT_BY_NAME?.[displayName];
+  if (!joinedAt || ACTIVE_ADMIN_NAME !== displayName) return null;
+  const joinedSummary = getLeagueMonthSummaryForTimestamp(joinedAt, ACTIVE_GROUP_TIME_ZONE);
+  const createdSummary = getLeagueMonthSummaryForTimestamp(ACTIVE_GROUP_CREATED_AT, ACTIVE_GROUP_TIME_ZONE);
+  if (!joinedSummary || !createdSummary) return null;
+  if (joinedSummary.monthKey !== monthKey || createdSummary.monthKey !== monthKey) return null;
+  return monthKey;
+}
+
 function getCurrentMemberTarget(displayName, monthKey = curKey, baseTarget = MIN_TARGET) {
-  const joinedMonth = JOINED_MONTH_BY_NAME?.[displayName];
+  const joinedMonth = getActiveJoinedMonthForMember(displayName, monthKey);
   if (!joinedMonth || joinedMonth !== monthKey) return baseTarget;
   const joinedSummary = getLeagueMonthSummaryForTimestamp(ACTIVE_MEMBER_JOINED_AT_BY_NAME?.[displayName], ACTIVE_GROUP_TIME_ZONE);
   if (!joinedSummary || joinedSummary.monthKey !== monthKey) return baseTarget;
@@ -535,7 +584,7 @@ function getCurrentMemberTarget(displayName, monthKey = curKey, baseTarget = MIN
 }
 
 function getCurrentMemberTargetInfo(displayName, monthKey = curKey, baseTarget = MIN_TARGET) {
-  const joinedMonth = JOINED_MONTH_BY_NAME?.[displayName];
+  const joinedMonth = getActiveJoinedMonthForMember(displayName, monthKey);
   if (!joinedMonth || joinedMonth !== monthKey) return { target: baseTarget, joinDay: 1 };
   const joinedSummary = getLeagueMonthSummaryForTimestamp(ACTIVE_MEMBER_JOINED_AT_BY_NAME?.[displayName], ACTIVE_GROUP_TIME_ZONE);
   if (!joinedSummary || joinedSummary.monthKey !== monthKey) return { target: baseTarget, joinDay: 1 };
@@ -1121,6 +1170,8 @@ function getDisplayNameForGroup(group, session, profile) {
 function syncActiveGroupGlobals(group) {
   GROUP_NAME = group?.name || DEFAULT_GROUP_NAME;
   NAMES = Array.isArray(group?.memberOrder) && group.memberOrder.length ? [...group.memberOrder] : [...DEFAULT_NAMES];
+  ACTIVE_GROUP_CREATED_AT = group?.createdAt || null;
+  ACTIVE_ADMIN_NAME = group?.adminName || "";
   ACTIVE_MEMBER_JOINED_AT_BY_NAME = Object.fromEntries(
     Object.values(group?.memberships || {})
       .filter(membership => membership?.displayName)
@@ -3876,6 +3927,7 @@ const TodayPage = ({user,currentGroupId,groups,logs,excused,monthHistory,saving,
   const expected = myProratedDays
     ? Math.ceil((myTarget / myProratedDays) * Math.max(0, DAY_OF_MON - myJoinDay + 1))
     : getExpected(myTarget);
+  const myDaysActive = myProratedDays ? Math.max(0, DAY_OF_MON - myJoinDay + 1) : DAY_OF_MON;
   const sitOutMode = currentSitOutRequest?.status === "pending"
     ? null
     : (recentSitOutCount >= 1 ? "exceptional" : ((monthSummary?.day || DAY_OF_MON) <= 5 ? "instant" : "request"));
@@ -3909,6 +3961,13 @@ const TodayPage = ({user,currentGroupId,groups,logs,excused,monthHistory,saving,
   let activeRank=0;
   const boardRanked=board.map(u=>{if(!u.isOut)activeRank++;return {...u,rank:u.isOut?null:activeRank};});
   const me=boardRanked.find(u=>u.name===user) || { count:0, rank:null, status:"behind", target:myTarget };
+  const paceCheckMessage = getPaceCheckMessage({
+    status: me.status,
+    count: me.count,
+    expected,
+    target: myTarget,
+    isFirstActiveDay: myDaysActive <= 1
+  });
   const needed=Math.max(0,myTarget-me.count);
 
   let streak=0;
@@ -4114,13 +4173,7 @@ const TodayPage = ({user,currentGroupId,groups,logs,excused,monthHistory,saving,
       React.createElement(Bar,{value:me.count,max:Math.max(expected,1),color:barColor(me.status),h:5}),
       React.createElement('div',{style:{marginTop:10,marginBottom:2}},
         React.createElement('div',{style:{fontSize:14,fontWeight:800,color:groupStatusColor(me.status)}},
-          me.status==="cooked"
-            ? `✕ Even perfect attendance from here won't get you to ${MIN_TARGET}`
-            : me.status==="cruising"
-              ? `⬆ You are cruising at ${me.count-expected} workout${me.count-expected!==1?"s":""} ahead of pace`
-              : me.count>=expected
-                ? `✓ You are ${me.count-expected===0?"on pace":`${me.count-expected} workout${me.count-expected!==1?"s":""} ahead`}`
-                : `⚠ You are ${expected-me.count} workout${expected-me.count!==1?"s":""} behind pace`
+          paceCheckMessage
         )
       ),
       React.createElement('div',{style:{display:"flex",justifyContent:"space-between",marginTop:4}},
@@ -4205,13 +4258,7 @@ const TodayPage = ({user,currentGroupId,groups,logs,excused,monthHistory,saving,
           React.createElement(Bar,{value:me.count,max:Math.max(expected,1),color:barColor(me.status),h:5}),
           React.createElement('div',{style:{marginTop:10,marginBottom:2}},
             React.createElement('div',{style:{fontSize:15,fontWeight:800,color:me.status==="cruising"?"var(--blue)":me.status==="on-track"?"var(--green)":me.status==="at-risk"?"var(--amber)":"var(--red)"}},
-              me.status==="cooked"
-                ? `✕ Even perfect attendance from here won't get you to ${MIN_TARGET}`
-                : me.status==="cruising"
-                  ? `⬆ You are cruising at ${me.count-expected} workout${me.count-expected!==1?"s":""} ahead of pace`
-                  : me.count>=expected
-                    ? `✓ You are ${me.count-expected===0?"on pace":`${me.count-expected} workout${me.count-expected!==1?"s":""} ahead of pace`}`
-                    : `⚠ You are ${expected-me.count} workout${expected-me.count!==1?"s":""} behind pace`
+              paceCheckMessage
             )
           ),
           React.createElement('div',{style:{display:"flex",justifyContent:"space-between",marginTop:4}},
