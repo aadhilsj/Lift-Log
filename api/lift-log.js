@@ -639,6 +639,39 @@ function getSeasonOverrideForMonth(group, monthKey) {
   return normalizeSeasonOverrides(group?.seasonOverrides)?.[monthKey] || null;
 }
 
+function getSeasonProrationSummaryForMonth(group, monthKey, settingsOverride = null) {
+  const override = getSeasonOverrideForMonth(group, monthKey);
+  if (!override?.prorated || !Number.isFinite(Number(override?.proratedMas))) return null;
+  const timeZone = settingsOverride?.timeZone || group?.settings?.timeZone || DEFAULT_GROUP_TIME_ZONE;
+  const chosenSummary = getLeagueMonthSummaryForTimestamp(override?.chosenAt, timeZone);
+  if (!chosenSummary || chosenSummary.monthKey !== monthKey) return null;
+  return chosenSummary;
+}
+
+function getJoinedTargetInfo(baseTarget, joinedSummary, prorationSummary = null) {
+  if (!joinedSummary || joinedSummary.day <= 1) return { target: baseTarget, joinDay: 1 };
+  const joinDay = joinedSummary.daysInMonth - joinedSummary.daysRemaining + 1;
+  if (!prorationSummary) {
+    return {
+      target: Math.max(1, Math.round((joinedSummary.daysRemaining / joinedSummary.daysInMonth) * baseTarget)),
+      joinDay,
+      proratedDays: joinedSummary.daysRemaining
+    };
+  }
+  if (joinedSummary.day <= prorationSummary.day) {
+    return {
+      target: baseTarget,
+      joinDay: prorationSummary.day,
+      proratedDays: prorationSummary.daysRemaining
+    };
+  }
+  return {
+    target: Math.max(1, Math.round((joinedSummary.daysRemaining / prorationSummary.daysRemaining) * baseTarget)),
+    joinDay,
+    proratedDays: joinedSummary.daysRemaining
+  };
+}
+
 function getEffectiveTargetForMonth(group, monthKey, settingsOverride = null) {
   const baseTarget = Number(settingsOverride?.minTarget || group?.settings?.minTarget || DEFAULT_MIN_TARGET);
   const override = getSeasonOverrideForMonth(group, monthKey);
@@ -653,8 +686,8 @@ function getMemberTargetForMonth(group, displayName, monthKey, settingsOverride 
   if (!joinedMonth || joinedMonth !== monthKey) return baseTarget;
   const membership = Object.values(group?.memberships || {}).find(entry => entry?.displayName === displayName);
   const joinedSummary = getLeagueMonthSummaryForTimestamp(membership?.joinedAt, group?.settings?.timeZone || DEFAULT_GROUP_TIME_ZONE);
-  if (!joinedSummary || joinedSummary.monthKey !== monthKey || joinedSummary.day <= 1) return baseTarget;
-  return Math.max(1, Math.round((joinedSummary.daysRemaining / joinedSummary.daysInMonth) * baseTarget));
+  if (!joinedSummary || joinedSummary.monthKey !== monthKey) return baseTarget;
+  return getJoinedTargetInfo(baseTarget, joinedSummary, getSeasonProrationSummaryForMonth(group, monthKey, settingsOverride)).target;
 }
 
 function getMemberTargetsForMonth(group, relevantNames, monthKey, settingsOverride = null) {
