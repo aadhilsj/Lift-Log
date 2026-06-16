@@ -524,77 +524,100 @@ function getLeagueMonthSummaryForTimestamp(value, timeZone = DEFAULT_GROUP_TIME_
   };
 }
 
-function getEffectiveJoinedMonthForMember(group, displayName, monthKey) {
-  const explicitJoinedMonth = group?.joinedMonthByName?.[displayName];
-  if (explicitJoinedMonth) return explicitJoinedMonth;
+function getCreatorMonthContext(group, displayName, monthKey, settingsOverride = null) {
   const membership = Object.values(group?.memberships || {}).find(entry => entry?.displayName === displayName) || null;
   if (!membership || membership.role !== "admin" || group?.adminName !== displayName) return null;
-  const timeZone = group?.settings?.timeZone || DEFAULT_GROUP_TIME_ZONE;
+  const timeZone = settingsOverride?.timeZone || group?.settings?.timeZone || DEFAULT_GROUP_TIME_ZONE;
   const joinedSummary = getLeagueMonthSummaryForTimestamp(membership?.joinedAt, timeZone);
   const createdSummary = getLeagueMonthSummaryForTimestamp(group?.createdAt, timeZone);
   if (!joinedSummary || !createdSummary) return null;
   if (joinedSummary.monthKey !== monthKey || createdSummary.monthKey !== monthKey) return null;
-  return monthKey;
+  return { joinedSummary, createdSummary };
+}
+
+function getEffectiveJoinedMonthForMember(group, displayName, monthKey, settingsOverride = null) {
+  const explicitJoinedMonth = group?.joinedMonthByName?.[displayName];
+  const creatorContext = getCreatorMonthContext(group, displayName, monthKey, settingsOverride);
+  if (creatorContext && explicitJoinedMonth === monthKey) return null;
+  if (explicitJoinedMonth) return explicitJoinedMonth;
+  return null;
 }
 
 function getMemberTargetForMonth(group, displayName, monthKey, settingsOverride = null) {
-  const baseTarget = getEffectiveTargetForMonth(group, monthKey, settingsOverride);
-  const joinedMonth = getEffectiveJoinedMonthForMember(group, displayName, monthKey);
-  if (!joinedMonth || joinedMonth !== monthKey) return baseTarget;
-  const membership = Object.values(group?.memberships || {}).find(entry => entry?.displayName === displayName);
-  const joinedSummary = getLeagueMonthSummaryForTimestamp(membership?.joinedAt, group?.settings?.timeZone || DEFAULT_GROUP_TIME_ZONE);
-  if (!joinedSummary || joinedSummary.monthKey !== monthKey) return baseTarget;
-  return getJoinedTargetInfo(baseTarget, joinedSummary, getSeasonProrationSummaryForMonth(group, monthKey, settingsOverride)).target;
+  return getMemberTargetInfoForMonth(group, displayName, monthKey, settingsOverride).target;
 }
 
 function getMemberTargetInfoForMonth(group, displayName, monthKey, settingsOverride = null) {
   const baseTarget = getEffectiveTargetForMonth(group, monthKey, settingsOverride);
-  const joinedMonth = getEffectiveJoinedMonthForMember(group, displayName, monthKey);
-  if (!joinedMonth || joinedMonth !== monthKey) return { target: baseTarget, joinDay: 1 };
-  const membership = Object.values(group?.memberships || {}).find(entry => entry?.displayName === displayName);
-  const joinedSummary = getLeagueMonthSummaryForTimestamp(membership?.joinedAt, group?.settings?.timeZone || DEFAULT_GROUP_TIME_ZONE);
-  if (!joinedSummary || joinedSummary.monthKey !== monthKey) return { target: baseTarget, joinDay: 1 };
-  return getJoinedTargetInfo(baseTarget, joinedSummary, getSeasonProrationSummaryForMonth(group, monthKey, settingsOverride));
+  const joinedMonth = getEffectiveJoinedMonthForMember(group, displayName, monthKey, settingsOverride);
+  const prorationSummary = getSeasonProrationSummaryForMonth(group, monthKey, settingsOverride);
+  if (joinedMonth && joinedMonth === monthKey) {
+    const membership = Object.values(group?.memberships || {}).find(entry => entry?.displayName === displayName);
+    const joinedSummary = getLeagueMonthSummaryForTimestamp(membership?.joinedAt, group?.settings?.timeZone || DEFAULT_GROUP_TIME_ZONE);
+    if (!joinedSummary || joinedSummary.monthKey !== monthKey) return { target: baseTarget, joinDay: 1, prorationSource: "none" };
+    return getJoinedTargetInfo(baseTarget, joinedSummary, prorationSummary);
+  }
+  const creatorContext = getCreatorMonthContext(group, displayName, monthKey, settingsOverride);
+  if (creatorContext && prorationSummary) {
+    return {
+      target: baseTarget,
+      joinDay: prorationSummary.day,
+      proratedDays: prorationSummary.daysRemaining,
+      prorationSource: "group"
+    };
+  }
+  return { target: baseTarget, joinDay: 1, prorationSource: "none" };
 }
 
 function getActiveJoinedMonthForMember(displayName, monthKey) {
   const explicitJoinedMonth = JOINED_MONTH_BY_NAME?.[displayName];
+  const isCreator = (() => {
+    const joinedAt = ACTIVE_MEMBER_JOINED_AT_BY_NAME?.[displayName];
+    if (!joinedAt || ACTIVE_ADMIN_NAME !== displayName) return false;
+    const joinedSummary = getLeagueMonthSummaryForTimestamp(joinedAt, ACTIVE_GROUP_TIME_ZONE);
+    const createdSummary = getLeagueMonthSummaryForTimestamp(ACTIVE_GROUP_CREATED_AT, ACTIVE_GROUP_TIME_ZONE);
+    if (!joinedSummary || !createdSummary) return false;
+    return joinedSummary.monthKey === monthKey && createdSummary.monthKey === monthKey;
+  })();
+  if (isCreator && explicitJoinedMonth === monthKey) return null;
   if (explicitJoinedMonth) return explicitJoinedMonth;
-  const joinedAt = ACTIVE_MEMBER_JOINED_AT_BY_NAME?.[displayName];
-  if (!joinedAt || ACTIVE_ADMIN_NAME !== displayName) return null;
-  const joinedSummary = getLeagueMonthSummaryForTimestamp(joinedAt, ACTIVE_GROUP_TIME_ZONE);
-  const createdSummary = getLeagueMonthSummaryForTimestamp(ACTIVE_GROUP_CREATED_AT, ACTIVE_GROUP_TIME_ZONE);
-  if (!joinedSummary || !createdSummary) return null;
-  if (joinedSummary.monthKey !== monthKey || createdSummary.monthKey !== monthKey) return null;
-  return monthKey;
+  return null;
 }
 
 function getCurrentMemberTarget(displayName, monthKey = curKey, baseTarget = MIN_TARGET) {
-  const joinedMonth = getActiveJoinedMonthForMember(displayName, monthKey);
-  if (!joinedMonth || joinedMonth !== monthKey) return baseTarget;
-  const joinedSummary = getLeagueMonthSummaryForTimestamp(ACTIVE_MEMBER_JOINED_AT_BY_NAME?.[displayName], ACTIVE_GROUP_TIME_ZONE);
-  if (!joinedSummary || joinedSummary.monthKey !== monthKey) return baseTarget;
-  const chosenSummary = (() => {
-    const override = normalizeSeasonOverrides(ACTIVE_SEASON_OVERRIDES)?.[monthKey];
-    if (!override?.prorated || !Number.isFinite(Number(override?.proratedMas))) return null;
-    const summary = getLeagueMonthSummaryForTimestamp(override?.chosenAt, ACTIVE_GROUP_TIME_ZONE);
-    return summary?.monthKey === monthKey ? summary : null;
-  })();
-  return getJoinedTargetInfo(baseTarget, joinedSummary, chosenSummary).target;
+  return getCurrentMemberTargetInfo(displayName, monthKey, baseTarget).target;
 }
 
 function getCurrentMemberTargetInfo(displayName, monthKey = curKey, baseTarget = MIN_TARGET) {
   const joinedMonth = getActiveJoinedMonthForMember(displayName, monthKey);
-  if (!joinedMonth || joinedMonth !== monthKey) return { target: baseTarget, joinDay: 1 };
-  const joinedSummary = getLeagueMonthSummaryForTimestamp(ACTIVE_MEMBER_JOINED_AT_BY_NAME?.[displayName], ACTIVE_GROUP_TIME_ZONE);
-  if (!joinedSummary || joinedSummary.monthKey !== monthKey) return { target: baseTarget, joinDay: 1 };
   const chosenSummary = (() => {
     const override = normalizeSeasonOverrides(ACTIVE_SEASON_OVERRIDES)?.[monthKey];
     if (!override?.prorated || !Number.isFinite(Number(override?.proratedMas))) return null;
     const summary = getLeagueMonthSummaryForTimestamp(override?.chosenAt, ACTIVE_GROUP_TIME_ZONE);
     return summary?.monthKey === monthKey ? summary : null;
   })();
-  return getJoinedTargetInfo(baseTarget, joinedSummary, chosenSummary);
+  if (joinedMonth && joinedMonth === monthKey) {
+    const joinedSummary = getLeagueMonthSummaryForTimestamp(ACTIVE_MEMBER_JOINED_AT_BY_NAME?.[displayName], ACTIVE_GROUP_TIME_ZONE);
+    if (!joinedSummary || joinedSummary.monthKey !== monthKey) return { target: baseTarget, joinDay: 1, prorationSource: "none" };
+    return getJoinedTargetInfo(baseTarget, joinedSummary, chosenSummary);
+  }
+  const isCreator = (() => {
+    const joinedAt = ACTIVE_MEMBER_JOINED_AT_BY_NAME?.[displayName];
+    if (!joinedAt || ACTIVE_ADMIN_NAME !== displayName) return false;
+    const joinedSummary = getLeagueMonthSummaryForTimestamp(joinedAt, ACTIVE_GROUP_TIME_ZONE);
+    const createdSummary = getLeagueMonthSummaryForTimestamp(ACTIVE_GROUP_CREATED_AT, ACTIVE_GROUP_TIME_ZONE);
+    if (!joinedSummary || !createdSummary) return false;
+    return joinedSummary.monthKey === monthKey && createdSummary.monthKey === monthKey;
+  })();
+  if (isCreator && chosenSummary) {
+    return {
+      target: baseTarget,
+      joinDay: chosenSummary.day,
+      proratedDays: chosenSummary.daysRemaining,
+      prorationSource: "group"
+    };
+  }
+  return { target: baseTarget, joinDay: 1, prorationSource: "none" };
 }
 
 function getCurrentSitOutRequest(group, memberName, monthKey = curKey) {
@@ -1752,6 +1775,17 @@ function formatRelativeTime(value) {
   const hours = Math.floor(minutes / 60);
   if (hours < 24) return `${hours}h ago`;
   return fmtISO(value.slice(0, 10));
+}
+
+function formatCompactRelativeTime(value) {
+  if (!value) return "";
+  const diffMs = Date.now() - new Date(value).getTime();
+  if (diffMs < 0) return "";
+  const minutes = Math.max(1, Math.floor(diffMs / 60000));
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h`;
+  return formatShortDate(value.slice(0, 10));
 }
 
 function isRecentPastTimestamp(value, now = Date.now()) {
@@ -3599,6 +3633,7 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
               const reactionEntries = Object.entries(post.reactions || {}).sort((a,b)=>b[1].length-a[1].length);
               const categoryIcon = React.createElement(WorkoutTypeIcon,{type:post.type,size:13});
               const showRelativeTime = isRecentPastTimestamp(post.createdAt, clockTick || Date.now());
+              const compactRelativeTime = showRelativeTime ? formatCompactRelativeTime(post.createdAt) : "";
               return React.createElement(React.Fragment,{key:`${post.owner}-${post.id}`},
                 showDateHeader && React.createElement('div',{style:{display:"flex",alignItems:"center",gap:10,padding:"6px 2px 2px"}},
                   React.createElement('span',{className:"mono",style:{fontSize:10,color:"#4ECDC4",letterSpacing:".08em",textTransform:"uppercase",whiteSpace:"nowrap"}},formatShortDate(displayDate)),
@@ -3615,16 +3650,20 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
                     React.createElement('div',{style:{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:12}},
                       React.createElement('div',{style:{flex:1,minWidth:0,minHeight:72,display:"flex",flexDirection:"column",justifyContent:"space-between"}},
                         React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:7}},
-                          React.createElement('div',{style:{display:"flex",alignItems:"center",gap:8,minWidth:0,whiteSpace:"nowrap"}},
-                            React.createElement(Avatar,{name:post.owner,size:28}),
-                            React.createElement('span',{style:{fontWeight:500,fontSize:13,color:"#fff",overflow:"hidden",textOverflow:"ellipsis"}},post.owner),
-                            React.createElement('span',{style:{display:"inline-flex",alignItems:"center",gap:5,color:"var(--muted)",fontSize:12,minWidth:0}},
-                              React.createElement('span',{style:{display:"inline-flex",alignItems:"center",justifyContent:"center",color:"var(--cyan)"}},categoryIcon),
-                              React.createElement('span',null,post.type)
+                          React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,minWidth:0,whiteSpace:"nowrap"}},
+                            React.createElement('div',{style:{display:"flex",alignItems:"center",gap:7,minWidth:0,flex:1}},
+                              React.createElement(Avatar,{name:post.owner,size:28}),
+                              React.createElement('span',{style:{fontWeight:600,fontSize:13,color:"#fff",minWidth:0,overflow:"hidden",textOverflow:"ellipsis",flex:1}},post.owner),
+                              React.createElement('span',{style:{display:"inline-flex",alignItems:"center",gap:4,color:"var(--muted)",fontSize:11.5,flexShrink:0}},
+                                React.createElement('span',{style:{display:"inline-flex",alignItems:"center",justifyContent:"center",color:"var(--cyan)",width:14}},categoryIcon),
+                                React.createElement('span',null,post.type)
+                              )
                             ),
-                            React.createElement('span',{className:"mono",style:{fontSize:11,color:"var(--muted2)",flexShrink:0}},formatShortDate(displayDate)),
-                            showRelativeTime && React.createElement('span',{className:"mono",style:{fontSize:9,color:"var(--muted)",opacity:0.6,flexShrink:0}},formatRelativeTime(post.createdAt)),
-                            post.verifiedVia==="strava" && React.createElement('span',{className:"mono",style:{fontSize:10,color:"var(--cyan)",letterSpacing:".06em",textTransform:"uppercase",marginLeft:"auto"}},"Strava")
+                            React.createElement('div',{style:{display:"flex",alignItems:"center",gap:5,flexShrink:0,marginLeft:6}},
+                              React.createElement('span',{className:"mono",style:{fontSize:9,color:"var(--muted2)",letterSpacing:"-.01em"}},formatShortDate(displayDate)),
+                              compactRelativeTime && React.createElement('span',{className:"mono",style:{fontSize:8,color:"var(--muted)",opacity:0.58}},compactRelativeTime),
+                              post.verifiedVia==="strava" && React.createElement('span',{className:"mono",style:{fontSize:9,color:"var(--cyan)",letterSpacing:".05em",textTransform:"uppercase"}},"Strava")
+                            )
                           ),
                           post.note && React.createElement('div',{style:{fontSize:12,lineHeight:1.3,color:"var(--text-soft)",fontStyle:"italic",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},post.note)
                         ),
@@ -3651,16 +3690,20 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
                     ),
                   )
                 : React.createElement('div',{style:{padding:"8px 12px",display:"flex",flexDirection:"column",gap:14}},
-                    React.createElement('div',{style:{display:"flex",alignItems:"center",gap:8,minWidth:0}},
-                      React.createElement(Avatar,{name:post.owner,size:22}),
-                      React.createElement('span',{style:{fontWeight:500,fontSize:13,color:"#fff",flexShrink:0}},post.owner),
-                      React.createElement('span',{style:{display:"inline-flex",alignItems:"center",gap:4,color:"var(--muted)",fontSize:12,flexShrink:0}},
-                        React.createElement('span',{style:{display:"inline-flex",alignItems:"center",justifyContent:"center",color:"var(--cyan)"}},categoryIcon),
-                        React.createElement('span',null,post.type)
+                    React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,minWidth:0}},
+                      React.createElement('div',{style:{display:"flex",alignItems:"center",gap:7,minWidth:0,flex:1}},
+                        React.createElement(Avatar,{name:post.owner,size:22}),
+                        React.createElement('span',{style:{fontWeight:600,fontSize:13,color:"#fff",minWidth:0,overflow:"hidden",textOverflow:"ellipsis",flex:1}},post.owner),
+                        React.createElement('span',{style:{display:"inline-flex",alignItems:"center",gap:4,color:"var(--muted)",fontSize:11.5,flexShrink:0}},
+                          React.createElement('span',{style:{display:"inline-flex",alignItems:"center",justifyContent:"center",color:"var(--cyan)",width:14}},categoryIcon),
+                          React.createElement('span',null,post.type)
+                        )
                       ),
-                      React.createElement('span',{className:"mono",style:{fontSize:10,color:"var(--muted2)",marginLeft:"auto",flexShrink:0}},formatShortDate(displayDate)),
-                      showRelativeTime && React.createElement('span',{className:"mono",style:{fontSize:8,color:"var(--muted)",opacity:0.6,flexShrink:0}},formatRelativeTime(post.createdAt)),
-                      post.verifiedVia==="strava" && React.createElement('span',{className:"mono",style:{fontSize:10,color:"var(--cyan)",letterSpacing:".06em",textTransform:"uppercase",flexShrink:0}},"Strava")
+                      React.createElement('div',{style:{display:"flex",alignItems:"center",gap:5,flexShrink:0,marginLeft:6}},
+                        React.createElement('span',{className:"mono",style:{fontSize:9,color:"var(--muted2)",letterSpacing:"-.01em"}},formatShortDate(displayDate)),
+                        compactRelativeTime && React.createElement('span',{className:"mono",style:{fontSize:8,color:"var(--muted)",opacity:0.58}},compactRelativeTime),
+                        post.verifiedVia==="strava" && React.createElement('span',{className:"mono",style:{fontSize:9,color:"var(--cyan)",letterSpacing:".05em",textTransform:"uppercase",flexShrink:0}},"Strava")
+                      )
                     ),
                     React.createElement('div',{style:{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",marginLeft:-2}},
                       reactionEntries.map(([emoji, members])=>{
@@ -3724,6 +3767,8 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,groupSettings,onDe
   const selHistMonth=isCurMonth?null:visibleHistoryMonths[selMonthIdx];
   const selectedMonthKey = isCurMonth ? curKey : selHistMonth?.key;
   const isJoinedThisMonth = isJoinedForMonth(name, selectedMonthKey);
+  const currentTargetInfo = isCurMonth ? getCurrentMemberTargetInfo(name, curKey, MIN_TARGET) : null;
+  const currentMonthOverride = isCurMonth ? (normalizeSeasonOverrides(ACTIVE_SEASON_OVERRIDES)?.[curKey] || null) : null;
 
   // Closed month all-time stats
   const closedStats=useMemo(()=>{
@@ -3801,7 +3846,7 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,groupSettings,onDe
   const stats=[
     {label:"Workouts",val:selCount||"—",sub:selLabel,color:"var(--text)"},
     {label:"Monthly Avg",val:closedStats.avg,sub:"per closed month",subColor:"#1E4040",subSize:11,color:"var(--text)"},
-    {label:"Need",val:needed===0?"✓":needed,sub:needed===0?"target hit!":`to hit ${selectedTarget}`,subNote:isCurMonth&&selectedTarget<(groupSettings?.minTarget||MIN_TARGET)?"joined mid-month":null,color:"#4ECDC4"},
+    {label:"Need",val:needed===0?"✓":needed,sub:needed===0?"target hit!":`to hit ${selectedTarget}`,subNote:isCurMonth&&currentTargetInfo?.prorationSource==="member"?"joined mid-month":isCurMonth&&currentMonthOverride?.prorated?"prorated":null,color:"#4ECDC4"},
     {label:"Wins",val:hasHistory?(closedStats.wins||"—"):"—",sub:hasHistory?"months won":"end of month",color:hasHistory&&closedStats.wins>0?"var(--gold)":"var(--muted)"},
     {label:"Net P&L",val:hasHistory?(netPL===0?fmtCurrency(0,currency):`${netPL>0?"+":"-"}${fmtCurrency(Math.abs(netPL),currency)}`):"—",sub:hasHistory?"won minus lost":"end of month",color:hasHistory?(netPL>0?"var(--green)":netPL<0?"var(--red)":"var(--muted)"):"var(--muted)"},
   ];
@@ -3935,7 +3980,7 @@ const TodayPage = ({user,currentGroupId,groups,logs,excused,monthHistory,saving,
   const board=NAMES.filter(name=>isJoinedForMonth(name, curKey)).map(name=>{
     const count=getCountedLogCount(logs[name]||[]);
     const isOut=excused[name]?.[curKey]||false;
-    const { target, joinDay=1, proratedDays } = currentGroup ? getMemberTargetInfoForMonth(currentGroup, name, curKey) : { target: MIN_TARGET };
+    const { target, joinDay=1, proratedDays, prorationSource } = currentGroup ? getMemberTargetInfoForMonth(currentGroup, name, curKey) : { target: MIN_TARGET };
     let status, memberDiffLabel;
     if (isOut) {
       status = "excused";
@@ -3955,7 +4000,7 @@ const TodayPage = ({user,currentGroupId,groups,logs,excused,monthHistory,saving,
       status = getStatus(count, target);
       memberDiffLabel = null;
     }
-    return {name,count,isOut,target,status,memberDiffLabel,prorated:!!proratedDays};
+    return {name,count,isOut,target,status,memberDiffLabel,prorated:prorationSource === "member"};
   }).sort((a,b)=>{if(a.isOut&&!b.isOut)return 1;if(!a.isOut&&b.isOut)return -1;return b.count-a.count||a.name.localeCompare(b.name);});
 
   let activeRank=0;
