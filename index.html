@@ -3440,7 +3440,7 @@ const DeleteModal = ({log,onConfirm,onClose}) => React.createElement('div',{clas
 );
 
 // ─── EXCUSE MODAL ─────────────────────────────────────────────────────────────
-const SitOutModal = ({mode,monthName,adminName,onClose,onSubmit,submitting,error}) => {
+const SitOutModal = ({mode,monthName,onClose,onSubmit,submitting,error}) => {
   const [reason,setReason] = React.useState("");
   const config = mode === "instant"
     ? {
@@ -3451,15 +3451,15 @@ const SitOutModal = ({mode,monthName,adminName,onClose,onSubmit,submitting,error
     : mode === "exceptional"
       ? {
           title:"You've already sat out recently.",
-          body:[`Your next sit-out is available in ${monthName}.`,`If you have exceptional circumstances, you can send a request to ${adminName}.`],
+          body:[`Your next sit-out is available in ${monthName}.`,"If you have exceptional circumstances, you can send a request to the bloc admin."],
           cta:"Send exceptional request"
         }
       : {
           title:`Request sit-out for ${monthName}?`,
-          body:[`Your request will be sent to ${adminName} for approval.`,"You'll hear back shortly."],
+          body:["Your request will be sent to the bloc admin for approval."],
           cta:"Send request"
         };
-  return React.createElement('div',{className:"overlay",onClick:onClose},
+  return React.createElement('div',{className:`overlay${isMobile() ? " center-mobile" : ""}`,onClick:onClose},
     React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{maxWidth:420}},
       React.createElement('div',{style:{fontWeight:800,fontSize:20,marginBottom:10}},config.title),
       React.createElement('div',{style:{display:"grid",gap:4,color:"var(--muted)",fontSize:13,lineHeight:1.55,marginBottom:16}},
@@ -3780,7 +3780,7 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
                   ),
                   post.flagStatus==="rejected" && React.createElement('div',{style:{padding:"9px 11px",borderRadius:10,background:"rgba(232,69,69,.08)",border:"1px solid rgba(232,69,69,.22)",marginBottom:8,fontSize:12,color:"#ffd7d7"}},
                     isAdmin && post.flaggedBy && React.createElement('div',{style:{marginBottom:6,color:"var(--amber)"}},React.createElement('strong',null,"Original flag by: "),post.flaggedBy),
-                    `${post.decisionBy || "Admin"} rejected this workout.`
+                    "The bloc admin rejected this workout."
                   ),
                   React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"flex-end",gap:8,flexWrap:"wrap",marginTop:post.flagStatus ? 8 : 0}},
                     React.createElement('div',{style:{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}},
@@ -4009,10 +4009,8 @@ const TodayPage = ({user,currentGroupId,groups,logs,excused,monthHistory,saving,
   const monthSummary = currentGroup ? getCurrentMonthSummary(currentGroup) : null;
   const currentSitOutRequest = currentGroup ? getCurrentSitOutRequest(currentGroup, user, curKey) : null;
   const recentSitOutCount = currentGroup ? getRecentSitOutCount(currentGroup, user, curKey) : 0;
-  const deputyAdmin = currentGroup ? getDeputyAdmin(currentGroup) : null;
   const currentMonthOverride = currentGroup ? getSeasonOverrideForMonth(currentGroup, curKey) : null;
   const isGroupAdmin = currentGroup?.adminName === user;
-  const sitOutApproverName = isGroupAdmin ? (deputyAdmin?.displayName || "a deputy admin") : (currentGroup?.adminName || "the admin");
   const { target: myTarget, joinDay: myJoinDay = 1, proratedDays: myProratedDays } = currentGroup
     ? getMemberTargetInfoForMonth(currentGroup, user, curKey)
     : { target: MIN_TARGET };
@@ -4143,10 +4141,14 @@ const TodayPage = ({user,currentGroupId,groups,logs,excused,monthHistory,saving,
         React.createElement('div',{style:{fontSize:12,color:"var(--muted)"}},"You won't pay or collect anything.")
       )
     : currentSitOutRequest?.status === "pending"
-      ? React.createElement('div',{style:{fontSize:13,color:"var(--muted)"}},currentSitOutRequest.exceptional ? "Exceptional sit-out requested · awaiting approval" : "Sit-out requested · awaiting approval")
+      ? React.createElement('div',{style:{fontSize:13,color:"var(--muted)",lineHeight:1.45}},
+          currentSitOutRequest.exceptional
+            ? "Exceptional sit-out requested. Awaiting approval from the bloc admin."
+            : "Sit-out requested. Awaiting approval from the bloc admin."
+        )
       : currentSitOutRequest?.status === "declined"
-        ? React.createElement('div',{style:{fontSize:13,color:"var(--muted)"}},"Sit-out declined.")
-        : React.createElement('div',{style:{fontSize:13,color:"var(--muted)"}},"Want to sit out?");
+        ? React.createElement('div',{style:{fontSize:13,color:"var(--muted)",lineHeight:1.45}},"Your sit-out request was declined.")
+        : React.createElement('div',{style:{fontSize:13,color:"var(--muted)",lineHeight:1.45}},"If you're injured, traveling, or need this month off, you can sit out.");
 
   const competitionAction = isExcused || currentSitOutRequest?.status === "pending"
     ? null
@@ -4363,8 +4365,8 @@ const TodayPage = ({user,currentGroupId,groups,logs,excused,monthHistory,saving,
           )
         ),
         React.createElement(Card,{style:{padding:15}},
-          React.createElement('span',{className:"lbl"},"Competition Status"),
-          React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10}},
+          React.createElement('span',{className:"lbl"},"Month Status"),
+          React.createElement('div',{style:{display:"grid",gridTemplateColumns:"minmax(0,1fr)",gap:12}},
             competitionStatusBody,
             competitionAction
           )
@@ -4377,7 +4379,7 @@ const TodayPage = ({user,currentGroupId,groups,logs,excused,monthHistory,saving,
   return React.createElement(React.Fragment,null,
     showLog&&React.createElement(LogModal,{user,currentGroupId,groups,onConfirm:doLog,onClose:()=>setShowLog(false)}),
     deleteTarget && React.createElement(DeleteModal,{log:deleteTarget,onClose:()=>setDeleteTarget(null),onConfirm:async()=>{ const logId = deleteTarget.id; setDeleteTarget(null); await onLogMutation({action:"delete-log",groupId:currentGroupId,actor:user,logId}); }}),
-    showExcuse && sitOutMode && React.createElement(SitOutModal,{mode:sitOutMode,monthName:monthSummary ? MONTH_NAMES[monthSummary.month] : MONTH_NAMES[CUR_MONTH],adminName:sitOutApproverName,onClose:()=>{setShowExcuse(false);setSitOutError("");},onSubmit:submitSitOut,submitting:sitOutSubmitting,error:sitOutError}),
+    showExcuse && sitOutMode && React.createElement(SitOutModal,{mode:sitOutMode,monthName:monthSummary ? MONTH_NAMES[monthSummary.month] : MONTH_NAMES[CUR_MONTH],onClose:()=>{setShowExcuse(false);setSitOutError("");},onSubmit:submitSitOut,submitting:sitOutSubmitting,error:sitOutError}),
     mobileView,
     desktopView
   );
