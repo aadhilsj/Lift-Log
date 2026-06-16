@@ -1295,6 +1295,34 @@ async function fetchAnteBlocs() {
   }
 }
 
+async function fetchAnteSeasonOverrides() {
+  try {
+    const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_season_overrides", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({})
+    });
+    const rows = await response.json();
+    if (!Array.isArray(rows) || rows.length === 0) return null;
+    return rows.reduce((acc, row) => {
+      const legacyGroupKey = typeof row?.legacy_group_key === "string" ? row.legacy_group_key : "";
+      const monthKey = typeof row?.month_key === "string" ? row.month_key : "";
+      if (!legacyGroupKey || !monthKey) return acc;
+      if (!acc[legacyGroupKey]) acc[legacyGroupKey] = {};
+      acc[legacyGroupKey][monthKey] = {
+        prorated: !!row?.prorated,
+        proratedMas: row?.prorated_mas ?? null,
+        chosenAt: row?.chosen_at || null,
+        chosenBy: row?.chosen_by || null,
+        chosenByUserId: row?.chosen_by_user_id || null
+      };
+      return acc;
+    }, {});
+  } catch {
+    return null;
+  }
+}
+
 async function fetchAnteProfiles() {
   try {
     const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_profiles", {
@@ -1320,8 +1348,9 @@ async function fetchAnteProfiles() {
 }
 
 async function fetchReadableCurrentState() {
-  const anteProfilesPromise = fetchAnteProfiles();
-  const anteBlocsPromise    = fetchAnteBlocs();
+  const anteProfilesPromise        = fetchAnteProfiles();
+  const anteBlocsPromise           = fetchAnteBlocs();
+  const anteSeasonOverridesPromise = fetchAnteSeasonOverrides();
 
   // Projection read path removed: read_lift_log_projection RPC timed out on
   // every call (~28-60s), causing loading screen hangs. All GETs read directly
@@ -1355,6 +1384,24 @@ async function fetchReadableCurrentState() {
             distanceUnit:          bloc.distance_unit          ?? group.settings?.distanceUnit,
             stravaEnabled:         bloc.strava_enabled         ?? group.settings?.stravaEnabled,
             acceptedWorkoutTypes:  bloc.accepted_workout_types ?? group.settings?.acceptedWorkoutTypes
+          })
+        }];
+      })
+    );
+    state = { ...state, groups: overlaidGroups };
+  }
+
+  const anteSeasonOverrides = await anteSeasonOverridesPromise;
+  if (anteSeasonOverrides && Object.keys(anteSeasonOverrides).length > 0) {
+    const overlaidGroups = Object.fromEntries(
+      Object.entries(state.groups || {}).map(([groupId, group]) => {
+        const overrides = anteSeasonOverrides[groupId];
+        if (!overrides) return [groupId, group];
+        return [groupId, {
+          ...group,
+          seasonOverrides: normalizeSeasonOverrides({
+            ...(group.seasonOverrides || {}),
+            ...overrides
           })
         }];
       })
