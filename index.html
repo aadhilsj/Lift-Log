@@ -3606,6 +3606,7 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
   const isAdmin = group?.adminName === currentUser;
   const approvedFlagCount = countApprovedFlagsForActor(group, currentUser);
   const cannotFlagMore = approvedFlagCount >= 3;
+  const compactFeed = isMobile();
   useEffect(()=>{
     if (!reactionPopover) return;
     const handlePointerDown = event => {
@@ -3690,7 +3691,7 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
                   React.createElement('div',{style:{height:1,flex:1,background:"rgba(78,205,196,.18)"}})
                 ),
                 React.createElement('div',{style:{
-                  border:`0.5px solid ${post.flagStatus==="flagged"?"rgba(232,69,69,.35)":"#0D2E2E"}`,
+                  border:`0.5px solid ${post.flagStatus==="flagged"?"rgba(232,69,69,.35)":"#103434"}`,
                   borderRadius:10,
                   background:"#080F0F",
                   overflow:"hidden"
@@ -3703,7 +3704,7 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
                           React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,minWidth:0,whiteSpace:"nowrap"}},
                             React.createElement('div',{style:{display:"flex",alignItems:"center",gap:7,minWidth:0,flex:1}},
                               React.createElement(Avatar,{name:post.owner,size:28}),
-                              React.createElement('span',{style:{fontWeight:600,fontSize:13,color:"#fff",minWidth:0,overflow:"hidden",textOverflow:"ellipsis",flex:1}},post.owner),
+                              React.createElement('span',{style:{fontWeight:600,fontSize:13,color:"#fff",minWidth:0,overflow:"hidden",textOverflow:"ellipsis",flex:"0 1 auto",maxWidth:hasThumbnail?(compactFeed?96:180):(compactFeed?116:220)}},post.owner),
                               React.createElement('span',{style:{display:"inline-flex",alignItems:"center",gap:4,color:"var(--muted)",fontSize:11.5,flexShrink:0}},
                                 React.createElement('span',{style:{display:"inline-flex",alignItems:"center",justifyContent:"center",color:"var(--cyan)",width:14}},categoryIcon),
                                 React.createElement('span',null,post.type)
@@ -3743,7 +3744,7 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
                     React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,minWidth:0}},
                       React.createElement('div',{style:{display:"flex",alignItems:"center",gap:7,minWidth:0,flex:1}},
                         React.createElement(Avatar,{name:post.owner,size:22}),
-                        React.createElement('span',{style:{fontWeight:600,fontSize:13,color:"#fff",minWidth:0,overflow:"hidden",textOverflow:"ellipsis",flex:1}},post.owner),
+                        React.createElement('span',{style:{fontWeight:600,fontSize:13,color:"#fff",minWidth:0,overflow:"hidden",textOverflow:"ellipsis",flex:"0 1 auto",maxWidth:compactFeed?116:220}},post.owner),
                         React.createElement('span',{style:{display:"inline-flex",alignItems:"center",gap:4,color:"var(--muted)",fontSize:11.5,flexShrink:0}},
                           React.createElement('span',{style:{display:"inline-flex",alignItems:"center",justifyContent:"center",color:"var(--cyan)",width:14}},categoryIcon),
                           React.createElement('span',null,post.type)
