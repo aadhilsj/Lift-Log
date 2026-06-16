@@ -661,9 +661,11 @@ function getCreatorMonthContext(group, displayName, monthKey, settingsOverride =
 
 function getEffectiveJoinedMonthForMember(group, displayName, monthKey, settingsOverride = null) {
   const explicitJoinedMonth = group?.joinedMonthByName?.[displayName];
+  const membership = Object.values(group?.memberships || {}).find(entry => entry?.displayName === displayName) || null;
   const creatorContext = getCreatorMonthContext(group, displayName, monthKey, settingsOverride);
   if (creatorContext && explicitJoinedMonth === monthKey) return null;
   if (explicitJoinedMonth) return explicitJoinedMonth;
+  if (shouldInferJoinedMonthFromMembership(group, displayName, monthKey, membership, settingsOverride)) return monthKey;
   return null;
 }
 
@@ -748,6 +750,32 @@ function compareMonthKeys(a, b) {
   const [by, bm] = b.split("-").map(Number);
   if (ay !== by) return ay - by;
   return am - bm;
+}
+
+function hasParticipationBeforeMonth(group, displayName, monthKey) {
+  if (!group || !displayName || !monthKey) return false;
+  const currentMonthLogs = Array.isArray(group?.logs?.[displayName]) ? group.logs[displayName] : [];
+  if (currentMonthLogs.some(log => {
+    const logMonthKey = getMonthKeyFromISO(log?.date);
+    return logMonthKey && compareMonthKeys(logMonthKey, monthKey) < 0;
+  })) return true;
+  return (group?.monthHistory || []).some(month => {
+    if (!month?.key || compareMonthKeys(month.key, monthKey) >= 0) return false;
+    if ((month?.counts?.[displayName] || 0) > 0) return true;
+    if ((month?.logsByUser?.[displayName] || []).length > 0) return true;
+    if (month?.excused?.[displayName]) return true;
+    if (month?.settlements?.[displayName]) return true;
+    if (Object.prototype.hasOwnProperty.call(month?.memberTargets || {}, displayName)) return true;
+    return false;
+  });
+}
+
+function shouldInferJoinedMonthFromMembership(group, displayName, monthKey, membership, settingsOverride = null) {
+  if (!membership?.joinedAt) return false;
+  const timeZone = settingsOverride?.timeZone || group?.settings?.timeZone || DEFAULT_GROUP_TIME_ZONE;
+  const joinedSummary = getLeagueMonthSummaryForTimestamp(membership.joinedAt, timeZone);
+  if (!joinedSummary || joinedSummary.monthKey !== monthKey) return false;
+  return !hasParticipationBeforeMonth(group, displayName, monthKey);
 }
 
 function isJoinedForMonth(joinedMonthByName, name, monthKey) {
@@ -2452,11 +2480,13 @@ function applyJoinGroup(current, payload) {
     error.status = 403;
     throw error;
   }
-  // Only record a join month for members who are genuinely new to this Bloc.
-  // If the display name already exists in memberOrder (legacy name-only member
-  // linking their account), leave joinedMonthByName untouched so their full
-  // participation history remains valid.
+  // Record a join month for genuinely new members, including placeholder names
+  // that were pre-seeded into memberOrder but had not actually participated yet.
+  // Preserve joinedMonthByName only for true legacy relinks that already have
+  // participation history before this month.
   const isNewToMemberOrder = !group.memberOrder.includes(profile.displayName);
+  const joinMonthKey = getLeagueMonthKey(group.settings?.timeZone);
+  const shouldRecordJoinMonth = isNewToMemberOrder || !hasParticipationBeforeMonth(group, profile.displayName, joinMonthKey);
   // If this member was previously kicked or left, remove them from leftMemberNames
   // so normalizeGroup doesn't immediately filter them back out.
   const nextLeftMemberNames = (Array.isArray(group.leftMemberNames) ? group.leftMemberNames : [])
@@ -2464,8 +2494,8 @@ function applyJoinGroup(current, payload) {
   const nextGroup = normalizeGroup({
     ...group,
     memberOrder: uniqueNames([...group.memberOrder, profile.displayName]),
-    joinedMonthByName: isNewToMemberOrder
-      ? { ...(group.joinedMonthByName || {}), [profile.displayName]: getLeagueMonthKey(group.settings?.timeZone) }
+    joinedMonthByName: shouldRecordJoinMonth
+      ? { ...(group.joinedMonthByName || {}), [profile.displayName]: joinMonthKey }
       : (group.joinedMonthByName || {}),
     memberships: {
       ...(group.memberships || {}),
