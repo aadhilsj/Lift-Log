@@ -16,10 +16,10 @@ const DEFAULT_MEMBER_NAMES = ["Aadhil", "Isira", "Rahul", "Kisal", "Rishane", "D
 const DEFAULT_JOINED_MONTH_BY_NAME = { Abhishek: "2026-4" };
 const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-const [, , inputPathArg, outputDirArg] = process.argv;
+const [, , inputPathArg, outputDirArg, canonicalProfilesPathArg, canonicalBlocsPathArg] = process.argv;
 
 if (!inputPathArg) {
-  console.error("Usage: node scripts/state-to-canonical.mjs <input.json> [output-dir]");
+  console.error("Usage: node scripts/state-to-canonical.mjs <input.json> [output-dir] [canonical-profiles.json] [canonical-blocs.json]");
   process.exit(1);
 }
 
@@ -50,6 +50,40 @@ const tables = {
 
 const warnings = [];
 
+// Canonical profile resolution maps.
+// Populated from a live ante_core.profiles export when provided as the third CLI argument.
+// Keys: email (lowercase) -> canonical profiles.id
+//       auth_user_id (string) -> canonical profiles.id
+// When present these take precedence over blob-derived or stableUuid-derived IDs so that
+// all generated profile_id FK references point to the IDs already in the database.
+const canonicalIdByEmail = new Map();
+const canonicalIdByAuthUserId = new Map();
+
+if (canonicalProfilesPathArg) {
+  const canonicalProfilesPath = path.resolve(canonicalProfilesPathArg);
+  const canonicalProfiles = JSON.parse(fs.readFileSync(canonicalProfilesPath, "utf8"));
+  for (const row of canonicalProfiles) {
+    if (row.email) canonicalIdByEmail.set(String(row.email).trim().toLowerCase(), row.id);
+    if (row.auth_user_id) canonicalIdByAuthUserId.set(String(row.auth_user_id).trim(), row.id);
+  }
+}
+
+// Canonical bloc resolution map.
+// Populated from a live ante_core.blocs export when provided as the fourth CLI argument.
+// Key: legacy_group_key -> canonical blocs.id
+// When present, ensures all generated bloc_id FK references — and all downstream IDs
+// derived from blocId (season IDs, bloc_members IDs, etc.) — use the actual canonical
+// bloc ID already in the database rather than a stableUuid-derived value.
+const canonicalBlocIdByLegacyKey = new Map();
+
+if (canonicalBlocsPathArg) {
+  const canonicalBlocsPath = path.resolve(canonicalBlocsPathArg);
+  const canonicalBlocs = JSON.parse(fs.readFileSync(canonicalBlocsPath, "utf8"));
+  for (const row of canonicalBlocs) {
+    if (row.legacy_group_key) canonicalBlocIdByLegacyKey.set(String(row.legacy_group_key).trim(), row.id);
+  }
+}
+
 const profileByLegacyKey = new Map();
 const profileByEmail = new Map();
 const profileByDisplayName = new Map();
@@ -61,7 +95,10 @@ for (const profile of Object.values(inputState.profiles || {})) {
   const legacyKey = String(profile.id || "").trim();
   const email = String(profile.email || "").trim().toLowerCase();
   const displayName = String(profile.displayName || "").trim();
-  const canonicalId = isUuid(legacyKey) ? legacyKey : stableUuid("profile", email || legacyKey || displayName);
+  const canonicalId =
+    canonicalIdByEmail.get(email) ||
+    (isUuid(legacyKey) ? canonicalIdByAuthUserId.get(legacyKey) : null) ||
+    stableUuid("profile", email || legacyKey || displayName);
   tables.profiles.push({
     id: canonicalId,
     auth_user_id: isUuid(legacyKey) ? legacyKey : "",
@@ -88,7 +125,7 @@ for (const [email, otp] of Object.entries(inputState.pendingOtps || {})) {
 }
 
 for (const group of Object.values(inputState.groups || {})) {
-  const blocId = stableUuid("bloc", group.id);
+  const blocId = canonicalBlocIdByLegacyKey.get(group.id) || stableUuid("bloc", group.id);
   blocIdByLegacyKey.set(group.id, blocId);
   const adminProfileId = resolveProfileId({
     legacyUserKey: group.adminUserId,
@@ -448,7 +485,9 @@ function resolveProfileId({ legacyUserKey = "", email = "", displayName = "" }) 
   const normalizedLegacy = String(legacyUserKey || "").trim();
   const normalizedEmail = String(email || "").trim().toLowerCase();
   const normalizedDisplay = String(displayName || "").trim();
-  return profileByLegacyKey.get(normalizedLegacy)
+  return canonicalIdByEmail.get(normalizedEmail)
+    || canonicalIdByAuthUserId.get(normalizedLegacy)
+    || profileByLegacyKey.get(normalizedLegacy)
     || profileByEmail.get(normalizedEmail)
     || profileByDisplayName.get(normalizedDisplay)
     || "";

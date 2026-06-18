@@ -2476,8 +2476,97 @@ function applyUpsertProfile(current, payload) {
   }
   const base = rolloverStateIfNeeded(current);
   const existing = base.profiles?.[userId] || {};
+  const groups = base.groups || {};
+
+  // Determine the old display name for each group this user is part of.
+  // Primary source: memberships[userId].displayName — the authoritative record
+  // for what name is currently keyed into group state for auth-linked members.
+  // Fallback: existing.displayName (the pre-rename profile name) when no
+  // memberships[userId] row exists yet — this covers legacy members present only
+  // via memberOrder who have not yet had their membership record wired, and is
+  // the same condition migrateAuthIdentity uses to wire a missing membership on
+  // login. Note: if existing.displayName has already been changed to the new
+  // name in a prior partial update, neither source can recover the old name;
+  // those cases require a separate one-time repair.
+  const resolveOldName = (group) => {
+    const fromMembership = group.memberships?.[userId]?.displayName || null;
+    if (fromMembership) return fromMembership;
+    const fromProfile = (existing.displayName && group.memberOrder?.includes(existing.displayName))
+      ? existing.displayName
+      : null;
+    return fromProfile;
+  };
+
+  const oldNames = new Map(
+    Object.entries(groups)
+      .map(([groupId, group]) => [groupId, resolveOldName(group)])
+      .filter(([, name]) => name !== null)
+  );
+
+  const isRename = [...oldNames.values()].some(oldName => oldName !== displayName);
+
+  let nextGroups = groups;
+
+  if (isRename) {
+    // Reject if the new name collides with a different existing member in any bloc.
+    for (const [groupId, group] of Object.entries(groups)) {
+      const oldName = oldNames.get(groupId);
+      if (!oldName || oldName === displayName) continue;
+      if (group.memberOrder.includes(displayName)) {
+        const error = new Error(`That name is already taken in ${group.name || "a Bloc"}`);
+        error.status = 409;
+        throw error;
+      }
+    }
+
+    nextGroups = Object.fromEntries(
+      Object.entries(groups).map(([groupId, group]) => {
+        const oldName = oldNames.get(groupId);
+        if (!oldName || oldName === displayName) return [groupId, group];
+
+        const nextMemberOrder = group.memberOrder.map(n => n === oldName ? displayName : n);
+
+        const nextMemberships = {
+          ...group.memberships,
+          [userId]: { ...group.memberships[userId], displayName }
+        };
+
+        const nextAdminName = group.adminName === oldName ? displayName : group.adminName;
+
+        const nextMonthHistory = (Array.isArray(group.monthHistory) ? group.monthHistory : []).map(month => ({
+          ...month,
+          counts:      renameKey(month.counts      || {}, oldName, displayName),
+          excused:     renameKey(month.excused     || {}, oldName, displayName),
+          logsByUser:  renameKey(month.logsByUser  || {}, oldName, displayName),
+          settlements: renameKey(month.settlements || {}, oldName, displayName),
+          ...(month.memberTargets ? { memberTargets: renameKey(month.memberTargets, oldName, displayName) } : {})
+        }));
+
+        const nextSitOutRequests = Object.fromEntries(
+          Object.entries(group.sitOutRequests || {}).map(([monthKey, requests]) => [
+            monthKey,
+            renameKey(requests || {}, oldName, displayName)
+          ])
+        );
+
+        return [groupId, normalizeGroup({
+          ...group,
+          memberOrder:       nextMemberOrder,
+          memberships:       nextMemberships,
+          adminName:         nextAdminName,
+          logs:              renameKey(group.logs              || {}, oldName, displayName),
+          excused:           renameKey(group.excused           || {}, oldName, displayName),
+          joinedMonthByName: renameKey(group.joinedMonthByName || {}, oldName, displayName),
+          sitOutRequests:    nextSitOutRequests,
+          monthHistory:      nextMonthHistory
+        })];
+      })
+    );
+  }
+
   return {
     ...base,
+    groups: nextGroups,
     profiles: {
       ...(base.profiles || {}),
       [userId]: {
@@ -2491,6 +2580,101 @@ function applyUpsertProfile(current, payload) {
       revision: base.meta.revision + 1,
       updatedAt: new Date().toISOString()
     }
+  };
+}
+
+function applyRepairDisplayName(current, payload) {
+  const adminPin = process.env.ADMIN_PIN;
+  if (!adminPin) {
+    const error = new Error("ADMIN_PIN is not configured");
+    error.status = 500;
+    throw error;
+  }
+  if (payload?.pin !== adminPin) {
+    const error = new Error("Invalid admin PIN");
+    error.status = 401;
+    throw error;
+  }
+
+  const userId  = String(payload?.userId  || "").trim();
+  const groupId = String(payload?.groupId || "").trim();
+  const oldName = String(payload?.oldName || "").trim();
+  const newName = String(payload?.newName || "").trim();
+  if (!userId || !groupId || !oldName || !newName) {
+    const error = new Error("userId, groupId, oldName, and newName are required");
+    error.status = 400;
+    throw error;
+  }
+
+  const base  = rolloverStateIfNeeded(current);
+  const group = base.groups?.[groupId];
+  if (!group) {
+    const error = new Error("Bloc not found");
+    error.status = 404;
+    throw error;
+  }
+  if (!group.memberOrder.includes(oldName)) {
+    const error = new Error(`"${oldName}" is not in memberOrder for this Bloc`);
+    error.status = 400;
+    throw error;
+  }
+  if (group.memberOrder.includes(newName) && newName !== oldName) {
+    const error = new Error(`"${newName}" is already taken in this Bloc`);
+    error.status = 409;
+    throw error;
+  }
+
+  const nextMemberOrder = group.memberOrder.map(n => n === oldName ? newName : n);
+
+  const nextMemberships = group.memberships?.[userId]
+    ? { ...group.memberships, [userId]: { ...group.memberships[userId], displayName: newName } }
+    : group.memberships;
+
+  const nextAdminName = group.adminName === oldName ? newName : group.adminName;
+
+  const nextMonthHistory = (Array.isArray(group.monthHistory) ? group.monthHistory : []).map(month => ({
+    ...month,
+    counts:      renameKey(month.counts      || {}, oldName, newName),
+    excused:     renameKey(month.excused     || {}, oldName, newName),
+    logsByUser:  renameKey(month.logsByUser  || {}, oldName, newName),
+    settlements: renameKey(month.settlements || {}, oldName, newName),
+    ...(month.memberTargets ? { memberTargets: renameKey(month.memberTargets, oldName, newName) } : {})
+  }));
+
+  const nextSitOutRequests = Object.fromEntries(
+    Object.entries(group.sitOutRequests || {}).map(([monthKey, requests]) => [
+      monthKey,
+      renameKey(requests || {}, oldName, newName)
+    ])
+  );
+
+  const nextGroup = normalizeGroup({
+    ...group,
+    memberOrder:       nextMemberOrder,
+    memberships:       nextMemberships,
+    adminName:         nextAdminName,
+    logs:              renameKey(group.logs              || {}, oldName, newName),
+    excused:           renameKey(group.excused           || {}, oldName, newName),
+    joinedMonthByName: renameKey(group.joinedMonthByName || {}, oldName, newName),
+    sitOutRequests:    nextSitOutRequests,
+    monthHistory:      nextMonthHistory
+  });
+
+  // Optionally update the profile display name (used when the profile itself
+  // also needs correction, e.g. "Giang gangster" → "Giang").
+  const profileDisplayName = String(payload?.profileDisplayName || "").trim();
+  const nextProfiles = profileDisplayName
+    ? {
+        ...(base.profiles || {}),
+        [userId]: { ...(base.profiles?.[userId] || {}), displayName: profileDisplayName }
+      }
+    : (base.profiles || {});
+
+  return {
+    ...base,
+    groups:   { ...base.groups,   [groupId]: nextGroup },
+    profiles: nextProfiles,
+    meta: { revision: base.meta.revision + 1, updatedAt: new Date().toISOString() }
   };
 }
 
@@ -3209,6 +3393,18 @@ export default async function handler(req, res) {
         return res.status(200).json({ ok: true, state: persisted });
       }
 
+      if (payload?.action === "repair-display-name") {
+        const updated = applyRepairDisplayName(current, payload);
+        const persisted = await persistState(updated, `repair-display-name:${payload.groupId}:${payload.oldName}:${payload.newName}`);
+        // Best-effort canonical member sync for the renamed user.
+        const repairedGroup = persisted.groups?.[payload.groupId];
+        if (repairedGroup && payload.userId) {
+          syncBlocMemberToCanonical(repairedGroup, payload.userId, repairedGroup.memberships?.[payload.userId]?.role || "member")
+            .catch(err => console.error(`Canonical member sync failed (repair-display-name ${payload.groupId}):`, err?.message || err));
+        }
+        return res.status(200).json({ ok: true, state: persisted });
+      }
+
       return res.status(400).json({ error: "Unsupported POST action" });
     }
 
@@ -3221,6 +3417,13 @@ export default async function handler(req, res) {
       details: error instanceof Error ? error.message : String(error)
     });
   }
+}
+
+function renameKey(obj, oldKey, newKey) {
+  if (!oldKey || oldKey === newKey || !Object.prototype.hasOwnProperty.call(obj, oldKey)) return obj;
+  const next = { ...obj, [newKey]: obj[oldKey] };
+  delete next[oldKey];
+  return next;
 }
 
 function uniqueNames(values) {
