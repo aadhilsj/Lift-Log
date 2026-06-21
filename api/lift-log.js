@@ -1347,10 +1347,73 @@ async function fetchAnteProfiles() {
   }
 }
 
+async function fetchAnteBlocMembers() {
+  try {
+    const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_bloc_members", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({})
+    });
+    const rows = await response.json();
+    if (!Array.isArray(rows) || rows.length === 0) return null;
+    // Group by legacy_group_key for O(1) lookup in the overlay.
+    return rows.reduce((acc, row) => {
+      const key = typeof row?.legacy_group_key === "string" ? row.legacy_group_key : "";
+      if (!key || !row?.auth_user_id) return acc;
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(row);
+      return acc;
+    }, {});
+  } catch {
+    return null;
+  }
+}
+
+async function fetchAnteCurrentLogs() {
+  try {
+    const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_current_logs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({})
+    });
+    const rows = await response.json();
+    if (!Array.isArray(rows) || rows.length === 0) return null;
+    // Group rows by legacy_group_key. Each row retains ownerDisplayName so the
+    // overlay can index by name when building the per-member logs map.
+    return rows.reduce((acc, row) => {
+      const key = typeof row?.legacy_group_key === "string" ? row.legacy_group_key : "";
+      if (!key) return acc;
+      if (!acc[key]) acc[key] = [];
+      acc[key].push({
+        ownerDisplayName: row.owner_display_name,
+        id:               row.id,
+        type:             row.workout_type,
+        date:             row.workout_date,
+        note:             row.note,
+        photoUrl:         row.photo_url,
+        createdAt:        row.created_at,
+        verifiedVia:      row.verified_via,
+        flagStatus:       row.flag_status   || null,
+        flagReason:       row.flag_reason   || "",
+        flagResponse:     row.flag_response || "",
+        flaggedBy:        row.flagged_by    || null,
+        decisionBy:       row.decision_by   || null,
+        decisionAt:       row.decision_at   || null,
+        reactions:        row.reactions     || {}
+      });
+      return acc;
+    }, {});
+  } catch {
+    return null;
+  }
+}
+
 async function fetchReadableCurrentState() {
   const anteProfilesPromise        = fetchAnteProfiles();
   const anteBlocsPromise           = fetchAnteBlocs();
   const anteSeasonOverridesPromise = fetchAnteSeasonOverrides();
+  const anteBlocMembersPromise     = fetchAnteBlocMembers();
+  const anteCurrentLogsPromise     = fetchAnteCurrentLogs();
 
   // Projection read path removed: read_lift_log_projection RPC timed out on
   // every call (~28-60s), causing loading screen hangs. All GETs read directly
@@ -1404,6 +1467,77 @@ async function fetchReadableCurrentState() {
             ...overrides
           })
         }];
+      })
+    );
+    state = { ...state, groups: overlaidGroups };
+  }
+
+  const anteBlocMembers = await anteBlocMembersPromise;
+  if (anteBlocMembers && Object.keys(anteBlocMembers).length > 0) {
+    const overlaidGroups = Object.fromEntries(
+      Object.entries(state.groups || {}).map(([groupId, group]) => {
+        const members = anteBlocMembers[groupId];
+        if (!members || members.length === 0) return [groupId, group];
+        // Only overlay canonical rows whose auth_user_id already exists as a key
+        // in the blob memberships map. This mirrors the profiles overlay guard and
+        // prevents a canonical active row from resurrecting a member who was kicked
+        // from the blob but whose canonical soft-delete (left_at) failed silently.
+        const blobMembershipKeys = new Set(Object.keys(group.memberships || {}));
+        const overlaidMemberships = { ...(group.memberships || {}) };
+        const overlaidJoinedMonthByName = { ...(group.joinedMonthByName || {}) };
+        for (const m of members) {
+          if (!blobMembershipKeys.has(m.auth_user_id)) continue;
+          overlaidMemberships[m.auth_user_id] = {
+            userId:      m.auth_user_id,
+            displayName: m.display_name,
+            role:        m.role,
+            joinedAt:    m.joined_at || null
+          };
+          if (m.joined_month_key) overlaidJoinedMonthByName[m.display_name] = m.joined_month_key;
+        }
+        // Derive adminUserId and adminName from the canonical admin row, but only
+        // when that row also passed the blob-key guard (confirmed in overlaidMemberships).
+        const canonicalAdminRow = members.find(m => m.role === "admin" && overlaidMemberships[m.auth_user_id]);
+        return [groupId, {
+          ...group,
+          memberships:        overlaidMemberships,
+          joinedMonthByName:  overlaidJoinedMonthByName,
+          adminUserId: canonicalAdminRow ? canonicalAdminRow.auth_user_id : group.adminUserId,
+          adminName:   canonicalAdminRow ? canonicalAdminRow.display_name  : group.adminName
+        }];
+      })
+    );
+    state = { ...state, groups: overlaidGroups };
+  }
+
+  // Overlay canonical current-month logs onto each blob-backed group.
+  // The overlay keys group.logs by exactly the names in group.memberOrder —
+  // no new names are introduced and no normalization pass is assumed after
+  // this point. Members in memberOrder with no canonical logs get [].
+  // Canonical log owners not in memberOrder are silently dropped (name-drift
+  // guard; hard gate confirmed zero drift before this slice landed).
+  // If the fetch fails or returns null, blob logs are preserved unchanged.
+  const anteCurrentLogs = await anteCurrentLogsPromise;
+  if (anteCurrentLogs && Object.keys(anteCurrentLogs).length > 0) {
+    const overlaidGroups = Object.fromEntries(
+      Object.entries(state.groups || {}).map(([groupId, group]) => {
+        const canonicalLogs = anteCurrentLogs[groupId];
+        if (!canonicalLogs || canonicalLogs.length === 0) return [groupId, group];
+        // Index canonical logs by ownerDisplayName for O(1) lookup below.
+        const byOwner = {};
+        for (const log of canonicalLogs) {
+          const name = log.ownerDisplayName;
+          if (!byOwner[name]) byOwner[name] = [];
+          byOwner[name].push(log);
+        }
+        // Build the logs map keyed by memberOrder names only.
+        const overlaidLogs = Object.fromEntries(
+          (group.memberOrder || []).map(name => [
+            name,
+            (byOwner[name] || []).map(normalizeLogEntry)
+          ])
+        );
+        return [groupId, { ...group, logs: overlaidLogs }];
       })
     );
     state = { ...state, groups: overlaidGroups };
@@ -3144,6 +3278,16 @@ export default async function handler(req, res) {
         // Dual-write to canonical. applyUpsertProfile already validated that
         // displayName is non-empty, so this call is always safe to fire here.
         await syncProfileToCanonical(auth.user.id, auth.user.email, String(payload?.displayName || "").trim());
+        // Sync display_name_snapshot in bloc_members for every group this user is
+        // a member of. Covers the rename case: applyUpsertProfile propagated the
+        // new name through the blob but the canonical snapshot was not updated.
+        // Best-effort — never throws; failures are logged and do not affect the response.
+        for (const [, group] of Object.entries(persisted.groups || {})) {
+          if (!group.memberships?.[auth.user.id]) continue;
+          const memberRole = group.memberships[auth.user.id].role || "member";
+          syncBlocMemberToCanonical(group, auth.user.id, memberRole)
+            .catch(err => console.error(`Canonical bloc member sync failed (upsert-profile ${auth.user.id}):`, err?.message || err));
+        }
         return res.status(200).json(persisted);
       }
 
