@@ -1627,12 +1627,10 @@ async function fetchReadableCurrentState() {
           };
           if (m.joined_month_key) overlaidJoinedMonthByName[m.display_name] = m.joined_month_key;
         }
-        // Reconstruct memberOrder conservatively from canonical sort_order.
-        // Only auth-linked canonical rows that already exist in the blob
-        // memberships map AND have a non-null sort_order participate in the
-        // canonical prefix. Any uncovered blob names (including legacy/profile-
-        // less members and rows with null canonical sort_order) retain their
-        // original blob order and are appended unchanged.
+        // Reconstruct memberOrder from canonical sort_order, but only promote
+        // canonical authority when it fully covers the blob's active auth-linked
+        // memberships. Blob-only legacy/profile-less names still survive via
+        // fallback so edge-case rows are not dropped.
         const canonicalOrderedNames = uniqueNames(
           members
             .filter(m =>
@@ -1644,8 +1642,25 @@ async function fetchReadableCurrentState() {
             .sort((a, b) => a.sort_order - b.sort_order)
             .map(m => m.display_name)
         );
+        const activeBlobMembershipNames = uniqueNames(
+          Object.entries(group.memberships || {})
+            .filter(([userId, membership]) =>
+              blobMembershipKeys.has(userId) &&
+              typeof membership?.displayName === "string" &&
+              membership.displayName
+            )
+            .map(([, membership]) => membership.displayName)
+        );
         const coveredNames = new Set(canonicalOrderedNames);
-        const residualBlobNames = blobMemberOrder.filter(name => !coveredNames.has(name));
+        const canonicalCoversActiveMemberships =
+          activeBlobMembershipNames.length > 0 &&
+          activeBlobMembershipNames.every(name => coveredNames.has(name));
+        const activeBlobMembershipNameSet = new Set(activeBlobMembershipNames);
+        const residualBlobNames = blobMemberOrder.filter(name => {
+          if (coveredNames.has(name)) return false;
+          if (!canonicalCoversActiveMemberships) return true;
+          return !activeBlobMembershipNameSet.has(name);
+        });
         const nextMemberOrder = uniqueNames([...canonicalOrderedNames, ...residualBlobNames]);
         // Derive adminUserId and adminName from the canonical admin row, but only
         // when that row also passed the blob-key guard (confirmed in overlaidMemberships).
