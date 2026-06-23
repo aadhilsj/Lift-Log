@@ -1596,6 +1596,7 @@ async function fetchReadableCurrentState() {
         // prevents a canonical active row from resurrecting a member who was kicked
         // from the blob but whose canonical soft-delete (left_at) failed silently.
         const blobMembershipKeys = new Set(Object.keys(group.memberships || {}));
+        const blobMemberOrder = Array.isArray(group.memberOrder) ? group.memberOrder : [];
         const overlaidMemberships = { ...(group.memberships || {}) };
         const overlaidJoinedMonthByName = { ...(group.joinedMonthByName || {}) };
         for (const m of members) {
@@ -1608,11 +1609,32 @@ async function fetchReadableCurrentState() {
           };
           if (m.joined_month_key) overlaidJoinedMonthByName[m.display_name] = m.joined_month_key;
         }
+        // Reconstruct memberOrder conservatively from canonical sort_order.
+        // Only auth-linked canonical rows that already exist in the blob
+        // memberships map AND have a non-null sort_order participate in the
+        // canonical prefix. Any uncovered blob names (including legacy/profile-
+        // less members and rows with null canonical sort_order) retain their
+        // original blob order and are appended unchanged.
+        const canonicalOrderedNames = uniqueNames(
+          members
+            .filter(m =>
+              blobMembershipKeys.has(m.auth_user_id) &&
+              Number.isInteger(m.sort_order) &&
+              typeof m.display_name === "string" &&
+              m.display_name
+            )
+            .sort((a, b) => a.sort_order - b.sort_order)
+            .map(m => m.display_name)
+        );
+        const coveredNames = new Set(canonicalOrderedNames);
+        const residualBlobNames = blobMemberOrder.filter(name => !coveredNames.has(name));
+        const nextMemberOrder = uniqueNames([...canonicalOrderedNames, ...residualBlobNames]);
         // Derive adminUserId and adminName from the canonical admin row, but only
         // when that row also passed the blob-key guard (confirmed in overlaidMemberships).
         const canonicalAdminRow = members.find(m => m.role === "admin" && overlaidMemberships[m.auth_user_id]);
         return [groupId, {
           ...group,
+          memberOrder:       nextMemberOrder,
           memberships:        overlaidMemberships,
           joinedMonthByName:  overlaidJoinedMonthByName,
           adminUserId: canonicalAdminRow ? canonicalAdminRow.auth_user_id : group.adminUserId,

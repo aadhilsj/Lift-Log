@@ -12,7 +12,8 @@
 --     "display_name":      text,
 --     "role":              text,   -- 'admin' | 'member'
 --     "joined_at":         timestamptz|null,
---     "joined_month_key":  text|null
+--     "joined_month_key":  text|null,
+--     "sort_order":        integer|null
 --   }, ...]
 --
 -- Filters:
@@ -41,7 +42,8 @@ begin
         'display_name',     bm.display_name_snapshot,
         'role',             bm.role::text,
         'joined_at',        bm.joined_at,
-        'joined_month_key', bm.joined_month_key
+        'joined_month_key', bm.joined_month_key,
+        'sort_order',       bm.sort_order
       )
     ),
     '[]'::jsonb
