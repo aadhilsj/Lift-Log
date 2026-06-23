@@ -1538,9 +1538,14 @@ async function fetchReadableCurrentState() {
   // blob-backed groups. Only blocs whose legacy_group_key exists in the blob
   // are overlaid — prevents stale canonical rows from injecting phantom groups.
   // Blob is the fallback when a canonical row is absent or the RPC errors.
+  // Reconstruct top-level groupOrder conservatively from canonical sort_order:
+  // only blob-backed groups with non-null canonical sort_order participate in
+  // the canonical prefix; uncovered blob groups retain their original blob
+  // order and are appended unchanged. defaultGroupId remains blob-driven.
   const anteBlocs = await anteBlocsPromise;
   let state = baseState;
   if (anteBlocs && Object.keys(anteBlocs).length > 0) {
+    const blobGroupOrder = Array.isArray(state.groupOrder) ? state.groupOrder : [];
     const overlaidGroups = Object.fromEntries(
       Object.entries(state.groups || {}).map(([groupId, group]) => {
         const bloc = anteBlocs[groupId];
@@ -1564,7 +1569,20 @@ async function fetchReadableCurrentState() {
         }];
       })
     );
-    state = { ...state, groups: overlaidGroups };
+    const canonicalOrderedGroupIds = uniqueNames(
+      blobGroupOrder
+        .map(groupId => ({
+          groupId,
+          sortOrder: anteBlocs[groupId]?.sort_order
+        }))
+        .filter(entry => Number.isInteger(entry.sortOrder))
+        .sort((a, b) => a.sortOrder - b.sortOrder)
+        .map(entry => entry.groupId)
+    );
+    const coveredGroupIds = new Set(canonicalOrderedGroupIds);
+    const residualBlobGroupIds = blobGroupOrder.filter(groupId => !coveredGroupIds.has(groupId));
+    const nextGroupOrder = uniqueNames([...canonicalOrderedGroupIds, ...residualBlobGroupIds]);
+    state = { ...state, groups: overlaidGroups, groupOrder: nextGroupOrder };
   }
 
   const anteSeasonOverrides = await anteSeasonOverridesPromise;
