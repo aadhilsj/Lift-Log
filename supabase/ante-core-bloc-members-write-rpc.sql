@@ -28,7 +28,8 @@ create or replace function public.upsert_ante_core_bloc_member(
   p_display_name     text,
   p_role             text,
   p_joined_at        timestamptz,
-  p_joined_month_key text
+  p_joined_month_key text,
+  p_sort_order       integer default null
 )
 returns void
 language plpgsql
@@ -86,6 +87,7 @@ begin
     role,
     joined_at,
     joined_month_key,
+    sort_order,
     left_at,
     created_at
   )
@@ -96,6 +98,7 @@ begin
     v_role,
     p_joined_at,
     p_joined_month_key,
+    p_sort_order,
     null,          -- active membership: left_at is null
     now()
   )
@@ -105,6 +108,7 @@ begin
       role                  = excluded.role,
       joined_at             = excluded.joined_at,
       joined_month_key      = excluded.joined_month_key,
+      sort_order            = excluded.sort_order,
       -- Always clear left_at — handles re-joins cleanly.
       left_at               = null;
   -- created_at is intentionally not updated on conflict.
@@ -112,10 +116,10 @@ end;
 $$;
 
 -- Harden access.
-revoke execute on function public.upsert_ante_core_bloc_member(text, text, text, text, timestamptz, text) from public;
-revoke execute on function public.upsert_ante_core_bloc_member(text, text, text, text, timestamptz, text) from anon;
-revoke execute on function public.upsert_ante_core_bloc_member(text, text, text, text, timestamptz, text) from authenticated;
-grant  execute on function public.upsert_ante_core_bloc_member(text, text, text, text, timestamptz, text) to service_role;
+revoke execute on function public.upsert_ante_core_bloc_member(text, text, text, text, timestamptz, text, integer) from public;
+revoke execute on function public.upsert_ante_core_bloc_member(text, text, text, text, timestamptz, text, integer) from anon;
+revoke execute on function public.upsert_ante_core_bloc_member(text, text, text, text, timestamptz, text, integer) from authenticated;
+grant  execute on function public.upsert_ante_core_bloc_member(text, text, text, text, timestamptz, text, integer) to service_role;
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- 2. remove_ante_core_bloc_member

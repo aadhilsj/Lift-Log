@@ -998,7 +998,7 @@ async function syncSeasonToCanonical(group, monthKey, status, closedAt = null) {
   }
 }
 
-async function syncBlocToCanonical(group, adminUserId) {
+async function syncBlocToCanonical(group, adminUserId, sortOrder) {
   if (!group) return;
   try {
     await supabaseFetch("/rest/v1/rpc/upsert_ante_core_bloc", {
@@ -1018,7 +1018,8 @@ async function syncBlocToCanonical(group, adminUserId) {
         p_min_run_distance:       group.settings?.minRunDistance  ?? null,
         p_distance_unit:          group.settings?.distanceUnit   ?? null,
         p_strava_enabled:         group.settings?.stravaEnabled  ?? true,
-        p_accepted_workout_types: group.settings?.acceptedWorkoutTypes ?? []
+        p_accepted_workout_types: group.settings?.acceptedWorkoutTypes ?? [],
+        p_sort_order:             typeof sortOrder === "number" ? sortOrder : null
       })
     });
   } catch (err) {
@@ -1034,6 +1035,7 @@ async function syncBlocMemberToCanonical(group, authUserId, role) {
   if (!displayName) return;
   const joinedAt       = membership?.joinedAt || null;
   const joinedMonthKey = group.joinedMonthByName?.[displayName] || null;
+  const sortOrderIdx   = (group.memberOrder || []).indexOf(displayName);
   try {
     await supabaseFetch("/rest/v1/rpc/upsert_ante_core_bloc_member", {
       method: "POST",
@@ -1044,7 +1046,8 @@ async function syncBlocMemberToCanonical(group, authUserId, role) {
         p_display_name:     displayName,
         p_role:             role,
         p_joined_at:        joinedAt,
-        p_joined_month_key: joinedMonthKey
+        p_joined_month_key: joinedMonthKey,
+        p_sort_order:       sortOrderIdx >= 0 ? sortOrderIdx : null
       })
     });
   } catch (err) {
@@ -3605,7 +3608,7 @@ export default async function handler(req, res) {
         const created = applyCreateGroup(auth.state, { ...payload, actorUserId: auth.user.id, creatorName });
         const persisted = await persistState(created.state, `create-group:${created.createdGroupId}`);
         const newGroup = persisted.groups[created.createdGroupId];
-        await syncBlocToCanonical(newGroup, auth.user.id);
+        await syncBlocToCanonical(newGroup, auth.user.id, (persisted.groupOrder || []).indexOf(created.createdGroupId));
         await syncSeasonToCanonical(newGroup, newGroup?.lastMonth, "open");
         await syncBlocMemberToCanonical(newGroup, auth.user.id, "admin");
         return res.status(200).json({ state: persisted, createdGroupId: created.createdGroupId });
@@ -3716,7 +3719,7 @@ export default async function handler(req, res) {
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
         const updated = applyUpdateSettings(auth.state, { ...payload, actor, actorUserId: auth.user.id });
         const persisted = await persistState(updated, `settings:${payload.groupId}:${actor || auth.user.id}`);
-        await syncBlocToCanonical(persisted.groups[payload.groupId], auth.user.id);
+        await syncBlocToCanonical(persisted.groups[payload.groupId], auth.user.id, (persisted.groupOrder || []).indexOf(payload.groupId));
         await syncSeasonToCanonical(persisted.groups[payload.groupId], persisted.groups[payload.groupId]?.lastMonth, "open");
         return res.status(200).json(persisted);
       }

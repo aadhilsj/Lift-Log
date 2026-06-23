@@ -27,7 +27,8 @@ create or replace function public.upsert_ante_core_bloc(
   p_min_run_distance       integer,
   p_distance_unit          text,
   p_strava_enabled         boolean,
-  p_accepted_workout_types text[]
+  p_accepted_workout_types text[],
+  p_sort_order             integer default null
 )
 returns void
 language plpgsql
@@ -81,6 +82,7 @@ begin
     distance_unit,
     strava_enabled,
     accepted_workout_types,
+    sort_order,
     created_at,
     updated_at
   )
@@ -99,6 +101,7 @@ begin
     p_distance_unit,
     p_strava_enabled,
     coalesce(p_accepted_workout_types, '{}'),
+    p_sort_order,
     now(),
     now()
   )
@@ -120,13 +123,14 @@ begin
       distance_unit          = excluded.distance_unit,
       strava_enabled         = excluded.strava_enabled,
       accepted_workout_types = excluded.accepted_workout_types,
+      sort_order             = excluded.sort_order,
       -- Preserve original created_at; only bump updated_at.
       updated_at             = now();
 end;
 $$;
 
 -- Harden access: deny all by default, then grant narrowly.
-revoke execute on function public.upsert_ante_core_bloc(text, text, text, text, text, text, integer, integer, text, integer, integer, text, boolean, text[]) from public;
-revoke execute on function public.upsert_ante_core_bloc(text, text, text, text, text, text, integer, integer, text, integer, integer, text, boolean, text[]) from anon;
-revoke execute on function public.upsert_ante_core_bloc(text, text, text, text, text, text, integer, integer, text, integer, integer, text, boolean, text[]) from authenticated;
-grant  execute on function public.upsert_ante_core_bloc(text, text, text, text, text, text, integer, integer, text, integer, integer, text, boolean, text[]) to service_role;
+revoke execute on function public.upsert_ante_core_bloc(text, text, text, text, text, text, integer, integer, text, integer, integer, text, boolean, text[], integer) from public;
+revoke execute on function public.upsert_ante_core_bloc(text, text, text, text, text, text, integer, integer, text, integer, integer, text, boolean, text[], integer) from anon;
+revoke execute on function public.upsert_ante_core_bloc(text, text, text, text, text, text, integer, integer, text, integer, integer, text, boolean, text[], integer) from authenticated;
+grant  execute on function public.upsert_ante_core_bloc(text, text, text, text, text, text, integer, integer, text, integer, integer, text, boolean, text[], integer) to service_role;
