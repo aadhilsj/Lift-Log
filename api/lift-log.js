@@ -1408,6 +1408,46 @@ async function fetchAnteCurrentLogs() {
   }
 }
 
+async function fetchAnteMonthHistory() {
+  try {
+    const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_month_history", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({})
+    });
+    const rows = await response.json();
+    if (!Array.isArray(rows) || rows.length === 0) return null;
+    // Group closed-season entries by legacy_group_key.
+    return rows.reduce((acc, row) => {
+      const key = typeof row?.legacy_group_key === "string" ? row.legacy_group_key : "";
+      if (!key) return acc;
+      if (!acc[key]) acc[key] = [];
+      acc[key].push({
+        monthKey:              row.month_key,
+        label:                 row.label,
+        year:                  row.year,
+        monthIndex:            row.month_index,
+        // Settings fields passed through to buildNormalizedSettings in the overlay.
+        minTarget:             row.min_target,
+        fineAmount:            row.fine_amount,
+        feeModel:              row.fee_model,
+        escalationStepAmount:  row.escalation_step_amount ?? null,
+        currency:              row.currency,
+        minRunDistance:        row.min_run_distance,
+        distanceUnit:          row.distance_unit,
+        stravaEnabled:         !!row.strava_enabled,
+        timeZone:              row.time_zone,
+        acceptedWorkoutTypes:  Array.isArray(row.accepted_workout_types) ? row.accepted_workout_types : [],
+        members:               Array.isArray(row.members) ? row.members : [],
+        logs:                  Array.isArray(row.logs) ? row.logs : []
+      });
+      return acc;
+    }, {});
+  } catch {
+    return null;
+  }
+}
+
 async function fetchAnteCurrentExcusedAndSitouts() {
   try {
     const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_current_excused_and_sitouts", {
@@ -1483,6 +1523,7 @@ async function fetchReadableCurrentState() {
   const anteBlocMembersPromise     = fetchAnteBlocMembers();
   const anteCurrentLogsPromise     = fetchAnteCurrentLogs();
   const anteExcusedSitoutsPromise  = fetchAnteCurrentExcusedAndSitouts();
+  const anteMonthHistoryPromise    = fetchAnteMonthHistory();
 
   // Projection read path removed: read_lift_log_projection RPC timed out on
   // every call (~28-60s), causing loading screen hangs. All GETs read directly
@@ -1693,6 +1734,162 @@ async function fetchReadableCurrentState() {
         };
 
         return [groupId, nextGroup];
+      })
+    );
+    state = { ...state, groups: overlaidGroups };
+  }
+
+  // Month-history overlay: replace closed-season monthHistory entries with
+  // canonical-composed versions. Only closed seasons are touched — the open
+  // month is handled by the current-logs and excused/sitout overlays above.
+  // Overlay is keyed strictly by group.memberOrder; names absent from
+  // memberOrder are silently dropped. Blob monthHistory entries whose
+  // month_key has no canonical counterpart are preserved unchanged.
+  // No normalization pass runs after this point — the overlay must produce
+  // the final blob-shaped monthHistory[*] objects directly.
+  // If the fetch fails or returns null, blob monthHistory survives unchanged.
+  const anteMonthHistory = await anteMonthHistoryPromise;
+  if (anteMonthHistory) {
+    const overlaidGroups = Object.fromEntries(
+      Object.entries(state.groups || {}).map(([groupId, group]) => {
+        const canonicalSeasons = anteMonthHistory[groupId];
+        if (!canonicalSeasons || canonicalSeasons.length === 0) return [groupId, group];
+
+        const memberOrder = group.memberOrder || [];
+
+        // Index blob monthHistory by month_key. Used both for completeness
+        // guards below and for the final merge. Months absent from blob are
+        // never added — canonical is an overlay on existing blob history only.
+        const blobMonthsByKey = Object.fromEntries(
+          (group.monthHistory || []).map(m => [m.key, m])
+        );
+
+        // Build a canonical replacement for each closed season that already
+        // exists in blob monthHistory. Seasons with no blob counterpart are
+        // skipped entirely — this slice does not invent missing months.
+        const canonicalMonths = {};
+        for (const season of canonicalSeasons) {
+          const monthKey = season.monthKey;
+          if (!monthKey) continue;
+
+          // Skip months not already present in blob — do not invent history.
+          const blobMonth = blobMonthsByKey[monthKey];
+          if (!blobMonth) continue;
+
+          // Index members from season_member_status, filtered to current memberOrder.
+          const membersByName = {};
+          for (const m of season.members) {
+            if (memberOrder.includes(m.display_name)) membersByName[m.display_name] = m;
+          }
+
+          // Completeness guard: canonical must cover at least as many members as
+          // blob already has historical data for. Blob coverage = members in
+          // memberOrder that have a counts entry OR a non-empty logsByUser array
+          // in the blob month. Canonical coverage = membersByName keys (already
+          // filtered to memberOrder). If canonical covers fewer members than blob,
+          // the importer backfill is partial — preserve blob month unchanged.
+          const blobCoverage = memberOrder.filter(name =>
+            Object.prototype.hasOwnProperty.call(blobMonth.counts || {}, name) ||
+            ((blobMonth.logsByUser || {})[name] || []).length > 0
+          ).length;
+          const canonicalCoverage = Object.keys(membersByName).length;
+          if (canonicalCoverage < blobCoverage) continue;
+
+          // Reconstruct settings from canonical season snapshot fields so that
+          // historical months reflect the settings that were active at that time,
+          // not the current group settings.
+          const canonicalSettings = buildNormalizedSettings({
+            minTarget:            season.minTarget,
+            fineAmount:           season.fineAmount,
+            feeModel:             season.feeModel,
+            escalationStepAmount: season.escalationStepAmount,
+            currency:             season.currency,
+            minRunDistance:       season.minRunDistance,
+            distanceUnit:         season.distanceUnit,
+            stravaEnabled:        season.stravaEnabled,
+            timeZone:             season.timeZone,
+            acceptedWorkoutTypes: season.acceptedWorkoutTypes
+          });
+
+          // Members relevant for this month: joined_for_month = true, in memberOrder.
+          const relevantNames = memberOrder.filter(
+            name => membersByName[name]?.joined_for_month !== false
+          );
+
+          // counts and excused from canonical season_member_status rows.
+          const counts  = {};
+          const excused = {};
+          for (const name of relevantNames) {
+            const m = membersByName[name];
+            counts[name]  = m ? m.workout_count : 0;
+            excused[name] = m ? !!m.excused : false;
+          }
+
+          // logsByUser from canonical workout_logs. Photo URLs are omitted to
+          // match buildMonthLogsSnapshot which sets photoUrl: "" for all history.
+          const logsByUser = Object.fromEntries(memberOrder.map(name => [name, []]));
+          for (const log of season.logs) {
+            const owner = log.owner_display_name;
+            if (!logsByUser[owner]) continue;
+            logsByUser[owner].push(normalizeLogEntry({
+              id:           log.id,
+              type:         log.workout_type,
+              date:         log.workout_date,
+              note:         log.note,
+              photoUrl:     "",
+              createdAt:    log.created_at,
+              verifiedVia:  log.verified_via,
+              flagStatus:   log.flag_status   || null,
+              flagReason:   log.flag_reason   || "",
+              flagResponse: log.flag_response || "",
+              flaggedBy:    log.flagged_by    || null,
+              decisionBy:   log.decision_by   || null,
+              decisionAt:   log.decision_at   || null,
+              reactions:    log.reactions     || {}
+            }));
+          }
+
+          // settlements from canonical settlement_status columns. Only members
+          // with a non-null settlement_status are included — matching the blob
+          // shape where only losers (outstanding/settled) appear in settlements.
+          const settlements = {};
+          for (const name of relevantNames) {
+            const m = membersByName[name];
+            if (m?.settlement_status) {
+              settlements[name] = {
+                status:    m.settlement_status,
+                settledAt: m.settlement_settled_at || null,
+                updatedAt: m.settlement_updated_at || null
+              };
+            }
+          }
+
+          // memberTargets derived from canonical settings + group context
+          // (joinedMonthByName, memberships, seasonOverrides are already canonical
+          // from prior overlays or preserved blob values).
+          const memberTargets = getMemberTargetsForMonth(group, relevantNames, monthKey, canonicalSettings);
+
+          canonicalMonths[monthKey] = {
+            key:          monthKey,
+            label:        season.label,
+            year:         season.year,
+            month:        season.monthIndex,
+            counts,
+            excused,
+            logsByUser,
+            settings:     canonicalSettings,
+            settlements,
+            memberTargets
+          };
+        }
+
+        // Merge: blob months are the base; canonical replaces only the months
+        // it passed the completeness guard for. Blob months with no canonical
+        // replacement are carried through unchanged. Sort ascending by month_key.
+        const mergedMonthHistory = Object.values({ ...blobMonthsByKey, ...canonicalMonths })
+          .sort((a, b) => compareMonthKeys(a.key, b.key));
+
+        return [groupId, { ...group, monthHistory: mergedMonthHistory }];
       })
     );
     state = { ...state, groups: overlaidGroups };
