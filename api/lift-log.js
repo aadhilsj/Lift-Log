@@ -1408,12 +1408,81 @@ async function fetchAnteCurrentLogs() {
   }
 }
 
+async function fetchAnteCurrentExcusedAndSitouts() {
+  try {
+    const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_current_excused_and_sitouts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({})
+    });
+    const payload = await response.json();
+    if (!payload || typeof payload !== "object") return null;
+    const excusedRows     = Array.isArray(payload.excused) ? payload.excused : [];
+    const sitoutRows      = Array.isArray(payload.sit_out_requests) ? payload.sit_out_requests : [];
+    const openSeasonRows  = Array.isArray(payload.open_seasons) ? payload.open_seasons : [];
+    // Do NOT early-return on empty rows — an empty canonical state is still a
+    // valid successful fetch and must be applied to clear stale blob values.
+
+    // Group excused rows by legacy_group_key.
+    const excused = excusedRows.reduce((acc, row) => {
+      const key = typeof row?.legacy_group_key === "string" ? row.legacy_group_key : "";
+      if (!key) return acc;
+      if (!acc[key]) acc[key] = [];
+      acc[key].push({
+        monthKey:    row.month_key,
+        displayName: row.display_name,
+        excused:     !!row.excused
+      });
+      return acc;
+    }, {});
+
+    // Group sit-out rows by legacy_group_key. status is already mapped to the
+    // blob-facing 'declined' value in the RPC; the JS layer never sees 'denied'.
+    const sitOutRequests = sitoutRows.reduce((acc, row) => {
+      const key = typeof row?.legacy_group_key === "string" ? row.legacy_group_key : "";
+      if (!key) return acc;
+      if (!acc[key]) acc[key] = [];
+      acc[key].push({
+        monthKey:             row.month_key,
+        displayName:          row.display_name,
+        status:               row.status || "pending",
+        reason:               typeof row.reason === "string" ? row.reason : "",
+        exceptional:          !!row.exceptional,
+        requestedAt:          row.requested_at || null,
+        requestedBy:          row.requested_by || row.display_name,
+        requestedByUserId:    row.requested_by_user_id || null,
+        targetApproverName:   row.target_approver_name || null,
+        targetApproverUserId: row.target_approver_user_id || null,
+        decidedAt:            row.decided_at || null,
+        decidedBy:            row.decided_by || null,
+        decidedByUserId:      row.decided_by_user_id || null,
+        autoApproved:         !!row.auto_approved
+      });
+      return acc;
+    }, {});
+
+    // Build a {groupKey: monthKey} map from open seasons. Used by the overlay
+    // to identify the current month to clear even when excused/sitout rows are
+    // absent (zero-row empty-state case).
+    const openSeasonMonthKeys = openSeasonRows.reduce((acc, row) => {
+      const key = typeof row?.legacy_group_key === "string" ? row.legacy_group_key : "";
+      if (key && row.month_key) acc[key] = row.month_key;
+      return acc;
+    }, {});
+
+    return { excused, sitOutRequests, openSeasonMonthKeys };
+  } catch {
+    return null;
+  }
+}
+
 async function fetchReadableCurrentState() {
   const anteProfilesPromise        = fetchAnteProfiles();
   const anteBlocsPromise           = fetchAnteBlocs();
   const anteSeasonOverridesPromise = fetchAnteSeasonOverrides();
   const anteBlocMembersPromise     = fetchAnteBlocMembers();
   const anteCurrentLogsPromise     = fetchAnteCurrentLogs();
+  const anteExcusedSitoutsPromise  = fetchAnteCurrentExcusedAndSitouts();
 
   // Projection read path removed: read_lift_log_projection RPC timed out on
   // every call (~28-60s), causing loading screen hangs. All GETs read directly
@@ -1538,6 +1607,92 @@ async function fetchReadableCurrentState() {
           ])
         );
         return [groupId, { ...group, logs: overlaidLogs }];
+      })
+    );
+    state = { ...state, groups: overlaidGroups };
+  }
+
+  // Overlay canonical current-month excused + sit-out requests.
+  // Both overlays are keyed strictly by group.memberOrder — no new names are
+  // introduced and no normalization pass is assumed after this point. Each
+  // canonical row carries its own month_key, used as the inner/outer key so
+  // only the open-season month is touched. Historical sit-out month keys in
+  // the blob are preserved. status is already mapped to 'declined' in the RPC.
+  // If the fetch fails or returns null, blob values are preserved unchanged.
+  // Both overlays are keyed strictly by group.memberOrder — no new names are
+  // introduced and no normalization pass is assumed after this point.
+  // openSeasonMonthKeys provides the current month_key for each group even when
+  // excused/sit-out arrays are empty, enabling canonical to clear stale blob state.
+  // Historical sit-out month keys in the blob are preserved; only the open-season
+  // month key is replaced. status is already mapped to 'declined' in the RPC.
+  // If the fetch fails (returns null), blob values are preserved unchanged.
+  const anteExcusedSitouts = await anteExcusedSitoutsPromise;
+  if (anteExcusedSitouts) {
+    const excusedByGroup        = anteExcusedSitouts.excused || {};
+    const sitoutsByGroup        = anteExcusedSitouts.sitOutRequests || {};
+    const openSeasonMonthKeys   = anteExcusedSitouts.openSeasonMonthKeys || {};
+    const overlaidGroups = Object.fromEntries(
+      Object.entries(state.groups || {}).map(([groupId, group]) => {
+        const openMonthKey = openSeasonMonthKeys[groupId];
+        // Skip groups with no open season — they have no canonical current-month state.
+        if (!openMonthKey) return [groupId, group];
+
+        const memberOrder = group.memberOrder || [];
+        let nextGroup = group;
+
+        // Excused overlay: replace group.excused wholesale, keyed by memberOrder.
+        // Applies even when canonical has zero excused rows for this group — a member
+        // with no canonical excused entry correctly gets {} (not excused this month).
+        const canonicalExcused = excusedByGroup[groupId] || [];
+        const excusedByName = {};
+        for (const row of canonicalExcused) {
+          if (!excusedByName[row.displayName]) excusedByName[row.displayName] = {};
+          if (row.excused) excusedByName[row.displayName][row.monthKey] = true;
+        }
+        nextGroup = {
+          ...nextGroup,
+          excused: Object.fromEntries(memberOrder.map(name => [name, excusedByName[name] || {}]))
+        };
+
+        // Sit-out overlay: replace only the open-season month key, keyed by
+        // memberOrder. Preserve all other (historical) month keys from blob.
+        // Uses openMonthKey as the authoritative current month so the overlay
+        // fires even when canonical has zero sit-out rows for this group.
+        const canonicalSitouts = sitoutsByGroup[groupId] || [];
+        const sitoutByName = {};
+        for (const row of canonicalSitouts) {
+          sitoutByName[row.displayName] = row;
+        }
+        const monthRequests = {};
+        for (const name of memberOrder) {
+          const req = sitoutByName[name];
+          if (!req) continue;
+          monthRequests[name] = {
+            memberName:           name,
+            monthKey:             openMonthKey,
+            status:               req.status,
+            reason:               req.reason,
+            exceptional:          req.exceptional,
+            requestedAt:          req.requestedAt,
+            requestedBy:          req.requestedBy,
+            requestedByUserId:    req.requestedByUserId,
+            targetApproverName:   req.targetApproverName,
+            targetApproverUserId: req.targetApproverUserId,
+            decidedAt:            req.decidedAt,
+            decidedBy:            req.decidedBy,
+            decidedByUserId:      req.decidedByUserId,
+            autoApproved:         req.autoApproved
+          };
+        }
+        nextGroup = {
+          ...nextGroup,
+          sitOutRequests: {
+            ...(nextGroup.sitOutRequests || {}),
+            [openMonthKey]: monthRequests
+          }
+        };
+
+        return [groupId, nextGroup];
       })
     );
     state = { ...state, groups: overlaidGroups };
