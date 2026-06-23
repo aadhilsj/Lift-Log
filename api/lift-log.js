@@ -1538,10 +1538,10 @@ async function fetchReadableCurrentState() {
   // blob-backed groups. Only blocs whose legacy_group_key exists in the blob
   // are overlaid — prevents stale canonical rows from injecting phantom groups.
   // Blob is the fallback when a canonical row is absent or the RPC errors.
-  // Reconstruct top-level groupOrder conservatively from canonical sort_order:
-  // only blob-backed groups with non-null canonical sort_order participate in
-  // the canonical prefix; uncovered blob groups retain their original blob
-  // order and are appended unchanged. defaultGroupId remains blob-driven.
+  // Reconstruct top-level groupOrder from canonical sort_order, but only
+  // promote canonical authority when it fully covers the blob's active groups.
+  // Inactive/uncovered leftovers still survive via fallback. defaultGroupId
+  // remains blob-driven.
   const anteBlocs = await anteBlocsPromise;
   let state = baseState;
   if (anteBlocs && Object.keys(anteBlocs).length > 0) {
@@ -1579,8 +1579,19 @@ async function fetchReadableCurrentState() {
         .sort((a, b) => a.sortOrder - b.sortOrder)
         .map(entry => entry.groupId)
     );
+    const activeBlobGroupIds = uniqueNames(
+      blobGroupOrder.filter(groupId => Object.keys(state.groups?.[groupId]?.memberships || {}).length > 0)
+    );
     const coveredGroupIds = new Set(canonicalOrderedGroupIds);
-    const residualBlobGroupIds = blobGroupOrder.filter(groupId => !coveredGroupIds.has(groupId));
+    const canonicalCoversActiveGroups =
+      activeBlobGroupIds.length > 0 &&
+      activeBlobGroupIds.every(groupId => coveredGroupIds.has(groupId));
+    const activeBlobGroupIdSet = new Set(activeBlobGroupIds);
+    const residualBlobGroupIds = blobGroupOrder.filter(groupId => {
+      if (coveredGroupIds.has(groupId)) return false;
+      if (!canonicalCoversActiveGroups) return true;
+      return !activeBlobGroupIdSet.has(groupId);
+    });
     const nextGroupOrder = uniqueNames([...canonicalOrderedGroupIds, ...residualBlobGroupIds]);
     state = { ...state, groups: overlaidGroups, groupOrder: nextGroupOrder };
   }
