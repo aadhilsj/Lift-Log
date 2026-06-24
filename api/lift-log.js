@@ -1734,8 +1734,11 @@ async function fetchReadableCurrentState() {
   // openSeasonMonthKeys provides the current month_key for each group even when
   // excused/sit-out arrays are empty, enabling canonical to clear stale blob state.
   // Historical sit-out month keys in the blob are preserved; only the open-season
-  // month key is replaced. status is already mapped to 'declined' in the RPC.
-  // If the fetch fails (returns null), blob values are preserved unchanged.
+  // month key is replaced. The same canonical open-season month_key is also used
+  // to override group.lastMonth for covered groups, reducing one more blob-only
+  // read dependency without changing write authority. status is already mapped to
+  // 'declined' in the RPC. If the fetch fails (returns null), blob values are
+  // preserved unchanged.
   const anteExcusedSitouts = await anteExcusedSitoutsPromise;
   if (anteExcusedSitouts) {
     const excusedByGroup        = anteExcusedSitouts.excused || {};
@@ -1761,6 +1764,7 @@ async function fetchReadableCurrentState() {
         }
         nextGroup = {
           ...nextGroup,
+          lastMonth: openMonthKey,
           excused: Object.fromEntries(memberOrder.map(name => [name, excusedByName[name] || {}]))
         };
 

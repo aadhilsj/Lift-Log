@@ -63,27 +63,15 @@ having sms.workout_count != count(wl.id) filter (where wl.id is not null)
 order by b.legacy_group_key, s.month_key, sms.display_name_snapshot;
 ```
 
-Optional open-season check:
+Do not use the same count-parity query for open seasons.
 
-```sql
-select
-  b.legacy_group_key,
-  s.month_key,
-  sms.display_name_snapshot,
-  sms.workout_count                                              as canonical_count,
-  count(wl.id) filter (where wl.id is not null)                  as actual_log_rows
-from ante_core.season_member_status sms
-join ante_core.seasons s on s.id = sms.season_id
-join ante_core.blocs b on b.id = s.bloc_id
-left join ante_core.workout_logs wl
-  on wl.season_id = s.id
-  and wl.owner_display_name = sms.display_name_snapshot
-where s.status = 'open'
-  and b.legacy_group_key is not null
-group by b.legacy_group_key, s.month_key, sms.display_name_snapshot, sms.workout_count
-having sms.workout_count != count(wl.id) filter (where wl.id is not null)
-order by b.legacy_group_key, s.month_key, sms.display_name_snapshot;
-```
+Why:
+- current open-season logs are canonical and already overlaid from
+  `ante_core.workout_logs`
+- `season_member_status.workout_count` is still primarily a rollover /
+  closed-season snapshot path, not the authoritative live current-month counter
+- so open-season count mismatches are expected under the current architecture
+  and are not by themselves a bug
 
 ### 2. Historical reaction coverage
 
@@ -253,6 +241,28 @@ where b.legacy_group_key is not null
 order by b.legacy_group_key, bm.sort_order nulls last, bm.display_name_snapshot;
 ```
 
+### 6. Open-season status interpretation
+
+Purpose:
+- avoid false-positive audits against open-season `season_member_status`
+
+Important:
+- absence of an open-season `season_member_status` row for a member with
+  zero logs and no excused state is not automatically a bug
+- current open-season reads use:
+  - `workout_logs` for logs
+  - `season_member_status` rows with `excused = true` for excused state
+  - `sit_out_requests` for sit-out decisions
+- so a bloc can behave correctly even if some zero-log / non-excused active
+  members do not yet have open-season status rows
+
+What is still worth checking on open seasons:
+- logs and reactions exist where expected
+- excused members have canonical `season_member_status` rows
+- sit-out requests exist where expected
+- season overrides exist where expected
+- open `seasons` rows exist for the active blocs
+
 ## What Counts As Healthy Right Now
 
 For the current phase, "healthy" means:
@@ -261,6 +271,9 @@ For the current phase, "healthy" means:
 - no settlement mismatches on reviewed historical months
 - new live writes are populating bloc/member `sort_order`
 - guarded blob fallback is still in place where canonical ordering is incomplete
+- open-season `season_member_status.workout_count` drift is not treated as a
+  blocker until open-season status counts become an explicit canonical live
+  authority surface
 
 It does NOT require:
 - full canonical authority over top-level `groupOrder`
@@ -270,7 +283,8 @@ It does NOT require:
 ## Recommended Next Step After This Audit
 
 If the queries above look clean enough, the next likely bounded slice is:
-- guarded top-level `groupOrder` reconstruction from `blocs.sort_order`
+- broader open-season parity review followed by the next bounded current-state
+  or write-authority cutover slice
 
 Do not start that slice if:
 - many active legacy-keyed blocs still have null `sort_order`
