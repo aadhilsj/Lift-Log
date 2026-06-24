@@ -55,6 +55,14 @@ Verified healthy:
 - season overrides appear canonically where expected
 - no active bloc is missing its open season row
 
+Follow-up correction made the same day:
+- newly created / newly joined zero-log members were found to be missing
+  canonical open-season `season_member_status` rows even though their
+  `bloc_members` rows existed
+- the join/create write path was patched to seed those open-season member rows
+- existing live gaps were backfilled
+- after backfill, only test-bloc residue remained mismatched
+
 Important correction discovered during this audit:
 - open-season `season_member_status.workout_count` is not currently the
   authoritative live current-month counter surface

@@ -113,15 +113,26 @@ Why this is the best first write-authority transfer:
    - blob can remain as shadow/fallback during the first transfer
    - parity is easy to inspect
 
-## Second-Tier Candidate
+## Second Canonical-First Slice
 
-If the first canonical-first slice succeeds, the next likely candidate is:
-- `sitout-request` / `sitout-review`
+Implemented after `season-proration-choice`:
+- `sitout-request`
+- `sitout-review`
 
-Why second-tier instead of first:
-- still fairly bounded
-- but more fields are involved than `season-proration-choice`
-- includes status transitions and excused side-effects
+Current shape:
+
+1. compute the exact sit-out request / review result in memory against the
+   blob-compatible JS state
+2. ensure the open season exists canonically via `syncSeasonToCanonical(...)`
+3. upsert the canonical sit-out request row from that exact in-memory payload
+4. for approved outcomes, upsert canonical excused state from the same payload
+5. persist blob immediately after as a mirror / compatibility shadow
+
+Why this was the right second move:
+- same bounded pattern as proration
+- already read canonically on the GET path through current excused / sit-out
+  overlays
+- meaningful side-effect coverage without touching workout log authority yet
 
 ## Candidate To Avoid Early
 
@@ -134,17 +145,54 @@ Avoid as first canonical-first slices:
 These are too entangled with blob compatibility and identity edge cases to be a
 good first authority transfer.
 
+## Current Canonical-First Write Coverage
+
+Now validated on branch:
+- `season-proration-choice`
+- `sitout-request`
+- `sitout-review`
+
+These are the first real write-authority transfers across the mutation
+boundary, while keeping the current blob response contract intact.
+
+## Important Follow-Up Fix
+
+Discovered and fixed on June 24, 2026:
+- newly created blocs and newly joined members could have a canonical
+  `bloc_members` row without a matching open-season
+  `season_member_status` row when they had not logged yet
+
+Observed production symptom:
+- current-month leaderboard membership could still render via blob-compatible
+  fallback
+- but canonical open-season coverage was incomplete for zero-log new members
+
+Root cause:
+- `create-group` synced:
+  - canonical `blocs`
+  - canonical open `seasons`
+  - canonical `bloc_members`
+  - but not an initial open-season `season_member_status` row
+- `join-group` had the same gap
+
+Fix landed:
+- `fix(write): seed open season member status on create and join`
+
+Behavior after fix:
+- `create-group` now seeds a zero-count, non-excused,
+  `joined_for_month=true` canonical `season_member_status` row for the creator
+- `join-group` now seeds the same row for the joining member
+
+Production cleanup:
+- a one-time backfill was applied for the already-missing live open-season rows
+- after the backfill, the only remaining active/status mismatch was test-bloc
+  residue (`test-bloc-ka2ovu`), not a real-user production issue
+
 ## Suggested Next Implementation Slice
 
-Design and implement:
-- canonical-first `season-proration-choice`
+Best next candidate after these:
+- possibly `update-settings` only for the season-facing subset
+- or pause write-authority transfers and finish the remaining read-shell cleanup
 
-Conservative rollout shape:
-
-1. resolve and write canonical override first
-2. mirror the same result back into blob state in the same request
-3. keep blob fallback and response shape unchanged
-4. add explicit verification / rollback notes
-
-This preserves the current UI contract while transferring a very small piece of
-write authority to canonical.
+Do not jump next to workout log authority or membership lifecycle writes unless
+we intentionally accept a much larger blast radius.
