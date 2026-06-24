@@ -17,6 +17,8 @@ Current live read overlays:
 - current-month sit-out requests
 - closed-season `monthHistory`
 - guarded canonical `memberOrder`
+- guarded canonical `groupOrder`
+- canonical open-season `lastMonth` for covered groups
 
 The main remaining risk is no longer "does the overlay code run?".
 The main risk is "does canonical data fully and correctly cover what the overlay

@@ -506,6 +506,9 @@ Current status as of June 23, 2026:
   - current-month excused
   - current-month sit-out requests
   - closed-season `monthHistory`
+  - guarded canonical `memberOrder`
+  - guarded canonical `groupOrder`
+  - canonical open-season `lastMonth` for covered groups
 - this means the main blocker for broader Phase 4 progress is no longer another
   narrow overlay; it is importer/backfill completeness and historical parity
   confidence
@@ -515,14 +518,17 @@ Primary parity gate for this phase:
 
 Current known caveats before broader Phase 4 work:
 
-- live write coverage for `ante_core.blocs.sort_order` and
-  `ante_core.bloc_members.sort_order` now exists, but older rows may still be
-  null until touched by a post-deploy live write. This means guarded fallback is
-  still required for `groupOrder` / `memberOrder` reconstruction until sort
-  order coverage is denser.
+- active legacy-backed production blocs now have complete `sort_order` coverage
+  for both `ante_core.blocs` and `ante_core.bloc_members`, and the read path
+  now trusts canonical ordering when coverage is complete. Guarded fallback is
+  still intentionally retained for inactive, test, and otherwise uncovered
+  residue.
 - Production validation on June 21, 2026 found no active blob `pendingOtps`
   entries. That removes OTP session state as a Phase 4 read-composition blocker,
   but OTP storage still remains a Phase 5/6 write-retirement concern.
+- open-season `season_member_status.workout_count` is not yet a live canonical
+  current-month authority surface. Open-season log parity should be evaluated
+  through `workout_logs`, not through `season_member_status.workout_count`.
 
 Cutover order:
 

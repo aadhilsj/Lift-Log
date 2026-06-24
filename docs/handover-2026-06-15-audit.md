@@ -10,6 +10,14 @@ Update note as of June 23, 2026:
   "Best next read-side candidate" sections below as amended by the June 23
   notes in this file
 
+Update note as of June 24, 2026:
+- additional read-side ordering and current-month anchoring slices landed on
+  the branch after the June 23 notes
+- treat the "Completed Read-Side Slices", "Current Read-Side Status", "What Is
+  Left To Do", and "Short State Snapshot For Future Chats" sections below as
+  further amended by the June 24 notes in this file and by
+  `/Users/opera_user/Documents/Codex Space/Lift Log/docs/handover-2026-06-24-read-composition-audit.md`
+
 Read alongside:
 - `/Users/opera_user/Documents/Codex Space/Lift Log/docs/relational-cutover-plan.md`
 - `/Users/opera_user/Documents/Codex Space/Lift Log/docs/canonical-importer-design.md`
@@ -186,6 +194,22 @@ These are implemented on the branch and, where applicable, already deployed:
    - production-verified on June 23, 2026 after parity checks against
      `season_member_status` and `workout_logs`
 
+8. Canonical `memberOrder` reconstruction from `bloc_members.sort_order`
+   - commit: `ad7b7a5`
+
+9. Canonical `groupOrder` reconstruction from `blocs.sort_order`
+   - commit: `a260181`
+
+10. Trust canonical `memberOrder` when active coverage is complete
+   - commit: `eb03fb2`
+
+11. Trust canonical `groupOrder` when active coverage is complete
+   - commit: `7bae1a3`
+
+12. Source covered groups' `lastMonth` from canonical open seasons
+   - branch-local after the June 23 notes; see the June 24 read-composition
+     audit note
+
 ## Product / behavior fixes landed during migration
 
 These are not migration slices, but they materially affect current app behavior:
@@ -291,6 +315,9 @@ Reference:
 - current-month excused overlay
 - current-month sit-out overlay
 - closed-season `monthHistory` overlay
+- guarded canonical `memberOrder`
+- guarded canonical `groupOrder`
+- canonical open-season `lastMonth` for covered groups
 
 ### Important safety property
 
@@ -306,15 +333,16 @@ Reason:
 
 ### Best next read-side candidate
 
-- importer/backfill readiness and historical parity audit
+- read-composition dependency audit followed by the first broader write-authority
+  / blob-retirement planning slice
 
 Why:
-- the narrow high-value overlays are already in place
-- broader read cutover is now blocked more by historical completeness than by
-  another small overlay
-- `fetchWritableCurrentState` is still intentionally blob-only, so the next
-  useful work is proving canonical history is complete enough for a wider read
-  cutover plan
+- the narrow high-value overlays and ordering slices are now in place
+- open-season parity for the actually authoritative canonical surfaces was
+  re-checked on June 24 and looked healthy
+- the main remaining question is no longer another narrow overlay; it is which
+  remaining blob-only shell/state fields should move next, and when broader
+  write authority should transfer away from blob
 
 ---
 
@@ -322,23 +350,20 @@ Why:
 
 At a high level, the remaining program is:
 
-1. Additional safe read overlays and ordering cutover work
-2. Importer/backfill execution and parity validation
-3. Wider read cutover only after historical parity improves
-4. Blob retirement
+1. Record and manage the remaining blob-only read dependencies
+2. Importer/backfill execution and historical parity validation
+3. Plan the first broader write-authority / blob-retirement slice
+4. Wider blob retirement only after that plan is explicit
 
 ### Recommended immediate next step
 
-Audit importer readiness and historical parity:
-- verify canonical coverage for historical seasons, member status, logs, and
-  reactions
-- identify the remaining blob-only read risks after the closed-season
-  `monthHistory` overlay
-- define the next bounded broad-read cutover candidate only after those gaps are
-  explicit
-
-Primary audit reference:
-- `/Users/opera_user/Documents/Codex Space/Lift Log/docs/canonical-parity-audit-current-phase.md`
+Record the remaining blob-backed dependency surface and plan the next major
+phase:
+- keep `fetchWritableCurrentState` blob-only for now
+- treat remaining read-side work as a shell/state dependency problem, not an
+  ordering problem
+- use the June 24 read-composition audit plus the parity audit doc to define
+  the first broader write-authority / blob-retirement candidate
 
 ### Recommended medium-term sequence
 
@@ -377,11 +402,15 @@ If a future session needs the fastest possible context:
   - current-month excused
   - current-month sit-outs
   - closed-season `monthHistory`
+  - guarded canonical `memberOrder`
+  - guarded canonical `groupOrder`
+  - canonical open-season `lastMonth` for covered groups
 - branch-local follow-up slices now also include:
   - canonical `sort_order` writes for blocs and bloc_members
-  - guarded canonical `memberOrder` reconstruction with blob fallback
+  - trust canonical ordering when active coverage is complete
 - Sit-out related canonical writes were verified on June 17, 2026
 - Rich settlement tables are deferred as non-dual-write work
 - Historical importer/backfill is still required
 - Closed-season `monthHistory` overlay shipped in commit `3d130e7`
-- Best next migration step is importer/parity audit for broader read cutover readiness
+- Best next migration step is broader write-authority / blob-retirement
+  planning after the June 24 read-composition audit
