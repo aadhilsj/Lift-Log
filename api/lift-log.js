@@ -3798,27 +3798,30 @@ export default async function handler(req, res) {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
         const updated = applySeasonProrationChoice(auth.state, { ...payload, actor, actorUserId: auth.user.id });
-        const persisted = await persistState(updated, `season-proration:${payload.groupId}:${payload.choice}`);
-        await syncSeasonToCanonical(persisted.groups[payload.groupId], persisted.groups[payload.groupId]?.lastMonth, "open");
-        // Canonical season override sync — fire after syncSeasonToCanonical so the
-        // parent seasons row is guaranteed to exist before the override upsert.
-        // Source is the persisted blob, not raw payload.
-        const overrideGroup  = persisted.groups?.[payload.groupId];
+        const overrideGroup = updated.groups?.[payload.groupId];
         const overrideMonthKey = overrideGroup?.lastMonth;
-        const persistedOverride = overrideMonthKey
+        const nextOverride = overrideMonthKey
           ? overrideGroup?.seasonOverrides?.[overrideMonthKey]
           : null;
-        if (persistedOverride) {
-          upsertSeasonOverrideInCanonical(
+        // First canonical-first write slice:
+        // 1. compute the exact blob-shaped override in memory
+        // 2. upsert canonical from that exact payload
+        // 3. mirror the same result into blob immediately after
+        // This keeps the response shape unchanged while moving the authority
+        // boundary for this narrow action toward canonical.
+        if (overrideGroup && overrideMonthKey && nextOverride) {
+          await syncSeasonToCanonical(overrideGroup, overrideMonthKey, "open");
+          await upsertSeasonOverrideInCanonical(
             payload.groupId,
             overrideMonthKey,
-            persistedOverride.prorated,
-            persistedOverride.proratedMas,
-            persistedOverride.chosenAt,
-            persistedOverride.chosenBy,
-            persistedOverride.chosenByUserId || null
-          ).catch(err => console.error("Canonical season override sync failed:", err?.message || err));
+            nextOverride.prorated,
+            nextOverride.proratedMas,
+            nextOverride.chosenAt,
+            nextOverride.chosenBy,
+            nextOverride.chosenByUserId || null
+          );
         }
+        const persisted = await persistState(updated, `season-proration:${payload.groupId}:${payload.choice}`);
         return res.status(200).json(persisted);
       }
 
