@@ -1108,6 +1108,18 @@ async function upsertSeasonMemberStatusToCanonical(group, closedMonthKey, displa
   }
 }
 
+async function seedOpenSeasonMemberStatusInCanonical(group, monthKey, displayName, authUserId) {
+  if (!group || !monthKey || !displayName) return;
+  await upsertSeasonMemberStatusToCanonical(
+    group,
+    monthKey,
+    displayName,
+    authUserId || null,
+    0,
+    false
+  );
+}
+
 async function updateSeasonMemberSettlementInCanonical(legacyGroupKey, monthKey, displayName, status, settledAt) {
   if (!legacyGroupKey || !monthKey || !displayName || !status) return;
   try {
@@ -3681,6 +3693,7 @@ export default async function handler(req, res) {
         await syncBlocToCanonical(newGroup, auth.user.id, (persisted.groupOrder || []).indexOf(created.createdGroupId));
         await syncSeasonToCanonical(newGroup, newGroup?.lastMonth, "open");
         await syncBlocMemberToCanonical(newGroup, auth.user.id, "admin");
+        await seedOpenSeasonMemberStatusInCanonical(newGroup, newGroup?.lastMonth, creatorName, auth.user.id);
         return res.status(200).json({ state: persisted, createdGroupId: created.createdGroupId });
       }
 
@@ -3720,7 +3733,11 @@ export default async function handler(req, res) {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const joined = applyJoinGroup(auth.state, { ...payload, userId: auth.user.id });
         const persisted = await persistState(joined.state, `join-group:${joined.joinedGroupId}:${auth.user.id}`);
-        await syncBlocMemberToCanonical(persisted.groups[joined.joinedGroupId], auth.user.id, "member");
+        const joinedGroup = persisted.groups[joined.joinedGroupId];
+        const joinedDisplayName = joinedGroup?.memberships?.[auth.user.id]?.displayName || auth.profile?.displayName || null;
+        await syncBlocMemberToCanonical(joinedGroup, auth.user.id, "member");
+        await syncSeasonToCanonical(joinedGroup, joinedGroup?.lastMonth, "open");
+        await seedOpenSeasonMemberStatusInCanonical(joinedGroup, joinedGroup?.lastMonth, joinedDisplayName, auth.user.id);
         return res.status(200).json({ state: persisted, joinedGroupId: joined.joinedGroupId });
       }
 
@@ -3829,23 +3846,24 @@ export default async function handler(req, res) {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
         const updated = applySitOutRequest(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        const sitOutGroup = updated.groups?.[payload.groupId];
+        const sitOutMonthKey = sitOutGroup?.lastMonth;
+        const nextRequest = sitOutMonthKey
+          ? sitOutGroup?.sitOutRequests?.[sitOutMonthKey]?.[actor]
+          : null;
+        // Second canonical-first write slice:
+        // 1. compute the exact request/excused result in memory
+        // 2. ensure the open season exists canonically
+        // 3. upsert canonical sit-out + excused side-effect from that exact payload
+        // 4. mirror the same result into blob immediately after
+        if (sitOutGroup && sitOutMonthKey && nextRequest) {
+          await syncSeasonToCanonical(sitOutGroup, sitOutMonthKey, "open");
+          await upsertSitOutRequestInCanonical(payload.groupId, sitOutMonthKey, actor, nextRequest);
+          if (nextRequest.status === "approved" && nextRequest.autoApproved) {
+            await upsertSeasonMemberExcusedInCanonical(payload.groupId, sitOutMonthKey, actor, auth.user.id);
+          }
+        }
         const persisted = await persistState(updated, `sitout-request:${payload.groupId}:${actor || auth.user.id}`);
-        // Canonical excused sync — auto-approve path only.
-        // The blob sets status="approved" + autoApproved=true when the request qualifies
-        // (day ≤ 5, non-exceptional, non-admin, no recent sit-out). Only fire if both
-        // flags are present so we never double-write for pending requests.
-        const autoMonthKey = persisted.groups?.[payload.groupId]?.lastMonth;
-        const autoRequest  = persisted.groups?.[payload.groupId]?.sitOutRequests?.[autoMonthKey]?.[actor];
-        if (autoMonthKey && autoRequest?.status === "approved" && autoRequest?.autoApproved) {
-          upsertSeasonMemberExcusedInCanonical(payload.groupId, autoMonthKey, actor, auth.user.id)
-            .catch(err => console.error("Canonical excused sync failed:", err?.message || err));
-        }
-        // Canonical sit-out request sync — fires for both pending and auto-approved outcomes.
-        // memberName is passed as the explicit blob map key (actor), not read from request object.
-        if (autoMonthKey && autoRequest) {
-          upsertSitOutRequestInCanonical(payload.groupId, autoMonthKey, actor, autoRequest)
-            .catch(err => console.error("Canonical sit-out request sync failed:", err?.message || err));
-        }
         return res.status(200).json(persisted);
       }
 
@@ -3853,28 +3871,26 @@ export default async function handler(req, res) {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
         const updated = applySitOutReview(auth.state, { ...payload, actor, actorUserId: auth.user.id });
-        const persisted = await persistState(updated, `sitout-review:${payload.groupId}:${payload.memberName}:${payload.decision}`);
-        // Canonical excused sync — approve path only.
-        // payload.decision is the raw client value "approve"; blob normalizes to "approved".
-        // Subject's auth user id is read from the persisted request (stored at request time),
-        // not from the reviewer's auth.user.id.
-        if (payload.decision === "approve" && payload.memberName && payload.monthKey) {
-          const reviewedRequest = persisted.groups?.[payload.groupId]
-            ?.sitOutRequests?.[payload.monthKey]?.[payload.memberName];
-          const subjectUserId = reviewedRequest?.requestedByUserId || null;
-          upsertSeasonMemberExcusedInCanonical(payload.groupId, payload.monthKey, payload.memberName, subjectUserId)
-            .catch(err => console.error("Canonical excused sync failed:", err?.message || err));
-        }
-        // Canonical sit-out request sync — fires for both approve and decline outcomes.
-        // memberName is passed from payload (the authoritative map key), not read from request object.
-        if (payload.memberName && payload.monthKey) {
-          const reviewedRequest = persisted.groups?.[payload.groupId]
-            ?.sitOutRequests?.[payload.monthKey]?.[payload.memberName];
-          if (reviewedRequest) {
-            upsertSitOutRequestInCanonical(payload.groupId, payload.monthKey, payload.memberName, reviewedRequest)
-              .catch(err => console.error("Canonical sit-out request sync failed:", err?.message || err));
+        const reviewGroup = updated.groups?.[payload.groupId];
+        const reviewedRequest = payload.memberName && payload.monthKey
+          ? reviewGroup?.sitOutRequests?.[payload.monthKey]?.[payload.memberName]
+          : null;
+        // Same canonical-first pattern as proration/request:
+        // write the reviewed request canonically from the exact in-memory payload,
+        // then mirror blob state after the authoritative write succeeds.
+        if (reviewGroup && payload.monthKey && payload.memberName && reviewedRequest) {
+          await syncSeasonToCanonical(reviewGroup, payload.monthKey, "open");
+          await upsertSitOutRequestInCanonical(payload.groupId, payload.monthKey, payload.memberName, reviewedRequest);
+          if (reviewedRequest.status === "approved") {
+            await upsertSeasonMemberExcusedInCanonical(
+              payload.groupId,
+              payload.monthKey,
+              payload.memberName,
+              reviewedRequest.requestedByUserId || null
+            );
           }
         }
+        const persisted = await persistState(updated, `sitout-review:${payload.groupId}:${payload.memberName}:${payload.decision}`);
         return res.status(200).json(persisted);
       }
 
