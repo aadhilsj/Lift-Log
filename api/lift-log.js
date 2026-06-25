@@ -3805,9 +3805,18 @@ export default async function handler(req, res) {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
         const updated = applyUpdateSettings(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        const settingsGroup = updated.groups?.[payload.groupId];
+        const settingsSortOrder = (updated.groupOrder || []).indexOf(payload.groupId);
+        // Third canonical-first write slice:
+        // 1. compute the exact post-settings bloc/season shape in memory
+        // 2. sync canonical bloc settings/name from that exact payload
+        // 3. sync the canonical open-season snapshot from the same payload
+        // 4. mirror blob state afterward without changing the response contract
+        if (settingsGroup) {
+          await syncBlocToCanonical(settingsGroup, auth.user.id, settingsSortOrder);
+          await syncSeasonToCanonical(settingsGroup, settingsGroup?.lastMonth, "open");
+        }
         const persisted = await persistState(updated, `settings:${payload.groupId}:${actor || auth.user.id}`);
-        await syncBlocToCanonical(persisted.groups[payload.groupId], auth.user.id, (persisted.groupOrder || []).indexOf(payload.groupId));
-        await syncSeasonToCanonical(persisted.groups[payload.groupId], persisted.groups[payload.groupId]?.lastMonth, "open");
         return res.status(200).json(persisted);
       }
 

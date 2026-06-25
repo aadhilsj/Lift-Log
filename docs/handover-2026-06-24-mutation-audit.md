@@ -75,8 +75,8 @@ Reason:
   structures
 - `update-settings` touches both bloc settings and open season snapshot logic
 
-These may become later canonical-first candidates, but they are not the best
-first move.
+These were not the best first move, but `update-settings` became a reasonable
+third bounded candidate after proration and sit-out flows were validated.
 
 ### Narrower / better candidates
 
@@ -151,9 +151,27 @@ Now validated on branch:
 - `season-proration-choice`
 - `sitout-request`
 - `sitout-review`
+- `update-settings` for the season-facing snapshot path
 
 These are the first real write-authority transfers across the mutation
 boundary, while keeping the current blob response contract intact.
+
+## Third Canonical-First Slice
+
+Implemented after sit-out validation:
+- `update-settings`
+
+Current shape:
+
+1. compute the exact post-settings bloc state in memory
+2. sync canonical `blocs` from that exact payload
+3. sync the canonical open-season snapshot from the same payload
+4. persist blob immediately after as the mirror / compatibility shadow
+
+Why this is acceptable now:
+- already dual-written canonically before, so behavior is well understood
+- bounded compared with logs or membership lifecycle writes
+- directly affects a season-facing canonical read surface already used on GET
 
 ## Important Follow-Up Fix
 
@@ -191,8 +209,9 @@ Production cleanup:
 ## Suggested Next Implementation Slice
 
 Best next candidate after these:
-- possibly `update-settings` only for the season-facing subset
 - or pause write-authority transfers and finish the remaining read-shell cleanup
+- or evaluate whether any remaining bounded write paths are worth moving before
+  a larger blob-retirement design pass
 
 Do not jump next to workout log authority or membership lifecycle writes unless
 we intentionally accept a much larger blast radius.
