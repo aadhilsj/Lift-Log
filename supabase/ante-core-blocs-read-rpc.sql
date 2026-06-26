@@ -9,7 +9,7 @@
 --   [{
 --     "legacy_group_key":        text,
 --     "name":                    text,
-+--     "invite_code":             text,
+--     "invite_code":             text,
 --     "sort_order":              integer|null,
 --     "time_zone":               text,
 --     "currency":                text,
