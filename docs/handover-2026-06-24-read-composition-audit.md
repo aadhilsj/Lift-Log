@@ -155,3 +155,24 @@ These are judgment calls, not measured metrics, but they reflect the current
 shape of the work:
 - most high-value narrow slices are done
 - the remaining work is broader and more architectural
+
+## June 26 Amendment
+
+Since this note was written:
+- `season-proration-choice` was verified as canonical-first
+- `sitout-request` was verified as canonical-first
+- `sitout-review` was verified as canonical-first
+- `update-settings` was verified as canonical-first for the season-facing
+  canonical snapshot path
+- `create-group` / `join-group` were fixed to seed open-season
+  `season_member_status` rows for zero-log members
+- existing live gaps were backfilled
+
+The main unresolved retirement problem is now documented in:
+- [docs/handover-2026-06-26-blob-retirement-audit.md](/Users/opera_user/Documents/Codex%20Space/Lift%20Log/docs/handover-2026-06-26-blob-retirement-audit.md)
+
+Updated judgment-call estimate as of June 26, 2026:
+- write-path migration for bounded product writes: `89%`
+- read-path migration for user-visible data: `91%`
+- blob-retirement readiness: `48%`
+- overall migration program: `81%`

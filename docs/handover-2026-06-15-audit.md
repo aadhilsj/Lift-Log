@@ -18,6 +18,15 @@ Update note as of June 24, 2026:
   further amended by the June 24 notes in this file and by
   `/Users/opera_user/Documents/Codex Space/Lift Log/docs/handover-2026-06-24-read-composition-audit.md`
 
+Update note as of June 26, 2026:
+- bounded canonical-first write slices were further validated after the June 24
+  notes
+- `create-group` / `join-group` also received a follow-up fix for zero-log
+  open-season member-status seeding
+- treat the migration summary here as further amended by:
+  - `/Users/opera_user/Documents/Codex Space/Lift Log/docs/handover-2026-06-24-mutation-audit.md`
+  - `/Users/opera_user/Documents/Codex Space/Lift Log/docs/handover-2026-06-26-blob-retirement-audit.md`
+
 Read alongside:
 - `/Users/opera_user/Documents/Codex Space/Lift Log/docs/relational-cutover-plan.md`
 - `/Users/opera_user/Documents/Codex Space/Lift Log/docs/canonical-importer-design.md`
