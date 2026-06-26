@@ -1556,7 +1556,7 @@ async function fetchReadableCurrentState() {
   // intact for future use but are no longer consulted on read.
   const baseState = await fetchCurrentStateFromSupabase();
 
-  // Overlay canonical bloc settings (name + all settings fields) onto the
+  // Overlay canonical bloc settings plus stable group shell metadata onto the
   // blob-backed groups. Only blocs whose legacy_group_key exists in the blob
   // are overlaid — prevents stale canonical rows from injecting phantom groups.
   // Blob is the fallback when a canonical row is absent or the RPC errors.
@@ -1574,7 +1574,8 @@ async function fetchReadableCurrentState() {
         if (!bloc) return [groupId, group];
         return [groupId, {
           ...group,
-          name: bloc.name || group.name,
+          name:      bloc.name || group.name,
+          createdAt: bloc.created_at || group.createdAt,
           settings: buildNormalizedSettings({
             ...group.settings,
             timeZone:              bloc.time_zone              ?? group.settings?.timeZone,

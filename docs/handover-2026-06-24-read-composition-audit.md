@@ -176,3 +176,21 @@ Updated judgment-call estimate as of June 26, 2026:
 - read-path migration for user-visible data: `91%`
 - blob-retirement readiness: `48%`
 - overall migration program: `81%`
+
+## June 27 Amendment
+
+Verified after the June 26 retirement audit:
+- `invite-context` now reads invite authority from canonical `blocs`
+- `join-group` now resolves invite code through canonical bloc data before
+  entering the existing join flow
+- preview leave-and-rejoin test passed for `test101`
+- canonical verification showed:
+  - active `bloc_members` row restored with `left_at = null`
+  - open-season `season_member_status` row present and seeded for the rejoined
+    zero-log member
+
+Prepared locally after that:
+- canonical `createdAt` read authority
+  - `read_ante_core_blocs()` now exposes canonical `created_at`
+  - GET overlay now prefers canonical `blocs.created_at` for `group.createdAt`
+    while preserving blob fallback

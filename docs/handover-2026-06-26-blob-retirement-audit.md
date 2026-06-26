@@ -272,7 +272,7 @@ Recommended sequence:
 
 ## Recommended Next Slice
 
-The most sensible next slice is not another random mutation. It is:
+The most sensible next slice was:
 
 `invite-context` + `join-group` invite resolution
 
@@ -289,6 +289,24 @@ What that slice should do:
 2. resolve join target by canonical invite code, not blob shell state
 3. preserve existing safety behavior around rejoin and member seeding
 4. verify preview join flow end-to-end with a fresh invite code
+
+Status as of June 27, 2026:
+- implemented locally
+- SQL applied
+- preview leave/rejoin verification passed
+- canonical verification passed for:
+  - active `bloc_members`
+  - seeded open-season `season_member_status`
+
+Next recommended slice:
+
+`createdAt` read authority from canonical blocs
+
+Why next:
+- `createdAt` is already canonical `blocs.created_at`
+- read-only surface, so lower risk than lifecycle mutation work
+- removes another blob-only group shell dependency without touching auth or
+  leave/kick semantics
 
 ## Updated Progress Estimate
 
