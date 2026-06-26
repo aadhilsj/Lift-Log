@@ -1310,6 +1310,16 @@ async function fetchAnteBlocs() {
   }
 }
 
+async function fetchCanonicalBlocByInviteCode(inviteCode) {
+  const normalizedInviteCode = String(inviteCode || "").trim().toUpperCase();
+  if (!normalizedInviteCode) return null;
+  const anteBlocs = await fetchAnteBlocs();
+  if (!anteBlocs) return null;
+  return Object.values(anteBlocs).find(row =>
+    String(row?.invite_code || "").trim().toUpperCase() === normalizedInviteCode
+  ) || null;
+}
+
 async function fetchAnteSeasonOverrides() {
   try {
     const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_season_overrides", {
@@ -3590,6 +3600,21 @@ function getInviteContext(current, payload) {
   };
 }
 
+async function getInviteContextCanonicalFirst(current, payload) {
+  const canonicalBloc = await fetchCanonicalBlocByInviteCode(payload?.inviteCode);
+  if (canonicalBloc?.legacy_group_key) {
+    const group = current.groups?.[canonicalBloc.legacy_group_key];
+    return {
+      groupId: canonicalBloc.legacy_group_key,
+      groupName: canonicalBloc.name || group?.name || "",
+      inviteCode: canonicalBloc.invite_code || String(payload?.inviteCode || "").trim().toUpperCase(),
+      memberCount: Object.keys(group?.memberships || {}).length || group?.memberOrder?.length || 0,
+      minTarget: canonicalBloc.min_target ?? group?.settings?.minTarget ?? DEFAULT_MIN_TARGET
+    };
+  }
+  return getInviteContext(current, payload);
+}
+
 async function readJson(req) {
   if (typeof req.body === "object" && req.body !== null) return req.body;
   if (typeof req.body === "string" && req.body.length) return JSON.parse(req.body);
@@ -3731,7 +3756,14 @@ export default async function handler(req, res) {
 
       if (payload?.action === "join-group") {
         const auth = await requireAuthenticatedContext(req, payload, current);
-        const joined = applyJoinGroup(auth.state, { ...payload, userId: auth.user.id });
+        const canonicalBloc = !payload?.groupId && payload?.inviteCode
+          ? await fetchCanonicalBlocByInviteCode(payload.inviteCode)
+          : null;
+        const joined = applyJoinGroup(auth.state, {
+          ...payload,
+          userId: auth.user.id,
+          ...(canonicalBloc?.legacy_group_key ? { groupId: canonicalBloc.legacy_group_key } : {})
+        });
         const persisted = await persistState(joined.state, `join-group:${joined.joinedGroupId}:${auth.user.id}`);
         const joinedGroup = persisted.groups[joined.joinedGroupId];
         const joinedDisplayName = joinedGroup?.memberships?.[auth.user.id]?.displayName || auth.profile?.displayName || null;
@@ -3742,7 +3774,7 @@ export default async function handler(req, res) {
       }
 
       if (payload?.action === "invite-context") {
-        return res.status(200).json(getInviteContext(current, payload));
+        return res.status(200).json(await getInviteContextCanonicalFirst(current, payload));
       }
 
       if (payload?.action === "kick-member") {

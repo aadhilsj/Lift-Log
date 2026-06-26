@@ -209,9 +209,22 @@ Production cleanup:
 ## Suggested Next Implementation Slice
 
 Best next candidate after these:
-- or pause write-authority transfers and finish the remaining read-shell cleanup
-- or evaluate whether any remaining bounded write paths are worth moving before
-  a larger blob-retirement design pass
+- `invite-context` + `join-group` invite resolution
+
+Why that next:
+- canonical `blocs` already own invite code authority
+- it removes a concrete blob-only dependency without touching OTP runtime state
+- smaller blast radius than leave/kick/delete-account lifecycle mutations
+
+June 26 local-prep status:
+- `api/lift-log.js` was updated so:
+  - `invite-context` prefers canonical invite-code resolution
+  - `join-group` prefers canonical invite-code resolution and injects the
+    canonical `legacy_group_key` into the existing join flow
+- `supabase/ante-core-blocs-read-rpc.sql` was updated to expose
+  `invite_code` on the canonical bloc read RPC
+- this slice is prepared locally but not yet verified live; it should not be
+  marked complete until the SQL is applied and preview join flow passes
 
 Do not jump next to workout log authority or membership lifecycle writes unless
 we intentionally accept a much larger blast radius.

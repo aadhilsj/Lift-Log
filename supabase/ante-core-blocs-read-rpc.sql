@@ -9,6 +9,7 @@
 --   [{
 --     "legacy_group_key":        text,
 --     "name":                    text,
++--     "invite_code":             text,
 --     "sort_order":              integer|null,
 --     "time_zone":               text,
 --     "currency":                text,
@@ -41,6 +42,7 @@ begin
       jsonb_build_object(
         'legacy_group_key',       b.legacy_group_key,
         'name',                   b.name,
+        'invite_code',            b.invite_code,
         'sort_order',             b.sort_order,
         'time_zone',              b.time_zone,
         'currency',               b.currency,

@@ -139,35 +139,120 @@ Blob retirement is still blocked by these categories:
    - profile/name repair propagation
    - account deletion
 
+## Field-By-Field Verdicts
+
+This is the concrete June 26 design decision pass for the remaining blob-owned
+fields.
+
+### `defaultGroupId`
+
+Verdict: `replace`, not migrate 1:1.
+
+Reason:
+- it is a client preference, not durable business state
+- it does not need relational authority to preserve product correctness
+- canonical group ordering already gives a deterministic fallback
+
+Recommended replacement:
+- short term: keep blob-backed while blob still exists
+- retirement path: store as client/local preference or derive from first visible
+  group in canonical order
+
+### `pendingOtps`
+
+Verdict: `must redesign` before blob retirement.
+
+Reason:
+- this is active runtime auth state, not historical product data
+- `auth-send-otp` and `auth-verify-otp` still mutate it directly
+- deleting blob without replacing this breaks login
+
+Recommended replacement:
+- move OTP challenge state to a dedicated canonical table or other explicit
+  auth-side store
+- do not attempt broad blob retirement before that replacement exists
+
+### `meta.revision`
+
+Verdict: `delete` as semantic app state.
+
+Reason:
+- it exists to version blob snapshots, not to model the product
+- canonical persistence already has its own row timestamps and write ordering
+- keeping it would force fake canonical bookkeeping for low-value metadata
+
+Recommended replacement:
+- none
+- if the frontend still needs a cache-bust token later, derive it from fetch
+  time or response headers instead of migrating blob revision semantics
+
+### `meta.updatedAt`
+
+Verdict: `delete` as semantic app state.
+
+Reason:
+- same class as `meta.revision`
+- useful only as blob snapshot metadata
+- not worth recreating as canonical product state
+
+Recommended replacement:
+- none
+
+### `inviteCode`
+
+Verdict: `migrate` to canonical authority.
+
+Reason:
+- this is real product state
+- canonical `blocs` already carries invite code data
+- current blocker is app code still resolving joins from blob group shells
+
+Recommended replacement:
+- change invite resolution and invite-context reads to canonical `blocs`
+- then stop trusting blob `group.inviteCode`
+
+### `createdAt`
+
+Verdict: `migrate` to canonical authority.
+
+Reason:
+- this is real group metadata already represented canonically
+- canonical `blocs.created_at` already exists
+- UI usage is read-only and should not require blob ownership
+
+Recommended replacement:
+- read from canonical bloc creation timestamps in the composed state
+- stop preserving blob-only `group.createdAt` as a source of truth
+
+### `leftMemberNames`
+
+Verdict: `must redesign`, not blindly migrate.
+
+Reason:
+- this is not just metadata; it is legacy lifecycle residue used to suppress
+  previously left/kicked members from active composition
+- canonical membership history should model this through `bloc_members.left_at`
+  and explicit lifecycle behavior instead
+- copying this string list into canonical state would preserve a workaround, not
+  fix the model
+
+Recommended replacement:
+- define canonical lifecycle rules for:
+  - voluntary leave
+  - kick/remove
+  - rejoin after leave
+  - rejoin after kick
+- once those rules are encoded, remove `leftMemberNames` entirely
+
 ## What Could Potentially Be Cut Over Later
 
 These are not immediate next steps, but they are plausible future cleanup
 candidates:
 
-### Maybe reconstructable
-
-- `defaultGroupId`
-  - possibly from a user preference or a deterministic first-covered-group rule
-- `createdAt`
-  - likely from canonical `blocs.created_at`
-- `inviteCode`
-  - likely from canonical `blocs.invite_code`
-
-### Maybe deletable instead of migrated
-
-- `meta.revision`
-- `meta.updatedAt`
-
-If the frontend no longer truly needs them as app-level semantic state, they
-may not deserve a canonical replacement at all.
-
-### Probably needs an explicit new canonical design
-
-- `pendingOtps`
-- `leftMemberNames`
-
-These are not just missing fields. They represent actual product/runtime
-behavior that needs a clear replacement decision.
+Verdict summary:
+- `migrate`: `inviteCode`, `createdAt`
+- `replace/delete`: `defaultGroupId`, `meta.revision`, `meta.updatedAt`
+- `must redesign`: `pendingOtps`, `leftMemberNames`
 
 ## Recommended Next Phase
 
@@ -176,10 +261,7 @@ Do not pick another random medium-risk write slice next.
 Recommended sequence:
 
 1. Freeze further broad write-authority expansion.
-2. Decide which remaining blob-only fields are:
-   - must migrate
-   - can be deleted
-   - can remain blob-backed temporarily
+2. Use the verdicts above as the retirement decision baseline.
 3. Design a dedicated blob-retirement plan around:
    - auth temp state
    - invite resolution
@@ -187,6 +269,26 @@ Recommended sequence:
    - profile/name-repair behavior
 4. Only after that, decide whether mutation hydration itself can begin moving
    off blob.
+
+## Recommended Next Slice
+
+The most sensible next slice is not another random mutation. It is:
+
+`invite-context` + `join-group` invite resolution
+
+Why this next:
+- `inviteCode` is already canonical data
+- it removes one of the clearest remaining blob-only group shell dependencies
+- it is smaller and safer than tackling OTP runtime state or member-leave
+  lifecycle semantics
+- it directly advances blob-retirement readiness instead of just adding another
+  isolated canonical-first write
+
+What that slice should do:
+1. read invite context from canonical `blocs`
+2. resolve join target by canonical invite code, not blob shell state
+3. preserve existing safety behavior around rejoin and member seeding
+4. verify preview join flow end-to-end with a fresh invite code
 
 ## Updated Progress Estimate
 
