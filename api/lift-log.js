@@ -26,7 +26,22 @@ const ENABLE_SETTLEMENT_CONFIRMATIONS = String(process.env.ENABLE_SETTLEMENT_CON
 const ENABLE_SETTLEMENT_CONFIRMATIONS_PREVIEW = String(process.env.ENABLE_SETTLEMENT_CONFIRMATIONS_PREVIEW || "").trim().toLowerCase() === "true";
 const ENABLE_LOCAL_PREVIEW_AUTH = String(process.env.ENABLE_LOCAL_PREVIEW_AUTH || "").trim().toLowerCase() === "true";
 
-function normalizeState(data) {
+function deriveDefaultGroupId(groupOrder) {
+  return Array.isArray(groupOrder) && groupOrder.length ? groupOrder[0] : null;
+}
+
+function resolveStateRevision(data, overrideRevision = undefined) {
+  const revision = overrideRevision ?? data?.meta?.revision ?? data?.revision;
+  return Number.isFinite(Number(revision)) ? Number(revision) : 0;
+}
+
+function resolveStateUpdatedAt(data, overrideUpdatedAt = undefined) {
+  return overrideUpdatedAt ?? data?.meta?.updatedAt ?? data?.updatedAt ?? null;
+}
+
+function normalizeState(data, options = {}) {
+  const revision = resolveStateRevision(data, options.revision);
+  const updatedAt = resolveStateUpdatedAt(data, options.updatedAt);
   if (data?.version === 2) {
     const groups = {};
     const groupOrder = Array.isArray(data?.groupOrder) ? data.groupOrder.filter(id => typeof id === "string" && data.groups?.[id]) : [];
@@ -41,12 +56,12 @@ function normalizeState(data) {
       version: 2,
       groups,
       groupOrder,
-      defaultGroupId: groupOrder.includes(data?.defaultGroupId) ? data.defaultGroupId : (groupOrder[0] || null),
+      defaultGroupId: deriveDefaultGroupId(groupOrder),
       profiles: normalizeProfiles(data?.profiles),
       pendingOtps: normalizePendingOtps(data?.pendingOtps),
       meta: {
-        revision: Number.isFinite(Number(data?.meta?.revision)) ? Number(data.meta.revision) : 0,
-        updatedAt: data?.meta?.updatedAt || null
+        revision,
+        updatedAt
       }
     };
   }
@@ -60,9 +75,20 @@ function normalizeState(data) {
     profiles: {},
     pendingOtps: {},
     meta: {
-      revision: Number.isFinite(Number(data?.meta?.revision)) ? Number(data.meta.revision) : 0,
-      updatedAt: data?.meta?.updatedAt || null
+      revision,
+      updatedAt
     }
+  };
+}
+
+function serializeStateForBlob(state) {
+  const normalized = normalizeState(state);
+  return {
+    version: normalized.version,
+    groups: normalized.groups,
+    groupOrder: normalized.groupOrder,
+    profiles: normalized.profiles,
+    pendingOtps: normalized.pendingOtps
   };
 }
 
@@ -262,7 +288,7 @@ function normalizeLegacyGroup(data) {
     name: LEGACY_GROUP_NAME,
     adminName: DEFAULT_MEMBER_NAMES[0],
     inviteCode: "OGGROUP",
-    createdAt: data?.meta?.updatedAt || new Date().toISOString(),
+    createdAt: resolveStateUpdatedAt(data) || new Date().toISOString(),
     memberOrder: [...DEFAULT_MEMBER_NAMES],
     joinedMonthByName: { ...DEFAULT_JOINED_MONTH_BY_NAME },
     settings: buildNormalizedSettings({ minTarget: DEFAULT_MIN_TARGET, acceptedWorkoutTypes: [...WORKOUT_TYPES], timeZone: DEFAULT_GROUP_TIME_ZONE }),
@@ -925,8 +951,8 @@ function rolloverGroupIfNeeded(group) {
   });
 }
 
-function rolloverStateIfNeeded(data) {
-  const base = normalizeState(data);
+function rolloverStateIfNeeded(data, options = {}) {
+  const base = normalizeState(data, options);
   let changed = false;
   const groups = {};
   const rollovers = [];
@@ -2264,7 +2290,7 @@ async function persistState(nextState, reason) {
 
 async function fetchCurrentStateFromSupabase() {
   assertSupabaseConfigured();
-  const response = await supabaseFetch("/rest/v1/lift_log_state?id=eq.true&select=state", {
+  const response = await supabaseFetch("/rest/v1/lift_log_state?id=eq.true&select=state,revision,updated_at", {
     method: "GET",
     headers: { Accept: "application/json" }
   });
@@ -2273,7 +2299,11 @@ async function fetchCurrentStateFromSupabase() {
   if (!Array.isArray(rows) || rows.length === 0) {
     return rolloverStateIfNeeded({});
   }
-  return rolloverStateIfNeeded(rows[0]?.state || {});
+  const row = rows[0] || {};
+  return rolloverStateIfNeeded(row.state || {}, {
+    revision: row.revision,
+    updatedAt: row.updated_at || null
+  });
 }
 
 async function deleteStoragePhotos(paths) {
@@ -2329,7 +2359,8 @@ async function cleanupExpiredStoragePhotos() {
 async function persistStateToSupabase(nextState, reason) {
   assertSupabaseConfigured();
   const safeState = normalizeState(nextState);
-  await createSupabaseBackup(safeState, reason);
+  const serializedState = serializeStateForBlob(safeState);
+  await createSupabaseBackup(serializedState, safeState.meta.revision, reason);
 
   const response = await supabaseFetch("/rest/v1/lift_log_state?id=eq.true", {
     method: "PATCH",
@@ -2338,7 +2369,7 @@ async function persistStateToSupabase(nextState, reason) {
       Prefer: "return=representation"
     },
     body: JSON.stringify({
-      state: safeState,
+      state: serializedState,
       revision: safeState.meta.revision,
       updated_at: safeState.meta.updatedAt || new Date().toISOString()
     })
@@ -2346,7 +2377,10 @@ async function persistStateToSupabase(nextState, reason) {
 
   const rows = await response.json();
   const persistedState = Array.isArray(rows) && rows.length > 0
-    ? rolloverStateIfNeeded(rows[0]?.state || safeState)
+    ? rolloverStateIfNeeded(rows[0]?.state || serializedState, {
+      revision: rows[0]?.revision ?? safeState.meta.revision,
+      updatedAt: rows[0]?.updated_at || safeState.meta.updatedAt || null
+    })
     : null;
 
   if (!persistedState) {
@@ -2358,7 +2392,7 @@ async function persistStateToSupabase(nextState, reason) {
       },
       body: JSON.stringify([{
         id: true,
-        state: safeState,
+        state: serializedState,
         revision: safeState.meta.revision,
         updated_at: safeState.meta.updatedAt || new Date().toISOString()
       }])
@@ -2371,12 +2405,12 @@ async function persistStateToSupabase(nextState, reason) {
   return persistedState || safeState;
 }
 
-async function createSupabaseBackup(state, reason) {
+async function createSupabaseBackup(state, stateRevision, reason) {
   await supabaseFetch("/rest/v1/lift_log_backups", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      state_revision: state.meta.revision,
+      state_revision: stateRevision,
       state,
       reason
     })

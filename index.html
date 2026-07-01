@@ -1385,7 +1385,7 @@ function buildLegacyGroupState(data) {
     name: DEFAULT_GROUP_NAME,
     adminName: DEFAULT_NAMES[0],
     inviteCode: "OGGROUP",
-    createdAt: data?.meta?.updatedAt || new Date().toISOString(),
+    createdAt: resolveStateUpdatedAt(data) || new Date().toISOString(),
     memberOrder: [...DEFAULT_NAMES],
     joinedMonthByName: { ...DEFAULT_JOINED_MONTH_BY_NAME },
     settings: buildNormalizedSettings({ minTarget: DEFAULT_MIN_TARGET, acceptedWorkoutTypes: [...WORKOUT_TYPES], timeZone: DEFAULT_GROUP_TIME_ZONE }),
@@ -1407,6 +1407,19 @@ function buildEmptyAppState() {
   };
 }
 
+function deriveDefaultGroupId(groupOrder) {
+  return Array.isArray(groupOrder) && groupOrder.length ? groupOrder[0] : null;
+}
+
+function resolveStateRevision(data) {
+  const revision = data?.meta?.revision ?? data?.revision;
+  return Number.isFinite(Number(revision)) ? Number(revision) : 0;
+}
+
+function resolveStateUpdatedAt(data) {
+  return data?.meta?.updatedAt ?? data?.updatedAt ?? null;
+}
+
 function normalizeAppState(data) {
   if (!data) return buildEmptyAppState();
   if (data.version === 2) {
@@ -1422,11 +1435,11 @@ function normalizeAppState(data) {
       version: 2,
       groups,
       groupOrder: filteredOrder,
-      defaultGroupId: filteredOrder.includes(data.defaultGroupId) ? data.defaultGroupId : (filteredOrder[0] || null),
+      defaultGroupId: deriveDefaultGroupId(filteredOrder),
       profiles: normalizeProfiles(data?.profiles),
       meta: {
-        revision: Number.isFinite(Number(data?.meta?.revision)) ? Number(data.meta.revision) : 0,
-        updatedAt: data?.meta?.updatedAt || null
+        revision: resolveStateRevision(data),
+        updatedAt: resolveStateUpdatedAt(data)
       }
     };
   }
@@ -1439,8 +1452,8 @@ function normalizeAppState(data) {
     defaultGroupId: legacyGroup.id,
     profiles: normalizeProfiles(data?.profiles),
     meta: {
-      revision: Number.isFinite(Number(data?.meta?.revision)) ? Number(data.meta.revision) : 0,
-      updatedAt: data?.meta?.updatedAt || null
+      revision: resolveStateRevision(data),
+      updatedAt: resolveStateUpdatedAt(data)
     }
   };
 }
@@ -2145,7 +2158,7 @@ function writeCachedData(data) {
 }
 
 function getRevision(data) {
-  return Number.isFinite(Number(data?.meta?.revision)) ? Number(data.meta.revision) : 0;
+  return resolveStateRevision(data);
 }
 
 function getAcceptedWorkoutTypes(group) {
