@@ -17,8 +17,6 @@ const LEGACY_GROUP_NAME = "Lift Log OG";
 const DEFAULT_MEMBER_NAMES = ["Aadhil", "Isira", "Rahul", "Kisal", "Rishane", "Deyhan", "Aysha", "Nishara", "Abhishek"];
 const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const DEFAULT_JOINED_MONTH_BY_NAME = { Abhishek: "2026-4" };
-const OTP_TTL_MS = 15 * 60 * 1000;
-
 const SUPABASE_URL = process.env.SUPABASE_URL || "";
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_PUBLISHABLE_KEY || "";
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
@@ -58,7 +56,6 @@ function normalizeState(data, options = {}) {
       groupOrder,
       defaultGroupId: deriveDefaultGroupId(groupOrder),
       profiles: normalizeProfiles(data?.profiles),
-      pendingOtps: normalizePendingOtps(data?.pendingOtps),
       meta: {
         revision,
         updatedAt
@@ -73,7 +70,6 @@ function normalizeState(data, options = {}) {
     groupOrder: [legacyGroup.id],
     defaultGroupId: legacyGroup.id,
     profiles: {},
-    pendingOtps: {},
     meta: {
       revision,
       updatedAt
@@ -87,8 +83,7 @@ function serializeStateForBlob(state) {
     version: normalized.version,
     groups: normalized.groups,
     groupOrder: normalized.groupOrder,
-    profiles: normalized.profiles,
-    pendingOtps: normalized.pendingOtps
+    profiles: normalized.profiles
   };
 }
 
@@ -138,27 +133,6 @@ function normalizeSettlementConfirmations(rows) {
       };
     })
     .filter(Boolean);
-}
-
-function normalizePendingOtps(pendingOtps) {
-  if (!pendingOtps || typeof pendingOtps !== "object") return {};
-  const now = Date.now();
-  return Object.fromEntries(
-    Object.entries(pendingOtps)
-      .map(([email, entry]) => {
-        const normalizedEmail = String(email || "").trim().toLowerCase();
-        const code = String(entry?.code || "").trim();
-        const expiresAt = entry?.expiresAt || null;
-        if (!normalizedEmail || !code || !expiresAt) return null;
-        if (new Date(expiresAt).getTime() <= now) return null;
-        return [normalizedEmail, {
-          code,
-          expiresAt,
-          userId: String(entry?.userId || "").trim() || null
-        }];
-      })
-      .filter(Boolean)
-  );
 }
 
 function findProfileEntryByEmail(profiles, email) {
@@ -3252,73 +3226,6 @@ function applyReviewFlag(current, payload) {
   }, "flag-review");
 }
 
-function applySendOtp(current, payload) {
-  const email = String(payload?.email || "").trim().toLowerCase();
-  if (!email || !email.includes("@")) {
-    const error = new Error("A valid email is required");
-    error.status = 400;
-    throw error;
-  }
-  const base = rolloverStateIfNeeded(current);
-  const existingProfile = Object.values(base.profiles || {}).find(profile => profile.email === email);
-  const userId = existingProfile?.id || `user_${Date.now()}${Math.random().toString(36).slice(2, 6)}`;
-  const code = String(Math.floor(100000 + Math.random() * 900000));
-  return {
-    state: {
-      ...base,
-      pendingOtps: {
-        ...(base.pendingOtps || {}),
-        [email]: {
-          code,
-          expiresAt: new Date(Date.now() + OTP_TTL_MS).toISOString(),
-          userId
-        }
-      },
-      meta: {
-        revision: base.meta.revision + 1,
-        updatedAt: new Date().toISOString()
-      }
-    },
-    email,
-    code
-  };
-}
-
-function applyVerifyOtp(current, payload) {
-  const email = String(payload?.email || "").trim().toLowerCase();
-  const code = String(payload?.code || "").trim();
-  const base = rolloverStateIfNeeded(current);
-  const pending = base.pendingOtps?.[email];
-  if (!pending || !code || pending.code !== code) {
-    const error = new Error("That code didn’t match. Try again.");
-    error.status = 401;
-    throw error;
-  }
-  if (new Date(pending.expiresAt).getTime() <= Date.now()) {
-    const error = new Error("That code expired. Request a new one.");
-    error.status = 401;
-    throw error;
-  }
-  const nextPending = { ...(base.pendingOtps || {}) };
-  delete nextPending[email];
-  const profile = base.profiles?.[pending.userId] || null;
-  return {
-    state: {
-      ...base,
-      pendingOtps: nextPending,
-      meta: {
-        revision: base.meta.revision + 1,
-        updatedAt: new Date().toISOString()
-      }
-    },
-    session: {
-      userId: pending.userId,
-      email,
-      needsProfileSetup: !profile?.displayName
-    }
-  };
-}
-
 function applyUpsertProfile(current, payload) {
   const userId = String(payload?.userId || "").trim();
   const email = String(payload?.email || "").trim().toLowerCase();
@@ -3837,22 +3744,15 @@ function applyDeleteAccount(current, payload) {
     });
   }
 
-  // Remove profile and any pending OTPs
+  // Remove profile
   const nextProfiles = { ...base.profiles };
   delete nextProfiles[userId];
-  const nextPendingOtps = { ...(base.pendingOtps || {}) };
-  for (const [email, otp] of Object.entries(nextPendingOtps)) {
-    if (otp?.userId === userId || (profile?.email && email === profile.email)) {
-      delete nextPendingOtps[email];
-    }
-  }
 
   return {
     ...base,
     groups: nextGroups,
     groupOrder: nextGroupOrder,
     profiles: nextProfiles,
-    pendingOtps: nextPendingOtps,
     meta: { revision: base.meta.revision + 1, updatedAt: new Date().toISOString() }
   };
 }
@@ -3944,6 +3844,19 @@ export default async function handler(req, res) {
 
     if (req.method === "POST") {
       const payload = await readJson(req);
+
+      if (payload?.action === "auth-send-otp") {
+        return res.status(410).json({
+          error: "Legacy OTP send is disabled. Use Supabase Auth signInWithOtp from the client."
+        });
+      }
+
+      if (payload?.action === "auth-verify-otp") {
+        return res.status(410).json({
+          error: "Legacy OTP verify is disabled. Use Supabase Auth verifyOtp from the client."
+        });
+      }
+
       const current = await fetchWritableCurrentState();
 
       if (payload?.action === "auth-sync") {
@@ -4097,18 +4010,6 @@ export default async function handler(req, res) {
         await syncBlocMemberToCanonical(newGroup, auth.user.id, "admin");
         await seedOpenSeasonMemberStatusInCanonical(newGroup, newGroup?.lastMonth, creatorName, auth.user.id);
         return res.status(200).json({ state: persisted, createdGroupId: created.createdGroupId });
-      }
-
-      if (payload?.action === "auth-send-otp") {
-        const sent = applySendOtp(current, payload);
-        const persisted = await persistState(sent.state, `auth-send-otp:${sent.email}`);
-        return res.status(200).json({ ok: true, state: persisted, devCode: sent.code });
-      }
-
-      if (payload?.action === "auth-verify-otp") {
-        const verified = applyVerifyOtp(current, payload);
-        const persisted = await persistState(verified.state, `auth-verify-otp:${verified.session.userId}`);
-        return res.status(200).json({ ok: true, state: persisted, session: verified.session });
       }
 
       if (payload?.action === "upsert-profile") {
