@@ -22,6 +22,9 @@ const OTP_TTL_MS = 15 * 60 * 1000;
 const SUPABASE_URL = process.env.SUPABASE_URL || "";
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_PUBLISHABLE_KEY || "";
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+const ENABLE_SETTLEMENT_CONFIRMATIONS = String(process.env.ENABLE_SETTLEMENT_CONFIRMATIONS || "").trim().toLowerCase() === "true";
+const ENABLE_SETTLEMENT_CONFIRMATIONS_PREVIEW = String(process.env.ENABLE_SETTLEMENT_CONFIRMATIONS_PREVIEW || "").trim().toLowerCase() === "true";
+const ENABLE_LOCAL_PREVIEW_AUTH = String(process.env.ENABLE_LOCAL_PREVIEW_AUTH || "").trim().toLowerCase() === "true";
 
 function normalizeState(data) {
   if (data?.version === 2) {
@@ -80,6 +83,35 @@ function normalizeProfiles(profiles) {
       })
       .filter(Boolean)
   );
+}
+
+function normalizeSettlementConfirmations(rows) {
+  if (!Array.isArray(rows)) return [];
+  return rows
+    .map(row => {
+      if (!row || typeof row !== "object") return null;
+      const monthKey = String(row?.monthKey || row?.month_key || "").trim();
+      const payerDisplayName = String(row?.payerDisplayName || row?.payer_display_name || "").trim();
+      const receiverDisplayName = String(row?.receiverDisplayName || row?.receiver_display_name || "").trim();
+      if (!monthKey || !payerDisplayName || !receiverDisplayName) return null;
+      const amount = Number(row?.amount);
+      return {
+        id: row?.id || `${monthKey}:${payerDisplayName}:${receiverDisplayName}`,
+        monthKey,
+        monthLabel: row?.monthLabel || row?.month_label || null,
+        payerAuthUserId: row?.payerAuthUserId || row?.payer_auth_user_id || null,
+        receiverAuthUserId: row?.receiverAuthUserId || row?.receiver_auth_user_id || null,
+        payerDisplayName,
+        receiverDisplayName,
+        amount: Number.isFinite(amount) ? amount : 0,
+        currency: String(row?.currency || DEFAULT_CURRENCY).trim().toUpperCase() || DEFAULT_CURRENCY,
+        payerClaimedAt: row?.payerClaimedAt || row?.payer_claimed_at || null,
+        confirmedAt: row?.confirmedAt || row?.confirmed_at || null,
+        createdAt: row?.createdAt || row?.created_at || null,
+        updatedAt: row?.updatedAt || row?.updated_at || null
+      };
+    })
+    .filter(Boolean);
 }
 
 function normalizePendingOtps(pendingOtps) {
@@ -278,6 +310,9 @@ function normalizeGroup(group) {
     excused: normalizedExcused,
     seasonOverrides: normalizeSeasonOverrides(group?.seasonOverrides),
     sitOutRequests: normalizeSitOutRequests(group?.sitOutRequests),
+    settlementConfirmationsEnabled: !!group?.settlementConfirmationsEnabled,
+    settlementConfirmationsPreviewMode: !!group?.settlementConfirmationsPreviewMode,
+    settlementConfirmations: normalizeSettlementConfirmations(group?.settlementConfirmations),
     monthHistory: normalizeMonthHistory(monthHistory, memberOrder, joinedMonthByName, buildNormalizedSettings(group?.settings)),
     lastMonth: group?.lastMonth || getLeagueMonthKey(group?.settings?.timeZone)
   };
@@ -1139,6 +1174,118 @@ async function updateSeasonMemberSettlementInCanonical(legacyGroupKey, monthKey,
   }
 }
 
+function resolveSettlementConfirmationParticipants(group, payerDisplayName, receiverDisplayName) {
+  if (!group || !payerDisplayName || !receiverDisplayName) return null;
+  const memberships = Object.values(group.memberships || {});
+  const payerMembership = memberships.find(membership => membership?.displayName === payerDisplayName) || null;
+  const receiverMembership = memberships.find(membership => membership?.displayName === receiverDisplayName) || null;
+  return {
+    payerMembership,
+    receiverMembership
+  };
+}
+
+async function claimSettlementConfirmationInCanonical({
+  legacyGroupKey,
+  monthKey,
+  payerAuthUserId,
+  payerDisplayName,
+  receiverAuthUserId,
+  receiverDisplayName,
+  amount,
+  currency
+}) {
+  if (!legacyGroupKey || !monthKey || !payerAuthUserId || !receiverAuthUserId || !payerDisplayName || !receiverDisplayName) return;
+  await supabaseFetch("/rest/v1/rpc/claim_ante_core_settlement_confirmation", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({
+      p_legacy_group_key: legacyGroupKey,
+      p_month_key: monthKey,
+      p_payer_auth_user_id: payerAuthUserId,
+      p_payer_display_name: payerDisplayName,
+      p_receiver_auth_user_id: receiverAuthUserId,
+      p_receiver_display_name: receiverDisplayName,
+      p_amount: amount,
+      p_currency: currency
+    })
+  });
+}
+
+async function confirmSettlementConfirmationInCanonical({
+  legacyGroupKey,
+  monthKey,
+  payerAuthUserId,
+  receiverAuthUserId
+}) {
+  if (!legacyGroupKey || !monthKey || !payerAuthUserId || !receiverAuthUserId) return;
+  await supabaseFetch("/rest/v1/rpc/confirm_ante_core_settlement_confirmation", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({
+      p_legacy_group_key: legacyGroupKey,
+      p_month_key: monthKey,
+      p_payer_auth_user_id: payerAuthUserId,
+      p_receiver_auth_user_id: receiverAuthUserId
+    })
+  });
+}
+
+async function disputeSettlementConfirmationInCanonical({
+  legacyGroupKey,
+  monthKey,
+  payerAuthUserId,
+  receiverAuthUserId
+}) {
+  if (!legacyGroupKey || !monthKey || !payerAuthUserId || !receiverAuthUserId) return;
+  await supabaseFetch("/rest/v1/rpc/dispute_ante_core_settlement_confirmation", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({
+      p_legacy_group_key: legacyGroupKey,
+      p_month_key: monthKey,
+      p_payer_auth_user_id: payerAuthUserId,
+      p_receiver_auth_user_id: receiverAuthUserId
+    })
+  });
+}
+
+async function ensureSettlementConfirmationPrereqs(state, groupId, monthKey, payerDisplayName, receiverDisplayName) {
+  const group = state?.groups?.[groupId];
+  if (!group || !monthKey || !payerDisplayName || !receiverDisplayName) return null;
+  const participants = resolveSettlementConfirmationParticipants(group, payerDisplayName, receiverDisplayName);
+  if (!participants?.payerMembership?.userId || !participants?.receiverMembership?.userId) return participants || null;
+
+  const groupSortOrder = Array.isArray(state?.groupOrder) ? state.groupOrder.indexOf(groupId) : -1;
+  await syncBlocToCanonical(group, group.adminUserId || null, groupSortOrder >= 0 ? groupSortOrder : null);
+
+  const payerProfile = state?.profiles?.[participants.payerMembership.userId] || null;
+  const receiverProfile = state?.profiles?.[participants.receiverMembership.userId] || null;
+
+  if (payerProfile?.email && payerProfile?.displayName) {
+    await syncProfileToCanonical(participants.payerMembership.userId, payerProfile.email, payerProfile.displayName);
+  }
+  if (receiverProfile?.email && receiverProfile?.displayName) {
+    await syncProfileToCanonical(participants.receiverMembership.userId, receiverProfile.email, receiverProfile.displayName);
+  }
+
+  await syncBlocMemberToCanonical(
+    group,
+    participants.payerMembership.userId,
+    group.adminUserId === participants.payerMembership.userId ? "admin" : "member"
+  );
+  await syncBlocMemberToCanonical(
+    group,
+    participants.receiverMembership.userId,
+    group.adminUserId === participants.receiverMembership.userId ? "admin" : "member"
+  );
+
+  const closedMonth = (group.monthHistory || []).find(month => month?.key === monthKey) || null;
+  await syncSeasonToCanonical(group, monthKey, closedMonth ? "closed" : "open", closedMonth?.closedAt || null);
+
+  return participants;
+}
+
 async function upsertSeasonMemberExcusedInCanonical(legacyGroupKey, monthKey, displayName, authUserId) {
   if (!legacyGroupKey || !monthKey || !displayName) return;
   try {
@@ -1473,6 +1620,42 @@ async function fetchAnteMonthHistory() {
   }
 }
 
+async function fetchAnteSettlementConfirmations() {
+  if (!ENABLE_SETTLEMENT_CONFIRMATIONS) return null;
+  try {
+    const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_settlement_confirmations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({})
+    });
+    const rows = await response.json();
+    if (!Array.isArray(rows)) return null;
+    return rows.reduce((acc, row) => {
+      const key = typeof row?.legacy_group_key === "string" ? row.legacy_group_key : "";
+      if (!key) return acc;
+      if (!acc[key]) acc[key] = [];
+      acc[key].push({
+        id: row.id,
+        monthKey: row.month_key,
+        monthLabel: row.month_label,
+        payerAuthUserId: row.payer_auth_user_id || null,
+        receiverAuthUserId: row.receiver_auth_user_id || null,
+        payerDisplayName: row.payer_display_name,
+        receiverDisplayName: row.receiver_display_name,
+        amount: row.amount,
+        currency: row.currency,
+        payerClaimedAt: row.payer_claimed_at || null,
+        confirmedAt: row.confirmed_at || null,
+        createdAt: row.created_at || null,
+        updatedAt: row.updated_at || null
+      });
+      return acc;
+    }, {});
+  } catch {
+    return null;
+  }
+}
+
 async function fetchAnteCurrentExcusedAndSitouts() {
   try {
     const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_current_excused_and_sitouts", {
@@ -1549,6 +1732,7 @@ async function fetchReadableCurrentState() {
   const anteCurrentLogsPromise     = fetchAnteCurrentLogs();
   const anteExcusedSitoutsPromise  = fetchAnteCurrentExcusedAndSitouts();
   const anteMonthHistoryPromise    = fetchAnteMonthHistory();
+  const anteSettlementConfirmationsPromise = fetchAnteSettlementConfirmations();
 
   // Projection read path removed: read_lift_log_projection RPC timed out on
   // every call (~28-60s), causing loading screen hangs. All GETs read directly
@@ -2002,7 +2186,21 @@ async function fetchReadableCurrentState() {
     const filtered = Object.fromEntries(
       Object.entries(anteProfiles).filter(([userId]) => blobProfileKeys.has(userId))
     );
-    if (Object.keys(filtered).length > 0) return { ...state, profiles: { ...(state.profiles || {}), ...filtered } };
+    if (Object.keys(filtered).length > 0) {
+      state = { ...state, profiles: { ...(state.profiles || {}), ...filtered } };
+    }
+  }
+  const anteSettlementConfirmations = await anteSettlementConfirmationsPromise;
+  if (ENABLE_SETTLEMENT_CONFIRMATIONS || ENABLE_SETTLEMENT_CONFIRMATIONS_PREVIEW) {
+    const overlaidGroups = Object.fromEntries(
+      Object.entries(state.groups || {}).map(([groupId, group]) => [groupId, {
+        ...group,
+        settlementConfirmationsEnabled: true,
+        settlementConfirmationsPreviewMode: ENABLE_SETTLEMENT_CONFIRMATIONS_PREVIEW,
+        settlementConfirmations: normalizeSettlementConfirmations(anteSettlementConfirmations?.[groupId] || [])
+      }])
+    );
+    state = { ...state, groups: overlaidGroups };
   }
   return state;
 }
@@ -2220,7 +2418,8 @@ function getClientAuthConfig() {
   }
   return {
     supabaseUrl: SUPABASE_URL,
-    supabaseAnonKey: SUPABASE_ANON_KEY
+    supabaseAnonKey: SUPABASE_ANON_KEY,
+    enableLocalPreviewAuth: ENABLE_LOCAL_PREVIEW_AUTH
   };
 }
 
@@ -2231,6 +2430,31 @@ function readBearerToken(req, payload) {
   }
   const token = typeof payload?.accessToken === "string" ? payload.accessToken.trim() : "";
   return token || "";
+}
+
+function readDevImpersonationUserId(req) {
+  const header = req?.headers?.["x-dev-impersonate-user-id"]
+    || req?.headers?.["X-Dev-Impersonate-User-Id"]
+    || "";
+  return String(header || "").trim();
+}
+
+function slugifyDevIdentity(value) {
+  return String(value || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "local";
+}
+
+function isLocalDevRequest(req) {
+  const host = String(req?.headers?.host || req?.headers?.Host || "").trim().toLowerCase();
+  return host.startsWith("localhost:")
+    || host === "localhost"
+    || host.startsWith("127.0.0.1:")
+    || host === "127.0.0.1"
+    || /^192\.168\.\d{1,3}\.\d{1,3}:\d+$/.test(host)
+    || /^192\.168\.\d{1,3}\.\d{1,3}$/.test(host)
+    || /^10\.\d{1,3}\.\d{1,3}\.\d{1,3}:\d+$/.test(host)
+    || /^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host)
+    || /^172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}:\d+$/.test(host)
+    || /^172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}$/.test(host);
 }
 
 async function fetchAuthenticatedUser(accessToken) {
@@ -2264,9 +2488,23 @@ async function fetchAuthenticatedUser(accessToken) {
 
 async function requireAuthenticatedContext(req, payload, current) {
   const accessToken = readBearerToken(req, payload);
-  const user = await fetchAuthenticatedUser(accessToken);
+  const authenticatedUser = await fetchAuthenticatedUser(accessToken);
+  let user = authenticatedUser;
   const migrated = migrateAuthIdentity(rolloverStateIfNeeded(current), user.id, user.email);
   const state = migrated.state;
+  const devImpersonationUserId = readDevImpersonationUserId(req);
+  if (isLocalDevRequest(req) && devImpersonationUserId && payload?.groupId) {
+    const membership = state.groups?.[payload.groupId]?.memberships?.[devImpersonationUserId] || null;
+    if (membership?.userId) {
+      const impersonatedProfile = state.profiles?.[membership.userId] || null;
+      user = {
+        id: membership.userId,
+        email: impersonatedProfile?.email || `${slugifyDevIdentity(membership.displayName)}@local.test`,
+        raw: authenticatedUser.raw,
+        devImpersonatedByUserId: authenticatedUser.id
+      };
+    }
+  }
   const profile = state.profiles?.[user.id] || migrated.profile || null;
   return {
     state,
@@ -3677,7 +3915,14 @@ export default async function handler(req, res) {
       if (payload?.action === "auth-sync") {
         const authUser = await fetchAuthenticatedUser(readBearerToken(req, payload));
         const synced = applyAuthSync(current, authUser);
-        const state = synced.changed ? await persistState(synced.state, `auth-sync:${authUser.id}`) : synced.state;
+        if (synced.changed) {
+          await persistState(synced.state, `auth-sync:${authUser.id}`);
+        }
+        // Always return the readable overlaid state here. Returning the raw
+        // blob-backed auth-sync state can briefly wipe canonical overlays
+        // (including settlement reminders) during app bootstrap until the next
+        // background refresh lands.
+        const state = await fetchReadableCurrentState();
         // Dual-write profile to canonical if the blob profile was updated and
         // already has a display name. New users with no display name yet will
         // trigger canonical sync when they complete upsert-profile instead.
@@ -3708,6 +3953,103 @@ export default async function handler(req, res) {
           ).catch(err => console.error("Canonical settlement sync failed:", err?.message || err));
         }
         return res.status(200).json(persisted);
+      }
+
+      if (payload?.action === "settlement-claim-paid") {
+        if (!ENABLE_SETTLEMENT_CONFIRMATIONS) {
+          return res.status(404).json({ error: "Settlement confirmations are disabled" });
+        }
+        const auth = await requireAuthenticatedContext(req, payload, current);
+        const actorDisplayName = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
+        const group = auth.state.groups?.[payload.groupId];
+        if (!group) return res.status(404).json({ error: "Bloc not found" });
+        if (actorDisplayName !== String(payload?.payerDisplayName || "").trim()) {
+          return res.status(403).json({ error: "Only the payer can mark this as paid" });
+        }
+        const participants = await ensureSettlementConfirmationPrereqs(
+          auth.state,
+          payload.groupId,
+          String(payload?.monthKey || "").trim(),
+          String(payload?.payerDisplayName || "").trim(),
+          String(payload?.receiverDisplayName || "").trim()
+        );
+        if (!participants?.payerMembership?.userId || !participants?.receiverMembership?.userId) {
+          return res.status(400).json({ error: "Both settlement participants must have active bloc memberships" });
+        }
+        await claimSettlementConfirmationInCanonical({
+          legacyGroupKey: payload.groupId,
+          monthKey: String(payload?.monthKey || "").trim(),
+          payerAuthUserId: participants.payerMembership.userId,
+          payerDisplayName: participants.payerMembership.displayName,
+          receiverAuthUserId: participants.receiverMembership.userId,
+          receiverDisplayName: participants.receiverMembership.displayName,
+          amount: Number(payload?.amount || 0),
+          currency: String(payload?.currency || DEFAULT_CURRENCY).trim().toUpperCase() || DEFAULT_CURRENCY
+        });
+        const readable = await fetchReadableCurrentState();
+        return res.status(200).json(readable);
+      }
+
+      if (payload?.action === "settlement-confirm-paid") {
+        if (!ENABLE_SETTLEMENT_CONFIRMATIONS) {
+          return res.status(404).json({ error: "Settlement confirmations are disabled" });
+        }
+        const auth = await requireAuthenticatedContext(req, payload, current);
+        const actorDisplayName = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
+        const group = auth.state.groups?.[payload.groupId];
+        if (!group) return res.status(404).json({ error: "Bloc not found" });
+        if (actorDisplayName !== String(payload?.receiverDisplayName || "").trim()) {
+          return res.status(403).json({ error: "Only the receiver can confirm this payment" });
+        }
+        const participants = await ensureSettlementConfirmationPrereqs(
+          auth.state,
+          payload.groupId,
+          String(payload?.monthKey || "").trim(),
+          String(payload?.payerDisplayName || "").trim(),
+          String(payload?.receiverDisplayName || "").trim()
+        );
+        if (!participants?.payerMembership?.userId || !participants?.receiverMembership?.userId) {
+          return res.status(400).json({ error: "Both settlement participants must have active bloc memberships" });
+        }
+        await confirmSettlementConfirmationInCanonical({
+          legacyGroupKey: payload.groupId,
+          monthKey: String(payload?.monthKey || "").trim(),
+          payerAuthUserId: participants.payerMembership.userId,
+          receiverAuthUserId: participants.receiverMembership.userId
+        });
+        const readable = await fetchReadableCurrentState();
+        return res.status(200).json(readable);
+      }
+
+      if (payload?.action === "settlement-dispute-paid") {
+        if (!ENABLE_SETTLEMENT_CONFIRMATIONS) {
+          return res.status(404).json({ error: "Settlement confirmations are disabled" });
+        }
+        const auth = await requireAuthenticatedContext(req, payload, current);
+        const actorDisplayName = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
+        const group = auth.state.groups?.[payload.groupId];
+        if (!group) return res.status(404).json({ error: "Bloc not found" });
+        if (actorDisplayName !== String(payload?.receiverDisplayName || "").trim()) {
+          return res.status(403).json({ error: "Only the receiver can dispute this payment" });
+        }
+        const participants = await ensureSettlementConfirmationPrereqs(
+          auth.state,
+          payload.groupId,
+          String(payload?.monthKey || "").trim(),
+          String(payload?.payerDisplayName || "").trim(),
+          String(payload?.receiverDisplayName || "").trim()
+        );
+        if (!participants?.payerMembership?.userId || !participants?.receiverMembership?.userId) {
+          return res.status(400).json({ error: "Both settlement participants must have active bloc memberships" });
+        }
+        await disputeSettlementConfirmationInCanonical({
+          legacyGroupKey: payload.groupId,
+          monthKey: String(payload?.monthKey || "").trim(),
+          payerAuthUserId: participants.payerMembership.userId,
+          receiverAuthUserId: participants.receiverMembership.userId
+        });
+        const readable = await fetchReadableCurrentState();
+        return res.status(200).json(readable);
       }
 
       if (payload?.action === "create-group") {

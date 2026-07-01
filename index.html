@@ -136,9 +136,11 @@
       .install-actions { flex-direction:column; }
       .mobile-nav-shell { position:sticky;top:0;z-index:100;background:rgba(7,7,10,.92);backdrop-filter:blur(14px);border-bottom:1px solid var(--border);padding-top:env(safe-area-inset-top); }
       .mobile-bottom-nav { position:fixed;left:0;right:0;bottom:0;z-index:140;padding:10px 12px calc(10px + env(safe-area-inset-bottom));background:linear-gradient(to top,rgba(7,7,10,.98),rgba(7,7,10,.9));backdrop-filter:blur(18px);border-top:1px solid rgba(34,34,46,.95); }
-      .mobile-bottom-nav-grid { display:grid;grid-template-columns:repeat(4,1fr);gap:8px;max-width:560px;margin:0 auto; }
+      .mobile-bottom-nav-grid { display:grid;grid-template-columns:repeat(5,1fr);gap:6px;max-width:560px;margin:0 auto;align-items:end; }
       .mobile-tab { min-height:54px;border-radius:14px;background:transparent;border:1px solid transparent;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:#1E4040; }
       .mobile-tab.on { color:var(--cyan);border-color:transparent;background:transparent;box-shadow:inset 0 -2px 0 var(--cyan); }
+      .mobile-plus-tab-wrap { display:flex;align-items:flex-end;justify-content:center;min-height:54px; }
+      .mobile-plus-tab { width:56px;height:56px;border-radius:999px;border:4px solid rgba(7,7,10,.96);background:#4ECDC4;color:#fff;display:inline-flex;align-items:center;justify-content:center;transform:translateY(-18px);box-shadow:0 14px 32px rgba(78,205,196,.24); }
       .overlay { align-items:flex-end;padding:12px; }
       .overlay.center-mobile { align-items:center; justify-content:center; padding:16px 12px; }
       .overlay.center-mobile .modal { border-radius:20px; }
@@ -277,7 +279,8 @@ const localISO = d => {
 const INSTALL_DISMISSED_KEY = "ll_pwa_install_dismissed";
 const LOCAL_CACHE_KEY = "ll_cached_data_v2";
 const LOCAL_GROUP_KEY = "ll_group_id";
-const LOCAL_IDENTITY_KEY = "ll_identity_v1";
+const LOCAL_PREVIEW_AUTH_KEY = "ll_preview_auth";
+const LOCAL_DEV_IMPERSONATION_KEY = "ll_dev_impersonation_user_id";
 const SYNC_POLL_INTERVAL_MS = 3000;
 const getDaysLeft = () => DAYS_IN_MON - DAY_OF_MON + 1;
 
@@ -319,23 +322,60 @@ function getLeagueMonthKey(timeZone = DEFAULT_GROUP_TIME_ZONE) {
 refreshActiveTimeContext(DEFAULT_GROUP_TIME_ZONE);
 
 const fmtISO = iso => {
-  const [y,m,d] = iso.split("-").map(Number);
-  return new Date(y,m-1,d).toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short"});
+  if (iso instanceof Date) {
+    if (Number.isNaN(iso.getTime())) return "";
+    return iso.toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short"});
+  }
+  if (typeof iso === "string") {
+    const [y,m,d] = iso.split("-").map(Number);
+    if ([y,m,d].every(Number.isFinite)) {
+      return new Date(y,m-1,d).toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short"});
+    }
+  }
+  return "";
+};
+
+const toISODate = value => {
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) return "";
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, "0");
+    const day = String(value.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }
+  if (typeof value === "string") {
+    const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    return match ? value : "";
+  }
+  return "";
 };
 
 const getExpected = (target = MIN_TARGET) => Math.ceil((target / DAYS_IN_MON) * DAY_OF_MON);
-const getStatus   = (n, target = MIN_TARGET) => {
-  const e = getExpected(target);
-  const diff = n - e;
-  const daysLeft = getDaysLeft();
-  if (n + daysLeft < target) return "cooked";
+const resolvePaceStatus = ({ count, target = MIN_TARGET, expected = getExpected(target), daysLeft = getDaysLeft() }) => {
+  if (count >= target) return "locked-in";
+  const diff = count - expected;
+  if (count + daysLeft < target) return "cooked";
   if (diff >= 2) return "cruising";
   if (diff >= 0) return "on-track";
   if (diff >= -3) return "at-risk";
   return "behind";
 };
+const getStatus   = (n, target = MIN_TARGET) => resolvePaceStatus({ count: n, target });
 const getDiff     = (n, target = MIN_TARGET) => n - getExpected(target); // positive = ahead, negative = behind
-const diffLabel   = (n, target = MIN_TARGET) => { const d=getDiff(n, target); return d>0?`+${d} ahead`:d<0?`${d} behind`:"on pace"; };
+const diffLabel   = (n, target = MIN_TARGET) => { const d=getDiff(n, target); return d>0?`+${d} ahead of pace`:d<0?`${d} behind pace`:"on pace"; };
+const isEarlyMonthNeutralWindow = (day = DAY_OF_MON) => day <= 2;
+const getLeaderboardDisplayStatus = (status, count, day = DAY_OF_MON) => {
+  if (isEarlyMonthNeutralWindow(day) && count === 0 && (status === "at-risk" || status === "behind")) {
+    return "starting-soon";
+  }
+  return status;
+};
+const getLeaderboardDiffText = ({ status, count, target = MIN_TARGET, memberDiffLabel = null, day = DAY_OF_MON }) => {
+  const displayStatus = getLeaderboardDisplayStatus(status, count, day);
+  if (displayStatus === "starting-soon") return "month just started";
+  if (status === "cooked") return "target out of reach";
+  return memberDiffLabel || diffLabel(count, target);
+};
 function getPaceCheckMessage({ status, count, expected, target, isFirstActiveDay }) {
   if (status === "cooked") {
     return `✕ Even perfect attendance from here won't get you to ${target}`;
@@ -702,6 +742,265 @@ function getMonthSettlements(month) {
   return month?.settlements || buildSettlementMap(month?.counts || {}, month?.excused || {}, month?.settings || {}, month?.memberTargets || {});
 }
 
+function buildSettlementPairsForMonth(month) {
+  if (!month) return [];
+  const counts = month?.counts || {};
+  const excused = month?.excused || {};
+  const settings = month?.settings || {};
+  const memberTargets = month?.memberTargets || {};
+  const relevantNames = Object.keys(counts);
+  const activeCounts = relevantNames
+    .filter(name => !excused?.[name])
+    .map(name => ({ name, count: counts?.[name] || 0, target: memberTargets?.[name] || Number(settings?.minTarget || MIN_TARGET) }));
+  const { winners, losers, perWinner } = calcPenalties(activeCounts, settings);
+  if (!winners.length || !losers.length || perWinner <= 0) return [];
+  return losers.flatMap(loser => winners
+    .filter(winner => winner.name !== loser.name)
+    .map(winner => ({
+      monthKey: month.key,
+      monthLabel: month.label || formatMonthLabelFromKey(month.key) || month.key,
+      payerDisplayName: loser.name,
+      receiverDisplayName: winner.name,
+      amount: perWinner,
+      currency: settings?.currency || DEFAULT_CURRENCY
+    })));
+}
+
+function buildSettlementReminderCards(group, currentUserId, currentUserName) {
+  if (!group?.settlementConfirmationsEnabled) return [];
+  const membershipByName = Object.fromEntries(
+    Object.values(group?.memberships || {})
+      .filter(membership => membership?.displayName)
+      .map(membership => [membership.displayName, membership])
+  );
+  const confirmationByNameKey = new Map(
+    (group?.settlementConfirmations || []).map(row => [
+      `${row.monthKey}:${row.payerDisplayName}:${row.receiverDisplayName}`,
+      row
+    ])
+  );
+  return [...(group?.monthHistory || [])]
+    .sort((a, b) => compareMonthKeys(b.key, a.key))
+    .flatMap(month => buildSettlementPairsForMonth(month).map(pair => {
+      const showMonthLabel = pair.monthKey !== curKey;
+      const monthSuffix = showMonthLabel ? ` · ${pair.monthLabel.toUpperCase()}` : "";
+      const payerMembership = membershipByName[pair.payerDisplayName] || null;
+      const receiverMembership = membershipByName[pair.receiverDisplayName] || null;
+      const confirmation = confirmationByNameKey.get(`${pair.monthKey}:${pair.payerDisplayName}:${pair.receiverDisplayName}`) || null;
+      if (confirmation?.confirmedAt) return null;
+      const pending = !!confirmation?.payerClaimedAt && !confirmation?.confirmedAt;
+      const payerAuthUserId = confirmation?.payerAuthUserId || payerMembership?.userId || null;
+      const receiverAuthUserId = confirmation?.receiverAuthUserId || receiverMembership?.userId || null;
+      const isPayer = currentUserId
+        ? (payerAuthUserId ? payerAuthUserId === currentUserId : pair.payerDisplayName === currentUserName)
+        : pair.payerDisplayName === currentUserName;
+      const isReceiver = currentUserId
+        ? (receiverAuthUserId ? receiverAuthUserId === currentUserId : pair.receiverDisplayName === currentUserName)
+        : pair.receiverDisplayName === currentUserName;
+
+      let label = "";
+      let body = "";
+      let labelColor = "#89A39E";
+      let amountColor = "#6B9690";
+      let action = null;
+      let secondaryAction = null;
+
+      if (pending && isReceiver) {
+        label = "PENDING CONFIRMATION";
+        body = `${pair.payerDisplayName} says they paid you`;
+        labelColor = "#EF9F27";
+        amountColor = "#EF9F27";
+        secondaryAction = {
+          kind: "dispute",
+          label: "✕"
+        };
+        action = {
+          kind: "confirm",
+          label: "Confirm"
+        };
+      } else if (pending && isPayer) {
+        label = "PENDING CONFIRMATION";
+        body = `Waiting for ${pair.receiverDisplayName} to confirm`;
+        labelColor = "#EF9F27";
+        amountColor = "#EF9F27";
+      } else if (pending) {
+        label = "PENDING";
+        body = `${pair.payerDisplayName} paid ${pair.receiverDisplayName} · awaiting confirmation`;
+        labelColor = "#EF9F27";
+        amountColor = "#6B9690";
+      } else if (isPayer) {
+        label = `YOU OWE${monthSuffix}`;
+        body = `You owe ${pair.receiverDisplayName}`;
+        labelColor = "#7A4B46";
+        amountColor = "#e05020";
+        action = {
+          kind: "claim",
+          label: "Mark as paid"
+        };
+      } else if (isReceiver) {
+        label = `OWED TO YOU${monthSuffix}`;
+        body = `${pair.payerDisplayName} owes you`;
+        labelColor = "#1a6b3a";
+        amountColor = "#2ecc71";
+      } else {
+        label = `UNPAID${monthSuffix}`;
+        body = `${pair.payerDisplayName} owes ${pair.receiverDisplayName}`;
+        labelColor = "#6B9690";
+        amountColor = "#6B9690";
+      }
+
+      return {
+        key: `${pair.monthKey}:${pair.payerDisplayName}:${pair.receiverDisplayName}`,
+        monthKey: pair.monthKey,
+        monthLabel: pair.monthLabel,
+        payerDisplayName: pair.payerDisplayName,
+        receiverDisplayName: pair.receiverDisplayName,
+        payerAuthUserId,
+        receiverAuthUserId,
+        amount: pair.amount,
+        currency: pair.currency,
+        pending,
+        label,
+        labelColor,
+        body,
+        amountColor,
+        secondaryAction,
+        action
+      };
+    }))
+    .filter(Boolean);
+}
+
+function getSettlementConfirmationForPair(group, monthKey, payerDisplayName, receiverDisplayName) {
+  return (group?.settlementConfirmations || []).find(row =>
+    row?.monthKey === monthKey
+    && row?.payerDisplayName === payerDisplayName
+    && row?.receiverDisplayName === receiverDisplayName
+  ) || null;
+}
+
+function buildSettlementPairState(group, monthKey, payerDisplayName, receiverDisplayName, currentUserId, currentUserName) {
+  const membershipByName = Object.fromEntries(
+    Object.values(group?.memberships || {})
+      .filter(membership => membership?.displayName)
+      .map(membership => [membership.displayName, membership])
+  );
+  const confirmation = getSettlementConfirmationForPair(group, monthKey, payerDisplayName, receiverDisplayName);
+  const payerMembership = membershipByName[payerDisplayName] || null;
+  const receiverMembership = membershipByName[receiverDisplayName] || null;
+  const payerAuthUserId = confirmation?.payerAuthUserId || payerMembership?.userId || null;
+  const receiverAuthUserId = confirmation?.receiverAuthUserId || receiverMembership?.userId || null;
+  const isPayer = currentUserId
+    ? (payerAuthUserId ? payerAuthUserId === currentUserId : payerDisplayName === currentUserName)
+    : payerDisplayName === currentUserName;
+  const isReceiver = currentUserId
+    ? (receiverAuthUserId ? receiverAuthUserId === currentUserId : receiverDisplayName === currentUserName)
+    : receiverDisplayName === currentUserName;
+  return {
+    confirmation,
+    payerAuthUserId,
+    receiverAuthUserId,
+    isPayer,
+    isReceiver,
+    pending: !!confirmation?.payerClaimedAt && !confirmation?.confirmedAt,
+    confirmed: !!confirmation?.confirmedAt
+  };
+}
+
+function buildSettlementPreviewCards(currentUserName) {
+  const receiverName = currentUserName || "You";
+  return [
+    {
+      key: "preview-you-owe",
+      monthKey: "2026-3",
+      monthLabel: "Apr '26",
+      payerDisplayName: receiverName,
+      receiverDisplayName: "Rahul",
+      payerAuthUserId: null,
+      receiverAuthUserId: null,
+      amount: 20,
+      currency: "USD",
+      pending: false,
+      label: "YOU OWE · APR '26",
+      labelColor: "#7A4B46",
+      body: "You owe Rahul",
+      amountColor: "#e05020",
+      statusTag: null,
+      action: { kind: "claim", label: "Mark as paid" }
+    },
+    {
+      key: "preview-pending-confirm",
+      monthKey: "2026-2",
+      monthLabel: "Mar '26",
+      payerDisplayName: "Isira",
+      receiverDisplayName: receiverName,
+      payerAuthUserId: null,
+      receiverAuthUserId: null,
+      amount: 20,
+      currency: "USD",
+      pending: true,
+      label: "PENDING CONFIRMATION",
+      labelColor: "#EF9F27",
+      body: "Isira says they paid you",
+      amountColor: "#EF9F27",
+      statusTag: null,
+      secondaryAction: { kind: "dispute", label: "✕" },
+      action: { kind: "confirm", label: "Confirm" }
+    },
+    {
+      key: "preview-owed-to-you",
+      monthKey: "2026-1",
+      monthLabel: "Feb '26",
+      payerDisplayName: "Rishane",
+      receiverDisplayName: receiverName,
+      payerAuthUserId: null,
+      receiverAuthUserId: null,
+      amount: 20,
+      currency: "USD",
+      pending: false,
+      label: "OWED TO YOU · FEB '26",
+      labelColor: "#1a6b3a",
+      body: "Rishane owes you",
+      amountColor: "#2ecc71",
+      action: null
+    },
+    {
+      key: "preview-third-party",
+      monthKey: "2025-11",
+      monthLabel: "Dec '25",
+      payerDisplayName: "Adil",
+      receiverDisplayName: "Nishara",
+      payerAuthUserId: null,
+      receiverAuthUserId: null,
+      amount: 20,
+      currency: "USD",
+      pending: true,
+      label: "PENDING",
+      labelColor: "#EF9F27",
+      body: "Adil paid Nishara · awaiting confirmation",
+      amountColor: "#6B9690",
+      action: null
+    },
+    {
+      key: "preview-third-party-unpaid",
+      monthKey: "2025-10",
+      monthLabel: "Nov '25",
+      payerDisplayName: "Kisal",
+      receiverDisplayName: "Aysha",
+      payerAuthUserId: null,
+      receiverAuthUserId: null,
+      amount: 20,
+      currency: "USD",
+      pending: false,
+      label: "UNPAID · NOV '25",
+      labelColor: "#6B9690",
+      body: "Kisal owes Aysha",
+      amountColor: "#6B9690",
+      action: null
+    }
+  ];
+}
+
 function fmtCurrency(amount, currency) {
   const symbols = {USD:"$",EUR:"€",GBP:"£",NOK:"kr",SEK:"kr",DKK:"kr",AUD:"A$",CAD:"C$",CHF:"CHF",INR:"₹",SGD:"S$",NZD:"NZ$",LKR:"Rs"};
   const sym = symbols[currency] || currency || DEFAULT_CURRENCY;
@@ -719,6 +1018,22 @@ function getUserMASStreak(monthHistory, userName) {
       .map(([name, count]) => ({name, count, target: m.memberTargets?.[name] || m.settings?.minTarget || MIN_TARGET}));
     const {losers} = calcPenalties(activeCounts, m.settings);
     if (losers.some(l => l.name === userName)) break;
+    streak++;
+  }
+  return streak;
+}
+
+function getBlocPerfectMonthStreak(monthHistory) {
+  const sorted = [...monthHistory].sort((a, b) => a.key.localeCompare(b.key));
+  let streak = 0;
+  for (let i = sorted.length - 1; i >= 0; i--) {
+    const m = sorted[i];
+    const activeCounts = Object.entries(m.counts || {})
+      .filter(([name]) => !m.excused?.[name])
+      .map(([name, count]) => ({name, count, target: m.memberTargets?.[name] || m.settings?.minTarget || MIN_TARGET}));
+    if (!activeCounts.length) break;
+    const { losers } = calcPenalties(activeCounts, m.settings);
+    if (losers.length > 0) break;
     streak++;
   }
   return streak;
@@ -1056,6 +1371,9 @@ function normalizeGroupState(group) {
     excused,
     seasonOverrides: normalizeSeasonOverrides(group?.seasonOverrides),
     sitOutRequests: normalizeSitOutRequests(group?.sitOutRequests),
+    settlementConfirmationsEnabled: !!group?.settlementConfirmationsEnabled,
+    settlementConfirmationsPreviewMode: !!group?.settlementConfirmationsPreviewMode,
+    settlementConfirmations: normalizeSettlementConfirmations(group?.settlementConfirmations),
     monthHistory: normalizeMonthHistoryState(monthHistory, memberOrder, group?.joinedMonthByName, group?.settings),
     lastMonth: group?.lastMonth || curKey
   };
@@ -1146,6 +1464,35 @@ function normalizeProfiles(profiles) {
   );
 }
 
+function normalizeSettlementConfirmations(rows) {
+  if (!Array.isArray(rows)) return [];
+  return rows
+    .map(row => {
+      if (!row || typeof row !== "object") return null;
+      const monthKey = String(row?.monthKey || row?.month_key || "").trim();
+      const payerDisplayName = String(row?.payerDisplayName || row?.payer_display_name || "").trim();
+      const receiverDisplayName = String(row?.receiverDisplayName || row?.receiver_display_name || "").trim();
+      if (!monthKey || !payerDisplayName || !receiverDisplayName) return null;
+      const amount = Number(row?.amount);
+      return {
+        id: row?.id || `${monthKey}:${payerDisplayName}:${receiverDisplayName}`,
+        monthKey,
+        monthLabel: row?.monthLabel || row?.month_label || null,
+        payerAuthUserId: row?.payerAuthUserId || row?.payer_auth_user_id || null,
+        receiverAuthUserId: row?.receiverAuthUserId || row?.receiver_auth_user_id || null,
+        payerDisplayName,
+        receiverDisplayName,
+        amount: Number.isFinite(amount) ? amount : 0,
+        currency: String(row?.currency || DEFAULT_CURRENCY).trim().toUpperCase() || DEFAULT_CURRENCY,
+        payerClaimedAt: row?.payerClaimedAt || row?.payer_claimed_at || null,
+        confirmedAt: row?.confirmedAt || row?.confirmed_at || null,
+        createdAt: row?.createdAt || row?.created_at || null,
+        updatedAt: row?.updatedAt || row?.updated_at || null
+      };
+    })
+    .filter(Boolean);
+}
+
 function normalizeMemberships(memberships, memberOrder, adminName, adminUserId) {
   if (!memberships || typeof memberships !== "object") return {};
   const normalized = {};
@@ -1172,6 +1519,14 @@ function normalizeMemberships(memberships, memberOrder, adminName, adminUserId) 
 function getProfileForSession(appState, session) {
   if (!session?.userId) return null;
   if (appState?.profiles?.[session.userId]) return appState.profiles[session.userId];
+  if (session?.localPreview && session?.previewDisplayName) {
+    return {
+      id: session.userId,
+      email: session.email || "",
+      displayName: session.previewDisplayName,
+      createdAt: new Date().toISOString()
+    };
+  }
   const normalizedEmail = String(session?.email || "").trim().toLowerCase();
   if (!normalizedEmail) return null;
   return Object.values(appState?.profiles || {}).find(profile => profile?.email === normalizedEmail) || null;
@@ -1369,6 +1724,63 @@ function checkRollover(data) {
 let supabaseAuthConfigPromise = null;
 let supabaseAuthClientPromise = null;
 
+function slugifyLocalPreview(value) {
+  return String(value || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "preview";
+}
+
+function buildLocalPreviewSession(displayName) {
+  const normalizedName = String(displayName || "").trim();
+  if (!normalizedName) return null;
+  const slug = slugifyLocalPreview(normalizedName);
+  return {
+    userId: `local-preview:${slug}`,
+    email: `${slug}@local.test`,
+    accessToken: null,
+    previewDisplayName: normalizedName,
+    localPreview: true
+  };
+}
+
+function isLocalDevHost(hostname) {
+  const normalized = String(hostname || "").trim().toLowerCase();
+  return normalized === "localhost"
+    || normalized === "127.0.0.1"
+    || /^192\.168\.\d{1,3}\.\d{1,3}$/.test(normalized)
+    || /^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(normalized)
+    || /^172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}$/.test(normalized);
+}
+
+function isLocalDevEnvironment() {
+  try {
+    return isLocalDevHost(window.location.hostname);
+  } catch {
+    return false;
+  }
+}
+
+function readLocalPreviewSession() {
+  try {
+    const raw = localStorage.getItem(LOCAL_PREVIEW_AUTH_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return buildLocalPreviewSession(parsed?.previewDisplayName || parsed?.displayName || "");
+  } catch {
+    return null;
+  }
+}
+
+function persistLocalPreviewSession(session) {
+  try {
+    if (!session?.localPreview || !session?.previewDisplayName) {
+      localStorage.removeItem(LOCAL_PREVIEW_AUTH_KEY);
+      return;
+    }
+    localStorage.setItem(LOCAL_PREVIEW_AUTH_KEY, JSON.stringify({
+      previewDisplayName: session.previewDisplayName
+    }));
+  } catch {}
+}
+
 function mapSupabaseSession(session) {
   if (!session?.user?.id || !session?.access_token) return null;
   return {
@@ -1470,9 +1882,12 @@ async function refreshAuthSession() {
 }
 
 async function postApi(action, payload = {}, options = {}) {
-  const { auth = true, sessionOverride = null } = options;
+  const { auth = true, sessionOverride = null, extraHeaders = null } = options;
   try {
     const headers = { "Content-Type":"application/json" };
+    if (extraHeaders && typeof extraHeaders === "object") {
+      Object.assign(headers, extraHeaders);
+    }
     if (auth) {
       const session = sessionOverride || await getCurrentAuthSession();
       if (!session?.accessToken) return { ok:false, error:"You need to sign in again" };
@@ -1490,7 +1905,7 @@ async function postApi(action, payload = {}, options = {}) {
       if (res.status === 401 && auth && !sessionOverride) {
         const refreshed = await refreshAuthSession();
         if (refreshed?.accessToken) {
-          const retryHeaders = { "Content-Type":"application/json", Authorization:`Bearer ${refreshed.accessToken}` };
+          const retryHeaders = { ...headers, Authorization:`Bearer ${refreshed.accessToken}` };
           const retryRes = await fetch("./api/lift-log", {
             method: "POST",
             cache: "no-store",
@@ -1542,9 +1957,33 @@ async function saveData(data) {
   return null;
 }
 
-async function updateSettlementData(groupId, monthKey, player, settled, pin) {
-  const result = await postApi("settlement", { groupId, monthKey, player, settled, pin });
-  if (!result.ok) return { ok:false, error: result.error === "Invalid admin PIN" ? "Invalid PIN" : (result.error || "Unable to update settlement") };
+async function claimSettlementConfirmationData(payload) {
+  const extraHeaders = {};
+  if (payload?.devImpersonationUserId) {
+    extraHeaders["X-Dev-Impersonate-User-Id"] = String(payload.devImpersonationUserId).trim();
+  }
+  const result = await postApi("settlement-claim-paid", payload, { extraHeaders });
+  if (!result.ok) return { ok:false, error: result.error || "Unable to mark payment as claimed" };
+  return { ok:true, data: normalizeAppState(result.body) };
+}
+
+async function confirmSettlementConfirmationData(payload) {
+  const extraHeaders = {};
+  if (payload?.devImpersonationUserId) {
+    extraHeaders["X-Dev-Impersonate-User-Id"] = String(payload.devImpersonationUserId).trim();
+  }
+  const result = await postApi("settlement-confirm-paid", payload, { extraHeaders });
+  if (!result.ok) return { ok:false, error: result.error || "Unable to confirm payment" };
+  return { ok:true, data: normalizeAppState(result.body) };
+}
+
+async function disputeSettlementConfirmationData(payload) {
+  const extraHeaders = {};
+  if (payload?.devImpersonationUserId) {
+    extraHeaders["X-Dev-Impersonate-User-Id"] = String(payload.devImpersonationUserId).trim();
+  }
+  const result = await postApi("settlement-dispute-paid", payload, { extraHeaders });
+  if (!result.ok) return { ok:false, error: result.error || "Unable to dispute payment" };
   return { ok:true, data: normalizeAppState(result.body) };
 }
 
@@ -1944,6 +2383,7 @@ function getGroupOverview(group) {
   else if (totalLogged - totalExpected >= Math.max(2, activeMembers.length)) status = "cruising";
   else if (totalLogged >= totalExpected) status = "on-track";
   else if (totalLogged >= totalExpected - Math.max(3, activeMembers.length * 2)) status = "at-risk";
+  status = getLeaderboardDisplayStatus(status, totalLogged, DAY_OF_MON);
   return {
     status,
     activeMembers: activeMembers.length,
@@ -1972,12 +2412,15 @@ function getGroupMemberPreview(group, userName) {
   else if (count - expected >= 2) status = "cruising";
   else if (count >= expected) status = "on-track";
   else if (count >= expected - 3) status = "at-risk";
+  status = getLeaderboardDisplayStatus(status, count, context.day);
   return { count, status, needed: Math.max(0, minTarget - count) };
 }
 
 function groupStatusLabel(status) {
   return status === "on-track" ? "On track"
+    : status === "locked-in" ? "Locked in"
     : status === "cruising" ? "Cruising"
+    : status === "starting-soon" ? "Starting soon"
     : status === "at-risk" ? "At risk"
     : status === "cooked" ? "Cooked"
     : status === "excused" ? "Excused"
@@ -1985,12 +2428,87 @@ function groupStatusLabel(status) {
 }
 
 function groupStatusColor(status) {
-  return status === "cruising" ? "#CBD5E1"
+  return status === "locked-in" ? "#E2E8F0"
+    : status === "cruising" ? "#CBD5E1"
+    : status === "starting-soon" ? "#8FAEAA"
     : status === "on-track" ? "#5ABF5A"
     : status === "at-risk" ? "#D4A843"
     : status === "behind" ? "#D47843"
     : status === "excused" ? "var(--muted)"
     : "#D44A4A";
+}
+
+function leaderboardRowTint(status) {
+  return status === "locked-in" ? "linear-gradient(90deg, rgba(203,213,225,.10) 0%, rgba(203,213,225,.20) 100%)"
+    : status === "cruising" ? "rgba(203,213,225,.08)"
+    : status === "starting-soon" ? "rgba(143,174,170,.06)"
+    : status === "on-track" ? "rgba(90,191,90,.09)"
+    : status === "at-risk" ? "rgba(212,168,67,.10)"
+    : status === "behind" ? "rgba(212,120,67,.08)"
+    : status === "cooked" ? "rgba(212,74,74,.10)"
+    : "transparent";
+}
+
+function getDisplayBlocPerfectStreak(group, fallback = 0) {
+  if (isLocalDevEnvironment() && group?.id === LEGACY_GROUP_ID) return 3;
+  return fallback;
+}
+
+function buildLocalLeaderboardComparisonRows(group, sourceRows = []) {
+  if (!isLocalDevEnvironment() || group?.id !== LEGACY_GROUP_ID) return null;
+  return [
+    { key:"compare-aadhil-locked", name:"Aadhil", count:14, isOut:false, target:12, status:"locked-in", memberDiffLabel:"+4 ahead of pace", rank:1, prorated:false },
+    { key:"compare-kisal-locked", name:"Kisal", count:13, isOut:false, target:12, status:"locked-in", memberDiffLabel:"+3 ahead of pace", rank:2, prorated:false },
+    { key:"compare-nishara-cruising", name:"Nishara", count:11, isOut:false, target:12, status:"cruising", memberDiffLabel:"+3 ahead of pace", rank:3, prorated:false },
+    { key:"compare-rahul-cruising", name:"Rahul", count:10, isOut:false, target:12, status:"cruising", memberDiffLabel:"+2 ahead of pace", rank:4, prorated:false },
+    { key:"compare-deyhan-track", name:"Deyhan", count:8, isOut:false, target:12, status:"on-track", memberDiffLabel:"on pace", rank:5, prorated:false },
+    { key:"compare-aysha-track", name:"Aysha", count:8, isOut:false, target:12, status:"on-track", memberDiffLabel:"on pace", rank:6, prorated:false },
+    { key:"compare-abhishek-risk", name:"Abhishek", count:6, isOut:false, target:12, status:"at-risk", memberDiffLabel:"-2 behind pace", rank:7, prorated:false },
+    { key:"compare-isira-risk", name:"Isira", count:5, isOut:false, target:12, status:"at-risk", memberDiffLabel:"-3 behind pace", rank:8, prorated:false },
+    { key:"compare-monika-behind", name:"Monika", count:4, isOut:false, target:12, status:"behind", memberDiffLabel:"-4 behind pace", rank:9, prorated:false },
+    { key:"compare-varun-behind", name:"Varun", count:3, isOut:false, target:12, status:"behind", memberDiffLabel:"-5 behind pace", rank:10, prorated:false },
+    { key:"compare-giang-cooked", name:"Giang", count:2, isOut:false, target:12, status:"cooked", memberDiffLabel:"target out of reach", rank:11, prorated:false },
+    { key:"compare-rodri-cooked", name:"Rodri", count:1, isOut:false, target:12, status:"cooked", memberDiffLabel:"target out of reach", rank:12, prorated:false }
+  ];
+}
+
+function formatWeeklyMvpLeaderText(names = []) {
+  if (!names.length) return "";
+  if (names.length === 1) return names[0];
+  if (names.length === 2) return `${names[0]} + ${names[1]}`;
+  return `${names[0]} + ${names.length - 1} more`;
+}
+
+function formatWeekRangeLabel(startDate, endDate) {
+  if (!(startDate instanceof Date) || Number.isNaN(startDate.getTime()) || !(endDate instanceof Date) || Number.isNaN(endDate.getTime())) return "";
+  const startMonth = MONTH_NAMES[startDate.getMonth()].slice(0, 3);
+  const endMonth = MONTH_NAMES[endDate.getMonth()].slice(0, 3);
+  const startDay = startDate.getDate();
+  const endDay = endDate.getDate();
+  return startMonth === endMonth
+    ? `${startMonth} ${startDay}-${endDay}`
+    : `${startMonth} ${startDay}-${endMonth} ${endDay}`;
+}
+
+function buildLocalWeeklyMvpPreview(group, currentWeekDays) {
+  if (!isLocalDevEnvironment() || group?.id !== LEGACY_GROUP_ID || !Array.isArray(currentWeekDays) || !currentWeekDays.length) return null;
+  const makeLogsByIso = (type, indexes) => Object.fromEntries(
+    indexes.map(index => {
+      const iso = toISODate(currentWeekDays[index]);
+      return [iso, { date: iso, type }];
+    })
+  );
+  return {
+    currentWeekValue: "Monika",
+    currentWeekLeaders: [
+      { name:"Monika", logsByIso: makeLogsByIso("gym", [0, 2, 4]) }
+    ],
+    previousWeeks: [
+      { key:"preview-week-1", label:"Week 1", rangeLabel:"Jun 30-Jul 6", leaders:["Rahul"], count:4, isTie:false },
+      { key:"preview-week-2", label:"Week 2", rangeLabel:"Jul 7-13", leaders:["Monika"], count:3, isTie:false },
+      { key:"preview-week-3", label:"Week 3", rangeLabel:"Jul 14-20", leaders:["Aadhil", "Kisal"], count:5, isTie:true }
+    ]
+  };
 }
 
 function acceptedTypesLabel(types) {
@@ -2105,18 +2623,54 @@ const WorkoutTypeIcon = ({type,size=16,color="currentColor"}) => (
   React.createElement(CategoryIcon,{category:type,size,color})
 );
 
+const ChevronRightIcon = ({size=10,color="#3d5e59"}) => (
+  React.createElement('svg',{
+    width:size,
+    height:size,
+    viewBox:"0 0 24 24",
+    fill:"none",
+    stroke:color,
+    strokeWidth:"2.2",
+    strokeLinecap:"round",
+    strokeLinejoin:"round",
+    'aria-hidden':"true"
+  },
+    React.createElement('path',{d:"M9 6l6 6l-6 6"})
+  )
+);
+
+const TargetHitHexIcon = ({size=22,color="#4ECDC4"}) => (
+  React.createElement('svg',{
+    width:size,
+    height:size,
+    viewBox:"0 0 24 24",
+    fill:"none",
+    stroke:color,
+    strokeWidth:"2",
+    strokeLinecap:"round",
+    strokeLinejoin:"round",
+    'aria-hidden':"true"
+  },
+    React.createElement('polygon',{points:"12 2.6 19.8 7.1 19.8 16.9 12 21.4 4.2 16.9 4.2 7.1"}),
+    React.createElement('polygon',{points:"12 6.7 16.2 9.1 16.2 14.9 12 17.3 7.8 14.9 7.8 9.1"}),
+    React.createElement('circle',{cx:"12",cy:"12",r:"1.8",fill:color,stroke:"none"})
+  )
+);
+
 const StatusBadge = ({status}) => {
   const map={
+    "locked-in":["linear-gradient(90deg, rgba(203,213,225,.08) 0%, rgba(203,213,225,.35) 100%)","#E2E8F0","#2a2d31"],
     "cruising":["rgba(203,213,225,.10)","#CBD5E1","#1a1d21"],
+    "starting-soon":["rgba(143,174,170,.10)","#8FAEAA","#1B2C2C"],
     "on-track":["rgba(90,191,90,.14)","#5ABF5A","#17351d"],
     "at-risk":["#1E1808","#D4A843","#3D3010"],
     "behind":["rgba(212,120,67,.14)","#D47843","#3E2416"],
     "cooked":["rgba(212,74,74,.14)","#D44A4A","#3B1818"]
   };
   const [bg,fg]=map[status]||map.behind;
-  const labels={"cruising":"Cruising","on-track":"On Track","at-risk":"At Risk","behind":"Behind","cooked":"Cooked"};
+  const labels={"locked-in":"Locked In","cruising":"Cruising","starting-soon":"Early","on-track":"On Track","at-risk":"At Risk","behind":"Behind","cooked":"Cooked"};
   const border = map[status]?.[2] || `${fg}40`;
-  return React.createElement('span',{style:{background:bg,color:fg,border:`0.5px solid ${border}`,padding:"2px 8px",borderRadius:999,fontSize:10,fontFamily:"'JetBrains Mono',monospace",fontWeight:700,letterSpacing:".05em",textTransform:"uppercase",whiteSpace:"nowrap"}},labels[status]);
+  return React.createElement('span',{style:{background:bg,color:fg,border:`0.5px solid ${border}`,padding:"1px 7px",borderRadius:999,fontSize:9,fontFamily:"'Outfit',sans-serif",fontWeight:700,letterSpacing:".04em",textTransform:"uppercase",whiteSpace:"nowrap"}},labels[status]);
 };
 
 const RankIcon = ({rank}) => {
@@ -2162,7 +2716,7 @@ const Bar = ({value,max,color="var(--green)",h=2}) => React.createElement('div',
   React.createElement('div',{style:{width:`${Math.min(100,max?Math.round(value/max*100):0)}%`,height:"100%",background:color,borderRadius:99,transition:"width .5s cubic-bezier(.4,0,.2,1)"}})
 );
 
-const Card = ({children,style={},className=""}) => React.createElement('div',{className:`card ${className}`,style},children);
+const Card = ({children,style={},className="",...props}) => React.createElement('div',{className:`card ${className}`,style,...props},children);
 
 const AppIcon = ({name,size=18,stroke="currentColor"}) => {
   const common = { width:size, height:size, viewBox:"0 0 24 24", fill:"none", stroke, strokeWidth:"1.8", strokeLinecap:"round", strokeLinejoin:"round" };
@@ -2184,6 +2738,10 @@ const AppIcon = ({name,size=18,stroke="currentColor"}) => {
     React.createElement('path',{d:"M4 12a8 8 0 1 0 2.3-5.7"}),
     React.createElement('path',{d:"M4 4v4h4"}),
     React.createElement('path',{d:"M12 8v5l3 2"})
+  );
+  if (name==="plus") return React.createElement('svg',common,
+    React.createElement('path',{d:"M12 5v14"}),
+    React.createElement('path',{d:"M5 12h14"})
   );
   if (name==="settings") return React.createElement('svg',common,
     React.createElement('circle',{cx:"12",cy:"12",r:"3.2"}),
@@ -2242,6 +2800,75 @@ const Spinner = ({label="Loading Antè..."}) => React.createElement('div',{style
   React.createElement('div',{className:"spinner"}),
   React.createElement('div',{style:{color:"var(--muted)",fontSize:13,fontFamily:"'JetBrains Mono',monospace"}},label)
 );
+
+class PlayerProfileErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+
+  componentDidCatch(error, info) {
+    console.error("PlayerProfile render failed", error, info);
+  }
+
+  componentDidUpdate(prevProps) {
+    if (prevProps.profileName !== this.props.profileName && this.state.error) {
+      this.setState({ error: null });
+    }
+  }
+
+  render() {
+    if (!this.state.error) return this.props.children;
+    return React.createElement('div',{style:{maxWidth:740,margin:"0 auto",padding:"16px",display:"grid",gap:12}},
+      React.createElement(Card,{style:{padding:"18px 16px",display:"grid",gap:10}},
+        React.createElement('div',{style:{fontSize:18,fontWeight:800,color:"var(--text)"}},"Profile couldn't be opened"),
+        React.createElement('div',{style:{fontSize:13,color:"var(--muted)",lineHeight:1.5}},
+          this.props.profileName ? `${this.props.profileName}'s profile hit a rendering error.` : "This profile hit a rendering error."
+        ),
+        React.createElement('div',{className:"mono",style:{fontSize:10,color:"var(--red)",whiteSpace:"pre-wrap",wordBreak:"break-word"}},String(this.state.error?.message || this.state.error || "Unknown error")),
+        React.createElement('div',null,
+          React.createElement('button',{onClick:this.props.onBack,style:{background:"var(--s2)",border:"1px solid var(--border)",color:"var(--text)",padding:"10px 12px",borderRadius:10,fontSize:13,fontWeight:700}},"Back")
+        )
+      )
+    );
+  }
+}
+
+class TodayPageErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+
+  componentDidCatch(error, info) {
+    console.error("TodayPage render failed", error, info);
+  }
+
+  componentDidUpdate(prevProps) {
+    if (prevProps.resetKey !== this.props.resetKey && this.state.error) {
+      this.setState({ error: null });
+    }
+  }
+
+  render() {
+    if (!this.state.error) return this.props.children;
+    return React.createElement('div',{style:{maxWidth:740,margin:"0 auto",padding:"16px",display:"grid",gap:12}},
+      React.createElement(Card,{style:{padding:"18px 16px",display:"grid",gap:10}},
+        React.createElement('div',{style:{fontSize:18,fontWeight:800,color:"var(--text)"}},"Today screen hit an error"),
+        React.createElement('div',{style:{fontSize:13,color:"var(--muted)",lineHeight:1.5}},"The Today view crashed while rendering."),
+        React.createElement('div',{className:"mono",style:{fontSize:10,color:"var(--red)",whiteSpace:"pre-wrap",wordBreak:"break-word"}},String(this.state.error?.message || this.state.error || "Unknown error"))
+      )
+    );
+  }
+}
 
 const InstallBanner = ({installReady,onInstall,onDismiss,showIosHint}) => (
   React.createElement('div',{className:"install-banner"},
@@ -2971,7 +3598,9 @@ const GroupHome = ({groups,currentIdentity,currentEmail,onOpenProfile,onOpenGrou
           const acceptedTypes = getAcceptedWorkoutTypes(group);
           return React.createElement('button',{key:group.id,onClick:()=>onOpenGroup(group.id),onMouseEnter:e=>{e.currentTarget.style.border="1px solid rgba(78,205,196,.18)";e.currentTarget.style.boxShadow="inset 0 1px 0 rgba(78,205,196,.14), 0 0 0 1px rgba(78,205,196,.04), 0 18px 36px rgba(0,0,0,.28), 0 3px 10px rgba(78,205,196,.06)";e.currentTarget.style.transform="translateY(-1px)"},onMouseLeave:e=>{e.currentTarget.style.border=compactMobile?"1px solid rgba(18,36,36,.96)":"0.5px solid #0D1F1E";e.currentTarget.style.boxShadow=compactMobile?"inset 0 1px 0 rgba(78,205,196,.12), 0 0 0 1px rgba(10,27,27,.24), 0 14px 30px rgba(0,0,0,.16), 0 2px 8px rgba(78,205,196,.04)":"inset 0 1px 0 rgba(78,205,196,.12), 0 2px 12px rgba(0,0,0,.18), 0 1px 4px rgba(78,205,196,.03)";e.currentTarget.style.transform="translateY(0)"},onMouseDown:e=>{e.currentTarget.style.transform="translateY(2px)";e.currentTarget.style.boxShadow=compactMobile?"inset 0 1px 0 rgba(78,205,196,.07), 0 0 0 1px rgba(10,27,27,.22), 0 8px 18px rgba(0,0,0,.16), 0 1px 4px rgba(78,205,196,.03)":"inset 0 1px 0 rgba(78,205,196,.07), 0 1px 7px rgba(0,0,0,.18), 0 1px 3px rgba(78,205,196,.02)"},onMouseUp:e=>{e.currentTarget.style.transform="translateY(-1px)";e.currentTarget.style.boxShadow="inset 0 1px 0 rgba(78,205,196,.14), 0 0 0 1px rgba(78,205,196,.04), 0 18px 36px rgba(0,0,0,.28), 0 3px 10px rgba(78,205,196,.06)"},onTouchStart:e=>{e.currentTarget.style.transform="translateY(2px)";e.currentTarget.style.boxShadow=compactMobile?"inset 0 1px 0 rgba(78,205,196,.07), 0 0 0 1px rgba(10,27,27,.22), 0 8px 18px rgba(0,0,0,.16), 0 1px 4px rgba(78,205,196,.03)":"inset 0 1px 0 rgba(78,205,196,.07), 0 1px 7px rgba(0,0,0,.18), 0 1px 3px rgba(78,205,196,.02)"},onTouchEnd:e=>{e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow=compactMobile?"inset 0 1px 0 rgba(78,205,196,.12), 0 0 0 1px rgba(10,27,27,.24), 0 14px 30px rgba(0,0,0,.16), 0 2px 8px rgba(78,205,196,.04)":"inset 0 1px 0 rgba(78,205,196,.12), 0 2px 12px rgba(0,0,0,.18), 0 1px 4px rgba(78,205,196,.03)"},style:{background:"linear-gradient(180deg,rgba(11,17,17,.985),rgba(8,12,12,.985))",border:compactMobile?"1px solid rgba(18,36,36,.96)":"0.5px solid #0D1F1E",boxShadow:compactMobile?"inset 0 1px 0 rgba(78,205,196,.12), 0 0 0 1px rgba(10,27,27,.24), 0 14px 30px rgba(0,0,0,.16), 0 2px 8px rgba(78,205,196,.04)":"inset 0 1px 0 rgba(78,205,196,.12), 0 2px 12px rgba(0,0,0,.18), 0 1px 4px rgba(78,205,196,.03)",borderRadius:compactMobile?15:18,padding:compactMobile?"12px 10px":"15px 16px",textAlign:"left",cursor:"pointer",transition:"border .15s, box-shadow .15s, transform .15s",animation:`fadeUp .35s ${index*.04}s ease both`}},
             React.createElement('div',{style:{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:8,marginBottom:compactMobile?6:10}},
-              React.createElement('div',{style:{fontSize:compactMobile?17:21,fontWeight:900,color:"#f5f7ff",letterSpacing:"-.03em",lineHeight:1.15}},group.name),
+              React.createElement('div',{style:{display:"inline-flex",alignItems:"center",gap:5,minWidth:0}},
+                React.createElement('div',{style:{fontSize:compactMobile?17:21,fontWeight:900,color:"#f5f7ff",letterSpacing:"-.03em",lineHeight:1.15,minWidth:0}},group.name)
+              ),
               React.createElement('div',{style:{display:"flex",flexDirection:"column",alignItems:"flex-end",flexShrink:0,gap:2}},
                 React.createElement('span',{className:"mono",style:{fontSize:compactMobile?11:12,letterSpacing:".04em"}},
                   React.createElement('span',{style:{color:"#4ECDC4",fontWeight:700}},group.settings.minTarget),
@@ -2996,7 +3625,7 @@ const GroupHome = ({groups,currentIdentity,currentEmail,onOpenProfile,onOpenGrou
                 ? React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:compactMobile?5:8,alignItems:"end"}},
                     React.createElement('div',null,
                       React.createElement('div',{style:{fontSize:9,fontWeight:600,color:"var(--muted)",letterSpacing:".08em",textTransform:"uppercase",fontFamily:"'Outfit',sans-serif"}},"Status"),
-                      React.createElement('div',{style:{marginTop:3,fontSize:12,fontWeight:800,color:statusColor(preview.status),lineHeight:1.1}},String(preview.status || "").replace("-", " ").toUpperCase())
+                      React.createElement('div',{style:{marginTop:3,fontSize:12,fontWeight:800,color:statusColor(preview.status),lineHeight:1.1,whiteSpace:"nowrap"}},preview.status === "starting-soon" ? "Month started" : String(preview.status || "").replace("-", " ").toUpperCase())
                     ),
                     React.createElement('div',null,
                       React.createElement('div',{style:{fontSize:compactMobile?14:20,fontWeight:800,color:"#f5f7ff",marginBottom:1}},preview.count),
@@ -3066,6 +3695,42 @@ const GroupAccessNotice = ({groupName,userName,onBack}) => (
     )
   )
 );
+
+const LocalDevImpersonationBar = ({options,value,onChange}) => {
+  if (!Array.isArray(options) || !options.length) return null;
+  return React.createElement('div',{
+    style:{
+      margin:"10px 16px 0",
+      padding:"10px 12px",
+      borderRadius:14,
+      background:"#0A1412",
+      border:"0.5px solid #163d36",
+      display:"flex",
+      alignItems:"center",
+      gap:10,
+      flexWrap:"wrap"
+    }
+  },
+    React.createElement('span',{className:"mono",style:{fontSize:10,color:"#6B9690",letterSpacing:".14em",textTransform:"uppercase"}},"Local Test Identity"),
+    React.createElement('select',{
+      value:value || "",
+      onChange:event=>onChange(event.target.value || ""),
+      style:{
+        flex:"1 1 180px",
+        minWidth:0,
+        background:"#080F0F",
+        color:"var(--text)",
+        border:"0.5px solid #163d36",
+        borderRadius:10,
+        padding:"8px 10px",
+        fontSize:13,
+        fontWeight:600
+      }
+    },
+      options.map(option => React.createElement('option',{key:option.userId,value:option.userId},option.label))
+    )
+  );
+};
 
 // ─── LOG MODAL ────────────────────────────────────────────────────────────────
 const CropModal = ({imageSrc, onConfirm, onCancel}) => {
@@ -3493,7 +4158,7 @@ const ProrationChoiceModal = ({monthName,fullMas,daysRemaining,daysInMonth,prora
 );
 
 // ─── NAV ──────────────────────────────────────────────────────────────────────
-const Nav = ({page,setPage,user,groupName,canEditGroup,onOpenSettings,onOpenProfile,onSwitchUser,onSwitchGroup,syncing,lastSyncedAt,syncError,onRefresh,showJustSynced,activityAlertCount=0}) => {
+const Nav = ({page,setPage,user,groupName,canEditGroup,onOpenSettings,onOpenProfile,onSwitchUser,onSwitchGroup,onOpenLog,syncing,lastSyncedAt,syncError,onRefresh,showJustSynced,activityAlertCount=0}) => {
   const navItems = [["today","Today","today"],["activity","Activity","activity"],["month","Results","results"],["history","History","history"]];
   return React.createElement(React.Fragment,null,
   React.createElement('nav',{className:"desktop-only",style:{background:"var(--s1)",borderBottom:"1px solid var(--border)",padding:"0 16px",display:"flex",alignItems:"center",justifyContent:"space-between",height:52,position:"sticky",top:0,zIndex:100}},
@@ -3530,7 +4195,7 @@ const Nav = ({page,setPage,user,groupName,canEditGroup,onOpenSettings,onOpenProf
       React.createElement('div',{style:{display:"flex",alignItems:"center",minWidth:0,flexShrink:0}},
         React.createElement(AnteWordmark,{size:20})
       ),
-      React.createElement('button',{type:"button",onClick:onSwitchGroup,style:{position:"absolute",left:"50%",transform:"translateX(-50%)",padding:0,background:"transparent",color:"#4ECDC4",fontSize:13,fontWeight:500,fontFamily:"'Outfit', sans-serif",lineHeight:1,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:"calc(100% - 132px)",display:"inline-flex",alignItems:"center",gap:3}},
+      React.createElement('button',{type:"button",onClick:onSwitchGroup,style:{position:"absolute",left:"50%",transform:"translateX(-50%)",padding:0,background:"transparent",color:"#4ECDC4",fontSize:13,fontWeight:500,fontFamily:"'Outfit', sans-serif",lineHeight:1,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:"calc(100% - 132px)",display:"inline-flex",alignItems:"center",gap:4}},
         groupName,
         React.createElement('span',{style:{fontSize:10,lineHeight:1,opacity:.85}},"▾")
       ),
@@ -3542,8 +4207,20 @@ const Nav = ({page,setPage,user,groupName,canEditGroup,onOpenSettings,onOpenProf
   ),
   React.createElement('div',{className:"mobile-only mobile-bottom-nav"},
     React.createElement('div',{className:"mobile-bottom-nav-grid"},
-      navItems.map(([id,label,icon])=>
-        React.createElement('button',{key:id,onClick:()=>setPage(id),className:`mobile-tab${page===id?" on":""}`},
+      [
+        ["today","Today","today"],
+        ["activity","Activity","activity"],
+        ["log","","plus"],
+        ["month","Results","results"],
+        ["history","History","history"]
+      ].map(([id,label,icon])=>
+        id === "log"
+          ? React.createElement('div',{key:id,className:"mobile-plus-tab-wrap"},
+              React.createElement('button',{type:"button",onClick:onOpenLog,className:"mobile-plus-tab",title:"Log workout","aria-label":"Log workout"},
+                React.createElement(AppIcon,{name:icon,size:24,stroke:"#FFFFFF"})
+              )
+            )
+          : React.createElement('button',{key:id,onClick:()=>setPage(id),className:`mobile-tab${page===id?" on":""}`},
           React.createElement('div',{style:{position:"relative",display:"inline-flex",alignItems:"center",justifyContent:"center"}},
             React.createElement('span',{style:{fontSize:18,lineHeight:1,display:"inline-flex"}},React.createElement(AppIcon,{name:icon,size:18})),
             id==="activity" && activityAlertCount>0 && React.createElement('span',{className:"mono",style:{position:"absolute",top:-6,right:-14,minWidth:18,height:18,padding:"0 5px",borderRadius:999,background:"rgba(232,69,69,.18)",border:"1px solid rgba(232,69,69,.28)",fontSize:9,color:"#ff9c9c",display:"inline-flex",alignItems:"center",justifyContent:"center"}},activityAlertCount)
@@ -3865,7 +4542,11 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,groupSettings,onDe
   const selDaysInMonth = new Date(selYear, selMonthNum + 1, 0).getDate();
   const firstDay=new Date(selYear, selMonthNum, 1).getDay();
   const calDays=[...Array(firstDay).fill(null),...Array.from({length:selDaysInMonth},(_,i)=>i+1)];
-  const logsByDay={};selLogs.forEach(l=>{const d=parseInt(l.date.split("-")[2]);logsByDay[d]=l;});
+  const logsByDay={};
+  selLogs.forEach(l=>{
+    const d = Number(String(l?.date || "").split("-")[2]);
+    if (Number.isFinite(d)) logsByDay[d]=l;
+  });
   const selLabel=isCurMonth?`${MONTH_NAMES[CUR_MONTH]} '${String(CUR_YEAR).slice(2)}`:selHistMonth?.label;
 
   const monthSelector = React.createElement(SelectField,{
@@ -3981,7 +4662,7 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,groupSettings,onDe
       ),
       hasDetailedLogs&&visibleSelLogs.length>0&&React.createElement('div',{style:{marginTop:14,borderTop:"1px solid var(--border)",paddingTop:12}},
         React.createElement('span',{className:"lbl",style:{marginBottom:8}},"All Logs"),
-        ([...selLogs]).sort((a,b)=>b.date.localeCompare(a.date)).map((l,i,arr)=>
+        ([...selLogs]).sort((a,b)=>String(b?.date || "").localeCompare(String(a?.date || ""))).map((l,i,arr)=>
           React.createElement('div',{key:l.id,style:{display:"flex",alignItems:"center",gap:10,paddingBottom:7,marginBottom:7,borderBottom:i<arr.length-1?"1px solid var(--border)":"none"}},
             React.createElement('span',{style:{width:20,height:20,display:"inline-flex",alignItems:"center",justifyContent:"center",color:"#dbe8ff"}},React.createElement(WorkoutTypeIcon,{type:l.type,size:15})),
             React.createElement('div',{style:{flex:1,fontWeight:600,fontSize:14}},l.type),
@@ -3994,14 +4675,20 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,groupSettings,onDe
 };
 
 // ─── TODAY PAGE ───────────────────────────────────────────────────────────────
-const TodayPage = ({user,currentGroupId,groups,logs,excused,monthHistory,saving,onSave,onMultiLog,onLogMutation,clockTick,onViewLastMonth,onSitOutRequest,navResetToken}) => {
-  const [showLog,setShowLog]=useState(false);
+const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthHistory,saving,onSave,onMultiLog,onLogMutation,clockTick,onViewLastMonth,onSitOutRequest,onSettlementClaimPaid,onSettlementConfirmPaid,onSettlementDisputePaid,navResetToken,showLog,setShowLog}) => {
   const [showExcuse,setShowExcuse]=useState(false);
   const [sitOutSubmitting,setSitOutSubmitting]=useState(false);
   const [sitOutError,setSitOutError]=useState("");
   const [viewPlayer,setViewPlayer]=useState(null);
   const [deleteTarget,setDeleteTarget]=useState(null);
+  const [statDetail,setStatDetail]=useState(null);
+  const [settlementCardBusy,setSettlementCardBusy]=useState(null);
+  const [settlementConfirmPromptCard,setSettlementConfirmPromptCard]=useState(null);
+  const [settlementDisputePromptCard,setSettlementDisputePromptCard]=useState(null);
   useEffect(()=>{ setViewPlayer(null); },[navResetToken]);
+  useEffect(()=>{
+    if(viewPlayer) window.scrollTo({top:0,left:0,behavior:"auto"});
+  },[viewPlayer]);
   const currentGroup = groups.find(group => group.id === currentGroupId) || null;
   const closeMeta = currentGroup ? getGroupCloseMeta(currentGroup, new Date(clockTick)) : null;
   const closePillClass = `close-pill${closeMeta?.tone === "urgent" ? " urgent" : closeMeta?.tone === "critical" ? " critical" : ""}`;
@@ -4037,14 +4724,9 @@ const TodayPage = ({user,currentGroupId,groups,logs,excused,monthHistory,saving,
     } else if (proratedDays) {
       const daysActive = Math.max(0, DAY_OF_MON - joinDay + 1);
       const expected = Math.ceil((target / proratedDays) * daysActive);
-      const daysLeft = getDaysLeft();
-      if (count + daysLeft < target) status = "cooked";
-      else if (count - expected >= 2) status = "cruising";
-      else if (count >= expected) status = "on-track";
-      else if (count >= expected - 3) status = "at-risk";
-      else status = "behind";
+      status = resolvePaceStatus({ count, target, expected, daysLeft: getDaysLeft() });
       const d = count - expected;
-      memberDiffLabel = d > 0 ? `+${d} ahead` : d < 0 ? `${d} behind` : "on pace";
+      memberDiffLabel = d > 0 ? `+${d} ahead of pace` : d < 0 ? `${d} behind pace` : "on pace";
     } else {
       status = getStatus(count, target);
       memberDiffLabel = null;
@@ -4054,6 +4736,7 @@ const TodayPage = ({user,currentGroupId,groups,logs,excused,monthHistory,saving,
 
   let activeRank=0;
   const boardRanked=board.map(u=>{if(!u.isOut)activeRank++;return {...u,rank:u.isOut?null:activeRank};});
+  const leaderboardRows = buildLocalLeaderboardComparisonRows(currentGroup, boardRanked) || boardRanked;
   const me=boardRanked.find(u=>u.name===user) || { count:0, rank:null, status:"behind", target:myTarget };
   const paceCheckMessage = getPaceCheckMessage({
     status: me.status,
@@ -4116,24 +4799,195 @@ const TodayPage = ({user,currentGroupId,groups,logs,excused,monthHistory,saving,
     setShowExcuse(false);
   };
 
-  const barColor=s=>s==="cruising"?"#CBD5E1":s==="on-track"?"#5ABF5A":s==="at-risk"?"#D4A843":s==="behind"?"#D47843":"#D44A4A";
+  const [previewSettlementCards, setPreviewSettlementCards] = useState([]);
 
-  if(viewPlayer) return React.createElement('div',{style:{maxWidth:1060,margin:"0 auto"}},
-    React.createElement(PlayerProfile,{name:viewPlayer,logs,excused,monthHistory,onBack:()=>setViewPlayer(null),groupSettings,onDeleteLog:viewPlayer===user?async(log)=>{ await onLogMutation({action:"delete-log",groupId:currentGroupId,actor:user,logId:log.id}); }:undefined})
-  );
+  useEffect(() => {
+    if (!currentGroup?.settlementConfirmationsPreviewMode) {
+      setPreviewSettlementCards([]);
+      return;
+    }
+    setPreviewSettlementCards(buildSettlementPreviewCards(user));
+  }, [currentGroup?.id, currentGroup?.settlementConfirmationsPreviewMode, user]);
+
+  const runSettlementCardAction = async (card, actionKind = card?.action?.kind) => {
+    if (!card || !actionKind) return;
+    if (currentGroup?.settlementConfirmationsPreviewMode) {
+      setPreviewSettlementCards(cards => {
+        if (actionKind === "claim") {
+          return cards.map(entry => entry.key !== card.key ? entry : {
+            ...entry,
+            pending: true,
+            label: "PENDING CONFIRMATION",
+            labelColor: "#EF9F27",
+            body: `Waiting for ${entry.receiverDisplayName} to confirm`,
+            amountColor: "#EF9F27",
+            statusTag: null,
+            secondaryAction: null,
+            action: null
+          });
+        }
+        if (actionKind === "confirm") {
+          return cards.filter(entry => entry.key !== card.key);
+        }
+        if (actionKind === "dispute") {
+          return cards.map(entry => {
+            if (
+              entry.monthKey === card.monthKey
+              && entry.payerDisplayName === card.payerDisplayName
+              && entry.receiverDisplayName === card.receiverDisplayName
+            ) {
+              return {
+                ...entry,
+                pending: false,
+                label: `OWED TO YOU${entry.monthKey !== curKey ? ` · ${entry.monthLabel.toUpperCase()}` : ""}`,
+                labelColor: "#1a6b3a",
+                body: `${entry.payerDisplayName} owes you`,
+                amountColor: "#2ecc71",
+                secondaryAction: null,
+                action: null
+              };
+            }
+            return entry;
+          });
+        }
+        return cards;
+      });
+      return;
+    }
+    setSettlementCardBusy(card.key);
+    const result = actionKind === "claim"
+      ? await onSettlementClaimPaid?.({
+          monthKey: card.monthKey,
+          payerDisplayName: card.payerDisplayName,
+          receiverDisplayName: card.receiverDisplayName,
+          amount: card.amount,
+          currency: card.currency
+        })
+      : actionKind === "confirm"
+        ? await onSettlementConfirmPaid?.({
+            monthKey: card.monthKey,
+            payerDisplayName: card.payerDisplayName,
+            receiverDisplayName: card.receiverDisplayName
+          })
+        : await onSettlementDisputePaid?.({
+            monthKey: card.monthKey,
+            payerDisplayName: card.payerDisplayName,
+            receiverDisplayName: card.receiverDisplayName
+          });
+    setSettlementCardBusy(null);
+    if (!result?.ok) {
+      window.alert(result?.error || "Unable to update settlement");
+    }
+  };
+
+  const handleSettlementCardAction = async (card, actionKind = card?.action?.kind) => {
+    if (!card || !actionKind) return;
+    if (actionKind === "dispute") {
+      setSettlementDisputePromptCard(card);
+      return;
+    }
+    if (actionKind === "confirm") {
+      setSettlementConfirmPromptCard(card);
+      return;
+    }
+    await runSettlementCardAction(card, actionKind);
+  };
+
+  const barColor=s=>s==="cruising"?"#CBD5E1":s==="on-track"?"#5ABF5A":s==="at-risk"?"#D4A843":s==="behind"?"#D47843":"#D44A4A";
+  const monthHistoryByKey = useMemo(() => {
+    const map = new Map();
+    monthHistory.forEach(month => {
+      if (month?.key) map.set(month.key, month);
+    });
+    return map;
+  }, [monthHistory]);
+  const currentMonthLogMap = useMemo(() => {
+    const map = new Map();
+    Object.entries(logs || {}).forEach(([memberName, memberLogs]) => {
+      (memberLogs || []).forEach(log => {
+        if (log?.date) map.set(`${memberName}:${log.date}`, log);
+      });
+    });
+    return map;
+  }, [logs]);
+  const currentWeekStart = useMemo(() => {
+    const start = new Date(CUR_YEAR, CUR_MONTH, DAY_OF_MON);
+    const mondayIndex = (start.getDay() + 6) % 7;
+    start.setDate(start.getDate() - mondayIndex);
+    start.setHours(0,0,0,0);
+    return start;
+  }, [CUR_YEAR, CUR_MONTH, DAY_OF_MON]);
+  const currentWeekEnd = useMemo(() => {
+    const end = new Date(currentWeekStart);
+    end.setDate(currentWeekStart.getDate() + 6);
+    end.setHours(23,59,59,999);
+    return end;
+  }, [currentWeekStart]);
+  const currentWeekDays = useMemo(() =>
+    Array.from({length:7}, (_, index) => {
+      const date = new Date(currentWeekStart);
+      date.setDate(currentWeekStart.getDate() + index);
+      return date;
+    }),
+  [currentWeekStart]);
+  const currentMonthKey = `${CUR_YEAR}-${CUR_MONTH}`;
+  const currentMonthLabel = `${MONTH_NAMES[CUR_MONTH]} '${String(CUR_YEAR).slice(-2)}`;
+  const blocMonthHistoryRows = useMemo(() => {
+    const closedRows = [...monthHistory]
+      .filter(month => month?.key && month.key !== currentMonthKey)
+      .sort((a,b)=>b.key.localeCompare(a.key))
+      .map(month => ({
+        key: month.key,
+        label: month.label,
+        total: Object.values(month.counts || {}).reduce((sum, count) => sum + (Number(count) || 0), 0),
+        isCurrent: false
+      }));
+    const rows = [
+      {
+        key: currentMonthKey,
+        label: currentMonthLabel,
+        total: Object.values(logs || {}).reduce((sum, memberLogs) => sum + getCountedLogCount(memberLogs), 0),
+        isCurrent: true
+      },
+      ...closedRows
+    ];
+    const maxTotal = rows.reduce((max, month) => Math.max(max, month.total), 0) || 1;
+    return rows.map((month, index) => {
+      const olderMonth = rows[index + 1] || null;
+      const delta = !month.isCurrent && olderMonth ? month.total - olderMonth.total : null;
+      return {
+        ...month,
+        delta,
+        barWidth: `${Math.max(8, Math.round((month.total / maxTotal) * 100))}%`
+      };
+    });
+  }, [monthHistory, currentMonthKey, currentMonthLabel, logs]);
 
   const lastClosedMonth = monthHistory.length ? [...monthHistory].sort((a,b)=>b.key.localeCompare(a.key))[0] : null;
-  const showLastMonthBanner = (monthSummary?.day || DAY_OF_MON) <= 3;
+  const showLastMonthBanner = (monthSummary?.day || DAY_OF_MON) <= 5;
   const lastMonthBanner = showLastMonthBanner && lastClosedMonth && onViewLastMonth
-    ? React.createElement('button',{onClick:onViewLastMonth,style:{width:"100%",textAlign:"left",background:"#060D0D",border:"0.5px solid #0D2828",borderRadius:12,padding:"10px 14px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:10}},
+    ? React.createElement('button',{onClick:onViewLastMonth,style:{width:"100%",textAlign:"left",background:"radial-gradient(circle at top right, rgba(78,205,196,.10) 0%, transparent 45%), linear-gradient(135deg, rgba(8,20,20,1) 0%, rgba(6,13,13,1) 55%, rgba(7,10,14,1) 100%)",border:"0.5px solid #0D2828",borderRadius:12,padding:"10px 14px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:10}},
         React.createElement('div',null,
-          React.createElement('div',{className:"mono",style:{fontSize:9,color:"#4ECDC4",textTransform:"uppercase",letterSpacing:".12em",marginBottom:3}},"Last month"),
+          React.createElement('div',{style:{fontSize:9,color:"#4ECDC4",textTransform:"uppercase",letterSpacing:".12em",marginBottom:3,fontFamily:"'Outfit',sans-serif",fontWeight:700}},"Last month"),
           React.createElement('div',{style:{fontSize:14,fontWeight:700,color:"var(--text)"}},`${lastClosedMonth.label} results are in`),
-          React.createElement('div',{style:{fontSize:12,color:"var(--muted)",marginTop:2}},"Tap to see your outcome")
+          React.createElement('div',{style:{fontSize:12,color:"var(--muted)",marginTop:2}},"See how you finished.")
         ),
         React.createElement('span',{style:{fontSize:18,color:"#4ECDC4"}},"→")
       )
     : null;
+  const settlementReminderCards = currentGroup?.settlementConfirmationsPreviewMode
+    ? previewSettlementCards
+    : (currentGroup ? buildSettlementReminderCards(currentGroup, currentUserId, user) : []);
+  const showSettlementReminderSlot = !showLastMonthBanner && settlementReminderCards.length > 0;
+  const leaderboardRowBaseStyle = {
+    width:"100%",
+    background:"#080F0F",
+    border:"0.5px solid #0D1F1E",
+    borderRadius:8,
+    padding:"8px 10px",
+    boxShadow:"inset 0 1px 0 rgba(255,255,255,0.04)",
+    cursor:"pointer"
+  };
 
   const competitionStatusBody = isExcused
     ? React.createElement('div',{style:{display:"grid",gap:4}},
@@ -4166,118 +5020,542 @@ const TodayPage = ({user,currentGroupId,groups,logs,excused,monthHistory,saving,
         }
       },currentSitOutRequest?.status === "declined"?"Request again":"Sit out");
 
+  const paceDelta = me.count - expected;
+  const earlyMonthPaceQuiet = isEarlyMonthNeutralWindow() && me.count === 0;
+  const paceDeltaText = earlyMonthPaceQuiet ? "—" : (paceDelta > 0 ? `+${paceDelta}` : String(paceDelta));
+  const paceDeltaColor = earlyMonthPaceQuiet ? "var(--muted)" : (paceDelta >= 0 ? "#4ECDC4" : "#D47843");
+  const todayTargetText = earlyMonthPaceQuiet ? "month just started" : `${expected} by today`;
+  const targetCardMeta = (currentMonthOverride?.prorated || myTarget !== MIN_TARGET) ? "prorated" : null;
+
+  const weeklyCounts = Object.entries(logs || {}).map(([memberName, memberLogs]) => {
+    const weekCount = getCountedLogs(memberLogs).filter(log => {
+      if (!log?.date) return false;
+      const [year, month, day] = String(log.date).split("-").map(Number);
+      if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return false;
+      const logDate = new Date(year, month - 1, day);
+      return logDate >= currentWeekStart && logDate <= currentWeekEnd;
+    }).length;
+    return { name: memberName, count: weekCount };
+  });
+  const topWeeklyCount = weeklyCounts.reduce((max, member) => Math.max(max, member.count), 0);
+  const weeklyLeaders = weeklyCounts.filter(member => member.count === topWeeklyCount && member.count > 0);
+  const weeklyMvpValue = topWeeklyCount === 0
+    ? "—"
+    : weeklyLeaders.length === 1
+      ? weeklyLeaders[0].name
+      : weeklyLeaders.length === 2
+        ? "Tied"
+        : `${weeklyLeaders.length}-way tie`;
+  const blocMonthCount = Object.values(logs || {}).reduce((total, memberLogs) => total + getCountedLogCount(memberLogs), 0);
+  const getMemberLogForIso = (memberName, isoDate) => {
+    if (!memberName || !isoDate) return null;
+    const currentMonthMatch = currentMonthLogMap.get(`${memberName}:${isoDate}`);
+    if (currentMonthMatch) return currentMonthMatch;
+    const month = monthHistoryByKey.get(getMonthKeyFromISO(isoDate));
+    if (!month?.logsByUser?.[memberName]) return null;
+    return (month.logsByUser[memberName] || []).find(log => log?.date === isoDate) || null;
+  };
+  const renderMonthLogCalendar = ({memberName, title, year, monthIndex, logsByDay}) => {
+    const firstDay = new Date(year, monthIndex, 1).getDay();
+    const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+    const calDays = [...Array(firstDay).fill(null), ...Array.from({length: daysInMonth}, (_, i) => i + 1)];
+    return React.createElement(Card,{style:{padding:15}},
+      React.createElement('span',{className:"lbl"},title),
+      React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(7,minmax(0,1fr))",gap:6,marginTop:8}},
+        ["S","M","T","W","T","F","S"].map((d, i)=>React.createElement('div',{key:`${memberName}-head-${d}-${i}`,className:"mono",style:{fontSize:10,color:"var(--muted)",textAlign:"center"}},d)),
+        calDays.map((day,index)=>{
+          const log = day ? logsByDay[day] : null;
+          const isToday = year === CUR_YEAR && monthIndex === CUR_MONTH && day === DAY_OF_MON;
+          return React.createElement('div',{key:`${memberName}-day-${index}`,style:{
+            aspectRatio:"1 / 1",
+            minHeight:34,
+            borderRadius:10,
+            border:log?"1px solid rgba(78,205,196,.2)":`1px solid ${isToday ? "rgba(78,205,196,.28)" : "var(--border)"}`,
+            background:log?"#1A2E4A":"var(--s2)",
+            display:"flex",
+            alignItems:"center",
+            justifyContent:"center",
+            color:log?"#4ECDC4":isToday?"#4ECDC4":"var(--muted)",
+            fontSize:11,
+            fontWeight:log?700:500
+          }},
+            !day
+              ? null
+              : log
+                ? React.createElement(WorkoutTypeIcon,{type:log.type,size:16})
+                : day
+          );
+        })
+      )
+    );
+  };
+  const weeklyStripLeaders = topWeeklyCount === 0
+    ? []
+    : weeklyLeaders.map(leader => ({
+        name: leader.name,
+        logsByIso: currentWeekDays.reduce((acc, date) => {
+          const iso = toISODate(date);
+          const log = getMemberLogForIso(leader.name, iso);
+          if (log) acc[iso] = log;
+          return acc;
+        }, {})
+      }));
+  const weeklyMvpHistoryRows = useMemo(() => {
+    const monthStart = new Date(CUR_YEAR, CUR_MONTH, 1);
+    const monthEnd = new Date(CUR_YEAR, CUR_MONTH + 1, 0);
+    const todayDate = new Date(CUR_YEAR, CUR_MONTH, DAY_OF_MON);
+    const rows = [];
+    let bucketStart = new Date(monthStart);
+    let weekIndex = 1;
+    while (bucketStart <= monthEnd) {
+      const bucketEnd = new Date(bucketStart);
+      const daysUntilSunday = (7 - bucketStart.getDay()) % 7;
+      bucketEnd.setDate(bucketEnd.getDate() + daysUntilSunday);
+      if (bucketEnd > monthEnd) bucketEnd.setTime(monthEnd.getTime());
+      const isCurrentBucket = todayDate >= bucketStart && todayDate <= bucketEnd;
+      if (!isCurrentBucket) {
+        const counts = Object.entries(logs || {}).map(([memberName, memberLogs]) => {
+          const count = getCountedLogs(memberLogs).filter(log => {
+            if (!log?.date) return false;
+            const [year, month, day] = String(log.date).split("-").map(Number);
+            if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return false;
+            const logDate = new Date(year, month - 1, day);
+            logDate.setHours(12, 0, 0, 0);
+            return logDate >= bucketStart && logDate <= bucketEnd;
+          }).length;
+          return { name: memberName, count };
+        });
+        const topCount = counts.reduce((max, entry) => Math.max(max, entry.count), 0);
+        if (topCount > 0) {
+          const leaders = counts.filter(entry => entry.count === topCount).map(entry => entry.name);
+          rows.push({
+            key: `week-${weekIndex}`,
+            label: `Week ${weekIndex}`,
+            rangeLabel: formatWeekRangeLabel(bucketStart, bucketEnd),
+            leaders,
+            count: topCount,
+            isTie: leaders.length > 1
+          });
+        }
+      }
+      bucketStart = new Date(bucketEnd);
+      bucketStart.setDate(bucketStart.getDate() + 1);
+      weekIndex += 1;
+    }
+    return rows;
+  }, [logs]);
+  const localWeeklyMvpPreview = buildLocalWeeklyMvpPreview(currentGroup, currentWeekDays);
+  const weeklyMvpDisplayValue = localWeeklyMvpPreview?.currentWeekValue || weeklyMvpValue;
+  const weeklyMvpDisplayLeaders = localWeeklyMvpPreview?.currentWeekLeaders || weeklyStripLeaders;
+  const weeklyMvpDisplayHistory = localWeeklyMvpPreview?.previousWeeks || weeklyMvpHistoryRows;
+  const currentWeekRangeLabel = formatWeekRangeLabel(currentWeekStart, currentWeekEnd);
+  const weeklyMvpValueStyle = {
+    fontSize: weeklyMvpDisplayValue.length > 11 ? 10.5 : weeklyMvpDisplayValue.length > 8 ? 11.5 : 12,
+    lineHeight: 1.05,
+    whiteSpace: "nowrap",
+    justifyContent: "center",
+    textAlign: "center",
+    width: "100%",
+    fontFamily: "'Outfit', sans-serif",
+    fontWeight: 500,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    minWidth: 0
+  };
+  const blocMonthValueStyle = {
+    fontSize: 12,
+    fontWeight: 500,
+    lineHeight: 1,
+    justifyContent: "center",
+    textAlign: "center",
+    width: "100%",
+    fontFamily: "'Outfit', sans-serif"
+  };
+  const mobileStatLabelStyle = {fontSize:8,marginBottom:0,whiteSpace:"nowrap",letterSpacing:".07em",fontWeight:700,color:"#8FAEAA",fontFamily:"'Outfit', sans-serif",textAlign:"center",width:"100%"};
+  const desktopStatLabelStyle = {fontSize:9,marginBottom:0,whiteSpace:"nowrap",letterSpacing:".07em",fontWeight:700,color:"#8FAEAA",fontFamily:"'Outfit', sans-serif",textAlign:"center",width:"100%"};
+  const mobileStatSubStyle = {fontSize:8.5,color:"var(--muted)",marginTop:3,lineHeight:1.15,minHeight:20,display:"flex",alignItems:"center",justifyContent:"center",textAlign:"center",fontFamily:"'Outfit', sans-serif",width:"100%"};
+  const desktopStatSubStyle = {fontSize:10,color:"var(--muted)",marginTop:4,lineHeight:1.15,minHeight:24,display:"flex",alignItems:"center",justifyContent:"center",textAlign:"center",fontFamily:"'Outfit', sans-serif",width:"100%"};
+  const statCardSurfaceStyle = {
+    background:"linear-gradient(180deg, #080F0F 0%, #0A1314 100%)",
+    border:"0.5px solid #152827",
+    boxShadow:"inset 0 1px 0 rgba(255,255,255,.025)",
+    display:"flex",
+    flexDirection:"column",
+    alignItems:"center",
+    textAlign:"center",
+    cursor:"pointer"
+  };
+  const mobileStatCardStyle = {...statCardSurfaceStyle,padding:"8px 10px",minHeight:74};
+  const desktopStatCardStyle = {...statCardSurfaceStyle,padding:"10px 12px",minHeight:106};
+
   const statCards = [
-    {label:"Workouts",val:me.count,sub:"this month",color:"var(--text)"},
-    {label:"Rank",val:`#${me.rank??"-"}`,sub:"of active",color:"#4ECDC4"},
-    {label:"Need",val:needed===0?"✓":needed,sub:needed===0?"target hit!":`to hit ${myTarget}`,meta:(currentMonthOverride?.prorated || myTarget !== MIN_TARGET)?"prorated":null,color:"#4ECDC4"},
-    {label:"Streak",val:streak,sub:`day${streak!==1?"s":""}`,color:streak>=5?"var(--gold)":streak>=3?"var(--amber)":"var(--text)"}
+    {kind:"pace",label:"Pace",val:paceDeltaText,sub:todayTargetText,color:paceDeltaColor},
+    needed === 0
+      ? {kind:"target",label:"Target",valueNode:React.createElement(TargetHitHexIcon,{size:22}),sub:"target hit!",meta:targetCardMeta}
+      : {kind:"target",label:"Target",val:needed,sub:"to go",meta:targetCardMeta,color:"#4ECDC4"},
+    {kind:"week-mvp",label:"Week's MVP",val:weeklyMvpDisplayValue,sub:"most logs this week",color:"var(--text)",valueStyle:weeklyMvpValueStyle},
+    {kind:"bloc-month",label:"Bloc Month",val:blocMonthCount,sub:"workouts logged this month",color:"var(--text)",valueStyle:blocMonthValueStyle}
   ];
-  const desktopMonthFirstDay = new Date(CUR_YEAR, CUR_MONTH, 1).getDay();
-  const desktopCalendarDays = [...Array(desktopMonthFirstDay).fill(null), ...Array.from({length:DAYS_IN_MON}, (_, i) => i + 1)];
   const desktopLogsByDay = {};
   (logs[user] || []).forEach(log => {
     const day = Number(String(log.date || "").split("-")[2]);
     if (Number.isFinite(day)) desktopLogsByDay[day] = log;
   });
-  const desktopCalendarCard = !isExcused && React.createElement(Card,{style:{padding:15}},
-    React.createElement('span',{className:"lbl"},`${MONTH_NAMES[CUR_MONTH]} · Your Log`),
-    React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(7,minmax(0,1fr))",gap:6,marginTop:8}},
-      ["S","M","T","W","T","F","S"].map((d, i)=>React.createElement('div',{key:`desktop-head-${d}-${i}`,className:"mono",style:{fontSize:10,color:"var(--muted)",textAlign:"center"}},d)),
-      desktopCalendarDays.map((day,index)=>{
-        const log = day ? desktopLogsByDay[day] : null;
-        const isToday = day === DAY_OF_MON;
-        return React.createElement('div',{key:`desktop-day-${index}`,style:{
-          aspectRatio:"1 / 1",
-          minHeight:34,
-          borderRadius:10,
-          border:log?"1px solid rgba(78,205,196,.2)":`1px solid ${isToday ? "rgba(78,205,196,.28)" : "var(--border)"}`,
-          background:log?"#1A2E4A":"var(--s2)",
-          display:"flex",
-          alignItems:"center",
-          justifyContent:"center",
-          color:log?"#4ECDC4":isToday?"#4ECDC4":"var(--muted)",
-          fontSize:11,
-          fontWeight:log?700:500
-        }},
-          !day
-            ? null
-            : log
-              ? React.createElement(WorkoutTypeIcon,{type:log.type,size:16})
-              : day
-        );
-      })
+  const desktopCalendarCard = !isExcused && renderMonthLogCalendar({
+    memberName: user,
+    title: `${MONTH_NAMES[CUR_MONTH]} · Your Log`,
+    year: CUR_YEAR,
+    monthIndex: CUR_MONTH,
+    logsByDay: desktopLogsByDay
+  });
+  const leaderboardCloseText = closeMeta ? `closes ${closeMeta.closeDate} · ${closeMeta.closeTime} · ${closeMeta.offsetLabel}` : `${leaderboardRows.filter(u=>!u.isOut).length} active`;
+  const settlementReminderSlot = showSettlementReminderSlot && React.createElement(Card,{style:{padding:"9px 10px",display:"flex",flexDirection:"column",gap:6,background:"#0A1412",border:"0.5px solid #163d36",boxShadow:"inset 0 1px 0 rgba(78,205,196,.03)"}},
+    React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}},
+      React.createElement('span',{className:"lbl",style:{fontSize:8,marginBottom:0,color:"#7DB8B1",fontFamily:"'Outfit', sans-serif",fontWeight:700}},"Settlement reminders"),
+      React.createElement('span',{style:{fontSize:9,color:"#6B9690",fontFamily:"'Outfit', sans-serif",fontWeight:500}},`${settlementReminderCards.length} unpaid`)
+    ),
+    settlementReminderCards.map(card => React.createElement('div',{key:card.key,style:{border:"0.5px solid #0D1F1E",borderRadius:9,padding:"6px 10px",display:"grid",gap:2,background:"#080F0F",fontFamily:"'Outfit', sans-serif",position:"relative"}},
+      React.createElement('div',{style:{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:8}},
+        React.createElement('div',{style:{minWidth:0,flex:1,display:"grid",gap:1}},
+          React.createElement('div',{style:{fontSize:8,color:card.labelColor || "#89A39E",letterSpacing:".12em",textTransform:"uppercase",fontFamily:"'Outfit', sans-serif",fontWeight:600}},card.label),
+        )
+      ),
+      React.createElement('div',{style:{minWidth:0,flex:1,fontSize:11,color:"var(--text)",lineHeight:1.25,fontFamily:"'Outfit', sans-serif",fontWeight:500}},card.body),
+      React.createElement('div',{style:{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",display:"flex",alignItems:"center",gap:8,flexShrink:0}},
+        React.createElement('div',{style:{fontSize:12,fontWeight:600,color:card.amountColor,whiteSpace:"nowrap",fontFamily:"'Outfit', sans-serif"}},fmtCurrency(card.amount, card.currency)),
+        card.secondaryAction && React.createElement('button',{
+          onClick:()=>handleSettlementCardAction(card, card.secondaryAction.kind),
+          disabled:settlementCardBusy===card.key,
+          style:{
+            fontSize:8,
+            fontWeight:800,
+            lineHeight:1,
+            padding:"3px 6px",
+            borderRadius:999,
+            background:"transparent",
+            border:"1px solid rgba(123,142,139,.42)",
+            color:"#6B9690",
+            whiteSpace:"nowrap",
+            fontFamily:"'Outfit', sans-serif"
+          }
+        }, card.secondaryAction.label),
+        card.action && React.createElement('button',{
+          onClick:()=>handleSettlementCardAction(card, card.action.kind),
+          disabled:settlementCardBusy===card.key,
+          style:{
+            fontSize:8,
+            fontWeight:800,
+            lineHeight:1,
+            padding:"4px 8px",
+            borderRadius:999,
+            background:card.action.kind === "confirm" ? "rgba(239,159,39,.14)" : "rgba(224,80,32,.14)",
+            border:`1px solid ${card.action.kind === "confirm" ? "rgba(239,159,39,.45)" : "rgba(224,80,32,.42)"}`,
+            color:card.action.kind === "confirm" ? "#EFB04B" : "#F06D43",
+            whiteSpace:"nowrap",
+            fontFamily:"'Outfit', sans-serif"
+          }
+        }, settlementCardBusy===card.key ? "Saving..." : card.action.label)
+      )
+    ))
+  );
+  const settlementDisputePrompt = settlementDisputePromptCard && React.createElement('div',{className:"overlay center-mobile",onClick:()=>setSettlementDisputePromptCard(null)},
+    React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{maxWidth:320,padding:"18px 16px",textAlign:"center"}},
+      React.createElement('div',{style:{fontSize:18,fontWeight:800,color:"var(--text)",marginBottom:8}},"Dispute this payment?"),
+      React.createElement('div',{style:{display:"flex",gap:10,marginTop:16}},
+        React.createElement('button',{
+          onClick:()=>setSettlementDisputePromptCard(null),
+          style:{
+            flex:1,
+            padding:"10px 12px",
+            borderRadius:12,
+            border:"1px solid var(--border)",
+            background:"var(--s2)",
+            color:"var(--muted)",
+            fontWeight:700
+          }
+        },"Cancel"),
+        React.createElement('button',{
+          onClick:async()=>{
+            const card = settlementDisputePromptCard;
+            setSettlementDisputePromptCard(null);
+            await runSettlementCardAction(card, "dispute");
+          },
+          style:{
+            flex:1,
+            padding:"10px 12px",
+            borderRadius:12,
+            border:"1px solid rgba(224,80,32,.42)",
+            background:"rgba(224,80,32,.14)",
+            color:"#F06D43",
+            fontWeight:800
+          }
+        },"Dispute")
+      )
     )
   );
-  const leaderboardCloseText = closeMeta ? `closes ${closeMeta.closeDate} · ${closeMeta.closeTime} · ${closeMeta.offsetLabel}` : `${boardRanked.filter(u=>!u.isOut).length} active`;
+  const settlementConfirmPrompt = settlementConfirmPromptCard && React.createElement('div',{className:"overlay center-mobile",onClick:()=>setSettlementConfirmPromptCard(null)},
+    React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{maxWidth:320,padding:"18px 16px",textAlign:"center"}},
+      React.createElement('div',{style:{fontSize:18,fontWeight:800,color:"var(--text)",marginBottom:8}},"Confirm this payment?"),
+      React.createElement('div',{style:{display:"flex",gap:10,marginTop:16}},
+        React.createElement('button',{
+          onClick:()=>setSettlementConfirmPromptCard(null),
+          style:{
+            flex:1,
+            padding:"10px 12px",
+            borderRadius:12,
+            border:"1px solid var(--border)",
+            background:"var(--s2)",
+            color:"var(--muted)",
+            fontWeight:700
+          }
+        },"Cancel"),
+        React.createElement('button',{
+          onClick:async()=>{
+            const card = settlementConfirmPromptCard;
+            setSettlementConfirmPromptCard(null);
+            await runSettlementCardAction(card, "confirm");
+          },
+          style:{
+            flex:1,
+            padding:"10px 12px",
+            borderRadius:12,
+            border:"1px solid rgba(239,159,39,.45)",
+            background:"rgba(239,159,39,.14)",
+            color:"#EFB04B",
+            fontWeight:800
+          }
+        },"Confirm")
+      )
+    )
+  );
+  const renderWeeklyStrip = (memberName, logsByIso) => React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(7,minmax(0,1fr))",gap:4,marginTop:4}},
+    currentWeekDays.map((date, index) => {
+      const iso = toISODate(date);
+      const log = logsByIso?.[iso] || null;
+      const isToday = iso === TODAY_ISO;
+      return React.createElement('div',{key:`${memberName}-${iso}`,style:{display:"grid",gap:4,justifyItems:"center"}},
+        React.createElement('span',{className:"mono",style:{fontSize:8,color:isToday ? "#4ECDC4" : "var(--muted2)"}},["M","T","W","T","F","S","S"][index]),
+        React.createElement('div',{style:{display:"grid",justifyItems:"center",rowGap:4}},
+          log
+            ? React.createElement('div',{style:{
+                width:30,
+                minHeight:34,
+                borderRadius:9,
+                border:isToday ? "1px solid rgba(78,205,196,.55)" : "1px solid rgba(78,205,196,.32)",
+                background:"rgba(78,205,196,.08)",
+                display:"grid",
+                gridTemplateRows:"auto 1fr",
+                alignItems:"center",
+                justifyItems:"center",
+                padding:"2px 2px 3px",
+                color:"#4ECDC4",
+                boxShadow:isToday ? "0 0 0 1px rgba(78,205,196,.08) inset" : "none"
+              }},
+                React.createElement('span',{className:"mono",style:{fontSize:8,color:isToday ? "#8EE7DF" : "var(--muted)",lineHeight:1}},date.getDate()),
+                React.createElement('span',{style:{width:16,height:16,display:"inline-flex",alignItems:"center",justifyContent:"center",color:"#4ECDC4"}},React.createElement(WorkoutTypeIcon,{type:log.type,size:13}))
+              )
+            : React.createElement('div',{style:{
+                width:30,
+                minHeight:34,
+                display:"flex",
+                alignItems:"center",
+                justifyContent:"center",
+                color:"rgba(255,255,255,.38)"
+              }},
+                React.createElement('span',{className:"mono",style:{fontSize:8,lineHeight:1}},date.getDate())
+              ),
+          React.createElement('span',{style:{
+            width:4,
+            height:4,
+            borderRadius:999,
+            background:"#4ECDC4",
+            opacity:isToday ? 1 : 0
+          }})
+        )
+      );
+    })
+  );
+  const statDetailOverlay = statDetail && React.createElement('div',{className:"overlay center-mobile",onClick:()=>setStatDetail(null)},
+    React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{width:"min(680px, calc(100vw - 28px))",maxHeight:"min(80vh, 760px)",overflow:"auto",padding:"18px 16px 16px",display:"grid",gap:14}},
+      React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}},
+        React.createElement('div',{style:{fontSize:18,fontWeight:800,color:"var(--text)"}},
+          statDetail.kind === "pace"
+            ? "Pace Detail"
+            : statDetail.kind === "target"
+              ? `${MONTH_NAMES[CUR_MONTH]} · Your Log`
+              : statDetail.kind === "week-mvp"
+                ? "Week's MVP"
+                : "Bloc Month History"
+        ),
+        React.createElement('button',{
+          onClick:()=>setStatDetail(null),
+          style:{background:"var(--s2)",border:"1px solid var(--border)",borderRadius:10,color:"var(--muted)",padding:"7px 10px",fontSize:12,fontWeight:700}
+        },"Close")
+      ),
+      statDetail.kind === "pace" && React.createElement(React.Fragment,null,
+        React.createElement(Bar,{value:me.count,max:Math.max(expected,1),color:barColor(me.status),h:5}),
+        React.createElement('div',{style:{fontSize:15,fontWeight:800,color:groupStatusColor(me.status)}},paceCheckMessage),
+        React.createElement('div',{style:{display:"grid",gap:6,fontSize:13,color:"var(--muted)"}},
+          React.createElement('div',null,`Target by today: ${expected}`),
+          React.createElement('div',null,`${getDaysLeft()} days left`)
+        )
+      ),
+      statDetail.kind === "target" && renderMonthLogCalendar({
+        memberName: user,
+        title: `${MONTH_NAMES[CUR_MONTH]} · Your Log`,
+        year: CUR_YEAR,
+        monthIndex: CUR_MONTH,
+        logsByDay: desktopLogsByDay
+      }),
+      statDetail.kind === "week-mvp" && React.createElement('div',{style:{display:"grid",gap:12}},
+        React.createElement('div',{style:{display:"grid",gap:8}},
+          React.createElement('div',{style:{display:"flex",alignItems:"baseline",gap:6,flexWrap:"wrap"}},
+            React.createElement('div',{style:{fontSize:9,color:"#8FAEAA",textTransform:"uppercase",letterSpacing:".12em",fontFamily:"'Outfit',sans-serif",fontWeight:700}},"This week"),
+            currentWeekRangeLabel && React.createElement('span',{style:{fontSize:10,color:"var(--muted2)",fontFamily:"'Outfit',sans-serif",fontWeight:400,whiteSpace:"nowrap"}},`(${currentWeekRangeLabel})`)
+          ),
+          weeklyMvpDisplayLeaders.length
+            ? weeklyMvpDisplayLeaders.map(entry => React.createElement(Card,{key:entry.name,style:{padding:"10px 12px",background:"#080F0F",border:"0.5px solid #122424"}},
+                React.createElement('div',{style:{display:"grid",justifyItems:"center",gap:2,marginBottom:6}},
+                  React.createElement('div',{style:{fontSize:15,fontWeight:700,color:"var(--text)",fontFamily:"'Outfit',sans-serif",textAlign:"center"}},entry.name),
+                  React.createElement('div',{style:{fontSize:12,fontWeight:500,color:"#4ECDC4",opacity:.85,fontFamily:"'Outfit',sans-serif",textAlign:"center"}},
+                    `${Object.keys(entry.logsByIso || {}).length} workout${Object.keys(entry.logsByIso || {}).length === 1 ? "" : "s"} this week`
+                  )
+                ),
+                renderWeeklyStrip(entry.name, entry.logsByIso)
+              ))
+            : React.createElement(Card,{style:{padding:14}},
+                React.createElement('div',{style:{fontSize:14,color:"var(--muted)"}},"No workouts logged this week")
+              )
+        ),
+        weeklyMvpDisplayHistory.length > 0 && React.createElement('div',{style:{display:"grid",gap:8}},
+          React.createElement('div',{style:{fontSize:9,color:"#8FAEAA",textTransform:"uppercase",letterSpacing:".12em",fontFamily:"'Outfit',sans-serif",fontWeight:700,paddingTop:2}},"Earlier this month"),
+          React.createElement(Card,{style:{padding:"10px 12px",background:"#080F0F",border:"0.5px solid #122424",display:"grid",gap:10}},
+            weeklyMvpDisplayHistory.map((entry, index) => React.createElement('div',{key:entry.key || entry.label,style:{
+              display:"grid",
+              gridTemplateColumns:"minmax(0,1fr) auto",
+              columnGap:12,
+              rowGap:3,
+              alignItems:"center",
+              paddingBottom:index < weeklyMvpDisplayHistory.length - 1 ? 10 : 0,
+              borderBottom:index < weeklyMvpDisplayHistory.length - 1 ? "0.5px solid #122424" : "none"
+            }},
+              React.createElement(React.Fragment,null,
+                React.createElement('div',{style:{display:"flex",alignItems:"baseline",gap:6,gridColumn:"1",gridRow:"1",minWidth:0}},
+                  React.createElement('span',{style:{fontSize:10,color:"#8FAEAA",textTransform:"uppercase",letterSpacing:".1em",fontFamily:"'Outfit',sans-serif",fontWeight:700}},entry.label),
+                  entry.rangeLabel && React.createElement('span',{style:{fontSize:10,color:"var(--muted2)",fontFamily:"'Outfit',sans-serif",fontWeight:400,whiteSpace:"nowrap"}},`(${entry.rangeLabel})`)
+                ),
+                React.createElement('div',{style:{fontSize:14,color:"var(--text)",fontFamily:"'Outfit',sans-serif",fontWeight:400,gridColumn:"1",gridRow:"2"}},
+                  formatWeeklyMvpLeaderText(entry.leaders)
+                ),
+                React.createElement('div',{style:{fontSize:13,color:"var(--muted)",fontFamily:"'Outfit',sans-serif",fontWeight:400,whiteSpace:"nowrap",textAlign:"right",gridColumn:"2",gridRow:"1 / span 2"}},
+                  `${entry.count} workout${entry.count === 1 ? "" : "s"}`
+                )
+              )
+            ))
+          )
+        )
+      ),
+      statDetail.kind === "bloc-month" && React.createElement(Card,{style:{padding:0,overflow:"hidden"}},
+        blocMonthHistoryRows.length
+          ? blocMonthHistoryRows.map((month, index) => React.createElement('div',{key:month.key,style:{
+              position:"relative",
+              display:"flex",
+              alignItems:"center",
+              justifyContent:"space-between",
+              gap:12,
+              padding:"14px 14px",
+              borderBottom:index < blocMonthHistoryRows.length - 1 ? "1px solid var(--border)" : "none",
+              background:month.isCurrent ? "rgba(78,205,196,.06)" : "transparent",
+              boxShadow:month.isCurrent ? "inset 2px 0 0 #4ECDC4" : "none"
+            }},
+              React.createElement('span',{style:{fontSize:14,fontWeight:600,color:"var(--text)",position:"relative",zIndex:1}},month.label),
+              React.createElement('div',{style:{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,position:"relative",zIndex:1}},
+                React.createElement('div',{style:{display:"flex",alignItems:"center",gap:8}},
+                  React.createElement('span',{className:"mono",style:{fontSize:13,color:month.isCurrent ? "#8EE7DF" : "var(--muted)"}},month.total),
+                  month.delta !== null && React.createElement('span',{className:"mono",style:{
+                    fontSize:11,
+                    color:month.delta > 0 ? "#4ECDC4" : month.delta < 0 ? "#6B9690" : "var(--muted2)"
+                  }},
+                    month.delta > 0 ? "↑" : month.delta < 0 ? "↓" : "→"
+                  )
+                ),
+                React.createElement('span',{style:{fontSize:10,color:"var(--muted2)",whiteSpace:"nowrap"}},"workouts logged")
+              )
+            ))
+          : React.createElement('div',{style:{padding:"14px 16px",fontSize:13,color:"var(--muted)"}},"No previous months yet")
+      )
+    )
+  );
 
   const mobileView = React.createElement('div',{className:"mobile-only",style:{padding:"12px 14px",display:"flex",flexDirection:"column",gap:12}},
     React.createElement('div',{style:{display:"grid",gap:10}},
-      React.createElement('div',{style:{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:10}},
-        React.createElement('div',{style:{minWidth:0,flex:1}},
+      React.createElement('div',{style:{minWidth:0,flex:1}},
         React.createElement('div',{className:"mono",style:{fontSize:9,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".12em"}},`${MONTH_NAMES[CUR_MONTH]} · Day ${DAY_OF_MON}/${DAYS_IN_MON}`),
-        React.createElement('div',{style:{fontSize:24,fontWeight:800,lineHeight:1.05}},
-          "Hey, ",
-          React.createElement('span',{style:{color:"#4ECDC4"}},user)
-        )
-        ),
-        isExcused
-          ? React.createElement('button',{disabled:true,style:{background:"var(--amber-dim)",border:"1px solid #f0a50030",borderRadius:10,padding:"9px 10px",fontSize:11,fontWeight:700,color:"var(--amber)"}},"Sitting out")
-          : React.createElement('button',{onClick:()=>setShowLog(true),style:{background:"var(--green)",color:"#04110a",height:40,padding:"0 13px",borderRadius:12,fontSize:14,fontWeight:800,boxShadow:"0 8px 24px rgba(78,205,196,.12)",whiteSpace:"nowrap",display:"inline-flex",alignItems:"center"}},"+ Log Workout")
       ),
     ),
     lastMonthBanner,
-    !isExcused&&React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(4,minmax(0,1fr))",gap:6,paddingBottom:2}},
-      statCards.map(s=>React.createElement(Card,{key:s.label,style:{padding:"12px 14px",background:"#080F0F",border:"0.5px solid #122424"}},
-        React.createElement('span',{className:"lbl",style:{fontSize:8,marginBottom:4}},s.label),
-        React.createElement('div',{style:{fontSize:18,fontWeight:800,color:s.color,lineHeight:1}},s.val),
-        React.createElement('div',{style:{fontSize:10,color:"var(--muted)",marginTop:3,lineHeight:1.2}},s.sub),
-        s.meta && React.createElement('div',{className:"mono",style:{fontSize:8,color:"#4ECDC4",marginTop:3,textTransform:"uppercase",letterSpacing:".12em"}},s.meta)
-      ))
-    ),
+!isExcused&&React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(4,minmax(0,1fr))",gap:6,paddingBottom:2}},
+  statCards.map(s=>React.createElement(Card,{key:s.label,onClick:()=>setStatDetail({kind:s.kind}),style:mobileStatCardStyle},
+    React.createElement('span',{className:"lbl",style:mobileStatLabelStyle},s.label),
+    React.createElement('div',{style:{width:"100%",display:"flex",flexDirection:"column",alignItems:"center",paddingTop:8}},
+      React.createElement('div',{style:Object.assign({fontSize:16,fontWeight:800,color:s.color || "#4ECDC4",lineHeight:1,minHeight:16,display:"flex",alignItems:"center",justifyContent:"center",textAlign:"center",whiteSpace:"nowrap",width:"100%",fontFamily:"'Outfit', sans-serif"}, s.valueStyle || {})},s.valueNode || s.val),
+      React.createElement('div',{style:mobileStatSubStyle},s.sub),
+      s.meta && React.createElement('div',{className:"mono",style:{fontSize:7,color:"#4ECDC4",marginTop:1,textTransform:"uppercase",letterSpacing:".1em"}},s.meta)
+    )
+  ))
+),
+    settlementReminderSlot,
     React.createElement(Card,null,
       React.createElement('div',{style:{padding:"11px 14px",borderBottom:"1px solid var(--border)",display:"flex",justifyContent:"space-between",alignItems:"center"}},
         React.createElement('div',{style:{fontWeight:600,fontSize:15}},"Bloc Leaderboard"),
         React.createElement('span',{className:"mono",style:{fontSize:9,color:"#1E4040"}},leaderboardCloseText)
       ),
-      boardRanked.map((u,i)=>{
+      React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:4,padding:"8px"}},
+      leaderboardRows.map(u=>{
         const isMe=u.name===user;
-        const aArr=boardRanked.filter(x=>!x.isOut);
+        const displayStatus = getLeaderboardDisplayStatus(u.status, u.count);
+        const earlyMonthQuiet = !u.isOut && isEarlyMonthNeutralWindow() && u.count === 0;
+        const displayDiffText = earlyMonthQuiet ? "month just started" : getLeaderboardDiffText(u);
+        const aArr=leaderboardRows.filter(x=>!x.isOut);
         const aIdx=aArr.findIndex(x=>x.name===u.name);
-        return React.createElement('div',{key:u.name,onClick:()=>setViewPlayer(u.name),
-          style:{padding:"10px 14px",borderBottom:i<boardRanked.length-1?"1px solid var(--border)":"none",background:isMe&&!u.isOut?"rgba(91,141,239,.05)":u.status==="cooked"&&!u.isOut?"rgba(232,69,69,.09)":u.status==="behind"&&!u.isOut?"rgba(232,69,69,.04)":u.status==="cruising"&&!u.isOut?"rgba(203,213,225,.06)":"transparent",borderLeft:isMe&&!u.isOut?`3px solid ${avatarColor(user)}`:u.status==="cooked"&&!u.isOut?"3px solid rgba(255,142,142,.75)":u.status==="behind"&&!u.isOut?"3px solid rgba(232,69,69,.4)":u.status==="cruising"&&!u.isOut?"3px solid rgba(203,213,225,.4)":"3px solid transparent",opacity:u.isOut?.55:1,cursor:"pointer"}},
-          React.createElement('div',{style:{display:"flex",alignItems:"center",gap:8,marginBottom:u.isOut?0:6}},
-            React.createElement('div',{style:{minWidth:20}},u.isOut?React.createElement('span',{style:{fontSize:12,color:"#2A4040"}},"💤"):React.createElement(RankIcon,{rank:aIdx+1})),
-            React.createElement(Avatar,{name:u.name,size:22,muted:u.isOut}),
-            React.createElement('div',{style:{flex:1,fontWeight:600,fontSize:13,color:u.isOut?"#2A4040":"var(--text)"}},u.name,isMe&&React.createElement('span',{className:"mono",style:{fontSize:9,color:groupStatusColor(u.status),marginLeft:6}},"you"),u.prorated&&!u.isOut&&React.createElement('span',{className:"mono",style:{fontSize:8,color:"var(--muted)",marginLeft:6,textTransform:"uppercase",letterSpacing:".08em"}},"joined mid-month")),
-            u.isOut
-              ? React.createElement('span',{style:{fontSize:11,color:"#1E3535",fontFamily:"'Outfit',sans-serif"}},"Sitting out")
-              : React.createElement(React.Fragment,null,
-                  React.createElement('span',{className:"mono",style:{fontSize:16,fontWeight:700,marginRight:6}},u.count),
-                  React.createElement(StatusBadge,{status:u.status})
+        return React.createElement('button',{key:u.key || u.name,type:"button",onClick:()=>setViewPlayer(u.name),
+          style:{...leaderboardRowBaseStyle,borderColor:isMe&&!u.isOut?"#163d36":"#0D1F1E",backgroundColor:leaderboardRowTint(displayStatus),opacity:u.isOut?.55:1}},
+          React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10}},
+            React.createElement('div',{style:{flex:1,minWidth:0}},
+              React.createElement('div',{style:{display:"flex",alignItems:"center",gap:8,marginBottom:u.isOut?0:6}},
+                React.createElement('div',{style:{minWidth:20}},u.isOut?React.createElement('span',{style:{fontSize:12,color:"#2A4040"}},"💤"):React.createElement(RankIcon,{rank:aIdx+1})),
+                React.createElement(Avatar,{name:u.name,size:22,muted:u.isOut}),
+                React.createElement('div',{style:{flex:1,minWidth:0,textAlign:"left",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",display:"inline-flex",alignItems:"center",gap:6,fontWeight:600,fontSize:13,color:u.isOut?"#2A4040":"var(--text)"}},
+                  React.createElement('span',null,u.name),
+                  isMe&&React.createElement('span',{className:"mono",style:{fontSize:8,color:"#3d5e59",marginLeft:6}},"you"),
+                  u.prorated&&!u.isOut&&React.createElement('span',{className:"mono",style:{fontSize:8,color:"var(--muted)",marginLeft:6,textTransform:"uppercase",letterSpacing:".08em"}},"joined mid-month")
                 )
-          ),
-          !u.isOut&&React.createElement('div',{style:{paddingLeft:28}},
-            React.createElement(Bar,{value:u.count,max:u.target || MIN_TARGET,color:barColor(u.status),h:2}),
-            React.createElement('div',{style:{display:"flex",justifyContent:"space-between",marginTop:4}},
-              React.createElement('span',{className:"mono",style:{fontSize:10,fontWeight:700,color:groupStatusColor(u.status)}},u.status==="cooked"?"target out of reach":(u.memberDiffLabel||diffLabel(u.count, u.target))),
-              React.createElement('span',{className:"mono",style:{fontSize:10,fontWeight:700,color:lastWorkout(logs[u.name])==='today'?'var(--green)':lastWorkout(logs[u.name])==='1 day ago'?'var(--amber)':'#C97B2E'}},lastWorkout(logs[u.name])?`last: ${lastWorkout(logs[u.name])}`:"no logs")
-            )
+              ),
+              !u.isOut&&React.createElement('div',{style:{paddingLeft:28,display:"flex",justifyContent:"space-between",marginTop:4}},
+                React.createElement('span',{style:{fontSize:9,fontWeight:700,color:groupStatusColor(displayStatus),fontFamily:"'Outfit',sans-serif"}},displayDiffText)
+              )
+            ),
+            u.isOut
+              ? React.createElement('div',{style:{display:"flex",alignItems:"center",gap:6,alignSelf:"center"}},
+                  React.createElement('span',{style:{fontSize:11,color:"#1E3535",fontFamily:"'Outfit',sans-serif"}},"Sitting out"),
+                  React.createElement('span',{style:{display:"inline-flex",alignItems:"center"}},React.createElement(ChevronRightIcon,null))
+                )
+              : earlyMonthQuiet
+                ? React.createElement('div',{style:{display:"grid",gridTemplateColumns:"minmax(92px, auto) auto",columnGap:7,alignItems:"center",justifyContent:"flex-end",alignSelf:"stretch"}},
+                    React.createElement('span',{style:{fontSize:9,fontWeight:700,color:"#C97B2E",fontFamily:"'Outfit',sans-serif",minWidth:92,textAlign:"right",alignSelf:"center"}},"no logs yet"),
+                    React.createElement('span',{style:{display:"inline-flex",alignItems:"center",justifyContent:"flex-end",alignSelf:"center"}},React.createElement(ChevronRightIcon,null))
+                  )
+              : React.createElement('div',{style:{display:"grid",gridTemplateColumns:"auto minmax(92px, auto)",gridTemplateRows:"1fr auto",columnGap:6,rowGap:4,alignItems:"center",alignSelf:"stretch"}},
+                  React.createElement('span',{style:{fontSize:16,fontWeight:700,color:u.status==="locked-in"?"#4ECDC4":"var(--text)",minWidth:20,textAlign:"right",display:"inline-block",fontFamily:"'Outfit',sans-serif",gridRow:"1 / span 2",alignSelf:"center"}},u.count),
+                  React.createElement('span',{style:{display:"inline-flex",alignItems:"center",gap:7,minWidth:92,justifyContent:"flex-end",gridColumn:"2",gridRow:"1"}},
+                      React.createElement(StatusBadge,{status:displayStatus}),
+                      React.createElement(ChevronRightIcon,null)
+                    ),
+                  React.createElement('span',{style:{fontSize:9,fontWeight:700,color:lastWorkout(logs[u.name])==='today'?'var(--green)':lastWorkout(logs[u.name])==='1 day ago'?'var(--amber)':'#C97B2E',fontFamily:"'Outfit',sans-serif",minWidth:92,textAlign:"center",gridColumn:"2",gridRow:"2"}},lastWorkout(logs[u.name])?`last: ${lastWorkout(logs[u.name])}`:"no logs")
+                )
           )
         );
-      })
-    ),
-    !isExcused&&React.createElement(Card,{style:{padding:14}},
-      React.createElement('span',{className:"lbl"},"Pace Check"),
-      React.createElement(Bar,{value:me.count,max:Math.max(expected,1),color:barColor(me.status),h:5}),
-      React.createElement('div',{style:{marginTop:10,marginBottom:2}},
-        React.createElement('div',{style:{fontSize:14,fontWeight:800,color:groupStatusColor(me.status)}},
-          paceCheckMessage
-        )
-      ),
-      React.createElement('div',{style:{display:"flex",justifyContent:"space-between",marginTop:4}},
-        React.createElement('span',{className:"mono",style:{fontSize:10,color:"var(--muted)"}},`Target: ${expected} by today`),
-        React.createElement('span',{className:"mono",style:{fontSize:10,color:"var(--muted2)"}},`${getDaysLeft()}d left`)
-      )
+      }))
     ),
     React.createElement(Card,{style:{padding:14}},
       React.createElement('span',{className:"lbl"},"Competition Status"),
@@ -4291,11 +5569,7 @@ const TodayPage = ({user,currentGroupId,groups,logs,excused,monthHistory,saving,
   const desktopView = React.createElement('div',{className:"desktop-only",style:{maxWidth:1060,margin:"0 auto",padding:"20px 16px",display:"flex",flexDirection:"column",gap:14}},
     React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10}},
       React.createElement('div',null,
-        React.createElement('span',{className:"mono",style:{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".14em",display:"block",marginBottom:3}},`${MONTH_NAMES[CUR_MONTH]} ${CUR_YEAR} · Day ${DAY_OF_MON}/${DAYS_IN_MON}`),
-        React.createElement('div',{style:{fontSize:26,fontWeight:800}},
-          "Hey, ",
-          React.createElement('span',{style:{color:"#4ECDC4"}},user)
-        )
+        React.createElement('span',{className:"mono",style:{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".14em",display:"block"}},`${MONTH_NAMES[CUR_MONTH]} ${CUR_YEAR} · Day ${DAY_OF_MON}/${DAYS_IN_MON}`)
       ),
       isExcused
         ? React.createElement('div',{style:{display:"flex",alignItems:"center",gap:10,background:"var(--amber-dim)",border:"1px solid #f0a50030",borderRadius:10,padding:"10px 16px"}},
@@ -4310,60 +5584,73 @@ const TodayPage = ({user,currentGroupId,groups,logs,excused,monthHistory,saving,
           )
     ),
     lastMonthBanner,
-    !isExcused&&React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}},
-      statCards.map(s=>React.createElement(Card,{key:s.label,style:{padding:"14px 15px",background:"#080F0F",border:"0.5px solid #122424"}},
-        React.createElement('span',{className:"lbl"},s.label),
-        React.createElement('div',{style:{fontSize:32,fontWeight:800,color:s.color,lineHeight:1}},s.val),
-        React.createElement('div',{style:{fontSize:11,color:"var(--muted)",marginTop:4}},s.sub),
-        s.meta && React.createElement('div',{className:"mono",style:{fontSize:9,color:"#4ECDC4",marginTop:5,textTransform:"uppercase",letterSpacing:".12em"}},s.meta)
-      ))
-    ),
+!isExcused&&React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}},
+  statCards.map(s=>React.createElement(Card,{key:s.label,onClick:()=>setStatDetail({kind:s.kind}),style:desktopStatCardStyle,
+    onMouseEnter:e=>e.currentTarget.style.transform="translateY(-1px)",
+    onMouseLeave:e=>e.currentTarget.style.transform="translateY(0)"},
+    React.createElement('span',{className:"lbl",style:desktopStatLabelStyle},s.label),
+    React.createElement('div',{style:{width:"100%",display:"flex",flexDirection:"column",alignItems:"center",paddingTop:10}},
+      React.createElement('div',{style:Object.assign({fontSize:26,fontWeight:800,color:s.color || "#4ECDC4",lineHeight:1,minHeight:26,display:"flex",alignItems:"center",justifyContent:"center",textAlign:"center",whiteSpace:"nowrap",width:"100%",fontFamily:"'Outfit', sans-serif"}, s.valueStyle || {})},s.valueNode || s.val),
+      React.createElement('div',{style:desktopStatSubStyle},s.sub),
+      s.meta && React.createElement('div',{className:"mono",style:{fontSize:8,color:"#4ECDC4",marginTop:2,textTransform:"uppercase",letterSpacing:".1em"}},s.meta)
+    )
+  ))
+),
+    settlementReminderSlot,
     React.createElement('div',{style:{display:"grid",gridTemplateColumns:"1fr 280px",gap:12,alignItems:"start"}},
       React.createElement(Card,null,
         React.createElement('div',{style:{padding:"12px 15px",borderBottom:"1px solid var(--border)",display:"flex",alignItems:"center",justifyContent:"space-between"}},
           React.createElement('div',{style:{fontWeight:600,fontSize:13}},"Bloc leaderboard"),
           React.createElement('span',{className:"mono",style:{fontSize:11,color:"#1E4040"}},leaderboardCloseText)
         ),
-        boardRanked.map((u,i)=>{
+        React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:4,padding:"8px"}},
+        leaderboardRows.map(u=>{
           const isMe=u.name===user;
-          const aArr=boardRanked.filter(x=>!x.isOut);
+          const displayStatus = getLeaderboardDisplayStatus(u.status, u.count);
+          const earlyMonthQuiet = !u.isOut && isEarlyMonthNeutralWindow() && u.count === 0;
+          const displayDiffText = earlyMonthQuiet ? "month just started" : getLeaderboardDiffText(u);
+          const aArr=leaderboardRows.filter(x=>!x.isOut);
           const aIdx=aArr.findIndex(x=>x.name===u.name);
-          return React.createElement('div',{key:u.name,onClick:()=>setViewPlayer(u.name),style:{padding:"11px 15px",borderBottom:i<boardRanked.length-1?"1px solid var(--border)":"none",background:isMe&&!u.isOut?"rgba(91,141,239,.05)":u.status==="cooked"&&!u.isOut?"rgba(232,69,69,.09)":u.status==="behind"&&!u.isOut?"rgba(232,69,69,.04)":u.status==="cruising"&&!u.isOut?"rgba(91,141,239,.07)":"transparent",borderLeft:isMe&&!u.isOut?`2px solid ${avatarColor(user)}`:u.status==="cooked"&&!u.isOut?"2px solid rgba(255,142,142,.75)":u.status==="behind"&&!u.isOut?"2px solid rgba(232,69,69,.4)":u.status==="cruising"&&!u.isOut?"2px solid rgba(91,141,239,.5)":"2px solid transparent",opacity:u.isOut?.55:1,cursor:"pointer",transition:"background .15s"},onMouseEnter:e=>e.currentTarget.style.background=isMe&&!u.isOut?"rgba(91,141,239,.08)":"var(--s2)",onMouseLeave:e=>e.currentTarget.style.background=isMe&&!u.isOut?"rgba(91,141,239,.05)":u.status==="cooked"&&!u.isOut?"rgba(232,69,69,.09)":u.status==="behind"&&!u.isOut?"rgba(232,69,69,.04)":u.status==="cruising"&&!u.isOut?"rgba(91,141,239,.07)":"transparent"},
-            React.createElement('div',{style:{display:"flex",alignItems:"center",gap:9,marginBottom:u.isOut?0:7}},
-              React.createElement('div',{style:{minWidth:22}},u.isOut?React.createElement('span',{style:{fontSize:13,color:"#2A4040"}},"💤"):React.createElement(RankIcon,{rank:aIdx+1})),
-              React.createElement(Avatar,{name:u.name,size:24,muted:u.isOut}),
-              React.createElement('div',{style:{flex:1,fontWeight:600,fontSize:14,color:u.isOut?"#2A4040":"var(--text)"}},u.name,isMe&&React.createElement('span',{className:"mono",style:{fontSize:9,color:groupStatusColor(u.status),marginLeft:7}},"you"),u.prorated&&!u.isOut&&React.createElement('span',{className:"mono",style:{fontSize:8,color:"var(--muted)",marginLeft:6,textTransform:"uppercase",letterSpacing:".08em"}},"joined mid-month")),
-              u.isOut
-                ? React.createElement('span',{style:{fontSize:11,color:"#1E3535",fontFamily:"'Outfit',sans-serif"}},"Sitting out")
-                : React.createElement(React.Fragment,null,
-                    React.createElement('span',{className:"mono",style:{fontSize:18,fontWeight:700,minWidth:28,textAlign:"right"}},u.count),
-                    React.createElement('div',{style:{minWidth:74}},React.createElement(StatusBadge,{status:u.status}))
+          return React.createElement('button',{key:u.key || u.name,type:"button",onClick:()=>setViewPlayer(u.name),style:{...leaderboardRowBaseStyle,borderColor:isMe&&!u.isOut?"#163d36":"#0D1F1E",opacity:u.isOut?.55:1},
+            onMouseEnter:e=>e.currentTarget.style.borderColor=isMe&&!u.isOut?"#1c4a43":"#15302c",onMouseLeave:e=>e.currentTarget.style.borderColor=isMe&&!u.isOut?"#163d36":"#0D1F1E",backgroundColor:leaderboardRowTint(displayStatus)},
+            React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}},
+              React.createElement('div',{style:{flex:1,minWidth:0}},
+                React.createElement('div',{style:{display:"flex",alignItems:"center",gap:9,marginBottom:u.isOut?0:7}},
+                  React.createElement('div',{style:{minWidth:22}},u.isOut?React.createElement('span',{style:{fontSize:13,color:"#2A4040"}},"💤"):React.createElement(RankIcon,{rank:aIdx+1})),
+                  React.createElement(Avatar,{name:u.name,size:24,muted:u.isOut}),
+                  React.createElement('div',{style:{flex:1,minWidth:0,textAlign:"left",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",display:"inline-flex",alignItems:"center",gap:7,fontWeight:600,fontSize:14,color:u.isOut?"#2A4040":"var(--text)"}},
+                    React.createElement('span',null,u.name),
+                    isMe&&React.createElement('span',{className:"mono",style:{fontSize:8,color:"#3d5e59",marginLeft:7}},"you"),
+                    u.prorated&&!u.isOut&&React.createElement('span',{className:"mono",style:{fontSize:8,color:"var(--muted)",marginLeft:6,textTransform:"uppercase",letterSpacing:".08em"}},"joined mid-month")
                   )
-            ),
-            !u.isOut&&React.createElement('div',{style:{paddingLeft:31}},
-              React.createElement(Bar,{value:u.count,max:u.target || MIN_TARGET,color:barColor(u.status),h:2}),
-              React.createElement('div',{style:{display:"flex",justifyContent:"space-between",marginTop:4}},
-                React.createElement('span',{className:"mono",style:{fontSize:10,fontWeight:700,color:groupStatusColor(u.status)}},u.status==="cooked"?"target out of reach":(u.memberDiffLabel||diffLabel(u.count, u.target))),
-                React.createElement('span',{className:"mono",style:{fontSize:10,fontWeight:700,color:lastWorkout(logs[u.name])==='today'?'var(--green)':lastWorkout(logs[u.name])==='1 day ago'?'var(--amber)':'#C97B2E'}},lastWorkout(logs[u.name])?`last: ${lastWorkout(logs[u.name])}`:"no logs yet")
-              )
+                ),
+                !u.isOut&&React.createElement('div',{style:{paddingLeft:31,display:"flex",justifyContent:"space-between",marginTop:4}},
+                  React.createElement('span',{style:{fontSize:9,fontWeight:700,color:groupStatusColor(displayStatus),fontFamily:"'Outfit',sans-serif"}},displayDiffText)
+                )
+              ),
+              u.isOut
+                ? React.createElement('div',{style:{display:"flex",alignItems:"center",gap:6,alignSelf:"center"}},
+                    React.createElement('span',{style:{fontSize:11,color:"#1E3535",fontFamily:"'Outfit',sans-serif"}},"Sitting out"),
+                    React.createElement('span',{style:{display:"inline-flex",alignItems:"center"}},React.createElement(ChevronRightIcon,null))
+                  )
+                : earlyMonthQuiet
+                  ? React.createElement('div',{style:{display:"grid",gridTemplateColumns:"minmax(98px, auto) auto",columnGap:7,alignItems:"center",justifyContent:"flex-end",alignSelf:"stretch"}},
+                      React.createElement('span',{style:{fontSize:9,fontWeight:700,color:"#C97B2E",fontFamily:"'Outfit',sans-serif",minWidth:98,textAlign:"right",alignSelf:"center"}},"no logs yet"),
+                      React.createElement('span',{style:{display:"inline-flex",alignItems:"center",justifyContent:"flex-end",alignSelf:"center"}},React.createElement(ChevronRightIcon,null))
+                    )
+                : React.createElement('div',{style:{display:"grid",gridTemplateColumns:"auto minmax(98px, auto)",gridTemplateRows:"1fr auto",columnGap:6,rowGap:4,alignItems:"center",alignSelf:"stretch"}},
+                    React.createElement('span',{style:{fontSize:18,fontWeight:700,minWidth:28,textAlign:"right",color:u.status==="locked-in"?"#4ECDC4":"var(--text)",display:"inline-block",fontFamily:"'Outfit',sans-serif",gridRow:"1 / span 2",alignSelf:"center"}},u.count),
+                    React.createElement('span',{style:{display:"inline-flex",alignItems:"center",gap:7,minWidth:98,justifyContent:"flex-end",gridColumn:"2",gridRow:"1"}},
+                        React.createElement(StatusBadge,{status:displayStatus}),
+                        React.createElement(ChevronRightIcon,null)
+                      ),
+                    React.createElement('span',{style:{fontSize:9,fontWeight:700,color:lastWorkout(logs[u.name])==='today'?'var(--green)':lastWorkout(logs[u.name])==='1 day ago'?'var(--amber)':'#C97B2E',fontFamily:"'Outfit',sans-serif",minWidth:98,textAlign:"center",gridColumn:"2",gridRow:"2"}},lastWorkout(logs[u.name])?`last: ${lastWorkout(logs[u.name])}`:"no logs yet")
+                  )
             )
           );
-        })
+        }))
       ),
       React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:10}},
-        !isExcused&&React.createElement(Card,{style:{padding:15}},
-          React.createElement('span',{className:"lbl"},"Pace Check"),
-          React.createElement(Bar,{value:me.count,max:Math.max(expected,1),color:barColor(me.status),h:5}),
-          React.createElement('div',{style:{marginTop:10,marginBottom:2}},
-            React.createElement('div',{style:{fontSize:15,fontWeight:800,color:me.status==="cruising"?"var(--blue)":me.status==="on-track"?"var(--green)":me.status==="at-risk"?"var(--amber)":"var(--red)"}},
-              paceCheckMessage
-            )
-          ),
-          React.createElement('div',{style:{display:"flex",justifyContent:"space-between",marginTop:4}},
-            React.createElement('span',{className:"mono",style:{fontSize:10,color:"var(--muted)"}},`Target by today: ${expected}`),
-            React.createElement('span',{className:"mono",style:{fontSize:10,color:"var(--muted2)"}},`${getDaysLeft()}d left`)
-          )
-        ),
         React.createElement(Card,{style:{padding:15}},
           React.createElement('span',{className:"lbl"},"Month Status"),
           React.createElement('div',{style:{display:"grid",gridTemplateColumns:"minmax(0,1fr)",gap:12}},
@@ -4376,10 +5663,19 @@ const TodayPage = ({user,currentGroupId,groups,logs,excused,monthHistory,saving,
     )
   );
 
+  if(viewPlayer) return React.createElement('div',{style:{maxWidth:1060,margin:"0 auto"}},
+    React.createElement(PlayerProfileErrorBoundary,{profileName:viewPlayer,onBack:()=>setViewPlayer(null)},
+      React.createElement(PlayerProfile,{name:viewPlayer,logs,excused,monthHistory,onBack:()=>setViewPlayer(null),groupSettings,onDeleteLog:viewPlayer===user?async(log)=>{ await onLogMutation({action:"delete-log",groupId:currentGroupId,actor:user,logId:log.id}); }:undefined})
+    )
+  );
+
   return React.createElement(React.Fragment,null,
     showLog&&React.createElement(LogModal,{user,currentGroupId,groups,onConfirm:doLog,onClose:()=>setShowLog(false)}),
     deleteTarget && React.createElement(DeleteModal,{log:deleteTarget,onClose:()=>setDeleteTarget(null),onConfirm:async()=>{ const logId = deleteTarget.id; setDeleteTarget(null); await onLogMutation({action:"delete-log",groupId:currentGroupId,actor:user,logId}); }}),
     showExcuse && sitOutMode && React.createElement(SitOutModal,{mode:sitOutMode,monthName:monthSummary ? MONTH_NAMES[monthSummary.month] : MONTH_NAMES[CUR_MONTH],onClose:()=>{setShowExcuse(false);setSitOutError("");},onSubmit:submitSitOut,submitting:sitOutSubmitting,error:sitOutError}),
+    settlementDisputePrompt,
+    settlementConfirmPrompt,
+    statDetailOverlay,
     mobileView,
     desktopView
   );
@@ -4425,10 +5721,9 @@ const PinModal = ({prompt, onConfirm, onClose}) => {
 };
 
 // ─── SETTLEMENT SCREEN ───────────────────────────────────────────────────────
-const SettlementScreen = ({month, currentUser, monthHistory, onSettlementChange, isAdmin, onStartNextMonth}) => {
+const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistory, onSettlementClaimPaid, onSettlementConfirmPaid, onStartNextMonth}) => {
   const [activeTab, setActiveTab] = React.useState("leaderboard");
   const [settlementBusy, setSettlementBusy] = React.useState(null);
-  const [pinRequest, setPinRequest] = React.useState(null); // {player, settled}
 
   // ── Derive core data ────────────────────────────────────────────────────────
   const relevantNames = Object.keys(month.counts || {});
@@ -4437,6 +5732,8 @@ const SettlementScreen = ({month, currentUser, monthHistory, onSettlementChange,
     .map(name => ({name, count: Number(month.counts[name] || 0), target: month.memberTargets?.[name] || month.settings?.minTarget || MIN_TARGET}));
   const penalties = calcPenalties(activeCounts, month.settings);
   const {winners, losers, perWinner} = penalties;
+  const isPerfectMonth = losers.length === 0;
+  const hasWinnerPayout = losers.length > 0 && perWinner > 0;
 
   const userCount = month.counts?.[currentUser] || 0;
   const userIsWinner = winners.some(w => w.name === currentUser);
@@ -4465,19 +5762,33 @@ const SettlementScreen = ({month, currentUser, monthHistory, onSettlementChange,
     return {name: m.name, workouts: m.count, outcome: isWin ? "winner" : isLose ? "missed" : "hit_mas", amount: isWin ? perWinner : isLose ? getLoserAmount(penalties, m.name) : 0, rank: i + 1};
   });
 
-  const settlements = getMonthSettlements(month);
   const winnerNames = winners.map(w => w.name);
+  const winnerNamesText = winnerNames.length <= 2
+    ? winnerNames.join(" and ")
+    : `${winnerNames.slice(0, -1).join(", ")}, and ${winnerNames[winnerNames.length - 1]}`;
+  const streakSupportCopy = streak >= 2
+    ? `${streak} months in a row. Keep the streak alive.`
+    : "You hit your MAS. Build on it next month.";
 
-  const handleSettlementToggle = (player, settled) => {
-    setPinRequest({player, settled});
-  };
-  const handlePinConfirm = async (pin) => {
-    const {player, settled} = pinRequest;
-    setPinRequest(null);
-    setSettlementBusy(player);
+  const handleSettlementAction = async ({ key, kind, payerDisplayName, receiverDisplayName, amount }) => {
+    setSettlementBusy(key);
     try {
-      const result = await onSettlementChange(month.key, player, settled, pin);
-      if (!result?.ok) alert(result?.error || "Invalid PIN or unable to update.");
+      const result = kind === "claim"
+        ? await onSettlementClaimPaid?.({
+            monthKey: month.key,
+            payerDisplayName,
+            receiverDisplayName,
+            amount,
+            currency
+          })
+        : await onSettlementConfirmPaid?.({
+            monthKey: month.key,
+            payerDisplayName,
+            receiverDisplayName
+          });
+      if (!result?.ok) {
+        window.alert(result?.error || "Unable to update settlement");
+      }
     } finally {
       setSettlementBusy(null);
     }
@@ -4499,21 +5810,40 @@ const SettlementScreen = ({month, currentUser, monthHistory, onSettlementChange,
   // ── Sub-renders ─────────────────────────────────────────────────────────────
 
   const renderHero = () => {
-    if (outcome === "winner") return React.createElement('div',{style:{textAlign:"center", padding:"28px 0 20px"}},
-      React.createElement('span',{style:{...C.pill, background:C.greenBg, color:C.greenText, marginBottom:14, display:"inline-flex",alignItems:"center",gap:6}},
-        React.createElement(TrophyIcon,{size:14,color:"#F5A623"}),
-        React.createElement('span',null,"Winner · 1st place")
-      ),
-      React.createElement('div',{style:{fontSize:48, fontWeight:700, color:C.greenText, lineHeight:1.1, marginBottom:8}},
-        `+${fmtCurrency(perWinner, currency)}`
-      ),
-      React.createElement('div',{style:{fontSize:22, fontWeight:600, marginBottom:6}},
-        `${losers.length} ${losers.length === 1 ? "person owes" : "people owe"} you money.`
-      ),
-      React.createElement('div',{style:{fontSize:14, color:"var(--muted)"}},
-        `${userCount} workouts. Top of the table.`
-      )
-    );
+    if (outcome === "winner") {
+      if (hasWinnerPayout) {
+        return React.createElement('div',{style:{textAlign:"center", padding:"28px 0 20px"}},
+          React.createElement('span',{style:{...C.pill, background:C.greenBg, color:C.greenText, marginBottom:14, display:"inline-flex",alignItems:"center",gap:6}},
+            React.createElement(TrophyIcon,{size:14,color:"#F5A623"}),
+            React.createElement('span',null,"Winner · 1st place")
+          ),
+          React.createElement('div',{style:{fontSize:48, fontWeight:700, color:C.greenText, lineHeight:1.1, marginBottom:8}},
+            `+${fmtCurrency(perWinner, currency)}`
+          ),
+          React.createElement('div',{style:{fontSize:22, fontWeight:600, marginBottom:6}},
+            `${losers.length} are paying this month.`
+          ),
+          React.createElement('div',{style:{fontSize:14, color:"var(--muted)"}},
+            `${userCount} workouts. Top of the bloc.`
+          )
+        );
+      }
+      return React.createElement('div',{style:{textAlign:"center", padding:"28px 0 20px"}},
+        React.createElement('span',{style:{...C.pill, background:C.greenBg, color:C.greenText, marginBottom:14, display:"inline-flex",alignItems:"center",gap:6}},
+          React.createElement(TrophyIcon,{size:14,color:"#F5A623"}),
+          React.createElement('span',null,"Winner · 1st place")
+        ),
+        React.createElement('div',{style:{fontSize:26, fontWeight:700, marginBottom:6}},
+          "You topped the bloc."
+        ),
+        React.createElement('div',{style:{fontSize:14, color:"var(--muted)", marginBottom:6}},
+          `${userCount} workouts. First place finish.`
+        ),
+        React.createElement('div',{style:{fontSize:14, color:C.greenText}},
+          "Perfect month for the bloc. Everyone hit their MAS."
+        )
+      );
+    }
 
     if (outcome === "missed") return React.createElement('div',{style:{textAlign:"center", padding:"28px 0 20px"}},
       React.createElement('span',{style:{...C.pill, background:C.redBg, color:C.redText, marginBottom:14, display:"inline-block"}}, `Missed MAS · ${ordinal(userRank)} place`),
@@ -4524,7 +5854,7 @@ const SettlementScreen = ({month, currentUser, monthHistory, onSettlementChange,
         `${userCount} workouts. You needed ${mas}.`
       ),
       React.createElement('div',{style:{fontSize:14, color:"var(--muted)"}},
-        winnerNames.length ? `You owe ${winnerNames.join(" & ")}. Sort it out between yourselves.` : "Sort it out with your Bloc."
+        winnerNames.length ? `You owe ${winnerNamesText} for this month.` : "You missed the target this month."
       )
     );
 
@@ -4534,18 +5864,27 @@ const SettlementScreen = ({month, currentUser, monthHistory, onSettlementChange,
       React.createElement('div',{style:{fontSize:26, fontWeight:700, marginBottom:6}},
         `Solid month. ${userCount} workouts done.`
       ),
-      streak >= 1 && React.createElement('div',{style:{fontSize:14, color: streak >= 2 ? C.greenText : "var(--muted)"}},
-        `${streak} month${streak !== 1 ? "s" : ""} in a row. Keep the streak alive.`
+      React.createElement('div',{style:{fontSize:14, color: streak >= 2 ? C.greenText : "var(--muted)"}},
+        streakSupportCopy
+      ),
+      isPerfectMonth && React.createElement('div',{style:{fontSize:14, color:C.greenText, marginTop:6}},
+        "Perfect month for the bloc. Everyone hit their MAS."
       )
     );
   };
 
   const renderStats = () => {
     let items;
-    if (outcome === "winner") {
+    if (outcome === "winner" && hasWinnerPayout) {
       items = [
         {label:"Workouts", value: userCount, color:"var(--text)"},
         {label:"You collect", value: `+${fmtCurrency(perWinner, currency)}`, color: C.greenText},
+        {label:"Wins this year", value: winsThisYear, color: C.greenText},
+      ];
+    } else if (outcome === "winner") {
+      items = [
+        {label:"Workouts", value: userCount, color:"var(--text)"},
+        {label:"Month streak", value: streak, color: streak >= 2 ? C.greenText : "var(--text)"},
         {label:"Wins this year", value: winsThisYear, color: C.greenText},
       ];
     } else if (outcome === "missed") {
@@ -4635,11 +5974,21 @@ const SettlementScreen = ({month, currentUser, monthHistory, onSettlementChange,
     }
 
     if (outcome === "winner") {
-      const allSettled = losers.every(l => settlements[l.name]?.status === "settled");
+      const allSettled = losers.every(loser => {
+        const state = buildSettlementPairState(group, month.key, loser.name, currentUser, currentUserId, currentUser);
+        return state.confirmed;
+      });
       return React.createElement('div',{style:{display:"flex", flexDirection:"column", gap:8}},
         losers.map(loser => {
-          const s = settlements[loser.name] || {};
-          const isSettled = s.status === "settled";
+          const amount = getLoserAmount(penalties, loser.name);
+          const key = `${month.key}:${loser.name}:${currentUser}`;
+          const state = buildSettlementPairState(group, month.key, loser.name, currentUser, currentUserId, currentUser);
+          const statusText = state.confirmed
+            ? `Settled ${String(state.confirmation?.confirmedAt || "").slice(0, 10)}`
+            : state.pending
+              ? "Pending confirmation"
+              : "Outstanding";
+          const statusColor = state.confirmed ? C.greenText : "var(--amber)";
           return React.createElement('div',{key:loser.name, style:{...C.card, padding:"12px 14px"}},
             React.createElement('div',{style:{display:"flex", alignItems:"center", justifyContent:"space-between", gap:10}},
               React.createElement('div',{style:{display:"flex", alignItems:"center", gap:10}},
@@ -4647,11 +5996,15 @@ const SettlementScreen = ({month, currentUser, monthHistory, onSettlementChange,
                 React.createElement('span',null,"→"),
                 React.createElement('div',{style:{fontSize:13, fontWeight:600, color:C.greenText}}, "You")
               ),
-              React.createElement('div',{style:{fontSize:14, fontWeight:700, color:C.greenText}}, `+${fmtCurrency(getLoserAmount(penalties, loser.name), currency)}`)
+              React.createElement('div',{style:{fontSize:14, fontWeight:700, color:C.greenText}}, `+${fmtCurrency(amount, currency)}`)
             ),
-            isAdmin && React.createElement('div',{style:{marginTop:10, display:"flex", alignItems:"center", justifyContent:"space-between"}},
-              React.createElement('span',{style:{...C.sectionLabel, color: isSettled ? C.greenText : "var(--amber)"}}, isSettled ? `Settled ${s.settledAt||""}` : "Outstanding"),
-              React.createElement('button',{onClick:()=>handleSettlementToggle(loser.name, !isSettled), disabled:settlementBusy===loser.name, style:{fontSize:11, fontWeight:700, padding:"5px 10px", borderRadius:8, background:"transparent", border:`1px solid ${isSettled?"var(--border)":"var(--amber)"}`, color:isSettled?"var(--muted)":"var(--amber)"}}, settlementBusy===loser.name ? "Saving..." : isSettled ? "Mark outstanding" : "Mark settled")
+            React.createElement('div',{style:{marginTop:10, display:"flex", alignItems:"center", justifyContent:"space-between"}},
+              React.createElement('span',{style:{...C.sectionLabel, color: statusColor}}, statusText),
+              state.pending && state.isReceiver && React.createElement('button',{
+                onClick:()=>handleSettlementAction({ key, kind:"confirm", payerDisplayName: loser.name, receiverDisplayName: currentUser, amount }),
+                disabled:settlementBusy===key,
+                style:{fontSize:11, fontWeight:700, padding:"5px 10px", borderRadius:8, background:"transparent", border:"1px solid var(--amber)", color:"var(--amber)"}
+              }, settlementBusy===key ? "Saving..." : "Confirm")
             )
           );
         }),
@@ -4665,6 +6018,15 @@ const SettlementScreen = ({month, currentUser, monthHistory, onSettlementChange,
     }
 
     // missed
+    const amount = getLoserAmount(penalties, currentUser);
+    const receiverDisplayName = winnerNames[0] || "Winner";
+    const key = `${month.key}:${currentUser}:${receiverDisplayName}`;
+    const state = buildSettlementPairState(group, month.key, currentUser, receiverDisplayName, currentUserId, currentUser);
+    const statusText = state.confirmed
+      ? `Settled ${String(state.confirmation?.confirmedAt || "").slice(0, 10)}`
+      : state.pending
+        ? "Pending confirmation"
+        : "Outstanding";
     return React.createElement('div',{style:{display:"flex", flexDirection:"column", gap:8}},
       React.createElement('div',{style:{...C.card, padding:"12px 14px"}},
         React.createElement('div',{style:{display:"flex", alignItems:"center", justifyContent:"space-between", gap:10}},
@@ -4673,12 +6035,27 @@ const SettlementScreen = ({month, currentUser, monthHistory, onSettlementChange,
             React.createElement('span',null,"→"),
             React.createElement('div',{style:{fontSize:13, fontWeight:600}}, winnerNames.join(" & ") || "Winner")
           ),
-          React.createElement('div',{style:{fontSize:14, fontWeight:700, color:C.redText}}, `-${fmtCurrency(getLoserAmount(penalties, currentUser), currency)}`)
+          React.createElement('div',{style:{fontSize:14, fontWeight:700, color:C.redText}}, `-${fmtCurrency(amount, currency)}`)
         )
       ),
       React.createElement('div',{style:{...C.card, padding:"12px 14px", display:"flex", justifyContent:"space-between", alignItems:"center"}},
-        React.createElement('span',{style:C.sectionLabel}, "Total you owe"),
-        React.createElement('span',{style:{fontWeight:700, fontSize:15, color:C.redText}}, `-${fmtCurrency(getLoserAmount(penalties, currentUser), currency)}`)
+        React.createElement('span',{style:{...C.sectionLabel, color: state.confirmed ? C.greenText : "var(--amber)"}}, statusText),
+        React.createElement('span',{style:{fontWeight:700, fontSize:15, color:C.redText}}, `-${fmtCurrency(amount, currency)}`)
+      ),
+      !state.confirmed && React.createElement('div',{style:{display:"flex",justifyContent:"flex-end"}},
+        React.createElement('button',{
+          onClick:()=>handleSettlementAction({ key, kind:"claim", payerDisplayName: currentUser, receiverDisplayName, amount }),
+          disabled:settlementBusy===key || state.pending || winnerNames.length !== 1,
+          style:{
+            background:state.pending || winnerNames.length !== 1 ? "var(--s3)" : "var(--red-dim)",
+            border:`1px solid ${state.pending || winnerNames.length !== 1 ? "var(--border)" : "rgba(224,80,32,.35)"}`,
+            color:state.pending ? "var(--muted)" : "#e05020",
+            padding:"7px 10px",
+            borderRadius:8,
+            fontSize:11,
+            fontWeight:800
+          }
+        }, settlementBusy===key ? "Saving..." : state.pending ? "Waiting for confirmation" : "Mark as paid")
       ),
       React.createElement('div',{style:{...C.sectionLabel, paddingTop:4}}, "Via Vipps, Revolut, or bank transfer")
     );
@@ -4730,23 +6107,18 @@ const SettlementScreen = ({month, currentUser, monthHistory, onSettlementChange,
           ctaLabel
         )
       )
-    ),
-    pinRequest?.player && React.createElement(PinModal,{
-      prompt:`Mark ${pinRequest.player} as ${pinRequest.settled?"settled":"outstanding"}`,
-      onConfirm:handlePinConfirm,
-      onClose:()=>setPinRequest(null)
-    })
+    )
   );
 };
 
 // ─── MONTH PAGE ───────────────────────────────────────────────────────────────
-const MonthPage = ({logs,excused,monthHistory,groupSettings,onSettlementChange,currentUser,isAdmin,initialSelIdx,onStartNextMonth,navResetToken}) => {
+const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,currentUserId,initialSelIdx,onStartNextMonth,onSettlementClaimPaid,onSettlementConfirmPaid,navResetToken}) => {
   const [selIdx,setSelIdx]=useState(initialSelIdx ?? null); // null = current month
   const [viewPlayer,setViewPlayer]=useState(null);
-  const [showSettlements,setShowSettlements]=useState(false);
-  const [settlementBusy,setSettlementBusy]=useState(null);
-  const [pinRequest,setPinRequest]=useState(null);
   useEffect(()=>{ setViewPlayer(null); },[navResetToken]);
+  useEffect(()=>{
+    if(viewPlayer) window.scrollTo({top:0,left:0,behavior:"auto"});
+  },[viewPlayer]);
 
   const isCurrent=selIdx===null;
   const histReversed=[...monthHistory].reverse();
@@ -4763,7 +6135,7 @@ const MonthPage = ({logs,excused,monthHistory,groupSettings,onSettlementChange,c
           const daysActive = Math.max(0, DAY_OF_MON - joinDay + 1);
           const exp = Math.ceil((target / proratedDays) * daysActive);
           const d = count - exp;
-          memberDiffLabel = d > 0 ? `+${d} ahead` : d < 0 ? `${d} behind` : "on pace";
+          memberDiffLabel = d > 0 ? `+${d} ahead of pace` : d < 0 ? `${d} behind pace` : "on pace";
         }
         return { name:n, count, isOut, target, memberDiffLabel, joinDay, proratedDays };
       })
@@ -4774,7 +6146,6 @@ const MonthPage = ({logs,excused,monthHistory,groupSettings,onSettlementChange,c
   const penalties = calcPenalties(activeCounts, isCurrent ? groupSettings || {} : selMonth?.settings || {});
   const {winners,losers,perLoser,totalPot,perWinner}=penalties;
   const currentLeaderQualified = !isCurrent || ((winners[0]?.count || 0) >= (winners[0]?.target || MIN_TARGET));
-  const settlements = !isCurrent && selMonth ? getMonthSettlements(selMonth) : {};
   const hasActivity=activeCounts.some(u=>u.count>0);
   const resultsCurrency = (isCurrent ? groupSettings : selMonth?.settings)?.currency || DEFAULT_CURRENCY;
   // At Risk = active, not a loser, not a winner, and currently tagged at-risk.
@@ -4794,7 +6165,8 @@ const MonthPage = ({logs,excused,monthHistory,groupSettings,onSettlementChange,c
     } else {
       status = getStatus(u.count, u.target);
     }
-    return !isWinner&&!isLoser&&status==="at-risk";
+    const displayStatus = getLeaderboardDisplayStatus(status, u.count);
+    return !isWinner&&!isLoser&&displayStatus==="at-risk";
   }):[];
 
   const monthLabel=isCurrent?`${MONTH_NAMES[CUR_MONTH]} ${CUR_YEAR}`:selMonth.label;
@@ -4809,23 +6181,10 @@ const MonthPage = ({logs,excused,monthHistory,groupSettings,onSettlementChange,c
     ]
   });
 
-  const handleSettlementToggle = (player, settled) => {
-    setPinRequest({player, settled});
-  };
-  const handlePinConfirm = async (pin) => {
-    const {player, settled} = pinRequest;
-    setPinRequest(null);
-    setSettlementBusy(player);
-    try {
-      const result = await onSettlementChange(selMonth.key, player, settled, pin);
-      if (!result.ok) alert(result.error || "Invalid PIN or unable to update.");
-    } finally {
-      setSettlementBusy(null);
-    }
-  };
-
   if(viewPlayer) return React.createElement('div',{style:{maxWidth:740,margin:"0 auto"}},
-    React.createElement(PlayerProfile,{name:viewPlayer,logs,excused,monthHistory,onBack:()=>setViewPlayer(null),groupSettings})
+    React.createElement(PlayerProfileErrorBoundary,{profileName:viewPlayer,onBack:()=>setViewPlayer(null)},
+      React.createElement(PlayerProfile,{name:viewPlayer,logs,excused,monthHistory,onBack:()=>setViewPlayer(null),groupSettings})
+    )
   );
 
   const renderStandings=()=>React.createElement(Card,{style:{overflow:"hidden"}},
@@ -4863,7 +6222,7 @@ const MonthPage = ({logs,excused,monthHistory,groupSettings,onSettlementChange,c
         monthSelector
       ),
       React.createElement(SettlementScreen,{
-        month:selMonth, currentUser, monthHistory, onSettlementChange, isAdmin,
+        group, month:selMonth, currentUser, currentUserId, monthHistory, onSettlementClaimPaid, onSettlementConfirmPaid,
         onStartNextMonth: onStartNextMonth ? ()=>{ setSelIdx(null); onStartNextMonth(); } : null
       })
     );
@@ -4933,39 +6292,6 @@ const MonthPage = ({logs,excused,monthHistory,groupSettings,onSettlementChange,c
       : hasActivity&&React.createElement(Card,{style:{padding:"14px 22px",background:"#080F0F",border:"0.5px solid #0D1F1E"}},
           React.createElement('span',{className:"mono",style:{fontSize:13,color:"#4ECDC4"}},"✓ No losers — everyone on track.")
         ),
-    !isCurrent&&losers.length>0&&React.createElement(Card,{style:{overflow:"hidden"}},
-      React.createElement('button',{onClick:()=>setShowSettlements(v=>!v),style:{width:"100%",background:"transparent",padding:"14px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",borderBottom:showSettlements?"1px solid var(--border)":"none"}},
-        React.createElement('div',null,
-          React.createElement('div',{style:{fontWeight:800,fontSize:14}},"Settlements"),
-          React.createElement('div',{className:"mono",style:{fontSize:10,color:"var(--muted)",marginTop:4}},
-            `${Object.values(settlements).filter(s=>s.status==="settled").length}/${losers.length} settled`
-          )
-        ),
-        React.createElement('span',{style:{fontSize:18,color:"var(--muted)"}},showSettlements?"▾":"▸")
-      ),
-      showSettlements&&React.createElement('div',{style:{padding:"12px 16px",display:"flex",flexDirection:"column",gap:10}},
-        losers.map(loser=>{
-          const settlement = settlements[loser.name] || { status:"outstanding", settledAt:null };
-          const isSettled = settlement.status === "settled";
-          return React.createElement('div',{key:loser.name,style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,background:"var(--s2)",border:"1px solid var(--border)",borderRadius:10,padding:"10px 12px"}},
-            React.createElement('div',{style:{display:"flex",alignItems:"center",gap:10}},
-              React.createElement(Avatar,{name:loser.name,size:26}),
-              React.createElement('div',null,
-                React.createElement('div',{style:{fontWeight:700,fontSize:14}},loser.name),
-                React.createElement('div',{className:"mono",style:{fontSize:10,color:"var(--muted)",marginTop:3}},`owes ${fmtCurrency(getLoserAmount(penalties, loser.name), resultsCurrency)}${isSettled&&settlement.settledAt?` · settled ${settlement.settledAt}`:""}`)
-              )
-            ),
-            React.createElement('div',{style:{display:"flex",alignItems:"center",gap:8}},
-              React.createElement('span',{className:"mono",style:{fontSize:10,color:isSettled?"var(--green)":"var(--amber)",textTransform:"uppercase",letterSpacing:".08em"}},isSettled?"Settled":"Outstanding"),
-              React.createElement('button',{onClick:()=>handleSettlementToggle(loser.name,!isSettled),disabled:settlementBusy===loser.name,style:{background:isSettled?"var(--green-dim)":"var(--amber-dim)",border:`1px solid ${isSettled?"var(--green)":"var(--amber)"}`,color:isSettled?"var(--green)":"var(--amber)",padding:"7px 10px",borderRadius:8,fontSize:11,fontWeight:800}},
-                settlementBusy===loser.name?"Saving...":isSettled?"Mark Outstanding":"Mark Settled"
-              )
-            )
-          );
-        }),
-        Object.values(settlements).every(s=>s.status==="settled")&&React.createElement('div',{className:"mono",style:{fontSize:11,color:"var(--green)",paddingTop:4}},"✓ All settlements complete")
-      )
-    ),
     atRisk.length>0&&isCurrent&&React.createElement(Card,{style:{padding:"18px 22px",background:"rgba(240,165,0,.05)",border:"1px solid rgba(240,165,0,.2)"}},
       React.createElement('span',{className:"mono",style:{fontSize:9,color:"var(--amber)",textTransform:"uppercase",letterSpacing:".12em",display:"block",marginBottom:12}},
         `AT RISK — ${atRisk.length} within striking distance of falling behind`
@@ -4980,26 +6306,24 @@ const MonthPage = ({logs,excused,monthHistory,groupSettings,onSettlementChange,c
             )
           ),
           React.createElement('div',{style:{textAlign:"right"}},
-            React.createElement('div',{style:{fontFamily:"'JetBrains Mono',monospace",fontSize:13,fontWeight:700,color:"var(--amber)"}},(u.memberDiffLabel||diffLabel(u.count, u.target))),
+            React.createElement('div',{style:{fontFamily:"'JetBrains Mono',monospace",fontSize:13,fontWeight:700,color:"var(--amber)"}},getLeaderboardDiffText(u)),
             React.createElement('div',{style:{fontSize:11,color:"var(--muted)",marginTop:2}},`${Math.max(0,(u.target || MIN_TARGET)-u.count)} needed`)
           )
         ))
       )
     )
-    ),
-    pinRequest?.player && React.createElement(PinModal,{
-      prompt:`Mark ${pinRequest.player} as ${pinRequest.settled?"settled":"outstanding"}`,
-      onConfirm:handlePinConfirm,
-      onClose:()=>setPinRequest(null)
-    })
+    )
   );
 };
 
 // ─── HISTORY PAGE ─────────────────────────────────────────────────────────────
-const HistoryPage = ({logs,excused,monthHistory,groupSettings,navResetToken}) => {
+const HistoryPage = ({logs,excused,monthHistory,groupSettings,navResetToken,currentUser}) => {
   const currency = groupSettings?.currency || DEFAULT_CURRENCY;
   const [selected,setSelected]=useState(null);
   useEffect(()=>{ setSelected(null); },[navResetToken]);
+  useEffect(()=>{
+    if(selected) window.scrollTo({top:0,left:0,behavior:"auto"});
+  },[selected]);
 
   const currentMonthSnapshot = useMemo(() => ({
     key: curKey,
@@ -5059,7 +6383,9 @@ const HistoryPage = ({logs,excused,monthHistory,groupSettings,navResetToken}) =>
   const mostConsistent=[...allTime].filter(u=>u.avg!=="—").sort((a,b)=>Number(b.avg)-Number(a.avg))[0];
   const biggestLoser=[...allTime].sort((a,b)=>b.moneyLost-a.moneyLost)[0];
 
-  if(selected) return React.createElement(PlayerProfile,{name:selected,logs,excused,monthHistory,onBack:()=>setSelected(null),groupSettings});
+  if(selected) return React.createElement(PlayerProfileErrorBoundary,{profileName:selected,onBack:()=>setSelected(null)},
+    React.createElement(PlayerProfile,{name:selected,logs,excused,monthHistory,onBack:()=>setSelected(null),groupSettings})
+  );
 
   return React.createElement('div',{style:{maxWidth:960,margin:"0 auto",padding:"16px",display:"flex",flexDirection:"column",gap:12}},
     React.createElement('div',{className:"fu"},
@@ -5122,23 +6448,23 @@ const HistoryPage = ({logs,excused,monthHistory,groupSettings,navResetToken}) =>
     // All-time leaderboard — scrollable on mobile
     React.createElement(Card,{className:"fu5",style:{overflow:"hidden"}},
       React.createElement('div',{style:{padding:"11px 15px",borderBottom:"1px solid var(--border)",display:"flex",alignItems:"center",justifyContent:"space-between"}},
-        React.createElement('div',{style:{fontWeight:800,fontSize:14}},"All-Time Leaderboard"),
-        React.createElement('span',{className:"mono",style:{fontSize:9,color:"var(--muted)"}},"tap row → profile")
+        React.createElement('div',{style:{fontWeight:800,fontSize:14}},"All-Time Leaderboard")
       ),
       React.createElement('div',{style:{position:"relative"}},
         React.createElement('div',{style:{position:"absolute",top:0,right:0,bottom:0,width:26,pointerEvents:"none",background:"linear-gradient(to right, rgba(8,15,15,0), #080F0F)",zIndex:1}}),
         React.createElement('div',{style:{overflowX:"auto",WebkitOverflowScrolling:"touch"}},
-        React.createElement('div',{style:{minWidth:480}},
+        React.createElement('div',{style:{minWidth:504,padding:"8px"}},
           React.createElement('div',{style:{display:"grid",gridTemplateColumns:"24px 30px 1fr 58px 52px 46px 60px 60px",padding:"7px 15px",borderBottom:"1px solid var(--border)",gap:6,fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".08em"}},
             ["#","","Name","Total","Avg","Wins","Won","Lost"].map((h,i)=>React.createElement('div',{key:i,style:{textAlign:i>2?"right":"left"}},h))
           ),
-          sortedAll.map((u,i)=>React.createElement('div',{key:u.name,onClick:()=>setSelected(u.name),
-            style:{display:"grid",gridTemplateColumns:"24px 30px 1fr 58px 52px 46px 60px 60px",padding:"11px 15px",borderBottom:i<sortedAll.length-1?"1px solid var(--border)":"none",gap:6,alignItems:"center",cursor:"pointer",transition:"background .15s"},
-            onMouseEnter:e=>e.currentTarget.style.background="var(--s2)",onMouseLeave:e=>e.currentTarget.style.background="transparent"},
+          React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:4,marginTop:4}},
+          sortedAll.map((u,i)=>React.createElement('button',{key:u.name,type:"button",onClick:()=>setSelected(u.name),
+            style:{display:"grid",gridTemplateColumns:"24px 30px 1fr 58px 52px 46px 60px 60px 16px",padding:"8px 10px",gap:6,alignItems:"center",cursor:"pointer",background:"#080F0F",border:`0.5px solid ${u.name===currentUser?"#163d36":"#0D1F1E"}`,borderRadius:8,boxShadow:"inset 0 1px 0 rgba(255,255,255,0.04)",textAlign:"left"},
+            onMouseEnter:e=>e.currentTarget.style.borderColor=u.name===currentUser?"#1c4a43":"#15302c",onMouseLeave:e=>e.currentTarget.style.borderColor=u.name===currentUser?"#163d36":"#0D1F1E"},
             React.createElement('div',null,React.createElement(RankIcon,{rank:i+1})),
             React.createElement(Avatar,{name:u.name,size:24}),
-            React.createElement('div',{style:{fontWeight:600,fontSize:14}},u.name),
-            React.createElement('span',{className:"mono",style:{fontSize:14,fontWeight:700,textAlign:"right"}},u.total||"—"),
+            React.createElement('div',{style:{fontWeight:600,fontSize:14,display:"flex",alignItems:"baseline",gap:6,flexWrap:"wrap",color:"var(--text)"}},u.name,u.name===currentUser&&React.createElement('span',{className:"mono",style:{fontSize:8,color:"#3d5e59"}},"you")),
+            React.createElement('span',{className:"mono",style:{fontSize:14,fontWeight:700,textAlign:"right",color:"var(--text)"}},u.total||"—"),
             React.createElement('span',{className:"mono",style:{fontSize:11,color:"var(--muted)",textAlign:"right"}},u.avg),
             React.createElement('span',{className:"mono",style:{fontSize:11,textAlign:"right",color:hasClosedHistory&&u.wins>0?"var(--gold)":"var(--muted)",display:"inline-flex",alignItems:"center",justifyContent:"flex-end",gap:4}},
               hasClosedHistory&&u.wins>0
@@ -5149,8 +6475,9 @@ const HistoryPage = ({logs,excused,monthHistory,groupSettings,navResetToken}) =>
                 : "—"
             ),
             React.createElement('span',{className:"mono",style:{fontSize:11,textAlign:"right",color:hasClosedHistory&&u.moneyWon>0?"var(--green)":"var(--muted)"}},hasClosedHistory&&u.moneyWon>0?`+${fmtCurrency(u.moneyWon, currency)}`:"—"),
-            React.createElement('span',{className:"mono",style:{fontSize:11,textAlign:"right",color:hasClosedHistory&&u.moneyLost>0?"var(--red)":"var(--muted)"}},hasClosedHistory&&u.moneyLost>0?`-${fmtCurrency(u.moneyLost, currency)}`:"—")
-          ))
+            React.createElement('span',{className:"mono",style:{fontSize:11,textAlign:"right",color:hasClosedHistory&&u.moneyLost>0?"var(--red)":"var(--muted)"}},hasClosedHistory&&u.moneyLost>0?`-${fmtCurrency(u.moneyLost, currency)}`:"—"),
+            React.createElement('span',{style:{display:"inline-flex",justifyContent:"flex-end",alignItems:"center"}},React.createElement(ChevronRightIcon,null))
+          )))
         )
       ))
     )
@@ -5161,6 +6488,7 @@ const HistoryPage = ({logs,excused,monthHistory,groupSettings,navResetToken}) =>
 const App = () => {
   const cached = readCachedData();
   const [page,setPage]=useState("today");
+  const [showTodayLog,setShowTodayLog]=useState(false);
   const [navResetToken,setNavResetToken]=useState(0);
   const [loading,setLoading]=useState(()=>!cached);
   const [saving,setSaving]=useState(false);
@@ -5209,6 +6537,8 @@ const App = () => {
   const [isMobileView,setIsMobileView]=useState(()=>isMobile());
   const [clockTick,setClockTick]=useState(Date.now());
   const [authReady,setAuthReady]=useState(false);
+  const [localPreviewAuthEnabled,setLocalPreviewAuthEnabled]=useState(false);
+  const [devImpersonationUserId,setDevImpersonationUserId]=useState(()=>{try{return localStorage.getItem(LOCAL_DEV_IMPERSONATION_KEY)||"";}catch{return ""; }});
   const latestRevisionRef = useRef(getRevision(cached));
   const justSyncedTimerRef = useRef(null);
   const optimisticMutationRef = useRef(null);
@@ -5222,7 +6552,9 @@ const App = () => {
   },[]);
 
   const persistSession = useCallback((session) => {
-    setAuthSession(session?.userId ? session : null);
+    const nextSession = session?.userId ? session : null;
+    persistLocalPreviewSession(nextSession);
+    setAuthSession(nextSession);
   },[]);
 
   const clearInviteParamFromUrl = useCallback(() => {
@@ -5242,14 +6574,46 @@ const App = () => {
     if (clearUrl) clearInviteParamFromUrl();
   },[clearInviteParamFromUrl]);
 
-  const profile = getProfileForSession(appState, authSession);
   const currentGroup = selectedGroupId ? appState.groups?.[selectedGroupId] || null : null;
-  const currentMembership = currentGroup ? getMembershipForUser(currentGroup, authSession, profile) : null;
+  const localDevMode = isLocalDevEnvironment();
+  const profile = getProfileForSession(appState, authSession);
+  const devImpersonationOptions = useMemo(() => {
+    if (!localDevMode || !currentGroup) return [];
+    const memberIndex = new Map((currentGroup.memberOrder || []).map((name, index) => [name, index]));
+    const members = Object.values(currentGroup.memberships || {})
+      .filter(membership => membership?.userId && membership?.displayName)
+      .sort((a, b) => (memberIndex.get(a.displayName) ?? 999) - (memberIndex.get(b.displayName) ?? 999));
+    const options = authSession?.userId
+      ? [{ userId:"", label:`Use signed-in account (${profile?.displayName || authSession?.email || "current"})` }]
+      : [];
+    members.forEach(membership => {
+      options.push({
+        userId: membership.userId,
+        label: membership.displayName === profile?.displayName ? `${membership.displayName} (you)` : membership.displayName
+      });
+    });
+    return options;
+  },[authSession?.email, authSession?.userId, currentGroup, localDevMode, profile?.displayName]);
+  const effectiveAuthSession = useMemo(() => {
+    if (!localDevMode || !devImpersonationUserId || !authSession?.userId || !currentGroup?.memberships?.[devImpersonationUserId]) {
+      return authSession;
+    }
+    const membership = currentGroup.memberships[devImpersonationUserId];
+    return {
+      ...authSession,
+      userId: devImpersonationUserId,
+      email: authSession.email || `${slugifyLocalPreview(membership.displayName)}@local.test`,
+      devImpersonationActive: true,
+      devImpersonatedByUserId: authSession.userId
+    };
+  },[authSession, currentGroup, devImpersonationUserId, localDevMode]);
+  const effectiveProfile = getProfileForSession(appState, effectiveAuthSession);
+  const currentMembership = currentGroup ? getMembershipForUser(currentGroup, effectiveAuthSession, effectiveProfile) : null;
   const currentUser = currentMembership?.displayName || null;
-  const isGroupAdmin = currentGroup ? (currentGroup.adminUserId ? currentGroup.adminUserId === authSession?.userId : currentGroup.adminName === currentUser) : false;
+  const isGroupAdmin = currentGroup ? (currentGroup.adminUserId ? currentGroup.adminUserId === effectiveAuthSession?.userId : currentGroup.adminName === currentUser) : false;
   const prorationGroup = pendingProrationGroupId ? appState.groups?.[pendingProrationGroupId] || null : null;
 
-  ACTIVE_SESSION_USER_ID = authSession?.userId || "";
+  ACTIVE_SESSION_USER_ID = effectiveAuthSession?.userId || "";
   syncActiveGroupGlobals(currentGroup);
 
   const buildOptimisticState = useCallback((incoming) => {
@@ -5279,6 +6643,12 @@ const App = () => {
 
   useEffect(()=>{
     if(!("serviceWorker" in navigator)) return;
+    if (isLocalDevEnvironment()) {
+      navigator.serviceWorker.getRegistrations()
+        .then(registrations => Promise.all(registrations.map(registration => registration.unregister())))
+        .catch(err => console.error("Service worker unregister failed", err));
+      return;
+    }
     navigator.serviceWorker.register("./sw.js").catch(err=>console.error("Service worker registration failed", err));
   },[]);
 
@@ -5292,6 +6662,10 @@ const App = () => {
     const interval = setInterval(() => setClockTick(Date.now()), 30000);
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    window.scrollTo({top:0,left:0,behavior:"auto"});
+  }, [page]);
 
   useEffect(() => {
     if (!joinCode) {
@@ -5384,6 +6758,35 @@ const App = () => {
     };
   },[]);
 
+  useEffect(() => {
+    if (!currentGroup?.settlementConfirmationsEnabled || currentGroup?.settlementConfirmationsPreviewMode || !authSession?.userId) return;
+    let active = true;
+    let channel = null;
+    getSupabaseAuthClient()
+      .then(client => {
+        if (!active) return;
+        channel = client
+          .channel(`settlement-confirmations:${currentGroup.id}`)
+          .on("postgres_changes", {
+            event: "*",
+            schema: "ante_core",
+            table: "settlement_confirmations"
+          }, () => {
+            refreshNow();
+          })
+          .subscribe();
+      })
+      .catch(error => console.error("Settlement confirmations realtime failed", error));
+    return () => {
+      active = false;
+      if (channel) {
+        getSupabaseAuthClient()
+          .then(client => client.removeChannel(channel))
+          .catch(()=>{});
+      }
+    };
+  }, [authSession?.userId, currentGroup?.id, currentGroup?.settlementConfirmationsEnabled, refreshNow]);
+
   useEffect(()=>{
     const cachedData = readCachedData();
     if(cachedData){
@@ -5425,7 +6828,23 @@ const App = () => {
 
     const bootstrapAuth = async () => {
       try {
-        const client = await getSupabaseAuthClient();
+        const config = await fetchAuthConfig();
+        const localPreviewEnabled = !!config?.enableLocalPreviewAuth;
+        if (active) setLocalPreviewAuthEnabled(localPreviewEnabled);
+        if (localPreviewEnabled) {
+          if (active) persistSession(readLocalPreviewSession());
+          return;
+        }
+        const factory = window.supabase?.createClient;
+        if (!factory) throw new Error("Supabase browser client failed to load");
+        const client = factory(config.supabaseUrl, config.supabaseAnonKey, {
+          auth: {
+            persistSession: true,
+            autoRefreshToken: true,
+            detectSessionInUrl: true
+          }
+        });
+        supabaseAuthClientPromise = Promise.resolve(client);
         const initialSession = await getCurrentAuthSession();
         if (!active) return;
         persistSession(initialSession);
@@ -5465,6 +6884,28 @@ const App = () => {
       persistGroupSelection(null);
     }
   },[appState, selectedGroupId, persistGroupSelection, authSession, profile]);
+
+  useEffect(()=>{
+    if (!localDevMode) {
+      if (devImpersonationUserId) setDevImpersonationUserId("");
+      try { localStorage.removeItem(LOCAL_DEV_IMPERSONATION_KEY); } catch {}
+      return;
+    }
+    if (!devImpersonationUserId) return;
+    if (!currentGroup?.memberships?.[devImpersonationUserId]) {
+      setDevImpersonationUserId("");
+      try { localStorage.removeItem(LOCAL_DEV_IMPERSONATION_KEY); } catch {}
+    }
+  },[currentGroup, devImpersonationUserId, localDevMode]);
+
+  const handleSelectDevImpersonation = useCallback((nextUserId)=>{
+    const normalized = String(nextUserId || "").trim();
+    setDevImpersonationUserId(normalized);
+    try {
+      if (normalized) localStorage.setItem(LOCAL_DEV_IMPERSONATION_KEY, normalized);
+      else localStorage.removeItem(LOCAL_DEV_IMPERSONATION_KEY);
+    } catch {}
+  },[]);
 
   const handleSave=useCallback(async(newData)=>{
     if(!selectedGroupId || !currentGroup || !currentUser) return;
@@ -5620,10 +7061,18 @@ const App = () => {
     }
   },[applyData, beginOptimisticMutation, buildOptimisticState, clearOptimisticMutation, currentGroup, refreshNow, selectedGroupId, authSession]);
 
-  const handleSettlementChange = useCallback(async(monthKey, player, settled, pin)=>{
-    if(!selectedGroupId) return { ok:false, error:"No Bloc selected" };
-    const result = await updateSettlementData(selectedGroupId, monthKey, player, settled, pin);
-    if(result.ok && result.data){
+  const handleSettlementClaimPaid = useCallback(async(payload)=>{
+    if (!selectedGroupId) return { ok:false, error:"No Bloc selected" };
+    const result = await claimSettlementConfirmationData({
+      groupId: selectedGroupId,
+      monthKey: payload.monthKey,
+      payerDisplayName: payload.payerDisplayName,
+      receiverDisplayName: payload.receiverDisplayName,
+      amount: payload.amount,
+      currency: payload.currency,
+      devImpersonationUserId: effectiveAuthSession?.devImpersonationActive ? effectiveAuthSession.userId : ""
+    });
+    if (result.ok && result.data) {
       const applied = applyData(result.data);
       if (applied) {
         setLastSyncedAt(new Date());
@@ -5631,7 +7080,45 @@ const App = () => {
       }
     }
     return result;
-  },[applyData, selectedGroupId]);
+  },[applyData, effectiveAuthSession, selectedGroupId]);
+
+  const handleSettlementConfirmPaid = useCallback(async(payload)=>{
+    if (!selectedGroupId) return { ok:false, error:"No Bloc selected" };
+    const result = await confirmSettlementConfirmationData({
+      groupId: selectedGroupId,
+      monthKey: payload.monthKey,
+      payerDisplayName: payload.payerDisplayName,
+      receiverDisplayName: payload.receiverDisplayName,
+      devImpersonationUserId: effectiveAuthSession?.devImpersonationActive ? effectiveAuthSession.userId : ""
+    });
+    if (result.ok && result.data) {
+      const applied = applyData(result.data);
+      if (applied) {
+        setLastSyncedAt(new Date());
+        setSyncError(false);
+      }
+    }
+    return result;
+  },[applyData, effectiveAuthSession, selectedGroupId]);
+
+  const handleSettlementDisputePaid = useCallback(async(payload)=>{
+    if (!selectedGroupId) return { ok:false, error:"No Bloc selected" };
+    const result = await disputeSettlementConfirmationData({
+      groupId: selectedGroupId,
+      monthKey: payload.monthKey,
+      payerDisplayName: payload.payerDisplayName,
+      receiverDisplayName: payload.receiverDisplayName,
+      devImpersonationUserId: effectiveAuthSession?.devImpersonationActive ? effectiveAuthSession.userId : ""
+    });
+    if (result.ok && result.data) {
+      const applied = applyData(result.data);
+      if (applied) {
+        setLastSyncedAt(new Date());
+        setSyncError(false);
+      }
+    }
+    return result;
+  },[applyData, effectiveAuthSession, selectedGroupId]);
 
   const handleCreateGroup = useCallback(async(payload)=>{
     setCreatingGroup(true);
@@ -5748,7 +7235,9 @@ const App = () => {
   },[selectedGroupId, authSession, applyData, persistGroupSelection, resetInviteFlow]);
 
   const handleSwitchUser=async()=>{
-    try { await signOutAuthSession(); } catch (error) { console.error("Sign out failed:", error); }
+    if (!authSession?.localPreview) {
+      try { await signOutAuthSession(); } catch (error) { console.error("Sign out failed:", error); }
+    }
     persistSession(null);
     persistGroupSelection(null);
     setShowSettings(false);
@@ -5776,6 +7265,7 @@ const App = () => {
   };
   const handleSwitchGroup=()=>persistGroupSelection(null);
   const handleNavSelect = useCallback((nextPage)=>{
+    setShowTodayLog(false);
     setMonthInitialIdx(null);
     setNavResetToken(value=>value+1);
     setPage(nextPage);
@@ -5798,7 +7288,8 @@ const App = () => {
   const showIosHint = !standalone && !installDismissed && isIos() && isSafari() && !installPrompt;
   const showInstallBanner = !standalone && !installDismissed && (Boolean(installPrompt) || showIosHint);
   const groups = appState.groupOrder.map(groupId => appState.groups[groupId]).filter(Boolean);
-  const visibleGroups = groups.filter(group => Boolean(getMembershipForUser(group, authSession, profile)));
+  const visibleGroups = groups.filter(group => Boolean(getMembershipForUser(group, effectiveAuthSession, effectiveProfile)));
+  const localPreviewMembers = uniqueNames(groups.flatMap(group => group.memberOrder || []));
   const activityAlertCount = currentGroup && currentUser ? getActivityAlertCount(currentGroup, currentUser) : 0;
   const openAuth = intent => {
     setShowJoinModal(false);
@@ -5806,7 +7297,7 @@ const App = () => {
     setAuthStep("email");
     setAuthEmail(authSession?.email || "");
     setAuthCode("");
-    setAuthDisplayName(profile?.displayName || "");
+    setAuthDisplayName(effectiveProfile?.displayName || "");
     setAuthError("");
     setDevOtpCode("");
   };
@@ -5818,7 +7309,7 @@ const App = () => {
     setDevOtpCode("");
     setPendingAuthSession(null);
   };
-  const continueAfterAuth = async (nextSession = authSession, nextProfile = profile) => {
+  const continueAfterAuth = async (nextSession = authSession, nextProfile = effectiveProfile) => {
     if (authIntent?.type === "create") {
       setQueuedCreate(true);
       return;
@@ -5953,7 +7444,23 @@ const App = () => {
     setShowJoinModal(false);
   };
 
+  const handleSelectLocalPreviewIdentity = useCallback((displayName) => {
+    const session = buildLocalPreviewSession(displayName);
+    persistSession(session);
+    const matchingGroup = groups.find(group => group.memberOrder?.includes(displayName));
+    if (matchingGroup?.id) {
+      persistGroupSelection(matchingGroup.id);
+      setPage("today");
+    }
+  },[groups, persistGroupSelection, persistSession]);
+
   if(loading || !authReady) return React.createElement(Spinner,{label:"Opening Antè..."});
+  if(localPreviewAuthEnabled && !authSession?.userId) {
+    return React.createElement(IdentitySetup,{
+      members: localPreviewMembers,
+      onSelect: handleSelectLocalPreviewIdentity
+    });
+  }
   if(!authSession?.userId) {
     return React.createElement(React.Fragment,null,
       React.createElement(PreviewLanding,{
@@ -6008,8 +7515,8 @@ const App = () => {
       showProfileModal && React.createElement(ProfileModal,{email:authSession?.email,onSignOut:handleSwitchUser,onClose:()=>{setProfileError("");setShowProfileModal(false);},currentDisplayName:profile?.displayName||"",onSaveDisplayName:handleSaveProfileFromModal,saving:profileSaving,saveError:profileError,onDeleteAccount:handleDeleteAccount}),
       React.createElement(GroupHome,{
         groups: visibleGroups,
-        currentIdentity: profile?.displayName || authSession?.email?.split("@")[0] || "",
-        currentEmail: authSession?.email,
+        currentIdentity: effectiveProfile?.displayName || effectiveAuthSession?.email?.split("@")[0] || "",
+        currentEmail: effectiveAuthSession?.email,
         onOpenProfile:()=>setShowProfileModal(true),
         creating: creatingGroup,
         autoOpenCreate: queuedCreate,
@@ -6020,10 +7527,10 @@ const App = () => {
       })
     );
   }
-  if(!currentUser || !getMembershipForUser(currentGroup, authSession, profile)) {
+  if(!currentUser || !getMembershipForUser(currentGroup, effectiveAuthSession, effectiveProfile)) {
     return React.createElement(GroupAccessNotice,{
       groupName: currentGroup.name,
-      userName: profile.displayName,
+      userName: effectiveProfile?.displayName || "",
       onBack: handleSwitchGroup
     });
   }
@@ -6042,12 +7549,15 @@ const App = () => {
       onProrate:()=>handleSeasonProrationChoice("prorate"),
       savingChoice:prorationSavingChoice
     }),
-    React.createElement(Nav,{page,setPage:handleNavSelect,user:currentUser,groupName:currentGroup.name,canEditGroup:isGroupAdmin,onOpenSettings:()=>setShowSettings(true),onOpenProfile:()=>{setProfileError("");setShowProfileModal(true);},onSwitchUser:handleSwitchUser,onSwitchGroup:handleSwitchGroup,syncing,lastSyncedAt,syncError,onRefresh:refreshNow,showJustSynced,activityAlertCount}),
+    React.createElement(Nav,{page,setPage:handleNavSelect,user:currentUser,groupName:currentGroup.name,canEditGroup:isGroupAdmin,onOpenSettings:()=>setShowSettings(true),onOpenProfile:()=>{setProfileError("");setShowProfileModal(true);},onSwitchUser:handleSwitchUser,onSwitchGroup:handleSwitchGroup,onOpenLog:()=>{setPage("today");setShowTodayLog(true);},syncing,lastSyncedAt,syncError,onRefresh:refreshNow,showJustSynced,activityAlertCount}),
+    localDevMode && React.createElement(LocalDevImpersonationBar,{options:devImpersonationOptions,value:effectiveAuthSession?.devImpersonationActive?effectiveAuthSession.userId:"",onChange:handleSelectDevImpersonation}),
     React.createElement('div',{style:{paddingBottom:isMobileView?(page==="today"?"calc(156px + env(safe-area-inset-bottom))":"calc(86px + env(safe-area-inset-bottom))"):0}},
-      page==="today"  &&React.createElement(TodayPage,  {user:currentUser,currentGroupId:selectedGroupId,groups,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,saving,onSave:handleSave,onMultiLog:handleMultiLog,onLogMutation:handleLogMutation,clockTick,onViewLastMonth:()=>{setMonthInitialIdx(0);setPage("month");},onSitOutRequest:handleSitOutRequest,navResetToken}),
+      page==="today"  &&React.createElement(TodayPageErrorBoundary,{resetKey:`${selectedGroupId}:${navResetToken}:${currentUser}`},
+        React.createElement(TodayPage,  {user:currentUser,currentUserId:effectiveAuthSession?.userId,currentGroupId:selectedGroupId,groups,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,saving,onSave:handleSave,onMultiLog:handleMultiLog,onLogMutation:handleLogMutation,clockTick,onViewLastMonth:()=>{setMonthInitialIdx(0);setPage("month");},onSitOutRequest:handleSitOutRequest,onSettlementClaimPaid:handleSettlementClaimPaid,onSettlementConfirmPaid:handleSettlementConfirmPaid,onSettlementDisputePaid:handleSettlementDisputePaid,navResetToken,showLog:showTodayLog,setShowLog:setShowTodayLog})
+      ),
       page==="activity"&&React.createElement(ActivityPage,{group:currentGroup,currentUser,onLogMutation:handleLogMutation,clockTick}),
-      page==="month"  &&React.createElement(MonthPage,  {logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,groupSettings:currentGroup.settings,onSettlementChange:handleSettlementChange,currentUser,isAdmin:isGroupAdmin,initialSelIdx:monthInitialIdx,onStartNextMonth:()=>{setMonthInitialIdx(null);setPage("today");},navResetToken}),
-      page==="history"&&React.createElement(HistoryPage,{logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,groupSettings:currentGroup.settings,navResetToken})
+      page==="month"  &&React.createElement(MonthPage,  {group:currentGroup,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,groupSettings:currentGroup.settings,currentUser,currentUserId:effectiveAuthSession?.userId,initialSelIdx:monthInitialIdx,onStartNextMonth:()=>{setMonthInitialIdx(null);setPage("today");},onSettlementClaimPaid:handleSettlementClaimPaid,onSettlementConfirmPaid:handleSettlementConfirmPaid,navResetToken}),
+      page==="history"&&React.createElement(HistoryPage,{logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,groupSettings:currentGroup.settings,navResetToken,currentUser})
     ),
     showInstallBanner && React.createElement(InstallBanner,{
       installReady:Boolean(installPrompt),
