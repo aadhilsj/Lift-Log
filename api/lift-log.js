@@ -3408,6 +3408,11 @@ function applyRepairDisplayName(current, payload) {
       renameKey(requests || {}, oldName, newName)
     ])
   );
+  const nextLeftMemberNames = uniqueNames(
+    (Array.isArray(group.leftMemberNames) ? group.leftMemberNames : []).map(name =>
+      name === oldName ? newName : name
+    )
+  );
 
   const nextGroup = normalizeGroup({
     ...group,
@@ -3417,6 +3422,7 @@ function applyRepairDisplayName(current, payload) {
     logs:              renameKey(group.logs              || {}, oldName, newName),
     excused:           renameKey(group.excused           || {}, oldName, newName),
     joinedMonthByName: renameKey(group.joinedMonthByName || {}, oldName, newName),
+    leftMemberNames:   nextLeftMemberNames,
     sitOutRequests:    nextSitOutRequests,
     monthHistory:      nextMonthHistory
   });
@@ -3739,6 +3745,10 @@ function applyDeleteAccount(current, payload) {
       adminName: nextAdminName,
       memberOrder: nextMemberOrder,
       memberships: nextMemberships,
+      leftMemberNames: uniqueNames([
+        ...(Array.isArray(group.leftMemberNames) ? group.leftMemberNames : []),
+        dn
+      ]),
       logs: finalLogs,
       sitOutRequests: nextSitOutRequests
     });
