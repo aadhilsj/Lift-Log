@@ -5764,8 +5764,8 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
     ? winnerNames.join(" and ")
     : `${winnerNames.slice(0, -1).join(", ")}, and ${winnerNames[winnerNames.length - 1]}`;
   const streakSupportCopy = streak >= 2
-    ? `${streak} months in a row. Keep the streak alive.`
-    : "You hit your MAS. Build on it next month.";
+    ? `${streak} perfect months in a row. Keep the streak alive.`
+    : "Build on it next month.";
 
   const handleSettlementAction = async ({ key, kind, payerDisplayName, receiverDisplayName, amount }) => {
     setSettlementBusy(key);
@@ -5859,13 +5859,15 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
     return React.createElement('div',{style:{textAlign:"center", padding:"28px 0 20px"}},
       React.createElement('span',{style:{...C.pill, background:C.neutralBg, color:C.neutralText, marginBottom:14, display:"inline-block"}},`MAS hit · ${ordinal(userRank)} place`),
       React.createElement('div',{style:{fontSize:26, fontWeight:700, marginBottom:6}},
-        `Solid month. ${userCount} workouts done.`
+        React.createElement('span',{style:{display:"inline-block",fontSize:"clamp(22px, 5vw, 26px)",whiteSpace:"nowrap",maxWidth:"100%",overflow:"hidden",textOverflow:"ellipsis"}},
+          `Solid month. ${userCount} workouts done.`
+        )
       ),
-      React.createElement('div',{style:{fontSize:14, color: streak >= 2 ? C.greenText : "var(--muted)"}},
+      React.createElement('div',{style:{fontSize:14, fontWeight:500, color:isPerfectMonth ? "var(--muted)" : "#4ECDC4"}},
         streakSupportCopy
       ),
       isPerfectMonth && React.createElement('div',{style:{fontSize:14, color:C.greenText, marginTop:6}},
-        "Perfect month for the bloc. Everyone hit their MAS."
+        "Bloc went perfect. Everyone hit their MAS."
       )
     );
   };
