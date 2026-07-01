@@ -5027,25 +5027,6 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
   const todayTargetText = earlyMonthPaceQuiet ? "month just started" : `${expected} by today`;
   const targetCardMeta = (currentMonthOverride?.prorated || myTarget !== MIN_TARGET) ? "prorated" : null;
 
-  const weeklyCounts = Object.entries(logs || {}).map(([memberName, memberLogs]) => {
-    const weekCount = getCountedLogs(memberLogs).filter(log => {
-      if (!log?.date) return false;
-      const [year, month, day] = String(log.date).split("-").map(Number);
-      if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return false;
-      const logDate = new Date(year, month - 1, day);
-      return logDate >= currentWeekStart && logDate <= currentWeekEnd;
-    }).length;
-    return { name: memberName, count: weekCount };
-  });
-  const topWeeklyCount = weeklyCounts.reduce((max, member) => Math.max(max, member.count), 0);
-  const weeklyLeaders = weeklyCounts.filter(member => member.count === topWeeklyCount && member.count > 0);
-  const weeklyMvpValue = topWeeklyCount === 0
-    ? "—"
-    : weeklyLeaders.length === 1
-      ? weeklyLeaders[0].name
-      : weeklyLeaders.length === 2
-        ? "Tied"
-        : `${weeklyLeaders.length}-way tie`;
   const blocMonthCount = Object.values(logs || {}).reduce((total, memberLogs) => total + getCountedLogCount(memberLogs), 0);
   const getMemberLogForIso = (memberName, isoDate) => {
     if (!memberName || !isoDate) return null;
@@ -5055,6 +5036,22 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
     if (!month?.logsByUser?.[memberName]) return null;
     return (month.logsByUser[memberName] || []).find(log => log?.date === isoDate) || null;
   };
+  const weeklyCounts = (currentGroup?.memberOrder || Object.keys(logs || {})).map(memberName => ({
+    name: memberName,
+    count: currentWeekDays.reduce((total, date) => {
+      const iso = toISODate(date);
+      return total + (getMemberLogForIso(memberName, iso) ? 1 : 0);
+    }, 0)
+  }));
+  const topWeeklyCount = weeklyCounts.reduce((max, member) => Math.max(max, member.count), 0);
+  const weeklyLeaders = weeklyCounts.filter(member => member.count === topWeeklyCount && member.count > 0);
+  const weeklyMvpValue = topWeeklyCount === 0
+    ? "—"
+    : weeklyLeaders.length === 1
+      ? weeklyLeaders[0].name
+      : weeklyLeaders.length === 2
+        ? "Tied"
+        : `${weeklyLeaders.length}-way tie`;
   const renderMonthLogCalendar = ({memberName, title, year, monthIndex, logsByDay}) => {
     const firstDay = new Date(year, monthIndex, 1).getDay();
     const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
