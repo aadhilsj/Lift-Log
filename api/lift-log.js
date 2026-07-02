@@ -2247,12 +2247,13 @@ function buildCanonicalMonthHistory(group, canonicalSeasons) {
 }
 
 async function fetchReadableCurrentState() {
-  // Safety hotfix: canonical-first GET composition is not yet current-log
-  // complete in production. Keep the blob-overlay read path authoritative
-  // until canonical current-month parity is verified end-to-end.
-  return fetchReadableCurrentStateFromBlobOverlay();
+  // Safety hotfix: keep the blob-overlay read path authoritative until
+  // canonical current-month parity is verified on the production backend.
+  const ENABLE_CANONICAL_READ_COMPOSER = false;
+  if (!ENABLE_CANONICAL_READ_COMPOSER) {
+    return fetchReadableCurrentStateFromBlobOverlay();
+  }
 
-  /*
   const [
     anteProfiles,
     anteBlocs,
@@ -2275,8 +2276,16 @@ async function fetchReadableCurrentState() {
     fetchBlobRevision()
   ]);
 
-  if (!anteBlocs || Object.keys(anteBlocs).length === 0) {
-    console.warn("Canonical read baseline missing or empty; falling back to blob-overlay read composer.");
+  const missingCoreReadSurface =
+    !anteBlocs ||
+    Object.keys(anteBlocs).length === 0 ||
+    !anteProfiles ||
+    !anteBlocMembers ||
+    !anteCurrentLogs ||
+    !anteExcusedSitouts;
+
+  if (missingCoreReadSurface) {
+    console.warn("Canonical read surface incomplete; falling back to blob-overlay read composer.");
     return fetchReadableCurrentStateFromBlobOverlay();
   }
 
@@ -2423,7 +2432,6 @@ async function fetchReadableCurrentState() {
   );
 
   return normalized;
-  */
 }
 
 // Mutations must always hydrate from the blob source of truth.
