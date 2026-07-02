@@ -89,8 +89,7 @@ begin
   join ante_core.blocs b
     on b.id = wl.bloc_id
   where s.status = 'open'
-    and b.legacy_group_key is not null
-  order by wl.created_at asc;
+    and b.legacy_group_key is not null;
 
   return result;
 end;
