@@ -9,18 +9,23 @@ const TABLES = [
   { name: "payment_methods", conflict: ["id"] },
   { name: "auth_otps", conflict: ["email"] },
   { name: "blocs", conflict: ["id"] },
-  { name: "bloc_members", conflict: ["id"] },
-  { name: "seasons", conflict: ["id"] },
-  { name: "season_member_status", conflict: ["id"] },
+  { name: "bloc_members", conflict: ["bloc_id", "profile_id"], noUpdateColumns: ["id", "created_at"] },
+  { name: "seasons", conflict: ["bloc_id", "month_key"], noUpdateColumns: ["id", "created_at"] },
+  { name: "season_member_status", conflict: ["season_id", "display_name_snapshot"], noUpdateColumns: ["id", "created_at"] },
   { name: "workout_logs", conflict: ["id"] },
   { name: "workout_reactions", conflict: ["workout_log_id", "emoji", "reactor_display_name"] },
-  { name: "season_overrides", conflict: ["id"] },
-  { name: "sit_out_requests", conflict: ["id"] },
+  { name: "season_overrides", conflict: ["season_id"], noUpdateColumns: ["id", "created_at"] },
+  { name: "sit_out_requests", conflict: ["season_id", "display_name_snapshot"], noUpdateColumns: ["id", "created_at"] },
   { name: "settlement_runs", conflict: ["id"] },
   { name: "settlement_entries", conflict: ["id"] },
   { name: "settlement_transfers", conflict: ["id"] },
   { name: "notification_jobs", conflict: ["id"] }
 ];
+
+const PRESERVE_EMPTY_STRING_COLUMNS = {
+  workout_logs: new Set(["note", "photo_url", "flag_reason", "flag_response"]),
+  sit_out_requests: new Set(["reason"])
+};
 
 const [, , canonicalDirArg, outputPathArg] = process.argv;
 const canonicalDir = path.resolve(canonicalDirArg || DEFAULT_CANONICAL_DIR);
@@ -46,7 +51,7 @@ for (const table of TABLES) {
   }
   const rows = JSON.parse(fs.readFileSync(filePath, "utf8"));
   statements.push(`-- ${table.name}: ${rows.length} row(s)`);
-  statements.push(...buildTableStatements(table.name, rows, table.conflict));
+  statements.push(...buildTableStatements(table.name, rows, table.conflict, table.noUpdateColumns));
   statements.push("");
 }
 
@@ -61,14 +66,16 @@ console.log(JSON.stringify({
   tableCount: TABLES.length
 }, null, 2));
 
-function buildTableStatements(tableName, rows, conflictColumns) {
+function buildTableStatements(tableName, rows, conflictColumns, noUpdateColumns = []) {
   if (rows.length === 0) {
     return [`-- ${tableName} has no rows in this import snapshot.`];
   }
 
   const columns = orderedColumns(rows);
-  const updateColumns = columns.filter(column => !conflictColumns.includes(column));
-  const valueLines = rows.map(row => `  (${columns.map(column => toSqlLiteral(row[column])).join(", ")})`);
+  const updateColumns = columns.filter(column =>
+    !conflictColumns.includes(column) && !noUpdateColumns.includes(column)
+  );
+  const valueLines = rows.map(row => `  (${columns.map(column => toSqlLiteral(row[column], tableName, column)).join(", ")})`);
 
   const statements = [
     `insert into ${TARGET_SCHEMA}.${tableName} (${columns.join(", ")})`,
@@ -91,7 +98,7 @@ function orderedColumns(rows) {
   return [...seen];
 }
 
-function toSqlLiteral(value) {
+function toSqlLiteral(value, tableName, columnName) {
   if (value == null) return "null";
 
   if (Array.isArray(value)) {
@@ -105,7 +112,10 @@ function toSqlLiteral(value) {
   }
 
   const stringValue = String(value);
-  if (stringValue === "") return "null";
+  if (stringValue === "") {
+    if (PRESERVE_EMPTY_STRING_COLUMNS[tableName]?.has(columnName)) return "''";
+    return "null";
+  }
 
   if (isJsonArrayString(stringValue)) {
     const parsed = JSON.parse(stringValue);

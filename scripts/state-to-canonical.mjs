@@ -16,10 +16,10 @@ const DEFAULT_MEMBER_NAMES = ["Aadhil", "Isira", "Rahul", "Kisal", "Rishane", "D
 const DEFAULT_JOINED_MONTH_BY_NAME = { Abhishek: "2026-4" };
 const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-const [, , inputPathArg, outputDirArg, canonicalProfilesPathArg, canonicalBlocsPathArg] = process.argv;
+const [, , inputPathArg, outputDirArg, canonicalProfilesPathArg, canonicalBlocsPathArg, canonicalSeasonsPathArg] = process.argv;
 
 if (!inputPathArg) {
-  console.error("Usage: node scripts/state-to-canonical.mjs <input.json> [output-dir] [canonical-profiles.json] [canonical-blocs.json]");
+  console.error("Usage: node scripts/state-to-canonical.mjs <input.json> [output-dir] [canonical-profiles.json] [canonical-blocs.json] [canonical-seasons.json]");
   process.exit(1);
 }
 
@@ -81,6 +81,24 @@ if (canonicalBlocsPathArg) {
   const canonicalBlocs = JSON.parse(fs.readFileSync(canonicalBlocsPath, "utf8"));
   for (const row of canonicalBlocs) {
     if (row.legacy_group_key) canonicalBlocIdByLegacyKey.set(String(row.legacy_group_key).trim(), row.id);
+  }
+}
+
+// Canonical season resolution map.
+// Populated from a live ante_core.seasons export when provided as the fifth CLI argument.
+// Key: "${bloc_id}:${month_key}" -> canonical seasons.id
+// When present, ensures all generated season_id FK references — and all downstream IDs
+// derived from seasonId (season_member_status, sit_out_requests, season_overrides) — use
+// the actual canonical season ID already in the database rather than a stableUuid-derived value.
+const canonicalSeasonIdByBlocAndMonthKey = new Map();
+
+if (canonicalSeasonsPathArg) {
+  const canonicalSeasonsPath = path.resolve(canonicalSeasonsPathArg);
+  const canonicalSeasons = JSON.parse(fs.readFileSync(canonicalSeasonsPath, "utf8"));
+  for (const row of canonicalSeasons) {
+    if (row.bloc_id && row.month_key) {
+      canonicalSeasonIdByBlocAndMonthKey.set(`${String(row.bloc_id).trim()}:${String(row.month_key).trim()}`, row.id);
+    }
   }
 }
 
@@ -211,7 +229,7 @@ console.log(JSON.stringify({ outputDir, summary, warningCount: warnings.length }
 
 function addSeasonForMonth({ group, blocId, month, status, closedAt }) {
   const monthKey = month.key;
-  const seasonId = stableUuid("season", `${blocId}:${monthKey}`);
+  const seasonId = canonicalSeasonIdByBlocAndMonthKey.get(`${blocId}:${monthKey}`) || stableUuid("season", `${blocId}:${monthKey}`);
   seasonIdByKey.set(`${blocId}:${monthKey}`, seasonId);
   const monthParts = getMonthParts(monthKey);
   const settings = buildNormalizedSettings(month.settings || group.settings);
@@ -261,7 +279,7 @@ function addSeasonForMonth({ group, blocId, month, status, closedAt }) {
       settlement_status: month.settlements?.[displayName]?.status || "",
       settlement_settled_at: month.settlements?.[displayName]?.settledAt || "",
       settlement_updated_at: month.settlements?.[displayName]?.updatedAt || "",
-      created_at: closedAt || "",
+      created_at: closedAt || inputState.meta?.updatedAt || group.createdAt || "",
       updated_at: closedAt || inputState.meta?.updatedAt || ""
     });
   }
