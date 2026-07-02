@@ -1,0 +1,10 @@
+.DS_Store
+.env.local
+.tmp-update-settings.json
+
+.codex-bin/
+.home/
+.vercel/
+data/
+migration-output/
+supabase-local/

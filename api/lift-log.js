@@ -2,7 +2,7 @@ const DEFAULT_MIN_TARGET = 12;
 const WORKOUT_TYPES = ["Gym", "Run", "Sports", "Pilates", "Other"];
 const WORKOUT_TYPE_ALIASES = { Sport: "Sports", Hike: "Other", Hiking: "Other" };
 const DEFAULT_GROUP_TIME_ZONE = "Europe/Oslo";
-const LEAGUE_CUTOFF_HOUR = 5;
+const LEAGUE_CUTOFF_HOUR = 3;
 const DEFAULT_FINE_AMOUNT = 20;
 const DEFAULT_FEE_MODEL = "escalating";
 const DEFAULT_ESCALATION_STEP_AMOUNT = null;
@@ -17,13 +17,29 @@ const LEGACY_GROUP_NAME = "Lift Log OG";
 const DEFAULT_MEMBER_NAMES = ["Aadhil", "Isira", "Rahul", "Kisal", "Rishane", "Deyhan", "Aysha", "Nishara", "Abhishek"];
 const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const DEFAULT_JOINED_MONTH_BY_NAME = { Abhishek: "2026-4" };
-const OTP_TTL_MS = 15 * 60 * 1000;
-
 const SUPABASE_URL = process.env.SUPABASE_URL || "";
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_PUBLISHABLE_KEY || "";
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+const ENABLE_SETTLEMENT_CONFIRMATIONS = String(process.env.ENABLE_SETTLEMENT_CONFIRMATIONS || "").trim().toLowerCase() === "true";
+const ENABLE_SETTLEMENT_CONFIRMATIONS_PREVIEW = String(process.env.ENABLE_SETTLEMENT_CONFIRMATIONS_PREVIEW || "").trim().toLowerCase() === "true";
+const ENABLE_LOCAL_PREVIEW_AUTH = String(process.env.ENABLE_LOCAL_PREVIEW_AUTH || "").trim().toLowerCase() === "true";
 
-function normalizeState(data) {
+function deriveDefaultGroupId(groupOrder) {
+  return Array.isArray(groupOrder) && groupOrder.length ? groupOrder[0] : null;
+}
+
+function resolveStateRevision(data, overrideRevision = undefined) {
+  const revision = overrideRevision ?? data?.meta?.revision ?? data?.revision;
+  return Number.isFinite(Number(revision)) ? Number(revision) : 0;
+}
+
+function resolveStateUpdatedAt(data, overrideUpdatedAt = undefined) {
+  return overrideUpdatedAt ?? data?.meta?.updatedAt ?? data?.updatedAt ?? null;
+}
+
+function normalizeState(data, options = {}) {
+  const revision = resolveStateRevision(data, options.revision);
+  const updatedAt = resolveStateUpdatedAt(data, options.updatedAt);
   if (data?.version === 2) {
     const groups = {};
     const groupOrder = Array.isArray(data?.groupOrder) ? data.groupOrder.filter(id => typeof id === "string" && data.groups?.[id]) : [];
@@ -38,12 +54,11 @@ function normalizeState(data) {
       version: 2,
       groups,
       groupOrder,
-      defaultGroupId: groupOrder.includes(data?.defaultGroupId) ? data.defaultGroupId : (groupOrder[0] || null),
+      defaultGroupId: deriveDefaultGroupId(groupOrder),
       profiles: normalizeProfiles(data?.profiles),
-      pendingOtps: normalizePendingOtps(data?.pendingOtps),
       meta: {
-        revision: Number.isFinite(Number(data?.meta?.revision)) ? Number(data.meta.revision) : 0,
-        updatedAt: data?.meta?.updatedAt || null
+        revision,
+        updatedAt
       }
     };
   }
@@ -55,11 +70,20 @@ function normalizeState(data) {
     groupOrder: [legacyGroup.id],
     defaultGroupId: legacyGroup.id,
     profiles: {},
-    pendingOtps: {},
     meta: {
-      revision: Number.isFinite(Number(data?.meta?.revision)) ? Number(data.meta.revision) : 0,
-      updatedAt: data?.meta?.updatedAt || null
+      revision,
+      updatedAt
     }
+  };
+}
+
+function serializeStateForBlob(state) {
+  const normalized = normalizeState(state);
+  return {
+    version: normalized.version,
+    groups: normalized.groups,
+    groupOrder: normalized.groupOrder,
+    profiles: normalized.profiles
   };
 }
 
@@ -82,25 +106,33 @@ function normalizeProfiles(profiles) {
   );
 }
 
-function normalizePendingOtps(pendingOtps) {
-  if (!pendingOtps || typeof pendingOtps !== "object") return {};
-  const now = Date.now();
-  return Object.fromEntries(
-    Object.entries(pendingOtps)
-      .map(([email, entry]) => {
-        const normalizedEmail = String(email || "").trim().toLowerCase();
-        const code = String(entry?.code || "").trim();
-        const expiresAt = entry?.expiresAt || null;
-        if (!normalizedEmail || !code || !expiresAt) return null;
-        if (new Date(expiresAt).getTime() <= now) return null;
-        return [normalizedEmail, {
-          code,
-          expiresAt,
-          userId: String(entry?.userId || "").trim() || null
-        }];
-      })
-      .filter(Boolean)
-  );
+function normalizeSettlementConfirmations(rows) {
+  if (!Array.isArray(rows)) return [];
+  return rows
+    .map(row => {
+      if (!row || typeof row !== "object") return null;
+      const monthKey = String(row?.monthKey || row?.month_key || "").trim();
+      const payerDisplayName = String(row?.payerDisplayName || row?.payer_display_name || "").trim();
+      const receiverDisplayName = String(row?.receiverDisplayName || row?.receiver_display_name || "").trim();
+      if (!monthKey || !payerDisplayName || !receiverDisplayName) return null;
+      const amount = Number(row?.amount);
+      return {
+        id: row?.id || `${monthKey}:${payerDisplayName}:${receiverDisplayName}`,
+        monthKey,
+        monthLabel: row?.monthLabel || row?.month_label || null,
+        payerAuthUserId: row?.payerAuthUserId || row?.payer_auth_user_id || null,
+        receiverAuthUserId: row?.receiverAuthUserId || row?.receiver_auth_user_id || null,
+        payerDisplayName,
+        receiverDisplayName,
+        amount: Number.isFinite(amount) ? amount : 0,
+        currency: String(row?.currency || DEFAULT_CURRENCY).trim().toUpperCase() || DEFAULT_CURRENCY,
+        payerClaimedAt: row?.payerClaimedAt || row?.payer_claimed_at || null,
+        confirmedAt: row?.confirmedAt || row?.confirmed_at || null,
+        createdAt: row?.createdAt || row?.created_at || null,
+        updatedAt: row?.updatedAt || row?.updated_at || null
+      };
+    })
+    .filter(Boolean);
 }
 
 function findProfileEntryByEmail(profiles, email) {
@@ -230,7 +262,7 @@ function normalizeLegacyGroup(data) {
     name: LEGACY_GROUP_NAME,
     adminName: DEFAULT_MEMBER_NAMES[0],
     inviteCode: "OGGROUP",
-    createdAt: data?.meta?.updatedAt || new Date().toISOString(),
+    createdAt: resolveStateUpdatedAt(data) || new Date().toISOString(),
     memberOrder: [...DEFAULT_MEMBER_NAMES],
     joinedMonthByName: { ...DEFAULT_JOINED_MONTH_BY_NAME },
     settings: buildNormalizedSettings({ minTarget: DEFAULT_MIN_TARGET, acceptedWorkoutTypes: [...WORKOUT_TYPES], timeZone: DEFAULT_GROUP_TIME_ZONE }),
@@ -241,16 +273,37 @@ function normalizeLegacyGroup(data) {
   });
 }
 
+function deriveActiveMemberOrder(rawMemberOrder, memberships, adminName, leftMemberNames, historicalFallback = []) {
+  const explicitActiveMembers = uniqueNames([
+    ...(Array.isArray(rawMemberOrder) ? rawMemberOrder : []),
+    ...Object.values(memberships || {}).map(membership => membership?.displayName || ""),
+    String(adminName || "").trim()
+  ]).filter(name => !leftMemberNames.has(name));
+
+  if (explicitActiveMembers.length > 0) return explicitActiveMembers;
+
+  return uniqueNames(historicalFallback).filter(name => !leftMemberNames.has(name));
+}
+
 function normalizeGroup(group) {
   const logs = group?.logs && typeof group.logs === "object" ? group.logs : {};
   const monthHistory = Array.isArray(group?.monthHistory) ? group.monthHistory : [];
+  const leftMemberNames = new Set(Array.isArray(group?.leftMemberNames) ? group.leftMemberNames : []);
+  const rawMemberships = group?.memberships && typeof group.memberships === "object" ? group.memberships : {};
   const inferredMembers = [
     ...(Array.isArray(group?.memberOrder) ? group.memberOrder : []),
     ...Object.keys(logs),
     ...monthHistory.flatMap(month => Object.keys(month?.counts || {})),
     ...monthHistory.flatMap(month => Object.keys(month?.logsByUser || {}))
-  ];
+  ].filter(n => !leftMemberNames.has(n));
   const memberOrder = uniqueNames(inferredMembers);
+  const activeMemberOrder = deriveActiveMemberOrder(
+    group?.memberOrder,
+    rawMemberships,
+    group?.adminName,
+    leftMemberNames,
+    memberOrder
+  );
   const joinedMonthByName = group?.joinedMonthByName && typeof group.joinedMonthByName === "object" ? group.joinedMonthByName : {};
   const normalizedLogs = Object.fromEntries(
     memberOrder.map(name => [
@@ -259,7 +312,7 @@ function normalizeGroup(group) {
     ])
   );
   const normalizedExcused = normalizeExcused(group?.excused, memberOrder);
-  const memberships = normalizeMemberships(group?.memberships, memberOrder, group?.adminName, group?.adminUserId);
+  const memberships = normalizeMemberships(rawMemberships, memberOrder, group?.adminName, group?.adminUserId);
   const adminUserId = normalizeAdminUserId(group?.adminUserId, memberships, group?.adminName);
   const normalized = {
     id: typeof group?.id === "string" && group.id ? group.id : `group-${Date.now()}`,
@@ -269,13 +322,18 @@ function normalizeGroup(group) {
     inviteCode: typeof group?.inviteCode === "string" && group.inviteCode.trim() ? group.inviteCode.trim().toUpperCase() : generateInviteCode(),
     createdAt: group?.createdAt || new Date().toISOString(),
     memberOrder,
+    activeMemberOrder,
     memberships,
     joinedMonthByName,
+    leftMemberNames: [...leftMemberNames],
     settings: buildNormalizedSettings(group?.settings),
     logs: normalizedLogs,
     excused: normalizedExcused,
     seasonOverrides: normalizeSeasonOverrides(group?.seasonOverrides),
     sitOutRequests: normalizeSitOutRequests(group?.sitOutRequests),
+    settlementConfirmationsEnabled: !!group?.settlementConfirmationsEnabled,
+    settlementConfirmationsPreviewMode: !!group?.settlementConfirmationsPreviewMode,
+    settlementConfirmations: normalizeSettlementConfirmations(group?.settlementConfirmations),
     monthHistory: normalizeMonthHistory(monthHistory, memberOrder, joinedMonthByName, buildNormalizedSettings(group?.settings)),
     lastMonth: group?.lastMonth || getLeagueMonthKey(group?.settings?.timeZone)
   };
@@ -544,6 +602,18 @@ function normalizeMonthHistory(monthHistory, memberOrder, joinedMonthByName, set
     const counts = Object.fromEntries(relevantNames.map(name => [name, Number(month?.counts?.[name] || getCountedLogCount(logsByUser[name]) || 0)]));
     const excused = month?.excused || Object.fromEntries(relevantNames.map(name => [name, false]));
     const monthSettings = resolveHistoricalMonthSettings(month?.settings, settings);
+    const monthGroup = {
+      settings,
+      memberships: month?.memberships || {},
+      joinedMonthByName,
+      seasonOverrides: month?.seasonOverrides || {}
+    };
+    const memberTargets = Object.fromEntries(
+      relevantNames.map(name => [
+        name,
+        month?.memberTargets?.[name] || getMemberTargetForMonth(monthGroup, name, monthKey, monthSettings)
+      ])
+    );
     return {
       ...month,
       key: monthKey,
@@ -553,8 +623,9 @@ function normalizeMonthHistory(monthHistory, memberOrder, joinedMonthByName, set
       counts,
       excused,
       logsByUser,
+      memberTargets,
       settings: monthSettings,
-      settlements: month?.settlements || buildDefaultSettlements({ counts, excused, key: monthKey }, relevantNames, monthSettings)
+      settlements: month?.settlements || buildDefaultSettlements({ counts, excused, key: monthKey }, relevantNames, monthSettings, memberTargets)
     };
   }).filter(Boolean).sort((a, b) => compareMonthKeys(a.key, b.key));
 }
@@ -589,6 +660,138 @@ function getLeagueMonthKey(timeZone = DEFAULT_GROUP_TIME_ZONE) {
   return `${today.year}-${today.month - 1}`;
 }
 
+function getLeagueMonthSummaryForTimestamp(value, timeZone = DEFAULT_GROUP_TIME_ZONE) {
+  const date = new Date(value);
+  if (!value || Number.isNaN(date.getTime())) return null;
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    hour12: false
+  }).formatToParts(date);
+  const year = Number(parts.find(part => part.type === "year")?.value);
+  const month = Number(parts.find(part => part.type === "month")?.value);
+  const day = Number(parts.find(part => part.type === "day")?.value);
+  const hour = Number(parts.find(part => part.type === "hour")?.value);
+  if (![year, month, day, hour].every(Number.isFinite)) return null;
+
+  const leagueDate = new Date(Date.UTC(year, month - 1, day));
+  if (hour < LEAGUE_CUTOFF_HOUR) leagueDate.setUTCDate(leagueDate.getUTCDate() - 1);
+  const leagueYear = leagueDate.getUTCFullYear();
+  const leagueMonthIndex = leagueDate.getUTCMonth();
+  const daysInMonth = new Date(leagueYear, leagueMonthIndex + 1, 0).getDate();
+  const leagueDay = leagueDate.getUTCDate();
+  return {
+    monthKey: `${leagueYear}-${leagueMonthIndex}`,
+    day: leagueDay,
+    daysInMonth,
+    daysRemaining: Math.max(1, daysInMonth - leagueDay + 1)
+  };
+}
+
+function getSeasonOverrideForMonth(group, monthKey) {
+  return normalizeSeasonOverrides(group?.seasonOverrides)?.[monthKey] || null;
+}
+
+function getSeasonProrationSummaryForMonth(group, monthKey, settingsOverride = null) {
+  const override = getSeasonOverrideForMonth(group, monthKey);
+  if (!override?.prorated || !Number.isFinite(Number(override?.proratedMas))) return null;
+  const timeZone = settingsOverride?.timeZone || group?.settings?.timeZone || DEFAULT_GROUP_TIME_ZONE;
+  const chosenSummary = getLeagueMonthSummaryForTimestamp(override?.chosenAt, timeZone);
+  if (!chosenSummary || chosenSummary.monthKey !== monthKey) return null;
+  return chosenSummary;
+}
+
+function getCreatorMonthContext(group, displayName, monthKey, settingsOverride = null) {
+  const membership = Object.values(group?.memberships || {}).find(entry => entry?.displayName === displayName) || null;
+  if (!membership || membership.role !== "admin" || group?.adminName !== displayName) return null;
+  const timeZone = settingsOverride?.timeZone || group?.settings?.timeZone || DEFAULT_GROUP_TIME_ZONE;
+  const joinedSummary = getLeagueMonthSummaryForTimestamp(membership?.joinedAt, timeZone);
+  const createdSummary = getLeagueMonthSummaryForTimestamp(group?.createdAt, timeZone);
+  if (!joinedSummary || !createdSummary) return null;
+  if (joinedSummary.monthKey !== monthKey || createdSummary.monthKey !== monthKey) return null;
+  return { joinedSummary, createdSummary };
+}
+
+function getEffectiveJoinedMonthForMember(group, displayName, monthKey, settingsOverride = null) {
+  const explicitJoinedMonth = group?.joinedMonthByName?.[displayName];
+  const membership = Object.values(group?.memberships || {}).find(entry => entry?.displayName === displayName) || null;
+  const creatorContext = getCreatorMonthContext(group, displayName, monthKey, settingsOverride);
+  if (creatorContext && explicitJoinedMonth === monthKey) return null;
+  if (explicitJoinedMonth) return explicitJoinedMonth;
+  if (shouldInferJoinedMonthFromMembership(group, displayName, monthKey, membership, settingsOverride)) return monthKey;
+  return null;
+}
+
+function getJoinedTargetInfo(baseTarget, joinedSummary, prorationSummary = null) {
+  if (!joinedSummary || joinedSummary.day <= 1) return { target: baseTarget, joinDay: 1, prorationSource: "none" };
+  const joinDay = joinedSummary.daysInMonth - joinedSummary.daysRemaining + 1;
+  if (!prorationSummary) {
+    return {
+      target: Math.max(1, Math.round((joinedSummary.daysRemaining / joinedSummary.daysInMonth) * baseTarget)),
+      joinDay,
+      proratedDays: joinedSummary.daysRemaining,
+      prorationSource: "member"
+    };
+  }
+  if (joinedSummary.day <= prorationSummary.day) {
+    return {
+      target: baseTarget,
+      joinDay: prorationSummary.day,
+      proratedDays: prorationSummary.daysRemaining,
+      prorationSource: "member"
+    };
+  }
+  return {
+    target: Math.max(1, Math.round((joinedSummary.daysRemaining / prorationSummary.daysRemaining) * baseTarget)),
+    joinDay,
+    proratedDays: joinedSummary.daysRemaining,
+    prorationSource: "member"
+  };
+}
+
+function getEffectiveTargetForMonth(group, monthKey, settingsOverride = null) {
+  const baseTarget = Number(settingsOverride?.minTarget || group?.settings?.minTarget || DEFAULT_MIN_TARGET);
+  const override = getSeasonOverrideForMonth(group, monthKey);
+  return override?.prorated && Number.isFinite(Number(override?.proratedMas))
+    ? Math.max(1, Math.round(Number(override.proratedMas)))
+    : baseTarget;
+}
+
+function getMemberTargetForMonth(group, displayName, monthKey, settingsOverride = null) {
+  return getMemberTargetInfoForMonth(group, displayName, monthKey, settingsOverride).target;
+}
+
+function getMemberTargetInfoForMonth(group, displayName, monthKey, settingsOverride = null) {
+  const baseTarget = getEffectiveTargetForMonth(group, monthKey, settingsOverride);
+  const joinedMonth = getEffectiveJoinedMonthForMember(group, displayName, monthKey, settingsOverride);
+  const prorationSummary = getSeasonProrationSummaryForMonth(group, monthKey, settingsOverride);
+  if (joinedMonth && joinedMonth === monthKey) {
+    const membership = Object.values(group?.memberships || {}).find(entry => entry?.displayName === displayName);
+    const joinedSummary = getLeagueMonthSummaryForTimestamp(membership?.joinedAt, group?.settings?.timeZone || DEFAULT_GROUP_TIME_ZONE);
+    if (!joinedSummary || joinedSummary.monthKey !== monthKey) return { target: baseTarget, joinDay: 1, prorationSource: "none" };
+    return getJoinedTargetInfo(baseTarget, joinedSummary, prorationSummary);
+  }
+  const creatorContext = getCreatorMonthContext(group, displayName, monthKey, settingsOverride);
+  if (creatorContext && prorationSummary) {
+    return {
+      target: baseTarget,
+      joinDay: prorationSummary.day,
+      proratedDays: prorationSummary.daysRemaining,
+      prorationSource: "group"
+    };
+  }
+  return { target: baseTarget, joinDay: 1, prorationSource: "none" };
+}
+
+function getMemberTargetsForMonth(group, relevantNames, monthKey, settingsOverride = null) {
+  return Object.fromEntries(
+    relevantNames.map(name => [name, getMemberTargetForMonth(group, name, monthKey, settingsOverride)])
+  );
+}
+
 function getMonthKeyFromISO(isoDate) {
   const [year, month] = String(isoDate || "").split("-").map(Number);
   if (!Number.isFinite(year) || !Number.isFinite(month)) return null;
@@ -605,6 +808,32 @@ function compareMonthKeys(a, b) {
   return am - bm;
 }
 
+function hasParticipationBeforeMonth(group, displayName, monthKey) {
+  if (!group || !displayName || !monthKey) return false;
+  const currentMonthLogs = Array.isArray(group?.logs?.[displayName]) ? group.logs[displayName] : [];
+  if (currentMonthLogs.some(log => {
+    const logMonthKey = getMonthKeyFromISO(log?.date);
+    return logMonthKey && compareMonthKeys(logMonthKey, monthKey) < 0;
+  })) return true;
+  return (group?.monthHistory || []).some(month => {
+    if (!month?.key || compareMonthKeys(month.key, monthKey) >= 0) return false;
+    if ((month?.counts?.[displayName] || 0) > 0) return true;
+    if ((month?.logsByUser?.[displayName] || []).length > 0) return true;
+    if (month?.excused?.[displayName]) return true;
+    if (month?.settlements?.[displayName]) return true;
+    if (Object.prototype.hasOwnProperty.call(month?.memberTargets || {}, displayName)) return true;
+    return false;
+  });
+}
+
+function shouldInferJoinedMonthFromMembership(group, displayName, monthKey, membership, settingsOverride = null) {
+  if (!membership?.joinedAt) return false;
+  const timeZone = settingsOverride?.timeZone || group?.settings?.timeZone || DEFAULT_GROUP_TIME_ZONE;
+  const joinedSummary = getLeagueMonthSummaryForTimestamp(membership.joinedAt, timeZone);
+  if (!joinedSummary || joinedSummary.monthKey !== monthKey) return false;
+  return !hasParticipationBeforeMonth(group, displayName, monthKey);
+}
+
 function isJoinedForMonth(joinedMonthByName, name, monthKey) {
   const joinedMonth = joinedMonthByName?.[name];
   return !joinedMonth || compareMonthKeys(monthKey, joinedMonth) >= 0;
@@ -617,7 +846,7 @@ function calcPenalties(activeCounts, settings) {
   const topCount = sorted[0].count;
   if (topCount === 0) return { winners: [], losers: [], perLoser: 0, totalPot: 0, perWinner: 0, loserAmounts: {} };
   const winners = sorted.filter(user => user.count === topCount);
-  const losers = activeCounts.filter(user => user.count < minTarget && user.count < topCount);
+  const losers = activeCounts.filter(user => user.count < (Number(user?.target) || minTarget) && user.count < topCount);
   const n = losers.length;
   const baseFine = Number(settings?.fineAmount || DEFAULT_FINE_AMOUNT);
   const feeModel = normalizeFeeModel(settings?.feeModel);
@@ -632,10 +861,10 @@ function calcPenalties(activeCounts, settings) {
   return { winners, losers, perLoser, totalPot, perWinner, loserAmounts };
 }
 
-function buildDefaultSettlements(month, relevantNames, settings) {
+function buildDefaultSettlements(month, relevantNames, settings, memberTargets = {}) {
   const activeCounts = relevantNames
     .filter(name => !(month.excused?.[name]))
-    .map(name => ({ name, count: month.counts?.[name] || 0 }));
+    .map(name => ({ name, count: month.counts?.[name] || 0, target: memberTargets?.[name] || Number(settings?.minTarget || DEFAULT_MIN_TARGET) }));
   const { losers } = calcPenalties(activeCounts, settings);
   return Object.fromEntries(
     losers.map(loser => [
@@ -664,13 +893,15 @@ function rebuildMonthSnapshot(group, month, logsByUser) {
   );
   const excused = month?.excused || Object.fromEntries(relevantNames.map(name => [name, false]));
   const settings = buildNormalizedSettings(month?.settings || group.settings);
+  const memberTargets = getMemberTargetsForMonth(group, relevantNames, monthKey, settings);
   return {
     ...month,
     counts,
     excused,
     logsByUser: nextLogsByUser,
+    memberTargets,
     settings,
-    settlements: buildDefaultSettlements({ counts, excused }, relevantNames, settings)
+    settlements: buildDefaultSettlements({ counts, excused }, relevantNames, settings, memberTargets)
   };
 }
 
@@ -692,6 +923,7 @@ function rolloverGroupIfNeeded(group) {
   const excused = Object.fromEntries(
     relevantNames.map(name => [name, group.excused?.[name]?.[group.lastMonth] || false])
   );
+  const memberTargets = getMemberTargetsForMonth(group, relevantNames, group.lastMonth, group.settings);
   const snapshot = {
     key: group.lastMonth,
     label,
@@ -700,8 +932,9 @@ function rolloverGroupIfNeeded(group) {
     counts,
     excused,
     logsByUser: buildMonthLogsSnapshot(group.logs, group.memberOrder),
+    memberTargets,
     settings: buildNormalizedSettings(group.settings),
-    settlements: buildDefaultSettlements({ counts, excused }, relevantNames, group.settings)
+    settlements: buildDefaultSettlements({ counts, excused }, relevantNames, group.settings, memberTargets)
   };
 
   return normalizeGroup({
@@ -713,30 +946,1284 @@ function rolloverGroupIfNeeded(group) {
   });
 }
 
-function rolloverStateIfNeeded(data) {
-  const base = normalizeState(data);
+function rolloverStateIfNeeded(data, options = {}) {
+  const base = normalizeState(data, options);
   let changed = false;
   const groups = {};
+  const rollovers = [];
+  const rolledAt = new Date().toISOString();
   for (const [groupId, group] of Object.entries(base.groups)) {
     const nextGroup = rolloverGroupIfNeeded(group);
     groups[groupId] = nextGroup;
-    if (JSON.stringify(nextGroup) !== JSON.stringify(group)) changed = true;
+    if (JSON.stringify(nextGroup) !== JSON.stringify(group)) {
+      changed = true;
+      // Record which month closed and which opened so persistState can
+      // fire the canonical season syncs without re-deriving this info.
+      rollovers.push({
+        groupId,
+        closedMonthKey: group.lastMonth,
+        newMonthKey:    nextGroup.lastMonth,
+        closedAt:       rolledAt
+      });
+    }
   }
 
   if (!changed) return base;
 
+  // _rollovers is ephemeral metadata — normalizeState strips it before the
+  // blob write, so it never reaches the database. persistState reads it first.
   return {
     ...base,
     groups,
     meta: {
       revision: base.meta.revision + 1,
-      updatedAt: new Date().toISOString()
-    }
+      updatedAt: rolledAt
+    },
+    _rollovers: rollovers
   };
 }
 
+async function syncProfileToCanonical(userId, email, displayName) {
+  try {
+    await supabaseFetch("/rest/v1/rpc/upsert_ante_core_profile", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({
+        p_auth_user_id: userId,
+        p_email:        email,
+        p_display_name: displayName
+      })
+    });
+  } catch (err) {
+    console.error("Canonical profile sync failed:", err?.message || err);
+  }
+}
+
+async function deleteProfileFromCanonical(userId) {
+  try {
+    await supabaseFetch("/rest/v1/rpc/delete_ante_core_profile", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ p_auth_user_id: userId })
+    });
+  } catch (err) {
+    console.error("Canonical profile delete failed:", err?.message || err);
+  }
+}
+
+async function syncSeasonToCanonical(group, monthKey, status, closedAt = null) {
+  if (!group || !monthKey) return;
+  const parts = getMonthPartsFromKey(monthKey);
+  if (!parts) return;
+  const { year, monthIndex } = parts;
+  const label = formatMonthLabelFromKey(monthKey);
+  if (!label) return;
+  // month_start: first day of the month as a date string (YYYY-MM-DD)
+  const monthStart = `${year}-${String(monthIndex + 1).padStart(2, "0")}-01`;
+  try {
+    await supabaseFetch("/rest/v1/rpc/upsert_ante_core_season", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({
+        p_legacy_group_key:       group.id,
+        p_month_key:              monthKey,
+        p_month_start:            monthStart,
+        p_label:                  label,
+        p_year:                   year,
+        p_month_index:            monthIndex,
+        p_status:                 status,
+        p_closed_at:              closedAt || null,
+        p_min_target:             group.settings?.minTarget      ?? null,
+        p_fine_amount:            group.settings?.fineAmount     ?? null,
+        p_fee_model:              group.settings?.feeModel       ?? null,
+        p_escalation_step_amount: group.settings?.escalationStepAmount ?? null,
+        p_currency:               group.settings?.currency       ?? null,
+        p_min_run_distance:       group.settings?.minRunDistance  ?? null,
+        p_distance_unit:          group.settings?.distanceUnit   ?? null,
+        p_time_zone:              group.settings?.timeZone       ?? DEFAULT_GROUP_TIME_ZONE,
+        p_strava_enabled:         group.settings?.stravaEnabled  ?? true,
+        p_accepted_workout_types: group.settings?.acceptedWorkoutTypes ?? []
+      })
+    });
+  } catch (err) {
+    // Silently skip if bloc not yet in canonical (legacy groups pre-dating blocs slice).
+    // All other errors are logged.
+    if (!/bloc not found/i.test(err?.message || "")) {
+      console.error("Canonical season sync failed:", err?.message || err);
+    }
+  }
+}
+
+async function syncBlocToCanonical(group, adminUserId, sortOrder) {
+  if (!group) return;
+  try {
+    await supabaseFetch("/rest/v1/rpc/upsert_ante_core_bloc", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({
+        p_legacy_group_key:       group.id,
+        p_name:                   group.name,
+        p_admin_auth_user_id:     adminUserId || group.adminUserId || null,
+        p_invite_code:            group.inviteCode,
+        p_time_zone:              group.settings?.timeZone       ?? null,
+        p_currency:               group.settings?.currency       ?? null,
+        p_min_target:             group.settings?.minTarget      ?? null,
+        p_fine_amount:            group.settings?.fineAmount     ?? null,
+        p_fee_model:              group.settings?.feeModel       ?? null,
+        p_escalation_step_amount: group.settings?.escalationStepAmount ?? null,
+        p_min_run_distance:       group.settings?.minRunDistance  ?? null,
+        p_distance_unit:          group.settings?.distanceUnit   ?? null,
+        p_strava_enabled:         group.settings?.stravaEnabled  ?? true,
+        p_accepted_workout_types: group.settings?.acceptedWorkoutTypes ?? [],
+        p_sort_order:             typeof sortOrder === "number" ? sortOrder : null
+      })
+    });
+  } catch (err) {
+    console.error("Canonical bloc sync failed:", err?.message || err);
+  }
+}
+
+async function syncBlocMemberToCanonical(group, authUserId, role) {
+  if (!group || !authUserId) return;
+  const membership = group.memberships?.[authUserId];
+  const displayName = membership?.displayName;
+  // No-op if the membership has no displayName — profile-less or legacy member.
+  if (!displayName) return;
+  const joinedAt       = membership?.joinedAt || null;
+  const joinedMonthKey = group.joinedMonthByName?.[displayName] || null;
+  const sortOrderIdx   = (group.memberOrder || []).indexOf(displayName);
+  try {
+    await supabaseFetch("/rest/v1/rpc/upsert_ante_core_bloc_member", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({
+        p_legacy_group_key: group.id,
+        p_auth_user_id:     authUserId,
+        p_display_name:     displayName,
+        p_role:             role,
+        p_joined_at:        joinedAt,
+        p_joined_month_key: joinedMonthKey,
+        p_sort_order:       sortOrderIdx >= 0 ? sortOrderIdx : null
+      })
+    });
+  } catch (err) {
+    console.error("Canonical bloc member sync failed:", err?.message || err);
+  }
+}
+
+async function removeBlocMemberFromCanonical(legacyGroupKey, authUserId) {
+  if (!legacyGroupKey || !authUserId) return;
+  try {
+    await supabaseFetch("/rest/v1/rpc/remove_ante_core_bloc_member", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({
+        p_legacy_group_key: legacyGroupKey,
+        p_auth_user_id:     authUserId
+      })
+    });
+  } catch (err) {
+    console.error("Canonical bloc member remove failed:", err?.message || err);
+  }
+}
+
+async function updateBlocAdminInCanonical(legacyGroupKey, newAdminAuthUserId) {
+  if (!legacyGroupKey || !newAdminAuthUserId) return;
+  try {
+    await supabaseFetch("/rest/v1/rpc/update_ante_core_bloc_admin", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({
+        p_legacy_group_key:       legacyGroupKey,
+        p_new_admin_auth_user_id: newAdminAuthUserId
+      })
+    });
+  } catch (err) {
+    console.error("Canonical bloc admin transfer failed:", err?.message || err);
+  }
+}
+
+async function upsertSeasonMemberStatusToCanonical(group, closedMonthKey, displayName, authUserId, workoutCount, excused) {
+  if (!group || !closedMonthKey || !displayName) return;
+  try {
+    await supabaseFetch("/rest/v1/rpc/upsert_ante_core_season_member_status", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({
+        p_legacy_group_key: group.id,
+        p_month_key:        closedMonthKey,
+        p_display_name:     displayName,
+        p_auth_user_id:     authUserId || null,
+        p_workout_count:    workoutCount,
+        p_excused:          excused,
+        p_joined_for_month: true
+      })
+    });
+  } catch (err) {
+    console.error("Canonical season member status sync failed:", err?.message || err);
+  }
+}
+
+async function seedOpenSeasonMemberStatusInCanonical(group, monthKey, displayName, authUserId) {
+  if (!group || !monthKey || !displayName) return;
+  await upsertSeasonMemberStatusToCanonical(
+    group,
+    monthKey,
+    displayName,
+    authUserId || null,
+    0,
+    false
+  );
+}
+
+async function updateSeasonMemberSettlementInCanonical(legacyGroupKey, monthKey, displayName, status, settledAt) {
+  if (!legacyGroupKey || !monthKey || !displayName || !status) return;
+  try {
+    await supabaseFetch("/rest/v1/rpc/update_ante_core_season_member_settlement", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({
+        p_legacy_group_key: legacyGroupKey,
+        p_month_key:        monthKey,
+        p_display_name:     displayName,
+        p_status:           status,
+        p_settled_at:       settledAt || null
+      })
+    });
+  } catch (err) {
+    console.error("Canonical settlement sync failed:", err?.message || err);
+  }
+}
+
+function resolveSettlementConfirmationParticipants(group, payerDisplayName, receiverDisplayName) {
+  if (!group || !payerDisplayName || !receiverDisplayName) return null;
+  const memberships = Object.values(group.memberships || {});
+  const payerMembership = memberships.find(membership => membership?.displayName === payerDisplayName) || null;
+  const receiverMembership = memberships.find(membership => membership?.displayName === receiverDisplayName) || null;
+  return {
+    payerMembership,
+    receiverMembership
+  };
+}
+
+async function claimSettlementConfirmationInCanonical({
+  legacyGroupKey,
+  monthKey,
+  payerAuthUserId,
+  payerDisplayName,
+  receiverAuthUserId,
+  receiverDisplayName,
+  amount,
+  currency
+}) {
+  if (!legacyGroupKey || !monthKey || !payerAuthUserId || !receiverAuthUserId || !payerDisplayName || !receiverDisplayName) return;
+  await supabaseFetch("/rest/v1/rpc/claim_ante_core_settlement_confirmation", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({
+      p_legacy_group_key: legacyGroupKey,
+      p_month_key: monthKey,
+      p_payer_auth_user_id: payerAuthUserId,
+      p_payer_display_name: payerDisplayName,
+      p_receiver_auth_user_id: receiverAuthUserId,
+      p_receiver_display_name: receiverDisplayName,
+      p_amount: amount,
+      p_currency: currency
+    })
+  });
+}
+
+async function confirmSettlementConfirmationInCanonical({
+  legacyGroupKey,
+  monthKey,
+  payerAuthUserId,
+  receiverAuthUserId
+}) {
+  if (!legacyGroupKey || !monthKey || !payerAuthUserId || !receiverAuthUserId) return;
+  await supabaseFetch("/rest/v1/rpc/confirm_ante_core_settlement_confirmation", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({
+      p_legacy_group_key: legacyGroupKey,
+      p_month_key: monthKey,
+      p_payer_auth_user_id: payerAuthUserId,
+      p_receiver_auth_user_id: receiverAuthUserId
+    })
+  });
+}
+
+async function disputeSettlementConfirmationInCanonical({
+  legacyGroupKey,
+  monthKey,
+  payerAuthUserId,
+  receiverAuthUserId
+}) {
+  if (!legacyGroupKey || !monthKey || !payerAuthUserId || !receiverAuthUserId) return;
+  await supabaseFetch("/rest/v1/rpc/dispute_ante_core_settlement_confirmation", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({
+      p_legacy_group_key: legacyGroupKey,
+      p_month_key: monthKey,
+      p_payer_auth_user_id: payerAuthUserId,
+      p_receiver_auth_user_id: receiverAuthUserId
+    })
+  });
+}
+
+async function ensureSettlementConfirmationPrereqs(state, groupId, monthKey, payerDisplayName, receiverDisplayName) {
+  const group = state?.groups?.[groupId];
+  if (!group || !monthKey || !payerDisplayName || !receiverDisplayName) return null;
+  const participants = resolveSettlementConfirmationParticipants(group, payerDisplayName, receiverDisplayName);
+  if (!participants?.payerMembership?.userId || !participants?.receiverMembership?.userId) return participants || null;
+
+  const groupSortOrder = Array.isArray(state?.groupOrder) ? state.groupOrder.indexOf(groupId) : -1;
+  await syncBlocToCanonical(group, group.adminUserId || null, groupSortOrder >= 0 ? groupSortOrder : null);
+
+  const payerProfile = state?.profiles?.[participants.payerMembership.userId] || null;
+  const receiverProfile = state?.profiles?.[participants.receiverMembership.userId] || null;
+
+  if (payerProfile?.email && payerProfile?.displayName) {
+    await syncProfileToCanonical(participants.payerMembership.userId, payerProfile.email, payerProfile.displayName);
+  }
+  if (receiverProfile?.email && receiverProfile?.displayName) {
+    await syncProfileToCanonical(participants.receiverMembership.userId, receiverProfile.email, receiverProfile.displayName);
+  }
+
+  await syncBlocMemberToCanonical(
+    group,
+    participants.payerMembership.userId,
+    group.adminUserId === participants.payerMembership.userId ? "admin" : "member"
+  );
+  await syncBlocMemberToCanonical(
+    group,
+    participants.receiverMembership.userId,
+    group.adminUserId === participants.receiverMembership.userId ? "admin" : "member"
+  );
+
+  const closedMonth = (group.monthHistory || []).find(month => month?.key === monthKey) || null;
+  await syncSeasonToCanonical(group, monthKey, closedMonth ? "closed" : "open", closedMonth?.closedAt || null);
+
+  return participants;
+}
+
+async function upsertSeasonMemberExcusedInCanonical(legacyGroupKey, monthKey, displayName, authUserId) {
+  if (!legacyGroupKey || !monthKey || !displayName) return;
+  try {
+    await supabaseFetch("/rest/v1/rpc/upsert_ante_core_season_member_excused", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({
+        p_legacy_group_key: legacyGroupKey,
+        p_month_key:        monthKey,
+        p_display_name:     displayName,
+        p_auth_user_id:     authUserId || null
+      })
+    });
+  } catch (err) {
+    console.error("Canonical excused sync failed:", err?.message || err);
+  }
+}
+
+async function upsertSeasonOverrideInCanonical(legacyGroupKey, monthKey, prorated, proratedMas, chosenAt, chosenBy, chosenByUserId) {
+  if (!legacyGroupKey || !monthKey) return;
+  try {
+    await supabaseFetch("/rest/v1/rpc/upsert_ante_core_season_override", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({
+        p_legacy_group_key:   legacyGroupKey,
+        p_month_key:          monthKey,
+        p_prorated:           !!prorated,
+        p_prorated_mas:       proratedMas ?? null,
+        p_chosen_at:          chosenAt   || null,
+        p_chosen_by:          chosenBy   || null,
+        p_chosen_by_user_id:  chosenByUserId || null
+      })
+    });
+  } catch (err) {
+    console.error("Canonical season override sync failed:", err?.message || err);
+  }
+}
+
+async function upsertSitOutRequestInCanonical(legacyGroupKey, monthKey, memberName, request) {
+  // memberName is passed explicitly from the blob map key — do not rely on request.memberName.
+  if (!legacyGroupKey || !monthKey || !memberName) return;
+  try {
+    await supabaseFetch("/rest/v1/rpc/upsert_ante_core_sit_out_request", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({
+        p_legacy_group_key:        legacyGroupKey,
+        p_month_key:               monthKey,
+        p_display_name:            memberName,
+        p_requested_by_user_id:    request?.requestedByUserId    || null,
+        p_status:                  request?.status               || "pending",
+        p_reason:                  request?.reason               || "",
+        p_exceptional:             !!request?.exceptional,
+        p_requested_at:            request?.requestedAt          || null,
+        p_requested_by:            request?.requestedBy          || null,
+        p_target_approver_name:    request?.targetApproverName   || null,
+        p_target_approver_user_id: request?.targetApproverUserId || null,
+        p_decided_at:              request?.decidedAt            || null,
+        p_decided_by:              request?.decidedBy            || null,
+        p_decided_by_user_id:      request?.decidedByUserId      || null,
+        p_auto_approved:           !!request?.autoApproved
+      })
+    });
+  } catch (err) {
+    console.error("Canonical sit-out request sync failed:", err?.message || err);
+  }
+}
+
+async function toggleWorkoutReactionInCanonical(logId, reactorAuthUserId, reactorDisplayName, emoji, isAdding) {
+  if (!logId || !reactorDisplayName || !emoji) return;
+  const rpc = isAdding
+    ? "/rest/v1/rpc/upsert_ante_core_workout_reaction"
+    : "/rest/v1/rpc/delete_ante_core_workout_reaction";
+  try {
+    await supabaseFetch(rpc, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(isAdding
+        ? { p_workout_log_id: String(logId), p_reactor_auth_user_id: reactorAuthUserId || null,
+            p_reactor_display_name: reactorDisplayName, p_emoji: emoji }
+        : { p_workout_log_id: String(logId), p_reactor_display_name: reactorDisplayName, p_emoji: emoji }
+      )
+    });
+  } catch (err) {
+    console.error("Canonical workout reaction sync failed:", err?.message || err);
+  }
+}
+
+async function upsertWorkoutLogToCanonical(group, monthKey, ownerDisplayName, ownerAuthUserId, log) {
+  if (!group || !monthKey || !ownerDisplayName || !log?.id || !log?.date || !log?.type || !log?.createdAt || !log?.verifiedVia) return;
+  try {
+    await supabaseFetch("/rest/v1/rpc/upsert_ante_core_workout_log", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({
+        p_id:                 String(log.id),
+        p_legacy_group_key:   group.id,
+        p_month_key:          monthKey,
+        p_owner_display_name: ownerDisplayName,
+        p_owner_auth_user_id: ownerAuthUserId || null,
+        p_workout_date:       log.date,
+        p_workout_type:       log.type,
+        p_note:               log.note || "",
+        p_photo_url:          log.photoUrl || "",
+        p_created_at:         log.createdAt,
+        p_verified_via:       log.verifiedVia,
+        p_flag_status:        log.flagStatus,
+        p_flag_reason:        log.flagReason || "",
+        p_flag_response:      log.flagResponse || "",
+        p_flagged_by:         log.flaggedBy || null,
+        p_decision_by:        log.decisionBy || null,
+        p_decision_at:        log.decisionAt || null
+      })
+    });
+  } catch (err) {
+    console.error("Canonical workout log sync failed:", err?.message || err);
+  }
+}
+
+async function deleteWorkoutLogFromCanonical(logId) {
+  if (!logId) return;
+  try {
+    await supabaseFetch("/rest/v1/rpc/delete_ante_core_workout_log", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ p_id: String(logId) })
+    });
+  } catch (err) {
+    console.error("Canonical workout log delete failed:", err?.message || err);
+  }
+}
+
+function findAuthUserIdForDisplayName(group, displayName) {
+  if (!group || !displayName) return null;
+  for (const [userId, membership] of Object.entries(group.memberships || {})) {
+    if (membership?.displayName === displayName) return userId;
+  }
+  return null;
+}
+
+async function fetchBlobRevision() {
+  try {
+    const response = await supabaseFetch("/rest/v1/lift_log_state?id=eq.true&select=revision", {
+      method: "GET",
+      headers: { Accept: "application/json" }
+    });
+    const rows = await response.json();
+    const revision = Number(rows?.[0]?.revision);
+    return Number.isFinite(revision) ? revision : null;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchAnteBlocs() {
+  try {
+    const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_blocs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({})
+    });
+    const rows = await response.json();
+    if (!Array.isArray(rows) || rows.length === 0) return null;
+    // Return a map keyed by legacy_group_key for O(1) lookup in the overlay.
+    return Object.fromEntries(rows.map(row => [row.legacy_group_key, row]));
+  } catch {
+    return null;
+  }
+}
+
+async function fetchCanonicalBlocByInviteCode(inviteCode) {
+  const normalizedInviteCode = String(inviteCode || "").trim().toUpperCase();
+  if (!normalizedInviteCode) return null;
+  const anteBlocs = await fetchAnteBlocs();
+  if (!anteBlocs) return null;
+  return Object.values(anteBlocs).find(row =>
+    String(row?.invite_code || "").trim().toUpperCase() === normalizedInviteCode
+  ) || null;
+}
+
+async function fetchAnteSeasonOverrides() {
+  try {
+    const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_season_overrides", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({})
+    });
+    const rows = await response.json();
+    if (!Array.isArray(rows) || rows.length === 0) return null;
+    return rows.reduce((acc, row) => {
+      const legacyGroupKey = typeof row?.legacy_group_key === "string" ? row.legacy_group_key : "";
+      const monthKey = typeof row?.month_key === "string" ? row.month_key : "";
+      if (!legacyGroupKey || !monthKey) return acc;
+      if (!acc[legacyGroupKey]) acc[legacyGroupKey] = {};
+      acc[legacyGroupKey][monthKey] = {
+        prorated: !!row?.prorated,
+        proratedMas: row?.prorated_mas ?? null,
+        chosenAt: row?.chosen_at || null,
+        chosenBy: row?.chosen_by || null,
+        chosenByUserId: row?.chosen_by_user_id || null
+      };
+      return acc;
+    }, {});
+  } catch {
+    return null;
+  }
+}
+
+async function fetchAnteProfiles() {
+  try {
+    const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_profiles", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({})
+    });
+    const rows = await response.json();
+    if (!Array.isArray(rows) || rows.length === 0) return null;
+    const raw = Object.fromEntries(
+      rows.map(row => [row.user_id, {
+        id:          row.user_id,
+        email:       row.email,
+        displayName: row.display_name,
+        createdAt:   row.created_at
+      }])
+    );
+    const normalized = normalizeProfiles(raw);
+    return Object.keys(normalized).length > 0 ? normalized : null;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchAnteBlocMembers() {
+  try {
+    const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_bloc_members", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({})
+    });
+    const rows = await response.json();
+    if (!Array.isArray(rows) || rows.length === 0) return null;
+    // Group by legacy_group_key for O(1) lookup in the overlay.
+    return rows.reduce((acc, row) => {
+      const key = typeof row?.legacy_group_key === "string" ? row.legacy_group_key : "";
+      if (!key || !row?.auth_user_id) return acc;
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(row);
+      return acc;
+    }, {});
+  } catch {
+    return null;
+  }
+}
+
+async function fetchAnteCurrentLogs() {
+  try {
+    const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_current_logs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({})
+    });
+    const rows = await response.json();
+    if (!Array.isArray(rows) || rows.length === 0) return null;
+    // Group rows by legacy_group_key. Each row retains ownerDisplayName so the
+    // overlay can index by name when building the per-member logs map.
+    return rows.reduce((acc, row) => {
+      const key = typeof row?.legacy_group_key === "string" ? row.legacy_group_key : "";
+      if (!key) return acc;
+      if (!acc[key]) acc[key] = [];
+      acc[key].push({
+        ownerDisplayName: row.owner_display_name,
+        id:               row.id,
+        type:             row.workout_type,
+        date:             row.workout_date,
+        note:             row.note,
+        photoUrl:         row.photo_url,
+        createdAt:        row.created_at,
+        verifiedVia:      row.verified_via,
+        flagStatus:       row.flag_status   || null,
+        flagReason:       row.flag_reason   || "",
+        flagResponse:     row.flag_response || "",
+        flaggedBy:        row.flagged_by    || null,
+        decisionBy:       row.decision_by   || null,
+        decisionAt:       row.decision_at   || null,
+        reactions:        row.reactions     || {}
+      });
+      return acc;
+    }, {});
+  } catch {
+    return null;
+  }
+}
+
+async function fetchAnteMonthHistory() {
+  try {
+    const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_month_history", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({})
+    });
+    const rows = await response.json();
+    if (!Array.isArray(rows) || rows.length === 0) return null;
+    // Group closed-season entries by legacy_group_key.
+    return rows.reduce((acc, row) => {
+      const key = typeof row?.legacy_group_key === "string" ? row.legacy_group_key : "";
+      if (!key) return acc;
+      if (!acc[key]) acc[key] = [];
+      acc[key].push({
+        monthKey:              row.month_key,
+        label:                 row.label,
+        year:                  row.year,
+        monthIndex:            row.month_index,
+        // Settings fields passed through to buildNormalizedSettings in the overlay.
+        minTarget:             row.min_target,
+        fineAmount:            row.fine_amount,
+        feeModel:              row.fee_model,
+        escalationStepAmount:  row.escalation_step_amount ?? null,
+        currency:              row.currency,
+        minRunDistance:        row.min_run_distance,
+        distanceUnit:          row.distance_unit,
+        stravaEnabled:         !!row.strava_enabled,
+        timeZone:              row.time_zone,
+        acceptedWorkoutTypes:  Array.isArray(row.accepted_workout_types) ? row.accepted_workout_types : [],
+        members:               Array.isArray(row.members) ? row.members : [],
+        logs:                  Array.isArray(row.logs) ? row.logs : []
+      });
+      return acc;
+    }, {});
+  } catch {
+    return null;
+  }
+}
+
+async function fetchAnteSettlementConfirmations() {
+  if (!ENABLE_SETTLEMENT_CONFIRMATIONS) return null;
+  try {
+    const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_settlement_confirmations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({})
+    });
+    const rows = await response.json();
+    if (!Array.isArray(rows)) return null;
+    return rows.reduce((acc, row) => {
+      const key = typeof row?.legacy_group_key === "string" ? row.legacy_group_key : "";
+      if (!key) return acc;
+      if (!acc[key]) acc[key] = [];
+      acc[key].push({
+        id: row.id,
+        monthKey: row.month_key,
+        monthLabel: row.month_label,
+        payerAuthUserId: row.payer_auth_user_id || null,
+        receiverAuthUserId: row.receiver_auth_user_id || null,
+        payerDisplayName: row.payer_display_name,
+        receiverDisplayName: row.receiver_display_name,
+        amount: row.amount,
+        currency: row.currency,
+        payerClaimedAt: row.payer_claimed_at || null,
+        confirmedAt: row.confirmed_at || null,
+        createdAt: row.created_at || null,
+        updatedAt: row.updated_at || null
+      });
+      return acc;
+    }, {});
+  } catch {
+    return null;
+  }
+}
+
+async function fetchAnteCurrentExcusedAndSitouts() {
+  try {
+    const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_current_excused_and_sitouts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({})
+    });
+    const payload = await response.json();
+    if (!payload || typeof payload !== "object") return null;
+    const excusedRows     = Array.isArray(payload.excused) ? payload.excused : [];
+    const sitoutRows      = Array.isArray(payload.sit_out_requests) ? payload.sit_out_requests : [];
+    const openSeasonRows  = Array.isArray(payload.open_seasons) ? payload.open_seasons : [];
+    // Do NOT early-return on empty rows — an empty canonical state is still a
+    // valid successful fetch and must be applied to clear stale blob values.
+
+    // Group excused rows by legacy_group_key.
+    const excused = excusedRows.reduce((acc, row) => {
+      const key = typeof row?.legacy_group_key === "string" ? row.legacy_group_key : "";
+      if (!key) return acc;
+      if (!acc[key]) acc[key] = [];
+      acc[key].push({
+        monthKey:    row.month_key,
+        displayName: row.display_name,
+        excused:     !!row.excused
+      });
+      return acc;
+    }, {});
+
+    // Group sit-out rows by legacy_group_key. status is already mapped to the
+    // blob-facing 'declined' value in the RPC; the JS layer never sees 'denied'.
+    const sitOutRequests = sitoutRows.reduce((acc, row) => {
+      const key = typeof row?.legacy_group_key === "string" ? row.legacy_group_key : "";
+      if (!key) return acc;
+      if (!acc[key]) acc[key] = [];
+      acc[key].push({
+        monthKey:             row.month_key,
+        displayName:          row.display_name,
+        status:               row.status || "pending",
+        reason:               typeof row.reason === "string" ? row.reason : "",
+        exceptional:          !!row.exceptional,
+        requestedAt:          row.requested_at || null,
+        requestedBy:          row.requested_by || row.display_name,
+        requestedByUserId:    row.requested_by_user_id || null,
+        targetApproverName:   row.target_approver_name || null,
+        targetApproverUserId: row.target_approver_user_id || null,
+        decidedAt:            row.decided_at || null,
+        decidedBy:            row.decided_by || null,
+        decidedByUserId:      row.decided_by_user_id || null,
+        autoApproved:         !!row.auto_approved
+      });
+      return acc;
+    }, {});
+
+    // Build a {groupKey: monthKey} map from open seasons. Used by the overlay
+    // to identify the current month to clear even when excused/sitout rows are
+    // absent (zero-row empty-state case).
+    const openSeasonMonthKeys = openSeasonRows.reduce((acc, row) => {
+      const key = typeof row?.legacy_group_key === "string" ? row.legacy_group_key : "";
+      if (key && row.month_key) acc[key] = row.month_key;
+      return acc;
+    }, {});
+
+    return { excused, sitOutRequests, openSeasonMonthKeys };
+  } catch {
+    return null;
+  }
+}
+
 async function fetchReadableCurrentState() {
-  return fetchCurrentStateFromSupabase();
+  const anteProfilesPromise        = fetchAnteProfiles();
+  const anteBlocsPromise           = fetchAnteBlocs();
+  const anteSeasonOverridesPromise = fetchAnteSeasonOverrides();
+  const anteBlocMembersPromise     = fetchAnteBlocMembers();
+  const anteCurrentLogsPromise     = fetchAnteCurrentLogs();
+  const anteExcusedSitoutsPromise  = fetchAnteCurrentExcusedAndSitouts();
+  const anteMonthHistoryPromise    = fetchAnteMonthHistory();
+  const anteSettlementConfirmationsPromise = fetchAnteSettlementConfirmations();
+
+  // Projection read path removed: read_lift_log_projection RPC timed out on
+  // every call (~28-60s), causing loading screen hangs. All GETs read directly
+  // from the blob, which is fast and always correct. Projection tables remain
+  // intact for future use but are no longer consulted on read.
+  const baseState = await fetchCurrentStateFromSupabase();
+
+  // Overlay canonical bloc settings plus stable group shell metadata onto the
+  // blob-backed groups. Only blocs whose legacy_group_key exists in the blob
+  // are overlaid — prevents stale canonical rows from injecting phantom groups.
+  // Blob is the fallback when a canonical row is absent or the RPC errors.
+  // Reconstruct top-level groupOrder from canonical sort_order, but only
+  // promote canonical authority when it fully covers the blob's active groups.
+  // Inactive/uncovered leftovers still survive via fallback. defaultGroupId
+  // remains blob-driven.
+  const anteBlocs = await anteBlocsPromise;
+  let state = baseState;
+  if (anteBlocs && Object.keys(anteBlocs).length > 0) {
+    const blobGroupOrder = Array.isArray(state.groupOrder) ? state.groupOrder : [];
+    const overlaidGroups = Object.fromEntries(
+      Object.entries(state.groups || {}).map(([groupId, group]) => {
+        const bloc = anteBlocs[groupId];
+        if (!bloc) return [groupId, group];
+        return [groupId, {
+          ...group,
+          name:      bloc.name || group.name,
+          createdAt: bloc.created_at || group.createdAt,
+          settings: buildNormalizedSettings({
+            ...group.settings,
+            timeZone:              bloc.time_zone              ?? group.settings?.timeZone,
+            currency:              bloc.currency               ?? group.settings?.currency,
+            minTarget:             bloc.min_target             ?? group.settings?.minTarget,
+            fineAmount:            bloc.fine_amount            ?? group.settings?.fineAmount,
+            feeModel:              bloc.fee_model              ?? group.settings?.feeModel,
+            escalationStepAmount:  bloc.escalation_step_amount ?? group.settings?.escalationStepAmount,
+            minRunDistance:        bloc.min_run_distance       ?? group.settings?.minRunDistance,
+            distanceUnit:          bloc.distance_unit          ?? group.settings?.distanceUnit,
+            stravaEnabled:         bloc.strava_enabled         ?? group.settings?.stravaEnabled,
+            acceptedWorkoutTypes:  bloc.accepted_workout_types ?? group.settings?.acceptedWorkoutTypes
+          })
+        }];
+      })
+    );
+    const canonicalOrderedGroupIds = uniqueNames(
+      blobGroupOrder
+        .map(groupId => ({
+          groupId,
+          sortOrder: anteBlocs[groupId]?.sort_order
+        }))
+        .filter(entry => Number.isInteger(entry.sortOrder))
+        .sort((a, b) => a.sortOrder - b.sortOrder)
+        .map(entry => entry.groupId)
+    );
+    const activeBlobGroupIds = uniqueNames(
+      blobGroupOrder.filter(groupId => Object.keys(state.groups?.[groupId]?.memberships || {}).length > 0)
+    );
+    const coveredGroupIds = new Set(canonicalOrderedGroupIds);
+    const canonicalCoversActiveGroups =
+      activeBlobGroupIds.length > 0 &&
+      activeBlobGroupIds.every(groupId => coveredGroupIds.has(groupId));
+    const activeBlobGroupIdSet = new Set(activeBlobGroupIds);
+    const residualBlobGroupIds = blobGroupOrder.filter(groupId => {
+      if (coveredGroupIds.has(groupId)) return false;
+      if (!canonicalCoversActiveGroups) return true;
+      return !activeBlobGroupIdSet.has(groupId);
+    });
+    const nextGroupOrder = uniqueNames([...canonicalOrderedGroupIds, ...residualBlobGroupIds]);
+    state = { ...state, groups: overlaidGroups, groupOrder: nextGroupOrder };
+  }
+
+  const anteSeasonOverrides = await anteSeasonOverridesPromise;
+  if (anteSeasonOverrides && Object.keys(anteSeasonOverrides).length > 0) {
+    const overlaidGroups = Object.fromEntries(
+      Object.entries(state.groups || {}).map(([groupId, group]) => {
+        const overrides = anteSeasonOverrides[groupId];
+        if (!overrides) return [groupId, group];
+        return [groupId, {
+          ...group,
+          seasonOverrides: normalizeSeasonOverrides({
+            ...(group.seasonOverrides || {}),
+            ...overrides
+          })
+        }];
+      })
+    );
+    state = { ...state, groups: overlaidGroups };
+  }
+
+  const anteBlocMembers = await anteBlocMembersPromise;
+  if (anteBlocMembers && Object.keys(anteBlocMembers).length > 0) {
+    const overlaidGroups = Object.fromEntries(
+      Object.entries(state.groups || {}).map(([groupId, group]) => {
+        const members = anteBlocMembers[groupId];
+        if (!members || members.length === 0) return [groupId, group];
+        // Only overlay canonical rows whose auth_user_id already exists as a key
+        // in the blob memberships map. This mirrors the profiles overlay guard and
+        // prevents a canonical active row from resurrecting a member who was kicked
+        // from the blob but whose canonical soft-delete (left_at) failed silently.
+        const blobMembershipKeys = new Set(Object.keys(group.memberships || {}));
+        const blobMemberOrder = Array.isArray(group.memberOrder) ? group.memberOrder : [];
+        const overlaidMemberships = { ...(group.memberships || {}) };
+        const overlaidJoinedMonthByName = { ...(group.joinedMonthByName || {}) };
+        for (const m of members) {
+          if (!blobMembershipKeys.has(m.auth_user_id)) continue;
+          overlaidMemberships[m.auth_user_id] = {
+            userId:      m.auth_user_id,
+            displayName: m.display_name,
+            role:        m.role,
+            joinedAt:    m.joined_at || null
+          };
+          if (m.joined_month_key) overlaidJoinedMonthByName[m.display_name] = m.joined_month_key;
+        }
+        // Reconstruct memberOrder from canonical sort_order, but only promote
+        // canonical authority when it fully covers the blob's active auth-linked
+        // memberships. Blob-only legacy/profile-less names still survive via
+        // fallback so edge-case rows are not dropped.
+        const canonicalOrderedNames = uniqueNames(
+          members
+            .filter(m =>
+              blobMembershipKeys.has(m.auth_user_id) &&
+              Number.isInteger(m.sort_order) &&
+              typeof m.display_name === "string" &&
+              m.display_name
+            )
+            .sort((a, b) => a.sort_order - b.sort_order)
+            .map(m => m.display_name)
+        );
+        const activeBlobMembershipNames = uniqueNames(
+          Object.entries(group.memberships || {})
+            .filter(([userId, membership]) =>
+              blobMembershipKeys.has(userId) &&
+              typeof membership?.displayName === "string" &&
+              membership.displayName
+            )
+            .map(([, membership]) => membership.displayName)
+        );
+        const coveredNames = new Set(canonicalOrderedNames);
+        const canonicalCoversActiveMemberships =
+          activeBlobMembershipNames.length > 0 &&
+          activeBlobMembershipNames.every(name => coveredNames.has(name));
+        const activeBlobMembershipNameSet = new Set(activeBlobMembershipNames);
+        const residualBlobNames = blobMemberOrder.filter(name => {
+          if (coveredNames.has(name)) return false;
+          if (!canonicalCoversActiveMemberships) return true;
+          return !activeBlobMembershipNameSet.has(name);
+        });
+        const nextMemberOrder = uniqueNames([...canonicalOrderedNames, ...residualBlobNames]);
+        // Derive adminUserId and adminName from the canonical admin row, but only
+        // when that row also passed the blob-key guard (confirmed in overlaidMemberships).
+        const canonicalAdminRow = members.find(m => m.role === "admin" && overlaidMemberships[m.auth_user_id]);
+        return [groupId, {
+          ...group,
+          memberOrder:       nextMemberOrder,
+          memberships:        overlaidMemberships,
+          joinedMonthByName:  overlaidJoinedMonthByName,
+          adminUserId: canonicalAdminRow ? canonicalAdminRow.auth_user_id : group.adminUserId,
+          adminName:   canonicalAdminRow ? canonicalAdminRow.display_name  : group.adminName
+        }];
+      })
+    );
+    state = { ...state, groups: overlaidGroups };
+  }
+
+  // Overlay canonical current-month logs onto each blob-backed group.
+  // The overlay keys group.logs by exactly the names in group.memberOrder —
+  // no new names are introduced and no normalization pass is assumed after
+  // this point. Members in memberOrder with no canonical logs get [].
+  // Canonical log owners not in memberOrder are silently dropped (name-drift
+  // guard; hard gate confirmed zero drift before this slice landed).
+  // If the fetch fails or returns null, blob logs are preserved unchanged.
+  const anteCurrentLogs = await anteCurrentLogsPromise;
+  if (anteCurrentLogs && Object.keys(anteCurrentLogs).length > 0) {
+    const overlaidGroups = Object.fromEntries(
+      Object.entries(state.groups || {}).map(([groupId, group]) => {
+        const canonicalLogs = anteCurrentLogs[groupId];
+        if (!canonicalLogs || canonicalLogs.length === 0) return [groupId, group];
+        // Index canonical logs by ownerDisplayName for O(1) lookup below.
+        const byOwner = {};
+        for (const log of canonicalLogs) {
+          const name = log.ownerDisplayName;
+          if (!byOwner[name]) byOwner[name] = [];
+          byOwner[name].push(log);
+        }
+        // Build the logs map keyed by memberOrder names only.
+        const overlaidLogs = Object.fromEntries(
+          (group.memberOrder || []).map(name => [
+            name,
+            (byOwner[name] || []).map(normalizeLogEntry)
+          ])
+        );
+        return [groupId, { ...group, logs: overlaidLogs }];
+      })
+    );
+    state = { ...state, groups: overlaidGroups };
+  }
+
+  // Overlay canonical current-month excused + sit-out requests.
+  // Both overlays are keyed strictly by group.memberOrder — no new names are
+  // introduced and no normalization pass is assumed after this point. Each
+  // canonical row carries its own month_key, used as the inner/outer key so
+  // only the open-season month is touched. Historical sit-out month keys in
+  // the blob are preserved. status is already mapped to 'declined' in the RPC.
+  // If the fetch fails or returns null, blob values are preserved unchanged.
+  // Both overlays are keyed strictly by group.memberOrder — no new names are
+  // introduced and no normalization pass is assumed after this point.
+  // openSeasonMonthKeys provides the current month_key for each group even when
+  // excused/sit-out arrays are empty, enabling canonical to clear stale blob state.
+  // Historical sit-out month keys in the blob are preserved; only the open-season
+  // month key is replaced. The same canonical open-season month_key is also used
+  // to override group.lastMonth for covered groups, reducing one more blob-only
+  // read dependency without changing write authority. status is already mapped to
+  // 'declined' in the RPC. If the fetch fails (returns null), blob values are
+  // preserved unchanged.
+  const anteExcusedSitouts = await anteExcusedSitoutsPromise;
+  if (anteExcusedSitouts) {
+    const excusedByGroup        = anteExcusedSitouts.excused || {};
+    const sitoutsByGroup        = anteExcusedSitouts.sitOutRequests || {};
+    const openSeasonMonthKeys   = anteExcusedSitouts.openSeasonMonthKeys || {};
+    const overlaidGroups = Object.fromEntries(
+      Object.entries(state.groups || {}).map(([groupId, group]) => {
+        const openMonthKey = openSeasonMonthKeys[groupId];
+        // Skip groups with no open season — they have no canonical current-month state.
+        if (!openMonthKey) return [groupId, group];
+
+        const memberOrder = group.memberOrder || [];
+        let nextGroup = group;
+
+        // Excused overlay: replace group.excused wholesale, keyed by memberOrder.
+        // Applies even when canonical has zero excused rows for this group — a member
+        // with no canonical excused entry correctly gets {} (not excused this month).
+        const canonicalExcused = excusedByGroup[groupId] || [];
+        const excusedByName = {};
+        for (const row of canonicalExcused) {
+          if (!excusedByName[row.displayName]) excusedByName[row.displayName] = {};
+          if (row.excused) excusedByName[row.displayName][row.monthKey] = true;
+        }
+        nextGroup = {
+          ...nextGroup,
+          lastMonth: openMonthKey,
+          excused: Object.fromEntries(memberOrder.map(name => [name, excusedByName[name] || {}]))
+        };
+
+        // Sit-out overlay: replace only the open-season month key, keyed by
+        // memberOrder. Preserve all other (historical) month keys from blob.
+        // Uses openMonthKey as the authoritative current month so the overlay
+        // fires even when canonical has zero sit-out rows for this group.
+        const canonicalSitouts = sitoutsByGroup[groupId] || [];
+        const sitoutByName = {};
+        for (const row of canonicalSitouts) {
+          sitoutByName[row.displayName] = row;
+        }
+        const monthRequests = {};
+        for (const name of memberOrder) {
+          const req = sitoutByName[name];
+          if (!req) continue;
+          monthRequests[name] = {
+            memberName:           name,
+            monthKey:             openMonthKey,
+            status:               req.status,
+            reason:               req.reason,
+            exceptional:          req.exceptional,
+            requestedAt:          req.requestedAt,
+            requestedBy:          req.requestedBy,
+            requestedByUserId:    req.requestedByUserId,
+            targetApproverName:   req.targetApproverName,
+            targetApproverUserId: req.targetApproverUserId,
+            decidedAt:            req.decidedAt,
+            decidedBy:            req.decidedBy,
+            decidedByUserId:      req.decidedByUserId,
+            autoApproved:         req.autoApproved
+          };
+        }
+        nextGroup = {
+          ...nextGroup,
+          sitOutRequests: {
+            ...(nextGroup.sitOutRequests || {}),
+            [openMonthKey]: monthRequests
+          }
+        };
+
+        return [groupId, nextGroup];
+      })
+    );
+    state = { ...state, groups: overlaidGroups };
+  }
+
+  // Month-history overlay: replace closed-season monthHistory entries with
+  // canonical-composed versions. Only closed seasons are touched — the open
+  // month is handled by the current-logs and excused/sitout overlays above.
+  // Overlay is keyed strictly by group.memberOrder; names absent from
+  // memberOrder are silently dropped. Blob monthHistory entries whose
+  // month_key has no canonical counterpart are preserved unchanged.
+  // No normalization pass runs after this point — the overlay must produce
+  // the final blob-shaped monthHistory[*] objects directly.
+  // If the fetch fails or returns null, blob monthHistory survives unchanged.
+  const anteMonthHistory = await anteMonthHistoryPromise;
+  if (anteMonthHistory) {
+    const overlaidGroups = Object.fromEntries(
+      Object.entries(state.groups || {}).map(([groupId, group]) => {
+        const canonicalSeasons = anteMonthHistory[groupId];
+        if (!canonicalSeasons || canonicalSeasons.length === 0) return [groupId, group];
+
+        const memberOrder = group.memberOrder || [];
+
+        // Index blob monthHistory by month_key. Used both for completeness
+        // guards below and for the final merge. Months absent from blob are
+        // never added — canonical is an overlay on existing blob history only.
+        const blobMonthsByKey = Object.fromEntries(
+          (group.monthHistory || []).map(m => [m.key, m])
+        );
+
+        // Build a canonical replacement for each closed season that already
+        // exists in blob monthHistory. Seasons with no blob counterpart are
+        // skipped entirely — this slice does not invent missing months.
+        const canonicalMonths = {};
+        for (const season of canonicalSeasons) {
+          const monthKey = season.monthKey;
+          if (!monthKey) continue;
+
+          // Skip months not already present in blob — do not invent history.
+          const blobMonth = blobMonthsByKey[monthKey];
+          if (!blobMonth) continue;
+
+          // Index members from season_member_status, filtered to current memberOrder.
+          const membersByName = {};
+          for (const m of season.members) {
+            if (memberOrder.includes(m.display_name)) membersByName[m.display_name] = m;
+          }
+
+          // Completeness guard: canonical must cover at least as many members as
+          // blob already has historical data for. Blob coverage = members in
+          // memberOrder that have a counts entry OR a non-empty logsByUser array
+          // in the blob month. Canonical coverage = membersByName keys (already
+          // filtered to memberOrder). If canonical covers fewer members than blob,
+          // the importer backfill is partial — preserve blob month unchanged.
+          const blobCoverage = memberOrder.filter(name =>
+            Object.prototype.hasOwnProperty.call(blobMonth.counts || {}, name) ||
+            ((blobMonth.logsByUser || {})[name] || []).length > 0
+          ).length;
+          const canonicalCoverage = Object.keys(membersByName).length;
+          if (canonicalCoverage < blobCoverage) continue;
+
+          // Reconstruct settings from canonical season snapshot fields so that
+          // historical months reflect the settings that were active at that time,
+          // not the current group settings.
+          const canonicalSettings = buildNormalizedSettings({
+            minTarget:            season.minTarget,
+            fineAmount:           season.fineAmount,
+            feeModel:             season.feeModel,
+            escalationStepAmount: season.escalationStepAmount,
+            currency:             season.currency,
+            minRunDistance:       season.minRunDistance,
+            distanceUnit:         season.distanceUnit,
+            stravaEnabled:        season.stravaEnabled,
+            timeZone:             season.timeZone,
+            acceptedWorkoutTypes: season.acceptedWorkoutTypes
+          });
+
+          // Members relevant for this month: joined_for_month = true, in memberOrder.
+          const relevantNames = memberOrder.filter(
+            name => membersByName[name]?.joined_for_month !== false
+          );
+
+          // counts and excused from canonical season_member_status rows.
+          const counts  = {};
+          const excused = {};
+          for (const name of relevantNames) {
+            const m = membersByName[name];
+            counts[name]  = m ? m.workout_count : 0;
+            excused[name] = m ? !!m.excused : false;
+          }
+
+          // logsByUser from canonical workout_logs. Photo URLs are omitted to
+          // match buildMonthLogsSnapshot which sets photoUrl: "" for all history.
+          const logsByUser = Object.fromEntries(memberOrder.map(name => [name, []]));
+          for (const log of season.logs) {
+            const owner = log.owner_display_name;
+            if (!logsByUser[owner]) continue;
+            logsByUser[owner].push(normalizeLogEntry({
+              id:           log.id,
+              type:         log.workout_type,
+              date:         log.workout_date,
+              note:         log.note,
+              photoUrl:     "",
+              createdAt:    log.created_at,
+              verifiedVia:  log.verified_via,
+              flagStatus:   log.flag_status   || null,
+              flagReason:   log.flag_reason   || "",
+              flagResponse: log.flag_response || "",
+              flaggedBy:    log.flagged_by    || null,
+              decisionBy:   log.decision_by   || null,
+              decisionAt:   log.decision_at   || null,
+              reactions:    log.reactions     || {}
+            }));
+          }
+
+          // settlements from canonical settlement_status columns. Only members
+          // with a non-null settlement_status are included — matching the blob
+          // shape where only losers (outstanding/settled) appear in settlements.
+          const settlements = {};
+          for (const name of relevantNames) {
+            const m = membersByName[name];
+            if (m?.settlement_status) {
+              settlements[name] = {
+                status:    m.settlement_status,
+                settledAt: m.settlement_settled_at || null,
+                updatedAt: m.settlement_updated_at || null
+              };
+            }
+          }
+
+          // memberTargets derived from canonical settings + group context
+          // (joinedMonthByName, memberships, seasonOverrides are already canonical
+          // from prior overlays or preserved blob values).
+          const memberTargets = getMemberTargetsForMonth(group, relevantNames, monthKey, canonicalSettings);
+
+          canonicalMonths[monthKey] = {
+            key:          monthKey,
+            label:        season.label,
+            year:         season.year,
+            month:        season.monthIndex,
+            counts,
+            excused,
+            logsByUser,
+            settings:     canonicalSettings,
+            settlements,
+            memberTargets
+          };
+        }
+
+        // Merge: blob months are the base; canonical replaces only the months
+        // it passed the completeness guard for. Blob months with no canonical
+        // replacement are carried through unchanged. Sort ascending by month_key.
+        const mergedMonthHistory = Object.values({ ...blobMonthsByKey, ...canonicalMonths })
+          .sort((a, b) => compareMonthKeys(a.key, b.key));
+
+        return [groupId, { ...group, monthHistory: mergedMonthHistory }];
+      })
+    );
+    state = { ...state, groups: overlaidGroups };
+  }
+
+  const anteProfiles = await anteProfilesPromise;
+  if (anteProfiles) {
+    // Only overlay canonical profiles whose userId already exists in blob
+    // state. If a user was deleted from the blob (delete-account), their row
+    // may still be present in ante_core.profiles until canonical deletion is
+    // implemented. Filtering here prevents stale canonical rows from
+    // resurrecting a deleted user in the returned state.
+    const blobProfileKeys = new Set(Object.keys(state.profiles || {}));
+    const filtered = Object.fromEntries(
+      Object.entries(anteProfiles).filter(([userId]) => blobProfileKeys.has(userId))
+    );
+    if (Object.keys(filtered).length > 0) {
+      state = { ...state, profiles: { ...(state.profiles || {}), ...filtered } };
+    }
+  }
+  const anteSettlementConfirmations = await anteSettlementConfirmationsPromise;
+  if (ENABLE_SETTLEMENT_CONFIRMATIONS || ENABLE_SETTLEMENT_CONFIRMATIONS_PREVIEW) {
+    const overlaidGroups = Object.fromEntries(
+      Object.entries(state.groups || {}).map(([groupId, group]) => [groupId, {
+        ...group,
+        settlementConfirmationsEnabled: true,
+        settlementConfirmationsPreviewMode: ENABLE_SETTLEMENT_CONFIRMATIONS_PREVIEW,
+        settlementConfirmations: normalizeSettlementConfirmations(anteSettlementConfirmations?.[groupId] || [])
+      }])
+    );
+    state = { ...state, groups: overlaidGroups };
+  }
+  return state;
 }
 
 // Mutations must always hydrate from the blob source of truth.
@@ -748,14 +2235,57 @@ async function fetchWritableCurrentState() {
 }
 
 async function persistState(nextState, reason) {
+  // Extract rollover metadata before persistStateToSupabase — normalizeState
+  // strips _rollovers from the blob write, so we must read it here first.
+  const rollovers = Array.isArray(nextState._rollovers) ? nextState._rollovers : [];
+
   const persisted = await persistStateToSupabase(nextState, reason);
-  ensureProjectionStateUpToDate(persisted).catch(err => console.error("Projection sync failed:", err));
+
+  // Best-effort canonical season rollover syncs. Failures are logged but never
+  // propagated — the blob rollover already succeeded at this point.
+  for (const { groupId, closedMonthKey, newMonthKey, closedAt } of rollovers) {
+    const group = persisted.groups?.[groupId];
+    if (!group) continue;
+    // Close the old season first so season_member_status writes can resolve the
+    // canonical season row deterministically.
+    try {
+      await syncSeasonToCanonical(group, closedMonthKey, "closed", closedAt);
+    } catch (err) {
+      console.error(`Season rollover canonical sync failed (close ${groupId}/${closedMonthKey}):`, err?.message || err);
+    }
+    // Open the new season.
+    syncSeasonToCanonical(group, newMonthKey, "open")
+      .catch(err => console.error(`Season rollover canonical sync failed (open ${groupId}/${newMonthKey}):`, err?.message || err));
+    // Write one season_member_status row per relevant member for the closed month.
+    // The closed-month snapshot was appended to monthHistory by rolloverGroupIfNeeded,
+    // so it is present in persisted state at this point.
+    const closedSnapshot = group.monthHistory?.find(m => m.key === closedMonthKey);
+    if (closedSnapshot) {
+      // Build a displayName → authUserId reverse map from group.memberships.
+      const authUserIdByName = Object.fromEntries(
+        Object.entries(group.memberships || {}).map(([uid, m]) => [m.displayName, uid])
+      );
+      for (const memberName of Object.keys(closedSnapshot.counts || {})) {
+        const memberAuthUserId = authUserIdByName[memberName] || null;
+        await upsertSeasonMemberStatusToCanonical(
+          group,
+          closedMonthKey,
+          memberName,
+          memberAuthUserId,
+          closedSnapshot.counts[memberName] ?? 0,
+          closedSnapshot.excused[memberName] ?? false
+        );
+      }
+    }
+    console.log(`Season rollover canonical sync fired: ${groupId} ${closedMonthKey} → ${newMonthKey}`);
+  }
+
   return persisted;
 }
 
 async function fetchCurrentStateFromSupabase() {
   assertSupabaseConfigured();
-  const response = await supabaseFetch("/rest/v1/lift_log_state?id=eq.true&select=state", {
+  const response = await supabaseFetch("/rest/v1/lift_log_state?id=eq.true&select=state,revision,updated_at", {
     method: "GET",
     headers: { Accept: "application/json" }
   });
@@ -764,13 +2294,68 @@ async function fetchCurrentStateFromSupabase() {
   if (!Array.isArray(rows) || rows.length === 0) {
     return rolloverStateIfNeeded({});
   }
-  return rolloverStateIfNeeded(rows[0]?.state || {});
+  const row = rows[0] || {};
+  return rolloverStateIfNeeded(row.state || {}, {
+    revision: row.revision,
+    updatedAt: row.updated_at || null
+  });
+}
+
+async function deleteStoragePhotos(paths) {
+  if (!paths.length) return;
+  await supabaseFetch("/storage/v1/object/workout-photos", {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ prefixes: paths })
+  });
+}
+
+async function cleanupExpiredStoragePhotos() {
+  // Files are stored as {userId}/{Date.now()}.jpg — parse the timestamp
+  // from the filename to determine age. Delete anything older than 72h.
+  try {
+    const foldersRes = await supabaseFetch("/storage/v1/object/list/workout-photos", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prefix: "", limit: 1000, offset: 0 })
+    });
+    const folders = await foldersRes.json();
+    if (!Array.isArray(folders)) return;
+
+    const expiredPaths = [];
+    for (const folder of folders) {
+      // Folders have metadata: null; files have metadata: {...} — skip files at root
+      if (!folder?.name || folder.metadata) continue;
+      const filesRes = await supabaseFetch("/storage/v1/object/list/workout-photos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prefix: `${folder.name}/`, limit: 1000, offset: 0 })
+      });
+      const files = await filesRes.json();
+      if (!Array.isArray(files)) continue;
+      for (const file of files) {
+        if (!file?.name) continue;
+        const timestamp = parseInt(file.name, 10);
+        if (Number.isFinite(timestamp) && Date.now() - timestamp > UNFLAGGED_IMAGE_RETENTION_MS) {
+          expiredPaths.push(`${folder.name}/${file.name}`);
+        }
+      }
+    }
+
+    if (expiredPaths.length) {
+      await deleteStoragePhotos(expiredPaths);
+      console.log(`Storage cleanup: deleted ${expiredPaths.length} expired photo(s)`);
+    }
+  } catch (err) {
+    console.error("Storage expiry cleanup failed:", err?.message || err);
+  }
 }
 
 async function persistStateToSupabase(nextState, reason) {
   assertSupabaseConfigured();
   const safeState = normalizeState(nextState);
-  await createSupabaseBackup(safeState, reason);
+  const serializedState = serializeStateForBlob(safeState);
+  await createSupabaseBackup(serializedState, safeState.meta.revision, reason);
 
   const response = await supabaseFetch("/rest/v1/lift_log_state?id=eq.true", {
     method: "PATCH",
@@ -779,662 +2364,52 @@ async function persistStateToSupabase(nextState, reason) {
       Prefer: "return=representation"
     },
     body: JSON.stringify({
-      state: safeState,
+      state: serializedState,
       revision: safeState.meta.revision,
       updated_at: safeState.meta.updatedAt || new Date().toISOString()
     })
   });
 
   const rows = await response.json();
-  if (Array.isArray(rows) && rows.length > 0) {
-    return rolloverStateIfNeeded(rows[0]?.state || safeState);
+  const persistedState = Array.isArray(rows) && rows.length > 0
+    ? rolloverStateIfNeeded(rows[0]?.state || serializedState, {
+      revision: rows[0]?.revision ?? safeState.meta.revision,
+      updatedAt: rows[0]?.updated_at || safeState.meta.updatedAt || null
+    })
+    : null;
+
+  if (!persistedState) {
+    await supabaseFetch("/rest/v1/lift_log_state", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Prefer: "return=representation,resolution=merge-duplicates"
+      },
+      body: JSON.stringify([{
+        id: true,
+        state: serializedState,
+        revision: safeState.meta.revision,
+        updated_at: safeState.meta.updatedAt || new Date().toISOString()
+      }])
+    });
   }
 
-  await supabaseFetch("/rest/v1/lift_log_state", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Prefer: "return=representation,resolution=merge-duplicates"
-    },
-    body: JSON.stringify([{
-      id: true,
-      state: safeState,
-      revision: safeState.meta.revision,
-      updated_at: safeState.meta.updatedAt || new Date().toISOString()
-    }])
-  });
+  // Best-effort: scan bucket and delete files older than 72h.
+  cleanupExpiredStoragePhotos().catch(err => console.error("Storage cleanup error:", err?.message || err));
 
-  return safeState;
+  return persistedState || safeState;
 }
 
-async function createSupabaseBackup(state, reason) {
+async function createSupabaseBackup(state, stateRevision, reason) {
   await supabaseFetch("/rest/v1/lift_log_backups", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      state_revision: state.meta.revision,
+      state_revision: stateRevision,
       state,
       reason
     })
   });
-}
-
-const PROJECTION_DELETE_STEPS = [
-  ["/rest/v1/lift_log_projection_month_log_reactions?group_id=not.is.null", "month log reactions"],
-  ["/rest/v1/lift_log_projection_month_logs?group_id=not.is.null", "month logs"],
-  ["/rest/v1/lift_log_projection_month_counts?group_id=not.is.null", "month counts"],
-  ["/rest/v1/lift_log_projection_month_history?group_id=not.is.null", "month history"],
-  ["/rest/v1/lift_log_projection_sit_out_requests?group_id=not.is.null", "sit-out requests"],
-  ["/rest/v1/lift_log_projection_season_overrides?group_id=not.is.null", "season overrides"],
-  ["/rest/v1/lift_log_projection_log_reactions?group_id=not.is.null", "log reactions"],
-  ["/rest/v1/lift_log_projection_group_logs?group_id=not.is.null", "group logs"],
-  ["/rest/v1/lift_log_projection_group_excused?group_id=not.is.null", "group excused"],
-  ["/rest/v1/lift_log_projection_group_joined_months?group_id=not.is.null", "joined months"],
-  ["/rest/v1/lift_log_projection_group_memberships?group_id=not.is.null", "memberships"],
-  ["/rest/v1/lift_log_projection_groups?group_id=not.is.null", "groups"],
-  ["/rest/v1/lift_log_projection_pending_otps?email=not.is.null", "pending otps"],
-  ["/rest/v1/lift_log_projection_profiles?user_id=not.is.null", "profiles"],
-  ["/rest/v1/lift_log_projection_meta?id=eq.true", "projection meta"]
-];
-
-function projectionSchemaMissing(error) {
-  const message = String(error?.message || "");
-  return error?.status === 404 ||
-    message.includes("lift_log_projection_") ||
-    message.includes("relation") ||
-    message.includes("Could not find the table");
-}
-
-function cleanProjectionValue(value) {
-  return value == null ? null : value;
-}
-
-function buildProjectionPayload(state) {
-  const safeState = normalizeState(state);
-  const groups = Object.values(safeState.groups || {});
-  const profiles = Object.values(safeState.profiles || {}).map(profile => ({
-    user_id: profile.id,
-    email: profile.email,
-    display_name: profile.displayName || "",
-    created_at: profile.createdAt || new Date().toISOString()
-  }));
-  const pendingOtps = Object.entries(safeState.pendingOtps || {}).map(([email, otp]) => ({
-    email,
-    code: otp.code,
-    expires_at: otp.expiresAt,
-    user_id: cleanProjectionValue(otp.userId)
-  }));
-  const groupRows = [];
-  const membershipRows = [];
-  const joinedMonthRows = [];
-  const groupExcusedRows = [];
-  const groupLogRows = [];
-  const logReactionRows = [];
-  const seasonOverrideRows = [];
-  const sitOutRequestRows = [];
-  const monthHistoryRows = [];
-  const monthCountRows = [];
-  const monthLogRows = [];
-  const monthLogReactionRows = [];
-
-  for (const group of groups) {
-    groupRows.push({
-      group_id: group.id,
-      name: group.name,
-      admin_name: group.adminName,
-      admin_user_id: cleanProjectionValue(group.adminUserId),
-      invite_code: group.inviteCode,
-      created_at: group.createdAt || new Date().toISOString(),
-      last_month_key: cleanProjectionValue(group.lastMonth),
-      member_order: group.memberOrder || [],
-      min_target: group.settings.minTarget,
-      fine_amount: group.settings.fineAmount,
-      fee_model: group.settings.feeModel,
-      escalation_step_amount: cleanProjectionValue(group.settings.escalationStepAmount),
-      currency: group.settings.currency,
-      min_run_distance: group.settings.minRunDistance,
-      distance_unit: group.settings.distanceUnit,
-      strava_enabled: group.settings.stravaEnabled !== false,
-      time_zone: group.settings.timeZone,
-      accepted_workout_types: group.settings.acceptedWorkoutTypes || []
-    });
-
-    for (const membership of Object.values(group.memberships || {})) {
-      membershipRows.push({
-        group_id: group.id,
-        user_id: membership.userId,
-        display_name: membership.displayName,
-        role: membership.role,
-        joined_at: cleanProjectionValue(membership.joinedAt)
-      });
-    }
-
-    for (const [displayName, joinedMonthKey] of Object.entries(group.joinedMonthByName || {})) {
-      joinedMonthRows.push({
-        group_id: group.id,
-        display_name: displayName,
-        joined_month_key: joinedMonthKey
-      });
-    }
-
-    for (const [displayName, months] of Object.entries(group.excused || {})) {
-      for (const [monthKey, excused] of Object.entries(months || {})) {
-        groupExcusedRows.push({
-          group_id: group.id,
-          display_name: displayName,
-          month_key: monthKey,
-          excused: !!excused
-        });
-      }
-    }
-
-    for (const [ownerDisplayName, logs] of Object.entries(group.logs || {})) {
-      for (const log of Array.isArray(logs) ? logs : []) {
-        const normalizedLog = normalizeLogEntry(log);
-        groupLogRows.push({
-          group_id: group.id,
-          log_id: String(normalizedLog.id),
-          owner_display_name: ownerDisplayName,
-          workout_date: normalizedLog.date,
-          workout_type: normalizedLog.type,
-          note: normalizedLog.note || "",
-          photo_url: normalizedLog.photoUrl || "",
-          created_at: normalizedLog.createdAt,
-          verified_via: normalizedLog.verifiedVia,
-          flag_status: cleanProjectionValue(normalizedLog.flagStatus),
-          flag_reason: normalizedLog.flagReason || "",
-          flag_response: normalizedLog.flagResponse || "",
-          flagged_by: cleanProjectionValue(normalizedLog.flaggedBy),
-          decision_by: cleanProjectionValue(normalizedLog.decisionBy),
-          decision_at: cleanProjectionValue(normalizedLog.decisionAt)
-        });
-        for (const [emoji, reactors] of Object.entries(normalizedLog.reactions || {})) {
-          for (const reactorDisplayName of reactors) {
-            logReactionRows.push({
-              group_id: group.id,
-              log_id: String(normalizedLog.id),
-              emoji,
-              reactor_display_name: reactorDisplayName
-            });
-          }
-        }
-      }
-    }
-
-    for (const [monthKey, override] of Object.entries(group.seasonOverrides || {})) {
-      seasonOverrideRows.push({
-        group_id: group.id,
-        month_key: monthKey,
-        prorated: !!override.prorated,
-        prorated_mas: cleanProjectionValue(override.proratedMas),
-        chosen_at: cleanProjectionValue(override.chosenAt),
-        chosen_by: cleanProjectionValue(override.chosenBy),
-        chosen_by_user_id: cleanProjectionValue(override.chosenByUserId)
-      });
-    }
-
-    for (const [monthKey, requests] of Object.entries(group.sitOutRequests || {})) {
-      for (const [memberName, request] of Object.entries(requests || {})) {
-        sitOutRequestRows.push({
-          group_id: group.id,
-          month_key: monthKey,
-          member_name: memberName,
-          status: request.status || "pending",
-          reason: request.reason || "",
-          exceptional: !!request.exceptional,
-          requested_at: cleanProjectionValue(request.requestedAt),
-          requested_by: request.requestedBy || memberName,
-          requested_by_user_id: cleanProjectionValue(request.requestedByUserId),
-          target_approver_name: cleanProjectionValue(request.targetApproverName),
-          target_approver_user_id: cleanProjectionValue(request.targetApproverUserId),
-          decided_at: cleanProjectionValue(request.decidedAt),
-          decided_by: cleanProjectionValue(request.decidedBy),
-          decided_by_user_id: cleanProjectionValue(request.decidedByUserId),
-          auto_approved: !!request.autoApproved
-        });
-      }
-    }
-
-    for (const month of Array.isArray(group.monthHistory) ? group.monthHistory : []) {
-      const monthSettings = buildNormalizedSettings(month.settings || group.settings);
-      monthHistoryRows.push({
-        group_id: group.id,
-        month_key: month.key,
-        label: month.label || formatMonthLabelFromKey(month.key) || month.key,
-        year: month.year,
-        month: month.month,
-        min_target: monthSettings.minTarget,
-        fine_amount: monthSettings.fineAmount,
-        fee_model: monthSettings.feeModel,
-        escalation_step_amount: cleanProjectionValue(monthSettings.escalationStepAmount),
-        currency: monthSettings.currency,
-        min_run_distance: monthSettings.minRunDistance,
-        distance_unit: monthSettings.distanceUnit,
-        strava_enabled: monthSettings.stravaEnabled !== false,
-        time_zone: monthSettings.timeZone,
-        accepted_workout_types: monthSettings.acceptedWorkoutTypes || []
-      });
-
-      const names = uniqueNames([
-        ...Object.keys(month.counts || {}),
-        ...Object.keys(month.excused || {}),
-        ...Object.keys(month.settlements || {}),
-        ...Object.keys(month.logsByUser || {})
-      ]);
-      for (const displayName of names) {
-        const settlement = month.settlements?.[displayName] || null;
-        monthCountRows.push({
-          group_id: group.id,
-          month_key: month.key,
-          display_name: displayName,
-          workout_count: Number(month.counts?.[displayName] || 0),
-          excused: !!month.excused?.[displayName],
-          settlement_status: cleanProjectionValue(settlement?.status),
-          settlement_settled_at: cleanProjectionValue(settlement?.settledAt),
-          settlement_updated_at: cleanProjectionValue(settlement?.updatedAt)
-        });
-      }
-
-      for (const [ownerDisplayName, logs] of Object.entries(month.logsByUser || {})) {
-        for (const log of Array.isArray(logs) ? logs : []) {
-          const normalizedLog = normalizeLogEntry(log);
-          monthLogRows.push({
-            group_id: group.id,
-            month_key: month.key,
-            log_id: String(normalizedLog.id),
-            owner_display_name: ownerDisplayName,
-            workout_date: normalizedLog.date,
-            workout_type: normalizedLog.type,
-            note: normalizedLog.note || "",
-            photo_url: normalizedLog.photoUrl || "",
-            created_at: normalizedLog.createdAt,
-            verified_via: normalizedLog.verifiedVia,
-            flag_status: cleanProjectionValue(normalizedLog.flagStatus),
-            flag_reason: normalizedLog.flagReason || "",
-            flag_response: normalizedLog.flagResponse || "",
-            flagged_by: cleanProjectionValue(normalizedLog.flaggedBy),
-            decision_by: cleanProjectionValue(normalizedLog.decisionBy),
-            decision_at: cleanProjectionValue(normalizedLog.decisionAt)
-          });
-          for (const [emoji, reactors] of Object.entries(normalizedLog.reactions || {})) {
-            for (const reactorDisplayName of reactors) {
-              monthLogReactionRows.push({
-                group_id: group.id,
-                month_key: month.key,
-                log_id: String(normalizedLog.id),
-                emoji,
-                reactor_display_name: reactorDisplayName
-              });
-            }
-          }
-        }
-      }
-    }
-  }
-
-  return {
-    meta: [{
-      id: true,
-      source_revision: safeState.meta.revision,
-      source_updated_at: cleanProjectionValue(safeState.meta.updatedAt),
-      default_group_id: cleanProjectionValue(safeState.defaultGroupId),
-      group_order: safeState.groupOrder || [],
-      updated_at: new Date().toISOString()
-    }],
-    profiles,
-    pendingOtps,
-    groups: groupRows,
-    memberships: membershipRows,
-    joinedMonths: joinedMonthRows,
-    groupExcused: groupExcusedRows,
-    groupLogs: groupLogRows,
-    logReactions: logReactionRows,
-    seasonOverrides: seasonOverrideRows,
-    sitOutRequests: sitOutRequestRows,
-    monthHistory: monthHistoryRows,
-    monthCounts: monthCountRows,
-    monthLogs: monthLogRows,
-    monthLogReactions: monthLogReactionRows
-  };
-}
-
-async function replaceProjectionTable(path, rows) {
-  if (!rows.length) return;
-  const chunkSize = 500;
-  for (let index = 0; index < rows.length; index += chunkSize) {
-    await supabaseFetch(path, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Prefer: "return=minimal"
-      },
-      body: JSON.stringify(rows.slice(index, index + chunkSize))
-    });
-  }
-}
-
-async function fetchProjectionMeta() {
-  try {
-    const response = await supabaseFetch("/rest/v1/lift_log_projection_meta?id=eq.true&select=source_revision,source_updated_at,default_group_id,group_order", {
-      method: "GET",
-      headers: { Accept: "application/json" }
-    });
-    const rows = await response.json();
-    return {
-      available: true,
-      sourceRevision: Number(rows?.[0]?.source_revision || 0),
-      row: rows?.[0] || null
-    };
-  } catch (error) {
-    if (projectionSchemaMissing(error)) return { available: false, sourceRevision: 0, row: null };
-    throw error;
-  }
-}
-
-async function fetchProjectionRows(path) {
-  const response = await supabaseFetch(path, {
-    method: "GET",
-    headers: { Accept: "application/json" }
-  });
-  return await response.json();
-}
-
-async function fetchProjectionDiagnostics() {
-  const [meta, groups, monthHistory, monthLogs] = await Promise.all([
-    fetchProjectionMeta(),
-    fetchProjectionRows("/rest/v1/lift_log_projection_groups?select=group_id"),
-    fetchProjectionRows("/rest/v1/lift_log_projection_month_history?select=group_id,month_key"),
-    fetchProjectionRows("/rest/v1/lift_log_projection_month_logs?select=group_id,month_key")
-  ]);
-
-  return {
-    available: !!meta.available,
-    sourceRevision: Number(meta.sourceRevision || 0),
-    groupCount: Array.isArray(groups) ? groups.length : 0,
-    monthHistoryCount: Array.isArray(monthHistory) ? monthHistory.length : 0,
-    monthLogCount: Array.isArray(monthLogs) ? monthLogs.length : 0
-  };
-}
-
-function buildReactionLookup(rows, keyBuilder) {
-  const map = new Map();
-  for (const row of rows) {
-    const key = keyBuilder(row);
-    if (!map.has(key)) map.set(key, {});
-    const reactions = map.get(key);
-    if (!reactions[row.emoji]) reactions[row.emoji] = [];
-    reactions[row.emoji].push(row.reactor_display_name);
-  }
-  return map;
-}
-
-function buildProjectionLog(row, reactions) {
-  return {
-    id: row.log_id,
-    date: row.workout_date,
-    type: row.workout_type,
-    note: row.note || "",
-    photoUrl: row.photo_url || "",
-    createdAt: row.created_at,
-    verifiedVia: row.verified_via,
-    reactions: reactions || {},
-    flagStatus: row.flag_status || null,
-    flagReason: row.flag_reason || "",
-    flagResponse: row.flag_response || "",
-    flaggedBy: row.flagged_by || null,
-    decisionBy: row.decision_by || null,
-    decisionAt: row.decision_at || null
-  };
-}
-
-async function fetchStateFromProjectionMeta(metaRow, payload) {
-  const profileRows        = Array.isArray(payload.profiles)        ? payload.profiles        : [];
-  const pendingOtpRows     = Array.isArray(payload.pendingOtps)     ? payload.pendingOtps     : [];
-  const groupRows          = Array.isArray(payload.groups)          ? payload.groups          : [];
-  const membershipRows     = Array.isArray(payload.memberships)     ? payload.memberships     : [];
-  const joinedMonthRows    = Array.isArray(payload.joinedMonths)    ? payload.joinedMonths    : [];
-  const groupExcusedRows   = Array.isArray(payload.groupExcused)    ? payload.groupExcused    : [];
-  const groupLogRows       = Array.isArray(payload.groupLogs)       ? payload.groupLogs       : [];
-  const logReactionRows    = Array.isArray(payload.logReactions)    ? payload.logReactions    : [];
-  const seasonOverrideRows = Array.isArray(payload.seasonOverrides) ? payload.seasonOverrides : [];
-  const sitOutRequestRows  = Array.isArray(payload.sitOutRequests)  ? payload.sitOutRequests  : [];
-  const monthHistoryRows   = Array.isArray(payload.monthHistory)    ? payload.monthHistory    : [];
-  const monthCountRows     = Array.isArray(payload.monthCounts)     ? payload.monthCounts     : [];
-  const monthLogRows       = Array.isArray(payload.monthLogs)       ? payload.monthLogs       : [];
-  const monthLogReactionRows = Array.isArray(payload.monthLogReactions) ? payload.monthLogReactions : [];
-
-  const profiles = Object.fromEntries(
-    profileRows.map(row => [row.user_id, {
-      id: row.user_id,
-      email: row.email,
-      displayName: row.display_name,
-      createdAt: row.created_at
-    }])
-  );
-
-  const pendingOtps = Object.fromEntries(
-    pendingOtpRows.map(row => [row.email, {
-      code: row.code,
-      expiresAt: row.expires_at,
-      userId: row.user_id || null
-    }])
-  );
-
-  const groupReactionLookup = buildReactionLookup(
-    logReactionRows,
-    row => `${row.group_id}:${row.log_id}`
-  );
-  const monthReactionLookup = buildReactionLookup(
-    monthLogReactionRows,
-    row => `${row.group_id}:${row.month_key}:${row.log_id}`
-  );
-
-  const groups = {};
-  for (const groupRow of groupRows) {
-    const groupId = groupRow.group_id;
-    const memberOrder = Array.isArray(groupRow.member_order) ? groupRow.member_order : membershipRows
-      .filter(row => row.group_id === groupId)
-      .sort((a, b) => {
-        const aAdmin = a.role === "admin" ? 0 : 1;
-        const bAdmin = b.role === "admin" ? 0 : 1;
-        if (aAdmin !== bAdmin) return aAdmin - bAdmin;
-        return String(a.joined_at || "").localeCompare(String(b.joined_at || "")) || a.display_name.localeCompare(b.display_name);
-      })
-      .map(row => row.display_name);
-
-    const memberships = Object.fromEntries(
-      membershipRows
-        .filter(row => row.group_id === groupId)
-        .map(row => [row.user_id, {
-          userId: row.user_id,
-          displayName: row.display_name,
-          role: row.role,
-          joinedAt: row.joined_at || null
-        }])
-    );
-
-    const joinedMonthByName = Object.fromEntries(
-      joinedMonthRows
-        .filter(row => row.group_id === groupId)
-        .map(row => [row.display_name, row.joined_month_key])
-    );
-
-    const logs = {};
-    for (const row of groupLogRows.filter(item => item.group_id === groupId)) {
-      const owner = row.owner_display_name;
-      if (!logs[owner]) logs[owner] = [];
-      logs[owner].push(buildProjectionLog(row, groupReactionLookup.get(`${groupId}:${row.log_id}`)));
-    }
-
-    const excused = {};
-    for (const row of groupExcusedRows.filter(item => item.group_id === groupId)) {
-      if (!excused[row.display_name]) excused[row.display_name] = {};
-      excused[row.display_name][row.month_key] = !!row.excused;
-    }
-
-    const seasonOverrides = Object.fromEntries(
-      seasonOverrideRows
-        .filter(row => row.group_id === groupId)
-        .map(row => [row.month_key, {
-          prorated: !!row.prorated,
-          proratedMas: row.prorated_mas,
-          chosenAt: row.chosen_at,
-          chosenBy: row.chosen_by,
-          chosenByUserId: row.chosen_by_user_id
-        }])
-    );
-
-    const sitOutRequests = {};
-    for (const row of sitOutRequestRows.filter(item => item.group_id === groupId)) {
-      if (!sitOutRequests[row.month_key]) sitOutRequests[row.month_key] = {};
-      sitOutRequests[row.month_key][row.member_name] = {
-        memberName: row.member_name,
-        monthKey: row.month_key,
-        status: row.status,
-        reason: row.reason || "",
-        exceptional: !!row.exceptional,
-        requestedAt: row.requested_at,
-        requestedBy: row.requested_by,
-        requestedByUserId: row.requested_by_user_id,
-        targetApproverName: row.target_approver_name,
-        targetApproverUserId: row.target_approver_user_id,
-        decidedAt: row.decided_at,
-        decidedBy: row.decided_by,
-        decidedByUserId: row.decided_by_user_id,
-        autoApproved: !!row.auto_approved
-      };
-    }
-
-    const monthHistory = monthHistoryRows
-      .filter(row => row.group_id === groupId)
-      .map(row => {
-        const monthKey = row.month_key;
-        const monthCountsForKey = monthCountRows.filter(item => item.group_id === groupId && item.month_key === monthKey);
-        const counts = Object.fromEntries(monthCountsForKey.map(item => [item.display_name, Number(item.workout_count || 0)]));
-        const excused = Object.fromEntries(monthCountsForKey.map(item => [item.display_name, !!item.excused]));
-        const settlements = Object.fromEntries(
-          monthCountsForKey
-            .filter(item => item.settlement_status)
-            .map(item => [item.display_name, {
-              status: item.settlement_status,
-              settledAt: item.settlement_settled_at,
-              updatedAt: item.settlement_updated_at
-            }])
-        );
-        const logsByUser = {};
-        for (const logRow of monthLogRows.filter(item => item.group_id === groupId && item.month_key === monthKey)) {
-          const owner = logRow.owner_display_name;
-          if (!logsByUser[owner]) logsByUser[owner] = [];
-          logsByUser[owner].push(buildProjectionLog(
-            logRow,
-            monthReactionLookup.get(`${groupId}:${monthKey}:${logRow.log_id}`)
-          ));
-        }
-        return {
-          key: monthKey,
-          label: row.label,
-          year: row.year,
-          month: row.month,
-          counts,
-          excused,
-          logsByUser,
-          settings: {
-            minTarget: row.min_target,
-            fineAmount: row.fine_amount,
-            feeModel: row.fee_model,
-            escalationStepAmount: row.escalation_step_amount,
-            currency: row.currency,
-            minRunDistance: row.min_run_distance,
-            distanceUnit: row.distance_unit,
-            stravaEnabled: row.strava_enabled,
-            timeZone: row.time_zone,
-            acceptedWorkoutTypes: row.accepted_workout_types || []
-          },
-          settlements
-        };
-      });
-
-    groups[groupId] = {
-      id: groupId,
-      name: groupRow.name,
-      adminName: groupRow.admin_name,
-      adminUserId: groupRow.admin_user_id,
-      inviteCode: groupRow.invite_code,
-      createdAt: groupRow.created_at,
-      memberOrder,
-      memberships,
-      joinedMonthByName,
-      settings: {
-        minTarget: groupRow.min_target,
-        fineAmount: groupRow.fine_amount,
-        feeModel: groupRow.fee_model,
-        escalationStepAmount: groupRow.escalation_step_amount,
-        currency: groupRow.currency,
-        minRunDistance: groupRow.min_run_distance,
-        distanceUnit: groupRow.distance_unit,
-        stravaEnabled: groupRow.strava_enabled,
-        timeZone: groupRow.time_zone,
-        acceptedWorkoutTypes: groupRow.accepted_workout_types || []
-      },
-      logs,
-      excused,
-      seasonOverrides,
-      sitOutRequests,
-      monthHistory,
-      lastMonth: groupRow.last_month_key
-    };
-  }
-
-  return normalizeState({
-    version: 2,
-    groups,
-    groupOrder: Array.isArray(metaRow?.group_order) ? metaRow.group_order : Object.keys(groups),
-    defaultGroupId: metaRow?.default_group_id || Object.keys(groups)[0] || null,
-    profiles,
-    pendingOtps,
-    meta: {
-      revision: Number(metaRow?.source_revision || 0),
-      updatedAt: metaRow?.source_updated_at || null
-    }
-  });
-}
-
-async function fetchStateFromProjection() {
-  try {
-    const response = await supabaseFetch("/rest/v1/rpc/read_lift_log_projection", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify({})
-    });
-    const payload = await response.json();
-    if (!payload || !Array.isArray(payload.meta) || !payload.meta[0]) return null;
-    return await fetchStateFromProjectionMeta(payload.meta[0], payload);
-  } catch (error) {
-    if (projectionSchemaMissing(error)) return null;
-    console.error("Projection fetch failed:", error);
-    return null;
-  }
-}
-
-async function syncProjectionState(state) {
-  const payload = buildProjectionPayload(state);
-  await supabaseFetch("/rest/v1/rpc/sync_lift_log_projection", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Prefer: "return=minimal" },
-    body: JSON.stringify({ payload })
-  });
-}
-
-async function ensureProjectionStateUpToDate(state) {
-  try {
-    const safeState = normalizeState(state);
-    const projection = await fetchProjectionMeta();
-    if (!projection.available) return;
-    if (projection.sourceRevision === safeState.meta.revision) return;
-    await syncProjectionState(safeState);
-  } catch (error) {
-    console.error("Projection sync failed:", error);
-  }
 }
 
 async function supabaseFetch(path, options = {}) {
@@ -1472,7 +2447,8 @@ function getClientAuthConfig() {
   }
   return {
     supabaseUrl: SUPABASE_URL,
-    supabaseAnonKey: SUPABASE_ANON_KEY
+    supabaseAnonKey: SUPABASE_ANON_KEY,
+    enableLocalPreviewAuth: ENABLE_LOCAL_PREVIEW_AUTH
   };
 }
 
@@ -1483,6 +2459,31 @@ function readBearerToken(req, payload) {
   }
   const token = typeof payload?.accessToken === "string" ? payload.accessToken.trim() : "";
   return token || "";
+}
+
+function readDevImpersonationUserId(req) {
+  const header = req?.headers?.["x-dev-impersonate-user-id"]
+    || req?.headers?.["X-Dev-Impersonate-User-Id"]
+    || "";
+  return String(header || "").trim();
+}
+
+function slugifyDevIdentity(value) {
+  return String(value || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "local";
+}
+
+function isLocalDevRequest(req) {
+  const host = String(req?.headers?.host || req?.headers?.Host || "").trim().toLowerCase();
+  return host.startsWith("localhost:")
+    || host === "localhost"
+    || host.startsWith("127.0.0.1:")
+    || host === "127.0.0.1"
+    || /^192\.168\.\d{1,3}\.\d{1,3}:\d+$/.test(host)
+    || /^192\.168\.\d{1,3}\.\d{1,3}$/.test(host)
+    || /^10\.\d{1,3}\.\d{1,3}\.\d{1,3}:\d+$/.test(host)
+    || /^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host)
+    || /^172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}:\d+$/.test(host)
+    || /^172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}$/.test(host);
 }
 
 async function fetchAuthenticatedUser(accessToken) {
@@ -1516,9 +2517,23 @@ async function fetchAuthenticatedUser(accessToken) {
 
 async function requireAuthenticatedContext(req, payload, current) {
   const accessToken = readBearerToken(req, payload);
-  const user = await fetchAuthenticatedUser(accessToken);
+  const authenticatedUser = await fetchAuthenticatedUser(accessToken);
+  let user = authenticatedUser;
   const migrated = migrateAuthIdentity(rolloverStateIfNeeded(current), user.id, user.email);
   const state = migrated.state;
+  const devImpersonationUserId = readDevImpersonationUserId(req);
+  if (isLocalDevRequest(req) && devImpersonationUserId && payload?.groupId) {
+    const membership = state.groups?.[payload.groupId]?.memberships?.[devImpersonationUserId] || null;
+    if (membership?.userId) {
+      const impersonatedProfile = state.profiles?.[membership.userId] || null;
+      user = {
+        id: membership.userId,
+        email: impersonatedProfile?.email || `${slugifyDevIdentity(membership.displayName)}@local.test`,
+        raw: authenticatedUser.raw,
+        devImpersonatedByUserId: authenticatedUser.id
+      };
+    }
+  }
   const profile = state.profiles?.[user.id] || migrated.profile || null;
   return {
     state,
@@ -1798,7 +2813,9 @@ function applyMultiLog(current, payload) {
   const logId = Date.now();
   const updatedGroups = { ...base.groups };
 
-  for (const groupId of targetGroupIds) {
+  // Always include the source group — targetGroupIds only contains the additional blocs.
+  const allTargetIds = [...new Set([sourceGroupId, ...targetGroupIds])];
+  for (const groupId of allTargetIds) {
     const group = updatedGroups[groupId];
     if (!group) continue;
     if (!group.memberOrder.includes(actor)) continue;
@@ -2230,73 +3247,6 @@ function applyReviewFlag(current, payload) {
   }, "flag-review");
 }
 
-function applySendOtp(current, payload) {
-  const email = String(payload?.email || "").trim().toLowerCase();
-  if (!email || !email.includes("@")) {
-    const error = new Error("A valid email is required");
-    error.status = 400;
-    throw error;
-  }
-  const base = rolloverStateIfNeeded(current);
-  const existingProfile = Object.values(base.profiles || {}).find(profile => profile.email === email);
-  const userId = existingProfile?.id || `user_${Date.now()}${Math.random().toString(36).slice(2, 6)}`;
-  const code = String(Math.floor(100000 + Math.random() * 900000));
-  return {
-    state: {
-      ...base,
-      pendingOtps: {
-        ...(base.pendingOtps || {}),
-        [email]: {
-          code,
-          expiresAt: new Date(Date.now() + OTP_TTL_MS).toISOString(),
-          userId
-        }
-      },
-      meta: {
-        revision: base.meta.revision + 1,
-        updatedAt: new Date().toISOString()
-      }
-    },
-    email,
-    code
-  };
-}
-
-function applyVerifyOtp(current, payload) {
-  const email = String(payload?.email || "").trim().toLowerCase();
-  const code = String(payload?.code || "").trim();
-  const base = rolloverStateIfNeeded(current);
-  const pending = base.pendingOtps?.[email];
-  if (!pending || !code || pending.code !== code) {
-    const error = new Error("That code didn’t match. Try again.");
-    error.status = 401;
-    throw error;
-  }
-  if (new Date(pending.expiresAt).getTime() <= Date.now()) {
-    const error = new Error("That code expired. Request a new one.");
-    error.status = 401;
-    throw error;
-  }
-  const nextPending = { ...(base.pendingOtps || {}) };
-  delete nextPending[email];
-  const profile = base.profiles?.[pending.userId] || null;
-  return {
-    state: {
-      ...base,
-      pendingOtps: nextPending,
-      meta: {
-        revision: base.meta.revision + 1,
-        updatedAt: new Date().toISOString()
-      }
-    },
-    session: {
-      userId: pending.userId,
-      email,
-      needsProfileSetup: !profile?.displayName
-    }
-  };
-}
-
 function applyUpsertProfile(current, payload) {
   const userId = String(payload?.userId || "").trim();
   const email = String(payload?.email || "").trim().toLowerCase();
@@ -2308,8 +3258,97 @@ function applyUpsertProfile(current, payload) {
   }
   const base = rolloverStateIfNeeded(current);
   const existing = base.profiles?.[userId] || {};
+  const groups = base.groups || {};
+
+  // Determine the old display name for each group this user is part of.
+  // Primary source: memberships[userId].displayName — the authoritative record
+  // for what name is currently keyed into group state for auth-linked members.
+  // Fallback: existing.displayName (the pre-rename profile name) when no
+  // memberships[userId] row exists yet — this covers legacy members present only
+  // via memberOrder who have not yet had their membership record wired, and is
+  // the same condition migrateAuthIdentity uses to wire a missing membership on
+  // login. Note: if existing.displayName has already been changed to the new
+  // name in a prior partial update, neither source can recover the old name;
+  // those cases require a separate one-time repair.
+  const resolveOldName = (group) => {
+    const fromMembership = group.memberships?.[userId]?.displayName || null;
+    if (fromMembership) return fromMembership;
+    const fromProfile = (existing.displayName && group.memberOrder?.includes(existing.displayName))
+      ? existing.displayName
+      : null;
+    return fromProfile;
+  };
+
+  const oldNames = new Map(
+    Object.entries(groups)
+      .map(([groupId, group]) => [groupId, resolveOldName(group)])
+      .filter(([, name]) => name !== null)
+  );
+
+  const isRename = [...oldNames.values()].some(oldName => oldName !== displayName);
+
+  let nextGroups = groups;
+
+  if (isRename) {
+    // Reject if the new name collides with a different existing member in any bloc.
+    for (const [groupId, group] of Object.entries(groups)) {
+      const oldName = oldNames.get(groupId);
+      if (!oldName || oldName === displayName) continue;
+      if (group.memberOrder.includes(displayName)) {
+        const error = new Error(`That name is already taken in ${group.name || "a Bloc"}`);
+        error.status = 409;
+        throw error;
+      }
+    }
+
+    nextGroups = Object.fromEntries(
+      Object.entries(groups).map(([groupId, group]) => {
+        const oldName = oldNames.get(groupId);
+        if (!oldName || oldName === displayName) return [groupId, group];
+
+        const nextMemberOrder = group.memberOrder.map(n => n === oldName ? displayName : n);
+
+        const nextMemberships = {
+          ...group.memberships,
+          [userId]: { ...group.memberships[userId], displayName }
+        };
+
+        const nextAdminName = group.adminName === oldName ? displayName : group.adminName;
+
+        const nextMonthHistory = (Array.isArray(group.monthHistory) ? group.monthHistory : []).map(month => ({
+          ...month,
+          counts:      renameKey(month.counts      || {}, oldName, displayName),
+          excused:     renameKey(month.excused     || {}, oldName, displayName),
+          logsByUser:  renameKey(month.logsByUser  || {}, oldName, displayName),
+          settlements: renameKey(month.settlements || {}, oldName, displayName),
+          ...(month.memberTargets ? { memberTargets: renameKey(month.memberTargets, oldName, displayName) } : {})
+        }));
+
+        const nextSitOutRequests = Object.fromEntries(
+          Object.entries(group.sitOutRequests || {}).map(([monthKey, requests]) => [
+            monthKey,
+            renameKey(requests || {}, oldName, displayName)
+          ])
+        );
+
+        return [groupId, normalizeGroup({
+          ...group,
+          memberOrder:       nextMemberOrder,
+          memberships:       nextMemberships,
+          adminName:         nextAdminName,
+          logs:              renameKey(group.logs              || {}, oldName, displayName),
+          excused:           renameKey(group.excused           || {}, oldName, displayName),
+          joinedMonthByName: renameKey(group.joinedMonthByName || {}, oldName, displayName),
+          sitOutRequests:    nextSitOutRequests,
+          monthHistory:      nextMonthHistory
+        })];
+      })
+    );
+  }
+
   return {
     ...base,
+    groups: nextGroups,
     profiles: {
       ...(base.profiles || {}),
       [userId]: {
@@ -2323,6 +3362,107 @@ function applyUpsertProfile(current, payload) {
       revision: base.meta.revision + 1,
       updatedAt: new Date().toISOString()
     }
+  };
+}
+
+function applyRepairDisplayName(current, payload) {
+  const adminPin = process.env.ADMIN_PIN;
+  if (!adminPin) {
+    const error = new Error("ADMIN_PIN is not configured");
+    error.status = 500;
+    throw error;
+  }
+  if (payload?.pin !== adminPin) {
+    const error = new Error("Invalid admin PIN");
+    error.status = 401;
+    throw error;
+  }
+
+  const userId  = String(payload?.userId  || "").trim();
+  const groupId = String(payload?.groupId || "").trim();
+  const oldName = String(payload?.oldName || "").trim();
+  const newName = String(payload?.newName || "").trim();
+  if (!userId || !groupId || !oldName || !newName) {
+    const error = new Error("userId, groupId, oldName, and newName are required");
+    error.status = 400;
+    throw error;
+  }
+
+  const base  = rolloverStateIfNeeded(current);
+  const group = base.groups?.[groupId];
+  if (!group) {
+    const error = new Error("Bloc not found");
+    error.status = 404;
+    throw error;
+  }
+  if (!group.memberOrder.includes(oldName)) {
+    const error = new Error(`"${oldName}" is not in memberOrder for this Bloc`);
+    error.status = 400;
+    throw error;
+  }
+  if (group.memberOrder.includes(newName) && newName !== oldName) {
+    const error = new Error(`"${newName}" is already taken in this Bloc`);
+    error.status = 409;
+    throw error;
+  }
+
+  const nextMemberOrder = group.memberOrder.map(n => n === oldName ? newName : n);
+
+  const nextMemberships = group.memberships?.[userId]
+    ? { ...group.memberships, [userId]: { ...group.memberships[userId], displayName: newName } }
+    : group.memberships;
+
+  const nextAdminName = group.adminName === oldName ? newName : group.adminName;
+
+  const nextMonthHistory = (Array.isArray(group.monthHistory) ? group.monthHistory : []).map(month => ({
+    ...month,
+    counts:      renameKey(month.counts      || {}, oldName, newName),
+    excused:     renameKey(month.excused     || {}, oldName, newName),
+    logsByUser:  renameKey(month.logsByUser  || {}, oldName, newName),
+    settlements: renameKey(month.settlements || {}, oldName, newName),
+    ...(month.memberTargets ? { memberTargets: renameKey(month.memberTargets, oldName, newName) } : {})
+  }));
+
+  const nextSitOutRequests = Object.fromEntries(
+    Object.entries(group.sitOutRequests || {}).map(([monthKey, requests]) => [
+      monthKey,
+      renameKey(requests || {}, oldName, newName)
+    ])
+  );
+  const nextLeftMemberNames = uniqueNames(
+    (Array.isArray(group.leftMemberNames) ? group.leftMemberNames : []).map(name =>
+      name === oldName ? newName : name
+    )
+  );
+
+  const nextGroup = normalizeGroup({
+    ...group,
+    memberOrder:       nextMemberOrder,
+    memberships:       nextMemberships,
+    adminName:         nextAdminName,
+    logs:              renameKey(group.logs              || {}, oldName, newName),
+    excused:           renameKey(group.excused           || {}, oldName, newName),
+    joinedMonthByName: renameKey(group.joinedMonthByName || {}, oldName, newName),
+    leftMemberNames:   nextLeftMemberNames,
+    sitOutRequests:    nextSitOutRequests,
+    monthHistory:      nextMonthHistory
+  });
+
+  // Optionally update the profile display name (used when the profile itself
+  // also needs correction, e.g. "Giang gangster" → "Giang").
+  const profileDisplayName = String(payload?.profileDisplayName || "").trim();
+  const nextProfiles = profileDisplayName
+    ? {
+        ...(base.profiles || {}),
+        [userId]: { ...(base.profiles?.[userId] || {}), displayName: profileDisplayName }
+      }
+    : (base.profiles || {});
+
+  return {
+    ...base,
+    groups:   { ...base.groups,   [groupId]: nextGroup },
+    profiles: nextProfiles,
+    meta: { revision: base.meta.revision + 1, updatedAt: new Date().toISOString() }
   };
 }
 
@@ -2353,22 +3493,30 @@ function applyJoinGroup(current, payload) {
     return { state: base, joinedGroupId: group.id };
   }
   const MAX_MEMBERS = 20;
-  const currentMemberCount = Object.keys(group.memberships || {}).length || group.memberOrder.length;
+  const currentMemberCount = Array.isArray(group.activeMemberOrder) && group.activeMemberOrder.length
+    ? group.activeMemberOrder.length
+    : (Object.keys(group.memberships || {}).length || group.memberOrder.length);
   if (currentMemberCount >= MAX_MEMBERS) {
     const error = new Error("This Bloc is full. Maximum 20 members allowed.");
     error.status = 403;
     throw error;
   }
-  // Only record a join month for members who are genuinely new to this Bloc.
-  // If the display name already exists in memberOrder (legacy name-only member
-  // linking their account), leave joinedMonthByName untouched so their full
-  // participation history remains valid.
+  // Record a join month for genuinely new members, including placeholder names
+  // that were pre-seeded into memberOrder but had not actually participated yet.
+  // Preserve joinedMonthByName only for true legacy relinks that already have
+  // participation history before this month.
   const isNewToMemberOrder = !group.memberOrder.includes(profile.displayName);
+  const joinMonthKey = getLeagueMonthKey(group.settings?.timeZone);
+  const shouldRecordJoinMonth = isNewToMemberOrder || !hasParticipationBeforeMonth(group, profile.displayName, joinMonthKey);
+  // If this member was previously kicked or left, remove them from leftMemberNames
+  // so normalizeGroup doesn't immediately filter them back out.
+  const nextLeftMemberNames = (Array.isArray(group.leftMemberNames) ? group.leftMemberNames : [])
+    .filter(n => n !== profile.displayName);
   const nextGroup = normalizeGroup({
     ...group,
     memberOrder: uniqueNames([...group.memberOrder, profile.displayName]),
-    joinedMonthByName: isNewToMemberOrder
-      ? { ...(group.joinedMonthByName || {}), [profile.displayName]: getLeagueMonthKey(group.settings?.timeZone) }
+    joinedMonthByName: shouldRecordJoinMonth
+      ? { ...(group.joinedMonthByName || {}), [profile.displayName]: joinMonthKey }
       : (group.joinedMonthByName || {}),
     memberships: {
       ...(group.memberships || {}),
@@ -2378,7 +3526,8 @@ function applyJoinGroup(current, payload) {
         role: "member",
         joinedAt: new Date().toISOString()
       }
-    }
+    },
+    leftMemberNames: nextLeftMemberNames
   });
   return {
     state: {
@@ -2438,10 +3587,12 @@ function applyKickMember(current, payload) {
   if (targetUserId) delete nextMemberships[targetUserId];
   else if (targetMembership?.userId) delete nextMemberships[targetMembership.userId];
   const nextMemberOrder = group.memberOrder.filter(n => n !== resolvedDisplayName);
+  const nextLeftMemberNames = [...new Set([...(Array.isArray(group.leftMemberNames) ? group.leftMemberNames : []), resolvedDisplayName])];
   const nextGroup = normalizeGroup({
     ...group,
     memberOrder: nextMemberOrder,
-    memberships: nextMemberships
+    memberships: nextMemberships,
+    leftMemberNames: nextLeftMemberNames
   });
   return {
     ...base,
@@ -2497,12 +3648,14 @@ function applyLeaveBloc(current, payload) {
     nextAdminName = newAdmin.displayName;
   }
 
+  const nextLeftMemberNames = [...new Set([...(Array.isArray(group.leftMemberNames) ? group.leftMemberNames : []), displayName])];
   const nextGroup = normalizeGroup({
     ...group,
     adminUserId: nextAdminUserId,
     adminName: nextAdminName,
     memberOrder: nextMemberOrder,
-    memberships: nextMemberships
+    memberships: nextMemberships,
+    leftMemberNames: nextLeftMemberNames
   });
   return {
     ...base,
@@ -2615,27 +3768,24 @@ function applyDeleteAccount(current, payload) {
       adminName: nextAdminName,
       memberOrder: nextMemberOrder,
       memberships: nextMemberships,
+      leftMemberNames: uniqueNames([
+        ...(Array.isArray(group.leftMemberNames) ? group.leftMemberNames : []),
+        dn
+      ]),
       logs: finalLogs,
       sitOutRequests: nextSitOutRequests
     });
   }
 
-  // Remove profile and any pending OTPs
+  // Remove profile
   const nextProfiles = { ...base.profiles };
   delete nextProfiles[userId];
-  const nextPendingOtps = { ...(base.pendingOtps || {}) };
-  for (const [email, otp] of Object.entries(nextPendingOtps)) {
-    if (otp?.userId === userId || (profile?.email && email === profile.email)) {
-      delete nextPendingOtps[email];
-    }
-  }
 
   return {
     ...base,
     groups: nextGroups,
     groupOrder: nextGroupOrder,
     profiles: nextProfiles,
-    pendingOtps: nextPendingOtps,
     meta: { revision: base.meta.revision + 1, updatedAt: new Date().toISOString() }
   };
 }
@@ -2651,9 +3801,28 @@ function getInviteContext(current, payload) {
     groupId: group.id,
     groupName: group.name,
     inviteCode: group.inviteCode,
-    memberCount: group.memberOrder.length,
+    memberCount: Array.isArray(group.activeMemberOrder) && group.activeMemberOrder.length
+      ? group.activeMemberOrder.length
+      : group.memberOrder.length,
     minTarget: group.settings?.minTarget || DEFAULT_MIN_TARGET
   };
+}
+
+async function getInviteContextCanonicalFirst(current, payload) {
+  const canonicalBloc = await fetchCanonicalBlocByInviteCode(payload?.inviteCode);
+  if (canonicalBloc?.legacy_group_key) {
+    const group = current.groups?.[canonicalBloc.legacy_group_key];
+    return {
+      groupId: canonicalBloc.legacy_group_key,
+      groupName: canonicalBloc.name || group?.name || "",
+      inviteCode: canonicalBloc.invite_code || String(payload?.inviteCode || "").trim().toUpperCase(),
+      memberCount: Array.isArray(group?.activeMemberOrder) && group.activeMemberOrder.length
+        ? group.activeMemberOrder.length
+        : (Object.keys(group?.memberships || {}).length || group?.memberOrder?.length || 0),
+      minTarget: canonicalBloc.min_target ?? group?.settings?.minTarget ?? DEFAULT_MIN_TARGET
+    };
+  }
+  return getInviteContext(current, payload);
 }
 
 async function readJson(req) {
@@ -2692,55 +3861,179 @@ export default async function handler(req, res) {
       const current = await fetchWritableCurrentState();
       const auth = await requireAuthenticatedContext(req, payload, current);
       const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
+      // Snapshot the actor's existing log IDs before the merge so we can
+      // identify any newly added logs afterwards and upsert them canonically.
+      const beforeLogIds = new Set(
+        (auth.state.groups?.[payload.groupId]?.logs?.[actor] || []).map(l => String(l?.id))
+      );
       const merged = mergeState(auth.state, { ...payload, actor });
       const persisted = await persistState(merged, `player-update:${payload.groupId}:${actor || auth.user.id}`);
+      // Best-effort canonical upsert for each log that is new in this save.
+      const group = persisted.groups?.[payload.groupId];
+      if (group) {
+        const newLogs = (group.logs?.[actor] || []).filter(l => !beforeLogIds.has(String(l?.id)));
+        for (const log of newLogs) {
+          await upsertWorkoutLogToCanonical(group, group.lastMonth, actor, auth.user.id, log);
+        }
+      }
       return res.status(200).json(persisted);
     }
 
     if (req.method === "POST") {
       const payload = await readJson(req);
+
+      if (payload?.action === "auth-send-otp") {
+        return res.status(410).json({
+          error: "Legacy OTP send is disabled. Use Supabase Auth signInWithOtp from the client."
+        });
+      }
+
+      if (payload?.action === "auth-verify-otp") {
+        return res.status(410).json({
+          error: "Legacy OTP verify is disabled. Use Supabase Auth verifyOtp from the client."
+        });
+      }
+
       const current = await fetchWritableCurrentState();
 
       if (payload?.action === "auth-sync") {
         const authUser = await fetchAuthenticatedUser(readBearerToken(req, payload));
         const synced = applyAuthSync(current, authUser);
-        const state = synced.changed ? await persistState(synced.state, `auth-sync:${authUser.id}`) : synced.state;
+        if (synced.changed) {
+          await persistState(synced.state, `auth-sync:${authUser.id}`);
+        }
+        // Always return the readable overlaid state here. Returning the raw
+        // blob-backed auth-sync state can briefly wipe canonical overlays
+        // (including settlement reminders) during app bootstrap until the next
+        // background refresh lands.
+        const state = await fetchReadableCurrentState();
+        // Dual-write profile to canonical if the blob profile was updated and
+        // already has a display name. New users with no display name yet will
+        // trigger canonical sync when they complete upsert-profile instead.
+        const canonicalDisplayName = state.profiles?.[authUser.id]?.displayName || "";
+        if (synced.changed && canonicalDisplayName) {
+          await syncProfileToCanonical(authUser.id, authUser.email, canonicalDisplayName);
+        }
         return res.status(200).json({ ok: true, state, session: synced.session });
       }
 
       if (payload?.action === "settlement") {
-        await requireAuthenticatedContext(req, payload, current);
-        const updated = applySettlementUpdate(current, payload);
+        const auth = await requireAuthenticatedContext(req, payload, current);
+        const updated = applySettlementUpdate(auth.state, payload);
         const persisted = await persistState(updated, `settlement:${payload.groupId}:${payload.monthKey}:${payload.player}`);
+        // Best-effort canonical settlement sync. Derive the values from the
+        // persisted blob monthHistory entry so canonical exactly mirrors what
+        // was successfully written to the blob.
+        const persistedSettlement = persisted.groups?.[payload.groupId]?.monthHistory
+          ?.find(m => m.key === payload.monthKey)
+          ?.settlements?.[payload.player];
+        if (persistedSettlement) {
+          updateSeasonMemberSettlementInCanonical(
+            payload.groupId,
+            payload.monthKey,
+            payload.player,
+            persistedSettlement.status,
+            persistedSettlement.settledAt || null
+          ).catch(err => console.error("Canonical settlement sync failed:", err?.message || err));
+        }
         return res.status(200).json(persisted);
       }
 
-      if (payload?.action === "projection-status") {
+      if (payload?.action === "settlement-claim-paid") {
+        if (!ENABLE_SETTLEMENT_CONFIRMATIONS) {
+          return res.status(404).json({ error: "Settlement confirmations are disabled" });
+        }
         const auth = await requireAuthenticatedContext(req, payload, current);
-        const groupId = String(payload?.groupId || auth.state.defaultGroupId || "").trim();
-        const actor = resolveDisplayNameForUser(auth.state, groupId, auth.user.id, auth.user.email);
-        assertGroupAdmin(auth.state, groupId, auth.user, actor);
-        return res.status(200).json({
-          ok: true,
-          blobRevision: auth.state.meta.revision,
-          projection: await fetchProjectionDiagnostics()
+        const actorDisplayName = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
+        const group = auth.state.groups?.[payload.groupId];
+        if (!group) return res.status(404).json({ error: "Bloc not found" });
+        if (actorDisplayName !== String(payload?.payerDisplayName || "").trim()) {
+          return res.status(403).json({ error: "Only the payer can mark this as paid" });
+        }
+        const participants = await ensureSettlementConfirmationPrereqs(
+          auth.state,
+          payload.groupId,
+          String(payload?.monthKey || "").trim(),
+          String(payload?.payerDisplayName || "").trim(),
+          String(payload?.receiverDisplayName || "").trim()
+        );
+        if (!participants?.payerMembership?.userId || !participants?.receiverMembership?.userId) {
+          return res.status(400).json({ error: "Both settlement participants must have active bloc memberships" });
+        }
+        await claimSettlementConfirmationInCanonical({
+          legacyGroupKey: payload.groupId,
+          monthKey: String(payload?.monthKey || "").trim(),
+          payerAuthUserId: participants.payerMembership.userId,
+          payerDisplayName: participants.payerMembership.displayName,
+          receiverAuthUserId: participants.receiverMembership.userId,
+          receiverDisplayName: participants.receiverMembership.displayName,
+          amount: Number(payload?.amount || 0),
+          currency: String(payload?.currency || DEFAULT_CURRENCY).trim().toUpperCase() || DEFAULT_CURRENCY
         });
+        const readable = await fetchReadableCurrentState();
+        return res.status(200).json(readable);
       }
 
-      if (payload?.action === "rebuild-projection") {
+      if (payload?.action === "settlement-confirm-paid") {
+        if (!ENABLE_SETTLEMENT_CONFIRMATIONS) {
+          return res.status(404).json({ error: "Settlement confirmations are disabled" });
+        }
         const auth = await requireAuthenticatedContext(req, payload, current);
-        const groupId = String(payload?.groupId || auth.state.defaultGroupId || "").trim();
-        const actor = resolveDisplayNameForUser(auth.state, groupId, auth.user.id, auth.user.email);
-        assertGroupAdmin(auth.state, groupId, auth.user, actor);
-        const before = await fetchProjectionDiagnostics();
-        await syncProjectionState(auth.state);
-        const after = await fetchProjectionDiagnostics();
-        return res.status(200).json({
-          ok: true,
-          blobRevision: auth.state.meta.revision,
-          before,
-          after
+        const actorDisplayName = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
+        const group = auth.state.groups?.[payload.groupId];
+        if (!group) return res.status(404).json({ error: "Bloc not found" });
+        if (actorDisplayName !== String(payload?.receiverDisplayName || "").trim()) {
+          return res.status(403).json({ error: "Only the receiver can confirm this payment" });
+        }
+        const participants = await ensureSettlementConfirmationPrereqs(
+          auth.state,
+          payload.groupId,
+          String(payload?.monthKey || "").trim(),
+          String(payload?.payerDisplayName || "").trim(),
+          String(payload?.receiverDisplayName || "").trim()
+        );
+        if (!participants?.payerMembership?.userId || !participants?.receiverMembership?.userId) {
+          return res.status(400).json({ error: "Both settlement participants must have active bloc memberships" });
+        }
+        await confirmSettlementConfirmationInCanonical({
+          legacyGroupKey: payload.groupId,
+          monthKey: String(payload?.monthKey || "").trim(),
+          payerAuthUserId: participants.payerMembership.userId,
+          receiverAuthUserId: participants.receiverMembership.userId
         });
+        const readable = await fetchReadableCurrentState();
+        return res.status(200).json(readable);
+      }
+
+      if (payload?.action === "settlement-dispute-paid") {
+        if (!ENABLE_SETTLEMENT_CONFIRMATIONS) {
+          return res.status(404).json({ error: "Settlement confirmations are disabled" });
+        }
+        const auth = await requireAuthenticatedContext(req, payload, current);
+        const actorDisplayName = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
+        const group = auth.state.groups?.[payload.groupId];
+        if (!group) return res.status(404).json({ error: "Bloc not found" });
+        if (actorDisplayName !== String(payload?.receiverDisplayName || "").trim()) {
+          return res.status(403).json({ error: "Only the receiver can dispute this payment" });
+        }
+        const participants = await ensureSettlementConfirmationPrereqs(
+          auth.state,
+          payload.groupId,
+          String(payload?.monthKey || "").trim(),
+          String(payload?.payerDisplayName || "").trim(),
+          String(payload?.receiverDisplayName || "").trim()
+        );
+        if (!participants?.payerMembership?.userId || !participants?.receiverMembership?.userId) {
+          return res.status(400).json({ error: "Both settlement participants must have active bloc memberships" });
+        }
+        await disputeSettlementConfirmationInCanonical({
+          legacyGroupKey: payload.groupId,
+          monthKey: String(payload?.monthKey || "").trim(),
+          payerAuthUserId: participants.payerMembership.userId,
+          receiverAuthUserId: participants.receiverMembership.userId
+        });
+        const readable = await fetchReadableCurrentState();
+        return res.status(200).json(readable);
       }
 
       if (payload?.action === "create-group") {
@@ -2748,62 +4041,55 @@ export default async function handler(req, res) {
         const creatorName = auth.profile?.displayName || String(payload?.creatorName || "").trim();
         const created = applyCreateGroup(auth.state, { ...payload, actorUserId: auth.user.id, creatorName });
         const persisted = await persistState(created.state, `create-group:${created.createdGroupId}`);
+        const newGroup = persisted.groups[created.createdGroupId];
+        await syncBlocToCanonical(newGroup, auth.user.id, (persisted.groupOrder || []).indexOf(created.createdGroupId));
+        await syncSeasonToCanonical(newGroup, newGroup?.lastMonth, "open");
+        await syncBlocMemberToCanonical(newGroup, auth.user.id, "admin");
+        await seedOpenSeasonMemberStatusInCanonical(newGroup, newGroup?.lastMonth, creatorName, auth.user.id);
         return res.status(200).json({ state: persisted, createdGroupId: created.createdGroupId });
       }
 
-      if (payload?.action === "auth-send-otp") {
-        const sent = applySendOtp(current, payload);
-        const persisted = await persistState(sent.state, `auth-send-otp:${sent.email}`);
-        return res.status(200).json({ ok: true, state: persisted, devCode: sent.code });
-      }
-
-      if (payload?.action === "auth-verify-otp") {
-        const verified = applyVerifyOtp(current, payload);
-        const persisted = await persistState(verified.state, `auth-verify-otp:${verified.session.userId}`);
-        return res.status(200).json({ ok: true, state: persisted, session: verified.session });
-      }
-
       if (payload?.action === "upsert-profile") {
-        let auth;
-        try {
-          auth = await requireAuthenticatedContext(req, payload, current);
-        } catch (authErr) {
-          // Fallback for when the Vercel function can't reach Supabase auth endpoint
-          // (e.g. local Supabase during preview deployment). Only allowed for initial
-          // profile setup — accounts that have no displayName yet.
-          const userId = String(payload?.userId || "").trim();
-          const email = String(payload?.email || "").trim().toLowerCase();
-          if (userId && email) {
-            // Allow fallback for: (a) new profiles, or (b) updating your own existing profile
-            // (where userId or email already matches an existing profile).
-            const existing = current.profiles?.[userId] ||
-              Object.values(current.profiles || {}).find(p => p?.email === email) || null;
-            if (!existing?.displayName || existing?.email === email) {
-              const migrated = migrateAuthIdentity(rolloverStateIfNeeded(current), userId, email);
-              auth = {
-                state: migrated.state,
-                user: { id: userId, email },
-                profile: migrated.state.profiles?.[userId] || null,
-                needsPersist: false
-              };
-            }
-          }
-          if (!auth) throw authErr;
-        }
+        const auth = await requireAuthenticatedContext(req, payload, current);
         const updated = applyUpsertProfile(auth.state, { ...payload, userId: auth.user.id, email: auth.user.email });
         const persisted = await persistState(updated, `profile:${auth.user.id}`);
+        // Dual-write to canonical. applyUpsertProfile already validated that
+        // displayName is non-empty, so this call is always safe to fire here.
+        await syncProfileToCanonical(auth.user.id, auth.user.email, String(payload?.displayName || "").trim());
+        // Sync display_name_snapshot in bloc_members for every group this user is
+        // a member of. Covers the rename case: applyUpsertProfile propagated the
+        // new name through the blob but the canonical snapshot was not updated.
+        // Best-effort — never throws; failures are logged and do not affect the response.
+        for (const [, group] of Object.entries(persisted.groups || {})) {
+          if (!group.memberships?.[auth.user.id]) continue;
+          const memberRole = group.memberships[auth.user.id].role || "member";
+          syncBlocMemberToCanonical(group, auth.user.id, memberRole)
+            .catch(err => console.error(`Canonical bloc member sync failed (upsert-profile ${auth.user.id}):`, err?.message || err));
+        }
         return res.status(200).json(persisted);
       }
 
       if (payload?.action === "join-group") {
         const auth = await requireAuthenticatedContext(req, payload, current);
-        const joined = applyJoinGroup(auth.state, { ...payload, userId: auth.user.id });
+        const canonicalBloc = !payload?.groupId && payload?.inviteCode
+          ? await fetchCanonicalBlocByInviteCode(payload.inviteCode)
+          : null;
+        const joined = applyJoinGroup(auth.state, {
+          ...payload,
+          userId: auth.user.id,
+          ...(canonicalBloc?.legacy_group_key ? { groupId: canonicalBloc.legacy_group_key } : {})
+        });
         const persisted = await persistState(joined.state, `join-group:${joined.joinedGroupId}:${auth.user.id}`);
+        const joinedGroup = persisted.groups[joined.joinedGroupId];
+        const joinedDisplayName = joinedGroup?.memberships?.[auth.user.id]?.displayName || auth.profile?.displayName || null;
+        await syncBlocMemberToCanonical(joinedGroup, auth.user.id, "member");
+        await syncSeasonToCanonical(joinedGroup, joinedGroup?.lastMonth, "open");
+        await seedOpenSeasonMemberStatusInCanonical(joinedGroup, joinedGroup?.lastMonth, joinedDisplayName, auth.user.id);
         return res.status(200).json({ state: persisted, joinedGroupId: joined.joinedGroupId });
       }
 
       if (payload?.action === "invite-context") {
-        return res.status(200).json(getInviteContext(current, payload));
+        return res.status(200).json(await getInviteContextCanonicalFirst(current, payload));
       }
 
       if (payload?.action === "kick-member") {
@@ -2811,21 +4097,54 @@ export default async function handler(req, res) {
         const actorDisplayName = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
         const updated = applyKickMember(auth.state, { ...payload, actorUserId: auth.user.id, actorDisplayName });
         const persisted = await persistState(updated, `kick-member:${payload.groupId}:${payload.targetUserId}`);
+        // No-op if targetUserId is absent — name-only (profile-less) members have
+        // no ante_core.profiles row and therefore no bloc_members row to remove.
+        if (payload.targetUserId) {
+          await removeBlocMemberFromCanonical(payload.groupId, payload.targetUserId);
+        }
         return res.status(200).json({ ok: true, state: persisted });
       }
 
       if (payload?.action === "leave-bloc") {
         const auth = await requireAuthenticatedContext(req, payload, current);
+        // Capture admin status before the leave is applied.
+        const wasAdmin = auth.state.groups?.[payload.groupId]?.adminUserId === auth.user.id;
         const updated = applyLeaveBloc(auth.state, { ...payload, userId: auth.user.id });
         const persisted = await persistState(updated, `leave-bloc:${payload.groupId}:${auth.user.id}`);
+        await removeBlocMemberFromCanonical(payload.groupId, auth.user.id);
+        // If the leaver was admin and the bloc still exists (not last-member deletion),
+        // propagate the admin transfer. newAdminUserId is null if the bloc was deleted.
+        if (wasAdmin) {
+          const newAdminUserId = persisted.groups?.[payload.groupId]?.adminUserId;
+          if (newAdminUserId) {
+            await updateBlocAdminInCanonical(payload.groupId, newAdminUserId);
+          }
+        }
         return res.status(200).json({ ok: true, state: persisted, leftGroupId: payload.groupId });
       }
 
       if (payload?.action === "multi-log") {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actor = resolveDisplayNameForUser(auth.state, payload.sourceGroupId, auth.user.id, auth.user.email);
+        const allTargetIds = [...new Set([payload.sourceGroupId, ...(Array.isArray(payload.targetGroupIds) ? payload.targetGroupIds.filter(Boolean) : [])])];
+        const beforeLogIdsByGroup = Object.fromEntries(
+          allTargetIds.map(groupId => [
+            groupId,
+            new Set((auth.state.groups?.[groupId]?.logs?.[actor] || []).map(log => String(log?.id)))
+          ])
+        );
         const updated = applyMultiLog(auth.state, { ...payload, actor, actorUserId: auth.user.id });
         const persisted = await persistState(updated, `multi-log:${actor || auth.user.id}:${payload.date}:${payload.workoutType}`);
+        for (const groupId of allTargetIds) {
+          const group = persisted.groups?.[groupId];
+          if (!group) continue;
+          const beforeIds = beforeLogIdsByGroup[groupId] || new Set();
+          const ownerLogs = group.logs?.[actor] || [];
+          const newLogs = ownerLogs.filter(log => !beforeIds.has(String(log?.id)));
+          for (const log of newLogs) {
+            await upsertWorkoutLogToCanonical(group, group.lastMonth, actor, auth.user.id, log);
+          }
+        }
         return res.status(200).json(persisted);
       }
 
@@ -2833,6 +4152,17 @@ export default async function handler(req, res) {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
         const updated = applyUpdateSettings(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        const settingsGroup = updated.groups?.[payload.groupId];
+        const settingsSortOrder = (updated.groupOrder || []).indexOf(payload.groupId);
+        // Third canonical-first write slice:
+        // 1. compute the exact post-settings bloc/season shape in memory
+        // 2. sync canonical bloc settings/name from that exact payload
+        // 3. sync the canonical open-season snapshot from the same payload
+        // 4. mirror blob state afterward without changing the response contract
+        if (settingsGroup) {
+          await syncBlocToCanonical(settingsGroup, auth.user.id, settingsSortOrder);
+          await syncSeasonToCanonical(settingsGroup, settingsGroup?.lastMonth, "open");
+        }
         const persisted = await persistState(updated, `settings:${payload.groupId}:${actor || auth.user.id}`);
         return res.status(200).json(persisted);
       }
@@ -2841,6 +4171,29 @@ export default async function handler(req, res) {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
         const updated = applySeasonProrationChoice(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        const overrideGroup = updated.groups?.[payload.groupId];
+        const overrideMonthKey = overrideGroup?.lastMonth;
+        const nextOverride = overrideMonthKey
+          ? overrideGroup?.seasonOverrides?.[overrideMonthKey]
+          : null;
+        // First canonical-first write slice:
+        // 1. compute the exact blob-shaped override in memory
+        // 2. upsert canonical from that exact payload
+        // 3. mirror the same result into blob immediately after
+        // This keeps the response shape unchanged while moving the authority
+        // boundary for this narrow action toward canonical.
+        if (overrideGroup && overrideMonthKey && nextOverride) {
+          await syncSeasonToCanonical(overrideGroup, overrideMonthKey, "open");
+          await upsertSeasonOverrideInCanonical(
+            payload.groupId,
+            overrideMonthKey,
+            nextOverride.prorated,
+            nextOverride.proratedMas,
+            nextOverride.chosenAt,
+            nextOverride.chosenBy,
+            nextOverride.chosenByUserId || null
+          );
+        }
         const persisted = await persistState(updated, `season-proration:${payload.groupId}:${payload.choice}`);
         return res.status(200).json(persisted);
       }
@@ -2849,6 +4202,23 @@ export default async function handler(req, res) {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
         const updated = applySitOutRequest(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        const sitOutGroup = updated.groups?.[payload.groupId];
+        const sitOutMonthKey = sitOutGroup?.lastMonth;
+        const nextRequest = sitOutMonthKey
+          ? sitOutGroup?.sitOutRequests?.[sitOutMonthKey]?.[actor]
+          : null;
+        // Second canonical-first write slice:
+        // 1. compute the exact request/excused result in memory
+        // 2. ensure the open season exists canonically
+        // 3. upsert canonical sit-out + excused side-effect from that exact payload
+        // 4. mirror the same result into blob immediately after
+        if (sitOutGroup && sitOutMonthKey && nextRequest) {
+          await syncSeasonToCanonical(sitOutGroup, sitOutMonthKey, "open");
+          await upsertSitOutRequestInCanonical(payload.groupId, sitOutMonthKey, actor, nextRequest);
+          if (nextRequest.status === "approved" && nextRequest.autoApproved) {
+            await upsertSeasonMemberExcusedInCanonical(payload.groupId, sitOutMonthKey, actor, auth.user.id);
+          }
+        }
         const persisted = await persistState(updated, `sitout-request:${payload.groupId}:${actor || auth.user.id}`);
         return res.status(200).json(persisted);
       }
@@ -2857,6 +4227,25 @@ export default async function handler(req, res) {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
         const updated = applySitOutReview(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        const reviewGroup = updated.groups?.[payload.groupId];
+        const reviewedRequest = payload.memberName && payload.monthKey
+          ? reviewGroup?.sitOutRequests?.[payload.monthKey]?.[payload.memberName]
+          : null;
+        // Same canonical-first pattern as proration/request:
+        // write the reviewed request canonically from the exact in-memory payload,
+        // then mirror blob state after the authoritative write succeeds.
+        if (reviewGroup && payload.monthKey && payload.memberName && reviewedRequest) {
+          await syncSeasonToCanonical(reviewGroup, payload.monthKey, "open");
+          await upsertSitOutRequestInCanonical(payload.groupId, payload.monthKey, payload.memberName, reviewedRequest);
+          if (reviewedRequest.status === "approved") {
+            await upsertSeasonMemberExcusedInCanonical(
+              payload.groupId,
+              payload.monthKey,
+              payload.memberName,
+              reviewedRequest.requestedByUserId || null
+            );
+          }
+        }
         const persisted = await persistState(updated, `sitout-review:${payload.groupId}:${payload.memberName}:${payload.decision}`);
         return res.status(200).json(persisted);
       }
@@ -2864,8 +4253,20 @@ export default async function handler(req, res) {
       if (payload?.action === "reaction") {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
+        // Normalize emoji the same way applyToggleReaction does so the blob lookup
+        // and the canonical RPC call use the same key.
+        const emoji = String(payload?.emoji || "").trim();
         const result = applyToggleReaction(auth.state, { ...payload, actor, actorUserId: auth.user.id });
         const persisted = await persistState(result.updated, result.reason);
+        // Best-effort canonical reaction sync. Direction is derived from the persisted blob:
+        // if actor is now present in reactions[emoji] → they added it; otherwise → removed it.
+        const persistedLog = persisted.groups?.[payload.groupId]?.logs?.[payload.owner]
+          ?.find(e => String(e?.id) === String(payload.logId));
+        if (persistedLog) {
+          const isAdding = (persistedLog.reactions?.[emoji] || []).includes(actor);
+          toggleWorkoutReactionInCanonical(payload.logId, auth.user.id, actor, emoji, isAdding)
+            .catch(err => console.error("Canonical workout reaction sync failed:", err?.message || err));
+        }
         return res.status(200).json(persisted);
       }
 
@@ -2874,6 +4275,11 @@ export default async function handler(req, res) {
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
         const result = applyFlagLog(auth.state, { ...payload, actor, actorUserId: auth.user.id });
         const persisted = await persistState(result.updated, result.reason);
+        const group = persisted.groups?.[payload.groupId];
+        const log = group?.logs?.[payload.owner]?.find(entry => String(entry?.id) === String(payload.logId));
+        if (group && log) {
+          await upsertWorkoutLogToCanonical(group, group.lastMonth, payload.owner, findAuthUserIdForDisplayName(group, payload.owner), log);
+        }
         return res.status(200).json(persisted);
       }
 
@@ -2882,6 +4288,11 @@ export default async function handler(req, res) {
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
         const result = applyRespondToFlag(auth.state, { ...payload, actor, actorUserId: auth.user.id });
         const persisted = await persistState(result.updated, result.reason);
+        const group = persisted.groups?.[payload.groupId];
+        const log = group?.logs?.[payload.owner]?.find(entry => String(entry?.id) === String(payload.logId));
+        if (group && log) {
+          await upsertWorkoutLogToCanonical(group, group.lastMonth, payload.owner, findAuthUserIdForDisplayName(group, payload.owner), log);
+        }
         return res.status(200).json(persisted);
       }
 
@@ -2890,6 +4301,11 @@ export default async function handler(req, res) {
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
         const result = applyReviewFlag(auth.state, { ...payload, actor, actorUserId: auth.user.id });
         const persisted = await persistState(result.updated, result.reason);
+        const group = persisted.groups?.[payload.groupId];
+        const log = group?.logs?.[payload.owner]?.find(entry => String(entry?.id) === String(payload.logId));
+        if (group && log) {
+          await upsertWorkoutLogToCanonical(group, group.lastMonth, payload.owner, findAuthUserIdForDisplayName(group, payload.owner), log);
+        }
         return res.status(200).json(persisted);
       }
 
@@ -2898,6 +4314,7 @@ export default async function handler(req, res) {
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
         const result = applyDeleteLog(auth.state, { ...payload, actor, actorUserId: auth.user.id });
         const persisted = await persistState(result.updated, result.reason);
+        await deleteWorkoutLogFromCanonical(payload.logId);
         return res.status(200).json(persisted);
       }
 
@@ -2905,6 +4322,30 @@ export default async function handler(req, res) {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const updated = applyDeleteAccount(auth.state, { ...payload, userId: auth.user.id });
         const persisted = await persistState(updated, `delete-account:${auth.user.id}`);
+        // deleteProfileFromCanonical hard-deletes the profile row; ON DELETE CASCADE
+        // removes all bloc_members rows and ON DELETE SET NULL nulls blocs.admin_profile_id.
+        await deleteProfileFromCanonical(auth.user.id);
+        // Re-wire admin_profile_id for any surviving blocs where this user was admin.
+        // Fired best-effort after the profile delete so the new admin's profile still exists.
+        for (const [groupId, group] of Object.entries(auth.state.groups || {})) {
+          if (group.adminUserId !== auth.user.id) continue;
+          const survivingGroup = persisted.groups?.[groupId];
+          if (!survivingGroup?.adminUserId) continue;
+          updateBlocAdminInCanonical(groupId, survivingGroup.adminUserId)
+            .catch(err => console.error(`Canonical bloc admin transfer failed (delete-account ${groupId}):`, err?.message || err));
+        }
+        return res.status(200).json({ ok: true, state: persisted });
+      }
+
+      if (payload?.action === "repair-display-name") {
+        const updated = applyRepairDisplayName(current, payload);
+        const persisted = await persistState(updated, `repair-display-name:${payload.groupId}:${payload.oldName}:${payload.newName}`);
+        // Best-effort canonical member sync for the renamed user.
+        const repairedGroup = persisted.groups?.[payload.groupId];
+        if (repairedGroup && payload.userId) {
+          syncBlocMemberToCanonical(repairedGroup, payload.userId, repairedGroup.memberships?.[payload.userId]?.role || "member")
+            .catch(err => console.error(`Canonical member sync failed (repair-display-name ${payload.groupId}):`, err?.message || err));
+        }
         return res.status(200).json({ ok: true, state: persisted });
       }
 
@@ -2920,6 +4361,13 @@ export default async function handler(req, res) {
       details: error instanceof Error ? error.message : String(error)
     });
   }
+}
+
+function renameKey(obj, oldKey, newKey) {
+  if (!oldKey || oldKey === newKey || !Object.prototype.hasOwnProperty.call(obj, oldKey)) return obj;
+  const next = { ...obj, [newKey]: obj[oldKey] };
+  delete next[oldKey];
+  return next;
 }
 
 function uniqueNames(values) {

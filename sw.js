@@ -1,4 +1,4 @@
-const CACHE_NAME = "ante-v49";
+const CACHE_NAME = "ante-v50";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -7,9 +7,12 @@ const APP_SHELL = [
   "./icon-512.png",
   "https://unpkg.com/react@18/umd/react.production.min.js",
   "https://unpkg.com/react-dom@18/umd/react-dom.production.min.js",
+  "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2",
   "https://unpkg.com/@babel/standalone/babel.min.js",
   "https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap"
 ];
+
+const APP_SHELL_SET = new Set(APP_SHELL.map(asset => new URL(asset, self.location.origin).href));
 
 const cacheRequest = async request => {
   const cache = await caches.open(CACHE_NAME);
@@ -49,9 +52,10 @@ self.addEventListener("fetch", event => {
   const requestUrl = new URL(event.request.url);
   const isNavigation = event.request.mode === "navigate";
   const isHttp = requestUrl.protocol.startsWith("http");
+  const isShellAsset = APP_SHELL_SET.has(requestUrl.href);
 
   if (!isHttp) return;
-  if (requestUrl.origin !== location.origin) return;
+  if (requestUrl.origin !== location.origin && !isShellAsset) return;
   if (requestUrl.pathname.startsWith("/api/")) return;
 
   event.respondWith((async () => {
@@ -64,6 +68,21 @@ self.addEventListener("fetch", event => {
         return fresh;
       } catch {
         return (await cache.match(event.request)) || (await cache.match("./index.html"));
+      }
+    }
+
+    if (isShellAsset) {
+      const cached = await cache.match(event.request) || await cache.match(requestUrl.href);
+      if (cached) {
+        event.waitUntil(cacheRequest(event.request));
+        return cached;
+      }
+      try {
+        const fresh = await fetch(event.request, { mode: "no-cors" });
+        await cache.put(event.request, fresh.clone());
+        return fresh;
+      } catch {
+        return cached || Response.error();
       }
     }
 
