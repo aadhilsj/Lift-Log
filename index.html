@@ -1332,16 +1332,36 @@ function normalizeMonthHistoryState(monthHistory, memberOrder, joinedMonthByName
   }).filter(Boolean).sort((a, b) => compareMonthKeys(a.key, b.key));
 }
 
+function deriveActiveMemberOrder(rawMemberOrder, memberships, adminName, leftMemberNames, historicalFallback = []) {
+  const explicitActiveMembers = uniqueNames([
+    ...(Array.isArray(rawMemberOrder) ? rawMemberOrder : []),
+    ...Object.values(memberships || {}).map(membership => membership?.displayName || ""),
+    String(adminName || "").trim()
+  ]).filter(name => !leftMemberNames.has(name));
+
+  if (explicitActiveMembers.length > 0) return explicitActiveMembers;
+
+  return uniqueNames(historicalFallback).filter(name => !leftMemberNames.has(name));
+}
+
 function normalizeGroupState(group) {
   const logs = group?.logs && typeof group.logs === "object" ? group.logs : {};
   const monthHistory = Array.isArray(group?.monthHistory) ? group.monthHistory : [];
   const leftMemberNames = new Set(Array.isArray(group?.leftMemberNames) ? group.leftMemberNames : []);
+  const rawMemberships = group?.memberships && typeof group?.memberships === "object" ? group.memberships : {};
   const memberOrder = uniqueNames([
     ...(Array.isArray(group?.memberOrder) ? group.memberOrder : []),
     ...Object.keys(logs),
     ...monthHistory.flatMap(month => Object.keys(month?.counts || {})),
     ...monthHistory.flatMap(month => Object.keys(month?.logsByUser || {}))
   ].filter(n => !leftMemberNames.has(n)));
+  const activeMemberOrder = deriveActiveMemberOrder(
+    group?.memberOrder,
+    rawMemberships,
+    group?.adminName,
+    leftMemberNames,
+    memberOrder
+  );
   const normalizedLogs = Object.fromEntries(
     memberOrder.map(name => [
       name,
@@ -1354,7 +1374,7 @@ function normalizeGroupState(group) {
   memberOrder.forEach(name => {
     excused[name] = group?.excused?.[name] && typeof group.excused[name] === "object" ? group.excused[name] : {};
   });
-  const memberships = normalizeMemberships(group?.memberships, memberOrder, group?.adminName, group?.adminUserId);
+  const memberships = normalizeMemberships(rawMemberships, memberOrder, group?.adminName, group?.adminUserId);
   return {
     id: group?.id,
     name: String(group?.name || "Untitled Group").trim(),
@@ -1363,6 +1383,7 @@ function normalizeGroupState(group) {
     inviteCode: String(group?.inviteCode || "").trim().toUpperCase(),
     createdAt: group?.createdAt || new Date().toISOString(),
     memberOrder,
+    activeMemberOrder,
     memberships,
     joinedMonthByName: group?.joinedMonthByName && typeof group.joinedMonthByName === "object" ? group.joinedMonthByName : {},
     leftMemberNames: [...leftMemberNames],
@@ -1549,7 +1570,10 @@ function getMembershipForUser(group, session, profile) {
   if (!group || !session?.userId) return null;
   if (group.memberships?.[session.userId]) return group.memberships[session.userId];
   const leftNames = new Set(Array.isArray(group.leftMemberNames) ? group.leftMemberNames : []);
-  if (profile?.displayName && !leftNames.has(profile.displayName) && group.memberOrder.includes(profile.displayName)) {
+  const activeNames = Array.isArray(group.activeMemberOrder) && group.activeMemberOrder.length
+    ? group.activeMemberOrder
+    : (group.memberOrder || []);
+  if (profile?.displayName && !leftNames.has(profile.displayName) && activeNames.includes(profile.displayName)) {
     return {
       userId: session.userId,
       displayName: profile.displayName,
@@ -1565,7 +1589,10 @@ function getDisplayNameForGroup(group, session, profile) {
 
 function syncActiveGroupGlobals(group) {
   GROUP_NAME = group?.name || DEFAULT_GROUP_NAME;
-  NAMES = Array.isArray(group?.memberOrder) && group.memberOrder.length ? [...group.memberOrder] : [...DEFAULT_NAMES];
+  const activeNames = Array.isArray(group?.activeMemberOrder) && group.activeMemberOrder.length
+    ? group.activeMemberOrder
+    : group?.memberOrder;
+  NAMES = Array.isArray(activeNames) && activeNames.length ? [...activeNames] : [...DEFAULT_NAMES];
   ACTIVE_GROUP_CREATED_AT = group?.createdAt || null;
   ACTIVE_ADMIN_NAME = group?.adminName || "";
   ACTIVE_MEMBER_JOINED_AT_BY_NAME = Object.fromEntries(
@@ -2384,7 +2411,10 @@ function isJoinedForGroupMonth(group, userName, monthKey) {
 function getGroupOverview(group) {
   if (!group) return null;
   const monthKey = curKey;
-  const activeMembers = group.memberOrder.filter(name => isJoinedForGroupMonth(group, name, monthKey) && !group.excused?.[name]?.[monthKey]);
+  const sourceNames = Array.isArray(group.activeMemberOrder) && group.activeMemberOrder.length
+    ? group.activeMemberOrder
+    : group.memberOrder;
+  const activeMembers = sourceNames.filter(name => isJoinedForGroupMonth(group, name, monthKey) && !group.excused?.[name]?.[monthKey]);
   const totalLogged = activeMembers.reduce((sum, name) => sum + ((group.logs?.[name] || []).length), 0);
   const memberTargets = Object.fromEntries(activeMembers.map(name => [name, getMemberTargetForMonth(group, name, monthKey)]));
   const totalTarget = activeMembers.reduce((sum, name) => sum + (memberTargets[name] || 0), 0);
@@ -2408,7 +2438,10 @@ function getGroupOverview(group) {
 }
 
 function getGroupMemberPreview(group, userName) {
-  if (!group || !userName || !group.memberOrder.includes(userName)) return null;
+  const sourceNames = Array.isArray(group?.activeMemberOrder) && group.activeMemberOrder.length
+    ? group.activeMemberOrder
+    : (group?.memberOrder || []);
+  if (!group || !userName || !sourceNames.includes(userName)) return null;
   const context = getTimeContextForGroup(group);
   const monthKey = context.monthKey;
   if (!isJoinedForGroupMonth(group, userName, monthKey)) return null;
@@ -2427,6 +2460,12 @@ function getGroupMemberPreview(group, userName) {
   else if (count >= expected - 3) status = "at-risk";
   status = getLeaderboardDisplayStatus(status, count, context.day);
   return { count, status, needed: Math.max(0, minTarget - count) };
+}
+
+function getCurrentGroupMemberNames(group) {
+  if (!group) return [];
+  if (Array.isArray(group.activeMemberOrder) && group.activeMemberOrder.length) return group.activeMemberOrder;
+  return Array.isArray(group.memberOrder) ? group.memberOrder : [];
 }
 
 function groupStatusLabel(status) {
@@ -3486,9 +3525,9 @@ const GroupSettingsModal = ({group,actor,actorUserId,onSave,onClose,saving,onRev
         React.createElement(GroupSettingsFields,{settings,setSettings,showAdvanced,setShowAdvanced,showValidation:submitAttempted,compact:true})
       ),
       onKickMember && React.createElement('div',{style:{marginTop:14,marginBottom:4}},
-        React.createElement('div',{style:{fontWeight:700,fontSize:12,color:"var(--text)",marginBottom:8,letterSpacing:".04em"}},`Members (${group.memberOrder.length})`),
+        React.createElement('div',{style:{fontWeight:700,fontSize:12,color:"var(--text)",marginBottom:8,letterSpacing:".04em"}},`Members (${getCurrentGroupMemberNames(group).length})`),
         React.createElement('div',{style:{display:"grid",gap:6}},
-          group.memberOrder.map(displayName=>{
+          getCurrentGroupMemberNames(group).map(displayName=>{
             const membershipEntry = Object.values(group.memberships||{}).find(m=>m.displayName===displayName);
             const memberId = membershipEntry?.userId || null;
             const isMe = memberId ? memberId===actorUserId : displayName===actor;
@@ -3625,7 +3664,7 @@ const GroupHome = ({groups,currentIdentity,currentEmail,onOpenProfile,onOpenGrou
               React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,marginBottom:4}},
                 React.createElement('span',{style:{fontSize:10,fontWeight:600,color:"#4ECDC4",letterSpacing:".08em",textTransform:"uppercase",fontFamily:"'Outfit',sans-serif"}},"Workout types"),
                 React.createElement('span',{style:{fontSize:compactMobile?10:11,color:"var(--muted)"}},
-                  `${group.memberOrder.length}/20 member${group.memberOrder.length===1?"":"s"}`
+                  `${getCurrentGroupMemberNames(group).length}/20 member${getCurrentGroupMemberNames(group).length===1?"":"s"}`
                 )
               ),
               React.createElement('div',{style:{display:"flex",gap:5,flexWrap:"wrap",marginBottom:renderCloseMeta(group)?4:0}},
@@ -3923,7 +3962,7 @@ const LogModal = ({user,currentGroupId,groups,onConfirm,onClose}) => {
   const eligibleGroups = useMemo(() => {
     if (!wType || !isCurrentMonthSelection) return [];
     return groups
-      .filter(group => group.id !== currentGroupId && group.memberOrder.includes(user) && groupCountsWorkoutType(group, wType))
+      .filter(group => group.id !== currentGroupId && getCurrentGroupMemberNames(group).includes(user) && groupCountsWorkoutType(group, wType))
       .map(group => {
         const alreadyLoggedHere = (group.logs?.[user] || []).some(log => log.date === selDate);
         return {
@@ -6591,7 +6630,10 @@ const App = () => {
   const profile = getProfileForSession(appState, authSession);
   const devImpersonationOptions = useMemo(() => {
     if (!localDevMode || !currentGroup) return [];
-    const memberIndex = new Map((currentGroup.memberOrder || []).map((name, index) => [name, index]));
+    const activeNames = Array.isArray(currentGroup.activeMemberOrder) && currentGroup.activeMemberOrder.length
+      ? currentGroup.activeMemberOrder
+      : (currentGroup.memberOrder || []);
+    const memberIndex = new Map(activeNames.map((name, index) => [name, index]));
     const members = Object.values(currentGroup.memberships || {})
       .filter(membership => membership?.userId && membership?.displayName)
       .sort((a, b) => (memberIndex.get(a.displayName) ?? 999) - (memberIndex.get(b.displayName) ?? 999));
@@ -7301,7 +7343,7 @@ const App = () => {
   const showInstallBanner = !standalone && !installDismissed && (Boolean(installPrompt) || showIosHint);
   const groups = appState.groupOrder.map(groupId => appState.groups[groupId]).filter(Boolean);
   const visibleGroups = groups.filter(group => Boolean(getMembershipForUser(group, effectiveAuthSession, effectiveProfile)));
-  const localPreviewMembers = uniqueNames(groups.flatMap(group => group.memberOrder || []));
+  const localPreviewMembers = uniqueNames(groups.flatMap(group => getCurrentGroupMemberNames(group)));
   const activityAlertCount = currentGroup && currentUser ? getActivityAlertCount(currentGroup, currentUser) : 0;
   const openAuth = intent => {
     setShowJoinModal(false);
@@ -7459,7 +7501,7 @@ const App = () => {
   const handleSelectLocalPreviewIdentity = useCallback((displayName) => {
     const session = buildLocalPreviewSession(displayName);
     persistSession(session);
-    const matchingGroup = groups.find(group => group.memberOrder?.includes(displayName));
+    const matchingGroup = groups.find(group => (group.activeMemberOrder || group.memberOrder || []).includes(displayName));
     if (matchingGroup?.id) {
       persistGroupSelection(matchingGroup.id);
       setPage("today");

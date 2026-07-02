@@ -273,10 +273,23 @@ function normalizeLegacyGroup(data) {
   });
 }
 
+function deriveActiveMemberOrder(rawMemberOrder, memberships, adminName, leftMemberNames, historicalFallback = []) {
+  const explicitActiveMembers = uniqueNames([
+    ...(Array.isArray(rawMemberOrder) ? rawMemberOrder : []),
+    ...Object.values(memberships || {}).map(membership => membership?.displayName || ""),
+    String(adminName || "").trim()
+  ]).filter(name => !leftMemberNames.has(name));
+
+  if (explicitActiveMembers.length > 0) return explicitActiveMembers;
+
+  return uniqueNames(historicalFallback).filter(name => !leftMemberNames.has(name));
+}
+
 function normalizeGroup(group) {
   const logs = group?.logs && typeof group.logs === "object" ? group.logs : {};
   const monthHistory = Array.isArray(group?.monthHistory) ? group.monthHistory : [];
   const leftMemberNames = new Set(Array.isArray(group?.leftMemberNames) ? group.leftMemberNames : []);
+  const rawMemberships = group?.memberships && typeof group.memberships === "object" ? group.memberships : {};
   const inferredMembers = [
     ...(Array.isArray(group?.memberOrder) ? group.memberOrder : []),
     ...Object.keys(logs),
@@ -284,6 +297,13 @@ function normalizeGroup(group) {
     ...monthHistory.flatMap(month => Object.keys(month?.logsByUser || {}))
   ].filter(n => !leftMemberNames.has(n));
   const memberOrder = uniqueNames(inferredMembers);
+  const activeMemberOrder = deriveActiveMemberOrder(
+    group?.memberOrder,
+    rawMemberships,
+    group?.adminName,
+    leftMemberNames,
+    memberOrder
+  );
   const joinedMonthByName = group?.joinedMonthByName && typeof group.joinedMonthByName === "object" ? group.joinedMonthByName : {};
   const normalizedLogs = Object.fromEntries(
     memberOrder.map(name => [
@@ -292,7 +312,7 @@ function normalizeGroup(group) {
     ])
   );
   const normalizedExcused = normalizeExcused(group?.excused, memberOrder);
-  const memberships = normalizeMemberships(group?.memberships, memberOrder, group?.adminName, group?.adminUserId);
+  const memberships = normalizeMemberships(rawMemberships, memberOrder, group?.adminName, group?.adminUserId);
   const adminUserId = normalizeAdminUserId(group?.adminUserId, memberships, group?.adminName);
   const normalized = {
     id: typeof group?.id === "string" && group.id ? group.id : `group-${Date.now()}`,
@@ -302,6 +322,7 @@ function normalizeGroup(group) {
     inviteCode: typeof group?.inviteCode === "string" && group.inviteCode.trim() ? group.inviteCode.trim().toUpperCase() : generateInviteCode(),
     createdAt: group?.createdAt || new Date().toISOString(),
     memberOrder,
+    activeMemberOrder,
     memberships,
     joinedMonthByName,
     leftMemberNames: [...leftMemberNames],
@@ -3472,7 +3493,9 @@ function applyJoinGroup(current, payload) {
     return { state: base, joinedGroupId: group.id };
   }
   const MAX_MEMBERS = 20;
-  const currentMemberCount = Object.keys(group.memberships || {}).length || group.memberOrder.length;
+  const currentMemberCount = Array.isArray(group.activeMemberOrder) && group.activeMemberOrder.length
+    ? group.activeMemberOrder.length
+    : (Object.keys(group.memberships || {}).length || group.memberOrder.length);
   if (currentMemberCount >= MAX_MEMBERS) {
     const error = new Error("This Bloc is full. Maximum 20 members allowed.");
     error.status = 403;
@@ -3778,7 +3801,9 @@ function getInviteContext(current, payload) {
     groupId: group.id,
     groupName: group.name,
     inviteCode: group.inviteCode,
-    memberCount: group.memberOrder.length,
+    memberCount: Array.isArray(group.activeMemberOrder) && group.activeMemberOrder.length
+      ? group.activeMemberOrder.length
+      : group.memberOrder.length,
     minTarget: group.settings?.minTarget || DEFAULT_MIN_TARGET
   };
 }
@@ -3791,7 +3816,9 @@ async function getInviteContextCanonicalFirst(current, payload) {
       groupId: canonicalBloc.legacy_group_key,
       groupName: canonicalBloc.name || group?.name || "",
       inviteCode: canonicalBloc.invite_code || String(payload?.inviteCode || "").trim().toUpperCase(),
-      memberCount: Object.keys(group?.memberships || {}).length || group?.memberOrder?.length || 0,
+      memberCount: Array.isArray(group?.activeMemberOrder) && group.activeMemberOrder.length
+        ? group.activeMemberOrder.length
+        : (Object.keys(group?.memberships || {}).length || group?.memberOrder?.length || 0),
       minTarget: canonicalBloc.min_target ?? group?.settings?.minTarget ?? DEFAULT_MIN_TARGET
     };
   }
