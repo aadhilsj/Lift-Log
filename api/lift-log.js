@@ -2247,6 +2247,12 @@ function buildCanonicalMonthHistory(group, canonicalSeasons) {
 }
 
 async function fetchReadableCurrentState() {
+  // Safety hotfix: canonical-first GET composition is not yet current-log
+  // complete in production. Keep the blob-overlay read path authoritative
+  // until canonical current-month parity is verified end-to-end.
+  return fetchReadableCurrentStateFromBlobOverlay();
+
+  /*
   const [
     anteProfiles,
     anteBlocs,
@@ -2417,6 +2423,7 @@ async function fetchReadableCurrentState() {
   );
 
   return normalized;
+  */
 }
 
 // Mutations must always hydrate from the blob source of truth.
