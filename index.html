@@ -365,7 +365,7 @@ const getDiff     = (n, target = MIN_TARGET) => n - getExpected(target); // posi
 const diffLabel   = (n, target = MIN_TARGET) => { const d=getDiff(n, target); return d>0?`+${d} ahead of pace`:d<0?`${d} behind pace`:"on pace"; };
 const isEarlyMonthNeutralWindow = (day = DAY_OF_MON) => day <= 3;
 const getLeaderboardDisplayStatus = (status, count, day = DAY_OF_MON) => {
-  if (isEarlyMonthNeutralWindow(day) && count === 0 && (status === "at-risk" || status === "behind")) {
+  if (isEarlyMonthNeutralWindow(day) && count === 0 && (status === "at-risk" || status === "behind" || status === "on-track")) {
     return "starting-soon";
   }
   return status;
