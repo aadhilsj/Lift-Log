@@ -12,6 +12,10 @@ const DEFAULT_DISTANCE_UNIT = "km";
 const DEFAULT_STRAVA_ENABLED = true;
 const UNFLAGGED_IMAGE_RETENTION_MS = 72 * 60 * 60 * 1000;
 const RESOLVED_IMAGE_RETENTION_MS = 24 * 60 * 60 * 1000;
+const STORAGE_CLEANUP_INTERVAL_MS = 15 * 60 * 1000;
+const STORAGE_CLEANUP_FETCH_TIMEOUT_MS = 4000;
+const STORAGE_CLEANUP_MAX_FOLDERS = 250;
+const STORAGE_CLEANUP_MAX_FILES_PER_FOLDER = 250;
 const LEGACY_GROUP_ID = "legacy-group";
 const LEGACY_GROUP_NAME = "Lift Log OG";
 const DEFAULT_MEMBER_NAMES = ["Aadhil", "Isira", "Rahul", "Kisal", "Rishane", "Deyhan", "Aysha", "Nishara", "Abhishek"];
@@ -23,6 +27,10 @@ const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 const ENABLE_SETTLEMENT_CONFIRMATIONS = String(process.env.ENABLE_SETTLEMENT_CONFIRMATIONS || "").trim().toLowerCase() === "true";
 const ENABLE_SETTLEMENT_CONFIRMATIONS_PREVIEW = String(process.env.ENABLE_SETTLEMENT_CONFIRMATIONS_PREVIEW || "").trim().toLowerCase() === "true";
 const ENABLE_LOCAL_PREVIEW_AUTH = String(process.env.ENABLE_LOCAL_PREVIEW_AUTH || "").trim().toLowerCase() === "true";
+
+let storageCleanupInFlight = null;
+let storageCleanupLastRunAt = 0;
+let storageCleanupLastWarningAt = 0;
 
 function deriveDefaultGroupId(groupOrder) {
   return Array.isArray(groupOrder) && groupOrder.length ? groupOrder[0] : null;
@@ -2301,37 +2309,93 @@ async function fetchCurrentStateFromSupabase() {
   });
 }
 
+function createTimeoutSignal(timeoutMs) {
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) return { signal: undefined, cancel: () => {} };
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(new Error(`Request timed out after ${timeoutMs}ms`)), timeoutMs);
+  return {
+    signal: controller.signal,
+    cancel: () => clearTimeout(timer)
+  };
+}
+
+function isTransientStorageCleanupError(error) {
+  const status = Number(error?.status || 0);
+  const message = String(error?.message || error || "").toLowerCase();
+  return error?.name === "AbortError"
+    || status === 408
+    || status === 429
+    || status === 502
+    || status === 503
+    || status === 504
+    || message.includes("timed out")
+    || message.includes("timeout")
+    || message.includes("gateway time-out")
+    || message.includes("gateway timeout")
+    || message.includes("fetch failed")
+    || message.includes("socket hang up")
+    || message.includes("econnreset");
+}
+
+function reportStorageCleanupFailure(error) {
+  const now = Date.now();
+  const message = error?.message || String(error || "unknown error");
+  const transient = isTransientStorageCleanupError(error);
+  if (transient) {
+    if (now - storageCleanupLastWarningAt < STORAGE_CLEANUP_INTERVAL_MS) return;
+    storageCleanupLastWarningAt = now;
+    console.warn(`Storage cleanup skipped after transient storage failure: ${message}`);
+    return;
+  }
+  console.error("Storage expiry cleanup failed:", message);
+}
+
+async function listStorageObjects(prefix) {
+  const { signal, cancel } = createTimeoutSignal(STORAGE_CLEANUP_FETCH_TIMEOUT_MS);
+  try {
+    const response = await supabaseFetch("/storage/v1/object/list/workout-photos", {
+      method: "POST",
+      signal,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        prefix,
+        limit: prefix ? STORAGE_CLEANUP_MAX_FILES_PER_FOLDER : STORAGE_CLEANUP_MAX_FOLDERS,
+        offset: 0
+      })
+    });
+    return await response.json();
+  } finally {
+    cancel();
+  }
+}
+
 async function deleteStoragePhotos(paths) {
   if (!paths.length) return;
-  await supabaseFetch("/storage/v1/object/workout-photos", {
-    method: "DELETE",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ prefixes: paths })
-  });
+  const { signal, cancel } = createTimeoutSignal(STORAGE_CLEANUP_FETCH_TIMEOUT_MS);
+  try {
+    await supabaseFetch("/storage/v1/object/workout-photos", {
+      method: "DELETE",
+      signal,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prefixes: paths })
+    });
+  } finally {
+    cancel();
+  }
 }
 
 async function cleanupExpiredStoragePhotos() {
   // Files are stored as {userId}/{Date.now()}.jpg — parse the timestamp
   // from the filename to determine age. Delete anything older than 72h.
   try {
-    const foldersRes = await supabaseFetch("/storage/v1/object/list/workout-photos", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prefix: "", limit: 1000, offset: 0 })
-    });
-    const folders = await foldersRes.json();
+    const folders = await listStorageObjects("");
     if (!Array.isArray(folders)) return;
 
     const expiredPaths = [];
     for (const folder of folders) {
       // Folders have metadata: null; files have metadata: {...} — skip files at root
       if (!folder?.name || folder.metadata) continue;
-      const filesRes = await supabaseFetch("/storage/v1/object/list/workout-photos", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prefix: `${folder.name}/`, limit: 1000, offset: 0 })
-      });
-      const files = await filesRes.json();
+      const files = await listStorageObjects(`${folder.name}/`);
       if (!Array.isArray(files)) continue;
       for (const file of files) {
         if (!file?.name) continue;
@@ -2347,8 +2411,21 @@ async function cleanupExpiredStoragePhotos() {
       console.log(`Storage cleanup: deleted ${expiredPaths.length} expired photo(s)`);
     }
   } catch (err) {
-    console.error("Storage expiry cleanup failed:", err?.message || err);
+    reportStorageCleanupFailure(err);
   }
+}
+
+function scheduleStorageCleanup() {
+  const now = Date.now();
+  if (storageCleanupInFlight) return storageCleanupInFlight;
+  if (now - storageCleanupLastRunAt < STORAGE_CLEANUP_INTERVAL_MS) return null;
+  storageCleanupLastRunAt = now;
+  storageCleanupInFlight = cleanupExpiredStoragePhotos()
+    .catch(reportStorageCleanupFailure)
+    .finally(() => {
+      storageCleanupInFlight = null;
+    });
+  return storageCleanupInFlight;
 }
 
 async function persistStateToSupabase(nextState, reason) {
@@ -2394,8 +2471,9 @@ async function persistStateToSupabase(nextState, reason) {
     });
   }
 
-  // Best-effort: scan bucket and delete files older than 72h.
-  cleanupExpiredStoragePhotos().catch(err => console.error("Storage cleanup error:", err?.message || err));
+  // Best-effort: scan bucket and delete old temporary photos, but never let
+  // this compete with normal writes on every request.
+  scheduleStorageCleanup();
 
   return persistedState || safeState;
 }
