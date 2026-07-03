@@ -5074,9 +5074,17 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
 
   const paceDelta = me.count - expected;
   const earlyMonthPaceQuiet = isEarlyMonthNeutralWindow() && me.count === 0;
-  const paceDeltaText = earlyMonthPaceQuiet ? "—" : (paceDelta > 0 ? `+${paceDelta}` : String(paceDelta));
+  const paceDeltaText = earlyMonthPaceQuiet ? "—" : (paceDelta > 0 ? `+${paceDelta}` : (paceDelta < 0 ? String(paceDelta) : "On pace"));
   const paceDeltaColor = earlyMonthPaceQuiet ? "var(--muted)" : (paceDelta >= 0 ? "#4ECDC4" : "#D47843");
   const todayTargetText = earlyMonthPaceQuiet ? "month just started" : `${expected} by today`;
+  const paceValueStyle = !earlyMonthPaceQuiet && paceDelta === 0
+    ? {
+        fontSize:"clamp(14px, 1.8vw, 20px)",
+        fontWeight:700,
+        letterSpacing:"0.01em",
+        whiteSpace:"nowrap"
+      }
+    : null;
   const targetCardMeta = (currentMonthOverride?.prorated || myTarget !== MIN_TARGET) ? "prorated" : null;
 
   const blocMonthCount = Object.values(logs || {}).reduce((total, memberLogs) => total + getCountedLogCount(memberLogs), 0);
@@ -5238,7 +5246,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
   const desktopStatCardStyle = {...statCardSurfaceStyle,padding:"10px 12px",minHeight:106};
 
   const statCards = [
-    {kind:"pace",label:"Pace",val:paceDeltaText,sub:todayTargetText,color:paceDeltaColor},
+    {kind:"pace",label:"Pace",val:paceDeltaText,sub:todayTargetText,color:paceDeltaColor,valueStyle:paceValueStyle},
     needed === 0
       ? {kind:"target",label:"Target",valueNode:React.createElement(TargetHitHexIcon,{size:22}),sub:"target hit!",meta:targetCardMeta}
       : {kind:"target",label:"Target",val:needed,sub:"to go",meta:targetCardMeta,color:"#4ECDC4"},
