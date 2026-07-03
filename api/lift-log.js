@@ -20,6 +20,7 @@ const DEFAULT_JOINED_MONTH_BY_NAME = { Abhishek: "2026-4" };
 const SUPABASE_URL = process.env.SUPABASE_URL || "";
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_PUBLISHABLE_KEY || "";
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+const ENABLE_CANONICAL_READ_COMPOSER = String(process.env.ENABLE_CANONICAL_READ_COMPOSER || "").trim().toLowerCase() === "true";
 const ENABLE_SETTLEMENT_CONFIRMATIONS = String(process.env.ENABLE_SETTLEMENT_CONFIRMATIONS || "").trim().toLowerCase() === "true";
 const ENABLE_SETTLEMENT_CONFIRMATIONS_PREVIEW = String(process.env.ENABLE_SETTLEMENT_CONFIRMATIONS_PREVIEW || "").trim().toLowerCase() === "true";
 const ENABLE_LOCAL_PREVIEW_AUTH = String(process.env.ENABLE_LOCAL_PREVIEW_AUTH || "").trim().toLowerCase() === "true";
@@ -2249,7 +2250,6 @@ function buildCanonicalMonthHistory(group, canonicalSeasons) {
 async function fetchReadableCurrentState() {
   // Safety hotfix: keep the blob-overlay read path authoritative until
   // canonical current-month parity is verified on the production backend.
-  const ENABLE_CANONICAL_READ_COMPOSER = false;
   if (!ENABLE_CANONICAL_READ_COMPOSER) {
     return fetchReadableCurrentStateFromBlobOverlay();
   }
