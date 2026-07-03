@@ -350,20 +350,20 @@ const toISODate = value => {
   return "";
 };
 
-const getExpected = (target = MIN_TARGET) => Math.ceil((target / DAYS_IN_MON) * DAY_OF_MON);
+const getExpected = (target = MIN_TARGET) => Math.floor((target / DAYS_IN_MON) * DAY_OF_MON);
 const resolvePaceStatus = ({ count, target = MIN_TARGET, expected = getExpected(target), daysLeft = getDaysLeft() }) => {
   if (count >= target) return "locked-in";
   const diff = count - expected;
   if (count + daysLeft < target) return "cooked";
   if (diff >= 2) return "cruising";
   if (diff >= 0) return "on-track";
-  if (diff >= -3) return "at-risk";
+  if (diff >= -2) return "at-risk";
   return "behind";
 };
 const getStatus   = (n, target = MIN_TARGET) => resolvePaceStatus({ count: n, target });
 const getDiff     = (n, target = MIN_TARGET) => n - getExpected(target); // positive = ahead, negative = behind
 const diffLabel   = (n, target = MIN_TARGET) => { const d=getDiff(n, target); return d>0?`+${d} ahead of pace`:d<0?`${d} behind pace`:"on pace"; };
-const isEarlyMonthNeutralWindow = (day = DAY_OF_MON) => day <= 2;
+const isEarlyMonthNeutralWindow = (day = DAY_OF_MON) => day <= 3;
 const getLeaderboardDisplayStatus = (status, count, day = DAY_OF_MON) => {
   if (isEarlyMonthNeutralWindow(day) && count === 0 && (status === "at-risk" || status === "behind")) {
     return "starting-soon";
@@ -2418,7 +2418,7 @@ function getGroupOverview(group) {
   const totalLogged = activeMembers.reduce((sum, name) => sum + ((group.logs?.[name] || []).length), 0);
   const memberTargets = Object.fromEntries(activeMembers.map(name => [name, getMemberTargetForMonth(group, name, monthKey)]));
   const totalTarget = activeMembers.reduce((sum, name) => sum + (memberTargets[name] || 0), 0);
-  const totalExpected = activeMembers.reduce((sum, name) => sum + Math.ceil(((memberTargets[name] || 0) / DAYS_IN_MON) * DAY_OF_MON), 0);
+  const totalExpected = activeMembers.reduce((sum, name) => sum + Math.floor(((memberTargets[name] || 0) / DAYS_IN_MON) * DAY_OF_MON), 0);
   const totalPossible = totalLogged + (activeMembers.length * getDaysLeft());
   let status = "behind";
   if (activeMembers.length === 0) status = "excused";
@@ -2451,13 +2451,13 @@ function getGroupMemberPreview(group, userName) {
   if (isOut) return { count, status: "excused", needed: Math.max(0, minTarget - count) };
   const activeDays = proratedDays || context.daysInMonth;
   const daysActive = Math.max(0, context.day - joinDay + 1);
-  const expected = Math.ceil((minTarget / activeDays) * daysActive);
+  const expected = Math.floor((minTarget / activeDays) * daysActive);
   const daysLeft = context.daysInMonth - context.day + 1;
   let status = "behind";
   if (count + daysLeft < minTarget) status = "cooked";
   else if (count - expected >= 2) status = "cruising";
   else if (count >= expected) status = "on-track";
-  else if (count >= expected - 3) status = "at-risk";
+  else if (count >= expected - 2) status = "at-risk";
   status = getLeaderboardDisplayStatus(status, count, context.day);
   return { count, status, needed: Math.max(0, minTarget - count) };
 }
@@ -4758,7 +4758,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
   const countedMyLogs = getCountedLogs(myLogs);
   const isExcused=excused[user]?.[curKey]||false;
   const expected = myProratedDays
-    ? Math.ceil((myTarget / myProratedDays) * Math.max(0, DAY_OF_MON - myJoinDay + 1))
+    ? Math.floor((myTarget / myProratedDays) * Math.max(0, DAY_OF_MON - myJoinDay + 1))
     : getExpected(myTarget);
   const myDaysActive = myProratedDays ? Math.max(0, DAY_OF_MON - myJoinDay + 1) : DAY_OF_MON;
   const sitOutMode = currentSitOutRequest?.status === "pending"
@@ -4775,7 +4775,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
       memberDiffLabel = null;
     } else if (proratedDays) {
       const daysActive = Math.max(0, DAY_OF_MON - joinDay + 1);
-      const expected = Math.ceil((target / proratedDays) * daysActive);
+      const expected = Math.floor((target / proratedDays) * daysActive);
       status = resolvePaceStatus({ count, target, expected, daysLeft: getDaysLeft() });
       const d = count - expected;
       memberDiffLabel = d > 0 ? `+${d} ahead of pace` : d < 0 ? `${d} behind pace` : "on pace";
@@ -6184,7 +6184,7 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
         let memberDiffLabel = null;
         if (!isOut && proratedDays) {
           const daysActive = Math.max(0, DAY_OF_MON - joinDay + 1);
-          const exp = Math.ceil((target / proratedDays) * daysActive);
+          const exp = Math.floor((target / proratedDays) * daysActive);
           const d = count - exp;
           memberDiffLabel = d > 0 ? `+${d} ahead of pace` : d < 0 ? `${d} behind pace` : "on pace";
         }
@@ -6206,12 +6206,12 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
     let status;
     if (u.proratedDays) {
       const daysActive = Math.max(0, DAY_OF_MON - (u.joinDay||1) + 1);
-      const exp = Math.ceil((u.target / u.proratedDays) * daysActive);
+      const exp = Math.floor((u.target / u.proratedDays) * daysActive);
       const daysLeft = getDaysLeft();
       if (u.count + daysLeft < u.target) status = "cooked";
       else if (u.count - exp >= 2) status = "cruising";
       else if (u.count >= exp) status = "on-track";
-      else if (u.count >= exp - 3) status = "at-risk";
+      else if (u.count >= exp - 2) status = "at-risk";
       else status = "behind";
     } else {
       status = getStatus(u.count, u.target);
