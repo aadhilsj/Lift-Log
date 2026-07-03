@@ -5074,12 +5074,12 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
 
   const paceDelta = me.count - expected;
   const earlyMonthPaceQuiet = isEarlyMonthNeutralWindow() && me.count === 0;
-  const paceDeltaText = earlyMonthPaceQuiet ? "—" : (paceDelta > 0 ? `+${paceDelta}` : (paceDelta < 0 ? String(paceDelta) : "On pace"));
+  const paceDeltaText = earlyMonthPaceQuiet ? "—" : (paceDelta > 0 ? `+${paceDelta}` : (paceDelta < 0 ? String(paceDelta) : "on pace"));
   const paceDeltaColor = earlyMonthPaceQuiet ? "var(--muted)" : (paceDelta >= 0 ? "#4ECDC4" : "#D47843");
   const todayTargetText = earlyMonthPaceQuiet ? "month just started" : `${expected} by today`;
   const paceValueStyle = !earlyMonthPaceQuiet && paceDelta === 0
     ? {
-        fontSize:"clamp(14px, 1.8vw, 20px)",
+        fontSize:"clamp(10px, 1.35vw, 16px)",
         fontWeight:700,
         letterSpacing:"0.01em",
         whiteSpace:"nowrap"
