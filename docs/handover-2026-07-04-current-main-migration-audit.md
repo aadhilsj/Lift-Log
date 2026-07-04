@@ -198,7 +198,7 @@ It is still:
 
 ## Recommended Next Concrete Migration Patch
 
-Recommended next bounded write slice on current `main`:
+Recommended next bounded write slice on current `main` at audit time:
 
 - `create-group`
 
@@ -254,6 +254,33 @@ Still poor next candidates:
 
 These remain too entangled with name-keyed structures or lifecycle cleanup.
 
+## Verification Amendment — 2026-07-04
+
+`create-group` was subsequently verified live.
+
+Verified created bloc:
+
+- `legacy_group_key = test123-pmiura`
+- canonical bloc row present
+- canonical open season present
+- canonical admin membership present
+- canonical seeded open-season `season_member_status` present
+- blob mirror group present
+
+That means `create-group` should no longer be treated as merely the next
+candidate. It is now a verified canonical-first slice.
+
+Next candidate after that verification:
+
+- `join-group`
+
+But only with the narrower scope documented in:
+
+- `docs/handover-2026-07-04-join-group-audit.md`
+
+As of the latest local branch state, the narrow `join-group`
+authority-transfer patch is also implemented locally but not yet verified live.
+
 ## Bottom Line
 
 Current `main` is more advanced than the older July 3 docs suggest.
@@ -267,5 +294,6 @@ Accurate current-state summary:
    read-shell blockers.
 5. The real remaining blob shell problem is `leftMemberNames` plus the broader
    blob-first mutation boundary.
-6. The next concrete bounded write patch should be `create-group`, not
-   lifecycle or workout authority.
+6. `create-group` is now verified as canonical-first.
+7. `join-group` is the next concrete bounded write candidate and is now
+   implemented locally in narrow form, pending live verification.

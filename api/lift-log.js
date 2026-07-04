@@ -4186,12 +4186,22 @@ export default async function handler(req, res) {
           userId: auth.user.id,
           ...(canonicalBloc?.legacy_group_key ? { groupId: canonicalBloc.legacy_group_key } : {})
         });
-        const persisted = await persistState(joined.state, `join-group:${joined.joinedGroupId}:${auth.user.id}`);
-        const joinedGroup = persisted.groups[joined.joinedGroupId];
+        const joinedGroup = joined.state.groups?.[joined.joinedGroupId];
         const joinedDisplayName = joinedGroup?.memberships?.[auth.user.id]?.displayName || auth.profile?.displayName || null;
-        await syncBlocMemberToCanonical(joinedGroup, auth.user.id, "member");
-        await syncSeasonToCanonical(joinedGroup, joinedGroup?.lastMonth, "open");
-        await seedOpenSeasonMemberStatusInCanonical(joinedGroup, joinedGroup?.lastMonth, joinedDisplayName, auth.user.id);
+        const joinedGroupSortOrder = (joined.state.groupOrder || []).indexOf(joined.joinedGroupId);
+        // Canonical-first write slice for join-group:
+        // 1. compute the exact post-join group in memory using the existing
+        //    blob-compatible lifecycle semantics
+        // 2. write canonical profile/member/open-season state from that exact payload
+        // 3. mirror blob only after the canonical writes succeed
+        if (joinedGroup) {
+          await syncProfileToCanonical(auth.user.id, auth.user.email, joinedDisplayName, { throwOnError: true });
+          await syncBlocToCanonical(joinedGroup, joinedGroup.adminUserId || null, joinedGroupSortOrder >= 0 ? joinedGroupSortOrder : null, { throwOnError: true });
+          await syncBlocMemberToCanonical(joinedGroup, auth.user.id, "member", { throwOnError: true });
+          await syncSeasonToCanonical(joinedGroup, joinedGroup?.lastMonth, "open", null, { throwOnError: true });
+          await seedOpenSeasonMemberStatusInCanonical(joinedGroup, joinedGroup?.lastMonth, joinedDisplayName, auth.user.id, { throwOnError: true });
+        }
+        const persisted = await persistState(joined.state, `join-group:${joined.joinedGroupId}:${auth.user.id}`);
         return res.status(200).json({ state: persisted, joinedGroupId: joined.joinedGroupId });
       }
 

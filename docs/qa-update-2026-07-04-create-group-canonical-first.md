@@ -222,3 +222,79 @@ If this passes, the next bounded candidate remains:
 
 But only after re-checking the `leftMemberNames` and rejoin semantics for that
 exact path, because `join-group` is materially riskier than `create-group`.
+
+## Verification Result — 2026-07-04
+
+Status: `PASS`
+
+Verified on a live preview deployment that was also pointed at the live
+Supabase production database.
+
+Created test bloc:
+
+- bloc name: `test123`
+- `legacy_group_key`: `test123-pmiura`
+
+Verified canonical rows:
+
+### `ante_core.blocs`
+
+Confirmed:
+
+- row exists for `test123-pmiura`
+- `name = 'test123'`
+- `admin_profile_id` populated
+- `invite_code = '1NAQPY'`
+- `sort_order = 7`
+- settings snapshot fields matched the created payload
+
+Confirmed admin profile resolution:
+
+- `auth_user_id = 768de245-5b17-4292-b91c-804daaa3b217`
+- `email = 'aadhil101@gmail.com'`
+- `display_name = 'Aadhil'`
+
+### `ante_core.seasons`
+
+Confirmed:
+
+- open season row exists
+- `month_key = '2026-6'`
+- `status = 'open'`
+- settings snapshot fields matched the created payload
+
+### `ante_core.bloc_members`
+
+Confirmed:
+
+- creator membership row exists
+- `display_name_snapshot = 'Aadhil'`
+- `role = 'admin'`
+- `sort_order = 0`
+- `left_at is null`
+
+### `ante_core.season_member_status`
+
+Confirmed:
+
+- creator open-season row exists
+- `display_name_snapshot = 'Aadhil'`
+- `joined_for_month = true`
+- `workout_count = 0`
+- `excused = false`
+
+### Blob mirror
+
+Confirmed:
+
+- blob group exists under `groups['test123-pmiura']`
+- `adminUserId` matches the creator auth user id
+- `memberOrder = ['Aadhil']`
+- `inviteCode = '1NAQPY'`
+- `lastMonth = '2026-6'`
+
+## Verified Conclusion
+
+The `create-group` canonical-first write slice is now verified.
+
+This should no longer be treated as pending migration QA.
