@@ -171,6 +171,33 @@ Still defer:
 - last-member bloc deletion redesign
 - canonical bloc deletion semantics
 
+## Implementation Amendment — 2026-07-05 (`leave-bloc`)
+
+The next narrow authority-transfer patch for `leave-bloc` is now implemented
+locally for surviving-bloc cases only.
+
+Current local `leave-bloc` shape now:
+
+1. compute the exact post-leave blob-compatible state in memory
+2. if the bloc survives:
+   - remove the canonical active membership first
+   - if admin changes, update canonical bloc admin next
+   - persist blob only after those canonical writes succeed
+3. if the leaver was the last member:
+   - keep the legacy compatibility path for now
+   - persist blob deletion first
+   - do best-effort canonical membership cleanup afterward
+
+What did **not** change in this implementation:
+
+- `applyLeaveBloc(...)` blob lifecycle semantics
+- blob `leftMemberNames` behavior
+- last-member bloc deletion semantics
+- canonical bloc deletion semantics
+
+So this is a bounded authority-transfer slice for surviving blocs, not a full
+leave lifecycle redesign.
+
 ## Recommended Next Implementation Target
 
 Best next bounded patch:
@@ -214,15 +241,62 @@ When that patch lands, minimum checks:
 4. rejoin that member through the already-verified join path
 5. verify canonical membership row reactivates without duplication
 
+## Verification Result — 2026-07-05 (`kick-member`)
+
+Status: `PASS`
+
+Verified live against bloc:
+
+- `legacy_group_key = test123-pmiura`
+
+Verified test account:
+
+- `auth_user_id = 85278d6f-2457-4153-9d06-27d96a4aec32`
+- `display_name = 'Test'`
+
+### Verified kick outcome
+
+After `kick-member`:
+
+- canonical `ante_core.bloc_members` kept exactly one membership row
+- `bloc_members.left_at` was populated for the kicked member
+- canonical active membership count became `0`
+- blob `memberOrder` removed `Test`
+- blob `leftMemberNames` included `Test`
+- blob `memberships` removed the kicked member
+
+### Verified rejoin-after-kick outcome
+
+After rejoining through the already-verified `join-group` path:
+
+- canonical membership row count still remained exactly `1`
+- canonical `left_at` returned to `null`
+- canonical active membership count returned to `1`
+- blob `memberOrder` included `Test` again
+- blob `leftMemberNames` no longer included `Test`
+- blob `memberships` included the test account again
+
+## Verified Conclusion
+
+The narrow `kick-member` canonical-first slice is now verified.
+
+That means the next remaining bounded lifecycle target is still:
+
+- `leave-bloc`
+
+But only in its still-unverified surviving-bloc form, with last-member deletion
+explicitly deferred.
+
 ## Bottom Line
 
 The program has now verified:
 
 - `create-group`
 - `join-group`
+- `kick-member`
 
 The next migration boundary is no longer member activation.
 
 It is authoritative member removal, starting with:
 
-- `kick-member`
+- `leave-bloc`

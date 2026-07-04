@@ -312,6 +312,33 @@ See:
 As of the latest local branch state, the narrow `kick-member`
 authority-transfer patch is also implemented locally but not yet verified live.
 
+## Verification Amendment — 2026-07-05 (Kick)
+
+`kick-member` was subsequently verified live.
+
+Verified flow:
+
+- kick
+- rejoin after kick
+
+Verified outcome:
+
+- canonical deactivation populated `bloc_members.left_at`
+- canonical membership stayed single-row through kick and rejoin
+- canonical active membership count toggled correctly from `0` back to `1`
+- blob `memberOrder`, `memberships`, and `leftMemberNames` tracked the expected
+  removed and restored states
+
+That means `kick-member` should no longer be treated as pending migration QA.
+
+Next lifecycle boundary after that verification:
+
+- `leave-bloc`
+
+See:
+
+- `docs/handover-2026-07-04-removal-lifecycle-audit.md`
+
 ## Bottom Line
 
 Current `main` is more advanced than the older July 3 docs suggest.
@@ -327,6 +354,10 @@ Accurate current-state summary:
    blob-first mutation boundary.
 6. `create-group` is now verified as canonical-first.
 7. `join-group` is now verified as canonical-first.
-8. `kick-member` is the next concrete bounded lifecycle candidate and is now
-   implemented locally in narrow form, pending live verification.
-9. `leave-bloc` remains the follow-on removal slice after that.
+8. `kick-member` is now verified as canonical-first in its narrow removal
+   slice.
+9. `leave-bloc` is now the next concrete bounded lifecycle candidate.
+10. The currently implemented local `leave-bloc` slice is intentionally
+    narrower than the full lifecycle:
+    surviving-bloc cases are patched canonical-first, while last-member deletion
+    remains deferred.

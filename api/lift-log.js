@@ -1145,7 +1145,8 @@ async function removeBlocMemberFromCanonical(legacyGroupKey, authUserId, options
   }
 }
 
-async function updateBlocAdminInCanonical(legacyGroupKey, newAdminAuthUserId) {
+async function updateBlocAdminInCanonical(legacyGroupKey, newAdminAuthUserId, options = {}) {
+  const { throwOnError = false } = options;
   if (!legacyGroupKey || !newAdminAuthUserId) return;
   try {
     await supabaseFetch("/rest/v1/rpc/update_ante_core_bloc_admin", {
@@ -1157,6 +1158,7 @@ async function updateBlocAdminInCanonical(legacyGroupKey, newAdminAuthUserId) {
       })
     });
   } catch (err) {
+    if (throwOnError) throw err;
     console.error("Canonical bloc admin transfer failed:", err?.message || err);
   }
 }
@@ -4230,19 +4232,29 @@ export default async function handler(req, res) {
 
       if (payload?.action === "leave-bloc") {
         const auth = await requireAuthenticatedContext(req, payload, current);
-        // Capture admin status before the leave is applied.
-        const wasAdmin = auth.state.groups?.[payload.groupId]?.adminUserId === auth.user.id;
         const updated = applyLeaveBloc(auth.state, { ...payload, userId: auth.user.id });
+        const nextGroup = updated.groups?.[payload.groupId] || null;
+
+        // Narrow canonical-first leave slice:
+        // - if the bloc survives, canonical member removal becomes authoritative
+        // - if admin changes, canonical admin transfer must also succeed first
+        // - only after those writes succeed do we mirror the blob state
+        // We still defer last-member bloc deletion because canonical bloc-delete
+        // semantics are not part of this bounded patch.
+        if (nextGroup) {
+          await removeBlocMemberFromCanonical(payload.groupId, auth.user.id, { throwOnError: true });
+          const nextAdminUserId = nextGroup.adminUserId || null;
+          if (nextAdminUserId && nextAdminUserId !== auth.user.id) {
+            await updateBlocAdminInCanonical(payload.groupId, nextAdminUserId, { throwOnError: true });
+          }
+          const persisted = await persistState(updated, `leave-bloc:${payload.groupId}:${auth.user.id}`);
+          return res.status(200).json({ ok: true, state: persisted, leftGroupId: payload.groupId });
+        }
+
+        // Last-member deletion remains on the legacy compatibility path for now:
+        // blob delete first, canonical membership cleanup best-effort afterward.
         const persisted = await persistState(updated, `leave-bloc:${payload.groupId}:${auth.user.id}`);
         await removeBlocMemberFromCanonical(payload.groupId, auth.user.id);
-        // If the leaver was admin and the bloc still exists (not last-member deletion),
-        // propagate the admin transfer. newAdminUserId is null if the bloc was deleted.
-        if (wasAdmin) {
-          const newAdminUserId = persisted.groups?.[payload.groupId]?.adminUserId;
-          if (newAdminUserId) {
-            await updateBlocAdminInCanonical(payload.groupId, newAdminUserId);
-          }
-        }
         return res.status(200).json({ ok: true, state: persisted, leftGroupId: payload.groupId });
       }
 
