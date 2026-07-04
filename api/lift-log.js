@@ -991,7 +991,8 @@ function rolloverStateIfNeeded(data, options = {}) {
   };
 }
 
-async function syncProfileToCanonical(userId, email, displayName) {
+async function syncProfileToCanonical(userId, email, displayName, options = {}) {
+  const { throwOnError = false } = options;
   try {
     await supabaseFetch("/rest/v1/rpc/upsert_ante_core_profile", {
       method: "POST",
@@ -1003,6 +1004,7 @@ async function syncProfileToCanonical(userId, email, displayName) {
       })
     });
   } catch (err) {
+    if (throwOnError) throw err;
     console.error("Canonical profile sync failed:", err?.message || err);
   }
 }
@@ -1019,7 +1021,8 @@ async function deleteProfileFromCanonical(userId) {
   }
 }
 
-async function syncSeasonToCanonical(group, monthKey, status, closedAt = null) {
+async function syncSeasonToCanonical(group, monthKey, status, closedAt = null, options = {}) {
+  const { throwOnError = false } = options;
   if (!group || !monthKey) return;
   const parts = getMonthPartsFromKey(monthKey);
   if (!parts) return;
@@ -1054,6 +1057,7 @@ async function syncSeasonToCanonical(group, monthKey, status, closedAt = null) {
       })
     });
   } catch (err) {
+    if (throwOnError) throw err;
     // Silently skip if bloc not yet in canonical (legacy groups pre-dating blocs slice).
     // All other errors are logged.
     if (!/bloc not found/i.test(err?.message || "")) {
@@ -1062,7 +1066,8 @@ async function syncSeasonToCanonical(group, monthKey, status, closedAt = null) {
   }
 }
 
-async function syncBlocToCanonical(group, adminUserId, sortOrder) {
+async function syncBlocToCanonical(group, adminUserId, sortOrder, options = {}) {
+  const { throwOnError = false } = options;
   if (!group) return;
   try {
     await supabaseFetch("/rest/v1/rpc/upsert_ante_core_bloc", {
@@ -1087,11 +1092,13 @@ async function syncBlocToCanonical(group, adminUserId, sortOrder) {
       })
     });
   } catch (err) {
+    if (throwOnError) throw err;
     console.error("Canonical bloc sync failed:", err?.message || err);
   }
 }
 
-async function syncBlocMemberToCanonical(group, authUserId, role) {
+async function syncBlocMemberToCanonical(group, authUserId, role, options = {}) {
+  const { throwOnError = false } = options;
   if (!group || !authUserId) return;
   const membership = group.memberships?.[authUserId];
   const displayName = membership?.displayName;
@@ -1115,6 +1122,7 @@ async function syncBlocMemberToCanonical(group, authUserId, role) {
       })
     });
   } catch (err) {
+    if (throwOnError) throw err;
     console.error("Canonical bloc member sync failed:", err?.message || err);
   }
 }
@@ -1151,7 +1159,8 @@ async function updateBlocAdminInCanonical(legacyGroupKey, newAdminAuthUserId) {
   }
 }
 
-async function upsertSeasonMemberStatusToCanonical(group, closedMonthKey, displayName, authUserId, workoutCount, excused) {
+async function upsertSeasonMemberStatusToCanonical(group, closedMonthKey, displayName, authUserId, workoutCount, excused, options = {}) {
+  const { throwOnError = false } = options;
   if (!group || !closedMonthKey || !displayName) return;
   try {
     await supabaseFetch("/rest/v1/rpc/upsert_ante_core_season_member_status", {
@@ -1168,11 +1177,12 @@ async function upsertSeasonMemberStatusToCanonical(group, closedMonthKey, displa
       })
     });
   } catch (err) {
+    if (throwOnError) throw err;
     console.error("Canonical season member status sync failed:", err?.message || err);
   }
 }
 
-async function seedOpenSeasonMemberStatusInCanonical(group, monthKey, displayName, authUserId) {
+async function seedOpenSeasonMemberStatusInCanonical(group, monthKey, displayName, authUserId, options = {}) {
   if (!group || !monthKey || !displayName) return;
   await upsertSeasonMemberStatusToCanonical(
     group,
@@ -1180,7 +1190,8 @@ async function seedOpenSeasonMemberStatusInCanonical(group, monthKey, displayNam
     displayName,
     authUserId || null,
     0,
-    false
+    false,
+    options
   );
 }
 
@@ -1775,8 +1786,9 @@ async function fetchReadableCurrentState() {
   // Blob is the fallback when a canonical row is absent or the RPC errors.
   // Reconstruct top-level groupOrder from canonical sort_order, but only
   // promote canonical authority when it fully covers the blob's active groups.
-  // Inactive/uncovered leftovers still survive via fallback. defaultGroupId
-  // remains blob-driven.
+  // Inactive/uncovered leftovers still survive via fallback. defaultGroupId is
+  // re-derived from the canonical-backed ordering instead of surviving from the
+  // blob snapshot.
   const anteBlocs = await anteBlocsPromise;
   let state = baseState;
   if (anteBlocs && Object.keys(anteBlocs).length > 0) {
@@ -1788,6 +1800,7 @@ async function fetchReadableCurrentState() {
         return [groupId, {
           ...group,
           name:      bloc.name || group.name,
+          inviteCode: bloc.invite_code || group.inviteCode,
           createdAt: bloc.created_at || group.createdAt,
           settings: buildNormalizedSettings({
             ...group.settings,
@@ -1829,7 +1842,12 @@ async function fetchReadableCurrentState() {
       return !activeBlobGroupIdSet.has(groupId);
     });
     const nextGroupOrder = uniqueNames([...canonicalOrderedGroupIds, ...residualBlobGroupIds]);
-    state = { ...state, groups: overlaidGroups, groupOrder: nextGroupOrder };
+    state = {
+      ...state,
+      groups: overlaidGroups,
+      groupOrder: nextGroupOrder,
+      defaultGroupId: deriveDefaultGroupId(nextGroupOrder)
+    };
   }
 
   const anteSeasonOverrides = await anteSeasonOverridesPromise;
@@ -2231,7 +2249,10 @@ async function fetchReadableCurrentState() {
     );
     state = { ...state, groups: overlaidGroups };
   }
-  return state;
+  return {
+    ...state,
+    defaultGroupId: deriveDefaultGroupId(state.groupOrder)
+  };
 }
 
 // Mutations must always hydrate from the blob source of truth.
@@ -4118,12 +4139,20 @@ export default async function handler(req, res) {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const creatorName = auth.profile?.displayName || String(payload?.creatorName || "").trim();
         const created = applyCreateGroup(auth.state, { ...payload, actorUserId: auth.user.id, creatorName });
+        const newGroup = created.state.groups?.[created.createdGroupId];
+        const newGroupSortOrder = (created.state.groupOrder || []).indexOf(created.createdGroupId);
+        // Canonical-first write slice for create-group:
+        // 1. compute the exact post-create group in memory
+        // 2. write canonical state from that exact payload
+        // 3. mirror blob only after the canonical writes succeed
+        if (newGroup) {
+          await syncProfileToCanonical(auth.user.id, auth.user.email, creatorName, { throwOnError: true });
+          await syncBlocToCanonical(newGroup, auth.user.id, newGroupSortOrder >= 0 ? newGroupSortOrder : null, { throwOnError: true });
+          await syncSeasonToCanonical(newGroup, newGroup?.lastMonth, "open", null, { throwOnError: true });
+          await syncBlocMemberToCanonical(newGroup, auth.user.id, "admin", { throwOnError: true });
+          await seedOpenSeasonMemberStatusInCanonical(newGroup, newGroup?.lastMonth, creatorName, auth.user.id, { throwOnError: true });
+        }
         const persisted = await persistState(created.state, `create-group:${created.createdGroupId}`);
-        const newGroup = persisted.groups[created.createdGroupId];
-        await syncBlocToCanonical(newGroup, auth.user.id, (persisted.groupOrder || []).indexOf(created.createdGroupId));
-        await syncSeasonToCanonical(newGroup, newGroup?.lastMonth, "open");
-        await syncBlocMemberToCanonical(newGroup, auth.user.id, "admin");
-        await seedOpenSeasonMemberStatusInCanonical(newGroup, newGroup?.lastMonth, creatorName, auth.user.id);
         return res.status(200).json({ state: persisted, createdGroupId: created.createdGroupId });
       }
 

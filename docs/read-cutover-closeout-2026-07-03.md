@@ -4,6 +4,23 @@ This note records the current state after the canonical read baseline was
 applied, the current-logs RPC was repaired, and the guarded canonical composer
 branch was promoted.
 
+## July 4 Addendum — Historical Snapshot Only
+
+This document is now a historical checkpoint, not the current production
+source of truth.
+
+Current-main corrections as of 2026-07-04:
+
+- live production is no longer on `f67f25d`
+- the current production deployment is commit `c2eed0d` from `main`
+- current `main` no longer references
+  `ENABLE_CANONICAL_READ_COMPOSER` in `api/lift-log.js`
+- GET reads on current `main` are still blob-first plus canonical overlays, but
+  they are no longer guarded by that old env flag in application code
+
+Use this note for the July 3 rollout and regression context only. For current
+main migration status, read the newer July 4 audit docs.
+
 ## Current Production State
 
 - live production is currently running commit `f67f25d`
