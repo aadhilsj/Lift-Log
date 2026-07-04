@@ -1127,7 +1127,8 @@ async function syncBlocMemberToCanonical(group, authUserId, role, options = {}) 
   }
 }
 
-async function removeBlocMemberFromCanonical(legacyGroupKey, authUserId) {
+async function removeBlocMemberFromCanonical(legacyGroupKey, authUserId, options = {}) {
+  const { throwOnError = false } = options;
   if (!legacyGroupKey || !authUserId) return;
   try {
     await supabaseFetch("/rest/v1/rpc/remove_ante_core_bloc_member", {
@@ -1139,6 +1140,7 @@ async function removeBlocMemberFromCanonical(legacyGroupKey, authUserId) {
       })
     });
   } catch (err) {
+    if (throwOnError) throw err;
     console.error("Canonical bloc member remove failed:", err?.message || err);
   }
 }
@@ -4213,12 +4215,16 @@ export default async function handler(req, res) {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actorDisplayName = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
         const updated = applyKickMember(auth.state, { ...payload, actorUserId: auth.user.id, actorDisplayName });
-        const persisted = await persistState(updated, `kick-member:${payload.groupId}:${payload.targetUserId}`);
-        // No-op if targetUserId is absent — name-only (profile-less) members have
-        // no ante_core.profiles row and therefore no bloc_members row to remove.
+        // Canonical-first write slice for kick-member:
+        // 1. compute the exact post-kick blob-compatible state in memory
+        // 2. remove the canonical active membership first for auth-linked members
+        // 3. mirror blob only after the canonical removal succeeds
+        // Name-only legacy members still have no canonical membership row, so
+        // their removal remains blob-only compatibility behavior.
         if (payload.targetUserId) {
-          await removeBlocMemberFromCanonical(payload.groupId, payload.targetUserId);
+          await removeBlocMemberFromCanonical(payload.groupId, payload.targetUserId, { throwOnError: true });
         }
+        const persisted = await persistState(updated, `kick-member:${payload.groupId}:${payload.targetUserId}`);
         return res.status(200).json({ ok: true, state: persisted });
       }
 

@@ -281,6 +281,37 @@ But only with the narrower scope documented in:
 As of the latest local branch state, the narrow `join-group`
 authority-transfer patch is also implemented locally but not yet verified live.
 
+## Verification Amendment — 2026-07-04 (Join)
+
+`join-group` was subsequently verified live.
+
+Verified flows:
+
+- first join
+- leave and rejoin
+- kick and rejoin
+
+Verified outcome:
+
+- canonical membership activation/deactivation remained single-row and correct
+- blob `memberOrder`, `memberships`, and `leftMemberNames` tracked the expected
+  active/removal states
+- open-season seeded member status remained correct for the joined member
+
+That means `join-group` should no longer be treated as pending migration QA.
+
+Next lifecycle boundary after that verification:
+
+- `kick-member`
+- then `leave-bloc`
+
+See:
+
+- `docs/handover-2026-07-04-removal-lifecycle-audit.md`
+
+As of the latest local branch state, the narrow `kick-member`
+authority-transfer patch is also implemented locally but not yet verified live.
+
 ## Bottom Line
 
 Current `main` is more advanced than the older July 3 docs suggest.
@@ -295,5 +326,7 @@ Accurate current-state summary:
 5. The real remaining blob shell problem is `leftMemberNames` plus the broader
    blob-first mutation boundary.
 6. `create-group` is now verified as canonical-first.
-7. `join-group` is the next concrete bounded write candidate and is now
+7. `join-group` is now verified as canonical-first.
+8. `kick-member` is the next concrete bounded lifecycle candidate and is now
    implemented locally in narrow form, pending live verification.
+9. `leave-bloc` remains the follow-on removal slice after that.

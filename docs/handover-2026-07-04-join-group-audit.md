@@ -232,3 +232,63 @@ What still remains before calling this verified:
 - live kick/rejoin verification
 - confirmation that blob and canonical both show exactly one active joined
   member row after rejoin
+
+## Verification Result — 2026-07-04
+
+Status: `PASS`
+
+Verified live against bloc:
+
+- `legacy_group_key = test123-pmiura`
+
+Verified test account:
+
+- `auth_user_id = 85278d6f-2457-4153-9d06-27d96a4aec32`
+- `display_name = 'Test'`
+
+### Verified flows
+
+1. first join
+2. leave
+3. rejoin after leave
+4. kick
+5. rejoin after kick
+
+### Confirmed canonical behavior
+
+For the test account in `ante_core.bloc_members`:
+
+- first join created one active membership row
+- leave populated `left_at`
+- rejoin cleared `left_at`
+- kick populated `left_at` again
+- kick-rejoin cleared `left_at` again
+- total canonical membership rows stayed at exactly `1`
+- active canonical membership rows were always either `0` or `1`, never more
+
+Confirmed seeded open-season state:
+
+- `ante_core.season_member_status` row existed for the joined member
+- `joined_for_month = true`
+- `workout_count = 0`
+- `excused = false`
+
+### Confirmed blob compatibility behavior
+
+After join / rejoin:
+
+- blob `memberOrder` included `Test`
+- blob `memberships` included the test account
+- blob `leftMemberNames` did not include `Test`
+
+After leave / kick:
+
+- blob `memberOrder` removed `Test`
+- blob `memberships` removed the test account
+- blob `leftMemberNames` included `Test`
+
+## Verified Conclusion
+
+The narrow `join-group` canonical-first slice is now verified.
+
+This should no longer be treated as pending migration QA.
