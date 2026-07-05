@@ -1145,6 +1145,24 @@ async function removeBlocMemberFromCanonical(legacyGroupKey, authUserId, options
   }
 }
 
+async function deleteBlocFromCanonical(legacyGroupKey, options = {}) {
+  const { throwOnError = false } = options;
+  if (!legacyGroupKey) return;
+  try {
+    await supabaseFetch(`/rest/v1/blocs?legacy_group_key=eq.${encodeURIComponent(legacyGroupKey)}`, {
+      method: "DELETE",
+      headers: {
+        Accept: "application/json",
+        Prefer: "return=minimal",
+        "Content-Profile": "ante_core"
+      }
+    });
+  } catch (err) {
+    if (throwOnError) throw err;
+    console.error("Canonical bloc delete failed:", err?.message || err);
+  }
+}
+
 async function updateBlocAdminInCanonical(legacyGroupKey, newAdminAuthUserId, options = {}) {
   const { throwOnError = false } = options;
   if (!legacyGroupKey || !newAdminAuthUserId) return;
@@ -4251,10 +4269,11 @@ export default async function handler(req, res) {
           return res.status(200).json({ ok: true, state: persisted, leftGroupId: payload.groupId });
         }
 
-        // Last-member deletion remains on the legacy compatibility path for now:
-        // blob delete first, canonical membership cleanup best-effort afterward.
+        // Last-member deletion:
+        // delete the canonical bloc first so all dependent ante_core rows cascade
+        // away together, then mirror the blob-side bloc removal.
+        await deleteBlocFromCanonical(payload.groupId, { throwOnError: true });
         const persisted = await persistState(updated, `leave-bloc:${payload.groupId}:${auth.user.id}`);
-        await removeBlocMemberFromCanonical(payload.groupId, auth.user.id);
         return res.status(200).json({ ok: true, state: persisted, leftGroupId: payload.groupId });
       }
 

@@ -168,8 +168,7 @@ Recommended follow-on slice, not same patch:
 
 Still defer:
 
-- last-member bloc deletion redesign
-- canonical bloc deletion semantics
+- broader redesign beyond a narrow canonical-first hard delete
 
 ## Implementation Amendment — 2026-07-05 (`leave-bloc`)
 
@@ -184,19 +183,17 @@ Current local `leave-bloc` shape now:
    - if admin changes, update canonical bloc admin next
    - persist blob only after those canonical writes succeed
 3. if the leaver was the last member:
-   - keep the legacy compatibility path for now
-   - persist blob deletion first
-   - do best-effort canonical membership cleanup afterward
+   - delete the canonical bloc first
+   - rely on ON DELETE CASCADE for dependent ante_core rows
+   - persist blob deletion only after canonical delete succeeds
 
 What did **not** change in this implementation:
 
 - `applyLeaveBloc(...)` blob lifecycle semantics
 - blob `leftMemberNames` behavior
-- last-member bloc deletion semantics
-- canonical bloc deletion semantics
+- broader lifecycle redesign around deleted blocs
 
-So this is a bounded authority-transfer slice for surviving blocs, not a full
-leave lifecycle redesign.
+So this is still a bounded migration slice, not a full leave lifecycle redesign.
 
 ## Recommended Next Implementation Target
 
@@ -284,8 +281,65 @@ That means the next remaining bounded lifecycle target is still:
 
 - `leave-bloc`
 
-But only in its still-unverified surviving-bloc form, with last-member deletion
-explicitly deferred.
+But only in its still-unverified form, with last-member deletion now
+implemented locally and awaiting verification.
+
+## Verification Amendment — 2026-07-05 (`leave-bloc`, non-admin)
+
+Status: `PARTIAL PASS`
+
+Verified live against bloc:
+
+- `legacy_group_key = test123-pmiura`
+
+Verified test account:
+
+- `auth_user_id = 85278d6f-2457-4153-9d06-27d96a4aec32`
+- `display_name = 'Test'`
+
+### Verified non-admin leave outcome
+
+After `leave-bloc` by a non-admin member:
+
+- canonical `ante_core.bloc_members` kept exactly one membership row
+- `bloc_members.left_at` was populated for the leaving member
+- canonical active membership count became `0`
+- blob `memberOrder` removed `Test`
+- blob `leftMemberNames` included `Test`
+- blob `memberships` removed the leaving member
+
+### Remaining verification still required
+
+- last-member deletion verification
+
+## Verification Amendment — 2026-07-05 (`leave-bloc`, admin transfer)
+
+Status: `PASS`
+
+Verified live against bloc:
+
+- `legacy_group_key = test123-pmiura`
+
+Verified admin-leave outcome on a surviving bloc:
+
+- canonical `ante_core.blocs.admin_profile_id` transferred to the remaining
+  member
+- canonical admin auth user became
+  `85278d6f-2457-4153-9d06-27d96a4aec32`
+- leaving admin membership received `left_at`
+- remaining member stayed active with `left_at = null`
+- blob `adminUserId` and `adminName` transferred to `Test`
+- blob `memberOrder` became `["Test"]`
+- blob `leftMemberNames` included `Aadhil`
+- blob `memberships` retained only the new admin member
+
+## Verified Conclusion
+
+The surviving-bloc `leave-bloc` slice is now verified.
+
+What still remains outside this verified slice:
+
+- last-member deletion verification
 
 ## Bottom Line
 

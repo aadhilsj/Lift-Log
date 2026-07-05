@@ -339,6 +339,30 @@ See:
 
 - `docs/handover-2026-07-04-removal-lifecycle-audit.md`
 
+## Verification Amendment — 2026-07-05 (Leave)
+
+`leave-bloc` was subsequently verified live for surviving-bloc cases.
+
+Verified flows:
+
+- non-admin leave on a surviving bloc
+- admin leave with canonical admin transfer on a surviving bloc
+
+Verified outcome:
+
+- canonical member deactivation populated `bloc_members.left_at`
+- canonical admin transfer updated `blocs.admin_profile_id`
+- blob `adminUserId`, `adminName`, `memberOrder`, `memberships`, and
+  `leftMemberNames` tracked the expected post-leave state
+
+That means the surviving-bloc `leave-bloc` slice should no longer be treated as
+pending migration QA.
+
+What still remains outside that verified slice:
+
+- last-member deletion
+- verification of the newly implemented canonical bloc delete path
+
 ## Bottom Line
 
 Current `main` is more advanced than the older July 3 docs suggest.
@@ -356,8 +380,6 @@ Accurate current-state summary:
 7. `join-group` is now verified as canonical-first.
 8. `kick-member` is now verified as canonical-first in its narrow removal
    slice.
-9. `leave-bloc` is now the next concrete bounded lifecycle candidate.
-10. The currently implemented local `leave-bloc` slice is intentionally
-    narrower than the full lifecycle:
-    surviving-bloc cases are patched canonical-first, while last-member deletion
-    remains deferred.
+9. `leave-bloc` is now verified as canonical-first for surviving-bloc cases.
+10. Last-member deletion is now the remaining unverified lifecycle boundary in
+    this area, but the canonical-first delete path is now implemented locally.
