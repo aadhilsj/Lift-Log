@@ -1416,7 +1416,8 @@ async function upsertSitOutRequestInCanonical(legacyGroupKey, monthKey, memberNa
   }
 }
 
-async function toggleWorkoutReactionInCanonical(logId, reactorAuthUserId, reactorDisplayName, emoji, isAdding) {
+async function toggleWorkoutReactionInCanonical(logId, reactorAuthUserId, reactorDisplayName, emoji, isAdding, options = {}) {
+  const { throwOnError = false } = options;
   if (!logId || !reactorDisplayName || !emoji) return;
   const rpc = isAdding
     ? "/rest/v1/rpc/upsert_ante_core_workout_reaction"
@@ -1432,6 +1433,7 @@ async function toggleWorkoutReactionInCanonical(logId, reactorAuthUserId, reacto
       )
     });
   } catch (err) {
+    if (throwOnError) throw err;
     console.error("Canonical workout reaction sync failed:", err?.message || err);
   }
 }
@@ -4428,16 +4430,28 @@ export default async function handler(req, res) {
         // and the canonical RPC call use the same key.
         const emoji = String(payload?.emoji || "").trim();
         const result = applyToggleReaction(auth.state, { ...payload, actor, actorUserId: auth.user.id });
-        const persisted = await persistState(result.updated, result.reason);
-        // Best-effort canonical reaction sync. Direction is derived from the persisted blob:
-        // if actor is now present in reactions[emoji] → they added it; otherwise → removed it.
-        const persistedLog = persisted.groups?.[payload.groupId]?.logs?.[payload.owner]
+        const reactionGroup = result.updated.groups?.[payload.groupId];
+        const reactionLog = reactionGroup?.logs?.[payload.owner]
           ?.find(e => String(e?.id) === String(payload.logId));
-        if (persistedLog) {
-          const isAdding = (persistedLog.reactions?.[emoji] || []).includes(actor);
-          toggleWorkoutReactionInCanonical(payload.logId, auth.user.id, actor, emoji, isAdding)
-            .catch(err => console.error("Canonical workout reaction sync failed:", err?.message || err));
+        if (reactionGroup && reactionLog) {
+          // Canonical-first reaction slice:
+          // 1. compute the exact post-toggle blob-compatible state in memory
+          // 2. ensure the parent canonical workout log exists from that payload
+          // 3. apply the exact reaction direction canonically
+          // 4. persist blob afterward as the compatibility mirror
+          await syncSeasonToCanonical(reactionGroup, reactionGroup.lastMonth, "open", null, { throwOnError: true });
+          await upsertWorkoutLogToCanonical(
+            reactionGroup,
+            reactionGroup.lastMonth,
+            payload.owner,
+            findAuthUserIdForDisplayName(reactionGroup, payload.owner),
+            reactionLog,
+            { throwOnError: true }
+          );
+          const isAdding = (reactionLog.reactions?.[emoji] || []).includes(actor);
+          await toggleWorkoutReactionInCanonical(payload.logId, auth.user.id, actor, emoji, isAdding, { throwOnError: true });
         }
+        const persisted = await persistState(result.updated, result.reason);
         return res.status(200).json(persisted);
       }
 

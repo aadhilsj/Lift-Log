@@ -441,3 +441,16 @@ Current local shape:
 5. persist blob afterward as the compatibility mirror
 
 This should still be treated as pending live verification.
+
+## Implementation Amendment — 2026-07-05 (Reactions)
+
+`reaction` is now implemented locally as a bounded canonical-first slice.
+
+Current local shape:
+
+1. compute the exact post-toggle blob-compatible state in memory
+2. ensure the parent canonical workout log exists from that payload
+3. apply the exact reaction direction canonically
+4. persist blob afterward as the compatibility mirror
+
+This should still be treated as pending live verification.
