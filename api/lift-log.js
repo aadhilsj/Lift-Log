@@ -1149,13 +1149,12 @@ async function deleteBlocFromCanonical(legacyGroupKey, options = {}) {
   const { throwOnError = false } = options;
   if (!legacyGroupKey) return;
   try {
-    await supabaseFetch(`/rest/v1/blocs?legacy_group_key=eq.${encodeURIComponent(legacyGroupKey)}`, {
-      method: "DELETE",
-      headers: {
-        Accept: "application/json",
-        Prefer: "return=minimal",
-        "Content-Profile": "ante_core"
-      }
+    await supabaseFetch("/rest/v1/rpc/delete_ante_core_bloc", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({
+        p_legacy_group_key: legacyGroupKey
+      })
     });
   } catch (err) {
     if (throwOnError) throw err;
