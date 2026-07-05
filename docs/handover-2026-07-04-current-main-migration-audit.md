@@ -505,3 +505,21 @@ Verified outcome:
 
 That means the bounded `reaction` slice should now be treated as verified on
 the source-bloc path used by the app.
+
+## Implementation Amendment — 2026-07-05 (Flag Family)
+
+The workout-log moderation family is now implemented locally as a bounded
+canonical-first slice:
+
+- `flag`
+- `flag-response`
+- `flag-review`
+
+Current local shape:
+
+1. compute the exact post-moderation blob-compatible log state in memory
+2. ensure the canonical open season exists
+3. upsert the exact moderated workout-log payload canonically
+4. persist blob afterward as the compatibility mirror
+
+This should still be treated as pending live verification.

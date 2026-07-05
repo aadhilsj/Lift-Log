@@ -4459,12 +4459,20 @@ export default async function handler(req, res) {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
         const result = applyFlagLog(auth.state, { ...payload, actor, actorUserId: auth.user.id });
-        const persisted = await persistState(result.updated, result.reason);
-        const group = persisted.groups?.[payload.groupId];
+        const group = result.updated.groups?.[payload.groupId];
         const log = group?.logs?.[payload.owner]?.find(entry => String(entry?.id) === String(payload.logId));
         if (group && log) {
-          await upsertWorkoutLogToCanonical(group, group.lastMonth, payload.owner, findAuthUserIdForDisplayName(group, payload.owner), log);
+          await syncSeasonToCanonical(group, group.lastMonth, "open", null, { throwOnError: true });
+          await upsertWorkoutLogToCanonical(
+            group,
+            group.lastMonth,
+            payload.owner,
+            findAuthUserIdForDisplayName(group, payload.owner),
+            log,
+            { throwOnError: true }
+          );
         }
+        const persisted = await persistState(result.updated, result.reason);
         return res.status(200).json(persisted);
       }
 
@@ -4472,12 +4480,20 @@ export default async function handler(req, res) {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
         const result = applyRespondToFlag(auth.state, { ...payload, actor, actorUserId: auth.user.id });
-        const persisted = await persistState(result.updated, result.reason);
-        const group = persisted.groups?.[payload.groupId];
+        const group = result.updated.groups?.[payload.groupId];
         const log = group?.logs?.[payload.owner]?.find(entry => String(entry?.id) === String(payload.logId));
         if (group && log) {
-          await upsertWorkoutLogToCanonical(group, group.lastMonth, payload.owner, findAuthUserIdForDisplayName(group, payload.owner), log);
+          await syncSeasonToCanonical(group, group.lastMonth, "open", null, { throwOnError: true });
+          await upsertWorkoutLogToCanonical(
+            group,
+            group.lastMonth,
+            payload.owner,
+            findAuthUserIdForDisplayName(group, payload.owner),
+            log,
+            { throwOnError: true }
+          );
         }
+        const persisted = await persistState(result.updated, result.reason);
         return res.status(200).json(persisted);
       }
 
@@ -4485,12 +4501,20 @@ export default async function handler(req, res) {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
         const result = applyReviewFlag(auth.state, { ...payload, actor, actorUserId: auth.user.id });
-        const persisted = await persistState(result.updated, result.reason);
-        const group = persisted.groups?.[payload.groupId];
+        const group = result.updated.groups?.[payload.groupId];
         const log = group?.logs?.[payload.owner]?.find(entry => String(entry?.id) === String(payload.logId));
         if (group && log) {
-          await upsertWorkoutLogToCanonical(group, group.lastMonth, payload.owner, findAuthUserIdForDisplayName(group, payload.owner), log);
+          await syncSeasonToCanonical(group, group.lastMonth, "open", null, { throwOnError: true });
+          await upsertWorkoutLogToCanonical(
+            group,
+            group.lastMonth,
+            payload.owner,
+            findAuthUserIdForDisplayName(group, payload.owner),
+            log,
+            { throwOnError: true }
+          );
         }
+        const persisted = await persistState(result.updated, result.reason);
         return res.status(200).json(persisted);
       }
 
