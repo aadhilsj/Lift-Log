@@ -145,6 +145,14 @@ Avoid as first canonical-first slices:
 These are too entangled with blob compatibility and identity edge cases to be a
 good first authority transfer.
 
+Later migration update:
+
+- the workout logging slice eventually became tractable only after the safer
+  lifecycle and settings boundaries were already closed
+- current local `multi-log` now computes the exact new logs in memory, ensures
+  canonical bloc/open-season rows exist, writes those logs canonically first,
+  and only then persists blob
+
 ## Current Canonical-First Write Coverage
 
 Now validated on branch:
@@ -174,6 +182,13 @@ Implementation tightening after the later lifecycle batch:
   blob persist
 - that closes the remaining “best-effort canonical, authoritative blob” gap for
   this slice
+
+Verification update on July 5, 2026:
+
+- verified live on `legacy_group_key = test101-us8qvg`
+- bloc currency changed to `EUR`
+- canonical `blocs`, canonical open `seasons`, and blob `group.settings`
+  all matched `EUR`
 
 Why this is acceptable now:
 - already dual-written canonically before, so behavior is well understood

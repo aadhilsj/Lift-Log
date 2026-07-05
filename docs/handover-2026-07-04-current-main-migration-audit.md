@@ -97,6 +97,27 @@ Important nuance:
   persistence, making it a real authority-transfer slice rather than just a
   best-effort mirror
 
+## Verification Amendment — 2026-07-05 (Settings)
+
+`update-settings` was verified live after the authority-tightening change.
+
+Verified against bloc:
+
+- `legacy_group_key = test101-us8qvg`
+
+Verified change:
+
+- currency changed to `EUR`
+
+Verified outcome:
+
+- canonical `ante_core.blocs.currency = 'EUR'`
+- canonical open `ante_core.seasons.currency = 'EUR'`
+- blob `group.settings.currency = 'EUR'`
+
+That means `update-settings` should now be treated as a fully verified
+canonical-first slice, not merely a canonical-backed one.
+
 ## Remaining Blob-Borne Read Shell Re-Audit
 
 This section replaces older broad lists that still included fields already
@@ -406,3 +427,17 @@ Accurate current-state summary:
    bounded lifecycle batch.
 10. The migration is now past the core member lifecycle authority-transfer
     boundary.
+
+## Implementation Amendment — 2026-07-05 (Workout Logging)
+
+`multi-log` is now implemented locally as a bounded canonical-first slice.
+
+Current local shape:
+
+1. compute the exact post-log blob-compatible state in memory
+2. identify the exact newly created logs from that in-memory result
+3. ensure canonical bloc and open-season rows exist for each target bloc
+4. upsert the exact new logs canonically from that payload
+5. persist blob afterward as the compatibility mirror
+
+This should still be treated as pending live verification.

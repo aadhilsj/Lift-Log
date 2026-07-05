@@ -1436,7 +1436,8 @@ async function toggleWorkoutReactionInCanonical(logId, reactorAuthUserId, reacto
   }
 }
 
-async function upsertWorkoutLogToCanonical(group, monthKey, ownerDisplayName, ownerAuthUserId, log) {
+async function upsertWorkoutLogToCanonical(group, monthKey, ownerDisplayName, ownerAuthUserId, log, options = {}) {
+  const { throwOnError = false } = options;
   if (!group || !monthKey || !ownerDisplayName || !log?.id || !log?.date || !log?.type || !log?.createdAt || !log?.verifiedVia) return;
   try {
     await supabaseFetch("/rest/v1/rpc/upsert_ante_core_workout_log", {
@@ -1463,6 +1464,7 @@ async function upsertWorkoutLogToCanonical(group, monthKey, ownerDisplayName, ow
       })
     });
   } catch (err) {
+    if (throwOnError) throw err;
     console.error("Canonical workout log sync failed:", err?.message || err);
   }
 }
@@ -4287,17 +4289,33 @@ export default async function handler(req, res) {
           ])
         );
         const updated = applyMultiLog(auth.state, { ...payload, actor, actorUserId: auth.user.id });
-        const persisted = await persistState(updated, `multi-log:${actor || auth.user.id}:${payload.date}:${payload.workoutType}`);
+        const pendingLogsByGroup = Object.fromEntries(
+          allTargetIds.map(groupId => {
+            const group = updated.groups?.[groupId];
+            if (!group) return [groupId, []];
+            const beforeIds = beforeLogIdsByGroup[groupId] || new Set();
+            const ownerLogs = group.logs?.[actor] || [];
+            return [groupId, ownerLogs.filter(log => !beforeIds.has(String(log?.id)))];
+          })
+        );
+        // Canonical-first workout logging slice:
+        // 1. compute the exact post-log blob-compatible state in memory
+        // 2. ensure canonical bloc/open-season rows exist for each target bloc
+        // 3. upsert the exact new logs canonically from that in-memory payload
+        // 4. persist blob afterward as the compatibility mirror
         for (const groupId of allTargetIds) {
-          const group = persisted.groups?.[groupId];
+          const group = updated.groups?.[groupId];
           if (!group) continue;
-          const beforeIds = beforeLogIdsByGroup[groupId] || new Set();
-          const ownerLogs = group.logs?.[actor] || [];
-          const newLogs = ownerLogs.filter(log => !beforeIds.has(String(log?.id)));
+          const newLogs = pendingLogsByGroup[groupId] || [];
+          if (!newLogs.length) continue;
+          const groupSortOrder = (updated.groupOrder || []).indexOf(groupId);
+          await syncBlocToCanonical(group, group.adminUserId || null, groupSortOrder >= 0 ? groupSortOrder : null, { throwOnError: true });
+          await syncSeasonToCanonical(group, group.lastMonth, "open", null, { throwOnError: true });
           for (const log of newLogs) {
-            await upsertWorkoutLogToCanonical(group, group.lastMonth, actor, auth.user.id, log);
+            await upsertWorkoutLogToCanonical(group, group.lastMonth, actor, auth.user.id, log, { throwOnError: true });
           }
         }
+        const persisted = await persistState(updated, `multi-log:${actor || auth.user.id}:${payload.date}:${payload.workoutType}`);
         return res.status(200).json(persisted);
       }
 
