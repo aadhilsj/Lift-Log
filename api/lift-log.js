@@ -4313,8 +4313,8 @@ export default async function handler(req, res) {
         // 3. sync the canonical open-season snapshot from the same payload
         // 4. mirror blob state afterward without changing the response contract
         if (settingsGroup) {
-          await syncBlocToCanonical(settingsGroup, auth.user.id, settingsSortOrder);
-          await syncSeasonToCanonical(settingsGroup, settingsGroup?.lastMonth, "open");
+          await syncBlocToCanonical(settingsGroup, auth.user.id, settingsSortOrder, { throwOnError: true });
+          await syncSeasonToCanonical(settingsGroup, settingsGroup?.lastMonth, "open", null, { throwOnError: true });
         }
         const persisted = await persistState(updated, `settings:${payload.groupId}:${actor || auth.user.id}`);
         return res.status(200).json(persisted);

@@ -168,6 +168,13 @@ Current shape:
 3. sync the canonical open-season snapshot from the same payload
 4. persist blob immediately after as the mirror / compatibility shadow
 
+Implementation tightening after the later lifecycle batch:
+
+- the `update-settings` canonical writes now run with throwing behavior before
+  blob persist
+- that closes the remaining “best-effort canonical, authoritative blob” gap for
+  this slice
+
 Why this is acceptable now:
 - already dual-written canonically before, so behavior is well understood
 - bounded compared with logs or membership lifecycle writes

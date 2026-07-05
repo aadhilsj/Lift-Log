@@ -341,6 +341,36 @@ What still remains outside this verified slice:
 
 - last-member deletion verification
 
+## Verification Amendment — 2026-07-05 (`leave-bloc`, last-member deletion)
+
+Status: `PASS`
+
+Verified live against bloc:
+
+- `legacy_group_key = test123-pmiura`
+
+Verified last-member deletion outcome:
+
+- canonical `ante_core.blocs` returned `0` rows for the deleted bloc
+- canonical `ante_core.bloc_members` returned `0` rows for the deleted bloc
+- canonical `ante_core.seasons` returned `0` rows for the deleted bloc
+- blob `state.groups['test123-pmiura']` became `null`
+- blob `groupOrder` no longer contained `test123-pmiura`
+
+Note:
+
+- `default_group_id` showing `null` in that SQL output is not itself a new
+  regression signal here; the serialized blob row does not persist top-level
+  `defaultGroupId` in `state`
+
+## Final Conclusion
+
+The full currently-bounded `leave-bloc` migration batch is now verified:
+
+- non-admin leave on surviving bloc
+- admin leave with surviving-bloc transfer
+- last-member bloc deletion
+
 ## Bottom Line
 
 The program has now verified:

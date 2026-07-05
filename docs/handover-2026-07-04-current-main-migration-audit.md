@@ -89,6 +89,14 @@ Verified in `api/lift-log.js`:
 
 These should no longer be discussed as merely hypothetical future slices.
 
+Important nuance:
+
+- some of these slices reached the codebase earlier as canonical-backed or
+  dual-write behavior before they were made truly authoritative
+- `update-settings` specifically now uses throwing canonical writes before blob
+  persistence, making it a real authority-transfer slice rather than just a
+  best-effort mirror
+
 ## Remaining Blob-Borne Read Shell Re-Audit
 
 This section replaces older broad lists that still included fields already
@@ -363,6 +371,20 @@ What still remains outside that verified slice:
 - last-member deletion
 - verification of the newly implemented canonical bloc delete path
 
+## Verification Amendment — 2026-07-05 (Leave Last Member)
+
+`leave-bloc` was subsequently verified live for last-member deletion too.
+
+Verified outcome:
+
+- canonical bloc row was deleted
+- canonical dependent membership and season rows were deleted
+- blob group row was deleted
+- blob `groupOrder` no longer contained the bloc
+
+That means the currently-bounded `leave-bloc` migration slice should now be
+treated as fully verified.
+
 ## Bottom Line
 
 Current `main` is more advanced than the older July 3 docs suggest.
@@ -380,6 +402,7 @@ Accurate current-state summary:
 7. `join-group` is now verified as canonical-first.
 8. `kick-member` is now verified as canonical-first in its narrow removal
    slice.
-9. `leave-bloc` is now verified as canonical-first for surviving-bloc cases.
-10. Last-member deletion is now the remaining unverified lifecycle boundary in
-    this area, but the canonical-first delete path is now implemented locally.
+9. `leave-bloc` is now verified as canonical-first for the full currently
+   bounded lifecycle batch.
+10. The migration is now past the core member lifecycle authority-transfer
+    boundary.
