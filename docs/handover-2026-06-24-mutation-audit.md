@@ -152,6 +152,8 @@ Later migration update:
 - current local `multi-log` now computes the exact new logs in memory, ensures
   canonical bloc/open-season rows exist, writes those logs canonically first,
   and only then persists blob
+- verified live on July 5, 2026 for source bloc `test101-us8qvg` and fanout
+  bloc `stavanger-4ever-7162hj`
 
 ## Current Canonical-First Write Coverage
 

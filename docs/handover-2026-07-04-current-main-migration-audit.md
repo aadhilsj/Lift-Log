@@ -454,3 +454,54 @@ Current local shape:
 4. persist blob afterward as the compatibility mirror
 
 This should still be treated as pending live verification.
+
+## Verification Amendment — 2026-07-05 (Workout Logging)
+
+`multi-log` was verified live.
+
+Verified against blocs:
+
+- `test101-us8qvg`
+- `stavanger-4ever-7162hj`
+
+Verified payload:
+
+- owner display name: `Aadhil`
+- workout date: `2026-07-05`
+- workout type: `Gym`
+- `verified_via = 'photo'`
+
+Verified outcome:
+
+- canonical `ante_core.workout_logs` row existed in both target blocs
+- canonical owner identity resolved correctly to
+  `768de245-5b17-4292-b91c-804daaa3b217`
+- canonical open seasons already existed and the write succeeded against them
+- blob `logs['Aadhil']` contained the same newly created log in both blocs
+
+That means `multi-log` should now be treated as a verified canonical-first
+slice.
+
+## Verification Amendment — 2026-07-05 (Reactions)
+
+`reaction` was verified live on the source-bloc path.
+
+Verified against bloc:
+
+- `test101-us8qvg`
+
+Verified reaction:
+
+- workout owner: `Aadhil`
+- emoji: `🔥`
+- reactor display name: `Aadhil`
+
+Verified outcome:
+
+- canonical `ante_core.workout_reactions` row existed for the workout log
+- canonical reactor identity resolved correctly to
+  `768de245-5b17-4292-b91c-804daaa3b217`
+- blob reaction state on the same log matched `{"🔥":["Aadhil"]}`
+
+That means the bounded `reaction` slice should now be treated as verified on
+the source-bloc path used by the app.
