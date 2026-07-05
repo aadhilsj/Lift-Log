@@ -1471,7 +1471,8 @@ async function upsertWorkoutLogToCanonical(group, monthKey, ownerDisplayName, ow
   }
 }
 
-async function deleteWorkoutLogFromCanonical(logId) {
+async function deleteWorkoutLogFromCanonical(logId, options = {}) {
+  const { throwOnError = false } = options;
   if (!logId) return;
   try {
     await supabaseFetch("/rest/v1/rpc/delete_ante_core_workout_log", {
@@ -1480,6 +1481,7 @@ async function deleteWorkoutLogFromCanonical(logId) {
       body: JSON.stringify({ p_id: String(logId) })
     });
   } catch (err) {
+    if (throwOnError) throw err;
     console.error("Canonical workout log delete failed:", err?.message || err);
   }
 }
@@ -4522,8 +4524,8 @@ export default async function handler(req, res) {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
         const result = applyDeleteLog(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        await deleteWorkoutLogFromCanonical(payload.logId, { throwOnError: true });
         const persisted = await persistState(result.updated, result.reason);
-        await deleteWorkoutLogFromCanonical(payload.logId);
         return res.status(200).json(persisted);
       }
 
