@@ -752,18 +752,25 @@ function buildSettlementPairsForMonth(month) {
   const activeCounts = relevantNames
     .filter(name => !excused?.[name])
     .map(name => ({ name, count: counts?.[name] || 0, target: memberTargets?.[name] || Number(settings?.minTarget || MIN_TARGET) }));
-  const { winners, losers, perWinner } = calcPenalties(activeCounts, settings);
-  if (!winners.length || !losers.length || perWinner <= 0) return [];
+  const penalties = calcPenalties(activeCounts, settings);
+  const { winners, losers } = penalties;
+  if (!winners.length || !losers.length) return [];
   return losers.flatMap(loser => winners
     .filter(winner => winner.name !== loser.name)
-    .map(winner => ({
-      monthKey: month.key,
-      monthLabel: month.label || formatMonthLabelFromKey(month.key) || month.key,
-      payerDisplayName: loser.name,
-      receiverDisplayName: winner.name,
-      amount: perWinner,
-      currency: settings?.currency || DEFAULT_CURRENCY
-    })));
+    .map(winner => {
+      const loserAmount = getLoserAmount(penalties, loser.name);
+      const pairAmount = winners.length > 0 ? Math.floor(loserAmount / winners.length) : 0;
+      if (pairAmount <= 0) return null;
+      return {
+        monthKey: month.key,
+        monthLabel: month.label || formatMonthLabelFromKey(month.key) || month.key,
+        payerDisplayName: loser.name,
+        receiverDisplayName: winner.name,
+        amount: pairAmount,
+        currency: settings?.currency || DEFAULT_CURRENCY
+      };
+    }))
+    .filter(Boolean));
 }
 
 function buildSettlementReminderCards(group, currentUserId, currentUserName) {
