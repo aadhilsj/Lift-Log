@@ -902,6 +902,19 @@ function rebuildMonthSnapshot(group, month, logsByUser) {
   const excused = month?.excused || Object.fromEntries(relevantNames.map(name => [name, false]));
   const settings = buildNormalizedSettings(month?.settings || group.settings);
   const memberTargets = getMemberTargetsForMonth(group, relevantNames, monthKey, settings);
+  const defaultSettlements = buildDefaultSettlements({ counts, excused }, relevantNames, settings, memberTargets);
+  const previousSettlements = month?.settlements || {};
+  const settlements = Object.fromEntries(
+    Object.entries(defaultSettlements).map(([name, settlement]) => {
+      const previous = previousSettlements[name];
+      if (!previous) return [name, settlement];
+      return [name, {
+        status: previous?.status === "settled" ? "settled" : "outstanding",
+        settledAt: previous?.status === "settled" ? (previous?.settledAt || null) : null,
+        updatedAt: previous?.updatedAt || null
+      }];
+    })
+  );
   return {
     ...month,
     counts,
@@ -909,7 +922,7 @@ function rebuildMonthSnapshot(group, month, logsByUser) {
     logsByUser: nextLogsByUser,
     memberTargets,
     settings,
-    settlements: buildDefaultSettlements({ counts, excused }, relevantNames, settings, memberTargets)
+    settlements
   };
 }
 

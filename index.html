@@ -787,7 +787,9 @@ function buildSettlementReminderCards(group, currentUserId, currentUserName) {
       const payerMembership = membershipByName[pair.payerDisplayName] || null;
       const receiverMembership = membershipByName[pair.receiverDisplayName] || null;
       const confirmation = confirmationByNameKey.get(`${pair.monthKey}:${pair.payerDisplayName}:${pair.receiverDisplayName}`) || null;
+      const legacySettlement = confirmation ? null : (month?.settlements?.[pair.payerDisplayName] || null);
       if (confirmation?.confirmedAt) return null;
+      if (legacySettlement?.status === "settled") return null;
       const pending = !!confirmation?.payerClaimedAt && !confirmation?.confirmedAt;
       const payerAuthUserId = confirmation?.payerAuthUserId || payerMembership?.userId || null;
       const receiverAuthUserId = confirmation?.receiverAuthUserId || receiverMembership?.userId || null;
@@ -879,6 +881,11 @@ function getSettlementConfirmationForPair(group, monthKey, payerDisplayName, rec
   ) || null;
 }
 
+function getLegacySettlementForPair(group, monthKey, payerDisplayName) {
+  const month = (group?.monthHistory || []).find(row => row?.key === monthKey);
+  return month?.settlements?.[payerDisplayName] || null;
+}
+
 function buildSettlementPairState(group, monthKey, payerDisplayName, receiverDisplayName, currentUserId, currentUserName) {
   const membershipByName = Object.fromEntries(
     Object.values(group?.memberships || {})
@@ -886,6 +893,7 @@ function buildSettlementPairState(group, monthKey, payerDisplayName, receiverDis
       .map(membership => [membership.displayName, membership])
   );
   const confirmation = getSettlementConfirmationForPair(group, monthKey, payerDisplayName, receiverDisplayName);
+  const legacySettlement = confirmation ? null : getLegacySettlementForPair(group, monthKey, payerDisplayName);
   const payerMembership = membershipByName[payerDisplayName] || null;
   const receiverMembership = membershipByName[receiverDisplayName] || null;
   const payerAuthUserId = confirmation?.payerAuthUserId || payerMembership?.userId || null;
@@ -898,12 +906,13 @@ function buildSettlementPairState(group, monthKey, payerDisplayName, receiverDis
     : receiverDisplayName === currentUserName;
   return {
     confirmation,
+    confirmedAt: confirmation?.confirmedAt || (legacySettlement?.status === "settled" ? (legacySettlement?.settledAt || null) : null),
     payerAuthUserId,
     receiverAuthUserId,
     isPayer,
     isReceiver,
     pending: !!confirmation?.payerClaimedAt && !confirmation?.confirmedAt,
-    confirmed: !!confirmation?.confirmedAt
+    confirmed: !!confirmation?.confirmedAt || legacySettlement?.status === "settled"
   };
 }
 
@@ -1703,6 +1712,19 @@ function rebuildMonthSnapshot(month, logsByUser) {
   const memberTargets = Object.fromEntries(
     relevantNames.map(name => [name, getMemberTargetForMonth(monthGroup, name, monthKey, settings)])
   );
+  const defaultSettlements = buildSettlementMap(counts, excused, settings, memberTargets);
+  const previousSettlements = month?.settlements || {};
+  const settlements = Object.fromEntries(
+    Object.entries(defaultSettlements).map(([name, settlement]) => {
+      const previous = previousSettlements[name];
+      if (!previous) return [name, settlement];
+      return [name, {
+        status: previous?.status === "settled" ? "settled" : "outstanding",
+        settledAt: previous?.status === "settled" ? (previous?.settledAt || null) : null,
+        updatedAt: previous?.updatedAt || null
+      }];
+    })
+  );
   return {
     ...month,
     counts,
@@ -1710,7 +1732,7 @@ function rebuildMonthSnapshot(month, logsByUser) {
     logsByUser: nextLogsByUser,
     memberTargets,
     settings,
-    settlements: buildSettlementMap(counts, excused, settings, memberTargets)
+    settlements
   };
 }
 
@@ -6043,7 +6065,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
           const key = `${month.key}:${loser.name}:${currentUser}`;
           const state = buildSettlementPairState(group, month.key, loser.name, currentUser, currentUserId, currentUser);
           const statusText = state.confirmed
-            ? `Settled ${String(state.confirmation?.confirmedAt || "").slice(0, 10)}`
+            ? `Settled ${String(state.confirmedAt || "").slice(0, 10)}`
             : state.pending
               ? "Pending confirmation"
               : "Outstanding";
@@ -6082,7 +6104,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
     const key = `${month.key}:${currentUser}:${receiverDisplayName}`;
     const state = buildSettlementPairState(group, month.key, currentUser, receiverDisplayName, currentUserId, currentUser);
     const statusText = state.confirmed
-      ? `Settled ${String(state.confirmation?.confirmedAt || "").slice(0, 10)}`
+      ? `Settled ${String(state.confirmedAt || "").slice(0, 10)}`
       : state.pending
         ? "Pending confirmation"
         : "Outstanding";
