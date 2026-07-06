@@ -770,7 +770,7 @@ function buildSettlementPairsForMonth(month) {
         currency: settings?.currency || DEFAULT_CURRENCY
       };
     }))
-    .filter(Boolean));
+    .filter(Boolean);
 }
 
 function buildSettlementReminderCards(group, currentUserId, currentUserName) {
