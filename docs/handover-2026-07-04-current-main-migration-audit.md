@@ -524,6 +524,44 @@ Current local shape:
 
 This should still be treated as pending live verification.
 
+## Verification Amendment — 2026-07-06 (Flag Family, Partial)
+
+The workout-log moderation family was partially verified live.
+
+Verified against bloc:
+
+- `test101-us8qvg`
+
+Verified log:
+
+- `id = 1783346485002`
+- owner display name: `Aadhil`
+
+Verified actions:
+
+- `flag`
+- `flag-review`
+
+Verified outcome:
+
+- canonical `ante_core.workout_logs` reflected `flag_status = 'flagged'`
+  with `flagged_by = 'Test'`
+- canonical `ante_core.workout_logs` then reflected
+  `flag_status = 'approved'` with `decision_by = 'Aadhil'`
+  and `decision_at` populated
+- blob mirror for `logs['Aadhil']` matched the same moderation state at both
+  stages
+
+Still not verified live:
+
+- `flag-response`
+
+So the flag family should now be treated as:
+
+- `flag`: verified
+- `flag-review`: verified
+- `flag-response`: pending
+
 ## Implementation Amendment — 2026-07-05 (Delete Log)
 
 `delete-log` is now implemented locally as a bounded canonical-first slice.
