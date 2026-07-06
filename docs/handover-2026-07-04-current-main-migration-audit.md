@@ -535,3 +535,25 @@ Current local shape:
 3. persist blob afterward as the compatibility mirror
 
 This should still be treated as pending live verification.
+
+## Verification Amendment — 2026-07-06 (Delete Log)
+
+`delete-log` was subsequently verified live.
+
+Verified against bloc:
+
+- `test101-us8qvg`
+
+Verified log:
+
+- `id = 1783270506896`
+- owner display name: `Aadhil`
+
+Verified outcome:
+
+- canonical `ante_core.workout_logs` row was deleted
+- canonical `ante_core.workout_reactions` rows for that workout were absent
+- blob `logs['Aadhil']` no longer contained the deleted log id
+
+That means `delete-log` should now be treated as a verified
+canonical-first slice.
