@@ -905,6 +905,44 @@ function buildMonthLogsSnapshot(logsByName, memberOrder) {
   );
 }
 
+function scrubDepartedMemberFromCurrentLogs(logsByName, departedDisplayName, options = {}) {
+  const departedName = String(departedDisplayName || "").trim();
+  if (!departedName) return logsByName && typeof logsByName === "object" ? { ...logsByName } : {};
+
+  const {
+    removeOwnedLogs = false
+  } = options;
+
+  const nextLogs = {};
+  for (const [owner, ownerLogs] of Object.entries(logsByName || {})) {
+    if (removeOwnedLogs && owner === departedName) continue;
+    nextLogs[owner] = (Array.isArray(ownerLogs) ? ownerLogs : []).map(log => {
+      const nextReactions = {};
+      for (const [emoji, reactors] of Object.entries(log?.reactions || {})) {
+        const filtered = (Array.isArray(reactors) ? reactors : []).filter(name => name !== departedName);
+        if (filtered.length > 0) nextReactions[emoji] = filtered;
+      }
+      if (log?.flagStatus === "flagged" && log?.flaggedBy === departedName) {
+        return {
+          ...log,
+          reactions: nextReactions,
+          flaggedBy: null,
+          flagReason: "",
+          flagResponse: "",
+          flagStatus: null,
+          decisionBy: null,
+          decisionAt: null
+        };
+      }
+      return {
+        ...log,
+        reactions: nextReactions
+      };
+    });
+  }
+  return nextLogs;
+}
+
 function rebuildMonthSnapshot(group, month, logsByUser) {
   const monthKey = month?.key;
   const relevantNames = getCurrentMemberNamesForMonth(group, monthKey);
@@ -3744,11 +3782,13 @@ function applyKickMember(current, payload) {
   else if (targetMembership?.userId) delete nextMemberships[targetMembership.userId];
   const nextMemberOrder = group.memberOrder.filter(n => n !== resolvedDisplayName);
   const nextLeftMemberNames = [...new Set([...(Array.isArray(group.leftMemberNames) ? group.leftMemberNames : []), resolvedDisplayName])];
+  const nextLogs = scrubDepartedMemberFromCurrentLogs(group.logs, resolvedDisplayName);
   const nextGroup = normalizeGroup({
     ...group,
     memberOrder: nextMemberOrder,
     memberships: nextMemberships,
-    leftMemberNames: nextLeftMemberNames
+    leftMemberNames: nextLeftMemberNames,
+    logs: nextLogs
   });
   return {
     ...base,
@@ -3805,13 +3845,15 @@ function applyLeaveBloc(current, payload) {
   }
 
   const nextLeftMemberNames = [...new Set([...(Array.isArray(group.leftMemberNames) ? group.leftMemberNames : []), displayName])];
+  const nextLogs = scrubDepartedMemberFromCurrentLogs(group.logs, displayName);
   const nextGroup = normalizeGroup({
     ...group,
     adminUserId: nextAdminUserId,
     adminName: nextAdminName,
     memberOrder: nextMemberOrder,
     memberships: nextMemberships,
-    leftMemberNames: nextLeftMemberNames
+    leftMemberNames: nextLeftMemberNames,
+    logs: nextLogs
   });
   return {
     ...base,
@@ -3850,8 +3892,21 @@ function applyDeleteAccount(current, payload) {
   const nextGroupOrder = [...(base.groupOrder || [])];
 
   for (const [groupId, group] of Object.entries(base.groups || {})) {
+    const groupDisplayName = displayName || "";
     const membership = group.memberships?.[userId];
-    if (!membership) continue; // user not in this group
+    const scrubbedLogs = groupDisplayName
+      ? scrubDepartedMemberFromCurrentLogs(group.logs, groupDisplayName, { removeOwnedLogs: !!membership })
+      : (group.logs || {});
+
+    if (!membership) {
+      if (JSON.stringify(scrubbedLogs) !== JSON.stringify(group.logs || {})) {
+        nextGroups[groupId] = normalizeGroup({
+          ...group,
+          logs: scrubbedLogs
+        });
+      }
+      continue; // user not an active member of this group
+    }
 
     const dn = membership.displayName || displayName;
     const nextMemberships = { ...group.memberships };
@@ -3883,33 +3938,6 @@ function applyDeleteAccount(current, payload) {
     // Remove member from memberOrder
     const nextMemberOrder = group.memberOrder.filter(n => n !== dn);
 
-    // Remove their logs
-    const nextLogs = { ...(group.logs || {}) };
-    delete nextLogs[dn];
-
-    // Scrub their name from all reaction arrays on remaining logs
-    const scrubbedLogs = {};
-    for (const [owner, ownerLogs] of Object.entries(nextLogs)) {
-      scrubbedLogs[owner] = (Array.isArray(ownerLogs) ? ownerLogs : []).map(log => {
-        if (!log?.reactions) return log;
-        const nextReactions = {};
-        for (const [emoji, reactors] of Object.entries(log.reactions)) {
-          const filtered = reactors.filter(r => r !== dn);
-          if (filtered.length > 0) nextReactions[emoji] = filtered;
-        }
-        return { ...log, reactions: nextReactions };
-      });
-    }
-
-    // Clear flaggedBy on any log flagged by this user
-    const finalLogs = {};
-    for (const [owner, ownerLogs] of Object.entries(scrubbedLogs)) {
-      finalLogs[owner] = (Array.isArray(ownerLogs) ? ownerLogs : []).map(log => {
-        if (log?.flaggedBy === dn) return { ...log, flaggedBy: null, flagReason: "", flagResponse: "", flagStatus: null };
-        return log;
-      });
-    }
-
     // Remove sit-out requests by this user
     const nextSitOutRequests = {};
     for (const [monthKey, monthRequests] of Object.entries(group.sitOutRequests || {})) {
@@ -3928,7 +3956,7 @@ function applyDeleteAccount(current, payload) {
         ...(Array.isArray(group.leftMemberNames) ? group.leftMemberNames : []),
         dn
       ]),
-      logs: finalLogs,
+      logs: scrubbedLogs,
       sitOutRequests: nextSitOutRequests
     });
   }
