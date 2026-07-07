@@ -282,15 +282,28 @@ function normalizeLegacyGroup(data) {
 }
 
 function deriveActiveMemberOrder(rawMemberOrder, memberships, adminName, leftMemberNames, historicalFallback = []) {
-  const explicitActiveMembers = uniqueNames([
-    ...(Array.isArray(rawMemberOrder) ? rawMemberOrder : []),
+  const canonicalActiveMembers = uniqueNames([
     ...Object.values(memberships || {}).map(membership => membership?.displayName || ""),
     String(adminName || "").trim()
   ]).filter(name => !leftMemberNames.has(name));
 
-  if (explicitActiveMembers.length > 0) return explicitActiveMembers;
+  if (canonicalActiveMembers.length > 0) return canonicalActiveMembers;
+
+  const blobActiveMembers = uniqueNames([
+    ...(Array.isArray(rawMemberOrder) ? rawMemberOrder : []),
+    String(adminName || "").trim()
+  ]).filter(name => !leftMemberNames.has(name));
+
+  if (blobActiveMembers.length > 0) return blobActiveMembers;
 
   return uniqueNames(historicalFallback).filter(name => !leftMemberNames.has(name));
+}
+
+function getCurrentMemberNamesForMonth(group, monthKey) {
+  const sourceNames = Array.isArray(group?.activeMemberOrder) && group.activeMemberOrder.length
+    ? group.activeMemberOrder
+    : (Array.isArray(group?.memberOrder) ? group.memberOrder : []);
+  return sourceNames.filter(name => isJoinedForMonth(group?.joinedMonthByName, name, monthKey));
 }
 
 function normalizeGroup(group) {
@@ -894,8 +907,8 @@ function buildMonthLogsSnapshot(logsByName, memberOrder) {
 
 function rebuildMonthSnapshot(group, month, logsByUser) {
   const monthKey = month?.key;
-  const relevantNames = group.memberOrder.filter(name => isJoinedForMonth(group.joinedMonthByName, name, monthKey));
-  const nextLogsByUser = buildMonthLogsSnapshot(logsByUser, group.memberOrder);
+  const relevantNames = getCurrentMemberNamesForMonth(group, monthKey);
+  const nextLogsByUser = buildMonthLogsSnapshot(logsByUser, relevantNames);
   const counts = Object.fromEntries(
     relevantNames.map(name => [name, getCountedLogCount(nextLogsByUser[name])])
   );
@@ -937,7 +950,7 @@ function rolloverGroupIfNeeded(group) {
   if (lastDate >= curDate) return group;
 
   const label = `${MONTH_NAMES[lm]} '${String(ly).slice(2)}`;
-  const relevantNames = group.memberOrder.filter(name => isJoinedForMonth(group.joinedMonthByName, name, group.lastMonth));
+  const relevantNames = getCurrentMemberNamesForMonth(group, group.lastMonth);
   const counts = Object.fromEntries(
     relevantNames.map(name => [name, getCountedLogCount(group.logs?.[name] || [])])
   );
@@ -952,7 +965,7 @@ function rolloverGroupIfNeeded(group) {
     month: lm,
     counts,
     excused,
-    logsByUser: buildMonthLogsSnapshot(group.logs, group.memberOrder),
+    logsByUser: buildMonthLogsSnapshot(group.logs, relevantNames),
     memberTargets,
     settings: buildNormalizedSettings(group.settings),
     settlements: buildDefaultSettlements({ counts, excused }, relevantNames, group.settings, memberTargets)
@@ -1986,11 +1999,10 @@ async function fetchReadableCurrentState() {
   }
 
   // Overlay canonical current-month logs onto each blob-backed group.
-  // The overlay keys group.logs by exactly the names in group.memberOrder —
-  // no new names are introduced and no normalization pass is assumed after
-  // this point. Members in memberOrder with no canonical logs get [].
-  // Canonical log owners not in memberOrder are silently dropped (name-drift
-  // guard; hard gate confirmed zero drift before this slice landed).
+  // The overlay keys group.logs by the current active member list, not the
+  // broader historical member shell. Members in activeMemberOrder with no
+  // canonical logs get []. Canonical log owners not in activeMemberOrder are
+  // silently dropped (name-drift / departed-member guard).
   // If the fetch fails or returns null, blob logs are preserved unchanged.
   const anteCurrentLogs = await anteCurrentLogsPromise;
   if (anteCurrentLogs && Object.keys(anteCurrentLogs).length > 0) {
@@ -2005,9 +2017,12 @@ async function fetchReadableCurrentState() {
           if (!byOwner[name]) byOwner[name] = [];
           byOwner[name].push(log);
         }
-        // Build the logs map keyed by memberOrder names only.
+        const activeMemberNames = Array.isArray(group.activeMemberOrder) && group.activeMemberOrder.length
+          ? group.activeMemberOrder
+          : (group.memberOrder || []);
+        // Build the logs map keyed by active-member names only.
         const overlaidLogs = Object.fromEntries(
-          (group.memberOrder || []).map(name => [
+          activeMemberNames.map(name => [
             name,
             (byOwner[name] || []).map(normalizeLogEntry)
           ])
@@ -2019,14 +2034,12 @@ async function fetchReadableCurrentState() {
   }
 
   // Overlay canonical current-month excused + sit-out requests.
-  // Both overlays are keyed strictly by group.memberOrder — no new names are
-  // introduced and no normalization pass is assumed after this point. Each
-  // canonical row carries its own month_key, used as the inner/outer key so
-  // only the open-season month is touched. Historical sit-out month keys in
-  // the blob are preserved. status is already mapped to 'declined' in the RPC.
-  // If the fetch fails or returns null, blob values are preserved unchanged.
-  // Both overlays are keyed strictly by group.memberOrder — no new names are
-  // introduced and no normalization pass is assumed after this point.
+  // Both overlays are keyed by the current active member list, not the wider
+  // historical member shell. Each canonical row carries its own month_key,
+  // used as the inner/outer key so only the open-season month is touched.
+  // Historical sit-out month keys in the blob are preserved.
+  // status is already mapped to 'declined' in the RPC. If the fetch fails or
+  // returns null, blob values are preserved unchanged.
   // openSeasonMonthKeys provides the current month_key for each group even when
   // excused/sit-out arrays are empty, enabling canonical to clear stale blob state.
   // Historical sit-out month keys in the blob are preserved; only the open-season
@@ -2046,10 +2059,12 @@ async function fetchReadableCurrentState() {
         // Skip groups with no open season — they have no canonical current-month state.
         if (!openMonthKey) return [groupId, group];
 
-        const memberOrder = group.memberOrder || [];
+        const activeMemberNames = Array.isArray(group.activeMemberOrder) && group.activeMemberOrder.length
+          ? group.activeMemberOrder
+          : (group.memberOrder || []);
         let nextGroup = group;
 
-        // Excused overlay: replace group.excused wholesale, keyed by memberOrder.
+        // Excused overlay: replace group.excused wholesale, keyed by active members.
         // Applies even when canonical has zero excused rows for this group — a member
         // with no canonical excused entry correctly gets {} (not excused this month).
         const canonicalExcused = excusedByGroup[groupId] || [];
@@ -2061,11 +2076,11 @@ async function fetchReadableCurrentState() {
         nextGroup = {
           ...nextGroup,
           lastMonth: openMonthKey,
-          excused: Object.fromEntries(memberOrder.map(name => [name, excusedByName[name] || {}]))
+          excused: Object.fromEntries(activeMemberNames.map(name => [name, excusedByName[name] || {}]))
         };
 
         // Sit-out overlay: replace only the open-season month key, keyed by
-        // memberOrder. Preserve all other (historical) month keys from blob.
+        // active members. Preserve all other (historical) month keys from blob.
         // Uses openMonthKey as the authoritative current month so the overlay
         // fires even when canonical has zero sit-out rows for this group.
         const canonicalSitouts = sitoutsByGroup[groupId] || [];
@@ -2074,7 +2089,7 @@ async function fetchReadableCurrentState() {
           sitoutByName[row.displayName] = row;
         }
         const monthRequests = {};
-        for (const name of memberOrder) {
+        for (const name of activeMemberNames) {
           const req = sitoutByName[name];
           if (!req) continue;
           monthRequests[name] = {

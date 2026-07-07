@@ -1349,13 +1349,19 @@ function normalizeMonthHistoryState(monthHistory, memberOrder, joinedMonthByName
 }
 
 function deriveActiveMemberOrder(rawMemberOrder, memberships, adminName, leftMemberNames, historicalFallback = []) {
-  const explicitActiveMembers = uniqueNames([
-    ...(Array.isArray(rawMemberOrder) ? rawMemberOrder : []),
+  const canonicalActiveMembers = uniqueNames([
     ...Object.values(memberships || {}).map(membership => membership?.displayName || ""),
     String(adminName || "").trim()
   ]).filter(name => !leftMemberNames.has(name));
 
-  if (explicitActiveMembers.length > 0) return explicitActiveMembers;
+  if (canonicalActiveMembers.length > 0) return canonicalActiveMembers;
+
+  const blobActiveMembers = uniqueNames([
+    ...(Array.isArray(rawMemberOrder) ? rawMemberOrder : []),
+    String(adminName || "").trim()
+  ]).filter(name => !leftMemberNames.has(name));
+
+  if (blobActiveMembers.length > 0) return blobActiveMembers;
 
   return uniqueNames(historicalFallback).filter(name => !leftMemberNames.has(name));
 }

@@ -208,19 +208,39 @@ The older recommendation to start with `create-group` is now obsolete.
 
 The real remaining short-list on current `main` is:
 
-1. audit whether `repair-display-name` should become canonical-first at all, or
+1. finish the active-vs-historical membership split on the read side so
+   current-member surfaces stop inheriting membership from blob-era
+   `memberOrder`
+2. audit whether `repair-display-name` should become canonical-first at all, or
    stay as a one-off blob-compatibility repair until display names are fully
    de-keyed
-2. decide how far the legacy blob-backed `settlement` month-history mutation
+3. decide how far the legacy blob-backed `settlement` month-history mutation
    should be migrated versus retired with the broader historical redesign
 
 If the goal is more implementation rather than verification, the next genuine
-code-side migration target is no longer a small greenfield write slice. It is
+code-side migration target is the read-side membership authority split, then
 the rename / lifecycle residue around:
 
+- `activeMemberOrder`
+- `memberOrder`
+- current-month rollover / snapshot composition
 - `repair-display-name`
 - `leftMemberNames`
 - display-name keyed historical structures
+
+### Active-Membership Read Cutover Amendment
+
+The first patch in this phase should be intentionally narrow:
+
+- treat canonical-backed memberships as the authority for `activeMemberOrder`
+- stop letting blob `memberOrder` leak historical names into current active
+  membership when canonical memberships are present
+- use `activeMemberOrder` for current-month rollover and snapshot composition
+- keep historical `monthHistory` rendering on `memberOrder` for now
+
+This does **not** complete read cutover by itself, but it removes the most
+important current-state ambiguity without forcing the historical redesign into
+the same patch.
 
 ## Non-Goals For This Slice
 
