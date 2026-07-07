@@ -2344,6 +2344,29 @@ async function fetchReadableCurrentState() {
     );
     state = { ...state, groups: overlaidGroups };
   }
+
+  // Retroactive current-log scrub for departed members. This dissolves stale
+  // pending flags/reactions that were written before the departure cleanup
+  // patch existed and prevents deleted/left users from surviving in current
+  // month state purely through the blob.
+  state = {
+    ...state,
+    groups: Object.fromEntries(
+      Object.entries(state.groups || {}).map(([groupId, group]) => {
+        const departedNames = uniqueNames(Array.isArray(group.leftMemberNames) ? group.leftMemberNames : []);
+        if (departedNames.length === 0) return [groupId, group];
+        const scrubbedLogs = departedNames.reduce(
+          (logs, name) => scrubDepartedMemberFromCurrentLogs(logs, name, { removeOwnedLogs: true }),
+          group.logs || {}
+        );
+        return [groupId, {
+          ...group,
+          logs: scrubbedLogs
+        }];
+      })
+    )
+  };
+
   return {
     ...state,
     defaultGroupId: deriveDefaultGroupId(state.groupOrder)
