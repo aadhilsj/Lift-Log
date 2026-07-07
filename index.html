@@ -1700,7 +1700,7 @@ function shouldInferJoinedMonthFromMembership(group, displayName, monthKey, memb
 }
 
 function isJoinedForMonth(name, monthKey) {
-  const joinedMonth = JOINED_MONTH_BY_NAME[name];
+  const joinedMonth = getActiveJoinedMonthForMember(name, monthKey);
   return !joinedMonth || compareMonthKeys(monthKey, joinedMonth) >= 0;
 }
 
@@ -2440,7 +2440,7 @@ function flattenFeedPosts(group) {
 }
 
 function isJoinedForGroupMonth(group, userName, monthKey) {
-  const joinedMonth = group?.joinedMonthByName?.[userName];
+  const joinedMonth = getEffectiveJoinedMonthForMember(group, userName, monthKey);
   return !joinedMonth || compareMonthKeys(monthKey, joinedMonth) >= 0;
 }
 

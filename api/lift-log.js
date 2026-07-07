@@ -303,7 +303,10 @@ function getCurrentMemberNamesForMonth(group, monthKey) {
   const sourceNames = Array.isArray(group?.activeMemberOrder) && group.activeMemberOrder.length
     ? group.activeMemberOrder
     : (Array.isArray(group?.memberOrder) ? group.memberOrder : []);
-  return sourceNames.filter(name => isJoinedForMonth(group?.joinedMonthByName, name, monthKey));
+  return sourceNames.filter(name => {
+    const joinedMonth = getEffectiveJoinedMonthForMember(group, name, monthKey);
+    return !joinedMonth || compareMonthKeys(monthKey, joinedMonth) >= 0;
+  });
 }
 
 function normalizeGroup(group) {

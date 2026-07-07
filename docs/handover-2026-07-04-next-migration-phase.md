@@ -253,6 +253,8 @@ equally narrow:
   - activity feed flattening
   - current-week MVP / weekly count helpers
   - any current-group identity pickers that should only resolve active members
+- current-month membership gating should use effective join logic derived from
+  canonical memberships when available, not raw blob `joinedMonthByName`
 - closed-month history and broader historical rendering should continue to use
   `memberOrder` until the historical redesign lands
 
