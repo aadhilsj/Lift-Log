@@ -23,6 +23,22 @@ It is still directionally useful, but these corrections now apply on current
 - `invite-context` and `join-group` already resolve invite codes canonically
   before the existing blob flow
 - settlement confirmation actions already write canonically
+- several later bounded slices are also now already implemented and verified:
+  - `create-group`
+  - `join-group`
+  - `kick-member`
+  - `leave-bloc`
+  - `multi-log`
+  - `reaction`
+  - `flag`
+  - `flag-response`
+  - `flag-review`
+  - `delete-log`
+- `delete-account` is also now verified live as a canonical-first slice
+- `repair-display-name` remains blob-first with best-effort canonical sync
+- July 6 settlement fixes also landed:
+  - preserve historical settled state during rebuilds
+  - render per-pair settlement reminder amounts correctly
 
 Read this note together with:
 
@@ -188,24 +204,23 @@ Work:
 
 ## Immediate Next Slice
 
-The next best slice is:
+The older recommendation to start with `create-group` is now obsolete.
 
-1. finish documenting the canonical read contract
-2. identify the remaining blob-owned fields in `fetchReadableCurrentState()`
-3. choose the first canonical-first write slice
+The real remaining short-list on current `main` is:
 
-Recommended next write slice on current `main`:
+1. audit whether `repair-display-name` should become canonical-first at all, or
+   stay as a one-off blob-compatibility repair until display names are fully
+   de-keyed
+2. decide how far the legacy blob-backed `settlement` month-history mutation
+   should be migrated versus retired with the broader historical redesign
 
-- `create-group`
+If the goal is more implementation rather than verification, the next genuine
+code-side migration target is no longer a small greenfield write slice. It is
+the rename / lifecycle residue around:
 
-Reason:
-
-- the earlier narrow slices above are already done
-- `create-group` already dual-writes the relevant canonical bloc, season,
-  membership, and seeded open-season status surfaces
-- it only creates new state and avoids the `leftMemberNames` lifecycle traps
-  that still make `join-group`, `leave-bloc`, `kick-member`, and
-  `delete-account` poor next candidates
+- `repair-display-name`
+- `leftMemberNames`
+- display-name keyed historical structures
 
 ## Non-Goals For This Slice
 

@@ -1022,7 +1022,8 @@ async function syncProfileToCanonical(userId, email, displayName, options = {}) 
   }
 }
 
-async function deleteProfileFromCanonical(userId) {
+async function deleteProfileFromCanonical(userId, options = {}) {
+  const { throwOnError = false } = options;
   try {
     await supabaseFetch("/rest/v1/rpc/delete_ante_core_profile", {
       method: "POST",
@@ -1030,6 +1031,7 @@ async function deleteProfileFromCanonical(userId) {
       body: JSON.stringify({ p_auth_user_id: userId })
     });
   } catch (err) {
+    if (throwOnError) throw err;
     console.error("Canonical profile delete failed:", err?.message || err);
   }
 }
@@ -4545,19 +4547,26 @@ export default async function handler(req, res) {
       if (payload?.action === "delete-account") {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const updated = applyDeleteAccount(auth.state, { ...payload, userId: auth.user.id });
-        const persisted = await persistState(updated, `delete-account:${auth.user.id}`);
-        // deleteProfileFromCanonical hard-deletes the profile row; ON DELETE CASCADE
-        // removes all bloc_members rows and ON DELETE SET NULL nulls blocs.admin_profile_id.
-        await deleteProfileFromCanonical(auth.user.id);
-        // Re-wire admin_profile_id for any surviving blocs where this user was admin.
-        // Fired best-effort after the profile delete so the new admin's profile still exists.
+
+        // Canonical-first account deletion slice:
+        // 1. compute the exact post-delete blob-compatible state in memory
+        // 2. delete canonical blocs first for any sole-member blocs
+        // 3. transfer canonical admin first for any surviving admin-owned blocs
+        // 4. delete the canonical profile so dependent memberships cascade away
+        // 5. persist blob afterward as the compatibility mirror
         for (const [groupId, group] of Object.entries(auth.state.groups || {})) {
+          const survivingGroup = updated.groups?.[groupId];
+          if (!group.memberships?.[auth.user.id]) continue;
+          if (!survivingGroup) {
+            await deleteBlocFromCanonical(groupId, { throwOnError: true });
+            continue;
+          }
           if (group.adminUserId !== auth.user.id) continue;
-          const survivingGroup = persisted.groups?.[groupId];
-          if (!survivingGroup?.adminUserId) continue;
-          updateBlocAdminInCanonical(groupId, survivingGroup.adminUserId)
-            .catch(err => console.error(`Canonical bloc admin transfer failed (delete-account ${groupId}):`, err?.message || err));
+          if (!survivingGroup.adminUserId || survivingGroup.adminUserId === auth.user.id) continue;
+          await updateBlocAdminInCanonical(groupId, survivingGroup.adminUserId, { throwOnError: true });
         }
+        await deleteProfileFromCanonical(auth.user.id, { throwOnError: true });
+        const persisted = await persistState(updated, `delete-account:${auth.user.id}`);
         return res.status(200).json({ ok: true, state: persisted });
       }
 

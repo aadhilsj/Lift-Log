@@ -118,6 +118,21 @@ Verified outcome:
 That means `update-settings` should now be treated as a fully verified
 canonical-first slice, not merely a canonical-backed one.
 
+## Verification Amendment — 2026-07-05 (Sit-Out Family)
+
+The sit-out family had already been validated earlier in the bounded
+write-cutover sequence and should be treated as verified on current `main`,
+not as a merely theoretical or unproven slice.
+
+Treat as verified:
+
+- `sitout-request`
+- `sitout-review`
+
+This matches the status already recorded in:
+
+- `docs/handover-2026-06-24-mutation-audit.md`
+
 ## Remaining Blob-Borne Read Shell Re-Audit
 
 This section replaces older broad lists that still included fields already
@@ -524,9 +539,9 @@ Current local shape:
 
 This should still be treated as pending live verification.
 
-## Verification Amendment — 2026-07-06 (Flag Family, Partial)
+## Verification Amendment — 2026-07-07 (Flag Family)
 
-The workout-log moderation family was partially verified live.
+The workout-log moderation family is now fully verified live.
 
 Verified against bloc:
 
@@ -540,27 +555,27 @@ Verified log:
 Verified actions:
 
 - `flag`
+- `flag-response`
 - `flag-review`
 
 Verified outcome:
 
 - canonical `ante_core.workout_logs` reflected `flag_status = 'flagged'`
-  with `flagged_by = 'Test'`
+-  with `flagged_by = 'Test'`
+- canonical `ante_core.workout_logs` then reflected
+  `flag_response = 'not sus'` while still keeping
+  `flag_status = 'flagged'` and no decision yet
 - canonical `ante_core.workout_logs` then reflected
   `flag_status = 'approved'` with `decision_by = 'Aadhil'`
   and `decision_at` populated
 - blob mirror for `logs['Aadhil']` matched the same moderation state at both
-  stages
-
-Still not verified live:
-
-- `flag-response`
+  intermediate and reviewed stages
 
 So the flag family should now be treated as:
 
 - `flag`: verified
+- `flag-response`: verified
 - `flag-review`: verified
-- `flag-response`: pending
 
 ## Implementation Amendment — 2026-07-05 (Delete Log)
 
@@ -595,3 +610,98 @@ Verified outcome:
 
 That means `delete-log` should now be treated as a verified
 canonical-first slice.
+
+## Implementation Amendment — 2026-07-06 (Delete Account)
+
+`delete-account` is now implemented locally as a bounded canonical-first slice.
+
+Current local shape:
+
+1. compute the exact post-delete blob-compatible state in memory
+2. delete canonical blocs first for any sole-member blocs
+3. transfer canonical admin first for any surviving admin-owned blocs
+4. delete the canonical profile so dependent memberships cascade away
+5. persist blob afterward as the compatibility mirror
+
+## Verification Amendment — 2026-07-07 (Delete Account)
+
+`delete-account` was subsequently verified live.
+
+Verified deleted account:
+
+- auth user id: `85278d6f-2457-4153-9d06-27d96a4aec32`
+- display name: `Test`
+
+Verified outcome:
+
+- canonical `ante_core.profiles` row was deleted
+- canonical `ante_core.bloc_members` rows for that account were absent
+- canonical solo bloc `test123-pmiura` was deleted
+- blob `profiles[userId]` was absent
+- blob surviving-bloc membership entry was absent
+- blob `leftMemberNames` for `test101-us8qvg` included `Test`
+- blob `test123-pmiura` group entry was absent
+
+That means `delete-account` should now be treated as a verified
+canonical-first slice.
+
+## Settlement Amendment — 2026-07-06
+
+Two live settlement correctness fixes landed after the original July 4 audit:
+
+1. historical settled state is now preserved during month-history rebuilds
+   instead of being recomputed back to `outstanding`
+2. settlement reminder pair amounts now render the per-pair amount owed,
+   not the receiver's total aggregate payout for the month
+
+These are not new write-authority transfers by themselves, but they are part
+of the current production migration reality and should be considered part of
+the live app baseline.
+
+## Current Remaining Write Gaps
+
+On current local branch state, the meaningful remaining write-authority gaps
+are now:
+
+- `repair-display-name`: still blob-first with best-effort canonical member
+  sync afterward
+- legacy `settlement` month-history mutation: still blob-first with
+  best-effort canonical settlement mirror
+
+## Repair-Display-Name Audit Amendment — 2026-07-07
+
+`repair-display-name` should not currently be treated as the next bounded
+canonical-first migration slice.
+
+Why:
+
+1. it is an admin-only repair action behind `ADMIN_PIN`, not a normal product
+   write path
+2. it rewrites many blob-only name-keyed structures directly:
+   - `memberOrder`
+   - `logs`
+   - `excused`
+   - `joinedMonthByName`
+   - `leftMemberNames`
+   - `sitOutRequests`
+   - historical month-history snapshots
+3. its canonical side today is only a best-effort
+   `syncBlocMemberToCanonical(...)` for the active membership row afterward
+4. canonical does not currently own the broader historical rename semantics
+   that this repair is mutating in blob compatibility state
+
+Recommended stance:
+
+- keep `repair-display-name` as a blob-compatibility repair tool for now
+- do not spend a bounded authority-transfer slice on it before the broader
+  display-name de-keying / lifecycle redesign
+- revisit it only after active-vs-historical identity is separated cleanly
+
+So the next practical work should no longer be described as
+`create-group`/`join-group`/`kick-member`/`leave-bloc`/`multi-log`/`reaction`
+work. Those slices are already done. The remaining scope is now much narrower
+ and mostly concentrated in:
+
+- `repair-display-name`
+- broader display-name / `leftMemberNames` lifecycle cleanup
+- eventual mutation hydration/read-shell retirement away from blob
