@@ -426,6 +426,16 @@ Implementation direction:
 This is where read composition starts becoming truly canonical-first rather
 than blob-hydrate-plus-overlay.
 
+Status:
+
+- in progress locally on 2026-07-07
+- readable group shells are now composed from canonical bloc rows first, with
+  blob-only groups appended as fallback residue
+- canonical bloc-member rows can now seed a readable membership shell for a
+  canonical group that has no blob shell at all
+- pre-existing blob groups still retain the old blob-key guard against
+  accidental canonical member resurrection
+
 #### Slice C — explicit handling for blob-only lifecycle residue
 
 Goal:
@@ -462,7 +472,7 @@ the current-state cutover.
 
 If implementation continues now, the next patch should be:
 
-- top-level canonical group shell authority
+- finish and verify top-level canonical group shell authority
 
 The current-log zero-state loophole is now closed, so the next highest-value
 read step is removing the requirement that a readable group must already exist

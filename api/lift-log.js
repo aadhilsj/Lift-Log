@@ -1877,67 +1877,56 @@ async function fetchReadableCurrentState() {
   const baseState = await fetchCurrentStateFromSupabase();
 
   // Overlay canonical bloc settings plus stable group shell metadata onto the
-  // blob-backed groups. Only blocs whose legacy_group_key exists in the blob
-  // are overlaid — prevents stale canonical rows from injecting phantom groups.
-  // Blob is the fallback when a canonical row is absent or the RPC errors.
-  // Reconstruct top-level groupOrder from canonical sort_order, but only
-  // promote canonical authority when it fully covers the blob's active groups.
-  // Inactive/uncovered leftovers still survive via fallback. defaultGroupId is
-  // re-derived from the canonical-backed ordering instead of surviving from the
-  // blob snapshot.
+  // group shell. Canonical blocs now provide the primary readable group set;
+  // residual blob-only groups still survive via fallback until blob retirement.
+  // defaultGroupId is re-derived from the canonical-backed ordering instead of
+  // surviving from the blob snapshot.
   const anteBlocs = await anteBlocsPromise;
   let state = baseState;
   if (anteBlocs && Object.keys(anteBlocs).length > 0) {
     const blobGroupOrder = Array.isArray(state.groupOrder) ? state.groupOrder : [];
+    const canonicalOrderedGroupIds = uniqueNames(
+      Object.entries(anteBlocs)
+        .filter(([, bloc]) => Number.isInteger(bloc?.sort_order))
+        .sort(([, a], [, b]) => a.sort_order - b.sort_order)
+        .map(([groupId]) => groupId)
+    );
+    const blobOnlyGroupIds = uniqueNames(
+      blobGroupOrder.filter(groupId => !anteBlocs[groupId] && state.groups?.[groupId])
+    );
+    const nextGroupOrder = uniqueNames([...canonicalOrderedGroupIds, ...blobOnlyGroupIds]);
+    const readableGroupIds = uniqueNames([
+      ...Object.keys(anteBlocs),
+      ...Object.keys(state.groups || {})
+    ]);
     const overlaidGroups = Object.fromEntries(
-      Object.entries(state.groups || {}).map(([groupId, group]) => {
+      readableGroupIds.map(groupId => {
+        const group = state.groups?.[groupId];
         const bloc = anteBlocs[groupId];
         if (!bloc) return [groupId, group];
-        return [groupId, {
-          ...group,
-          name:      bloc.name || group.name,
-          inviteCode: bloc.invite_code || group.inviteCode,
-          createdAt: bloc.created_at || group.createdAt,
+        const shell = normalizeGroup({
+          ...(group || {}),
+          id: groupId,
+          name: bloc.name || group?.name,
+          inviteCode: bloc.invite_code || group?.inviteCode,
+          createdAt: bloc.created_at || group?.createdAt,
           settings: buildNormalizedSettings({
-            ...group.settings,
-            timeZone:              bloc.time_zone              ?? group.settings?.timeZone,
-            currency:              bloc.currency               ?? group.settings?.currency,
-            minTarget:             bloc.min_target             ?? group.settings?.minTarget,
-            fineAmount:            bloc.fine_amount            ?? group.settings?.fineAmount,
-            feeModel:              bloc.fee_model              ?? group.settings?.feeModel,
-            escalationStepAmount:  bloc.escalation_step_amount ?? group.settings?.escalationStepAmount,
-            minRunDistance:        bloc.min_run_distance       ?? group.settings?.minRunDistance,
-            distanceUnit:          bloc.distance_unit          ?? group.settings?.distanceUnit,
-            stravaEnabled:         bloc.strava_enabled         ?? group.settings?.stravaEnabled,
-            acceptedWorkoutTypes:  bloc.accepted_workout_types ?? group.settings?.acceptedWorkoutTypes
+            ...group?.settings,
+            timeZone:              bloc.time_zone              ?? group?.settings?.timeZone,
+            currency:              bloc.currency               ?? group?.settings?.currency,
+            minTarget:             bloc.min_target             ?? group?.settings?.minTarget,
+            fineAmount:            bloc.fine_amount            ?? group?.settings?.fineAmount,
+            feeModel:              bloc.fee_model              ?? group?.settings?.feeModel,
+            escalationStepAmount:  bloc.escalation_step_amount ?? group?.settings?.escalationStepAmount,
+            minRunDistance:        bloc.min_run_distance       ?? group?.settings?.minRunDistance,
+            distanceUnit:          bloc.distance_unit          ?? group?.settings?.distanceUnit,
+            stravaEnabled:         bloc.strava_enabled         ?? group?.settings?.stravaEnabled,
+            acceptedWorkoutTypes:  bloc.accepted_workout_types ?? group?.settings?.acceptedWorkoutTypes
           })
-        }];
+        });
+        return [groupId, shell];
       })
     );
-    const canonicalOrderedGroupIds = uniqueNames(
-      blobGroupOrder
-        .map(groupId => ({
-          groupId,
-          sortOrder: anteBlocs[groupId]?.sort_order
-        }))
-        .filter(entry => Number.isInteger(entry.sortOrder))
-        .sort((a, b) => a.sortOrder - b.sortOrder)
-        .map(entry => entry.groupId)
-    );
-    const activeBlobGroupIds = uniqueNames(
-      blobGroupOrder.filter(groupId => Object.keys(state.groups?.[groupId]?.memberships || {}).length > 0)
-    );
-    const coveredGroupIds = new Set(canonicalOrderedGroupIds);
-    const canonicalCoversActiveGroups =
-      activeBlobGroupIds.length > 0 &&
-      activeBlobGroupIds.every(groupId => coveredGroupIds.has(groupId));
-    const activeBlobGroupIdSet = new Set(activeBlobGroupIds);
-    const residualBlobGroupIds = blobGroupOrder.filter(groupId => {
-      if (coveredGroupIds.has(groupId)) return false;
-      if (!canonicalCoversActiveGroups) return true;
-      return !activeBlobGroupIdSet.has(groupId);
-    });
-    const nextGroupOrder = uniqueNames([...canonicalOrderedGroupIds, ...residualBlobGroupIds]);
     state = {
       ...state,
       groups: overlaidGroups,
@@ -1970,16 +1959,19 @@ async function fetchReadableCurrentState() {
       Object.entries(state.groups || {}).map(([groupId, group]) => {
         const members = anteBlocMembers[groupId];
         if (!members || members.length === 0) return [groupId, group];
-        // Only overlay canonical rows whose auth_user_id already exists as a key
-        // in the blob memberships map. This mirrors the profiles overlay guard and
-        // prevents a canonical active row from resurrecting a member who was kicked
-        // from the blob but whose canonical soft-delete (left_at) failed silently.
-        const blobMembershipKeys = new Set(Object.keys(group.memberships || {}));
+        // For pre-existing blob groups, only overlay canonical rows whose
+        // auth_user_id already exists as a key in the blob memberships map.
+        // This prevents a canonical active row from resurrecting a member who
+        // was kicked from the blob but whose canonical soft-delete (left_at)
+        // failed silently. For canonical-only readable shells (no blob group),
+        // allow canonical members to seed the membership shell from scratch.
+        const blobMembershipKeys = new Set(Object.keys(baseState.groups?.[groupId]?.memberships || {}));
         const blobMemberOrder = Array.isArray(group.memberOrder) ? group.memberOrder : [];
         const overlaidMemberships = { ...(group.memberships || {}) };
         const overlaidJoinedMonthByName = { ...(group.joinedMonthByName || {}) };
+        const allowCanonicalShellCreation = blobMembershipKeys.size === 0;
         for (const m of members) {
-          if (!blobMembershipKeys.has(m.auth_user_id)) continue;
+          if (!allowCanonicalShellCreation && !blobMembershipKeys.has(m.auth_user_id)) continue;
           overlaidMemberships[m.auth_user_id] = {
             userId:      m.auth_user_id,
             displayName: m.display_name,
@@ -1995,7 +1987,7 @@ async function fetchReadableCurrentState() {
         const canonicalOrderedNames = uniqueNames(
           members
             .filter(m =>
-              blobMembershipKeys.has(m.auth_user_id) &&
+              (allowCanonicalShellCreation || blobMembershipKeys.has(m.auth_user_id)) &&
               Number.isInteger(m.sort_order) &&
               typeof m.display_name === "string" &&
               m.display_name
