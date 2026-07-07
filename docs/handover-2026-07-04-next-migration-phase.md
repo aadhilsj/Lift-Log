@@ -242,6 +242,26 @@ This does **not** complete read cutover by itself, but it removes the most
 important current-state ambiguity without forcing the historical redesign into
 the same patch.
 
+### Current-Member Surface Cleanup Amendment
+
+The follow-on read cleanup after active-membership composition should stay
+equally narrow:
+
+- current-only client surfaces must enumerate `activeMemberOrder`, not
+  historical `memberOrder`
+- this especially applies to:
+  - activity feed flattening
+  - current-week MVP / weekly count helpers
+  - any current-group identity pickers that should only resolve active members
+- closed-month history and broader historical rendering should continue to use
+  `memberOrder` until the historical redesign lands
+
+Exit condition for this sub-slice:
+
+- no current-page UI surface shows departed/historical members purely because
+  they still exist in blob-era `memberOrder`
+- historical pages still retain the broader member shell
+
 ## Non-Goals For This Slice
 
 Do **not** start with:

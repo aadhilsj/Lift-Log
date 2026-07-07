@@ -2421,7 +2421,8 @@ async function uploadPhotoToStorage(dataUrl) {
 
 function flattenFeedPosts(group) {
   if (!group) return [];
-  return group.memberOrder.flatMap(name =>
+  const sourceNames = getCurrentGroupMemberNames(group);
+  return sourceNames.flatMap(name =>
     (group.logs?.[name] || []).map(log => {
       const normalizedLog = normalizeLogEntry(log);
       return {
@@ -5131,7 +5132,8 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
     if (!month?.logsByUser?.[memberName]) return null;
     return (month.logsByUser[memberName] || []).find(log => log?.date === isoDate) || null;
   };
-  const weeklyCounts = (currentGroup?.memberOrder || Object.keys(logs || {})).map(memberName => ({
+  const weeklySourceNames = currentGroup ? getCurrentGroupMemberNames(currentGroup) : Object.keys(logs || {});
+  const weeklyCounts = weeklySourceNames.map(memberName => ({
     name: memberName,
     count: currentWeekDays.reduce((total, date) => {
       const iso = toISODate(date);
@@ -7544,7 +7546,7 @@ const App = () => {
   const handleSelectLocalPreviewIdentity = useCallback((displayName) => {
     const session = buildLocalPreviewSession(displayName);
     persistSession(session);
-    const matchingGroup = groups.find(group => (group.activeMemberOrder || group.memberOrder || []).includes(displayName));
+    const matchingGroup = groups.find(group => getCurrentGroupMemberNames(group).includes(displayName));
     if (matchingGroup?.id) {
       persistGroupSelection(matchingGroup.id);
       setPage("today");
