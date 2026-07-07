@@ -1685,7 +1685,7 @@ async function fetchAnteCurrentLogs() {
       body: JSON.stringify({})
     });
     const rows = await response.json();
-    if (!Array.isArray(rows) || rows.length === 0) return null;
+    if (!Array.isArray(rows)) return null;
     // Group rows by legacy_group_key. Each row retains ownerDisplayName so the
     // overlay can index by name when building the per-member logs map.
     return rows.reduce((acc, row) => {
@@ -2045,12 +2045,18 @@ async function fetchReadableCurrentState() {
   // canonical logs get []. Canonical log owners not in activeMemberOrder are
   // silently dropped (name-drift / departed-member guard).
   // If the fetch fails or returns null, blob logs are preserved unchanged.
+  const anteExcusedSitouts = await anteExcusedSitoutsPromise;
+  const openSeasonMonthKeys = anteExcusedSitouts?.openSeasonMonthKeys || null;
+
   const anteCurrentLogs = await anteCurrentLogsPromise;
-  if (anteCurrentLogs && Object.keys(anteCurrentLogs).length > 0) {
+  if (anteCurrentLogs && openSeasonMonthKeys && Object.keys(openSeasonMonthKeys).length > 0) {
     const overlaidGroups = Object.fromEntries(
       Object.entries(state.groups || {}).map(([groupId, group]) => {
-        const canonicalLogs = anteCurrentLogs[groupId];
-        if (!canonicalLogs || canonicalLogs.length === 0) return [groupId, group];
+        const openMonthKey = openSeasonMonthKeys[groupId];
+        // Skip groups with no canonical open season — they have no canonical
+        // current-month state to clear or replace.
+        if (!openMonthKey) return [groupId, group];
+        const canonicalLogs = anteCurrentLogs[groupId] || [];
         // Index canonical logs by ownerDisplayName for O(1) lookup below.
         const byOwner = {};
         for (const log of canonicalLogs) {
@@ -2089,7 +2095,6 @@ async function fetchReadableCurrentState() {
   // read dependency without changing write authority. status is already mapped to
   // 'declined' in the RPC. If the fetch fails (returns null), blob values are
   // preserved unchanged.
-  const anteExcusedSitouts = await anteExcusedSitoutsPromise;
   if (anteExcusedSitouts) {
     const excusedByGroup        = anteExcusedSitouts.excused || {};
     const sitoutsByGroup        = anteExcusedSitouts.sitOutRequests || {};

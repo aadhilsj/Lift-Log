@@ -280,7 +280,192 @@ Those should wait until the earlier migration slices are locked down.
 Yes, the remaining major work is:
 
 1. finish read cutover
-2. do write cutover
-3. make display names cosmetic
+
+## Read Composer Residual Inventory — 2026-07-07
+
+After the active-membership split, current-surface cleanup, effective
+joined-month gating, and orphaned-flag scrub, `fetchReadableCurrentState()`
+now falls into three buckets:
+
+### Canonical-backed enough for current-state use
+
+These current surfaces now materially compose from canonical data:
+
+- bloc settings shell:
+  - `name`
+  - `inviteCode`
+  - `createdAt`
+  - normalized current settings
+- active membership shell:
+  - `memberships`
+  - `adminUserId`
+  - `adminName`
+  - canonical-first `memberOrder` when canonical sort coverage is complete
+  - derived `activeMemberOrder`
+- current-month state:
+  - `logs` for groups with canonical current-log rows
+  - `excused` for the open month
+  - current-month `sitOutRequests`
+  - open-month `lastMonth`
+- canonical profiles overlay for existing blob profile ids
+- settlement confirmations when the feature is enabled
+- season overrides
+
+### Still blob-assisted on read
+
+These are the remaining read-shell dependencies that still stop GET state from
+being truly canonical-first:
+
+#### 1. Top-level group shell still starts from blob
+
+- canonical blocs only overlay groups that already exist in blob state
+- groups absent from blob can never appear from canonical alone
+- uncovered / inactive residual groups can still survive through blob
+  `groupOrder` fallback
+
+#### 2. Current logs do not support canonical empty-state clearing
+
+- `read_ante_core_current_logs()` only overlays groups that return log rows
+- if a group has zero canonical current logs, the composer currently preserves
+  blob `group.logs` unchanged
+- this is the largest remaining current-state ambiguity on the read side
+
+This is meaningfully different from current excused / sit-out overlays, which
+already use open-season coverage to clear stale blob state even when canonical
+returns zero rows.
+
+#### 3. Membership shell still preserves blob fallback residue
+
+- canonical bloc-members only overlay auth-linked members already present in
+  blob `memberships`
+- canonical read still refuses to invent or resurrect missing members
+- residual `memberOrder` names can still survive when canonical sort coverage
+  is incomplete
+
+This is deliberate safety behavior, but it means read authority is not yet
+fully canonical-native.
+
+#### 4. `joinedMonthByName` is still partially blob-owned
+
+- canonical member rows only add / override entries when
+  `joined_month_key` exists
+- blob `joinedMonthByName` entries survive otherwise
+- current-month gating now uses effective join inference, so this is less
+  visible than before, but the structure is still not canonical-owned
+
+#### 5. `leftMemberNames` is still blob-only
+
+- no canonical source reconstructs it
+- current read composition still relies on it to suppress departed users from
+  active state
+- orphaned current-log cleanup also still uses it as the departure shell
+
+#### 6. Closed-month history is still canonical-assisted, not canonical-native
+
+- canonical month history only replaces blob months that already exist in
+  `group.monthHistory`
+- months absent from blob are never invented from canonical
+- months with incomplete canonical member coverage preserve blob history
+- historical member shell is still keyed to broader `memberOrder`
+
+#### 7. Historical sit-out scaffolding is still blob-owned
+
+- only the open-season month of `sitOutRequests` is canonical-overlaid
+- historical month keys in `sitOutRequests` are preserved from blob
+
+### Blob-only compatibility fields that still matter
+
+- `leftMemberNames`
+- residual `joinedMonthByName`
+- historical `monthHistory` shell existence
+- blob-first group existence / `groupOrder` fallback
+
+### Recommended Remaining Read Order
+
+#### Slice A — current-log zero-state cutover
+
+Goal:
+
+- make canonical current logs authoritative even when a group has zero current
+  logs
+
+Implementation direction:
+
+- extend current-log read coverage so the composer knows the open-season group
+  set independently of whether log rows exist
+- then replace current `group.logs` for every open-season covered group,
+  including `{ memberName: [] }` empty states
+
+Why this is next:
+
+- it closes the largest remaining current-state ambiguity
+- it is still a bounded current-state patch
+- it avoids forcing the historical redesign into the same change
+
+Status:
+
+- completed locally on 2026-07-07
+- `fetchReadableCurrentState()` now treats canonical current logs as
+  authoritative for every canonically open group, including zero-log empty
+  states
+- successful-but-empty current-log reads no longer fall back to stale blob
+  `group.logs`
+
+#### Slice B — top-level canonical group shell authority
+
+Goal:
+
+- stop requiring blob existence as the prerequisite for a readable group shell
+
+Implementation direction:
+
+- compose readable groups from canonical bloc rows first
+- then merge compatibility-only blob residue onto those groups only where still
+  required
+
+This is where read composition starts becoming truly canonical-first rather
+than blob-hydrate-plus-overlay.
+
+#### Slice C — explicit handling for blob-only lifecycle residue
+
+Goal:
+
+- isolate the fields that remain blob compatibility only:
+  - `leftMemberNames`
+  - partial `joinedMonthByName`
+  - historical sit-out residue
+
+Implementation direction:
+
+- either keep them as temporary compatibility inputs on the read side, or
+- add canonical replacements if they are still required after lifecycle cleanup
+
+This slice should happen before a full claim that GET state is canonical-first.
+
+#### Slice D — historical month-history redesign
+
+Goal:
+
+- remove blob dependence from closed-month history existence and shell shape
+
+Implementation direction:
+
+- allow canonical history to invent missing months
+- move historical month composition off blob month-shell presence
+- eventually de-key historical member rendering from the broader blob
+  `memberOrder` shell
+
+This is the largest remaining read migration item and should stay separate from
+the current-state cutover.
+
+### Recommended Immediate Next Patch
+
+If implementation continues now, the next patch should be:
+
+- top-level canonical group shell authority
+
+The current-log zero-state loophole is now closed, so the next highest-value
+read step is removing the requirement that a readable group must already exist
+in the blob shell.
 
 That is still the correct order.
