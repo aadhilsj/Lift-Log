@@ -428,9 +428,12 @@ than blob-hydrate-plus-overlay.
 
 Status:
 
-- in progress locally on 2026-07-07
-- readable group shells are now composed from canonical bloc rows first, with
-  blob-only groups appended as fallback residue
+- completed locally on 2026-07-08
+- readable group shells are now composed from canonical bloc rows first
+- generic blob-only groups no longer survive on read just because they still
+  exist in blob `groupOrder`
+- the only remaining blob-only group fallback is explicit legacy compatibility
+  for `legacy-group` if no canonical bloc row exists for it
 - canonical bloc-member rows can now seed a readable membership shell for a
   canonical group that has no blob shell at all
 - pre-existing blob groups still retain the old blob-key guard against

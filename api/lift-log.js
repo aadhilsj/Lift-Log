@@ -1943,10 +1943,11 @@ async function fetchReadableCurrentState() {
   const baseState = await fetchCurrentStateFromSupabase();
 
   // Overlay canonical bloc settings plus stable group shell metadata onto the
-  // group shell. Canonical blocs now provide the primary readable group set;
-  // residual blob-only groups still survive via fallback until blob retirement.
-  // defaultGroupId is re-derived from the canonical-backed ordering instead of
-  // surviving from the blob snapshot.
+  // group shell. Canonical blocs now provide the readable group set. The only
+  // blob-only fallback that still survives here is intentional legacy
+  // compatibility for the historical single-group shell when no canonical row
+  // exists for LEGACY_GROUP_ID. defaultGroupId is re-derived from the
+  // canonical-backed ordering instead of surviving from the blob snapshot.
   const anteBlocs = await anteBlocsPromise;
   let state = baseState;
   if (anteBlocs && Object.keys(anteBlocs).length > 0) {
@@ -1957,13 +1958,17 @@ async function fetchReadableCurrentState() {
         .sort(([, a], [, b]) => a.sort_order - b.sort_order)
         .map(([groupId]) => groupId)
     );
-    const blobOnlyGroupIds = uniqueNames(
-      blobGroupOrder.filter(groupId => !anteBlocs[groupId] && state.groups?.[groupId])
+    const compatibilityBlobGroupIds = uniqueNames(
+      blobGroupOrder.filter(groupId =>
+        groupId === LEGACY_GROUP_ID &&
+        !anteBlocs[groupId] &&
+        state.groups?.[groupId]
+      )
     );
-    const nextGroupOrder = uniqueNames([...canonicalOrderedGroupIds, ...blobOnlyGroupIds]);
+    const nextGroupOrder = uniqueNames([...canonicalOrderedGroupIds, ...compatibilityBlobGroupIds]);
     const readableGroupIds = uniqueNames([
       ...Object.keys(anteBlocs),
-      ...Object.keys(state.groups || {})
+      ...compatibilityBlobGroupIds
     ]);
     const overlaidGroups = Object.fromEntries(
       readableGroupIds.map(groupId => {
