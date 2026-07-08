@@ -328,7 +328,12 @@ function normalizeGroup(group) {
     leftMemberNames,
     memberOrder
   );
-  const joinedMonthByName = group?.joinedMonthByName && typeof group.joinedMonthByName === "object" ? group.joinedMonthByName : {};
+  const memberships = normalizeMemberships(rawMemberships, memberOrder, group?.adminName, group?.adminUserId);
+  const joinedMonthByName = pruneJoinedMonthByNameForRead(
+    { ...group, memberships, settings: buildNormalizedSettings(group?.settings) },
+    group?.joinedMonthByName,
+    group?.settings
+  );
   const normalizedLogs = Object.fromEntries(
     memberOrder.map(name => [
       name,
@@ -336,7 +341,6 @@ function normalizeGroup(group) {
     ])
   );
   const normalizedExcused = normalizeExcused(group?.excused, memberOrder);
-  const memberships = normalizeMemberships(rawMemberships, memberOrder, group?.adminName, group?.adminUserId);
   const adminUserId = normalizeAdminUserId(group?.adminUserId, memberships, group?.adminName);
   const normalized = {
     id: typeof group?.id === "string" && group.id ? group.id : `group-${Date.now()}`,
@@ -747,6 +751,26 @@ function getEffectiveJoinedMonthForMember(group, displayName, monthKey, settings
   if (explicitJoinedMonth) return explicitJoinedMonth;
   if (shouldInferJoinedMonthFromMembership(group, displayName, monthKey, membership, settingsOverride)) return monthKey;
   return null;
+}
+
+function pruneJoinedMonthByNameForRead(group, joinedMonthByName, settingsOverride = null) {
+  if (!joinedMonthByName || typeof joinedMonthByName !== "object") return {};
+  const timeZone = settingsOverride?.timeZone || group?.settings?.timeZone || DEFAULT_GROUP_TIME_ZONE;
+  const membershipsByName = new Map(
+    Object.values(group?.memberships || {})
+      .filter(membership => membership?.displayName)
+      .map(membership => [membership.displayName, membership])
+  );
+  return Object.fromEntries(
+    Object.entries(joinedMonthByName).filter(([displayName, explicitJoinedMonth]) => {
+      if (!displayName || !explicitJoinedMonth) return false;
+      const membership = membershipsByName.get(displayName);
+      if (!membership) return true;
+      const joinedSummary = getLeagueMonthSummaryForTimestamp(membership.joinedAt, timeZone);
+      if (!joinedSummary?.monthKey) return true;
+      return joinedSummary.monthKey !== explicitJoinedMonth;
+    })
+  );
 }
 
 function getJoinedTargetInfo(baseTarget, joinedSummary, prorationSummary = null) {
@@ -2000,7 +2024,7 @@ async function fetchReadableCurrentState() {
         const blobMembershipKeys = new Set(Object.keys(baseState.groups?.[groupId]?.memberships || {}));
         const blobMemberOrder = Array.isArray(group.memberOrder) ? group.memberOrder : [];
         const overlaidMemberships = { ...(group.memberships || {}) };
-        const overlaidJoinedMonthByName = { ...(group.joinedMonthByName || {}) };
+        const overlaidJoinedMonthByName = pruneJoinedMonthByNameForRead(group, group.joinedMonthByName, group.settings);
         const allowCanonicalShellCreation = blobMembershipKeys.size === 0;
         for (const m of members) {
           if (!allowCanonicalShellCreation && !blobMembershipKeys.has(m.auth_user_id)) continue;

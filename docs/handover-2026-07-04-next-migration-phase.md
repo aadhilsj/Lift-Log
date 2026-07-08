@@ -460,6 +460,9 @@ Status:
   current logs / reactions / pending flags
 - `leftMemberNames` still exists as compatibility residue for active-shell
   shaping, but it is no longer required for current-log cleanup on read
+- redundant blob `joinedMonthByName` entries for auth-linked members are now
+  pruned on read when canonical `joinedAt` already carries the same join-month
+  meaning
 
 #### Slice D — historical month-history redesign
 
