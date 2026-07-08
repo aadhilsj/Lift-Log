@@ -773,8 +773,23 @@ function buildSettlementPairsForMonth(month) {
     .filter(Boolean);
 }
 
+function getHistoricalMemberNamesForMonth(month, fallbackNames = []) {
+  return deriveHistoricalMemberNamesForMonth(month, fallbackNames);
+}
+
+function getHistoricalGroupMemberNames(monthHistory, currentLogs = {}, currentExcused = {}, fallbackNames = []) {
+  const monthNames = (Array.isArray(monthHistory) ? monthHistory : []).flatMap(month => getHistoricalMemberNamesForMonth(month, fallbackNames));
+  return uniqueNames([
+    ...fallbackNames,
+    ...Object.keys(currentLogs || {}),
+    ...Object.keys(currentExcused || {}),
+    ...monthNames
+  ]);
+}
+
 function buildSettlementReminderCards(group, currentUserId, currentUserName) {
   if (!group?.settlementConfirmationsEnabled) return [];
+  const activeMemberNames = new Set(getCurrentGroupMemberNames(group));
   const membershipByName = Object.fromEntries(
     Object.values(group?.memberships || {})
       .filter(membership => membership?.displayName)
@@ -789,6 +804,7 @@ function buildSettlementReminderCards(group, currentUserId, currentUserName) {
   return [...(group?.monthHistory || [])]
     .sort((a, b) => compareMonthKeys(b.key, a.key))
     .flatMap(month => buildSettlementPairsForMonth(month).map(pair => {
+      if (!activeMemberNames.has(pair.payerDisplayName) || !activeMemberNames.has(pair.receiverDisplayName)) return null;
       const showMonthLabel = pair.monthKey !== curKey;
       const monthSuffix = showMonthLabel ? ` · ${pair.monthLabel.toUpperCase()}` : "";
       const payerMembership = membershipByName[pair.payerDisplayName] || null;
@@ -6453,8 +6469,12 @@ const HistoryPage = ({logs,excused,monthHistory,groupSettings,navResetToken,curr
   }), [logs, excused, groupSettings]);
 
   const fullHistory = useMemo(() => [...monthHistory, currentMonthSnapshot], [monthHistory, currentMonthSnapshot]);
+  const historicalNames = useMemo(
+    () => getHistoricalGroupMemberNames(fullHistory, logs, excused, NAMES),
+    [fullHistory, logs, excused]
+  );
 
-  const allTime=useMemo(()=>NAMES.map(name=>{
+  const allTime=useMemo(()=>historicalNames.map(name=>{
     const participated=fullHistory.filter(m=>isJoinedForMonth(name, m.key) && !m.excused?.[name]);
     const total=participated.reduce((s,m)=>s+(m.counts[name]||0),0);
     const closedP=monthHistory.filter(m=>isJoinedForMonth(name, m.key) && !m.excused?.[name]);
@@ -6464,23 +6484,31 @@ const HistoryPage = ({logs,excused,monthHistory,groupSettings,navResetToken,curr
     monthHistory.forEach(m=>{
       if(!isJoinedForMonth(name, m.key)) return;
       if(m.excused?.[name]) return;
-      const ac=NAMES.filter(n=>isJoinedForMonth(n, m.key) && !m.excused?.[n]).map(n=>({name:n,count:m.counts[n]||0,target:m.memberTargets?.[n] || m.settings?.minTarget || MIN_TARGET}));
+      const monthNames = getHistoricalMemberNamesForMonth(m, historicalNames);
+      const ac=monthNames.filter(n=>isJoinedForMonth(n, m.key) && !m.excused?.[n]).map(n=>({name:n,count:m.counts[n]||0,target:m.memberTargets?.[n] || m.settings?.minTarget || MIN_TARGET}));
       const penalties = calcPenalties(ac, m.settings || {});
       const {winners,losers,perWinner}=penalties;
       if(winners.find(w=>w.name===name)){wins++;moneyWon+=perWinner;}
       if(losers.find(l=>l.name===name)){moneyLost+=getLoserAmount(penalties, name);}
     });
     return {name,total,avg,wins,moneyWon,moneyLost};
-  }),[fullHistory, monthHistory]);
+  }),[fullHistory, monthHistory, historicalNames]);
 
   const groupMonthlyAvg=useMemo(()=>{
-    return fullHistory.map(m=>{const active=NAMES.filter(n=>isJoinedForMonth(n, m.key) && !m.excused?.[n]);const vals=active.map(n=>m.counts[n]||0);const avg=vals.length?vals.reduce((a,b)=>a+b,0)/vals.length:0;return {label:m.label||m.key,avg,isCurrent:!!m.isCurrent};});
-  },[fullHistory]);
+    return fullHistory.map(m=>{
+      const monthNames = getHistoricalMemberNamesForMonth(m, historicalNames);
+      const active=monthNames.filter(n=>isJoinedForMonth(n, m.key) && !m.excused?.[n]);
+      const vals=active.map(n=>m.counts[n]||0);
+      const avg=vals.length?vals.reduce((a,b)=>a+b,0)/vals.length:0;
+      return {label:m.label||m.key,avg,isCurrent:!!m.isCurrent};
+    });
+  },[fullHistory, historicalNames]);
 
   const groupTypeBreakdown=useMemo(()=>{
     const c={};WORKOUT_TYPES.forEach(t=>c[t]=0);
     fullHistory.forEach(month=>{
-      NAMES.forEach(name=>{
+      const monthNames = getHistoricalMemberNamesForMonth(month, historicalNames);
+      monthNames.forEach(name=>{
         if(!isJoinedForMonth(name, month.key)) return;
         getCountedLogs(month.logsByUser?.[name] || []).forEach(log=>{
           if(c[log.type]!==undefined)c[log.type]++;
@@ -6488,7 +6516,7 @@ const HistoryPage = ({logs,excused,monthHistory,groupSettings,navResetToken,curr
       });
     });
     return c;
-  },[fullHistory]);
+  },[fullHistory, historicalNames]);
   const totalGroupLogs=Object.values(groupTypeBreakdown).reduce((a,b)=>a+b,0);
   const maxTypeCount=Math.max(...Object.values(groupTypeBreakdown),1);
   const sortedAll=[...allTime].sort((a,b)=>b.total-a.total);
