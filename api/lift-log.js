@@ -621,14 +621,24 @@ function resolveHistoricalMonthSettings(monthSettings, groupSettings) {
 function normalizeMonthHistory(monthHistory, memberOrder, joinedMonthByName, settings) {
   const currentMonthKey = getLeagueMonthKey(settings?.timeZone || DEFAULT_GROUP_TIME_ZONE);
   return monthHistory.map(month => {
-    const logsByUser = buildMonthLogsSnapshot(month?.logsByUser || {}, memberOrder);
+    const monthMembershipNames = Object.values(month?.memberships || {}).map(membership => membership?.displayName || "");
+    const historicalNames = uniqueNames([
+      ...Object.keys(month?.counts || {}),
+      ...Object.keys(month?.logsByUser || {}),
+      ...Object.keys(month?.excused || {}),
+      ...Object.keys(month?.memberTargets || {}),
+      ...Object.keys(month?.settlements || {}),
+      ...monthMembershipNames
+    ]);
+    const relevantShellNames = historicalNames.length ? historicalNames : memberOrder;
+    const logsByUser = buildMonthLogsSnapshot(month?.logsByUser || {}, relevantShellNames);
     const derivedMonthKey = deriveMonthKeyFromLogs(logsByUser) || month?.key || null;
     if (derivedMonthKey && derivedMonthKey === currentMonthKey) return null;
     const monthKey = derivedMonthKey || month?.key;
     const monthParts = getMonthPartsFromKey(monthKey);
-    const relevantNames = memberOrder.filter(name => isJoinedForMonth(joinedMonthByName, name, monthKey));
+    const relevantNames = relevantShellNames.filter(name => isJoinedForMonth(joinedMonthByName, name, monthKey));
     const counts = Object.fromEntries(relevantNames.map(name => [name, Number(month?.counts?.[name] || getCountedLogCount(logsByUser[name]) || 0)]));
-    const excused = month?.excused || Object.fromEntries(relevantNames.map(name => [name, false]));
+    const excused = Object.fromEntries(relevantNames.map(name => [name, !!month?.excused?.[name]]));
     const monthSettings = resolveHistoricalMonthSettings(month?.settings, settings);
     const monthGroup = {
       settings,

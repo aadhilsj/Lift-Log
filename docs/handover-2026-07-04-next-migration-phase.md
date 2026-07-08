@@ -482,7 +482,7 @@ the current-state cutover.
 
 Status:
 
-- in progress locally on 2026-07-08
+- completed locally on 2026-07-08
 - canonical closed-month history is no longer blocked on blob month-shell
   existence
 - canonical closed seasons can now invent missing historical months on read,
@@ -491,6 +491,11 @@ Status:
 - canonical closed-month member shells are now derived from historical
   season-member rows and historical log owners rather than being filtered
   through today’s `group.memberOrder`
+- client-side closed-month normalization no longer re-trims historical months
+  through today’s live `memberOrder`
+- backend `normalizeMonthHistory()` parity now derives closed-month shells
+  from month-local evidence first, so blob-state normalizations do not
+  silently reintroduce current-shell dependence
 
 ### Recommended Immediate Next Patch
 

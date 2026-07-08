@@ -1301,24 +1301,40 @@ function resolveHistoricalMonthSettings(monthSettings, groupSettings) {
   return normalizedMonthSettings;
 }
 
+function deriveHistoricalMemberNamesForMonth(month, fallbackMemberOrder = []) {
+  const monthMembershipNames = Object.values(month?.memberships || {}).map(membership => membership?.displayName || "");
+  const localNames = uniqueNames([
+    ...Object.keys(month?.counts || {}),
+    ...Object.keys(month?.logsByUser || {}),
+    ...Object.keys(month?.excused || {}),
+    ...Object.keys(month?.memberTargets || {}),
+    ...Object.keys(month?.settlements || {}),
+    ...monthMembershipNames
+  ]);
+  return localNames.length ? localNames : uniqueNames(fallbackMemberOrder);
+}
+
 function normalizeMonthHistoryState(monthHistory, memberOrder, joinedMonthByName, settings) {
   const currentMonthKey = getLeagueMonthKey(settings?.timeZone || DEFAULT_GROUP_TIME_ZONE);
   return (Array.isArray(monthHistory) ? monthHistory : []).map(month => {
+    const historicalNames = deriveHistoricalMemberNamesForMonth(month, memberOrder);
     const logsByUser = Object.fromEntries(
-      memberOrder.map(name => [name, [...(month?.logsByUser?.[name] || [])].map(log => normalizeLogEntry({ ...log, photoUrl: "" }))])
+      historicalNames.map(name => [name, [...(month?.logsByUser?.[name] || [])].map(log => normalizeLogEntry({ ...log, photoUrl: "" }))])
     );
     const derivedMonthKey = deriveMonthKeyFromLogs(logsByUser) || month?.key || null;
     if (derivedMonthKey && derivedMonthKey === currentMonthKey) return null;
     const monthKey = derivedMonthKey || month?.key;
     const monthParts = getMonthPartsFromKey(monthKey);
-    const relevantNames = memberOrder.filter(name => {
+    const relevantNames = historicalNames.filter(name => {
       const joinedMonth = joinedMonthByName?.[name];
       return !joinedMonth || compareMonthKeys(monthKey, joinedMonth) >= 0;
     });
     const counts = Object.fromEntries(
       relevantNames.map(name => [name, Number(month?.counts?.[name] || getCountedLogCount(logsByUser[name]))])
     );
-    const excused = month?.excused || Object.fromEntries(relevantNames.map(name => [name, false]));
+    const excused = Object.fromEntries(
+      relevantNames.map(name => [name, !!month?.excused?.[name]])
+    );
     const monthSettings = resolveHistoricalMonthSettings(month?.settings, settings);
     const monthGroup = {
       settings,
