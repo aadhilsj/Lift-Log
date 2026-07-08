@@ -946,6 +946,38 @@ function scrubDepartedMemberFromCurrentLogs(logsByName, departedDisplayName, opt
   return nextLogs;
 }
 
+function scrubCurrentLogsAgainstAllowedMembers(logsByName, allowedDisplayNames) {
+  const allowedNames = new Set(uniqueNames(Array.isArray(allowedDisplayNames) ? allowedDisplayNames : []));
+  const nextLogs = {};
+  for (const [owner, ownerLogs] of Object.entries(logsByName || {})) {
+    if (!allowedNames.has(owner)) continue;
+    nextLogs[owner] = (Array.isArray(ownerLogs) ? ownerLogs : []).map(log => {
+      const nextReactions = {};
+      for (const [emoji, reactors] of Object.entries(log?.reactions || {})) {
+        const filtered = (Array.isArray(reactors) ? reactors : []).filter(name => allowedNames.has(name));
+        if (filtered.length > 0) nextReactions[emoji] = filtered;
+      }
+      if (log?.flagStatus === "flagged" && log?.flaggedBy && !allowedNames.has(log.flaggedBy)) {
+        return {
+          ...log,
+          reactions: nextReactions,
+          flaggedBy: null,
+          flagReason: "",
+          flagResponse: "",
+          flagStatus: null,
+          decisionBy: null,
+          decisionAt: null
+        };
+      }
+      return {
+        ...log,
+        reactions: nextReactions
+      };
+    });
+  }
+  return nextLogs;
+}
+
 function rebuildMonthSnapshot(group, month, logsByUser) {
   const monthKey = month?.key;
   const relevantNames = getCurrentMemberNamesForMonth(group, monthKey);
@@ -2345,20 +2377,17 @@ async function fetchReadableCurrentState() {
     state = { ...state, groups: overlaidGroups };
   }
 
-  // Retroactive current-log scrub for departed members. This dissolves stale
-  // pending flags/reactions that were written before the departure cleanup
-  // patch existed and prevents deleted/left users from surviving in current
-  // month state purely through the blob.
+  // Current-log membership scrub keyed off the composed current-member set.
+  // This dissolves stale pending flags/reactions and removes logs owned by
+  // users who are no longer current members, without depending on blob-only
+  // `leftMemberNames` for the cleanup trigger.
   state = {
     ...state,
     groups: Object.fromEntries(
       Object.entries(state.groups || {}).map(([groupId, group]) => {
-        const departedNames = uniqueNames(Array.isArray(group.leftMemberNames) ? group.leftMemberNames : []);
-        if (departedNames.length === 0) return [groupId, group];
-        const scrubbedLogs = departedNames.reduce(
-          (logs, name) => scrubDepartedMemberFromCurrentLogs(logs, name, { removeOwnedLogs: true }),
-          group.logs || {}
-        );
+        const currentMonthKey = group?.lastMonth || getLeagueMonthKey(group?.settings?.timeZone);
+        const allowedNames = getCurrentMemberNamesForMonth(group, currentMonthKey);
+        const scrubbedLogs = scrubCurrentLogsAgainstAllowedMembers(group.logs || {}, allowedNames);
         return [groupId, {
           ...group,
           logs: scrubbedLogs

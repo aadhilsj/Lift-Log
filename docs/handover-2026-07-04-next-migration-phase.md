@@ -452,6 +452,15 @@ Implementation direction:
 
 This slice should happen before a full claim that GET state is canonical-first.
 
+Status:
+
+- in progress locally on 2026-07-08
+- current-log cleanup now keys off the composed current-member set instead of
+  using blob `leftMemberNames` as the trigger for removing departed members'
+  current logs / reactions / pending flags
+- `leftMemberNames` still exists as compatibility residue for active-shell
+  shaping, but it is no longer required for current-log cleanup on read
+
 #### Slice D — historical month-history redesign
 
 Goal:
