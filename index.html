@@ -5198,27 +5198,31 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
     const monthStart = new Date(CUR_YEAR, CUR_MONTH, 1);
     const monthEnd = new Date(CUR_YEAR, CUR_MONTH + 1, 0);
     const todayDate = new Date(CUR_YEAR, CUR_MONTH, DAY_OF_MON);
+    const firstWeekStart = new Date(monthStart);
+    const firstWeekMondayIndex = (firstWeekStart.getDay() + 6) % 7;
+    firstWeekStart.setDate(firstWeekStart.getDate() - firstWeekMondayIndex);
+    firstWeekStart.setHours(0,0,0,0);
     const rows = [];
-    let bucketStart = new Date(monthStart);
+    let bucketStart = new Date(firstWeekStart);
     let weekIndex = 1;
     while (bucketStart <= monthEnd) {
       const bucketEnd = new Date(bucketStart);
-      const daysUntilSunday = (7 - bucketStart.getDay()) % 7;
-      bucketEnd.setDate(bucketEnd.getDate() + daysUntilSunday);
-      if (bucketEnd > monthEnd) bucketEnd.setTime(monthEnd.getTime());
+      bucketEnd.setDate(bucketStart.getDate() + 6);
+      bucketEnd.setHours(23,59,59,999);
       const isCurrentBucket = todayDate >= bucketStart && todayDate <= bucketEnd;
       if (!isCurrentBucket) {
-        const counts = Object.entries(logs || {}).map(([memberName, memberLogs]) => {
-          const count = getCountedLogs(memberLogs).filter(log => {
-            if (!log?.date) return false;
-            const [year, month, day] = String(log.date).split("-").map(Number);
-            if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return false;
-            const logDate = new Date(year, month - 1, day);
-            logDate.setHours(12, 0, 0, 0);
-            return logDate >= bucketStart && logDate <= bucketEnd;
-          }).length;
-          return { name: memberName, count };
+        const bucketDays = Array.from({length: 7}, (_, index) => {
+          const date = new Date(bucketStart);
+          date.setDate(bucketStart.getDate() + index);
+          return date;
         });
+        const counts = weeklySourceNames.map(memberName => ({
+          name: memberName,
+          count: bucketDays.reduce((total, date) => {
+            const iso = toISODate(date);
+            return total + (getMemberLogForIso(memberName, iso) ? 1 : 0);
+          }, 0)
+        }));
         const topCount = counts.reduce((max, entry) => Math.max(max, entry.count), 0);
         if (topCount > 0) {
           const leaders = counts.filter(entry => entry.count === topCount).map(entry => entry.name);
@@ -5237,7 +5241,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
       weekIndex += 1;
     }
     return rows;
-  }, [logs]);
+  }, [CUR_YEAR, CUR_MONTH, DAY_OF_MON, currentMonthLogMap, monthHistoryByKey, weeklySourceNames]);
   const localWeeklyMvpPreview = buildLocalWeeklyMvpPreview(currentGroup, currentWeekDays);
   const weeklyMvpDisplayValue = localWeeklyMvpPreview?.currentWeekValue || weeklyMvpValue;
   const weeklyMvpDisplayLeaders = localWeeklyMvpPreview?.currentWeekLeaders || weeklyStripLeaders;
