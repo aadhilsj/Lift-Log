@@ -488,6 +488,9 @@ Status:
 - canonical closed seasons can now invent missing historical months on read,
   while the existing completeness guard still preserves blob months when
   canonical member coverage looks partial
+- canonical closed-month member shells are now derived from historical
+  season-member rows and historical log owners rather than being filtered
+  through today’s `group.memberOrder`
 
 ### Recommended Immediate Next Patch
 

@@ -2220,9 +2220,10 @@ async function fetchReadableCurrentState() {
   // Month-history overlay: replace closed-season monthHistory entries with
   // canonical-composed versions. Only closed seasons are touched — the open
   // month is handled by the current-logs and excused/sitout overlays above.
-  // Overlay is keyed strictly by group.memberOrder; names absent from
-  // memberOrder are silently dropped. Blob monthHistory entries whose
-  // month_key has no canonical counterpart are preserved unchanged.
+  // Historical member shells are derived per month from canonical season rows
+  // and canonical workout logs instead of being filtered through today's
+  // group.memberOrder. Blob monthHistory entries whose month_key has no
+  // canonical counterpart are preserved unchanged.
   // No normalization pass runs after this point — the overlay must produce
   // the final blob-shaped monthHistory[*] objects directly.
   // If the fetch fails or returns null, blob monthHistory survives unchanged.
@@ -2232,8 +2233,6 @@ async function fetchReadableCurrentState() {
       Object.entries(state.groups || {}).map(([groupId, group]) => {
         const canonicalSeasons = anteMonthHistory[groupId];
         if (!canonicalSeasons || canonicalSeasons.length === 0) return [groupId, group];
-
-        const memberOrder = group.memberOrder || [];
 
         // Index blob monthHistory by month_key. Used both for completeness
         // guards below and for the final merge.
@@ -2251,24 +2250,38 @@ async function fetchReadableCurrentState() {
 
           const blobMonth = blobMonthsByKey[monthKey];
 
-          // Index members from season_member_status, filtered to current memberOrder.
+          // Index members from canonical season_member_status.
           const membersByName = {};
           for (const m of season.members) {
-            if (memberOrder.includes(m.display_name)) membersByName[m.display_name] = m;
+            if (m?.display_name) membersByName[m.display_name] = m;
           }
 
           // Completeness guard: canonical must cover at least as many members as
-          // blob already has historical data for. Blob coverage = members in
-          // memberOrder that have a counts entry OR a non-empty logsByUser array
-          // in the blob month. Canonical coverage = membersByName keys (already
-          // filtered to memberOrder). If canonical covers fewer members than blob,
-          // the importer backfill is partial — preserve blob month unchanged.
-          const blobCoverage = memberOrder.filter(name =>
-            Object.prototype.hasOwnProperty.call(blobMonth.counts || {}, name) ||
-            ((blobMonth.logsByUser || {})[name] || []).length > 0
-          ).length;
-          const canonicalCoverage = Object.keys(membersByName).length;
+          // blob already has historical data for. Canonical coverage uses the
+          // union of canonical season-member rows plus canonical log owners.
+          // If canonical covers fewer members than blob, the importer backfill
+          // is partial — preserve blob month unchanged.
+          const blobCoverage = uniqueNames([
+            ...Object.keys(blobMonth?.counts || {}),
+            ...Object.keys(blobMonth?.logsByUser || {}).filter(name => ((blobMonth?.logsByUser || {})[name] || []).length > 0),
+            ...Object.keys(blobMonth?.excused || {}).filter(name => !!blobMonth?.excused?.[name]),
+            ...Object.keys(blobMonth?.settlements || {}),
+            ...Object.keys(blobMonth?.memberTargets || {})
+          ]).length;
+          const canonicalCoverage = uniqueNames([
+            ...Object.keys(membersByName),
+            ...season.logs.map(log => log?.owner_display_name).filter(Boolean)
+          ]).length;
           if (canonicalCoverage < blobCoverage) continue;
+
+          const historicalMemberNames = uniqueNames([
+            ...Object.keys(blobMonth?.counts || {}),
+            ...Object.keys(blobMonth?.logsByUser || {}),
+            ...Object.keys(blobMonth?.settlements || {}),
+            ...Object.keys(blobMonth?.memberTargets || {}),
+            ...Object.keys(membersByName),
+            ...season.logs.map(log => log?.owner_display_name).filter(Boolean)
+          ]);
 
           // Reconstruct settings from canonical season snapshot fields so that
           // historical months reflect the settings that were active at that time,
@@ -2286,8 +2299,9 @@ async function fetchReadableCurrentState() {
             acceptedWorkoutTypes: season.acceptedWorkoutTypes
           });
 
-          // Members relevant for this month: joined_for_month = true, in memberOrder.
-          const relevantNames = memberOrder.filter(
+          // Members relevant for this month: historically visible member shell,
+          // filtered by canonical joined_for_month when present.
+          const relevantNames = historicalMemberNames.filter(
             name => membersByName[name]?.joined_for_month !== false
           );
 
@@ -2302,7 +2316,7 @@ async function fetchReadableCurrentState() {
 
           // logsByUser from canonical workout_logs. Photo URLs are omitted to
           // match buildMonthLogsSnapshot which sets photoUrl: "" for all history.
-          const logsByUser = Object.fromEntries(memberOrder.map(name => [name, []]));
+          const logsByUser = Object.fromEntries(historicalMemberNames.map(name => [name, []]));
           for (const log of season.logs) {
             const owner = log.owner_display_name;
             if (!logsByUser[owner]) continue;
