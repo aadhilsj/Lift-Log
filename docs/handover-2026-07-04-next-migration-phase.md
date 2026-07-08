@@ -457,7 +457,7 @@ This slice should happen before a full claim that GET state is canonical-first.
 
 Status:
 
-- in progress locally on 2026-07-08
+- completed locally on 2026-07-09
 - current-log cleanup now keys off the composed current-member set instead of
   using blob `leftMemberNames` as the trigger for removing departed members'
   current logs / reactions / pending flags
@@ -468,6 +468,11 @@ Status:
 - redundant blob `joinedMonthByName` entries for auth-linked members are now
   pruned on read when canonical `joinedAt` already carries the same join-month
   meaning
+- historical `sitOutRequests` residue no longer survives in readable state;
+  read composition now exposes only the canonically open month
+- remaining `joinedMonthByName` read residue is intentionally narrow legacy
+  compatibility where canonical membership timing alone cannot fully recreate
+  historical participation boundaries
 
 #### Slice D — historical month-history redesign
 

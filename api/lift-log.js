@@ -421,6 +421,12 @@ function normalizeSitOutRequests(sitOutRequests) {
   );
 }
 
+function pruneSitOutRequestsForRead(sitOutRequests, monthKey) {
+  if (!monthKey) return {};
+  const normalized = normalizeSitOutRequests(sitOutRequests);
+  return normalized[monthKey] ? { [monthKey]: normalized[monthKey] } : {};
+}
+
 function normalizeMemberships(memberships, memberOrder, adminName, adminUserId) {
   if (!memberships || typeof memberships !== "object") return {};
   const normalized = {};
@@ -2220,10 +2226,9 @@ async function fetchReadableCurrentState() {
         }
         nextGroup = {
           ...nextGroup,
-          sitOutRequests: {
-            ...(nextGroup.sitOutRequests || {}),
-            [openMonthKey]: monthRequests
-          }
+          sitOutRequests: monthRequests && Object.keys(monthRequests).length > 0
+            ? { [openMonthKey]: monthRequests }
+            : {}
         };
 
         return [groupId, nextGroup];
@@ -2441,7 +2446,8 @@ async function fetchReadableCurrentState() {
         const scrubbedLogs = scrubCurrentLogsAgainstAllowedMembers(group.logs || {}, allowedNames);
         return [groupId, {
           ...group,
-          logs: scrubbedLogs
+          logs: scrubbedLogs,
+          sitOutRequests: pruneSitOutRequestsForRead(group.sitOutRequests, currentMonthKey)
         }];
       })
     )

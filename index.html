@@ -490,6 +490,12 @@ function normalizeSitOutRequests(sitOutRequests) {
   );
 }
 
+function pruneSitOutRequestsForRead(sitOutRequests, monthKey) {
+  if (!monthKey) return {};
+  const normalized = normalizeSitOutRequests(sitOutRequests);
+  return normalized[monthKey] ? { [monthKey]: normalized[monthKey] } : {};
+}
+
 function getSeasonOverrideForMonth(group, monthKey) {
   return normalizeSeasonOverrides(group?.seasonOverrides)?.[monthKey] || null;
 }
@@ -1445,7 +1451,7 @@ function normalizeGroupState(group) {
     logs: normalizedLogs,
     excused,
     seasonOverrides: normalizeSeasonOverrides(group?.seasonOverrides),
-    sitOutRequests: normalizeSitOutRequests(group?.sitOutRequests),
+    sitOutRequests: pruneSitOutRequestsForRead(group?.sitOutRequests, group?.lastMonth || curKey),
     settlementConfirmationsEnabled: !!group?.settlementConfirmationsEnabled,
     settlementConfirmationsPreviewMode: !!group?.settlementConfirmationsPreviewMode,
     settlementConfirmations: normalizeSettlementConfirmations(group?.settlementConfirmations),
