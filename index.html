@@ -1384,7 +1384,7 @@ function deriveActiveMemberOrder(rawMemberOrder, memberships, adminName, leftMem
   const canonicalActiveMembers = uniqueNames([
     ...Object.values(memberships || {}).map(membership => membership?.displayName || ""),
     String(adminName || "").trim()
-  ]).filter(name => !leftMemberNames.has(name));
+  ]);
 
   if (canonicalActiveMembers.length > 0) return canonicalActiveMembers;
 
@@ -1623,11 +1623,10 @@ function getProfileForSession(appState, session) {
 function getMembershipForUser(group, session, profile) {
   if (!group || !session?.userId) return null;
   if (group.memberships?.[session.userId]) return group.memberships[session.userId];
-  const leftNames = new Set(Array.isArray(group.leftMemberNames) ? group.leftMemberNames : []);
   const activeNames = Array.isArray(group.activeMemberOrder) && group.activeMemberOrder.length
     ? group.activeMemberOrder
     : (group.memberOrder || []);
-  if (profile?.displayName && !leftNames.has(profile.displayName) && activeNames.includes(profile.displayName)) {
+  if (profile?.displayName && activeNames.includes(profile.displayName)) {
     return {
       userId: session.userId,
       displayName: profile.displayName,

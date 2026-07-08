@@ -285,7 +285,7 @@ function deriveActiveMemberOrder(rawMemberOrder, memberships, adminName, leftMem
   const canonicalActiveMembers = uniqueNames([
     ...Object.values(memberships || {}).map(membership => membership?.displayName || ""),
     String(adminName || "").trim()
-  ]).filter(name => !leftMemberNames.has(name));
+  ]);
 
   if (canonicalActiveMembers.length > 0) return canonicalActiveMembers;
 

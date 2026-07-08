@@ -458,6 +458,8 @@ Status:
 - current-log cleanup now keys off the composed current-member set instead of
   using blob `leftMemberNames` as the trigger for removing departed members'
   current logs / reactions / pending flags
+- canonical active-member derivation no longer lets stale blob
+  `leftMemberNames` suppress users who are present in canonical memberships
 - `leftMemberNames` still exists as compatibility residue for active-shell
   shaping, but it is no longer required for current-log cleanup on read
 - redundant blob `joinedMonthByName` entries for auth-linked members are now
