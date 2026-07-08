@@ -480,6 +480,15 @@ Implementation direction:
 This is the largest remaining read migration item and should stay separate from
 the current-state cutover.
 
+Status:
+
+- in progress locally on 2026-07-08
+- canonical closed-month history is no longer blocked on blob month-shell
+  existence
+- canonical closed seasons can now invent missing historical months on read,
+  while the existing completeness guard still preserves blob months when
+  canonical member coverage looks partial
+
 ### Recommended Immediate Next Patch
 
 If implementation continues now, the next patch should be:

@@ -2236,23 +2236,20 @@ async function fetchReadableCurrentState() {
         const memberOrder = group.memberOrder || [];
 
         // Index blob monthHistory by month_key. Used both for completeness
-        // guards below and for the final merge. Months absent from blob are
-        // never added — canonical is an overlay on existing blob history only.
+        // guards below and for the final merge.
         const blobMonthsByKey = Object.fromEntries(
           (group.monthHistory || []).map(m => [m.key, m])
         );
 
-        // Build a canonical replacement for each closed season that already
-        // exists in blob monthHistory. Seasons with no blob counterpart are
-        // skipped entirely — this slice does not invent missing months.
+        // Build a canonical replacement for each closed season. Missing blob
+        // counterparts are now allowed — canonical history can invent closed
+        // months that were absent from the blob shell.
         const canonicalMonths = {};
         for (const season of canonicalSeasons) {
           const monthKey = season.monthKey;
           if (!monthKey) continue;
 
-          // Skip months not already present in blob — do not invent history.
           const blobMonth = blobMonthsByKey[monthKey];
-          if (!blobMonth) continue;
 
           // Index members from season_member_status, filtered to current memberOrder.
           const membersByName = {};
@@ -2363,7 +2360,8 @@ async function fetchReadableCurrentState() {
 
         // Merge: blob months are the base; canonical replaces only the months
         // it passed the completeness guard for. Blob months with no canonical
-        // replacement are carried through unchanged. Sort ascending by month_key.
+        // replacement are carried through unchanged, and canonical-only months
+        // are now allowed to appear. Sort ascending by month_key.
         const mergedMonthHistory = Object.values({ ...blobMonthsByKey, ...canonicalMonths })
           .sort((a, b) => compareMonthKeys(a.key, b.key));
 
