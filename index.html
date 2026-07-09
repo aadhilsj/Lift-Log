@@ -6713,6 +6713,7 @@ const App = () => {
   const [isMobileView,setIsMobileView]=useState(()=>isMobile());
   const [clockTick,setClockTick]=useState(Date.now());
   const [authReady,setAuthReady]=useState(false);
+  const [authHydrating,setAuthHydrating]=useState(false);
   const [localPreviewAuthEnabled,setLocalPreviewAuthEnabled]=useState(false);
   const [devImpersonationUserId,setDevImpersonationUserId]=useState(()=>{try{return localStorage.getItem(LOCAL_DEV_IMPERSONATION_KEY)||"";}catch{return ""; }});
   const latestRevisionRef = useRef(getRevision(cached));
@@ -7028,15 +7029,28 @@ const App = () => {
         if (!active) return;
         persistSession(initialSession);
         if (initialSession?.accessToken) {
-          const synced = await syncAuthSessionData(initialSession);
-          if (active && synced?.ok && synced.state) applyData(synced.state);
+          if (active) setAuthHydrating(true);
+          try {
+            const synced = await syncAuthSessionData(initialSession);
+            if (active && synced?.ok && synced.state) applyData(synced.state);
+          } finally {
+            if (active) setAuthHydrating(false);
+          }
         }
-        const listener = client.auth.onAuthStateChange(async (_event, session) => {
+        const listener = client.auth.onAuthStateChange(async (event, session) => {
           const mapped = mapSupabaseSession(session);
           persistSession(mapped);
           if (mapped?.accessToken) {
-            const synced = await syncAuthSessionData(mapped);
-            if (active && synced?.ok && synced.state) applyData(synced.state);
+            const shouldHydrateUi = event === "SIGNED_IN";
+            if (active && shouldHydrateUi) setAuthHydrating(true);
+            try {
+              const synced = await syncAuthSessionData(mapped);
+              if (active && synced?.ok && synced.state) applyData(synced.state);
+            } finally {
+              if (active && shouldHydrateUi) setAuthHydrating(false);
+            }
+          } else if (active) {
+            setAuthHydrating(false);
           }
         });
         subscription = listener?.data?.subscription || null;
@@ -7633,7 +7647,7 @@ const App = () => {
     }
   },[groups, persistGroupSelection, persistSession]);
 
-  if(loading || !authReady) return React.createElement(Spinner,{label:"Opening Antè..."});
+  if(loading || !authReady || authHydrating) return React.createElement(Spinner,{label:"Opening Antè..."});
   if(localPreviewAuthEnabled && !authSession?.userId) {
     return React.createElement(IdentitySetup,{
       members: localPreviewMembers,
