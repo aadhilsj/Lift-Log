@@ -77,6 +77,7 @@ import { HistoryPage } from "./pages/HistoryPage.jsx";
 const App = () => {
   const cached = readCachedData();
   const initialPersistedSession = readPersistedAuthSession();
+  const hasCachedShell = !!cached;
   const [page,setPage]=useState("today");
   const [showTodayLog,setShowTodayLog]=useState(false);
   const [navResetToken,setNavResetToken]=useState(0);
@@ -444,19 +445,20 @@ const App = () => {
         if (!active) return;
         persistSession(initialSession);
         if (initialSession?.accessToken) {
-          if (active) setAuthHydrating(true);
+          const shouldHydrateUi = !hasCachedShell;
+          if (active && shouldHydrateUi) setAuthHydrating(true);
           try {
             const synced = await syncAuthSessionData(initialSession);
             if (active && synced?.ok && synced.state) applyData(synced.state);
           } finally {
-            if (active) setAuthHydrating(false);
+            if (active && shouldHydrateUi) setAuthHydrating(false);
           }
         }
         const listener = client.auth.onAuthStateChange(async (event, session) => {
           const mapped = mapSupabaseSession(session);
           persistSession(mapped);
           if (mapped?.accessToken) {
-            const shouldHydrateUi = event === "SIGNED_IN";
+            const shouldHydrateUi = event === "SIGNED_IN" && !hasCachedShell;
             if (active && shouldHydrateUi) setAuthHydrating(true);
             try {
               const synced = await syncAuthSessionData(mapped);
