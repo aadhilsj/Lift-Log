@@ -113,3 +113,33 @@ cost nothing).
 - Live-binding reads (components reading `NAMES`/`curKey` mid-render after
   `syncActiveGroupGlobals`) work as before — writes happen inside the
   declaring module, reads cross module boundaries as live bindings.
+
+## Phase 3 — Surface extraction (2026-07-09)
+
+### Structure
+
+- `src/components/primitives.jsx` — 22 shared primitives/icons/fields
+- `src/components/authShell.jsx` — landing, auth flow, identity, group home
+- `src/modals/modals.jsx` — all 14 modals + settings fields/defaults
+- `src/pages/` — one file per page: Nav, ActivityFeed, PlayerProfile,
+  TodayPage, ActivityPage, SettlementScreen, MonthPage, HistoryPage
+- `src/App.jsx` — the App root only
+- `src/main.jsx` — now owns `createRoot` (moved out of the verbatim tail so
+  future HMR edits to App don't re-run root creation)
+
+All 56 component/helper blocks relocated verbatim; imports/exports generated
+by usage scan. Every file gets `import React` + hooks destructure header, so
+components no longer rely on the window.React global (globals.js retained for
+window.supabase, used by the api layer).
+
+### Gotcha hit and fixed
+
+- macOS case-insensitive filesystem: writing `App.jsx` while `app.jsx`
+  existed silently overwrote it. Splitter now deletes the source first.
+
+### Verified
+
+- Build green. Fresh browser context: boot, landing render, interaction —
+  zero console errors. (Mid-refactor HMR produced transient
+  createRoot/Spinner errors in the accumulated log buffer; error count frozen
+  across clean reloads confirms none occur in steady state.)
