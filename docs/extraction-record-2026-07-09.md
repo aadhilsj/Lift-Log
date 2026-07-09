@@ -143,3 +143,32 @@ window.supabase, used by the api layer).
   zero console errors. (Mid-refactor HMR produced transient
   createRoot/Spinner errors in the accumulated log buffer; error count frozen
   across clean reloads confirms none occur in steady state.)
+
+## Phase 4 — Service worker / PWA cleanup (2026-07-09)
+
+Decision: **manual sw.js update, no workbox/vite-plugin-pwa dependency.**
+The existing SW already runtime-caches same-origin GETs (cache-first with
+background refresh), which is the correct policy for Vite's content-hashed
+immutable /assets/ files — so a precache manifest adds machinery without
+adding safety. Revisit the plugin only if offline-first requirements grow.
+
+Changes:
+- CACHE_NAME bumped ante-v50 → ante-v51 (activate handler deletes old caches,
+  so existing devices drop the Babel/CDN-era cache on first online open)
+- CDN React/ReactDOM/supabase/Babel removed from APP_SHELL precache
+- Google Fonts stays precached (fonts remain CDN-backed by rule)
+- navigations stay network-first: new deploys picked up on next online open;
+  no stale-shell stranding
+
+## Dev tooling (task alongside Phase 4)
+
+- `scripts/local-dev-server.mjs` now serves `dist/` when present (repo-root
+  index.html is the unbuildable Vite entry post-extraction); `/api` handling
+  unchanged. `scripts/mobile-qa.mjs` (targets port 3000) works again via
+  build + dev:api.
+- `docs/local-dev.md` gained the two supported local flows.
+
+## Extraction status: ALL PHASES CODE-COMPLETE
+
+Remaining: preview-deploy smoke test of the final state (user), then merge
+coordination with the backend branch.

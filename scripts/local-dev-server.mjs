@@ -58,6 +58,16 @@ server.listen(port, host, () => {
 
 function resolveStaticPath(pathname) {
   const safePath = pathname === "/" ? "/index.html" : pathname;
+  // Since the Vite extraction, the repo-root index.html is the build ENTRY
+  // (it references /src/main.jsx and cannot run unbuilt). Serve the built
+  // app from dist/ when present; fall back to repo root for other assets.
+  // Dev flow without a build: run `npm run dev` (Vite, port 5173), which
+  // proxies /api to this server instead of loading static files from it.
+  const distDir = path.join(rootDir, "dist");
+  const fromDist = path.resolve(distDir, `.${safePath}`);
+  if (fromDist.startsWith(distDir) && fs.existsSync(fromDist) && !fs.statSync(fromDist).isDirectory()) {
+    return fromDist;
+  }
   const resolved = path.resolve(rootDir, `.${safePath}`);
   if (!resolved.startsWith(rootDir)) return null;
   if (!fs.existsSync(resolved)) return null;

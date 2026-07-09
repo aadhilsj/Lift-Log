@@ -1,14 +1,15 @@
-const CACHE_NAME = "ante-v50";
+const CACHE_NAME = "ante-v51";
+// Vite build note: JS/CSS ship as content-hashed files under /assets/ and are
+// cached at runtime by the generic same-origin fetch handler below (they are
+// immutable, so cache-first is correct for them). The precache list only
+// carries the stable shell entries; navigations stay network-first so a new
+// deploy is picked up on the next online open.
 const APP_SHELL = [
   "./",
   "./index.html",
   "./manifest.webmanifest",
   "./icon-192.png",
   "./icon-512.png",
-  "https://unpkg.com/react@18/umd/react.production.min.js",
-  "https://unpkg.com/react-dom@18/umd/react-dom.production.min.js",
-  "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2",
-  "https://unpkg.com/@babel/standalone/babel.min.js",
   "https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap"
 ];
 

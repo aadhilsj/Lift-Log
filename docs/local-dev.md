@@ -68,3 +68,21 @@ Before any promotion from local to live:
 - take a fresh backup of live data first
 
 That rule is mandatory for this project.
+
+## Running the app after the Vite extraction (2026-07-09)
+
+The frontend now builds with Vite; the repo-root `index.html` is the build
+entry and no longer runs unbuilt.
+
+Two supported local flows:
+
+1. **Dev (hot reload)** — two processes:
+   - `npm run dev:api` → API + env on port 3000
+   - `npm run dev` → Vite on port 5173, proxying `/api` to 3000
+   - open http://localhost:5173
+2. **Prod-like** — `npm run build`, then `npm run dev:api` and open
+   http://localhost:3000 (the API server serves `dist/` when it exists;
+   `scripts/mobile-qa.mjs` keeps working against port 3000 this way).
+
+Note: a fresh git worktree does not carry `.env.local`; copy it in before
+starting the API server.
