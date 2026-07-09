@@ -2040,10 +2040,37 @@ async function postApi(action, payload = {}, options = {}) {
 
 async function fetchData() {
   try {
+    const session = await getCurrentAuthSession();
+    if (!session?.accessToken) return null;
     const res = await fetch("./api/lift-log", {
       cache: "no-store",
-      headers: { "Accept":"application/json" }
+      headers: {
+        "Accept":"application/json",
+        "Authorization": `Bearer ${session.accessToken}`
+      }
     });
+    if (!res.ok && res.status === 401) {
+      const refreshed = await refreshAuthSession();
+      if (refreshed?.accessToken) {
+        const retryRes = await fetch("./api/lift-log", {
+          cache: "no-store",
+          headers: {
+            "Accept":"application/json",
+            "Authorization": `Bearer ${refreshed.accessToken}`
+          }
+        });
+        if (!retryRes.ok) {
+          if (retryRes.status === 401) {
+            await signOutAuthSession().catch(()=>{});
+          }
+          console.error("Fetch retry failed:", retryRes.status, await retryRes.text());
+          return null;
+        }
+        return normalizeAppState(await retryRes.json());
+      }
+      await signOutAuthSession().catch(()=>{});
+      return null;
+    }
     if(!res.ok){ console.error("Fetch failed:", res.status, await res.text()); return null; }
     return normalizeAppState(await res.json());
   } catch(e){ console.error("Fetch error:", e); return null; }

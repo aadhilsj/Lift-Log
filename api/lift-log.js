@@ -4174,6 +4174,7 @@ export default async function handler(req, res) {
       if (url.searchParams.get("config") === "auth") {
         return res.status(200).json(getClientAuthConfig());
       }
+      await fetchAuthenticatedUser(readBearerToken(req));
       const current = await fetchReadableCurrentState();
       return res.status(200).json(current);
     }
