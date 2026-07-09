@@ -475,6 +475,9 @@ Status:
 - remaining `joinedMonthByName` read residue is intentionally narrow legacy
   compatibility where canonical membership timing alone cannot fully recreate
   historical participation boundaries
+- auth-linked lifecycle departures no longer append fresh blob
+  `leftMemberNames` residue on kick / leave / delete-account; that compatibility
+  field now shrinks instead of continuing to grow for canonical members
 
 #### Slice D — historical month-history redesign
 

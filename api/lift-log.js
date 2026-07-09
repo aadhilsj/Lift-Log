@@ -309,6 +309,15 @@ function getCurrentMemberNamesForMonth(group, monthKey) {
   });
 }
 
+function appendLegacyLeftMemberName(leftMemberNames, authUserId, displayName) {
+  const safeDisplayName = String(displayName || "").trim();
+  if (!safeDisplayName) return uniqueNames(Array.isArray(leftMemberNames) ? leftMemberNames : []);
+  if (String(authUserId || "").trim()) {
+    return uniqueNames(Array.isArray(leftMemberNames) ? leftMemberNames : []);
+  }
+  return uniqueNames([...(Array.isArray(leftMemberNames) ? leftMemberNames : []), safeDisplayName]);
+}
+
 function normalizeGroup(group) {
   const logs = group?.logs && typeof group.logs === "object" ? group.logs : {};
   const monthHistory = Array.isArray(group?.monthHistory) ? group.monthHistory : [];
@@ -3910,7 +3919,11 @@ function applyKickMember(current, payload) {
   if (targetUserId) delete nextMemberships[targetUserId];
   else if (targetMembership?.userId) delete nextMemberships[targetMembership.userId];
   const nextMemberOrder = group.memberOrder.filter(n => n !== resolvedDisplayName);
-  const nextLeftMemberNames = [...new Set([...(Array.isArray(group.leftMemberNames) ? group.leftMemberNames : []), resolvedDisplayName])];
+  const nextLeftMemberNames = appendLegacyLeftMemberName(
+    group.leftMemberNames,
+    targetMembership?.userId || targetUserId,
+    resolvedDisplayName
+  );
   const nextLogs = scrubDepartedMemberFromCurrentLogs(group.logs, resolvedDisplayName);
   const nextGroup = normalizeGroup({
     ...group,
@@ -3973,7 +3986,6 @@ function applyLeaveBloc(current, payload) {
     nextAdminName = newAdmin.displayName;
   }
 
-  const nextLeftMemberNames = [...new Set([...(Array.isArray(group.leftMemberNames) ? group.leftMemberNames : []), displayName])];
   const nextLogs = scrubDepartedMemberFromCurrentLogs(group.logs, displayName);
   const nextGroup = normalizeGroup({
     ...group,
@@ -3981,7 +3993,7 @@ function applyLeaveBloc(current, payload) {
     adminName: nextAdminName,
     memberOrder: nextMemberOrder,
     memberships: nextMemberships,
-    leftMemberNames: nextLeftMemberNames,
+    leftMemberNames: group.leftMemberNames,
     logs: nextLogs
   });
   return {
@@ -4081,10 +4093,7 @@ function applyDeleteAccount(current, payload) {
       adminName: nextAdminName,
       memberOrder: nextMemberOrder,
       memberships: nextMemberships,
-      leftMemberNames: uniqueNames([
-        ...(Array.isArray(group.leftMemberNames) ? group.leftMemberNames : []),
-        dn
-      ]),
+      leftMemberNames: group.leftMemberNames,
       logs: scrubbedLogs,
       sitOutRequests: nextSitOutRequests
     });
