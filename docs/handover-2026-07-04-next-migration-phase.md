@@ -2,6 +2,30 @@
 
 Date: 2026-07-04
 
+## July 9 Amendment
+
+Current branch state has now moved one more important step:
+
+- `GET /api/lift-log` now requires a valid Supabase bearer-backed session
+  before returning composed app state
+- `GET /api/lift-log?config=auth` remains public for auth bootstrap
+- the client state refresh GET now sends the access token, retries once after
+  session refresh on `401`, and signs out cleanly if the session is dead
+
+This closes the live unauthenticated full-state read exposure that still
+existed when the earlier migration notes were written.
+
+Recommended sequencing is therefore now:
+
+1. keep the auth gate as landed
+2. perform frontend extraction / build-step introduction
+3. resume parallel backend migration and frontend feature work only after the
+   monolith is split
+
+See also:
+
+- `docs/frontend-extraction-plan-2026-07-09.md`
+
 ## Current-Main Amendment
 
 This note was written during the transition out of the guarded
