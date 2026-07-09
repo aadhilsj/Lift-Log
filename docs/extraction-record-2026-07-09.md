@@ -1,0 +1,77 @@
+# Frontend Extraction — Running Record
+
+Branch: `extraction/vite-build` (worktree, off `codex/create-group-canonical-first` @ `b91b14c`)
+Owner: Claude (frontend extraction end-to-end). Codex stays backend/migration-only.
+Plan of record: `docs/frontend-extraction-plan-2026-07-09.md`
+
+Rules in force: behavior-identical, no feature/redesign/chat work, no backend
+contract changes, fonts stay CDN-backed, PWA behavior is load-bearing.
+
+## Phase 1 — Build shell / bootstrap (2026-07-09)
+
+### What changed
+
+- `package.json` — new. React/ReactDOM pinned to `18.3.1` (exact version the
+  UMD CDN tags resolved to), `@supabase/supabase-js@^2`, Vite 5 +
+  `@vitejs/plugin-react`.
+- `vite.config.js` — new. Dev-server proxy `/api` → `127.0.0.1:3000`
+  (the existing `scripts/local-dev-server.mjs`).
+- `vercel.json` — new. Explicit `framework: vite`, `buildCommand`,
+  `outputDirectory: dist` so the Vercel project (previously configured as
+  no-build static) builds deterministically regardless of dashboard settings.
+- `index.html` — reduced to the Vite entry: original head metadata + manifest
+  + Google Fonts links preserved verbatim; the four CDN `<script>` tags
+  (React, ReactDOM, supabase-js, **Babel standalone**) removed; body is
+  `#root` + module script.
+- `src/styles/app.css` — the original `<style>` block, verbatim (lines 22–153
+  of the old index.html).
+- `src/app.jsx` — the original `<script type="text/babel">` body, **verbatim**
+  (lines 159–7764). Not modularized yet — that is Phases 2–3.
+- `src/globals.js` — compatibility shim: installs `window.React`,
+  `window.ReactDOM.createRoot`, `window.supabase.createClient` from npm
+  packages, because the verbatim app reads globals. Shrinks away in later
+  phases.
+- `src/main.jsx` — entry: globals → css → app (import order is load-bearing).
+- `manifest.webmanifest`, `icon-192.png`, `icon-512.png`, `sw.js` →
+  `public/` (Vite copies to dist root; same served URLs as before).
+- `.gitignore` — `node_modules/`, `dist/`.
+
+### Decisions / tradeoffs
+
+1. **Verbatim-first**: Phase 1 moves code without editing it. The only
+   mechanical delta is how React/supabase are provided (npm + global shim
+   instead of CDN UMD). This keeps the Phase 1 diff reviewable and makes any
+   behavior change a bug by definition.
+2. **React stays global until Phase 2/3** — `const {useState,...} = React` at
+   the top of app.jsx resolves via `window.React`. Real imports arrive when
+   the file is split.
+3. **sw.js untouched in Phase 1** (except relocation). It still pre-caches the
+   now-unused CDN URLs (harmless waste) and `./index.html`. The SW is
+   network-first for navigations, so clients pick up the new shell on next
+   online open. Full rework is Phase 4.
+4. **supabase-js pinned to ^2 via npm** — the CDN tag was unpinned `@2`, so
+   npm gives the same major with a lockfile improving determinism.
+
+### Verified locally
+
+- `npm run build` passes: 622KB JS (165KB gz, React+supabase bundled),
+  7.8KB CSS, no Babel anywhere.
+- Vite dev server + local API server: app boots, PreviewLanding renders
+  correctly (visual check), auth config fetch works through the proxy,
+  email OTP modal renders and submits. Only console warning is the
+  pre-existing double-GoTrueClient warning (also present in production;
+  out of scope per behavior-identical rule — noted for post-extraction).
+
+### Known observations for later phases (not fixed now)
+
+- Two `window.supabase?.createClient` call sites create two GoTrueClient
+  instances (pre-existing warning). Candidate cleanup in Phase 2 data-layer
+  extraction — only if provably behavior-safe.
+- `icon.svg` / `icon.svg.png` at repo root are unreferenced by the app;
+  left in place.
+- Local dev now requires two processes: `npm run dev:api` + `npm run dev`.
+  `docs/local-dev.md` update pending (tracked with the QA-script task).
+
+### Pending verification
+
+- Vercel preview deployment build + smoke test (next step).
