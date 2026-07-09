@@ -75,3 +75,41 @@ contract changes, fonts stay CDN-backed, PWA behavior is load-bearing.
 ### Pending verification
 
 - Vercel preview deployment build + smoke test (next step).
+
+## Phase 2 — Root app + data layer extraction (2026-07-09)
+
+### What changed
+
+- `src/lib/appState.js` (~1,700 lines) — constants, mutable app context
+  (`NAMES`, `curKey`, `ACTIVE_*`, …), time/league math, normalization,
+  settlement/stat helpers, `syncActiveGroupGlobals`. Verbatim relocation of
+  original lines 1–1677 plus two functions (`getCurrentGroupMemberNames`,
+  `flattenFeedPosts`) moved up from the utils section because state helpers
+  call them.
+- `src/lib/api.js` — auth client bootstrap, session handling, `postApi`,
+  every `*Data` mutation wrapper, local cache read/write (original 1678–2131).
+- `src/lib/utils.js` — formatting, timezone, image compression/upload,
+  platform detection (original 2132–2544).
+- `src/app.jsx` — now components only (~5,100 lines) + App + createRoot,
+  importing from the three lib modules.
+
+### Mechanical deltas (the only non-relocation edits)
+
+1. `setActiveSessionUserId()` added — ES modules forbid writing imported
+   bindings; App's render-time write becomes a setter call.
+2. `setSupabaseAuthClientPromise()` added — same reason (sign-out path reset).
+3. React hooks destructure (`const { useState… } = React`) moved from the old
+   utils region into app.jsx where the hooks are actually used.
+
+Everything else is verbatim relocation + generated export/import lists
+(unused exports retained deliberately — they document the module surface and
+cost nothing).
+
+### Verified
+
+- `npm run build` green.
+- Dev-server runtime: landing page renders, demo leaderboard correct,
+  Join-a-Bloc → email auth modal opens; zero console errors.
+- Live-binding reads (components reading `NAMES`/`curKey` mid-render after
+  `syncActiveGroupGlobals`) work as before — writes happen inside the
+  declaring module, reads cross module boundaries as live bindings.
