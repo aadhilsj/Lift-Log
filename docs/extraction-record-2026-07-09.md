@@ -172,3 +172,34 @@ Changes:
 
 Remaining: preview-deploy smoke test of the final state (user), then merge
 coordination with the backend branch.
+
+## Phase 3 follow-up fix — class components missed by splitter (2026-07-09)
+
+Symptom: signed-in, entering a Bloc → blank screen. Build was green and the
+landing/auth path worked, so it passed the earlier gate; the crash was
+render-time only.
+
+Root cause: the Phase 3 splitter's declaration regex matched
+`function|const|let` but NOT `class`. The two error-boundary classes
+(`PlayerProfileErrorBoundary`, `TodayPageErrorBoundary`) were therefore never
+registered as blocks — they rode along in `primitives.jsx` (glued to a
+neighboring const) but were absent from its export list and from every
+consumer's import list. Rollup treats an un-imported identifier as an implicit
+global, so the bundle built cleanly and threw `ReferenceError` only when the
+component actually mounted (i.e. on entering a group).
+
+Fix: export both classes from `primitives.jsx`; import
+`PlayerProfileErrorBoundary` into TodayPage/MonthPage/HistoryPage and
+`TodayPageErrorBoundary` into App.jsx.
+
+Completeness check: a full-tree scan (JSX `<Capitalized>` + `createElement`
+targets vs. declared/imported/global names) now reports 0 unresolved
+references. Only these two `class` declarations existed in the tree.
+
+Verified in-browser (built bundle, local preview-auth + seeded cache):
+Today, Results, and History all render with zero console errors — the exact
+path that was blank now paints fully.
+
+Lesson: green build ≠ working app for ES-module splits — implicit-global
+fallback hides missing imports until render. Gate must include a signed-in
+render of a page surface, not just landing.

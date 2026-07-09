@@ -25,7 +25,7 @@ import {
 import {
   isMobile
 } from "../lib/utils.js";
-import { Avatar, RankIcon, TrophyIcon, Card, SelectField } from "../components/primitives.jsx";
+import { Avatar, RankIcon, TrophyIcon, Card, SelectField, PlayerProfileErrorBoundary } from "../components/primitives.jsx";
 import { PlayerProfile } from "../pages/PlayerProfile.jsx";
 import { SettlementScreen } from "../pages/SettlementScreen.jsx";
 

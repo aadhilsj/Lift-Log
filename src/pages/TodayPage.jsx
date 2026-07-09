@@ -45,7 +45,7 @@ import {
   formatWeekRangeLabel,
   buildLocalWeeklyMvpPreview
 } from "../lib/utils.js";
-import { Avatar, WorkoutTypeIcon, ChevronRightIcon, TargetHitHexIcon, StatusBadge, RankIcon, Bar, Card } from "../components/primitives.jsx";
+import { Avatar, WorkoutTypeIcon, ChevronRightIcon, TargetHitHexIcon, StatusBadge, RankIcon, Bar, Card, PlayerProfileErrorBoundary } from "../components/primitives.jsx";
 import { LogModal, DeleteModal, SitOutModal } from "../modals/modals.jsx";
 import { PlayerProfile } from "../pages/PlayerProfile.jsx";
 

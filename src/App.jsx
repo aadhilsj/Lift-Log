@@ -63,7 +63,7 @@ import {
   isIos,
   isSafari
 } from "./lib/utils.js";
-import { Spinner, InstallBanner } from "./components/primitives.jsx";
+import { Spinner, InstallBanner, TodayPageErrorBoundary } from "./components/primitives.jsx";
 import { PreviewLanding, ProfileModal, JoinGroupModal, AuthFlowModal, IdentitySetup, GroupHome, GroupAccessNotice, LocalDevImpersonationBar } from "./components/authShell.jsx";
 import { GroupSettingsModal, ProrationChoiceModal } from "./modals/modals.jsx";
 import { Nav } from "./pages/Nav.jsx";

@@ -21,7 +21,7 @@ import {
   getCountedLogCount,
   isJoinedForMonth
 } from "../lib/appState.js";
-import { Avatar, WorkoutTypeIcon, ChevronRightIcon, RankIcon, TrophyIcon, Card } from "../components/primitives.jsx";
+import { Avatar, WorkoutTypeIcon, ChevronRightIcon, RankIcon, TrophyIcon, Card, PlayerProfileErrorBoundary } from "../components/primitives.jsx";
 import { PlayerProfile } from "../pages/PlayerProfile.jsx";
 
 const HistoryPage = ({logs,excused,monthHistory,groupSettings,navResetToken,currentUser}) => {
