@@ -4382,20 +4382,24 @@ export default async function handler(req, res) {
       if (payload?.action === "upsert-profile") {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const updated = applyUpsertProfile(auth.state, { ...payload, userId: auth.user.id, email: auth.user.email });
-        const persisted = await persistState(updated, `profile:${auth.user.id}`);
-        // Dual-write to canonical. applyUpsertProfile already validated that
-        // displayName is non-empty, so this call is always safe to fire here.
-        await syncProfileToCanonical(auth.user.id, auth.user.email, String(payload?.displayName || "").trim());
-        // Sync display_name_snapshot in bloc_members for every group this user is
-        // a member of. Covers the rename case: applyUpsertProfile propagated the
-        // new name through the blob but the canonical snapshot was not updated.
-        // Best-effort — never throws; failures are logged and do not affect the response.
-        for (const [, group] of Object.entries(persisted.groups || {})) {
+        // Canonical-first write slice for upsert-profile:
+        // 1. compute the exact post-update state in memory
+        // 2. sync canonical profile first
+        // 3. sync canonical bloc-member display-name snapshots for every active
+        //    auth-linked membership in that computed state
+        // 4. mirror blob only after canonical writes succeed
+        await syncProfileToCanonical(
+          auth.user.id,
+          auth.user.email,
+          String(payload?.displayName || "").trim(),
+          { throwOnError: true }
+        );
+        for (const [, group] of Object.entries(updated.groups || {})) {
           if (!group.memberships?.[auth.user.id]) continue;
           const memberRole = group.memberships[auth.user.id].role || "member";
-          syncBlocMemberToCanonical(group, auth.user.id, memberRole)
-            .catch(err => console.error(`Canonical bloc member sync failed (upsert-profile ${auth.user.id}):`, err?.message || err));
+          await syncBlocMemberToCanonical(group, auth.user.id, memberRole, { throwOnError: true });
         }
+        const persisted = await persistState(updated, `profile:${auth.user.id}`);
         return res.status(200).json(persisted);
       }
 

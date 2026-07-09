@@ -38,6 +38,9 @@ It is still directionally useful, but these corrections now apply on current
 - `repair-display-name` was blob-first at the time of this note; a later local
   July 9 patch converts it into a canonical snapshot-repair slice for one bloc,
   but that should not be treated as full display-name de-keying
+- `upsert-profile` is now locally tightened so canonical profile / bloc-member
+  snapshot writes happen before blob persist, closing another remaining
+  best-effort dual-write gap
 - July 6 settlement fixes also landed:
   - preserve historical settled state during rebuilds
   - render per-pair settlement reminder amounts correctly
