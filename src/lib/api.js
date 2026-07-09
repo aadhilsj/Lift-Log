@@ -7,6 +7,7 @@ import {
 
 let supabaseAuthConfigPromise = null;
 let supabaseAuthClientPromise = null;
+const PERSISTED_AUTH_SESSION_KEY = "ll_auth_session_hint_v1";
 
 function slugifyLocalPreview(value) {
   return String(value || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "preview";
@@ -61,6 +62,45 @@ function persistLocalPreviewSession(session) {
     }
     localStorage.setItem(LOCAL_PREVIEW_AUTH_KEY, JSON.stringify({
       previewDisplayName: session.previewDisplayName
+    }));
+  } catch {}
+}
+
+function readPersistedAuthSession() {
+  try {
+    const raw = localStorage.getItem(PERSISTED_AUTH_SESSION_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed?.localPreview) {
+      return buildLocalPreviewSession(parsed?.previewDisplayName || parsed?.displayName || "");
+    }
+    if (!parsed?.userId) return null;
+    return {
+      userId: parsed.userId,
+      email: parsed.email || "",
+      accessToken: null
+    };
+  } catch {
+    return null;
+  }
+}
+
+function persistAuthSessionHint(session) {
+  try {
+    if (!session?.userId) {
+      localStorage.removeItem(PERSISTED_AUTH_SESSION_KEY);
+      return;
+    }
+    if (session.localPreview) {
+      localStorage.setItem(PERSISTED_AUTH_SESSION_KEY, JSON.stringify({
+        localPreview: true,
+        previewDisplayName: session.previewDisplayName || ""
+      }));
+      return;
+    }
+    localStorage.setItem(PERSISTED_AUTH_SESSION_KEY, JSON.stringify({
+      userId: session.userId,
+      email: session.email || ""
     }));
   } catch {}
 }
@@ -472,7 +512,9 @@ export {
   isLocalDevHost,
   isLocalDevEnvironment,
   readLocalPreviewSession,
+  readPersistedAuthSession,
   persistLocalPreviewSession,
+  persistAuthSessionHint,
   mapSupabaseSession,
   fetchAuthConfig,
   getSupabaseAuthClient,

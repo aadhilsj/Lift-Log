@@ -55,6 +55,8 @@ import {
   mutateLogData,
   readCachedData,
   writeCachedData,
+  readPersistedAuthSession,
+  persistAuthSessionHint,
   getRevision
 } from "./lib/api.js";
 import {
@@ -74,6 +76,7 @@ import { HistoryPage } from "./pages/HistoryPage.jsx";
 
 const App = () => {
   const cached = readCachedData();
+  const initialPersistedSession = readPersistedAuthSession();
   const [page,setPage]=useState("today");
   const [showTodayLog,setShowTodayLog]=useState(false);
   const [navResetToken,setNavResetToken]=useState(0);
@@ -88,7 +91,7 @@ const App = () => {
   const [profileError,setProfileError]=useState("");
   const [appState,setAppState]=useState(()=>cached||buildEmptyAppState());
   const [selectedGroupId,setSelectedGroupId]=useState(()=>{try{return localStorage.getItem(LOCAL_GROUP_KEY)||null;}catch{return null;}});
-  const [authSession,setAuthSession]=useState(null);
+  const [authSession,setAuthSession]=useState(()=>initialPersistedSession);
   const [pendingAuthSession,setPendingAuthSession]=useState(null);
   const [authStep,setAuthStep]=useState(null);
   const [authIntent,setAuthIntent]=useState(null);
@@ -123,7 +126,7 @@ const App = () => {
   const [showJustSynced,setShowJustSynced]=useState(false);
   const [isMobileView,setIsMobileView]=useState(()=>isMobile());
   const [clockTick,setClockTick]=useState(Date.now());
-  const [authReady,setAuthReady]=useState(false);
+  const [authReady,setAuthReady]=useState(()=>!!initialPersistedSession?.userId);
   const [authHydrating,setAuthHydrating]=useState(false);
   const [localPreviewAuthEnabled,setLocalPreviewAuthEnabled]=useState(false);
   const [devImpersonationUserId,setDevImpersonationUserId]=useState(()=>{try{return localStorage.getItem(LOCAL_DEV_IMPERSONATION_KEY)||"";}catch{return ""; }});
@@ -142,6 +145,7 @@ const App = () => {
   const persistSession = useCallback((session) => {
     const nextSession = session?.userId ? session : null;
     persistLocalPreviewSession(nextSession);
+    persistAuthSessionHint(nextSession);
     setAuthSession(nextSession);
   },[]);
 
