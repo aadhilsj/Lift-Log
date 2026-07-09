@@ -1268,6 +1268,26 @@ async function syncBlocMemberToCanonical(group, authUserId, role, options = {}) 
   }
 }
 
+async function repairDisplayNameSnapshotsInCanonical(legacyGroupKey, authUserId, oldDisplayName, newDisplayName, options = {}) {
+  const { throwOnError = false } = options;
+  if (!legacyGroupKey || !authUserId || !oldDisplayName || !newDisplayName || oldDisplayName === newDisplayName) return;
+  try {
+    await supabaseFetch("/rest/v1/rpc/repair_ante_core_display_name_snapshots", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({
+        p_legacy_group_key: legacyGroupKey,
+        p_auth_user_id: authUserId,
+        p_old_display_name: oldDisplayName,
+        p_new_display_name: newDisplayName
+      })
+    });
+  } catch (err) {
+    if (throwOnError) throw err;
+    console.error("Canonical display-name repair failed:", err?.message || err);
+  }
+}
+
 async function removeBlocMemberFromCanonical(legacyGroupKey, authUserId, options = {}) {
   const { throwOnError = false } = options;
   if (!legacyGroupKey || !authUserId) return;
@@ -4724,13 +4744,27 @@ export default async function handler(req, res) {
 
       if (payload?.action === "repair-display-name") {
         const updated = applyRepairDisplayName(current, payload);
-        const persisted = await persistState(updated, `repair-display-name:${payload.groupId}:${payload.oldName}:${payload.newName}`);
-        // Best-effort canonical member sync for the renamed user.
-        const repairedGroup = persisted.groups?.[payload.groupId];
-        if (repairedGroup && payload.userId) {
-          syncBlocMemberToCanonical(repairedGroup, payload.userId, repairedGroup.memberships?.[payload.userId]?.role || "member")
-            .catch(err => console.error(`Canonical member sync failed (repair-display-name ${payload.groupId}):`, err?.message || err));
+        const repairedGroup = updated.groups?.[payload.groupId];
+        const repairedProfile = updated.profiles?.[payload.userId] || current.profiles?.[payload.userId] || null;
+        const repairedMembership = repairedGroup?.memberships?.[payload.userId] || null;
+        if (String(payload?.profileDisplayName || "").trim() && repairedProfile?.email) {
+          await syncProfileToCanonical(
+            payload.userId,
+            repairedProfile.email,
+            String(payload.profileDisplayName).trim(),
+            { throwOnError: true }
+          );
         }
+        if (repairedGroup && repairedMembership?.displayName) {
+          await repairDisplayNameSnapshotsInCanonical(
+            payload.groupId,
+            payload.userId,
+            payload.oldName,
+            repairedMembership.displayName,
+            { throwOnError: true }
+          );
+        }
+        const persisted = await persistState(updated, `repair-display-name:${payload.groupId}:${payload.oldName}:${payload.newName}`);
         return res.status(200).json({ ok: true, state: persisted });
       }
 

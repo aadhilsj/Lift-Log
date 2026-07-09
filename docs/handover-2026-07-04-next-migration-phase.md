@@ -35,7 +35,9 @@ It is still directionally useful, but these corrections now apply on current
   - `flag-review`
   - `delete-log`
 - `delete-account` is also now verified live as a canonical-first slice
-- `repair-display-name` remains blob-first with best-effort canonical sync
+- `repair-display-name` was blob-first at the time of this note; a later local
+  July 9 patch converts it into a canonical snapshot-repair slice for one bloc,
+  but that should not be treated as full display-name de-keying
 - July 6 settlement fixes also landed:
   - preserve historical settled state during rebuilds
   - render per-pair settlement reminder amounts correctly
