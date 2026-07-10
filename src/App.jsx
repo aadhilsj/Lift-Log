@@ -538,7 +538,7 @@ const App = () => {
     };
     const targetMonthKey = getMonthKeyFromISO(isoDate);
     if (targetMonthKey !== curKey) {
-      window.alert("Logging to a closed month is no longer allowed.");
+      window.alert("You can't log to a closed month.");
       return;
     }
     const optimisticGroup = normalizeGroupState({

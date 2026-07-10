@@ -3332,7 +3332,7 @@ function applyAddLog(current, payload) {
 
   const targetMonthKey = getMonthKeyFromISO(date);
   if (targetMonthKey !== group.lastMonth) {
-    const error = new Error("Logging to a closed month is no longer allowed.");
+    const error = new Error("You can't log to a closed month.");
     error.status = 400;
     throw error;
   }
