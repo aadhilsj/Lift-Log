@@ -78,11 +78,25 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], onCl
     setShowPlus(false);
   }, [open, blocId, currentUserId, members]);
 
+  // Bulletproof background scroll lock: pin the body in place (iOS Safari
+  // leaks touch-scroll through a plain `overflow:hidden`, so fix the body and
+  // restore the scroll position on close).
   useEffect(() => {
     if (!open) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => { document.body.style.overflow = prev; };
+    const scrollY = window.scrollY;
+    const body = document.body;
+    const prev = { position: body.style.position, top: body.style.top, width: body.style.width, overflow: body.style.overflow };
+    body.style.position = "fixed";
+    body.style.top = `-${scrollY}px`;
+    body.style.width = "100%";
+    body.style.overflow = "hidden";
+    return () => {
+      body.style.position = prev.position;
+      body.style.top = prev.top;
+      body.style.width = prev.width;
+      body.style.overflow = prev.overflow;
+      window.scrollTo(0, scrollY);
+    };
   }, [open]);
 
   useEffect(() => {
@@ -113,10 +127,11 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], onCl
     React.createElement('div', {
       onClick: e => e.stopPropagation(),
       style: {
-        background: "var(--bg)", borderTop: "1px solid var(--border)",
+        background: "radial-gradient(ellipse 90% 42% at 50% 0%, rgba(78,205,196,0.12), transparent 62%), linear-gradient(180deg, #0a1615 0%, #070f0e 42%, #05090a 100%)",
+        borderTop: "1px solid var(--border)",
         borderRadius: "16px 16px 0 0", height: "92dvh", display: "flex", flexDirection: "column",
         transform: mounted ? "translateY(0)" : "translateY(100%)", transition: "transform .28s cubic-bezier(.22,.61,.36,1)",
-        overflow: "hidden", boxShadow: "0 -12px 40px rgba(0,0,0,.5)"
+        overflow: "hidden", overscrollBehavior: "contain", boxShadow: "0 -12px 40px rgba(0,0,0,.5)"
       }
     },
       // Stream header
@@ -155,7 +170,7 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], onCl
       React.createElement('div', {
         style: {
           position: "relative", flexShrink: 0, display: "flex", alignItems: "center", gap: 8,
-          padding: "10px 12px calc(10px + env(safe-area-inset-bottom))", borderTop: "1px solid var(--border)", background: "var(--bg)"
+          padding: "10px 12px calc(10px + env(safe-area-inset-bottom))", borderTop: "1px solid var(--border)", background: "rgba(5,9,10,0.55)", backdropFilter: "blur(8px)"
         }
       },
         showPlus && React.createElement('div', {
