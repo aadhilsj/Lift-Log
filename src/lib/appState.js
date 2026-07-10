@@ -1277,11 +1277,6 @@ function normalizeGroupState(group) {
     excused[name] = group?.excused?.[name] && typeof group.excused[name] === "object" ? group.excused[name] : {};
   });
   const memberships = normalizeMemberships(rawMemberships, memberOrder, group?.adminName, group?.adminUserId);
-  const joinedMonthByName = pruneJoinedMonthByNameForRead(
-    { ...group, memberships, settings: buildNormalizedSettings(group?.settings) },
-    group?.joinedMonthByName,
-    group?.settings
-  );
   return {
     id: group?.id,
     name: String(group?.name || "Untitled Group").trim(),
@@ -1292,7 +1287,7 @@ function normalizeGroupState(group) {
     memberOrder,
     activeMemberOrder,
     memberships,
-    joinedMonthByName,
+    joinedMonthByName: group?.joinedMonthByName && typeof group.joinedMonthByName === "object" ? group.joinedMonthByName : {},
     leftMemberNames: [...leftMemberNames],
     settings: buildNormalizedSettings(group?.settings),
     logs: normalizedLogs,
@@ -1302,7 +1297,7 @@ function normalizeGroupState(group) {
     settlementConfirmationsEnabled: !!group?.settlementConfirmationsEnabled,
     settlementConfirmationsPreviewMode: !!group?.settlementConfirmationsPreviewMode,
     settlementConfirmations: normalizeSettlementConfirmations(group?.settlementConfirmations),
-    monthHistory: normalizeMonthHistoryState(monthHistory, memberOrder, joinedMonthByName, group?.settings),
+    monthHistory: normalizeMonthHistoryState(monthHistory, memberOrder, group?.joinedMonthByName, group?.settings),
     lastMonth: group?.lastMonth || curKey
   };
 }
