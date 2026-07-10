@@ -353,9 +353,17 @@ function appendLegacyLeftMemberName(leftMemberNames, authUserId, displayName) {
   const safeDisplayName = String(displayName || "").trim();
   if (!safeDisplayName) return uniqueNames(Array.isArray(leftMemberNames) ? leftMemberNames : []);
   if (String(authUserId || "").trim()) {
-    return uniqueNames(Array.isArray(leftMemberNames) ? leftMemberNames : []);
+    return (Array.isArray(leftMemberNames) ? leftMemberNames : [])
+      .filter(name => name !== safeDisplayName);
   }
   return uniqueNames([...(Array.isArray(leftMemberNames) ? leftMemberNames : []), safeDisplayName]);
+}
+
+function removeLegacyLeftMemberName(leftMemberNames, displayName) {
+  const safeDisplayName = String(displayName || "").trim();
+  if (!safeDisplayName) return uniqueNames(Array.isArray(leftMemberNames) ? leftMemberNames : []);
+  return (Array.isArray(leftMemberNames) ? leftMemberNames : [])
+    .filter(name => name !== safeDisplayName);
 }
 
 function normalizeGroup(group) {
@@ -3982,8 +3990,7 @@ function applyJoinGroup(current, payload) {
   const shouldRecordJoinMonth = isNewToMemberOrder || !hasParticipationBeforeMonth(group, profile.displayName, joinMonthKey);
   // If this member was previously kicked or left, remove them from leftMemberNames
   // so normalizeGroup doesn't immediately filter them back out.
-  const nextLeftMemberNames = (Array.isArray(group.leftMemberNames) ? group.leftMemberNames : [])
-    .filter(n => n !== profile.displayName);
+  const nextLeftMemberNames = removeLegacyLeftMemberName(group.leftMemberNames, profile.displayName);
   const nextGroup = normalizeGroup({
     ...group,
     memberOrder: uniqueNames([...group.memberOrder, profile.displayName]),
@@ -4133,7 +4140,7 @@ function applyLeaveBloc(current, payload) {
     adminName: nextAdminName,
     memberOrder: nextMemberOrder,
     memberships: nextMemberships,
-    leftMemberNames: group.leftMemberNames,
+    leftMemberNames: removeLegacyLeftMemberName(group.leftMemberNames, displayName),
     logs: nextLogs
   });
   return {
@@ -4233,7 +4240,7 @@ function applyDeleteAccount(current, payload) {
       adminName: nextAdminName,
       memberOrder: nextMemberOrder,
       memberships: nextMemberships,
-      leftMemberNames: group.leftMemberNames,
+      leftMemberNames: removeLegacyLeftMemberName(group.leftMemberNames, dn),
       logs: scrubbedLogs,
       sitOutRequests: nextSitOutRequests
     });
