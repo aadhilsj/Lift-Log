@@ -19,7 +19,6 @@ import {
   getMembershipForUser,
   syncActiveGroupGlobals,
   getCurrentGroupMemberNames,
-  rebuildMonthSnapshot,
   setActiveSessionUserId
 } from "./lib/appState.js";
 import {
@@ -538,33 +537,17 @@ const App = () => {
       decisionAt:null
     };
     const targetMonthKey = getMonthKeyFromISO(isoDate);
-    let optimisticGroup = currentGroup;
-    if (targetMonthKey === curKey) {
-      optimisticGroup = normalizeGroupState({
-        ...currentGroup,
-        logs: {
-          ...currentGroup.logs,
-          [currentUser]: [...(currentGroup.logs?.[currentUser] || []), optimisticLog]
-        }
-      });
-    } else {
-      const monthIndex = (currentGroup.monthHistory || []).findIndex(month => month?.key === targetMonthKey);
-      if (monthIndex === -1) {
-        window.alert("That month is already closed and no editable snapshot was found.");
-        return;
-      }
-      const targetMonth = currentGroup.monthHistory[monthIndex];
-      const nextMonthLogs = [...(targetMonth.logsByUser?.[currentUser] || []), optimisticLog];
-      const nextMonthHistory = [...(currentGroup.monthHistory || [])];
-      nextMonthHistory[monthIndex] = rebuildMonthSnapshot(targetMonth, {
-        ...(targetMonth.logsByUser || {}),
-        [currentUser]: nextMonthLogs
-      });
-      optimisticGroup = normalizeGroupState({
-        ...currentGroup,
-        monthHistory: nextMonthHistory
-      });
+    if (targetMonthKey !== curKey) {
+      window.alert("Logging to a closed month is no longer allowed.");
+      return;
     }
+    const optimisticGroup = normalizeGroupState({
+      ...currentGroup,
+      logs: {
+        ...currentGroup.logs,
+        [currentUser]: [...(currentGroup.logs?.[currentUser] || []), optimisticLog]
+      }
+    });
     beginOptimisticMutation();
     applyData(buildOptimisticState({ groupId: selectedGroupId, group: optimisticGroup }), { optimistic:true });
     setSaving(true);

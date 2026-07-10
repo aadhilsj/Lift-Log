@@ -3331,34 +3331,19 @@ function applyAddLog(current, payload) {
   });
 
   const targetMonthKey = getMonthKeyFromISO(date);
-  let nextGroup;
-  if (targetMonthKey === group.lastMonth) {
-    nextGroup = normalizeGroup({
-      ...group,
-      logs: {
-        ...group.logs,
-        [actor]: [...(group.logs?.[actor] || []), log]
-      }
-    });
-  } else {
-    const monthIndex = (group.monthHistory || []).findIndex(month => month?.key === targetMonthKey);
-    if (monthIndex === -1) {
-      const error = new Error("That month is already closed and no editable snapshot was found.");
-      error.status = 404;
-      throw error;
-    }
-    const targetMonth = group.monthHistory[monthIndex];
-    const nextMonthLogs = [...(targetMonth.logsByUser?.[actor] || []), log];
-    const nextMonthHistory = [...(group.monthHistory || [])];
-    nextMonthHistory[monthIndex] = rebuildMonthSnapshot(group, targetMonth, {
-      ...(targetMonth.logsByUser || {}),
-      [actor]: nextMonthLogs
-    });
-    nextGroup = normalizeGroup({
-      ...group,
-      monthHistory: nextMonthHistory
-    });
+  if (targetMonthKey !== group.lastMonth) {
+    const error = new Error("Logging to a closed month is no longer allowed.");
+    error.status = 400;
+    throw error;
   }
+
+  const nextGroup = normalizeGroup({
+    ...group,
+    logs: {
+      ...group.logs,
+      [actor]: [...(group.logs?.[actor] || []), log]
+    }
+  });
 
   return {
     updated: {
