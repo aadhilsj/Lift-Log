@@ -127,7 +127,7 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], onCl
     React.createElement('div', {
       onClick: e => e.stopPropagation(),
       style: {
-        background: "radial-gradient(ellipse 90% 42% at 50% 0%, rgba(78,205,196,0.12), transparent 62%), linear-gradient(180deg, #0a1615 0%, #070f0e 42%, #05090a 100%)",
+        background: "radial-gradient(ellipse 95% 38% at 50% 16%, rgba(78,205,196,0.13), transparent 60%), linear-gradient(180deg, #080f0e 0%, #070f0e 38%, #05090a 100%)",
         borderTop: "1px solid var(--border)",
         borderRadius: "16px 16px 0 0", height: "92dvh", display: "flex", flexDirection: "column",
         transform: mounted ? "translateY(0)" : "translateY(100%)", transition: "transform .28s cubic-bezier(.22,.61,.36,1)",
@@ -138,7 +138,8 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], onCl
       React.createElement('div', {
         style: {
           display: "flex", alignItems: "flex-start", justifyContent: "space-between",
-          padding: "16px 18px 14px", borderBottom: "1px solid var(--border)", flexShrink: 0
+          padding: "16px 18px 14px", borderBottom: "1px solid rgba(78,205,196,0.16)",
+          background: "rgba(5,9,10,0.55)", backdropFilter: "blur(8px)", flexShrink: 0, position: "relative", zIndex: 1
         }
       },
         React.createElement('div', { style: { minWidth: 0 } },
