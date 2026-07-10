@@ -39,16 +39,16 @@ export function seedIfEmpty(blocId, { currentUserId, members = [] } = {}) {
   });
 
   const msgs = [
-    sys(60 * 34, "positive", "Season Closed · 1 Jul", "June wrapped — settlement summary is ready.", "3 payments outstanding.", { "👏": other ? [other.id] : [] }),
+    sys(60 * 34, "positive", "Season Closed · 1 Jul", "June settled — summary ready.", "3 payments outstanding.", { "👏": other ? [other.id] : [] }),
     sys(60 * 30, "positive", "New Member · 5 Jul", "Deyhan joined the Bloc.", "", {}),
     other && txt(60 * 6, other.id, "anyone running this weekend?"),
-    sys(60 * 5, "positive", "Target Hit · 6 Jul", "Aadhil hit their target with 21 days to spare.", "First to MAS this month.", { "🔥": [currentUserId] }),
+    sys(60 * 5, "positive", "Target Hit · 6 Jul", "Aadhil hit target — 21 days early.", "First to MAS this month.", { "🔥": [currentUserId] }),
     txt(60 * 3, currentUserId, "just logged mine 💪"),
-    other2 && sys(150, "warning", "Cooked · 8 Jul", `${other2.name} can no longer reach their target this month.`, "Fine locked in at season close.", { "😤": other ? [other.id] : [] }),
+    other2 && sys(150, "warning", "Cooked · 8 Jul", `${other2.name} can't reach target this month.`, "Fine locked at season close.", { "😤": other ? [other.id] : [] }),
     other && txt(90, other.id, "2 behind pace, gonna catch up tmrw"),
-    other && evt(80, other.id, { activity: "Saturday long run", when: "Sat 12 Jul · 8:00 AM", location: "Marina Beach", rsvp: other2 ? { [other.id]: "in", [other2.id]: "in" } : { [other.id]: "in" } }),
-    other && sys(70, "positive", "Comeback · 9 Jul", `${other.name} climbed from At Risk back to On Track.`, "", {}),
-    sys(40, "warning", "Inactivity · 9 Jul", "Rahul hasn't logged a workout in 7 days.", "", {}),
+    other && evt(80, other.id, { activity: "Saturday long run", when: "Sat 12 Jul · 8:00 AM", location: "Marina Beach", rsvp: other2 ? { [other.id]: "in", [other2.id]: "pass" } : { [other.id]: "in" } }),
+    other && sys(70, "positive", "Comeback · 9 Jul", `${other.name}: At Risk → On Track.`, "", {}),
+    sys(40, "warning", "Inactivity · 9 Jul", "Rahul — no workout in 7 days.", "", {}),
     other && txt(20, other.id, "let's go 🔥")
   ].filter(Boolean);
 

@@ -86,19 +86,35 @@ const SystemCard = ({ msg, currentUserId, onReact }) => {
   const toneColor = msg.tone === "warning" ? C.warning : C.positive;
   return React.createElement('div', { style: { display: "flex", flexDirection: "column", alignItems: "center", padding: "4px 0" } },
     React.createElement('div', {
-      style: { maxWidth: "88%", width: "fit-content", background: C.sysBg, border: `1px solid ${C.sysBorder}`, borderRadius: 12, padding: "12px 16px", textAlign: "center" }
+      style: { maxWidth: "94%", width: "fit-content", background: C.sysBg, border: `1px solid ${C.sysBorder}`, borderRadius: 11, padding: "8px 13px", textAlign: "center" }
     },
       React.createElement('div', {
-        style: { fontFamily: "'Outfit', sans-serif", fontSize: 10, fontWeight: 700, color: "#8faeaa", letterSpacing: ".1em", textTransform: "uppercase", marginBottom: 6 }
+        style: { fontFamily: "'Outfit', sans-serif", fontSize: 9, fontWeight: 700, color: "#8faeaa", letterSpacing: ".09em", textTransform: "uppercase", marginBottom: 4 }
       }, msg.label),
       React.createElement('div', {
-        style: { fontSize: 14.5, fontWeight: 600, color: toneColor, lineHeight: 1.35 }
+        style: { fontSize: 13, fontWeight: 600, color: toneColor, lineHeight: 1.3 }
       }, msg.body),
       msg.sub && React.createElement('div', {
-        style: { fontSize: 12, color: C.meta, marginTop: 5, lineHeight: 1.35 }
+        style: { fontSize: 11, color: C.meta, marginTop: 3, lineHeight: 1.3 }
       }, msg.sub)
     ),
     React.createElement(ReactionChips, { msg, currentUserId, onReact })
+  );
+};
+
+const AvatarStack = ({ ids, nameFor, size, muted, label }) => {
+  if (!ids.length) return null;
+  const shown = ids.slice(0, 3);
+  const extra = ids.length - shown.length;
+  return React.createElement('div', { style: { display: "inline-flex", alignItems: "center" } },
+    React.createElement('div', { style: { display: "flex", alignItems: "center" } },
+      shown.map((id, i) => React.createElement('div', {
+        key: id, style: { marginLeft: i === 0 ? 0 : -7, borderRadius: "50%", boxShadow: `0 0 0 2px ${C.evtBg}`, opacity: muted ? 0.55 : 1, filter: muted ? "grayscale(0.6)" : "none" }
+      }, React.createElement(Avatar, { name: nameFor(id), userId: id, size, muted })))
+    ),
+    React.createElement('span', {
+      style: { fontFamily: "'Outfit', sans-serif", fontSize: 11.5, fontWeight: 600, color: C.meta, marginLeft: 6 }
+    }, `${ids.length} ${label}${extra > 0 ? ` · +${extra}` : ""}`)
   );
 };
 
@@ -106,54 +122,50 @@ const EventCard = ({ msg, currentUserId, authorName, nameFor, onRsvp }) => {
   const p = msg.payload || {};
   const rsvp = p.rsvp || {};
   const inIds = Object.keys(rsvp).filter(id => rsvp[id] === "in");
+  const passIds = Object.keys(rsvp).filter(id => rsvp[id] === "pass");
   const mine = rsvp[currentUserId];
-  const shown = inIds.slice(0, 4);
-  const extra = inIds.length - shown.length;
   const detail = (icon, text) => text ? React.createElement('div', {
-    style: { display: "flex", alignItems: "center", gap: 8, fontSize: 13.5, color: "var(--text)", lineHeight: 1.35 }
-  }, React.createElement('span', { style: { fontSize: 13, width: 16, textAlign: "center", flexShrink: 0 } }, icon), text) : null;
+    style: { display: "flex", alignItems: "center", gap: 7, fontSize: 12.5, color: "var(--text)", lineHeight: 1.3 }
+  }, React.createElement('span', { style: { fontSize: 12, width: 15, textAlign: "center", flexShrink: 0 } }, icon), text) : null;
   return React.createElement('div', {
     style: {
       alignSelf: "stretch", background: C.evtBg, border: `1px solid ${C.accent}`,
-      borderRadius: 12, padding: "13px 15px 14px", boxShadow: "0 0 0 1px rgba(78,205,196,0.08), 0 8px 24px rgba(0,0,0,.3)"
+      borderRadius: 11, padding: "10px 13px 11px", boxShadow: "0 0 0 1px rgba(78,205,196,0.08), 0 6px 18px rgba(0,0,0,.28)"
     }
   },
     React.createElement('div', {
-      style: { fontFamily: "'Outfit', sans-serif", fontSize: 10, fontWeight: 700, color: C.accent, letterSpacing: ".08em", textTransform: "uppercase", marginBottom: 9 }
+      style: { fontFamily: "'Outfit', sans-serif", fontSize: 9, fontWeight: 700, color: C.accent, letterSpacing: ".07em", textTransform: "uppercase", marginBottom: 6 }
     }, `${authorName} suggested an event`),
     React.createElement('div', {
-      style: { fontFamily: "'Outfit', sans-serif", fontSize: 16, fontWeight: 600, color: "var(--text)", marginBottom: 8 }
+      style: { fontFamily: "'Outfit', sans-serif", fontSize: 14.5, fontWeight: 600, color: "var(--text)", marginBottom: 6 }
     }, p.activity),
-    React.createElement('div', { style: { display: "flex", flexDirection: "column", gap: 4, marginBottom: 13 } },
+    React.createElement('div', { style: { display: "flex", flexDirection: "column", gap: 3, marginBottom: 10 } },
       detail("🗓", p.when),
       detail("📍", p.location)
     ),
-    React.createElement('div', { style: { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" } },
-      React.createElement('div', { style: { display: "flex", alignItems: "center", flex: 1, minWidth: 0 } },
-        shown.length > 0 && React.createElement('div', { style: { display: "flex", alignItems: "center" } },
-          shown.map((id, i) => React.createElement('div', {
-            key: id, style: { marginLeft: i === 0 ? 0 : -8, borderRadius: "50%", boxShadow: `0 0 0 2px ${C.evtBg}` }
-          }, React.createElement(Avatar, { name: nameFor(id), userId: id, size: 24 })))
-        ),
-        React.createElement('span', {
-          style: { fontFamily: "'Outfit', sans-serif", fontSize: 12, fontWeight: 600, color: C.meta, marginLeft: shown.length ? 8 : 0 }
-        }, inIds.length === 0 ? "No one's in yet" : `${inIds.length} in${extra > 0 ? ` · +${extra}` : ""}`)
+    React.createElement('div', { style: { display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" } },
+      React.createElement('div', { style: { display: "flex", alignItems: "center", gap: 12, flex: 1, minWidth: 0, flexWrap: "wrap" } },
+        inIds.length === 0 && passIds.length === 0
+          ? React.createElement('span', { style: { fontFamily: "'Outfit', sans-serif", fontSize: 11.5, fontWeight: 600, color: C.meta } }, "No RSVPs yet")
+          : null,
+        React.createElement(AvatarStack, { ids: inIds, nameFor, size: 22, muted: false, label: "in" }),
+        React.createElement(AvatarStack, { ids: passIds, nameFor, size: 22, muted: true, label: "pass" })
       ),
-      React.createElement('div', { style: { display: "flex", gap: 7, flexShrink: 0 } },
+      React.createElement('div', { style: { display: "flex", gap: 6, flexShrink: 0 } },
         React.createElement('button', {
           onClick: () => onRsvp(msg.id, "in"),
           style: {
             background: mine === "in" ? C.accent : "transparent", color: mine === "in" ? "#04110e" : C.accent,
-            border: `1px solid ${C.accent}`, borderRadius: 20, padding: "6px 14px",
-            fontFamily: "'Outfit', sans-serif", fontSize: 13, fontWeight: 700, cursor: "pointer"
+            border: `1px solid ${C.accent}`, borderRadius: 20, padding: "5px 13px",
+            fontFamily: "'Outfit', sans-serif", fontSize: 12.5, fontWeight: 700, cursor: "pointer"
           }
         }, "I'm in"),
         React.createElement('button', {
           onClick: () => onRsvp(msg.id, "pass"),
           style: {
             background: mine === "pass" ? C.chipOnBg : "transparent", color: mine === "pass" ? "var(--text)" : "var(--muted)",
-            border: `1px solid ${mine === "pass" ? C.chipOnBorder : C.inputBorder}`, borderRadius: 20, padding: "6px 14px",
-            fontFamily: "'Outfit', sans-serif", fontSize: 13, fontWeight: 600, cursor: "pointer"
+            border: `1px solid ${mine === "pass" ? C.chipOnBorder : C.inputBorder}`, borderRadius: 20, padding: "5px 13px",
+            fontFamily: "'Outfit', sans-serif", fontSize: 12.5, fontWeight: 600, cursor: "pointer"
           }
         }, "Pass")
       )
@@ -161,15 +173,36 @@ const EventCard = ({ msg, currentUserId, authorName, nameFor, onRsvp }) => {
   );
 };
 
+// Build the human-readable `when` display string from the picker values
+// (date = "YYYY-MM-DD", time = "HH:MM"). Either part may be empty.
+function formatWhen(date, time) {
+  const parts = [];
+  if (date) {
+    const d = new Date(`${date}T00:00`);
+    if (!Number.isNaN(d.getTime())) parts.push(d.toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" }));
+  }
+  if (time) {
+    const [hh, mm] = time.split(":");
+    const t = new Date();
+    t.setHours(Number(hh), Number(mm), 0, 0);
+    if (!Number.isNaN(t.getTime())) parts.push(t.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }));
+  }
+  return parts.join(" · ");
+}
+
 const EventSheet = ({ onClose, onCreate }) => {
   const [activity, setActivity] = useState("");
-  const [when, setWhen] = useState("");
+  const [date, setDate] = useState("");
+  const [time, setTime] = useState("");
   const [location, setLocation] = useState("");
   const firstRef = useRef(null);
   useEffect(() => { firstRef.current?.focus(); }, []);
+  const inputStyle = { width: "100%", boxSizing: "border-box", background: C.inputBg, border: `1px solid ${C.inputBorder}`, borderRadius: 10, padding: "11px 13px", color: "var(--text)", fontSize: 14.5, fontFamily: "'Outfit', sans-serif", outline: "none", colorScheme: "dark" };
   const field = (ref, value, setValue, placeholder) => React.createElement('input', {
-    ref, value, onChange: e => setValue(e.target.value), placeholder,
-    style: { width: "100%", boxSizing: "border-box", background: C.inputBg, border: `1px solid ${C.inputBorder}`, borderRadius: 10, padding: "11px 13px", color: "var(--text)", fontSize: 14.5, fontFamily: "'Outfit', sans-serif", outline: "none" }
+    ref, value, onChange: e => setValue(e.target.value), placeholder, style: inputStyle
+  });
+  const picker = (type, value, setValue, ariaLabel) => React.createElement('input', {
+    type, value, "aria-label": ariaLabel, onChange: e => setValue(e.target.value), style: inputStyle
   });
   return React.createElement('div', {
     onClick: e => { e.stopPropagation(); onClose(); },
@@ -193,10 +226,13 @@ const EventSheet = ({ onClose, onCreate }) => {
         }, "Cancel")
       ),
       field(firstRef, activity, setActivity, "Activity — e.g. Saturday long run"),
-      field(null, when, setWhen, "Date & time — e.g. Sat 12 Jul · 8:00 AM"),
+      React.createElement('div', { style: { display: "flex", gap: 10 } },
+        React.createElement('div', { style: { flex: 1, minWidth: 0 } }, picker("date", date, setDate, "Date")),
+        React.createElement('div', { style: { flex: 1, minWidth: 0 } }, picker("time", time, setTime, "Time"))
+      ),
       field(null, location, setLocation, "Location — e.g. Marina Beach"),
       React.createElement('button', {
-        onClick: () => { if (activity.trim()) onCreate({ activity, when, location }); },
+        onClick: () => { if (activity.trim()) onCreate({ activity, when: formatWhen(date, time), location }); },
         disabled: !activity.trim(),
         style: {
           background: activity.trim() ? C.accent : C.inputBg, color: activity.trim() ? "#04110e" : "var(--muted2)",
