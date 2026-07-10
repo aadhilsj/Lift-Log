@@ -1151,7 +1151,7 @@ const App = () => {
     showJoinModal && !authStep && React.createElement(JoinGroupModal,{inviteContext,joinCode,setJoinCode,onClose:()=>setShowJoinModal(false),onJoin:handleJoinGroup,joining:joiningGroup,error:inviteError,signedIn:true}),
     showProfileModal && React.createElement(ProfileModal,{email:authSession?.email,onSignOut:handleSwitchUser,onClose:()=>setShowProfileModal(false),showDisplayName:true,currentDisplayName:currentUser,onSaveDisplayName:handleSaveProfileFromModal,saving:profileSaving,saveError:profileError,onLeaveBloc:handleLeaveBloc,onDeleteAccount:handleDeleteAccount}),
     showSettings && React.createElement(GroupSettingsModal,{group:currentGroup,actor:currentUser,actorUserId:authSession?.userId,onSave:isGroupAdmin?handleUpdateGroupSettings:null,onClose:()=>setShowSettings(false),saving:savingSettings,onReviewSitOut:isGroupAdmin?handleSitOutReview:null,onKickMember:isGroupAdmin?handleKickMember:null}),
-    React.createElement(BlocStream,{open:showStream,groupName:currentGroup.name,onClose:()=>setShowStream(false)}),
+    React.createElement(BlocStream,{open:showStream,groupName:currentGroup.name,blocId:currentGroup.id,currentUserId:effectiveAuthSession?.userId,members:Object.values(currentGroup.memberships||{}).map(m=>({id:m.userId,name:m.displayName})),onClose:()=>setShowStream(false)}),
     prorationGroup && React.createElement(ProrationChoiceModal,{
       monthName: getCurrentMonthSummary(prorationGroup).monthName,
       fullMas: prorationGroup.settings?.minTarget || MIN_TARGET,
