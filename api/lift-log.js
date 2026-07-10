@@ -4383,6 +4383,11 @@ export default async function handler(req, res) {
         return res.status(200).json({ ok: true, state, session: synced.session });
       }
 
+      if (payload?.action === "invite-context") {
+        const readableCurrent = await fetchReadableCurrentState();
+        return res.status(200).json(await getInviteContextCanonicalFirst(readableCurrent, payload));
+      }
+
       current = await getCurrent();
 
       if (payload?.action === "settlement") {
@@ -4575,10 +4580,6 @@ export default async function handler(req, res) {
         }
         const persisted = await persistState(joined.state, `join-group:${joined.joinedGroupId}:${auth.user.id}`);
         return res.status(200).json({ state: persisted, joinedGroupId: joined.joinedGroupId });
-      }
-
-      if (payload?.action === "invite-context") {
-        return res.status(200).json(await getInviteContextCanonicalFirst(current, payload));
       }
 
       if (payload?.action === "kick-member") {
