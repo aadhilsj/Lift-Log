@@ -4350,9 +4350,15 @@ export default async function handler(req, res) {
         });
       }
 
+      let current = null;
+      const getCurrent = async () => {
+        if (!current) current = await fetchWritableCurrentState();
+        return current;
+      };
+
       if (payload?.action === "auth-sync") {
         const authUser = await fetchAuthenticatedUser(readBearerToken(req, payload));
-        const current = await fetchWritableCurrentState();
+        const current = await getCurrent();
         const synced = applyAuthSync(current, authUser);
         if (synced.changed) {
           await persistState(synced.state, `auth-sync:${authUser.id}`);
@@ -4371,6 +4377,8 @@ export default async function handler(req, res) {
         }
         return res.status(200).json({ ok: true, state, session: synced.session });
       }
+
+      current = await getCurrent();
 
       if (payload?.action === "settlement") {
         const auth = await requireAuthenticatedContext(req, payload, current);
