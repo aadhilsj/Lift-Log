@@ -4350,10 +4350,9 @@ export default async function handler(req, res) {
         });
       }
 
-      const current = await fetchWritableCurrentState();
-
       if (payload?.action === "auth-sync") {
         const authUser = await fetchAuthenticatedUser(readBearerToken(req, payload));
+        const current = await fetchWritableCurrentState();
         const synced = applyAuthSync(current, authUser);
         if (synced.changed) {
           await persistState(synced.state, `auth-sync:${authUser.id}`);
