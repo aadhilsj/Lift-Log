@@ -2,6 +2,32 @@
 
 Date: 2026-07-04
 
+## July 10 Amendment
+
+Current branch state has moved beyond the last July 9 note in a few important
+ways:
+
+- closed-month workout logging is now blocked at the API boundary
+- the log date picker is constrained to the current league month through today
+- admin settlement updates are canonical-first
+- season rollover persistence is now canonical-first:
+  - close old canonical season
+  - open new canonical season
+  - write closed-month canonical season-member snapshots
+  - only then mirror blob state
+
+This means one of the last major "blob succeeded, canonical maybe catches up"
+gaps is now closed.
+
+At this point the practical state is:
+
+- read-side current-state composition is substantially done
+- write-side high-traffic mutations are mostly canonical-first or hard-fail
+- the remaining migration work is now mostly:
+  - blob compatibility residue
+  - identity de-keying
+  - eventual write-authority transfer away from blob as the base state engine
+
 ## July 9 Amendment
 
 Current branch state has now moved one more important step:
@@ -75,11 +101,12 @@ Read this note together with:
 
 ## Current State
 
-The app is in a guarded transitional state.
+The app is in a late transitional state, not an early one.
 
 - Production reads are no longer using the old timed-out projection RPC.
 - GET responses are still blob-backed first, then selectively overlaid with canonical data.
-- Mutations are still blob-authoritative.
+- Most important mutations are no longer "best-effort canonical after blob".
+- Mutations still hydrate from blob state as the writable base.
 - Display names are still structurally meaningful in multiple lifecycle paths.
 
 This means the migration is **not** fully complete yet, even though the production app is currently stable.
@@ -125,13 +152,21 @@ Small read-path cleanup already landed on 2026-07-04:
 - `defaultGroupId` is now re-derived from the composed `groupOrder` instead of
   surviving from the blob snapshot
 
-### 2. Write Cutover Is Not Done
+### 2. Write Authority Transfer Is Not Done
 
 `fetchWritableCurrentState()` still returns the blob state directly.
 
-That means write actions still compute their mutations from blob state and then persist back into blob, with canonical mostly acting as a side sync.
+That means write actions still compute their mutations from blob state and then persist back into blob.
 
-This is the clearest sign that write cutover is still pending.
+This is now weaker as a criticism than it was when this note was first written:
+
+- many important writes already make the canonical write authoritative before
+  blob persist
+- rollover itself is now canonical-first
+- the remaining issue is that the writable in-memory source state is still the
+  blob model, not a canonical-native model
+
+This is now the clearest sign that full write cutover is still pending.
 
 ### 3. Display Names Are Still Part of Data Identity
 
@@ -160,7 +195,7 @@ That is the wrong order.
 
 ## Recommended Execution Order
 
-### Phase 1: Finish Read Cutover Deliberately
+### Phase 1: Finish Remaining Read Cleanup Deliberately
 
 Goal: stop depending on blob as the normal GET shell.
 
@@ -175,34 +210,39 @@ Work:
   - current sit-out / excused state
 - remove fallback behavior only after parity verification is explicit
 
-Exit condition:
+Practical current status:
 
-- normal GET reads no longer depend on blob-first hydration
-- blob is no longer required to render the main app state
+- current-state reads are close to this already
+- the remaining read work is mostly compatibility-shell cleanup, not broad
+  product-surface instability
 
-### Phase 2: Write Cutover by Safe Vertical Slices
+### Phase 2: Finish Write-Authority Transfer by Safe Vertical Slices
 
 Goal: stop using blob as the mutation authority.
 
-Recommended order:
+Most of the older recommended vertical slices below are already landed:
 
-1. season overrides
-2. sit-out requests / excused state
-3. settings updates
-4. settlement confirmation actions
-5. join / leave / kick flows
-6. workout logging
-7. delete-account and rename-sensitive lifecycle flows
+- season overrides
+- sit-out requests / reviews
+- settings updates
+- settlement confirmation actions
+- join / leave / kick flows
+- workout logging
+- reactions / flag flows / delete-log
+- delete-account
+- settlement admin toggle
+- rollover canonical sync
 
 Why this order:
 
 - the early slices are narrower and easier to validate
 - membership and workout writes are the riskiest and should land later
 
-Exit condition:
+Remaining real work in this phase is narrower:
 
-- write actions compute from canonical-backed state
-- blob becomes mirror / compatibility output only, not source of truth
+- reduce or remove the last blob-base writable assumptions
+- decide what to do with `repair-display-name`
+- eventually stop requiring blob state hydration as the mutation source
 
 ### Phase 3: Make Display Names Cosmetic Only
 
@@ -541,12 +581,21 @@ Status:
 
 ### Recommended Immediate Next Patch
 
-If implementation continues now, the next patch should be:
+This older recommendation is now stale.
 
-- finish and verify top-level canonical group shell authority
+That group-shell step is already landed locally and verified.
 
-The current-log zero-state loophole is now closed, so the next highest-value
-read step is removing the requirement that a readable group must already exist
-in the blob shell.
+If implementation continues from the current branch state, the next useful
+choices are now:
 
-That is still the correct order.
+1. audit the remaining blob-only lifecycle residue on read and write:
+   - `leftMemberNames`
+   - narrow `joinedMonthByName` residue
+   - `pendingOtps`
+   - blob `meta`
+2. decide whether `repair-display-name` stays a compatibility repair tool until
+   full de-keying, or gets retired outright
+3. plan the eventual writable-state transfer away from blob hydration
+
+At this point, the migration is no longer blocked on broad current-state read
+correctness. It is blocked on the smaller residue and architectural endgame.
