@@ -1530,37 +1530,40 @@ async function ensureSettlementConfirmationPrereqs(state, groupId, monthKey, pay
   if (!participants?.payerMembership?.userId || !participants?.receiverMembership?.userId) return participants || null;
 
   const groupSortOrder = Array.isArray(state?.groupOrder) ? state.groupOrder.indexOf(groupId) : -1;
-  await syncBlocToCanonical(group, group.adminUserId || null, groupSortOrder >= 0 ? groupSortOrder : null);
+  await syncBlocToCanonical(group, group.adminUserId || null, groupSortOrder >= 0 ? groupSortOrder : null, { throwOnError: true });
 
   const payerProfile = state?.profiles?.[participants.payerMembership.userId] || null;
   const receiverProfile = state?.profiles?.[participants.receiverMembership.userId] || null;
 
   if (payerProfile?.email && payerProfile?.displayName) {
-    await syncProfileToCanonical(participants.payerMembership.userId, payerProfile.email, payerProfile.displayName);
+    await syncProfileToCanonical(participants.payerMembership.userId, payerProfile.email, payerProfile.displayName, { throwOnError: true });
   }
   if (receiverProfile?.email && receiverProfile?.displayName) {
-    await syncProfileToCanonical(participants.receiverMembership.userId, receiverProfile.email, receiverProfile.displayName);
+    await syncProfileToCanonical(participants.receiverMembership.userId, receiverProfile.email, receiverProfile.displayName, { throwOnError: true });
   }
 
   await syncBlocMemberToCanonical(
     group,
     participants.payerMembership.userId,
-    group.adminUserId === participants.payerMembership.userId ? "admin" : "member"
+    group.adminUserId === participants.payerMembership.userId ? "admin" : "member",
+    { throwOnError: true }
   );
   await syncBlocMemberToCanonical(
     group,
     participants.receiverMembership.userId,
-    group.adminUserId === participants.receiverMembership.userId ? "admin" : "member"
+    group.adminUserId === participants.receiverMembership.userId ? "admin" : "member",
+    { throwOnError: true }
   );
 
   const closedMonth = (group.monthHistory || []).find(month => month?.key === monthKey) || null;
-  await syncSeasonToCanonical(group, monthKey, closedMonth ? "closed" : "open", closedMonth?.closedAt || null);
+  await syncSeasonToCanonical(group, monthKey, closedMonth ? "closed" : "open", closedMonth?.closedAt || null, { throwOnError: true });
 
   return participants;
 }
 
-async function upsertSeasonMemberExcusedInCanonical(legacyGroupKey, monthKey, displayName, authUserId) {
+async function upsertSeasonMemberExcusedInCanonical(legacyGroupKey, monthKey, displayName, authUserId, options = {}) {
   if (!legacyGroupKey || !monthKey || !displayName) return;
+  const { throwOnError = false } = options;
   try {
     await supabaseFetch("/rest/v1/rpc/upsert_ante_core_season_member_excused", {
       method: "POST",
@@ -1573,12 +1576,14 @@ async function upsertSeasonMemberExcusedInCanonical(legacyGroupKey, monthKey, di
       })
     });
   } catch (err) {
+    if (throwOnError) throw err;
     console.error("Canonical excused sync failed:", err?.message || err);
   }
 }
 
-async function upsertSeasonOverrideInCanonical(legacyGroupKey, monthKey, prorated, proratedMas, chosenAt, chosenBy, chosenByUserId) {
+async function upsertSeasonOverrideInCanonical(legacyGroupKey, monthKey, prorated, proratedMas, chosenAt, chosenBy, chosenByUserId, options = {}) {
   if (!legacyGroupKey || !monthKey) return;
+  const { throwOnError = false } = options;
   try {
     await supabaseFetch("/rest/v1/rpc/upsert_ante_core_season_override", {
       method: "POST",
@@ -1594,13 +1599,15 @@ async function upsertSeasonOverrideInCanonical(legacyGroupKey, monthKey, prorate
       })
     });
   } catch (err) {
+    if (throwOnError) throw err;
     console.error("Canonical season override sync failed:", err?.message || err);
   }
 }
 
-async function upsertSitOutRequestInCanonical(legacyGroupKey, monthKey, memberName, request) {
+async function upsertSitOutRequestInCanonical(legacyGroupKey, monthKey, memberName, request, options = {}) {
   // memberName is passed explicitly from the blob map key — do not rely on request.memberName.
   if (!legacyGroupKey || !monthKey || !memberName) return;
+  const { throwOnError = false } = options;
   try {
     await supabaseFetch("/rest/v1/rpc/upsert_ante_core_sit_out_request", {
       method: "POST",
@@ -1624,6 +1631,7 @@ async function upsertSitOutRequestInCanonical(legacyGroupKey, monthKey, memberNa
       })
     });
   } catch (err) {
+    if (throwOnError) throw err;
     console.error("Canonical sit-out request sync failed:", err?.message || err);
   }
 }
@@ -4691,7 +4699,7 @@ export default async function handler(req, res) {
         // This keeps the response shape unchanged while moving the authority
         // boundary for this narrow action toward canonical.
         if (overrideGroup && overrideMonthKey && nextOverride) {
-          await syncSeasonToCanonical(overrideGroup, overrideMonthKey, "open");
+          await syncSeasonToCanonical(overrideGroup, overrideMonthKey, "open", null, { throwOnError: true });
           await upsertSeasonOverrideInCanonical(
             payload.groupId,
             overrideMonthKey,
@@ -4699,7 +4707,8 @@ export default async function handler(req, res) {
             nextOverride.proratedMas,
             nextOverride.chosenAt,
             nextOverride.chosenBy,
-            nextOverride.chosenByUserId || null
+            nextOverride.chosenByUserId || null,
+            { throwOnError: true }
           );
         }
         const persisted = await persistState(updated, `season-proration:${payload.groupId}:${payload.choice}`);
@@ -4721,10 +4730,10 @@ export default async function handler(req, res) {
         // 3. upsert canonical sit-out + excused side-effect from that exact payload
         // 4. mirror the same result into blob immediately after
         if (sitOutGroup && sitOutMonthKey && nextRequest) {
-          await syncSeasonToCanonical(sitOutGroup, sitOutMonthKey, "open");
-          await upsertSitOutRequestInCanonical(payload.groupId, sitOutMonthKey, actor, nextRequest);
+          await syncSeasonToCanonical(sitOutGroup, sitOutMonthKey, "open", null, { throwOnError: true });
+          await upsertSitOutRequestInCanonical(payload.groupId, sitOutMonthKey, actor, nextRequest, { throwOnError: true });
           if (nextRequest.status === "approved" && nextRequest.autoApproved) {
-            await upsertSeasonMemberExcusedInCanonical(payload.groupId, sitOutMonthKey, actor, auth.user.id);
+            await upsertSeasonMemberExcusedInCanonical(payload.groupId, sitOutMonthKey, actor, auth.user.id, { throwOnError: true });
           }
         }
         const persisted = await persistState(updated, `sitout-request:${payload.groupId}:${actor || auth.user.id}`);
@@ -4743,14 +4752,15 @@ export default async function handler(req, res) {
         // write the reviewed request canonically from the exact in-memory payload,
         // then mirror blob state after the authoritative write succeeds.
         if (reviewGroup && payload.monthKey && payload.memberName && reviewedRequest) {
-          await syncSeasonToCanonical(reviewGroup, payload.monthKey, "open");
-          await upsertSitOutRequestInCanonical(payload.groupId, payload.monthKey, payload.memberName, reviewedRequest);
+          await syncSeasonToCanonical(reviewGroup, payload.monthKey, "open", null, { throwOnError: true });
+          await upsertSitOutRequestInCanonical(payload.groupId, payload.monthKey, payload.memberName, reviewedRequest, { throwOnError: true });
           if (reviewedRequest.status === "approved") {
             await upsertSeasonMemberExcusedInCanonical(
               payload.groupId,
               payload.monthKey,
               payload.memberName,
-              reviewedRequest.requestedByUserId || null
+              reviewedRequest.requestedByUserId || null,
+              { throwOnError: true }
             );
           }
         }
