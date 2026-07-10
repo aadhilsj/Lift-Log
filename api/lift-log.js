@@ -1426,8 +1426,9 @@ async function seedOpenSeasonMemberStatusInCanonical(group, monthKey, displayNam
   );
 }
 
-async function updateSeasonMemberSettlementInCanonical(legacyGroupKey, monthKey, displayName, status, settledAt) {
+async function updateSeasonMemberSettlementInCanonical(legacyGroupKey, monthKey, displayName, status, settledAt, options = {}) {
   if (!legacyGroupKey || !monthKey || !displayName || !status) return;
+  const { throwOnError = false } = options;
   try {
     await supabaseFetch("/rest/v1/rpc/update_ante_core_season_member_settlement", {
       method: "POST",
@@ -1441,6 +1442,7 @@ async function updateSeasonMemberSettlementInCanonical(legacyGroupKey, monthKey,
       })
     });
   } catch (err) {
+    if (throwOnError) throw err;
     console.error("Canonical settlement sync failed:", err?.message || err);
   }
 }
@@ -3047,7 +3049,7 @@ function applySettlementUpdate(current, payload) {
 
   monthHistory[monthIndex] = { ...month, settlements };
 
-  return {
+  const updated = {
     ...base,
     groups: {
       ...base.groups,
@@ -3057,6 +3059,12 @@ function applySettlementUpdate(current, payload) {
       revision: base.meta.revision + 1,
       updatedAt: new Date().toISOString()
     }
+  };
+
+  return {
+    updated,
+    settlement: settlements[payload.player],
+    reason: `settlement:${payload.groupId}:${payload.monthKey}:${payload.player}`
   };
 }
 
@@ -4351,23 +4359,22 @@ export default async function handler(req, res) {
 
       if (payload?.action === "settlement") {
         const auth = await requireAuthenticatedContext(req, payload, current);
-        const updated = applySettlementUpdate(auth.state, payload);
-        const persisted = await persistState(updated, `settlement:${payload.groupId}:${payload.monthKey}:${payload.player}`);
-        // Best-effort canonical settlement sync. Derive the values from the
-        // persisted blob monthHistory entry so canonical exactly mirrors what
-        // was successfully written to the blob.
-        const persistedSettlement = persisted.groups?.[payload.groupId]?.monthHistory
-          ?.find(m => m.key === payload.monthKey)
-          ?.settlements?.[payload.player];
-        if (persistedSettlement) {
-          updateSeasonMemberSettlementInCanonical(
+        const result = applySettlementUpdate(auth.state, payload);
+        // Canonical-first settlement slice:
+        // 1. compute the exact post-settlement blob-compatible month snapshot
+        // 2. write canonical settlement status from that exact computed payload
+        // 3. persist blob afterward as the compatibility mirror
+        if (result.settlement) {
+          await updateSeasonMemberSettlementInCanonical(
             payload.groupId,
             payload.monthKey,
             payload.player,
-            persistedSettlement.status,
-            persistedSettlement.settledAt || null
-          ).catch(err => console.error("Canonical settlement sync failed:", err?.message || err));
+            result.settlement.status,
+            result.settlement.settledAt || null,
+            { throwOnError: true }
+          );
         }
+        const persisted = await persistState(result.updated, result.reason);
         return res.status(200).json(persisted);
       }
 
