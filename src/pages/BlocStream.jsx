@@ -118,6 +118,10 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], onCl
     });
   };
 
+  // Runs only when the stream opens (or the Bloc changes) — deliberately NOT
+  // keyed on `members`/`currentUserId`, which get fresh array/identity on every
+  // parent re-render (e.g. the 3s poll). Keying on them re-ran this effect and
+  // yanked the scroll back to the bottom a second after the user scrolled up.
   useEffect(() => {
     if (open) {
       const id = requestAnimationFrame(() => setMounted(true));
@@ -128,7 +132,7 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], onCl
     }
     setMounted(false);
     setShowPlus(false);
-  }, [open, blocId, currentUserId, members]);
+  }, [open, blocId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Bulletproof background scroll lock: pin the body in place (iOS Safari
   // leaks touch-scroll through a plain `overflow:hidden`, so fix the body and
