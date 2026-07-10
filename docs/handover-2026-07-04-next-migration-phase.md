@@ -392,18 +392,7 @@ being truly canonical-first:
 - uncovered / inactive residual groups can still survive through blob
   `groupOrder` fallback
 
-#### 2. Current logs do not support canonical empty-state clearing
-
-- `read_ante_core_current_logs()` only overlays groups that return log rows
-- if a group has zero canonical current logs, the composer currently preserves
-  blob `group.logs` unchanged
-- this is the largest remaining current-state ambiguity on the read side
-
-This is meaningfully different from current excused / sit-out overlays, which
-already use open-season coverage to clear stale blob state even when canonical
-returns zero rows.
-
-#### 3. Membership shell still preserves blob fallback residue
+#### 2. Membership shell still preserves blob fallback residue
 
 - canonical bloc-members only overlay auth-linked members already present in
   blob `memberships`
@@ -414,7 +403,7 @@ returns zero rows.
 This is deliberate safety behavior, but it means read authority is not yet
 fully canonical-native.
 
-#### 4. `joinedMonthByName` is still partially blob-owned
+#### 3. `joinedMonthByName` is still partially blob-owned
 
 - canonical member rows only add / override entries when
   `joined_month_key` exists
@@ -422,14 +411,13 @@ fully canonical-native.
 - current-month gating now uses effective join inference, so this is less
   visible than before, but the structure is still not canonical-owned
 
-#### 5. `leftMemberNames` is still blob-only
+#### 4. `leftMemberNames` is still blob-only
 
 - no canonical source reconstructs it
 - current read composition still relies on it to suppress departed users from
   active state
-- orphaned current-log cleanup also still uses it as the departure shell
 
-#### 6. Closed-month history is still canonical-assisted, not canonical-native
+#### 5. Closed-month history is still canonical-assisted, not canonical-native
 
 - canonical month history only replaces blob months that already exist in
   `group.monthHistory`
@@ -437,7 +425,7 @@ fully canonical-native.
 - months with incomplete canonical member coverage preserve blob history
 - historical member shell is still keyed to broader `memberOrder`
 
-#### 7. Historical sit-out scaffolding is still blob-owned
+#### 6. Historical sit-out scaffolding is still blob-owned
 
 - only the open-season month of `sitOutRequests` is canonical-overlaid
 - historical month keys in `sitOutRequests` are preserved from blob
