@@ -11,6 +11,7 @@ import {
   shouldPromptProration,
   uniqueNames,
   getActivityAlertCount,
+  getMonthKeyFromISO,
   normalizeGroupState,
   buildEmptyAppState,
   normalizeAppState,
@@ -18,6 +19,7 @@ import {
   getMembershipForUser,
   syncActiveGroupGlobals,
   getCurrentGroupMemberNames,
+  rebuildMonthSnapshot,
   setActiveSessionUserId
 } from "./lib/appState.js";
 import {
@@ -34,7 +36,7 @@ import {
   signOutAuthSession,
   syncAuthSessionData,
   fetchData,
-  saveData,
+  addLogData,
   claimSettlementConfirmationData,
   confirmSettlementConfirmationData,
   disputeSettlementConfirmationData,
@@ -517,26 +519,67 @@ const App = () => {
     } catch {}
   },[]);
 
-  const handleSave=useCallback(async(newData)=>{
+  const handleSave=useCallback(async({ workoutType, isoDate, note, photoUrl })=>{
     if(!selectedGroupId || !currentGroup || !currentUser) return;
-    const payload = {
-      actor: currentUser,
-      groupId: selectedGroupId,
-      group: normalizeGroupState({
-        ...currentGroup,
-        logs: newData.logs || currentGroup.logs,
-        excused: newData.excused || currentGroup.excused,
-        monthHistory: newData.monthHistory || currentGroup.monthHistory,
-        lastMonth: newData.lastMonth || curKey
-      })
+    const optimisticLog = {
+      id:`opt-${Date.now()}`,
+      date:isoDate,
+      type:workoutType,
+      note:note||"",
+      photoUrl:photoUrl||"",
+      createdAt:new Date().toISOString(),
+      verifiedVia:"photo",
+      reactions:{},
+      flagStatus:null,
+      flagReason:"",
+      flagResponse:"",
+      flaggedBy:null,
+      decisionBy:null,
+      decisionAt:null
     };
+    const targetMonthKey = getMonthKeyFromISO(isoDate);
+    let optimisticGroup = currentGroup;
+    if (targetMonthKey === curKey) {
+      optimisticGroup = normalizeGroupState({
+        ...currentGroup,
+        logs: {
+          ...currentGroup.logs,
+          [currentUser]: [...(currentGroup.logs?.[currentUser] || []), optimisticLog]
+        }
+      });
+    } else {
+      const monthIndex = (currentGroup.monthHistory || []).findIndex(month => month?.key === targetMonthKey);
+      if (monthIndex === -1) {
+        window.alert("That month is already closed and no editable snapshot was found.");
+        return;
+      }
+      const targetMonth = currentGroup.monthHistory[monthIndex];
+      const nextMonthLogs = [...(targetMonth.logsByUser?.[currentUser] || []), optimisticLog];
+      const nextMonthHistory = [...(currentGroup.monthHistory || [])];
+      nextMonthHistory[monthIndex] = rebuildMonthSnapshot(targetMonth, {
+        ...(targetMonth.logsByUser || {}),
+        [currentUser]: nextMonthLogs
+      });
+      optimisticGroup = normalizeGroupState({
+        ...currentGroup,
+        monthHistory: nextMonthHistory
+      });
+    }
     beginOptimisticMutation();
-    applyData(buildOptimisticState(payload), { optimistic:true });
+    applyData(buildOptimisticState({ groupId: selectedGroupId, group: optimisticGroup }), { optimistic:true });
     setSaving(true);
     try{
-      const saved = await saveData(payload);
-      if(saved){
-        const applied = applyData(saved, { fromMutation: true });
+      const saved = await addLogData({
+        groupId: selectedGroupId,
+        actor: currentUser,
+        actorUserId: authSession?.userId,
+        workoutType,
+        date: isoDate,
+        note,
+        photoUrl
+      });
+      if(saved?.ok && saved.data){
+        const applied = applyData(saved.data, { fromMutation: true });
         if (applied) {
           setLastSyncedAt(new Date());
           setSyncError(false);
@@ -555,7 +598,7 @@ const App = () => {
       await refreshNow();
     }
     setSaving(false);
-  },[applyData, beginOptimisticMutation, buildOptimisticState, clearOptimisticMutation, currentGroup, currentUser, refreshNow, selectedGroupId]);
+  },[addLogData, applyData, authSession?.userId, beginOptimisticMutation, buildOptimisticState, clearOptimisticMutation, currentGroup, currentUser, refreshNow, selectedGroupId]);
 
   const handleMultiLog = useCallback(async({ workoutType, isoDate, targetGroupIds, note, photoUrl }) => {
     if(!selectedGroupId || !currentUser) return { ok:false, error:"No Bloc selected" };

@@ -33,7 +33,6 @@ import {
   getCountedLogCount,
   getMonthKeyFromISO,
   isJoinedForMonth,
-  rebuildMonthSnapshot,
   getCurrentGroupMemberNames
 } from "../lib/appState.js";
 import {
@@ -133,28 +132,8 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
       const result = await onMultiLog({ workoutType, isoDate, targetGroupIds, note, photoUrl });
       return;
     }
-    const newLog={date:isoDate,type:workoutType,id:String(Date.now()),note,photoUrl,createdAt:new Date().toISOString(),verifiedVia:"photo",reactions:{},flagStatus:null,flagReason:"",flagResponse:"",flaggedBy:null,decisionBy:null,decisionAt:null};
-    const targetKey = getMonthKeyFromISO(isoDate);
-    if (targetKey !== curKey) {
-      const monthIndex = monthHistory.findIndex(month => month.key === targetKey);
-      if (monthIndex === -1) {
-        window.alert("That month is already closed and no editable snapshot was found.");
-        return;
-      }
-      const targetMonth = monthHistory[monthIndex];
-      const nextMonthLogs = [...(targetMonth.logsByUser?.[user] || []), newLog];
-      const nextMonthHistory = [...monthHistory];
-      nextMonthHistory[monthIndex] = rebuildMonthSnapshot(targetMonth, {
-        ...(targetMonth.logsByUser || {}),
-        [user]: nextMonthLogs
-      });
-      setShowLog(false);
-      onSave({actor:user,logs,excused,monthHistory:nextMonthHistory,lastMonth:curKey});
-      return;
-    }
-    const newLogs={...logs,[user]:[...(logs[user]||[]),newLog]};
     setShowLog(false);
-    onSave({actor:user,logs:newLogs,excused,monthHistory,lastMonth:curKey});
+    onSave({ workoutType, isoDate, note, photoUrl });
   };
 
   const submitSitOut = async (reason) => {

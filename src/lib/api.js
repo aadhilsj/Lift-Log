@@ -288,24 +288,10 @@ async function fetchData() {
   } catch(e){ console.error("Fetch error:", e); return null; }
 }
 
-async function saveData(data) {
-  try {
-    const session = await getCurrentAuthSession();
-    if (!session?.accessToken) return null;
-    const res = await fetch("./api/lift-log", {
-      method: "PUT",
-      cache: "no-store",
-      headers: {
-        "Content-Type":"application/json",
-        "Authorization": `Bearer ${session.accessToken}`
-      },
-      body: JSON.stringify(data)
-    });
-    if(!res.ok){ console.error("Save failed:", res.status, await res.text()); return null; }
-    console.log("Saved OK");
-    return normalizeAppState(await res.json());
-  } catch(e){ console.error("Save error:", e); }
-  return null;
+async function addLogData(payload) {
+  const result = await postApi("add-log", payload);
+  if (!result.ok) return { ok:false, error: result.error || "Unable to save workout" };
+  return { ok:true, data: normalizeAppState(result.body) };
 }
 
 async function claimSettlementConfirmationData(payload) {
@@ -524,7 +510,7 @@ export {
   refreshAuthSession,
   postApi,
   fetchData,
-  saveData,
+  addLogData,
   claimSettlementConfirmationData,
   confirmSettlementConfirmationData,
   disputeSettlementConfirmationData,

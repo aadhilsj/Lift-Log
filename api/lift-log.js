@@ -3277,6 +3277,107 @@ function applyUpdateSettings(current, payload) {
   };
 }
 
+function applyAddLog(current, payload) {
+  const actor = String(payload?.actor || "").trim();
+  const actorUserId = String(payload?.actorUserId || "").trim();
+  const groupId = String(payload?.groupId || "").trim();
+  const date = String(payload?.date || "").trim();
+  const note = typeof payload?.note === "string" ? payload.note : "";
+  const photoUrl = typeof payload?.photoUrl === "string" ? payload.photoUrl : "";
+  const workoutType = normalizeLoggedWorkoutType(String(payload?.workoutType || "").trim(), date);
+  if (!actor || !groupId || !date || !workoutType) {
+    const error = new Error("groupId, actor, date, and workoutType are required");
+    error.status = 400;
+    throw error;
+  }
+
+  const base = rolloverStateIfNeeded(current);
+  const group = base.groups?.[groupId];
+  if (!group) {
+    const error = new Error("Bloc not found");
+    error.status = 404;
+    throw error;
+  }
+  const membership = actorUserId ? group.memberships?.[actorUserId] : null;
+  const actorIsMember = membership?.displayName === actor || group.memberOrder.includes(actor);
+  if (!actorIsMember) {
+    const error = new Error("Not a member");
+    error.status = 403;
+    throw error;
+  }
+
+  const accepted = group.settings?.acceptedWorkoutTypes || WORKOUT_TYPES;
+  if (!accepted.includes(workoutType)) {
+    const error = new Error("Workout type is not accepted in this Bloc");
+    error.status = 400;
+    throw error;
+  }
+
+  const log = normalizeLogEntry({
+    id: String(Date.now()),
+    date,
+    type: workoutType,
+    note,
+    photoUrl,
+    createdAt: new Date().toISOString(),
+    verifiedVia: "photo",
+    reactions: {},
+    flagStatus: null,
+    flagReason: "",
+    flagResponse: "",
+    flaggedBy: null,
+    decisionBy: null,
+    decisionAt: null
+  });
+
+  const targetMonthKey = getMonthKeyFromISO(date);
+  let nextGroup;
+  if (targetMonthKey === group.lastMonth) {
+    nextGroup = normalizeGroup({
+      ...group,
+      logs: {
+        ...group.logs,
+        [actor]: [...(group.logs?.[actor] || []), log]
+      }
+    });
+  } else {
+    const monthIndex = (group.monthHistory || []).findIndex(month => month?.key === targetMonthKey);
+    if (monthIndex === -1) {
+      const error = new Error("That month is already closed and no editable snapshot was found.");
+      error.status = 404;
+      throw error;
+    }
+    const targetMonth = group.monthHistory[monthIndex];
+    const nextMonthLogs = [...(targetMonth.logsByUser?.[actor] || []), log];
+    const nextMonthHistory = [...(group.monthHistory || [])];
+    nextMonthHistory[monthIndex] = rebuildMonthSnapshot(group, targetMonth, {
+      ...(targetMonth.logsByUser || {}),
+      [actor]: nextMonthLogs
+    });
+    nextGroup = normalizeGroup({
+      ...group,
+      monthHistory: nextMonthHistory
+    });
+  }
+
+  return {
+    updated: {
+      ...base,
+      groups: {
+        ...base.groups,
+        [groupId]: nextGroup
+      },
+      meta: {
+        revision: base.meta.revision + 1,
+        updatedAt: new Date().toISOString()
+      }
+    },
+    log,
+    monthKey: targetMonthKey,
+    reason: `add-log:${groupId}:${actor}:${log.id}`
+  };
+}
+
 function applySeasonProrationChoice(current, payload) {
   const actor = String(payload?.actor || "").trim();
   const actorUserId = String(payload?.actorUserId || "").trim();
@@ -4220,26 +4321,9 @@ export default async function handler(req, res) {
     }
 
     if (req.method === "PUT") {
-      const payload = await readJson(req);
-      const current = await fetchWritableCurrentState();
-      const auth = await requireAuthenticatedContext(req, payload, current);
-      const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
-      // Snapshot the actor's existing log IDs before the merge so we can
-      // identify any newly added logs afterwards and upsert them canonically.
-      const beforeLogIds = new Set(
-        (auth.state.groups?.[payload.groupId]?.logs?.[actor] || []).map(l => String(l?.id))
-      );
-      const merged = mergeState(auth.state, { ...payload, actor });
-      const persisted = await persistState(merged, `player-update:${payload.groupId}:${actor || auth.user.id}`);
-      // Best-effort canonical upsert for each log that is new in this save.
-      const group = persisted.groups?.[payload.groupId];
-      if (group) {
-        const newLogs = (group.logs?.[actor] || []).filter(l => !beforeLogIds.has(String(l?.id)));
-        for (const log of newLogs) {
-          await upsertWorkoutLogToCanonical(group, group.lastMonth, actor, auth.user.id, log);
-        }
-      }
-      return res.status(200).json(persisted);
+      return res.status(410).json({
+        error: "Legacy whole-state save is retired. Use explicit log mutation actions."
+      });
     }
 
     if (req.method === "POST") {
@@ -4561,6 +4645,22 @@ export default async function handler(req, res) {
           }
         }
         const persisted = await persistState(updated, `multi-log:${actor || auth.user.id}:${payload.date}:${payload.workoutType}`);
+        return res.status(200).json(persisted);
+      }
+
+      if (payload?.action === "add-log") {
+        const auth = await requireAuthenticatedContext(req, payload, current);
+        const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
+        const result = applyAddLog(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        const group = result.updated.groups?.[payload.groupId];
+        const groupSortOrder = (result.updated.groupOrder || []).indexOf(payload.groupId);
+        const targetMonth = (group?.monthHistory || []).find(month => month?.key === result.monthKey) || null;
+        if (group) {
+          await syncBlocToCanonical(group, group.adminUserId || null, groupSortOrder >= 0 ? groupSortOrder : null, { throwOnError: true });
+          await syncSeasonToCanonical(group, result.monthKey, targetMonth ? "closed" : "open", targetMonth?.closedAt || null, { throwOnError: true });
+          await upsertWorkoutLogToCanonical(group, result.monthKey, actor, auth.user.id, result.log, { throwOnError: true });
+        }
+        const persisted = await persistState(result.updated, result.reason);
         return res.status(200).json(persisted);
       }
 
