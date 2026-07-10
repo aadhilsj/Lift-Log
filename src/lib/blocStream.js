@@ -34,6 +34,9 @@ export function seedIfEmpty(blocId, { currentUserId, members = [] } = {}) {
   const txt = (mins, authorId, body) => ({
     id: newId(), bloc_id: blocId, author_id: authorId, message_type: "text", body, created_at: h(mins * 60e3)
   });
+  const evt = (mins, authorId, payload) => ({
+    id: newId(), bloc_id: blocId, author_id: authorId, message_type: "event", payload, created_at: h(mins * 60e3)
+  });
 
   const msgs = [
     sys(60 * 34, "positive", "Season Closed · 1 Jul", "June wrapped — settlement summary is ready.", "3 payments outstanding.", { "👏": other ? [other.id] : [] }),
@@ -43,6 +46,7 @@ export function seedIfEmpty(blocId, { currentUserId, members = [] } = {}) {
     txt(60 * 3, currentUserId, "just logged mine 💪"),
     other2 && sys(150, "warning", "Cooked · 8 Jul", `${other2.name} can no longer reach their target this month.`, "Fine locked in at season close.", { "😤": other ? [other.id] : [] }),
     other && txt(90, other.id, "2 behind pace, gonna catch up tmrw"),
+    other && evt(80, other.id, { activity: "Saturday long run", when: "Sat 12 Jul · 8:00 AM", location: "Marina Beach", rsvp: other2 ? { [other.id]: "in", [other2.id]: "in" } : { [other.id]: "in" } }),
     other && sys(70, "positive", "Comeback · 9 Jul", `${other.name} climbed from At Risk back to On Track.`, "", {}),
     sys(40, "warning", "Inactivity · 9 Jul", "Rahul hasn't logged a workout in 7 days.", "", {}),
     other && txt(20, other.id, "let's go 🔥")
@@ -57,6 +61,35 @@ export function sendMessage(blocId, { authorId, body }) {
   const msg = { id: newId(), bloc_id: blocId, author_id: authorId, message_type: "text", body: text, created_at: new Date().toISOString() };
   store.set(blocId, [...(store.get(blocId) || []), msg]);
   return msg;
+}
+
+// Create an event message (message_type='event'). The three form fields plus an
+// id-keyed RSVP map live in `payload`, mirroring the eventual jsonb column.
+// rsvp is { userId: 'in' | 'pass' } — display names resolve at render time.
+export function createEvent(blocId, { authorId, activity, when, location }) {
+  const a = String(activity || "").trim();
+  if (!blocId || !a) return null;
+  const msg = {
+    id: newId(), bloc_id: blocId, author_id: authorId, message_type: "event",
+    payload: { activity: a, when: String(when || "").trim(), location: String(location || "").trim(), rsvp: {} },
+    created_at: new Date().toISOString()
+  };
+  store.set(blocId, [...(store.get(blocId) || []), msg]);
+  return msg;
+}
+
+// Set (or clear) the current user's RSVP on an event. Tapping the status the
+// user already holds clears it; otherwise it sets 'in' or 'pass'.
+export function setRsvp(blocId, messageId, userId, status) {
+  const msgs = store.get(blocId);
+  if (!msgs) return;
+  const next = msgs.map(m => {
+    if (m.id !== messageId || m.message_type !== "event") return m;
+    const rsvp = { ...((m.payload && m.payload.rsvp) || {}) };
+    if (rsvp[userId] === status) delete rsvp[userId]; else rsvp[userId] = status;
+    return { ...m, payload: { ...m.payload, rsvp } };
+  });
+  store.set(blocId, next);
 }
 
 // Toggle a reaction for the current user (id-keyed). Mirrors an insert/delete

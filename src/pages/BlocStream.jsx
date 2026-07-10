@@ -1,7 +1,7 @@
 import React from "react";
 const { useState, useEffect, useRef } = React;
 import { Avatar } from "../components/primitives.jsx";
-import { listMessages, seedIfEmpty, sendMessage, toggleReaction } from "../lib/blocStream.js";
+import { listMessages, seedIfEmpty, sendMessage, toggleReaction, createEvent, setRsvp } from "../lib/blocStream.js";
 
 const QUICK_REACTS = ["🔥", "💪", "👏", "😤"];
 
@@ -19,6 +19,7 @@ const C = {
   accent: "#4ECDC4",
   sheetBg: "#081110", sheetBorder: "#1b332e",
   sysBg: "#0a1513", sysBorder: "#243f38",
+  evtBg: "#08201d",
   warning: "#EF9F27", positive: "#4ECDC4",
   chipBg: "#0b1413", chipBorder: "#1b332e", chipOnBg: "rgba(78,205,196,0.14)", chipOnBorder: "rgba(78,205,196,0.4)"
 };
@@ -101,11 +102,118 @@ const SystemCard = ({ msg, currentUserId, onReact }) => {
   );
 };
 
+const EventCard = ({ msg, currentUserId, authorName, nameFor, onRsvp }) => {
+  const p = msg.payload || {};
+  const rsvp = p.rsvp || {};
+  const inIds = Object.keys(rsvp).filter(id => rsvp[id] === "in");
+  const mine = rsvp[currentUserId];
+  const shown = inIds.slice(0, 4);
+  const extra = inIds.length - shown.length;
+  const detail = (icon, text) => text ? React.createElement('div', {
+    style: { display: "flex", alignItems: "center", gap: 8, fontSize: 13.5, color: "var(--text)", lineHeight: 1.35 }
+  }, React.createElement('span', { style: { fontSize: 13, width: 16, textAlign: "center", flexShrink: 0 } }, icon), text) : null;
+  return React.createElement('div', {
+    style: {
+      alignSelf: "stretch", background: C.evtBg, border: `1px solid ${C.accent}`,
+      borderRadius: 12, padding: "13px 15px 14px", boxShadow: "0 0 0 1px rgba(78,205,196,0.08), 0 8px 24px rgba(0,0,0,.3)"
+    }
+  },
+    React.createElement('div', {
+      style: { fontFamily: "'Outfit', sans-serif", fontSize: 10, fontWeight: 700, color: C.accent, letterSpacing: ".08em", textTransform: "uppercase", marginBottom: 9 }
+    }, `${authorName} suggested an event`),
+    React.createElement('div', {
+      style: { fontFamily: "'Outfit', sans-serif", fontSize: 16, fontWeight: 600, color: "var(--text)", marginBottom: 8 }
+    }, p.activity),
+    React.createElement('div', { style: { display: "flex", flexDirection: "column", gap: 4, marginBottom: 13 } },
+      detail("🗓", p.when),
+      detail("📍", p.location)
+    ),
+    React.createElement('div', { style: { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" } },
+      React.createElement('div', { style: { display: "flex", alignItems: "center", flex: 1, minWidth: 0 } },
+        shown.length > 0 && React.createElement('div', { style: { display: "flex", alignItems: "center" } },
+          shown.map((id, i) => React.createElement('div', {
+            key: id, style: { marginLeft: i === 0 ? 0 : -8, borderRadius: "50%", boxShadow: `0 0 0 2px ${C.evtBg}` }
+          }, React.createElement(Avatar, { name: nameFor(id), userId: id, size: 24 })))
+        ),
+        React.createElement('span', {
+          style: { fontFamily: "'Outfit', sans-serif", fontSize: 12, fontWeight: 600, color: C.meta, marginLeft: shown.length ? 8 : 0 }
+        }, inIds.length === 0 ? "No one's in yet" : `${inIds.length} in${extra > 0 ? ` · +${extra}` : ""}`)
+      ),
+      React.createElement('div', { style: { display: "flex", gap: 7, flexShrink: 0 } },
+        React.createElement('button', {
+          onClick: () => onRsvp(msg.id, "in"),
+          style: {
+            background: mine === "in" ? C.accent : "transparent", color: mine === "in" ? "#04110e" : C.accent,
+            border: `1px solid ${C.accent}`, borderRadius: 20, padding: "6px 14px",
+            fontFamily: "'Outfit', sans-serif", fontSize: 13, fontWeight: 700, cursor: "pointer"
+          }
+        }, "I'm in"),
+        React.createElement('button', {
+          onClick: () => onRsvp(msg.id, "pass"),
+          style: {
+            background: mine === "pass" ? C.chipOnBg : "transparent", color: mine === "pass" ? "var(--text)" : "var(--muted)",
+            border: `1px solid ${mine === "pass" ? C.chipOnBorder : C.inputBorder}`, borderRadius: 20, padding: "6px 14px",
+            fontFamily: "'Outfit', sans-serif", fontSize: 13, fontWeight: 600, cursor: "pointer"
+          }
+        }, "Pass")
+      )
+    )
+  );
+};
+
+const EventSheet = ({ onClose, onCreate }) => {
+  const [activity, setActivity] = useState("");
+  const [when, setWhen] = useState("");
+  const [location, setLocation] = useState("");
+  const firstRef = useRef(null);
+  useEffect(() => { firstRef.current?.focus(); }, []);
+  const field = (ref, value, setValue, placeholder) => React.createElement('input', {
+    ref, value, onChange: e => setValue(e.target.value), placeholder,
+    style: { width: "100%", boxSizing: "border-box", background: C.inputBg, border: `1px solid ${C.inputBorder}`, borderRadius: 10, padding: "11px 13px", color: "var(--text)", fontSize: 14.5, fontFamily: "'Outfit', sans-serif", outline: "none" }
+  });
+  return React.createElement('div', {
+    onClick: e => { e.stopPropagation(); onClose(); },
+    style: { position: "fixed", inset: 0, zIndex: 320, display: "flex", flexDirection: "column", justifyContent: "flex-end", background: "rgba(0,0,0,.5)" }
+  },
+    React.createElement('div', {
+      onClick: e => e.stopPropagation(),
+      style: {
+        background: "linear-gradient(180deg, #0a1413 0%, #070f0e 100%)", borderTop: `1px solid ${C.accent}`,
+        borderRadius: "16px 16px 0 0", padding: "18px 18px calc(18px + env(safe-area-inset-bottom))",
+        display: "flex", flexDirection: "column", gap: 12, boxShadow: "0 -12px 40px rgba(0,0,0,.5)"
+      }
+    },
+      React.createElement('div', { style: { display: "flex", alignItems: "center", justifyContent: "space-between" } },
+        React.createElement('div', {
+          style: { fontFamily: "'Outfit', sans-serif", fontSize: 10, fontWeight: 700, color: "#8faeaa", letterSpacing: ".1em", textTransform: "uppercase" }
+        }, "Suggest an Event"),
+        React.createElement('button', {
+          onClick: onClose,
+          style: { background: "transparent", border: "none", color: C.accent, fontSize: 14, fontWeight: 600, cursor: "pointer" }
+        }, "Cancel")
+      ),
+      field(firstRef, activity, setActivity, "Activity — e.g. Saturday long run"),
+      field(null, when, setWhen, "Date & time — e.g. Sat 12 Jul · 8:00 AM"),
+      field(null, location, setLocation, "Location — e.g. Marina Beach"),
+      React.createElement('button', {
+        onClick: () => { if (activity.trim()) onCreate({ activity, when, location }); },
+        disabled: !activity.trim(),
+        style: {
+          background: activity.trim() ? C.accent : C.inputBg, color: activity.trim() ? "#04110e" : "var(--muted2)",
+          border: `1px solid ${activity.trim() ? C.accent : C.inputBorder}`, borderRadius: 20, padding: "12px 16px",
+          fontFamily: "'Outfit', sans-serif", fontSize: 14.5, fontWeight: 700, cursor: activity.trim() ? "pointer" : "default", marginTop: 2
+        }
+      }, "Post to Bloc")
+    )
+  );
+};
+
 const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], onClose }) => {
   const [mounted, setMounted] = useState(false);
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState("");
   const [showPlus, setShowPlus] = useState(false);
+  const [showEventSheet, setShowEventSheet] = useState(false);
   const listRef = useRef(null);
   const inputRef = useRef(null);
 
@@ -132,6 +240,7 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], onCl
     }
     setMounted(false);
     setShowPlus(false);
+    setShowEventSheet(false);
   }, [open, blocId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Bulletproof background scroll lock: pin the body in place (iOS Safari
@@ -157,10 +266,13 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], onCl
 
   useEffect(() => {
     if (!open) return;
-    const onKey = e => { if (e.key === "Escape") onClose(); };
+    const onKey = e => {
+      if (e.key !== "Escape") return;
+      if (showEventSheet) setShowEventSheet(false); else onClose();
+    };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
+  }, [open, onClose, showEventSheet]);
 
   if (!open) return null;
 
@@ -175,6 +287,19 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], onCl
 
   const handleReact = (messageId, emoji) => {
     toggleReaction(blocId, messageId, emoji, currentUserId);
+    setMessages(listMessages(blocId));
+  };
+
+  const handleCreateEvent = ({ activity, when, location }) => {
+    const made = createEvent(blocId, { authorId: currentUserId, activity, when, location });
+    if (!made) return;
+    setMessages(listMessages(blocId));
+    setShowEventSheet(false);
+    scrollToBottom();
+  };
+
+  const handleRsvp = (messageId, status) => {
+    setRsvp(blocId, messageId, currentUserId, status);
     setMessages(listMessages(blocId));
   };
 
@@ -226,7 +351,9 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], onCl
           ? React.createElement('div', { style: { margin: "auto", color: "var(--muted2)", fontSize: 13 } }, "No messages yet")
           : messages.map(msg => msg.message_type === "system"
               ? React.createElement(SystemCard, { key: msg.id, msg, currentUserId, onReact: handleReact })
-              : React.createElement(TextBubble, { key: msg.id, msg, isOwn: msg.author_id === currentUserId, authorName: nameFor(msg.author_id) }))
+              : msg.message_type === "event"
+                ? React.createElement(EventCard, { key: msg.id, msg, currentUserId, authorName: nameFor(msg.author_id), nameFor, onRsvp: handleRsvp })
+                : React.createElement(TextBubble, { key: msg.id, msg, isOwn: msg.author_id === currentUserId, authorName: nameFor(msg.author_id) }))
       ),
       // Input bar
       React.createElement('div', {
@@ -246,8 +373,8 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], onCl
             style: { textAlign: "left", background: "transparent", border: "none", color: "var(--text)", fontSize: 14, fontWeight: 500, padding: "10px 12px", borderRadius: 8, cursor: "pointer" }
           }, "Send a message"),
           React.createElement('button', {
-            onClick: () => setShowPlus(false),
-            style: { textAlign: "left", background: "transparent", border: "none", color: "var(--muted)", fontSize: 14, fontWeight: 500, padding: "10px 12px", borderRadius: 8, cursor: "pointer" }
+            onClick: () => { setShowPlus(false); setShowEventSheet(true); },
+            style: { textAlign: "left", background: "transparent", border: "none", color: "var(--text)", fontSize: 14, fontWeight: 500, padding: "10px 12px", borderRadius: 8, cursor: "pointer" }
           }, "Suggest an event")
         ),
         React.createElement('button', {
@@ -266,7 +393,11 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], onCl
           style: { flexShrink: 0, background: draft.trim() ? C.accent : C.inputBg, color: draft.trim() ? "#04110e" : "var(--muted2)", border: `1px solid ${draft.trim() ? C.accent : C.inputBorder}`, borderRadius: 20, padding: "10px 16px", fontSize: 14, fontWeight: 700, cursor: draft.trim() ? "pointer" : "default" }
         }, "Send")
       )
-    )
+    ),
+    showEventSheet && React.createElement(EventSheet, {
+      onClose: () => setShowEventSheet(false),
+      onCreate: handleCreateEvent
+    })
   );
 };
 
