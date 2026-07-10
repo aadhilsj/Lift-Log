@@ -2550,27 +2550,23 @@ async function persistState(nextState, reason) {
   // Extract rollover metadata before persistStateToSupabase — normalizeState
   // strips _rollovers from the blob write, so we must read it here first.
   const rollovers = Array.isArray(nextState._rollovers) ? nextState._rollovers : [];
+  const safeState = normalizeState(nextState);
 
-  const persisted = await persistStateToSupabase(nextState, reason);
-
-  // Best-effort canonical season rollover syncs. Failures are logged but never
-  // propagated — the blob rollover already succeeded at this point.
+  // Canonical-first rollover sync:
+  // 1. use the exact post-rollover in-memory state to close/open seasons
+  // 2. write the closed-month member snapshots canonically
+  // 3. persist the blob only after canonical rollover writes succeed
   for (const { groupId, closedMonthKey, newMonthKey, closedAt } of rollovers) {
-    const group = persisted.groups?.[groupId];
+    const group = safeState.groups?.[groupId];
     if (!group) continue;
     // Close the old season first so season_member_status writes can resolve the
     // canonical season row deterministically.
-    try {
-      await syncSeasonToCanonical(group, closedMonthKey, "closed", closedAt);
-    } catch (err) {
-      console.error(`Season rollover canonical sync failed (close ${groupId}/${closedMonthKey}):`, err?.message || err);
-    }
+    await syncSeasonToCanonical(group, closedMonthKey, "closed", closedAt, { throwOnError: true });
     // Open the new season.
-    syncSeasonToCanonical(group, newMonthKey, "open")
-      .catch(err => console.error(`Season rollover canonical sync failed (open ${groupId}/${newMonthKey}):`, err?.message || err));
+    await syncSeasonToCanonical(group, newMonthKey, "open", null, { throwOnError: true });
     // Write one season_member_status row per relevant member for the closed month.
     // The closed-month snapshot was appended to monthHistory by rolloverGroupIfNeeded,
-    // so it is present in persisted state at this point.
+    // so it is already present in the exact post-rollover state at this point.
     const closedSnapshot = group.monthHistory?.find(m => m.key === closedMonthKey);
     if (closedSnapshot) {
       // Build a displayName → authUserId reverse map from group.memberships.
@@ -2585,13 +2581,15 @@ async function persistState(nextState, reason) {
           memberName,
           memberAuthUserId,
           closedSnapshot.counts[memberName] ?? 0,
-          closedSnapshot.excused[memberName] ?? false
+          closedSnapshot.excused[memberName] ?? false,
+          { throwOnError: true }
         );
       }
     }
     console.log(`Season rollover canonical sync fired: ${groupId} ${closedMonthKey} → ${newMonthKey}`);
   }
 
+  const persisted = await persistStateToSupabase(safeState, reason);
   return persisted;
 }
 
