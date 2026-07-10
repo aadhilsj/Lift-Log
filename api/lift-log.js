@@ -4360,6 +4360,11 @@ export default async function handler(req, res) {
         if (!current) current = await fetchWritableCurrentState();
         return current;
       };
+      let readableCurrent = null;
+      const getReadableCurrent = async () => {
+        if (!readableCurrent) readableCurrent = await fetchReadableCurrentState();
+        return readableCurrent;
+      };
 
       if (payload?.action === "auth-sync") {
         const authUser = await fetchAuthenticatedUser(readBearerToken(req, payload));
@@ -4384,38 +4389,15 @@ export default async function handler(req, res) {
       }
 
       if (payload?.action === "invite-context") {
-        const readableCurrent = await fetchReadableCurrentState();
-        return res.status(200).json(await getInviteContextCanonicalFirst(readableCurrent, payload));
-      }
-
-      current = await getCurrent();
-
-      if (payload?.action === "settlement") {
-        const auth = await requireAuthenticatedContext(req, payload, current);
-        const result = applySettlementUpdate(auth.state, payload);
-        // Canonical-first settlement slice:
-        // 1. compute the exact post-settlement blob-compatible month snapshot
-        // 2. write canonical settlement status from that exact computed payload
-        // 3. persist blob afterward as the compatibility mirror
-        if (result.settlement) {
-          await updateSeasonMemberSettlementInCanonical(
-            payload.groupId,
-            payload.monthKey,
-            payload.player,
-            result.settlement.status,
-            result.settlement.settledAt || null,
-            { throwOnError: true }
-          );
-        }
-        const persisted = await persistState(result.updated, result.reason);
-        return res.status(200).json(persisted);
+        const readable = await getReadableCurrent();
+        return res.status(200).json(await getInviteContextCanonicalFirst(readable, payload));
       }
 
       if (payload?.action === "settlement-claim-paid") {
         if (!ENABLE_SETTLEMENT_CONFIRMATIONS) {
           return res.status(404).json({ error: "Settlement confirmations are disabled" });
         }
-        const auth = await requireAuthenticatedContext(req, payload, current);
+        const auth = await requireAuthenticatedContext(req, payload, await getReadableCurrent());
         const actorDisplayName = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
         const group = auth.state.groups?.[payload.groupId];
         if (!group) return res.status(404).json({ error: "Bloc not found" });
@@ -4450,7 +4432,7 @@ export default async function handler(req, res) {
         if (!ENABLE_SETTLEMENT_CONFIRMATIONS) {
           return res.status(404).json({ error: "Settlement confirmations are disabled" });
         }
-        const auth = await requireAuthenticatedContext(req, payload, current);
+        const auth = await requireAuthenticatedContext(req, payload, await getReadableCurrent());
         const actorDisplayName = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
         const group = auth.state.groups?.[payload.groupId];
         if (!group) return res.status(404).json({ error: "Bloc not found" });
@@ -4481,7 +4463,7 @@ export default async function handler(req, res) {
         if (!ENABLE_SETTLEMENT_CONFIRMATIONS) {
           return res.status(404).json({ error: "Settlement confirmations are disabled" });
         }
-        const auth = await requireAuthenticatedContext(req, payload, current);
+        const auth = await requireAuthenticatedContext(req, payload, await getReadableCurrent());
         const actorDisplayName = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
         const group = auth.state.groups?.[payload.groupId];
         if (!group) return res.status(404).json({ error: "Bloc not found" });
@@ -4506,6 +4488,29 @@ export default async function handler(req, res) {
         });
         const readable = await fetchReadableCurrentState();
         return res.status(200).json(readable);
+      }
+
+      current = await getCurrent();
+
+      if (payload?.action === "settlement") {
+        const auth = await requireAuthenticatedContext(req, payload, current);
+        const result = applySettlementUpdate(auth.state, payload);
+        // Canonical-first settlement slice:
+        // 1. compute the exact post-settlement blob-compatible month snapshot
+        // 2. write canonical settlement status from that exact computed payload
+        // 3. persist blob afterward as the compatibility mirror
+        if (result.settlement) {
+          await updateSeasonMemberSettlementInCanonical(
+            payload.groupId,
+            payload.monthKey,
+            payload.player,
+            result.settlement.status,
+            result.settlement.settledAt || null,
+            { throwOnError: true }
+          );
+        }
+        const persisted = await persistState(result.updated, result.reason);
+        return res.status(200).json(persisted);
       }
 
       if (payload?.action === "create-group") {
