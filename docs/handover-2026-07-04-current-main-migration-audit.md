@@ -685,14 +685,16 @@ Why:
    - `leftMemberNames`
    - `sitOutRequests`
    - historical month-history snapshots
-3. its canonical side today is only a best-effort
-   `syncBlocMemberToCanonical(...)` for the active membership row afterward
+3. even with the later local tightening, its canonical side is still only a
+   bloc-local snapshot repair, not a full identity-authority transfer
 4. canonical does not currently own the broader historical rename semantics
    that this repair is mutating in blob compatibility state
 
 Recommended stance:
 
 - keep `repair-display-name` as a blob-compatibility repair tool for now
+- accept the later local improvement that it now repairs canonical snapshots
+  before blob persist, but do not confuse that with full rename migration
 - do not spend a bounded authority-transfer slice on it before the broader
   display-name de-keying / lifecycle redesign
 - revisit it only after active-vs-historical identity is separated cleanly

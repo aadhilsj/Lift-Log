@@ -3846,6 +3846,9 @@ function applyUpsertProfile(current, payload) {
 }
 
 function applyRepairDisplayName(current, payload) {
+  // This is an admin-only compatibility repair for already-broken legacy
+  // display-name state inside one bloc. It is intentionally not treated as a
+  // normal product rename flow or as proof that display names are cosmetic.
   const adminPin = process.env.ADMIN_PIN;
   if (!adminPin) {
     const error = new Error("ADMIN_PIN is not configured");
@@ -4904,6 +4907,11 @@ export default async function handler(req, res) {
       }
 
       if (payload?.action === "repair-display-name") {
+        // Quarantined compatibility tool:
+        // - repairs one bloc's blob-shaped historical/name-keyed state
+        // - repairs canonical display-name snapshots for that same bloc
+        // - should not be expanded into a general rename authority-transfer
+        //   path before full display-name de-keying exists
         const updated = applyRepairDisplayName(current, payload);
         const repairedGroup = updated.groups?.[payload.groupId];
         const repairedProfile = updated.profiles?.[payload.userId] || current.profiles?.[payload.userId] || null;
