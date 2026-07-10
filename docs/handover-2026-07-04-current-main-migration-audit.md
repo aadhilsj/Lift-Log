@@ -236,6 +236,7 @@ It is no longer:
 It is still:
 
 - blob-first mutation hydration
+- auth/profile writable-base residue around `auth-sync`
 - blob-backed compatibility scaffolding on GET
 - `leftMemberNames`
 - display-name keyed lifecycle and history structures

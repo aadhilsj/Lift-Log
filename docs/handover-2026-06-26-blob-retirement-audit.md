@@ -28,7 +28,6 @@ Also fixed and verified:
 
 Still blob-backed in normalized app state:
 - `defaultGroupId`
-- `pendingOtps`
 - `meta.revision`
 - `meta.updatedAt`
 
@@ -88,8 +87,12 @@ Why it still exists:
 - `auth-sync`
 
 Reason:
-- depend on `pendingOtps`
-- no canonical auth-OTP runtime path exists in the app yet
+- the interactive app no longer uses legacy blob OTP challenge storage;
+  `auth-send-otp` and `auth-verify-otp` now return `410`
+- `auth-sync` still depends on writable blob hydration for compatibility
+  scaffolding around auth/session/profile state
+- broad blob retirement still needs an auth/profile writable-base plan, but is
+  no longer blocked on `pendingOtps` as live runtime auth state
 
 ### Strong blob coupling still present
 
@@ -122,7 +125,6 @@ Blob retirement is still blocked by these categories:
 
 1. Top-level shell ownership
    - `defaultGroupId`
-   - `pendingOtps`
    - `meta`
 
 2. Group shell ownership
@@ -160,17 +162,21 @@ Recommended replacement:
 
 ### `pendingOtps`
 
-Verdict: `must redesign` before blob retirement.
+Verdict: no longer a live interactive-app blocker.
 
 Reason:
-- this is active runtime auth state, not historical product data
-- `auth-send-otp` and `auth-verify-otp` still mutate it directly
-- deleting blob without replacing this breaks login
+- the interactive client now uses Supabase Auth directly
+- `auth-send-otp` and `auth-verify-otp` now return `410`
+- no current normalized app-state field carries `pendingOtps`
+- the remaining auth residue is `auth-sync` still hydrating writable blob state
+  around auth/profile scaffolding
 
 Recommended replacement:
-- move OTP challenge state to a dedicated canonical table or other explicit
-  auth-side store
-- do not attempt broad blob retirement before that replacement exists
+- do not revive blob OTP challenge storage
+- if any future server-side auth challenge state is needed, model it explicitly
+  outside the app-state blob
+- treat the real remaining work as moving auth/profile writable-state hydration
+  off blob, not replacing `pendingOtps`
 
 ### `meta.revision`
 
@@ -252,7 +258,8 @@ candidates:
 Verdict summary:
 - `migrate`: `inviteCode`, `createdAt`
 - `replace/delete`: `defaultGroupId`, `meta.revision`, `meta.updatedAt`
-- `must redesign`: `pendingOtps`, `leftMemberNames`
+- `must redesign`: `leftMemberNames`
+- `compatibility residue, not OTP blocker`: `auth-sync`
 
 ## Recommended Next Phase
 

@@ -591,8 +591,8 @@ choices are now:
 1. audit the remaining blob-only lifecycle residue on read and write:
    - `leftMemberNames`
    - narrow `joinedMonthByName` residue
-   - `pendingOtps`
    - blob `meta`
+   - auth/profile writable-base residue around `auth-sync`
 2. decide whether `repair-display-name` stays a compatibility repair tool until
    full de-keying, or gets retired outright
 3. plan the eventual writable-state transfer away from blob hydration

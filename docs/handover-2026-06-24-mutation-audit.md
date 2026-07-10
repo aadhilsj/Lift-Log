@@ -22,15 +22,20 @@ That means canonical is still:
 
 ## Mutation Inventory
 
-### Blob-first and should stay that way for now
+### Blob-backed auth / shell compatibility paths
 
 - `auth-send-otp`
 - `auth-verify-otp`
 - `auth-sync`
 
 Reason:
-- tightly coupled to `pendingOtps`, sessions, and current blob auth scaffolding
-- low value as early canonical-first candidates
+- `auth-send-otp` and `auth-verify-otp` are no longer live mutation paths;
+  they now return `410` and the interactive client uses Supabase Auth instead
+- `auth-sync` is still a real compatibility mutation path, but its blob
+  dependence is now mostly writable auth/session/profile hydration rather than
+  OTP challenge storage
+- still low value as early canonical-first candidates, but no longer blocked on
+  `pendingOtps` as active runtime state
 
 ### Read-only / non-cutover candidates
 
