@@ -252,6 +252,9 @@ const AppIcon = ({name,size=18,stroke="currentColor"}) => {
     React.createElement('circle',{cx:"12",cy:"8",r:"3.2"}),
     React.createElement('path',{d:"M5.5 19.2c1.5-3 4-4.7 6.5-4.7s5 1.7 6.5 4.7"})
   );
+  if (name==="message-circle") return React.createElement('svg',common,
+    React.createElement('path',{d:"M4 19.5l1.2-3.6A8 8 0 1 1 8.4 18.3L4 19.5"})
+  );
   return React.createElement('svg',common,React.createElement('circle',{cx:"12",cy:"12",r:"8"}));
 };
 
