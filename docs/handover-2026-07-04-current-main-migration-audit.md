@@ -86,6 +86,8 @@ Verified in `api/lift-log.js`:
   - `settlement-claim-paid`
   - `settlement-confirm-paid`
   - `settlement-dispute-paid`
+- settlement confirmation claim/confirm/dispute now also authenticate against
+  composed readable state instead of hydrating writable blob state first
 
 These should no longer be discussed as merely hypothetical future slices.
 

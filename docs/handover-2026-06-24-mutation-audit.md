@@ -44,6 +44,7 @@ Reason:
 Reason:
 - does not mutate state
 - irrelevant to write-authority transfer
+- now resolved canonical-first and no longer hydrates the writable blob base
 
 ### Broad / high-risk mutation families
 
@@ -238,22 +239,22 @@ Production cleanup:
 ## Suggested Next Implementation Slice
 
 Best next candidate after these:
-- `invite-context` + `join-group` invite resolution
+- auth/profile writable-base cleanup around `auth-sync`
 
 Why that next:
-- canonical `blocs` already own invite code authority
-- it removes a concrete blob-only dependency without touching OTP runtime state
-- smaller blast radius than leave/kick/delete-account lifecycle mutations
+- `invite-context` invite preview is already read-only-first
+- settlement claim/confirm/dispute now authenticate against composed readable state
+- the clearest remaining low-blast-radius residue is auth/profile writable hydration
 
-June 26 local-prep status:
-- `api/lift-log.js` was updated so:
-  - `invite-context` prefers canonical invite-code resolution
-  - `join-group` prefers canonical invite-code resolution and injects the
-    canonical `legacy_group_key` into the existing join flow
-- `supabase/ante-core-blocs-read-rpc.sql` was updated to expose
-  `invite_code` on the canonical bloc read RPC
-- this slice is prepared locally but not yet verified live; it should not be
-  marked complete until the SQL is applied and preview join flow passes
+Current status:
+- `invite-context` prefers canonical invite-code resolution and now stays on the
+  readable path instead of hydrating writable blob state
+- `join-group` prefers canonical invite-code resolution and injects the
+  canonical `legacy_group_key` into the existing join flow
+- `supabase/ante-core-blocs-read-rpc.sql` exposes `invite_code` on the
+  canonical bloc read RPC
+- invite/join verification is deferred only because no live invite-flow test was
+  available in the latest session, not because code prep is incomplete
 
 Do not jump next to workout log authority or membership lifecycle writes unless
 we intentionally accept a much larger blast radius.

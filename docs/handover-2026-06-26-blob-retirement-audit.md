@@ -279,41 +279,19 @@ Recommended sequence:
 
 ## Recommended Next Slice
 
-The most sensible next slice was:
+This older recommendation is now complete:
 
-`invite-context` + `join-group` invite resolution
+- `invite-context` reads canonical bloc invite data first
+- `join-group` resolves invite targets canonically before entering the existing
+  blob-compatible join flow
+- `invite-context` no longer hydrates the writable blob base first
 
-Why this next:
-- `inviteCode` is already canonical data
-- it removes one of the clearest remaining blob-only group shell dependencies
-- it is smaller and safer than tackling OTP runtime state or member-leave
-  lifecycle semantics
-- it directly advances blob-retirement readiness instead of just adding another
-  isolated canonical-first write
+The more relevant remaining residue now is:
 
-What that slice should do:
-1. read invite context from canonical `blocs`
-2. resolve join target by canonical invite code, not blob shell state
-3. preserve existing safety behavior around rejoin and member seeding
-4. verify preview join flow end-to-end with a fresh invite code
-
-Status as of June 27, 2026:
-- implemented locally
-- SQL applied
-- preview leave/rejoin verification passed
-- canonical verification passed for:
-  - active `bloc_members`
-  - seeded open-season `season_member_status`
-
-Next recommended slice:
-
-`createdAt` read authority from canonical blocs
-
-Why next:
-- `createdAt` is already canonical `blocs.created_at`
-- read-only surface, so lower risk than lifecycle mutation work
-- removes another blob-only group shell dependency without touching auth or
-  leave/kick semantics
+1. auth/profile writable-base cleanup around `auth-sync`
+2. blob-only compatibility structures such as `leftMemberNames`,
+   `joinedMonthByName`, and blob `meta`
+3. the eventual endgame transfer away from blob-backed writable hydration
 
 ## Updated Progress Estimate
 

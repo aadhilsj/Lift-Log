@@ -72,7 +72,11 @@ It is still directionally useful, but these corrections now apply on current
   - `update-settings`
 - `invite-context` and `join-group` already resolve invite codes canonically
   before the existing blob flow
+- `invite-context` now also stays on the readable path instead of hydrating the
+  writable blob base first
 - settlement confirmation actions already write canonically
+- settlement confirmation claim/confirm/dispute now also authenticate against
+  composed readable state instead of hydrating writable blob state first
 - several later bounded slices are also now already implemented and verified:
   - `create-group`
   - `join-group`
