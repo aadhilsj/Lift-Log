@@ -1,7 +1,9 @@
 import React from "react";
 const { useState, useEffect, useRef } = React;
 import { Avatar } from "../components/primitives.jsx";
-import { listMessages, seedIfEmpty, sendMessage } from "../lib/blocStream.js";
+import { listMessages, seedIfEmpty, sendMessage, toggleReaction } from "../lib/blocStream.js";
+
+const QUICK_REACTS = ["🔥", "💪", "👏", "😤"];
 
 // Bloc Stream — Bloc-scoped messaging, opened as a slide-up modal over the
 // current tab. Stages 1/3/4: shell, text bubbles, input bar. System moments
@@ -15,7 +17,10 @@ const C = {
   meta: "#5f817b",
   inputBg: "#0b1413", inputBorder: "#1b332e",
   accent: "#4ECDC4",
-  sheetBg: "#081110", sheetBorder: "#1b332e"
+  sheetBg: "#081110", sheetBorder: "#1b332e",
+  sysBg: "#0a1513", sysBorder: "#243f38",
+  warning: "#EF9F27", positive: "#4ECDC4",
+  chipBg: "#0b1413", chipBorder: "#1b332e", chipOnBg: "rgba(78,205,196,0.14)", chipOnBorder: "rgba(78,205,196,0.4)"
 };
 
 function formatStamp(iso) {
@@ -48,6 +53,53 @@ const TextBubble = ({ msg, isOwn, authorName }) =>
       }, msg.body)
     )
   );
+
+const ReactionChips = ({ msg, currentUserId, onReact }) => {
+  const reactions = msg.reactions || {};
+  const [showPicker, setShowPicker] = useState(false);
+  const active = Object.entries(reactions).filter(([, users]) => (users || []).length > 0);
+  return React.createElement('div', { style: { display: "flex", flexWrap: "wrap", gap: 6, justifyContent: "center", marginTop: 8, position: "relative" } },
+    active.map(([emoji, users]) => {
+      const mine = users.includes(currentUserId);
+      return React.createElement('button', {
+        key: emoji, onClick: () => onReact(msg.id, emoji),
+        style: { display: "inline-flex", alignItems: "center", gap: 5, background: mine ? C.chipOnBg : C.chipBg, border: `1px solid ${mine ? C.chipOnBorder : C.chipBorder}`, borderRadius: 20, padding: "3px 10px", fontSize: 13, color: "var(--text)", cursor: "pointer" }
+      }, emoji, React.createElement('span', { style: { fontFamily: "'Outfit', sans-serif", fontSize: 12, color: "var(--muted)", fontWeight: 600 } }, users.length));
+    }),
+    React.createElement('button', {
+      onClick: () => setShowPicker(v => !v),
+      style: { width: 26, height: 26, borderRadius: 20, background: C.chipBg, border: `1px solid ${C.chipBorder}`, color: "var(--muted)", fontSize: 13, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center" }
+    }, "+"),
+    showPicker && React.createElement('div', {
+      style: { display: "flex", gap: 4, background: C.sheetBg, border: `1px solid ${C.sheetBorder}`, borderRadius: 20, padding: "4px 6px", position: "absolute", bottom: "calc(100% + 6px)", left: "50%", transform: "translateX(-50%)", boxShadow: "0 8px 24px rgba(0,0,0,.5)" }
+    },
+      QUICK_REACTS.map(emoji => React.createElement('button', {
+        key: emoji, onClick: () => { onReact(msg.id, emoji); setShowPicker(false); },
+        style: { background: "transparent", border: "none", fontSize: 17, padding: "2px 4px", cursor: "pointer" }
+      }, emoji))
+    )
+  );
+};
+
+const SystemCard = ({ msg, currentUserId, onReact }) => {
+  const toneColor = msg.tone === "warning" ? C.warning : C.positive;
+  return React.createElement('div', { style: { display: "flex", flexDirection: "column", alignItems: "center", padding: "4px 0" } },
+    React.createElement('div', {
+      style: { maxWidth: "88%", width: "fit-content", background: C.sysBg, border: `1px solid ${C.sysBorder}`, borderRadius: 12, padding: "12px 16px", textAlign: "center" }
+    },
+      React.createElement('div', {
+        style: { fontFamily: "'Outfit', sans-serif", fontSize: 10, fontWeight: 700, color: "#8faeaa", letterSpacing: ".1em", textTransform: "uppercase", marginBottom: 6 }
+      }, msg.label),
+      React.createElement('div', {
+        style: { fontSize: 14.5, fontWeight: 600, color: toneColor, lineHeight: 1.35 }
+      }, msg.body),
+      msg.sub && React.createElement('div', {
+        style: { fontSize: 12, color: C.meta, marginTop: 5, lineHeight: 1.35 }
+      }, msg.sub)
+    ),
+    React.createElement(ReactionChips, { msg, currentUserId, onReact })
+  );
+};
 
 const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], onClose }) => {
   const [mounted, setMounted] = useState(false);
@@ -117,6 +169,11 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], onCl
     inputRef.current?.focus(); // keep the keyboard open after sending
   };
 
+  const handleReact = (messageId, emoji) => {
+    toggleReaction(blocId, messageId, emoji, currentUserId);
+    setMessages(listMessages(blocId));
+  };
+
   return React.createElement('div', {
     onClick: onClose,
     style: {
@@ -163,9 +220,9 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], onCl
       },
         messages.length === 0
           ? React.createElement('div', { style: { margin: "auto", color: "var(--muted2)", fontSize: 13 } }, "No messages yet")
-          : messages.map(msg => React.createElement(TextBubble, {
-              key: msg.id, msg, isOwn: msg.author_id === currentUserId, authorName: nameFor(msg.author_id)
-            }))
+          : messages.map(msg => msg.message_type === "system"
+              ? React.createElement(SystemCard, { key: msg.id, msg, currentUserId, onReact: handleReact })
+              : React.createElement(TextBubble, { key: msg.id, msg, isOwn: msg.author_id === currentUserId, authorName: nameFor(msg.author_id) }))
       ),
       // Input bar
       React.createElement('div', {

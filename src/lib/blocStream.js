@@ -7,6 +7,8 @@
 //
 // Messages live in-memory for the session only — nothing is persisted or sent
 // anywhere. `message_type` mirrors the eventual schema: 'text' | 'system' | 'event'.
+// Reactions mirror bloc_message_reactions: message_id + user_id + emoji, stored
+// here as { emoji: [userId, ...] } so counts and "did I react" derive cleanly.
 
 const store = new Map(); // blocId -> message[]
 let seq = 0;
@@ -16,19 +18,36 @@ export function listMessages(blocId) {
   return store.get(blocId) || [];
 }
 
-// Seed a few example text messages the first time a Bloc's stream is opened,
-// so the UI has something to render before the input/backend exist.
+// Seed example messages the first time a Bloc's stream is opened, covering the
+// text and system-moment types so the UI has something to render pre-backend.
 export function seedIfEmpty(blocId, { currentUserId, members = [] } = {}) {
   if (!blocId || store.has(blocId)) return;
   const others = members.filter(m => m.id && m.id !== currentUserId);
   const other = others[0];
   const other2 = others[1] || others[0];
   const h = ms => new Date(Date.now() - ms).toISOString();
-  const msgs = [];
-  if (other) msgs.push({ id: newId(), bloc_id: blocId, author_id: other.id, message_type: "text", body: "anyone running this weekend?", created_at: h(5 * 3600e3) });
-  msgs.push({ id: newId(), bloc_id: blocId, author_id: currentUserId, message_type: "text", body: "just logged mine 💪", created_at: h(3 * 3600e3) });
-  if (other2) msgs.push({ id: newId(), bloc_id: blocId, author_id: other2.id, message_type: "text", body: "2 behind pace, gonna catch up tmrw", created_at: h(90 * 60e3) });
-  if (other) msgs.push({ id: newId(), bloc_id: blocId, author_id: other.id, message_type: "text", body: "let's go 🔥", created_at: h(20 * 60e3) });
+
+  const sys = (mins, tone, label, body, sub, reactions) => ({
+    id: newId(), bloc_id: blocId, author_id: null, message_type: "system",
+    tone, label, body, sub: sub || "", reactions: reactions || {}, created_at: h(mins * 60e3)
+  });
+  const txt = (mins, authorId, body) => ({
+    id: newId(), bloc_id: blocId, author_id: authorId, message_type: "text", body, created_at: h(mins * 60e3)
+  });
+
+  const msgs = [
+    sys(60 * 34, "positive", "Season Closed · 1 Jul", "June wrapped — settlement summary is ready.", "3 payments outstanding.", { "👏": other ? [other.id] : [] }),
+    sys(60 * 30, "positive", "New Member · 5 Jul", "Deyhan joined the Bloc.", "", {}),
+    other && txt(60 * 6, other.id, "anyone running this weekend?"),
+    sys(60 * 5, "positive", "Target Hit · 6 Jul", "Aadhil hit their target with 21 days to spare.", "First to MAS this month.", { "🔥": [currentUserId] }),
+    txt(60 * 3, currentUserId, "just logged mine 💪"),
+    other2 && sys(150, "warning", "Cooked · 8 Jul", `${other2.name} can no longer reach their target this month.`, "Fine locked in at season close.", { "😤": other ? [other.id] : [] }),
+    other && txt(90, other.id, "2 behind pace, gonna catch up tmrw"),
+    other && sys(70, "positive", "Comeback · 9 Jul", `${other.name} climbed from At Risk back to On Track.`, "", {}),
+    sys(40, "warning", "Inactivity · 9 Jul", "Rahul hasn't logged a workout in 7 days.", "", {}),
+    other && txt(20, other.id, "let's go 🔥")
+  ].filter(Boolean);
+
   store.set(blocId, msgs);
 }
 
@@ -38,4 +57,20 @@ export function sendMessage(blocId, { authorId, body }) {
   const msg = { id: newId(), bloc_id: blocId, author_id: authorId, message_type: "text", body: text, created_at: new Date().toISOString() };
   store.set(blocId, [...(store.get(blocId) || []), msg]);
   return msg;
+}
+
+// Toggle a reaction for the current user (id-keyed). Mirrors an insert/delete
+// in bloc_message_reactions.
+export function toggleReaction(blocId, messageId, emoji, userId) {
+  const msgs = store.get(blocId);
+  if (!msgs) return;
+  const next = msgs.map(m => {
+    if (m.id !== messageId) return m;
+    const reactions = { ...(m.reactions || {}) };
+    const users = new Set(reactions[emoji] || []);
+    if (users.has(userId)) users.delete(userId); else users.add(userId);
+    if (users.size) reactions[emoji] = [...users]; else delete reactions[emoji];
+    return { ...m, reactions };
+  });
+  store.set(blocId, next);
 }
