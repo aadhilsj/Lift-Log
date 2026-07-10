@@ -114,6 +114,46 @@ function normalizeProfiles(profiles) {
   );
 }
 
+function scopeReadableStateForUser(state, userId) {
+  const normalizedUserId = String(userId || "").trim();
+  if (!normalizedUserId) {
+    return {
+      ...state,
+      groups: {},
+      groupOrder: [],
+      defaultGroupId: null,
+      profiles: {}
+    };
+  }
+
+  const allowedGroupIds = new Set(
+    Object.entries(state?.groups || {})
+      .filter(([, group]) =>
+        group?.memberships?.[normalizedUserId] ||
+        group?.adminUserId === normalizedUserId
+      )
+      .map(([groupId]) => groupId)
+  );
+
+  const nextGroupOrder = (state?.groupOrder || []).filter(groupId => allowedGroupIds.has(groupId));
+  const nextGroups = Object.fromEntries(
+    nextGroupOrder
+      .map(groupId => [groupId, state?.groups?.[groupId]])
+      .filter(([, group]) => !!group)
+  );
+
+  const selfProfile = state?.profiles?.[normalizedUserId];
+  const nextProfiles = selfProfile ? { [normalizedUserId]: selfProfile } : {};
+
+  return {
+    ...state,
+    groups: nextGroups,
+    groupOrder: nextGroupOrder,
+    defaultGroupId: deriveDefaultGroupId(nextGroupOrder),
+    profiles: nextProfiles
+  };
+}
+
 function normalizeSettlementConfirmations(rows) {
   if (!Array.isArray(rows)) return [];
   return rows
@@ -4174,9 +4214,9 @@ export default async function handler(req, res) {
       if (url.searchParams.get("config") === "auth") {
         return res.status(200).json(getClientAuthConfig());
       }
-      await fetchAuthenticatedUser(readBearerToken(req));
+      const authUser = await fetchAuthenticatedUser(readBearerToken(req));
       const current = await fetchReadableCurrentState();
-      return res.status(200).json(current);
+      return res.status(200).json(scopeReadableStateForUser(current, authUser.id));
     }
 
     if (req.method === "PUT") {
