@@ -10,12 +10,12 @@ import { listMessages, seedIfEmpty, sendMessage } from "../lib/blocStream.js";
 // Palette — brightened from the original spec hexes (which read too dim on
 // device) while staying on-brand with the app's teal/green language.
 const C = {
-  ownBg: "#123026", ownBorder: "#234d42",
-  rcvBg: "#0e1a19", rcvBorder: "#223e38",
-  meta: "#6f958e",
-  inputBg: "#0e1a19", inputBorder: "#223e38",
+  ownBg: "#0f2620", ownBorder: "#1c4038",
+  rcvBg: "#0b1413", rcvBorder: "#1b332e",
+  meta: "#5f817b",
+  inputBg: "#0b1413", inputBorder: "#1b332e",
   accent: "#4ECDC4",
-  sheetBg: "#0a1413", sheetBorder: "#223e38"
+  sheetBg: "#081110", sheetBorder: "#1b332e"
 };
 
 function formatStamp(iso) {
