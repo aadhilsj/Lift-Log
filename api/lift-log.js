@@ -2514,7 +2514,12 @@ async function fetchReadableCurrentState() {
         ...group,
         settlementConfirmationsEnabled: true,
         settlementConfirmationsPreviewMode: ENABLE_SETTLEMENT_CONFIRMATIONS_PREVIEW,
-        settlementConfirmations: normalizeSettlementConfirmations(anteSettlementConfirmations?.[groupId] || [])
+        // If the canonical fetch fails transiently (null), preserve the prior
+        // readable slice instead of collapsing reminders to [] for one paint.
+        // A successful canonical empty array still clears correctly.
+        settlementConfirmations: anteSettlementConfirmations
+          ? normalizeSettlementConfirmations(anteSettlementConfirmations[groupId] || [])
+          : normalizeSettlementConfirmations(group?.settlementConfirmations || [])
       }])
     );
     state = { ...state, groups: overlaidGroups };
