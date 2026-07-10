@@ -114,6 +114,7 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], onCl
     setMessages(listMessages(blocId));
     setDraft("");
     scrollToBottom();
+    inputRef.current?.focus(); // keep the keyboard open after sending
   };
 
   return React.createElement('div', {
@@ -144,8 +145,7 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], onCl
       },
         React.createElement('div', { style: { minWidth: 0 } },
           React.createElement('div', {
-            className: "mono",
-            style: { fontSize: 10, color: C.meta, letterSpacing: ".18em", textTransform: "uppercase" }
+            style: { fontFamily: "'Outfit', sans-serif", fontSize: 10, fontWeight: 700, color: "#8faeaa", letterSpacing: ".1em", textTransform: "uppercase" }
           }, "Bloc Stream"),
           React.createElement('div', {
             style: { fontSize: 15, fontWeight: 500, color: "var(--text)", marginTop: 3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }
@@ -201,6 +201,7 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], onCl
         }),
         React.createElement('button', {
           onClick: handleSend, disabled: !draft.trim(),
+          onMouseDown: e => e.preventDefault(), // don't steal focus from the input (keeps keyboard open)
           style: { flexShrink: 0, background: draft.trim() ? C.accent : C.inputBg, color: draft.trim() ? "#04110e" : "var(--muted2)", border: `1px solid ${draft.trim() ? C.accent : C.inputBorder}`, borderRadius: 20, padding: "10px 16px", fontSize: 14, fontWeight: 700, cursor: draft.trim() ? "pointer" : "default" }
         }, "Send")
       )
