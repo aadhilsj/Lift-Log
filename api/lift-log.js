@@ -3779,6 +3779,73 @@ function applyReviewFlag(current, payload) {
   }, "flag-review");
 }
 
+function resolveProfileRenameOldName(group, userId, existingDisplayName) {
+  const fromMembership = group.memberships?.[userId]?.displayName || null;
+  if (fromMembership) return fromMembership;
+  return existingDisplayName && group.memberOrder?.includes(existingDisplayName)
+    ? existingDisplayName
+    : null;
+}
+
+function collectProfileRenameOldNames(groups, userId, existingDisplayName) {
+  return new Map(
+    Object.entries(groups)
+      .map(([groupId, group]) => [groupId, resolveProfileRenameOldName(group, userId, existingDisplayName)])
+      .filter(([, name]) => name !== null)
+  );
+}
+
+function assertProfileRenameDoesNotCollide(groups, oldNames, displayName) {
+  for (const [groupId, group] of Object.entries(groups)) {
+    const oldName = oldNames.get(groupId);
+    if (!oldName || oldName === displayName) continue;
+    if (group.memberOrder.includes(displayName)) {
+      const error = new Error(`That name is already taken in ${group.name || "a Bloc"}`);
+      error.status = 409;
+      throw error;
+    }
+  }
+}
+
+function renameGroupDisplayNameSurfaces(group, userId, oldName, displayName) {
+  const nextMemberOrder = group.memberOrder.map(n => n === oldName ? displayName : n);
+
+  const nextMemberships = {
+    ...group.memberships,
+    [userId]: { ...group.memberships[userId], displayName }
+  };
+
+  const nextAdminName = group.adminName === oldName ? displayName : group.adminName;
+
+  const nextMonthHistory = (Array.isArray(group.monthHistory) ? group.monthHistory : []).map(month => ({
+    ...month,
+    counts:      renameKey(month.counts      || {}, oldName, displayName),
+    excused:     renameKey(month.excused     || {}, oldName, displayName),
+    logsByUser:  renameKey(month.logsByUser  || {}, oldName, displayName),
+    settlements: renameKey(month.settlements || {}, oldName, displayName),
+    ...(month.memberTargets ? { memberTargets: renameKey(month.memberTargets, oldName, displayName) } : {})
+  }));
+
+  const nextSitOutRequests = Object.fromEntries(
+    Object.entries(group.sitOutRequests || {}).map(([monthKey, requests]) => [
+      monthKey,
+      renameKey(requests || {}, oldName, displayName)
+    ])
+  );
+
+  return normalizeGroup({
+    ...group,
+    memberOrder:       nextMemberOrder,
+    memberships:       nextMemberships,
+    adminName:         nextAdminName,
+    logs:              renameKey(group.logs              || {}, oldName, displayName),
+    excused:           renameKey(group.excused           || {}, oldName, displayName),
+    joinedMonthByName: renameKey(group.joinedMonthByName || {}, oldName, displayName),
+    sitOutRequests:    nextSitOutRequests,
+    monthHistory:      nextMonthHistory
+  });
+}
+
 function applyUpsertProfile(current, payload) {
   const userId = String(payload?.userId || "").trim();
   const email = String(payload?.email || "").trim().toLowerCase();
@@ -3802,78 +3869,20 @@ function applyUpsertProfile(current, payload) {
   // login. Note: if existing.displayName has already been changed to the new
   // name in a prior partial update, neither source can recover the old name;
   // those cases require a separate one-time repair.
-  const resolveOldName = (group) => {
-    const fromMembership = group.memberships?.[userId]?.displayName || null;
-    if (fromMembership) return fromMembership;
-    const fromProfile = (existing.displayName && group.memberOrder?.includes(existing.displayName))
-      ? existing.displayName
-      : null;
-    return fromProfile;
-  };
-
-  const oldNames = new Map(
-    Object.entries(groups)
-      .map(([groupId, group]) => [groupId, resolveOldName(group)])
-      .filter(([, name]) => name !== null)
-  );
-
+  const oldNames = collectProfileRenameOldNames(groups, userId, existing.displayName);
   const isRename = [...oldNames.values()].some(oldName => oldName !== displayName);
 
   let nextGroups = groups;
 
   if (isRename) {
     // Reject if the new name collides with a different existing member in any bloc.
-    for (const [groupId, group] of Object.entries(groups)) {
-      const oldName = oldNames.get(groupId);
-      if (!oldName || oldName === displayName) continue;
-      if (group.memberOrder.includes(displayName)) {
-        const error = new Error(`That name is already taken in ${group.name || "a Bloc"}`);
-        error.status = 409;
-        throw error;
-      }
-    }
+    assertProfileRenameDoesNotCollide(groups, oldNames, displayName);
 
     nextGroups = Object.fromEntries(
       Object.entries(groups).map(([groupId, group]) => {
         const oldName = oldNames.get(groupId);
         if (!oldName || oldName === displayName) return [groupId, group];
-
-        const nextMemberOrder = group.memberOrder.map(n => n === oldName ? displayName : n);
-
-        const nextMemberships = {
-          ...group.memberships,
-          [userId]: { ...group.memberships[userId], displayName }
-        };
-
-        const nextAdminName = group.adminName === oldName ? displayName : group.adminName;
-
-        const nextMonthHistory = (Array.isArray(group.monthHistory) ? group.monthHistory : []).map(month => ({
-          ...month,
-          counts:      renameKey(month.counts      || {}, oldName, displayName),
-          excused:     renameKey(month.excused     || {}, oldName, displayName),
-          logsByUser:  renameKey(month.logsByUser  || {}, oldName, displayName),
-          settlements: renameKey(month.settlements || {}, oldName, displayName),
-          ...(month.memberTargets ? { memberTargets: renameKey(month.memberTargets, oldName, displayName) } : {})
-        }));
-
-        const nextSitOutRequests = Object.fromEntries(
-          Object.entries(group.sitOutRequests || {}).map(([monthKey, requests]) => [
-            monthKey,
-            renameKey(requests || {}, oldName, displayName)
-          ])
-        );
-
-        return [groupId, normalizeGroup({
-          ...group,
-          memberOrder:       nextMemberOrder,
-          memberships:       nextMemberships,
-          adminName:         nextAdminName,
-          logs:              renameKey(group.logs              || {}, oldName, displayName),
-          excused:           renameKey(group.excused           || {}, oldName, displayName),
-          joinedMonthByName: renameKey(group.joinedMonthByName || {}, oldName, displayName),
-          sitOutRequests:    nextSitOutRequests,
-          monthHistory:      nextMonthHistory
-        })];
+        return [groupId, renameGroupDisplayNameSurfaces(group, userId, oldName, displayName)];
       })
     );
   }

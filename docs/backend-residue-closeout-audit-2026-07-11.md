@@ -59,6 +59,12 @@ Safe next work:
   needed
 - do not change collision semantics without preview validation
 
+Status:
+
+- old-name resolution, collision detection, and name-keyed surface rewrites are
+  now split into helpers
+- this is a structure-only cleanup; profile rename behavior is unchanged
+
 ### 3. `repair-display-name`
 
 Location: `applyRepairDisplayName(...)` and its POST handler.
@@ -138,4 +144,3 @@ Safe next work:
 - do not remove `joinedMonthByName`
 - do not change `auth-sync` hydration source
 - do not use `fetchReadableCurrentState()` as general POST mutation input
-
