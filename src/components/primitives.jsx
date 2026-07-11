@@ -269,6 +269,12 @@ const AppIcon = ({name,size=18,stroke="currentColor"}) => {
     React.createElement('polyline',{points:"9 7 4 12 9 17"}),
     React.createElement('path',{d:"M4 12h9a6 6 0 0 1 6 6v1"})
   );
+  if (name==="chevron-left") return React.createElement('svg',common,
+    React.createElement('path',{d:"M15 6l-6 6 6 6"})
+  );
+  if (name==="chevron-right") return React.createElement('svg',common,
+    React.createElement('path',{d:"M9 6l6 6-6 6"})
+  );
   return React.createElement('svg',common,React.createElement('circle',{cx:"12",cy:"12",r:"8"}));
 };
 

@@ -28,9 +28,9 @@ export function seedIfEmpty(blocId, { currentUserId, members = [] } = {}) {
   const me = members.find(m => m.id === currentUserId);
   const h = ms => new Date(Date.now() - ms).toISOString();
 
-  const sys = (mins, tone, label, body, sub, reactions) => ({
+  const sys = (mins, tone, label, body, sub, reactions, opts = {}) => ({
     id: newId(), bloc_id: blocId, author_id: null, message_type: "system",
-    tone, label, body, sub: sub || "", reactions: reactions || {}, created_at: h(mins * 60e3)
+    tone, label, body, sub: sub || "", reactions: reactions || {}, payload: opts.payload || {}, system_kind: opts.systemKind || "", created_at: h(mins * 60e3)
   });
   const txt = (mins, authorId, body, opts = {}) => ({
     id: newId(), bloc_id: blocId, author_id: authorId, message_type: "text", body,
@@ -45,16 +45,23 @@ export function seedIfEmpty(blocId, { currentUserId, members = [] } = {}) {
   const eventMsg = other && evt(80, other.id, { activity: "Saturday long run", when: "Sat 12 Jul · 8:00 AM", location: "Marina Beach", rsvp: other2 ? { [other.id]: "in", [other2.id]: "pass" } : { [other.id]: "in" } });
 
   const msgs = [
-    sys(60 * 34, "positive", "Season Closed · 1 Jul", "June settled — summary ready.", "3 payments outstanding.", { "👏": other ? [other.id] : [] }),
-    sys(60 * 30, "positive", "New Member · 5 Jul", "Deyhan joined the Bloc.", "", {}),
+    sys(60 * 34, "positive", "SEASON CLOSED · 1 JUL", "June settled — summary ready.", "3 payments outstanding.", { "👏": other ? [other.id] : [] }, { systemKind: "season_closed", payload: { action: "season_results" } }),
+    sys(60 * 33, "positive", "AWARD · 1 JUL", `Bloc MVP: ${other?.name || "Member"}.`, "", {}),
+    sys(60 * 32, "positive", "AWARD · 1 JUL", `Most Consistent: ${other2?.name || other?.name || "Member"}.`, "", {}),
+    sys(60 * 31, "positive", "NEW SEASON · 1 JUL", "July is here. Raise your ante.", "", {}),
+    sys(60 * 30, "neutral", "NEW MEMBER · 5 JUL", "Deyhan joined the Bloc.", "", {}),
     runMsg,
-    sys(60 * 5, "positive", "Target Hit · 6 Jul", "Aadhil hit target — 21 days early.", "First to MAS this month.", { "🔥": [currentUserId] }),
+    sys(60 * 5, "positive", "TARGET HIT · 6 JUL", "Aadhil hit target — 21 days early.", "First to MAS this month.", { "🔥": [currentUserId] }),
     txt(60 * 3, currentUserId, "just logged mine 💪", { reactions: other ? { "❤️": [other.id] } : {} }),
-    other2 && sys(150, "warning", "Cooked · 8 Jul", `${other2.name} can't reach target this month.`, "Fine locked at season close.", { "😤": other ? [other.id] : [] }),
+    other2 && sys(150, "warning", "COOKED · 8 JUL", `${other2.name} can't reach target this month.`, "Fine locked at season close.", { "😤": other ? [other.id] : [] }),
     other && runMsg && txt(90, other.id, "2 behind pace, gonna catch up tmrw", { replyTo: runMsg.id }),
     eventMsg,
-    other && sys(70, "positive", "Comeback · 9 Jul", `${other.name}: At Risk → On Track.`, "", {}),
-    sys(40, "warning", "Inactivity · 9 Jul", "Rahul — no workout in 7 days.", "", {}),
+    other && sys(70, "positive", "COMEBACK · 9 JUL", `${other.name}: Behind → On Track.`, "", {}),
+    sys(58, "warning", "FINAL STRETCH · 9 JUL", "3 days left. 2 members still short.", "", {}),
+    sys(52, "positive", "PERFECT MONTH · 9 JUL", "Perfect month. Everyone hit target.", "", {}),
+    sys(46, "neutral", "SETTINGS · 9 JUL", "Target changed to 12 workouts.", "", {}),
+    sys(40, "warning", "INACTIVITY · 9 JUL", "Rahul — no workout in 7 days.", "", {}),
+    sys(36, "neutral", "SIT OUT · 9 JUL", "Mikhail sitting out this month.", "", {}),
     (me && other2 && eventMsg)
       ? txt(20, other2.id, `@${me.name} you in for this? 🔥`, { mentions: [currentUserId], replyTo: eventMsg.id })
       : (other && txt(20, other.id, "let's go 🔥")),

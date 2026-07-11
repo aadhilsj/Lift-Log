@@ -268,22 +268,32 @@ const TextBubble = ({ msg, isOwn, authorName, nameFor, members, replyToMsg, show
   );
 };
 
-const SystemCard = ({ msg }) => {
-  const toneColor = msg.tone === "warning" ? C.warning : C.positive;
-  return React.createElement('div', { style: { display: "flex", flexDirection: "column", alignItems: "center", padding: "4px 0" } },
+const SystemCard = ({ msg, onSeasonClosedTap }) => {
+  const toneColor = msg.tone === "warning" ? C.warning : msg.tone === "neutral" ? C.meta : C.positive;
+  const tappable = msg.payload?.action === "season_results" && onSeasonClosedTap;
+  const content = React.createElement(React.Fragment, null,
     React.createElement('div', {
-      style: { maxWidth: "94%", width: "fit-content", background: C.sysBg, border: `1px solid ${C.sysBorder}`, borderRadius: 11, padding: "8px 13px", textAlign: "center" }
+      style: { fontFamily: "'Outfit', sans-serif", fontSize: 10, fontWeight: 700, color: C.meta, letterSpacing: ".09em", textTransform: "uppercase", marginBottom: 4 }
+    }, msg.label),
+    React.createElement('div', {
+      style: { display: "flex", alignItems: "center", justifyContent: "center", gap: 5, fontSize: 13, fontWeight: 600, color: toneColor, lineHeight: 1.3 }
     },
-      React.createElement('div', {
-        style: { fontFamily: "'Outfit', sans-serif", fontSize: 9, fontWeight: 700, color: "#8faeaa", letterSpacing: ".09em", textTransform: "uppercase", marginBottom: 4 }
-      }, msg.label),
-      React.createElement('div', {
-        style: { fontSize: 13, fontWeight: 600, color: toneColor, lineHeight: 1.3 }
-      }, msg.body),
-      msg.sub && React.createElement('div', {
-        style: { fontSize: 11, color: C.meta, marginTop: 3, lineHeight: 1.3 }
-      }, msg.sub)
-    )
+      React.createElement('span', null, msg.body),
+      tappable && React.createElement(AppIcon, { name: "chevron-right", size: 13, stroke: toneColor })
+    ),
+    msg.sub && React.createElement('div', {
+      style: { fontSize: 11, color: C.meta, marginTop: 3, lineHeight: 1.3 }
+    }, msg.sub)
+  );
+  return React.createElement('div', { style: { display: "flex", flexDirection: "column", alignItems: "center", padding: "4px 0" } },
+    tappable
+      ? React.createElement('button', {
+          onClick: e => { e.stopPropagation(); onSeasonClosedTap(msg); },
+          style: { maxWidth: "94%", width: "fit-content", background: C.sysBg, border: `1px solid ${C.sysBorder}`, borderRadius: 11, padding: "8px 13px", textAlign: "center", cursor: "pointer" }
+        }, content)
+      : React.createElement('div', {
+          style: { maxWidth: "94%", width: "fit-content", background: C.sysBg, border: `1px solid ${C.sysBorder}`, borderRadius: 11, padding: "8px 13px", textAlign: "center" }
+        }, content)
   );
 };
 
@@ -386,13 +396,25 @@ function formatWhen(date, time) {
   return parts.join(" · ");
 }
 
-const EventSheet = ({ onClose, onCreate }) => {
-  const [activity, setActivity] = useState("");
-  const [date, setDate] = useState("");
-  const [time, setTime] = useState("");
-  const [location, setLocation] = useState("");
+const emptyEventDraft = () => ({ activity: "", date: "", time: "", location: "" });
+const eventDraftHasData = draft => Boolean(
+  String(draft?.activity || "").trim()
+  || String(draft?.date || "").trim()
+  || String(draft?.time || "").trim()
+  || String(draft?.location || "").trim()
+);
+
+const EventSheet = ({ draft, onDraftChange, onClose, onCreate }) => {
+  const activity = draft.activity || "";
+  const date = draft.date || "";
+  const time = draft.time || "";
+  const location = draft.location || "";
   const firstRef = useRef(null);
   useEffect(() => { firstRef.current?.focus(); }, []);
+  const setActivity = value => onDraftChange({ ...draft, activity: value });
+  const setDate = value => onDraftChange({ ...draft, date: value });
+  const setTime = value => onDraftChange({ ...draft, time: value });
+  const setLocation = value => onDraftChange({ ...draft, location: value });
   const inputStyle = { width: "100%", boxSizing: "border-box", background: C.inputBg, border: `1px solid ${C.inputBorder}`, borderRadius: 10, padding: "11px 13px", color: "var(--text)", fontSize: 14.5, fontFamily: "'Outfit', sans-serif", outline: "none", colorScheme: "dark" };
   const field = (ref, value, setValue, placeholder) => React.createElement('input', {
     ref, value, onChange: e => setValue(e.target.value), placeholder, style: inputStyle
@@ -470,18 +492,29 @@ const MentionList = ({ items, onPick }) =>
     ))
   );
 
-const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], onClose }) => {
+const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], streamBlocs = [], onSeasonClosedTap, onClose }) => {
   const [mounted, setMounted] = useState(false);
   const [messages, setMessages] = useState([]);
+  const [viewedBlocId, setViewedBlocId] = useState(blocId);
   const [draft, setDraft] = useState("");
+  const [eventDraft, setEventDraft] = useState(emptyEventDraft);
   const [showPlus, setShowPlus] = useState(false);
   const [showEventSheet, setShowEventSheet] = useState(false);
   const [replyTarget, setReplyTarget] = useState(null);
   const [mention, setMention] = useState(null); // { query, start } while typing "@…"
   const listRef = useRef(null);
   const inputRef = useRef(null);
+  const streamStateRef = useRef(new Map());
 
-  const nameFor = id => (members.find(m => m.id === id)?.name) || "Member";
+  const fallbackBlocs = blocId ? [{ id: blocId, name: groupName, members }] : [];
+  const availableBlocs = (streamBlocs.length ? streamBlocs : fallbackBlocs).filter(group => group?.id);
+  const activeBloc = availableBlocs.find(group => group.id === viewedBlocId) || availableBlocs.find(group => group.id === blocId) || fallbackBlocs[0] || null;
+  const activeBlocId = activeBloc?.id || blocId;
+  const activeGroupName = activeBloc?.name || groupName;
+  const activeMembers = activeBloc?.members || members;
+  const canSwitchStreams = availableBlocs.length > 1;
+
+  const nameFor = id => (activeMembers.find(m => m.id === id)?.name) || "Member";
 
   const scrollToBottom = () => {
     requestAnimationFrame(() => {
@@ -490,24 +523,60 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], onCl
     });
   };
 
-  // Runs only when the stream opens (or the Bloc changes) — deliberately NOT
-  // keyed on `members`/`currentUserId`, which get fresh array/identity on every
-  // parent re-render (e.g. the 3s poll). Keying on them re-ran this effect and
-  // yanked the scroll back to the bottom a second after the user scrolled up.
+  const saveCurrentStreamState = () => {
+    if (!activeBlocId) return;
+    const hasDraft = draft.trim().length > 0;
+    const keepEventSheet = showEventSheet && eventDraftHasData(eventDraft);
+    streamStateRef.current.set(activeBlocId, {
+      draft,
+      replyTarget: hasDraft ? replyTarget : null,
+      eventDraft: keepEventSheet ? eventDraft : emptyEventDraft(),
+      showEventSheet: keepEventSheet
+    });
+  };
+
+  const restoreStreamState = nextBlocId => {
+    const saved = streamStateRef.current.get(nextBlocId) || {};
+    setDraft(saved.draft || "");
+    setReplyTarget(saved.replyTarget || null);
+    setEventDraft(saved.eventDraft || emptyEventDraft());
+    setShowEventSheet(Boolean(saved.showEventSheet));
+    setMention(null);
+    setShowPlus(false);
+  };
+
   useEffect(() => {
     if (open) {
       const id = requestAnimationFrame(() => setMounted(true));
-      seedIfEmpty(blocId, { currentUserId, members });
-      setMessages(listMessages(blocId));
-      scrollToBottom();
+      streamStateRef.current = new Map();
+      setViewedBlocId(blocId);
+      setDraft("");
+      setEventDraft(emptyEventDraft());
+      setShowPlus(false);
+      setShowEventSheet(false);
+      setReplyTarget(null);
+      setMention(null);
       return () => cancelAnimationFrame(id);
     }
     setMounted(false);
+    streamStateRef.current = new Map();
+    setViewedBlocId(blocId);
+    setDraft("");
+    setEventDraft(emptyEventDraft());
     setShowPlus(false);
     setShowEventSheet(false);
     setReplyTarget(null);
     setMention(null);
-  }, [open, blocId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [open, blocId]);
+
+  // Runs when the visible stream changes. Deliberately not keyed on the active
+  // members array, which can be recreated by parent polling and would yank scroll.
+  useEffect(() => {
+    if (!open || !activeBlocId) return;
+    seedIfEmpty(activeBlocId, { currentUserId, members: activeMembers });
+    setMessages(listMessages(activeBlocId));
+    scrollToBottom();
+  }, [open, activeBlocId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Bulletproof background scroll lock: pin the body in place (iOS Safari
   // leaks touch-scroll through a plain `overflow:hidden`, so fix the body and
@@ -545,11 +614,23 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], onCl
 
   if (!open) return null;
 
+  const switchStream = direction => {
+    if (!canSwitchStreams || !activeBlocId) return;
+    const index = availableBlocs.findIndex(group => group.id === activeBlocId);
+    const nextIndex = (index + direction + availableBlocs.length) % availableBlocs.length;
+    const nextBlocId = availableBlocs[nextIndex]?.id;
+    if (!nextBlocId || nextBlocId === activeBlocId) return;
+    saveCurrentStreamState();
+    setViewedBlocId(nextBlocId);
+    restoreStreamState(nextBlocId);
+  };
+
   const handleSend = () => {
-    const mentions = members.filter(m => m.name && new RegExp("@" + escapeRegex(m.name) + "(?!\\w)").test(draft)).map(m => m.id);
-    const sent = sendMessage(blocId, { authorId: currentUserId, body: draft, replyTo: replyTarget?.id || null, mentions });
+    const mentions = activeMembers.filter(m => m.name && new RegExp("@" + escapeRegex(m.name) + "(?!\\w)").test(draft)).map(m => m.id);
+    const sent = sendMessage(activeBlocId, { authorId: currentUserId, body: draft, replyTo: replyTarget?.id || null, mentions });
     if (!sent) return;
-    setMessages(listMessages(blocId));
+    streamStateRef.current.delete(activeBlocId);
+    setMessages(listMessages(activeBlocId));
     setDraft("");
     setReplyTarget(null);
     setMention(null);
@@ -558,8 +639,8 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], onCl
   };
 
   const handleReact = (messageId, emoji) => {
-    toggleReaction(blocId, messageId, emoji, currentUserId);
-    setMessages(listMessages(blocId));
+    toggleReaction(activeBlocId, messageId, emoji, currentUserId);
+    setMessages(listMessages(activeBlocId));
   };
 
   const handleReply = (msg) => {
@@ -568,16 +649,18 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], onCl
   };
 
   const handleCreateEvent = ({ activity, when, location }) => {
-    const made = createEvent(blocId, { authorId: currentUserId, activity, when, location });
+    const made = createEvent(activeBlocId, { authorId: currentUserId, activity, when, location });
     if (!made) return;
-    setMessages(listMessages(blocId));
+    streamStateRef.current.delete(activeBlocId);
+    setMessages(listMessages(activeBlocId));
+    setEventDraft(emptyEventDraft());
     setShowEventSheet(false);
     scrollToBottom();
   };
 
   const handleRsvp = (messageId, status) => {
-    setRsvp(blocId, messageId, currentUserId, status);
-    setMessages(listMessages(blocId));
+    setRsvp(activeBlocId, messageId, currentUserId, status);
+    setMessages(listMessages(activeBlocId));
   };
 
   // Detect the "@token" the caret currently sits in and open the mention list.
@@ -603,7 +686,7 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], onCl
   };
 
   const mentionItems = mention
-    ? members.filter(m => m.id !== currentUserId && m.name && m.name.toLowerCase().includes(mention.query)).slice(0, 6)
+    ? activeMembers.filter(m => m.id !== currentUserId && m.name && m.name.toLowerCase().includes(mention.query)).slice(0, 6)
     : [];
 
   return React.createElement('div', {
@@ -637,8 +720,20 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], onCl
             style: { fontFamily: "'Outfit', sans-serif", fontSize: 10, fontWeight: 700, color: "#8faeaa", letterSpacing: ".1em", textTransform: "uppercase" }
           }, "Bloc Stream"),
           React.createElement('div', {
-            style: { fontSize: 15, fontWeight: 500, color: "var(--text)", marginTop: 3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }
-          }, groupName || "")
+            style: { display: "flex", alignItems: "center", gap: 6, marginTop: 3, minWidth: 0 }
+          },
+            canSwitchStreams && React.createElement('button', {
+              onClick: () => switchStream(-1), title: "Previous Bloc stream", "aria-label": "Previous Bloc stream",
+              style: { width: 24, height: 24, display: "inline-flex", alignItems: "center", justifyContent: "center", background: C.inputBg, border: `1px solid ${C.inputBorder}`, borderRadius: 999, color: C.accent, cursor: "pointer", flexShrink: 0, padding: 0 }
+            }, React.createElement(AppIcon, { name: "chevron-left", size: 15, stroke: C.accent })),
+            React.createElement('div', {
+              style: { fontSize: 15, fontWeight: 500, color: "var(--text)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 }
+            }, activeGroupName || ""),
+            canSwitchStreams && React.createElement('button', {
+              onClick: () => switchStream(1), title: "Next Bloc stream", "aria-label": "Next Bloc stream",
+              style: { width: 24, height: 24, display: "inline-flex", alignItems: "center", justifyContent: "center", background: C.inputBg, border: `1px solid ${C.inputBorder}`, borderRadius: 999, color: C.accent, cursor: "pointer", flexShrink: 0, padding: 0 }
+            }, React.createElement(AppIcon, { name: "chevron-right", size: 15, stroke: C.accent }))
+          )
         ),
         React.createElement('button', {
           onClick: onClose,
@@ -665,7 +760,7 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], onCl
 
               if (msg.message_type === "system") {
                 return wrap(React.createElement(Reactable, { msg, currentUserId, onReact: handleReact, nameFor, align: "center", showAdd: true },
-                  React.createElement(SystemCard, { msg })));
+                  React.createElement(SystemCard, { msg, onSeasonClosedTap: () => onSeasonClosedTap?.(activeBlocId) })));
               }
               if (msg.message_type === "event") {
                 return wrap(React.createElement(EventCard, { msg, currentUserId, authorName: nameFor(msg.author_id), nameFor, onRsvp: handleRsvp }));
@@ -675,7 +770,7 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], onCl
               // Time shows on the last message of a same-minute run from this sender.
               const showTime = !(sameAuthorNext && sameMinute(msg.created_at, next.created_at));
               return wrap(React.createElement(Reactable, { msg, currentUserId, onReact: handleReact, onReply: handleReply, nameFor, align: isOwn ? "right" : "left", swipeEnabled: true },
-                React.createElement(TextBubble, { msg, isOwn, authorName: nameFor(msg.author_id), nameFor, members, replyToMsg, showName: firstInGroup, showTime, showAvatar: !sameAuthorNext, firstInGroup })));
+                React.createElement(TextBubble, { msg, isOwn, authorName: nameFor(msg.author_id), nameFor, members: activeMembers, replyToMsg, showName: firstInGroup, showTime, showAvatar: !sameAuthorNext, firstInGroup })));
             })
       ),
       // Input bar
@@ -742,6 +837,8 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], onCl
       )
     ),
     showEventSheet && React.createElement(EventSheet, {
+      draft: eventDraft,
+      onDraftChange: setEventDraft,
       onClose: () => setShowEventSheet(false),
       onCreate: handleCreateEvent
     })

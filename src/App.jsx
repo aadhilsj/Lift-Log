@@ -876,6 +876,15 @@ const App = () => {
     return { ok: true };
   };
   const handleSwitchGroup=()=>persistGroupSelection(null);
+  const handleStreamSeasonClosedTap = useCallback((groupId) => {
+    if (!groupId) return;
+    persistGroupSelection(groupId);
+    setShowStream(false);
+    setShowTodayLog(false);
+    setMonthInitialIdx(0);
+    setNavResetToken(value=>value+1);
+    setPage("month");
+  },[persistGroupSelection]);
   const handleNavSelect = useCallback((nextPage)=>{
     setShowTodayLog(false);
     setMonthInitialIdx(null);
@@ -1151,7 +1160,7 @@ const App = () => {
     showJoinModal && !authStep && React.createElement(JoinGroupModal,{inviteContext,joinCode,setJoinCode,onClose:()=>setShowJoinModal(false),onJoin:handleJoinGroup,joining:joiningGroup,error:inviteError,signedIn:true}),
     showProfileModal && React.createElement(ProfileModal,{email:authSession?.email,onSignOut:handleSwitchUser,onClose:()=>setShowProfileModal(false),showDisplayName:true,currentDisplayName:currentUser,onSaveDisplayName:handleSaveProfileFromModal,saving:profileSaving,saveError:profileError,onLeaveBloc:handleLeaveBloc,onDeleteAccount:handleDeleteAccount}),
     showSettings && React.createElement(GroupSettingsModal,{group:currentGroup,actor:currentUser,actorUserId:authSession?.userId,onSave:isGroupAdmin?handleUpdateGroupSettings:null,onClose:()=>setShowSettings(false),saving:savingSettings,onReviewSitOut:isGroupAdmin?handleSitOutReview:null,onKickMember:isGroupAdmin?handleKickMember:null}),
-    React.createElement(BlocStream,{open:showStream,groupName:currentGroup.name,blocId:currentGroup.id,currentUserId:effectiveAuthSession?.userId,members:Object.values(currentGroup.memberships||{}).map(m=>({id:m.userId,name:m.displayName})),onClose:()=>setShowStream(false)}),
+    React.createElement(BlocStream,{open:showStream,groupName:currentGroup.name,blocId:currentGroup.id,currentUserId:effectiveAuthSession?.userId,members:Object.values(currentGroup.memberships||{}).map(m=>({id:m.userId,name:m.displayName})),streamBlocs:visibleGroups.map(group=>({id:group.id,name:group.name,members:Object.values(group.memberships||{}).map(m=>({id:m.userId,name:m.displayName}))})),onSeasonClosedTap:handleStreamSeasonClosedTap,onClose:()=>setShowStream(false)}),
     prorationGroup && React.createElement(ProrationChoiceModal,{
       monthName: getCurrentMonthSummary(prorationGroup).monthName,
       fullMas: prorationGroup.settings?.minTarget || MIN_TARGET,
@@ -1169,7 +1178,7 @@ const App = () => {
         React.createElement(TodayPage,  {user:currentUser,currentUserId:effectiveAuthSession?.userId,currentGroupId:selectedGroupId,groups,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,saving,onSave:handleSave,onMultiLog:handleMultiLog,onLogMutation:handleLogMutation,clockTick,onViewLastMonth:()=>{setMonthInitialIdx(0);setPage("month");},onSitOutRequest:handleSitOutRequest,onSettlementClaimPaid:handleSettlementClaimPaid,onSettlementConfirmPaid:handleSettlementConfirmPaid,onSettlementDisputePaid:handleSettlementDisputePaid,navResetToken,showLog:showTodayLog,setShowLog:setShowTodayLog})
       ),
       page==="activity"&&React.createElement(ActivityPage,{group:currentGroup,currentUser,onLogMutation:handleLogMutation,clockTick}),
-      page==="month"  &&React.createElement(MonthPage,  {group:currentGroup,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,groupSettings:currentGroup.settings,currentUser,currentUserId:effectiveAuthSession?.userId,initialSelIdx:monthInitialIdx,onStartNextMonth:()=>{setMonthInitialIdx(null);setPage("today");},onSettlementClaimPaid:handleSettlementClaimPaid,onSettlementConfirmPaid:handleSettlementConfirmPaid,navResetToken}),
+      page==="month"  &&React.createElement(MonthPage,  {key:`${selectedGroupId}:${navResetToken}:${monthInitialIdx ?? "current"}`,group:currentGroup,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,groupSettings:currentGroup.settings,currentUser,currentUserId:effectiveAuthSession?.userId,initialSelIdx:monthInitialIdx,onStartNextMonth:()=>{setMonthInitialIdx(null);setPage("today");},onSettlementClaimPaid:handleSettlementClaimPaid,onSettlementConfirmPaid:handleSettlementConfirmPaid,navResetToken}),
       page==="history"&&React.createElement(HistoryPage,{logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,groupSettings:currentGroup.settings,navResetToken,currentUser})
     ),
     showInstallBanner && React.createElement(InstallBanner,{
