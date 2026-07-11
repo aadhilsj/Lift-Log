@@ -216,6 +216,8 @@ Status:
   falls back to the active member shell for compatibility
 - `reaction` now uses the same current-member guard before mutating a workout's
   reaction list
+- `sitout-request` now uses the same current-member guard before creating a
+  sit-out request
 - admin checks for settings, first-month target choice, sit-out review, flag
   review, projection rebuild, and kick now route through a shared server helper
   that prefers `adminUserId` and keeps the legacy `adminName` fallback

@@ -3475,6 +3475,11 @@ function applySitOutRequest(current, payload) {
     error.status = 404;
     throw error;
   }
+  if (!isCurrentGroupMember(group, actor, actorUserId)) {
+    const error = new Error("Only Bloc members can request a sit-out");
+    error.status = 403;
+    throw error;
+  }
   const month = getCurrentMonthSummary(group.settings?.timeZone);
   const existingRequests = normalizeSitOutRequests(group.sitOutRequests);
   if (group.excused?.[actor]?.[month.monthKey]) {
