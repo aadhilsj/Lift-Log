@@ -238,7 +238,8 @@ It is no longer:
 It is still:
 
 - blob-first mutation hydration
-- auth/profile writable-base residue around `auth-sync`
+- auth/profile writable-base residue around `auth-sync`, though repaired
+  profiles and active bloc-member rows are now mirrored best-effort to canonical
 - blob-backed compatibility scaffolding on GET
 - `leftMemberNames`
 - display-name keyed lifecycle and history structures

@@ -4378,12 +4378,19 @@ export default async function handler(req, res) {
         // (including settlement reminders) during app bootstrap until the next
         // background refresh lands.
         const state = await fetchReadableCurrentState();
-        // Dual-write profile to canonical if the blob profile was updated and
-        // already has a display name. New users with no display name yet will
-        // trigger canonical sync when they complete upsert-profile instead.
+        // Dual-write repaired auth identity to canonical if auth-sync changed
+        // the writable blob state. These writes stay best-effort so bootstrap
+        // remains a compatibility repair path instead of a canonical hard gate.
+        // New users with no display name yet will trigger canonical sync when
+        // they complete upsert-profile instead.
         const canonicalDisplayName = state.profiles?.[authUser.id]?.displayName || "";
         if (synced.changed && canonicalDisplayName) {
           await syncProfileToCanonical(authUser.id, authUser.email, canonicalDisplayName);
+          for (const group of Object.values(synced.state.groups || {})) {
+            const membership = group?.memberships?.[authUser.id];
+            if (!membership?.displayName) continue;
+            await syncBlocMemberToCanonical(group, authUser.id, membership.role || "member");
+          }
         }
         return res.status(200).json({ ok: true, state, session: synced.session });
       }

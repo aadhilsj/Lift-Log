@@ -34,6 +34,9 @@ Reason:
 - `auth-sync` is still a real compatibility mutation path, but its blob
   dependence is now mostly writable auth/session/profile hydration rather than
   OTP challenge storage
+- when `auth-sync` does repair writable blob identity state, it now best-effort
+  mirrors the repaired profile and active bloc-member rows to canonical; it
+  still intentionally hydrates from writable blob state first
 - still low value as early canonical-first candidates, but no longer blocked on
   `pendingOtps` as active runtime state
 

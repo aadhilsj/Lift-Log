@@ -91,6 +91,9 @@ Reason:
   `auth-send-otp` and `auth-verify-otp` now return `410`
 - `auth-sync` still depends on writable blob hydration for compatibility
   scaffolding around auth/session/profile state
+- when that compatibility path changes blob identity state, it now best-effort
+  mirrors the repaired profile and active bloc-member rows to canonical without
+  making bootstrap depend on canonical write success
 - broad blob retirement still needs an auth/profile writable-base plan, but is
   no longer blocked on `pendingOtps` as live runtime auth state
 
