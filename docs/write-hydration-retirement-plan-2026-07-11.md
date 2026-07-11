@@ -235,6 +235,18 @@ Goal:
 - profile-less legacy paths can keep the compatibility list until a separate
   migration decision exists
 
+Status:
+
+- `join-group` removes stale suppression when a member rejoins
+- `kick-member` now uses `updateLegacyLeftMemberNamesForDeparture(...)`: it
+  removes stale suppression for auth-linked members and appends only for
+  profile-less legacy display-name removals
+- `leave-bloc` and `delete-account` remove stale suppression after auth-linked
+  membership removal
+- `repair-display-name` renames matching suppression entries with the rest of
+  the legacy name-keyed state
+- no lifecycle behavior changed in this audit slice
+
 ### Slice 5 - canonical writable state constructor
 
 Only after the smaller audits:

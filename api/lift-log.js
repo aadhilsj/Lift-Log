@@ -371,7 +371,7 @@ function isGroupAdminActor(group, actorUserId = "", actorDisplayName = "") {
     : !!group?.adminName && group.adminName === safeDisplayName;
 }
 
-function appendLegacyLeftMemberName(leftMemberNames, authUserId, displayName) {
+function updateLegacyLeftMemberNamesForDeparture(leftMemberNames, authUserId, displayName) {
   const safeDisplayName = String(displayName || "").trim();
   if (!safeDisplayName) return uniqueNames(Array.isArray(leftMemberNames) ? leftMemberNames : []);
   if (String(authUserId || "").trim()) {
@@ -4091,7 +4091,7 @@ function applyKickMember(current, payload) {
   if (targetUserId) delete nextMemberships[targetUserId];
   else if (targetMembership?.userId) delete nextMemberships[targetMembership.userId];
   const nextMemberOrder = group.memberOrder.filter(n => n !== resolvedDisplayName);
-  const nextLeftMemberNames = appendLegacyLeftMemberName(
+  const nextLeftMemberNames = updateLegacyLeftMemberNamesForDeparture(
     group.leftMemberNames,
     targetMembership?.userId || targetUserId,
     resolvedDisplayName
