@@ -382,6 +382,16 @@ function isGroupAdminActor(group, actorUserId = "", actorDisplayName = "") {
     : !!group?.adminName && group.adminName === safeDisplayName;
 }
 
+function canReviewSitOutRequest(group, request, memberName, actorUserId = "", actorDisplayName = "") {
+  const safeUserId = String(actorUserId || "").trim();
+  const safeDisplayName = String(actorDisplayName || "").trim();
+  if (isGroupAdminActor(group, safeUserId, safeDisplayName)) return true;
+  if (request?.targetApproverUserId && request.targetApproverUserId === safeUserId) return true;
+  if (request?.targetApproverName && request.targetApproverName === safeDisplayName) return true;
+  const deputy = getDeputyAdmin(group);
+  return memberName === group?.adminName && !!deputy?.userId && deputy.userId === safeUserId;
+}
+
 function updateLegacyLeftMemberNamesForDeparture(leftMemberNames, authUserId, displayName) {
   const safeDisplayName = String(displayName || "").trim();
   if (!safeDisplayName) return uniqueNames(Array.isArray(leftMemberNames) ? leftMemberNames : []);
@@ -3559,10 +3569,7 @@ function applySitOutReview(current, payload) {
     error.status = 404;
     throw error;
   }
-  const actorIsAdmin = isGroupAdminActor(group, actorUserId, actor);
-  const deputy = getDeputyAdmin(group);
-  const canReview = actorIsAdmin || (request.targetApproverUserId && request.targetApproverUserId === actorUserId) || (request.targetApproverName && request.targetApproverName === actor) || (memberName === group.adminName && deputy?.userId === actorUserId);
-  if (!canReview) {
+  if (!canReviewSitOutRequest(group, request, memberName, actorUserId, actor)) {
     const error = new Error("You can't review this sit-out request");
     error.status = 403;
     throw error;
