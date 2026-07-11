@@ -265,6 +265,10 @@ const AppIcon = ({name,size=18,stroke="currentColor"}) => {
     React.createElement('circle',{cx:"12",cy:"12",r:"8"}),
     React.createElement('path',{d:"M12 8v4l2.5 1.5"})
   );
+  if (name==="reply") return React.createElement('svg',common,
+    React.createElement('polyline',{points:"9 7 4 12 9 17"}),
+    React.createElement('path',{d:"M4 12h9a6 6 0 0 1 6 6v1"})
+  );
   return React.createElement('svg',common,React.createElement('circle',{cx:"12",cy:"12",r:"8"}));
 };
 

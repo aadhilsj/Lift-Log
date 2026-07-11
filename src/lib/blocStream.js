@@ -25,40 +25,51 @@ export function seedIfEmpty(blocId, { currentUserId, members = [] } = {}) {
   const others = members.filter(m => m.id && m.id !== currentUserId);
   const other = others[0];
   const other2 = others[1] || others[0];
+  const me = members.find(m => m.id === currentUserId);
   const h = ms => new Date(Date.now() - ms).toISOString();
 
   const sys = (mins, tone, label, body, sub, reactions) => ({
     id: newId(), bloc_id: blocId, author_id: null, message_type: "system",
     tone, label, body, sub: sub || "", reactions: reactions || {}, created_at: h(mins * 60e3)
   });
-  const txt = (mins, authorId, body) => ({
-    id: newId(), bloc_id: blocId, author_id: authorId, message_type: "text", body, created_at: h(mins * 60e3)
+  const txt = (mins, authorId, body, opts = {}) => ({
+    id: newId(), bloc_id: blocId, author_id: authorId, message_type: "text", body,
+    reply_to: opts.replyTo || null, mentions: opts.mentions || [], reactions: opts.reactions || {}, created_at: h(mins * 60e3)
   });
   const evt = (mins, authorId, payload) => ({
     id: newId(), bloc_id: blocId, author_id: authorId, message_type: "event", payload, created_at: h(mins * 60e3)
   });
 
+  // Captured so later messages can reply to them (reply_to is id-keyed).
+  const runMsg = other && txt(60 * 6, other.id, "anyone running this weekend?");
+  const eventMsg = other && evt(80, other.id, { activity: "Saturday long run", when: "Sat 12 Jul · 8:00 AM", location: "Marina Beach", rsvp: other2 ? { [other.id]: "in", [other2.id]: "pass" } : { [other.id]: "in" } });
+
   const msgs = [
     sys(60 * 34, "positive", "Season Closed · 1 Jul", "June settled — summary ready.", "3 payments outstanding.", { "👏": other ? [other.id] : [] }),
     sys(60 * 30, "positive", "New Member · 5 Jul", "Deyhan joined the Bloc.", "", {}),
-    other && txt(60 * 6, other.id, "anyone running this weekend?"),
+    runMsg,
     sys(60 * 5, "positive", "Target Hit · 6 Jul", "Aadhil hit target — 21 days early.", "First to MAS this month.", { "🔥": [currentUserId] }),
-    txt(60 * 3, currentUserId, "just logged mine 💪"),
+    txt(60 * 3, currentUserId, "just logged mine 💪", { reactions: other ? { "❤️": [other.id] } : {} }),
     other2 && sys(150, "warning", "Cooked · 8 Jul", `${other2.name} can't reach target this month.`, "Fine locked at season close.", { "😤": other ? [other.id] : [] }),
-    other && txt(90, other.id, "2 behind pace, gonna catch up tmrw"),
-    other && evt(80, other.id, { activity: "Saturday long run", when: "Sat 12 Jul · 8:00 AM", location: "Marina Beach", rsvp: other2 ? { [other.id]: "in", [other2.id]: "pass" } : { [other.id]: "in" } }),
+    other && runMsg && txt(90, other.id, "2 behind pace, gonna catch up tmrw", { replyTo: runMsg.id }),
+    eventMsg,
     other && sys(70, "positive", "Comeback · 9 Jul", `${other.name}: At Risk → On Track.`, "", {}),
     sys(40, "warning", "Inactivity · 9 Jul", "Rahul — no workout in 7 days.", "", {}),
-    other && txt(20, other.id, "let's go 🔥")
+    (me && other2 && eventMsg)
+      ? txt(20, other2.id, `@${me.name} you in for this? 🔥`, { mentions: [currentUserId], replyTo: eventMsg.id })
+      : (other && txt(20, other.id, "let's go 🔥"))
   ].filter(Boolean);
 
   store.set(blocId, msgs);
 }
 
-export function sendMessage(blocId, { authorId, body }) {
+export function sendMessage(blocId, { authorId, body, replyTo = null, mentions = [] }) {
   const text = String(body || "").trim();
   if (!blocId || !text) return null;
-  const msg = { id: newId(), bloc_id: blocId, author_id: authorId, message_type: "text", body: text, created_at: new Date().toISOString() };
+  const msg = {
+    id: newId(), bloc_id: blocId, author_id: authorId, message_type: "text", body: text,
+    reply_to: replyTo || null, mentions: mentions || [], reactions: {}, created_at: new Date().toISOString()
+  };
   store.set(blocId, [...(store.get(blocId) || []), msg]);
   return msg;
 }
