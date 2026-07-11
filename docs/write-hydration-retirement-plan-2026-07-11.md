@@ -281,11 +281,13 @@ Do not do these as opportunistic cleanup:
 
 ## Practical Next Step
 
-The next code change should be a small guardrail slice, not another broad
-authority transfer:
+The safe current-write guardrail batch is now complete. See:
 
-1. add an explicit server-side helper/comment boundary for writable blob
-   hydration
-2. keep readable-only POST actions before that boundary
-3. make future reviewers choose deliberately when a new POST action crosses
-   from readable state into writable blob state
+- [docs/backend-residue-closeout-audit-2026-07-11.md](/Users/opera_user/Documents/Codex%20Space/Lift%20Log/docs/backend-residue-closeout-audit-2026-07-11.md)
+
+The next code change should either be:
+
+1. a non-persisting parity harness for one narrow action family, or
+2. a deliberately preview-tested runtime slice from the closeout audit.
+
+Do not continue with broad authority transfer or client normalization cleanup.
