@@ -402,6 +402,25 @@ function updateLegacyLeftMemberNamesForDeparture(leftMemberNames, authUserId, di
   return uniqueNames([...(Array.isArray(leftMemberNames) ? leftMemberNames : []), safeDisplayName]);
 }
 
+function resolveAdminAfterMemberDeparture(group, nextMemberships, departingUserId) {
+  if (group.adminUserId !== departingUserId) {
+    return {
+      adminUserId: group.adminUserId,
+      adminName: group.adminName
+    };
+  }
+  const remaining = Object.values(nextMemberships).sort((a, b) => {
+    const aTime = Date.parse(a.joinedAt || "") || 0;
+    const bTime = Date.parse(b.joinedAt || "") || 0;
+    return aTime - bTime;
+  });
+  const newAdmin = remaining[0];
+  return {
+    adminUserId: newAdmin.userId,
+    adminName: newAdmin.displayName
+  };
+}
+
 function removeLegacyLeftMemberName(leftMemberNames, displayName) {
   const safeDisplayName = String(displayName || "").trim();
   if (!safeDisplayName) return uniqueNames(Array.isArray(leftMemberNames) ? leftMemberNames : []);
@@ -4164,7 +4183,6 @@ function applyLeaveBloc(current, payload) {
     error.status = 404;
     throw error;
   }
-  const isAdmin = group.adminUserId === userId;
   const displayName = membership.displayName;
   const nextMemberships = { ...(group.memberships || {}) };
   delete nextMemberships[userId];
@@ -4181,25 +4199,13 @@ function applyLeaveBloc(current, payload) {
     };
   }
 
-  let nextAdminUserId = group.adminUserId;
-  let nextAdminName = group.adminName;
-  if (isAdmin) {
-    // Transfer to longest-standing member (earliest joinedAt)
-    const remaining = Object.values(nextMemberships).sort((a, b) => {
-      const aTime = Date.parse(a.joinedAt || "") || 0;
-      const bTime = Date.parse(b.joinedAt || "") || 0;
-      return aTime - bTime;
-    });
-    const newAdmin = remaining[0];
-    nextAdminUserId = newAdmin.userId;
-    nextAdminName = newAdmin.displayName;
-  }
+  const nextAdmin = resolveAdminAfterMemberDeparture(group, nextMemberships, userId);
 
   const nextLogs = scrubDepartedMemberFromCurrentLogs(group.logs, displayName);
   const nextGroup = normalizeGroup({
     ...group,
-    adminUserId: nextAdminUserId,
-    adminName: nextAdminName,
+    adminUserId: nextAdmin.adminUserId,
+    adminName: nextAdmin.adminName,
     memberOrder: nextMemberOrder,
     memberships: nextMemberships,
     leftMemberNames: removeLegacyLeftMemberName(group.leftMemberNames, displayName),
@@ -4271,19 +4277,7 @@ function applyDeleteAccount(current, payload) {
       continue;
     }
 
-    // Transfer admin if needed
-    let nextAdminUserId = group.adminUserId;
-    let nextAdminName = group.adminName;
-    if (group.adminUserId === userId) {
-      const remaining = Object.values(nextMemberships).sort((a, b) => {
-        const aTime = Date.parse(a.joinedAt || "") || 0;
-        const bTime = Date.parse(b.joinedAt || "") || 0;
-        return aTime - bTime;
-      });
-      const newAdmin = remaining[0];
-      nextAdminUserId = newAdmin.userId;
-      nextAdminName = newAdmin.displayName;
-    }
+    const nextAdmin = resolveAdminAfterMemberDeparture(group, nextMemberships, userId);
 
     // Remove member from memberOrder
     const nextMemberOrder = group.memberOrder.filter(n => n !== dn);
@@ -4298,8 +4292,8 @@ function applyDeleteAccount(current, payload) {
 
     nextGroups[groupId] = normalizeGroup({
       ...group,
-      adminUserId: nextAdminUserId,
-      adminName: nextAdminName,
+      adminUserId: nextAdmin.adminUserId,
+      adminName: nextAdmin.adminName,
       memberOrder: nextMemberOrder,
       memberships: nextMemberships,
       leftMemberNames: removeLegacyLeftMemberName(group.leftMemberNames, dn),

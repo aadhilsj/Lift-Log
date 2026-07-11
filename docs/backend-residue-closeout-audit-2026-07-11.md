@@ -118,6 +118,12 @@ Safe next work:
 - avoid deleting `leftMemberNames` until historical rendering is independent of
   today's active shell
 
+Status:
+
+- leave/delete-account admin transfer now routes through
+  `resolveAdminAfterMemberDeparture(...)`
+- this is a structure-only cleanup; admin transfer behavior is unchanged
+
 ### 6. Writable Hydration Endgame
 
 Location: the POST writable mutation boundary before `current = await getCurrent()`.
