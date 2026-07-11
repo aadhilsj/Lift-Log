@@ -122,6 +122,8 @@ Status:
 
 - leave/delete-account admin transfer now routes through
   `resolveAdminAfterMemberDeparture(...)`
+- delete-account display-name resolution and sit-out request cleanup now route
+  through small helpers
 - this is a structure-only cleanup; admin transfer behavior is unchanged
 
 ### 6. Writable Hydration Endgame

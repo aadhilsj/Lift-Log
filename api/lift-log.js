@@ -421,6 +421,25 @@ function resolveAdminAfterMemberDeparture(group, nextMemberships, departingUserI
   };
 }
 
+function resolveDeletedAccountDisplayName(profile, groups, userId) {
+  if (profile?.displayName) return profile.displayName;
+  for (const group of Object.values(groups || {})) {
+    const membership = group.memberships?.[userId];
+    if (membership?.displayName) return membership.displayName;
+  }
+  return "";
+}
+
+function removeMemberSitOutRequests(sitOutRequests, displayName) {
+  const nextSitOutRequests = {};
+  for (const [monthKey, monthRequests] of Object.entries(sitOutRequests || {})) {
+    const filtered = { ...monthRequests };
+    delete filtered[displayName];
+    if (Object.keys(filtered).length > 0) nextSitOutRequests[monthKey] = filtered;
+  }
+  return nextSitOutRequests;
+}
+
 function removeLegacyLeftMemberName(leftMemberNames, displayName) {
   const safeDisplayName = String(displayName || "").trim();
   if (!safeDisplayName) return uniqueNames(Array.isArray(leftMemberNames) ? leftMemberNames : []);
@@ -4228,14 +4247,7 @@ function applyDeleteAccount(current, payload) {
 
   const base = rolloverStateIfNeeded(current);
   const profile = base.profiles?.[userId];
-  // Resolve the user's display name from profile or any membership
-  let displayName = profile?.displayName || "";
-  if (!displayName) {
-    for (const group of Object.values(base.groups || {})) {
-      const m = group.memberships?.[userId];
-      if (m?.displayName) { displayName = m.displayName; break; }
-    }
-  }
+  const displayName = resolveDeletedAccountDisplayName(profile, base.groups, userId);
 
   // Verify user exists
   if (!profile && !displayName) {
@@ -4282,13 +4294,7 @@ function applyDeleteAccount(current, payload) {
     // Remove member from memberOrder
     const nextMemberOrder = group.memberOrder.filter(n => n !== dn);
 
-    // Remove sit-out requests by this user
-    const nextSitOutRequests = {};
-    for (const [monthKey, monthRequests] of Object.entries(group.sitOutRequests || {})) {
-      const filtered = { ...monthRequests };
-      delete filtered[dn];
-      if (Object.keys(filtered).length > 0) nextSitOutRequests[monthKey] = filtered;
-    }
+    const nextSitOutRequests = removeMemberSitOutRequests(group.sitOutRequests, dn);
 
     nextGroups[groupId] = normalizeGroup({
       ...group,
