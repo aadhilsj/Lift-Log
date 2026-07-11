@@ -105,6 +105,12 @@ Safe next work:
 - test join/rejoin fixtures before changing joined-month rules
 - avoid client normalization changes around historical joins
 
+Status:
+
+- joined-month recording for joins now routes through
+  `shouldRecordJoinedMonthForJoin(...)`
+- this is a structure-only cleanup; join/rejoin behavior is unchanged
+
 ### 5. Kick / Leave / Delete Account
 
 Locations: `applyKickMember(...)`, `applyLeaveBloc(...)`,
@@ -131,6 +137,7 @@ Status:
   `resolveAdminAfterMemberDeparture(...)`
 - delete-account display-name resolution and sit-out request cleanup now route
   through small helpers
+- kick target resolution now routes through `resolveKickTarget(...)`
 - this is a structure-only cleanup; admin transfer behavior is unchanged
 
 ### 6. Writable Hydration Endgame

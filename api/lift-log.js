@@ -3896,6 +3896,21 @@ function renameLegacyLeftMemberName(leftMemberNames, oldName, newName) {
   );
 }
 
+function shouldRecordJoinedMonthForJoin(group, displayName, joinMonthKey) {
+  const isNewToMemberOrder = !group.memberOrder.includes(displayName);
+  return isNewToMemberOrder || !hasParticipationBeforeMonth(group, displayName, joinMonthKey);
+}
+
+function resolveKickTarget(group, targetUserId, targetDisplayName) {
+  const targetMembership = targetUserId
+    ? group.memberships?.[targetUserId]
+    : Object.values(group.memberships || {}).find(membership => membership?.displayName === targetDisplayName);
+  return {
+    membership: targetMembership,
+    displayName: targetMembership?.displayName || targetDisplayName
+  };
+}
+
 function applyUpsertProfile(current, payload) {
   const userId = String(payload?.userId || "").trim();
   const email = String(payload?.email || "").trim().toLowerCase();
@@ -4062,9 +4077,8 @@ function applyJoinGroup(current, payload) {
   // that were pre-seeded into memberOrder but had not actually participated yet.
   // Preserve joinedMonthByName only for true legacy relinks that already have
   // participation history before this month.
-  const isNewToMemberOrder = !group.memberOrder.includes(profile.displayName);
   const joinMonthKey = getLeagueMonthKey(group.settings?.timeZone);
-  const shouldRecordJoinMonth = isNewToMemberOrder || !hasParticipationBeforeMonth(group, profile.displayName, joinMonthKey);
+  const shouldRecordJoinMonth = shouldRecordJoinedMonthForJoin(group, profile.displayName, joinMonthKey);
   // If this member was previously kicked or left, remove them from leftMemberNames
   // so normalizeGroup doesn't immediately filter them back out.
   const nextLeftMemberNames = removeLegacyLeftMemberName(group.leftMemberNames, profile.displayName);
@@ -4123,10 +4137,7 @@ function applyKickMember(current, payload) {
     throw error;
   }
   // Resolve target by userId or displayName fallback
-  const targetMembership = targetUserId
-    ? group.memberships?.[targetUserId]
-    : Object.values(group.memberships||{}).find(m=>m.displayName===targetDisplayName);
-  const resolvedDisplayName = targetMembership?.displayName || targetDisplayName;
+  const { membership: targetMembership, displayName: resolvedDisplayName } = resolveKickTarget(group, targetUserId, targetDisplayName);
   if (!resolvedDisplayName || !group.memberOrder.includes(resolvedDisplayName)) {
     const error = new Error("Member not found in this Bloc");
     error.status = 404;
