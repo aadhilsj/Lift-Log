@@ -326,31 +326,31 @@ const EventCard = ({ msg, currentUserId, authorName, nameFor, onRsvp }) => {
   const mine = rsvp[currentUserId];
   const [roster, setRoster] = useState(null); // "in" | "pass" | null
   const detail = (icon, text) => text ? React.createElement('div', {
-    style: { display: "flex", alignItems: "center", gap: 7, fontSize: 12.5, color: "var(--text)", lineHeight: 1.3 }
-  }, React.createElement('span', { style: { fontSize: 12, width: 15, textAlign: "center", flexShrink: 0 } }, icon), text) : null;
+    style: { display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--text)", lineHeight: 1.25 }
+  }, React.createElement('span', { style: { fontSize: 11.5, width: 14, textAlign: "center", flexShrink: 0 } }, icon), text) : null;
   return React.createElement('div', {
     style: {
       alignSelf: "stretch", background: C.evtBg, border: `1px solid ${C.accent}`,
-      borderRadius: 11, padding: "10px 13px 11px", boxShadow: "0 0 0 1px rgba(78,205,196,0.08), 0 6px 18px rgba(0,0,0,.28)"
+      borderRadius: 10, padding: "8px 11px 9px", boxShadow: "0 0 0 1px rgba(78,205,196,0.08), 0 5px 15px rgba(0,0,0,.24)"
     }
   },
     React.createElement('div', {
-      style: { fontFamily: "'Outfit', sans-serif", fontSize: 9, fontWeight: 700, color: C.accent, letterSpacing: ".07em", textTransform: "uppercase", marginBottom: 6 }
+      style: { fontFamily: "'Outfit', sans-serif", fontSize: 8.5, fontWeight: 700, color: C.accent, letterSpacing: ".07em", textTransform: "uppercase", marginBottom: 5 }
     }, `${authorName} suggested an event`),
     React.createElement('div', {
-      style: { fontFamily: "'Outfit', sans-serif", fontSize: 14.5, fontWeight: 600, color: "var(--text)", marginBottom: 6 }
+      style: { fontFamily: "'Outfit', sans-serif", fontSize: 13.5, fontWeight: 600, color: "var(--text)", marginBottom: 5 }
     }, p.activity),
-    React.createElement('div', { style: { display: "flex", flexDirection: "column", gap: 3, marginBottom: 10 } },
+    React.createElement('div', { style: { display: "flex", flexDirection: "column", gap: 2, marginBottom: 8 } },
       detail("🗓", p.when),
       detail("📍", p.location)
     ),
-    React.createElement('div', { style: { display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" } },
-      React.createElement('div', { style: { position: "relative", display: "flex", alignItems: "center", gap: 12, flex: 1, minWidth: 0, flexWrap: "wrap" } },
+    React.createElement('div', { style: { display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" } },
+      React.createElement('div', { style: { position: "relative", display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0, flexWrap: "wrap" } },
         inIds.length === 0 && passIds.length === 0
-          ? React.createElement('span', { style: { fontFamily: "'Outfit', sans-serif", fontSize: 11.5, fontWeight: 600, color: C.meta } }, "No RSVPs yet")
+          ? React.createElement('span', { style: { fontFamily: "'Outfit', sans-serif", fontSize: 11, fontWeight: 600, color: C.meta } }, "No RSVPs yet")
           : null,
-        React.createElement(AvatarStack, { ids: inIds, nameFor, size: 22, muted: false, label: "in", onClick: () => setRoster(r => r === "in" ? null : "in") }),
-        React.createElement(AvatarStack, { ids: passIds, nameFor, size: 22, muted: true, label: "pass", onClick: () => setRoster(r => r === "pass" ? null : "pass") }),
+        React.createElement(AvatarStack, { ids: inIds, nameFor, size: 20, muted: false, label: "in", onClick: () => setRoster(r => r === "in" ? null : "in") }),
+        React.createElement(AvatarStack, { ids: passIds, nameFor, size: 20, muted: true, label: "pass", onClick: () => setRoster(r => r === "pass" ? null : "pass") }),
         roster && React.createElement(RosterPopover, {
           title: roster === "in" ? "Going" : "Passed",
           ids: roster === "in" ? inIds : passIds,
@@ -362,16 +362,16 @@ const EventCard = ({ msg, currentUserId, authorName, nameFor, onRsvp }) => {
           onClick: () => onRsvp(msg.id, "in"),
           style: {
             background: mine === "in" ? C.accent : "transparent", color: mine === "in" ? "#04110e" : C.accent,
-            border: `1px solid ${C.accent}`, borderRadius: 20, padding: "5px 13px",
-            fontFamily: "'Outfit', sans-serif", fontSize: 12.5, fontWeight: 700, cursor: "pointer"
+            border: `1px solid ${C.accent}`, borderRadius: 18, padding: "4px 11px",
+            fontFamily: "'Outfit', sans-serif", fontSize: 12, fontWeight: 700, cursor: "pointer"
           }
         }, "I'm in"),
         React.createElement('button', {
           onClick: () => onRsvp(msg.id, "pass"),
           style: {
             background: mine === "pass" ? C.chipOnBg : "transparent", color: mine === "pass" ? "var(--text)" : "var(--muted)",
-            border: `1px solid ${mine === "pass" ? C.chipOnBorder : C.inputBorder}`, borderRadius: 20, padding: "5px 13px",
-            fontFamily: "'Outfit', sans-serif", fontSize: 12.5, fontWeight: 600, cursor: "pointer"
+            border: `1px solid ${mine === "pass" ? C.chipOnBorder : C.inputBorder}`, borderRadius: 18, padding: "4px 11px",
+            fontFamily: "'Outfit', sans-serif", fontSize: 12, fontWeight: 600, cursor: "pointer"
           }
         }, "Pass")
       )
@@ -710,35 +710,36 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], stre
       // Stream header
       React.createElement('div', {
         style: {
-          display: "flex", alignItems: "flex-start", justifyContent: "space-between",
-          padding: "16px 18px 14px", borderBottom: "1px solid rgba(78,205,196,0.16)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          padding: "15px 48px 13px", borderBottom: "1px solid rgba(78,205,196,0.16)",
           background: "rgba(5,9,10,0.55)", backdropFilter: "blur(8px)", flexShrink: 0, position: "relative", zIndex: 1
         }
       },
-        React.createElement('div', { style: { minWidth: 0 } },
+        React.createElement('div', { style: { minWidth: 0, maxWidth: "100%", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" } },
           React.createElement('div', {
             style: { fontFamily: "'Outfit', sans-serif", fontSize: 10, fontWeight: 700, color: "#8faeaa", letterSpacing: ".1em", textTransform: "uppercase" }
           }, "Bloc Stream"),
           React.createElement('div', {
-            style: { display: "flex", alignItems: "center", gap: 6, marginTop: 3, minWidth: 0 }
+            style: { display: "flex", alignItems: "center", justifyContent: "center", gap: 5, marginTop: 3, minWidth: 0, maxWidth: "100%" }
           },
             canSwitchStreams && React.createElement('button', {
               onClick: () => switchStream(-1), title: "Previous Bloc stream", "aria-label": "Previous Bloc stream",
-              style: { width: 24, height: 24, display: "inline-flex", alignItems: "center", justifyContent: "center", background: C.inputBg, border: `1px solid ${C.inputBorder}`, borderRadius: 999, color: C.accent, cursor: "pointer", flexShrink: 0, padding: 0 }
-            }, React.createElement(AppIcon, { name: "chevron-left", size: 15, stroke: C.accent })),
+              style: { width: 18, height: 20, display: "inline-flex", alignItems: "center", justifyContent: "center", background: "transparent", border: "none", color: C.accent, cursor: "pointer", flexShrink: 0, padding: 0 }
+            }, React.createElement(AppIcon, { name: "chevron-left", size: 13, stroke: C.accent })),
             React.createElement('div', {
-              style: { fontSize: 15, fontWeight: 500, color: "var(--text)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 }
+              style: { fontSize: 15, fontWeight: 500, color: "var(--text)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", minWidth: 0, textAlign: "center" }
             }, activeGroupName || ""),
             canSwitchStreams && React.createElement('button', {
               onClick: () => switchStream(1), title: "Next Bloc stream", "aria-label": "Next Bloc stream",
-              style: { width: 24, height: 24, display: "inline-flex", alignItems: "center", justifyContent: "center", background: C.inputBg, border: `1px solid ${C.inputBorder}`, borderRadius: 999, color: C.accent, cursor: "pointer", flexShrink: 0, padding: 0 }
-            }, React.createElement(AppIcon, { name: "chevron-right", size: 15, stroke: C.accent }))
+              style: { width: 18, height: 20, display: "inline-flex", alignItems: "center", justifyContent: "center", background: "transparent", border: "none", color: C.accent, cursor: "pointer", flexShrink: 0, padding: 0 }
+            }, React.createElement(AppIcon, { name: "chevron-right", size: 13, stroke: C.accent }))
           )
         ),
         React.createElement('button', {
           onClick: onClose,
-          style: { background: "transparent", border: "none", color: C.accent, fontSize: 14, fontWeight: 600, padding: "2px 2px", flexShrink: 0, cursor: "pointer" }
-        }, "✕ close")
+          "aria-label": "Close Bloc Stream",
+          style: { position: "absolute", top: 13, right: 16, width: 28, height: 28, display: "inline-flex", alignItems: "center", justifyContent: "center", background: "transparent", border: "none", color: C.accent, fontSize: 18, fontWeight: 500, padding: 0, cursor: "pointer", lineHeight: 1 }
+        }, "✕")
       ),
       // Message list
       React.createElement('div', {
