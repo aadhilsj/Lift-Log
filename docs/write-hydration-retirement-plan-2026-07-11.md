@@ -217,6 +217,9 @@ Status:
 - admin checks for settings, first-month target choice, sit-out review, flag
   review, projection rebuild, and kick now route through a shared server helper
   that prefers `adminUserId` and keeps the legacy `adminName` fallback
+- flag self-checks and flag-response ownership now route through a shared server
+  helper that verifies the display-name keyed log owner against
+  `memberships[actorUserId]` first, then falls back to the actor display name
 - historical key rewrites and closed-month snapshots were not changed
 
 ### Slice 4 - `leftMemberNames` shrink audit

@@ -363,6 +363,17 @@ function isCurrentGroupMember(group, displayName, authUserId = "") {
   return activeNames.includes(safeDisplayName);
 }
 
+function isGroupDisplayNameForActor(group, displayName, actorUserId = "", actorDisplayName = "") {
+  const safeDisplayName = String(displayName || "").trim();
+  const safeUserId = String(actorUserId || "").trim();
+  const safeActorName = String(actorDisplayName || "").trim();
+  if (safeUserId) {
+    const membership = group?.memberships?.[safeUserId];
+    if (membership?.displayName) return membership.displayName === safeDisplayName;
+  }
+  return !!safeDisplayName && safeDisplayName === safeActorName;
+}
+
 function isGroupAdminActor(group, actorUserId = "", actorDisplayName = "") {
   const safeUserId = String(actorUserId || "").trim();
   const safeDisplayName = String(actorDisplayName || "").trim();
@@ -3674,7 +3685,7 @@ function applyToggleReaction(current, payload) {
 function applyFlagLog(current, payload) {
   const reason = typeof payload?.reason === "string" ? payload.reason.slice(0, 280) : "";
   return updateGroupLog(current, payload, ({ group, actor, actorUserId, owner, log }) => {
-    if (owner === actor) {
+    if (isGroupDisplayNameForActor(group, owner, actorUserId, actor)) {
       const error = new Error("You cannot flag your own workout");
       error.status = 400;
       throw error;
@@ -3707,8 +3718,8 @@ function applyFlagLog(current, payload) {
 
 function applyRespondToFlag(current, payload) {
   const response = typeof payload?.response === "string" ? payload.response.slice(0, 280) : "";
-  return updateGroupLog(current, payload, ({ actor, owner, log }) => {
-    if (owner !== actor) {
+  return updateGroupLog(current, payload, ({ group, actor, actorUserId, owner, log }) => {
+    if (!isGroupDisplayNameForActor(group, owner, actorUserId, actor)) {
       const error = new Error("Only the workout owner can respond to a flag");
       error.status = 403;
       throw error;
