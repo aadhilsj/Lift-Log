@@ -1,6 +1,6 @@
 import React from "react";
 const { useState, useEffect, useRef } = React;
-import { Avatar } from "../components/primitives.jsx";
+import { Avatar, AppIcon } from "../components/primitives.jsx";
 import { listMessages, seedIfEmpty, sendMessage, toggleReaction, createEvent, setRsvp } from "../lib/blocStream.js";
 
 const QUICK_REACTS = ["🔥", "💪", "👏", "😤"];
@@ -198,16 +198,28 @@ const EventSheet = ({ onClose, onCreate }) => {
   const firstRef = useRef(null);
   useEffect(() => { firstRef.current?.focus(); }, []);
   const inputStyle = { width: "100%", boxSizing: "border-box", background: C.inputBg, border: `1px solid ${C.inputBorder}`, borderRadius: 10, padding: "11px 13px", color: "var(--text)", fontSize: 14.5, fontFamily: "'Outfit', sans-serif", outline: "none", colorScheme: "dark" };
-  // Native date/time controls carry a large intrinsic width and ignore
-  // width:100% on iOS/Safari — pin min/max width to 0/100% and strip the
-  // native appearance so they shrink into the flex row instead of overflowing.
-  const pickerStyle = { ...inputStyle, padding: "9px 11px", fontSize: 13.5, minWidth: 0, maxWidth: "100%", WebkitAppearance: "none", MozAppearance: "textfield", appearance: "none" };
   const field = (ref, value, setValue, placeholder) => React.createElement('input', {
     ref, value, onChange: e => setValue(e.target.value), placeholder, style: inputStyle
   });
-  const picker = (type, value, setValue, ariaLabel) => React.createElement('input', {
-    type, value, "aria-label": ariaLabel, onChange: e => setValue(e.target.value), style: pickerStyle
-  });
+  // Date/time fields: a styled shell matching the Activity/Location inputs
+  // (icon + placeholder-or-value) with the native date/time control laid over
+  // it transparently, so tapping opens the standard picker. Native inputs won't
+  // show custom placeholder text, hence the overlay approach.
+  const picker = (type, value, setValue, iconName, placeholder, display) =>
+    React.createElement('label', {
+      style: { position: "relative", flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 8, boxSizing: "border-box", background: C.inputBg, border: `1px solid ${C.inputBorder}`, borderRadius: 10, padding: "11px 13px", cursor: "pointer", overflow: "hidden" }
+    },
+      React.createElement(AppIcon, { name: iconName, size: 16, stroke: C.meta }),
+      React.createElement('span', {
+        style: { flex: 1, minWidth: 0, fontFamily: "'Outfit', sans-serif", fontSize: 14.5, color: value ? "var(--text)" : "var(--muted2)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }
+      }, value ? display : placeholder),
+      React.createElement('input', {
+        type, value, "aria-label": placeholder,
+        onChange: e => setValue(e.target.value),
+        onClick: e => { try { e.currentTarget.showPicker(); } catch (_) {} },
+        style: { position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, border: "none", margin: 0, padding: 0, cursor: "pointer", colorScheme: "dark" }
+      })
+    );
   return React.createElement('div', {
     onClick: e => { e.stopPropagation(); onClose(); },
     style: { position: "fixed", inset: 0, zIndex: 320, display: "flex", flexDirection: "column", justifyContent: "flex-end", background: "rgba(0,0,0,.5)" }
@@ -231,8 +243,8 @@ const EventSheet = ({ onClose, onCreate }) => {
       ),
       field(firstRef, activity, setActivity, "Activity — e.g. Saturday long run"),
       React.createElement('div', { style: { display: "flex", gap: 10 } },
-        React.createElement('div', { style: { flex: 1, minWidth: 0 } }, picker("date", date, setDate, "Date")),
-        React.createElement('div', { style: { flex: 1, minWidth: 0 } }, picker("time", time, setTime, "Time"))
+        picker("date", date, setDate, "calendar", "Date", formatWhen(date, "")),
+        picker("time", time, setTime, "clock", "Time", formatWhen("", time))
       ),
       field(null, location, setLocation, "Location — e.g. Marina Beach"),
       React.createElement('button', {
