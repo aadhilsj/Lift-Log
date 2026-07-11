@@ -3671,7 +3671,12 @@ function applyToggleReaction(current, payload) {
     error.status = 400;
     throw error;
   }
-  return updateGroupLog(current, payload, ({ actor, log }) => {
+  return updateGroupLog(current, payload, ({ group, actor, actorUserId, log }) => {
+    if (!isCurrentGroupMember(group, actor, actorUserId)) {
+      const error = new Error("Only Bloc members can react to workouts");
+      error.status = 403;
+      throw error;
+    }
     const reactions = normalizeReactions(log.reactions);
     const currentUsers = reactions[emoji] || [];
     reactions[emoji] = currentUsers.includes(actor)

@@ -214,6 +214,8 @@ Status:
 - `multi-log`, `add-log`, `delete-log`, and `flag` now route actor membership
   checks through a server helper that prefers `memberships[authUserId]` and
   falls back to the active member shell for compatibility
+- `reaction` now uses the same current-member guard before mutating a workout's
+  reaction list
 - admin checks for settings, first-month target choice, sit-out review, flag
   review, projection rebuild, and kick now route through a shared server helper
   that prefers `adminUserId` and keeps the legacy `adminName` fallback
