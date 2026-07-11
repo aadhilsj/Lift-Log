@@ -3845,13 +3845,17 @@ function assertProfileRenameDoesNotCollide(groups, oldNames, displayName) {
   }
 }
 
-function renameGroupDisplayNameSurfaces(group, userId, oldName, displayName) {
+function renameGroupDisplayNameSurfaces(group, userId, oldName, displayName, options = {}) {
+  const { createMissingMembership = true } = options;
   const nextMemberOrder = group.memberOrder.map(n => n === oldName ? displayName : n);
 
-  const nextMemberships = {
-    ...group.memberships,
-    [userId]: { ...group.memberships[userId], displayName }
-  };
+  const shouldRewriteMembership = !!group.memberships?.[userId] || createMissingMembership;
+  const nextMemberships = shouldRewriteMembership
+    ? {
+        ...group.memberships,
+        [userId]: { ...group.memberships[userId], displayName }
+      }
+    : group.memberships;
 
   const nextAdminName = group.adminName === oldName ? displayName : group.adminName;
 
@@ -3882,6 +3886,14 @@ function renameGroupDisplayNameSurfaces(group, userId, oldName, displayName) {
     sitOutRequests:    nextSitOutRequests,
     monthHistory:      nextMonthHistory
   });
+}
+
+function renameLegacyLeftMemberName(leftMemberNames, oldName, newName) {
+  return uniqueNames(
+    (Array.isArray(leftMemberNames) ? leftMemberNames : []).map(name =>
+      name === oldName ? newName : name
+    )
+  );
 }
 
 function applyUpsertProfile(current, payload) {
@@ -3988,46 +4000,9 @@ function applyRepairDisplayName(current, payload) {
     throw error;
   }
 
-  const nextMemberOrder = group.memberOrder.map(n => n === oldName ? newName : n);
-
-  const nextMemberships = group.memberships?.[userId]
-    ? { ...group.memberships, [userId]: { ...group.memberships[userId], displayName: newName } }
-    : group.memberships;
-
-  const nextAdminName = group.adminName === oldName ? newName : group.adminName;
-
-  const nextMonthHistory = (Array.isArray(group.monthHistory) ? group.monthHistory : []).map(month => ({
-    ...month,
-    counts:      renameKey(month.counts      || {}, oldName, newName),
-    excused:     renameKey(month.excused     || {}, oldName, newName),
-    logsByUser:  renameKey(month.logsByUser  || {}, oldName, newName),
-    settlements: renameKey(month.settlements || {}, oldName, newName),
-    ...(month.memberTargets ? { memberTargets: renameKey(month.memberTargets, oldName, newName) } : {})
-  }));
-
-  const nextSitOutRequests = Object.fromEntries(
-    Object.entries(group.sitOutRequests || {}).map(([monthKey, requests]) => [
-      monthKey,
-      renameKey(requests || {}, oldName, newName)
-    ])
-  );
-  const nextLeftMemberNames = uniqueNames(
-    (Array.isArray(group.leftMemberNames) ? group.leftMemberNames : []).map(name =>
-      name === oldName ? newName : name
-    )
-  );
-
   const nextGroup = normalizeGroup({
-    ...group,
-    memberOrder:       nextMemberOrder,
-    memberships:       nextMemberships,
-    adminName:         nextAdminName,
-    logs:              renameKey(group.logs              || {}, oldName, newName),
-    excused:           renameKey(group.excused           || {}, oldName, newName),
-    joinedMonthByName: renameKey(group.joinedMonthByName || {}, oldName, newName),
-    leftMemberNames:   nextLeftMemberNames,
-    sitOutRequests:    nextSitOutRequests,
-    monthHistory:      nextMonthHistory
+    ...renameGroupDisplayNameSurfaces(group, userId, oldName, newName, { createMissingMembership: false }),
+    leftMemberNames: renameLegacyLeftMemberName(group.leftMemberNames, oldName, newName)
   });
 
   // Optionally update the profile display name (used when the profile itself

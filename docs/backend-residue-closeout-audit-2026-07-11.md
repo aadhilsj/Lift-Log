@@ -82,6 +82,13 @@ Safe next work:
 - do not convert it into general profile rename behavior until display-name
   de-keying is complete
 
+Status:
+
+- `repair-display-name` now reuses the shared display-name surface rewrite
+  helper while preserving its existing membership behavior
+- `leftMemberNames` rename remains repair-specific
+- this is a structure-only cleanup; repair behavior is unchanged
+
 ### 4. Join / Rejoin
 
 Location: `applyJoinGroup(...)`.
