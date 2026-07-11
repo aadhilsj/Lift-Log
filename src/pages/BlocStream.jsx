@@ -85,49 +85,95 @@ const ReactBar = ({ align, onPick, onClose }) => {
   );
 };
 
-// Existing reactions as compact chips. Tapping a chip toggles your reaction.
-const ReactionChips = ({ msg, currentUserId, onReact, align }) => {
+// A small floating list of members (who reacted / who RSVP'd), anchored above
+// the trigger. Reused by reaction chips and the event RSVP counts.
+const RosterPopover = ({ title, ids, nameFor, onClose, align = "left" }) => {
+  const pos = align === "right" ? { right: 0 } : align === "center" ? { left: "50%", transform: "translateX(-50%)" } : { left: 0 };
+  return React.createElement(React.Fragment, null,
+    React.createElement('div', { onClick: onClose, onTouchStart: onClose, style: { position: "fixed", inset: 0, zIndex: 40 } }),
+    React.createElement('div', {
+      style: { position: "absolute", bottom: "calc(100% + 6px)", zIndex: 41, minWidth: 150, maxWidth: 240, maxHeight: 210, overflowY: "auto", background: C.sheetBg, border: `1px solid ${C.sheetBorder}`, borderRadius: 12, padding: "9px 11px", boxShadow: "0 10px 26px rgba(0,0,0,.55)", ...pos }
+    },
+      title && React.createElement('div', { style: { fontFamily: "'Outfit', sans-serif", fontSize: 9.5, fontWeight: 700, color: C.meta, letterSpacing: ".08em", textTransform: "uppercase", marginBottom: 7 } }, title),
+      ids.length === 0
+        ? React.createElement('div', { style: { fontSize: 12.5, color: "var(--muted2)" } }, "No one yet")
+        : React.createElement('div', { style: { display: "flex", flexDirection: "column", gap: 8 } },
+            ids.map(id => React.createElement('div', { key: id, style: { display: "flex", alignItems: "center", gap: 8 } },
+              React.createElement(Avatar, { name: nameFor(id), userId: id, size: 22 }),
+              React.createElement('span', { style: { fontFamily: "'Outfit', sans-serif", fontSize: 13, color: "var(--text)", whiteSpace: "nowrap" } }, nameFor(id))
+            ))
+          )
+    )
+  );
+};
+
+// One reaction chip: tap toggles your reaction; press-and-hold (or right-click)
+// reveals who reacted, Discord-style. Pointer events + a movement guard keep tap
+// and long-press from fighting; user-select/callout are off so nothing selects.
+const ReactionChip = ({ emoji, users, mine, onToggle, nameFor }) => {
+  const [who, setWho] = useState(false);
+  const p = useRef({ lp: null, moved: false, sup: false, sx: 0, sy: 0 });
+  const clear = () => { if (p.current.lp) { clearTimeout(p.current.lp); p.current.lp = null; } };
+  return React.createElement('span', { style: { position: "relative", display: "inline-flex" } },
+    React.createElement('button', {
+      onPointerDown: e => { const s = p.current; s.moved = false; s.sup = false; s.sx = e.clientX; s.sy = e.clientY; clear(); s.lp = setTimeout(() => { s.sup = true; setWho(true); try { navigator.vibrate && navigator.vibrate(8); } catch (_) {} }, 420); },
+      onPointerMove: e => { const s = p.current; if (Math.abs(e.clientX - s.sx) > 8 || Math.abs(e.clientY - s.sy) > 8) { s.moved = true; clear(); } },
+      onPointerUp: () => { clear(); if (!p.current.sup && !p.current.moved) onToggle(); },
+      onPointerLeave: () => clear(),
+      onContextMenu: e => { e.preventDefault(); setWho(true); },
+      style: { display: "inline-flex", alignItems: "center", gap: 4, background: mine ? C.chipOnBg : C.chipBg, border: `1px solid ${mine ? C.chipOnBorder : C.chipBorder}`, borderRadius: 16, padding: "1px 7px", fontSize: 12.5, color: "var(--text)", cursor: "pointer", lineHeight: 1.7, userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none", touchAction: "manipulation" }
+    }, emoji, React.createElement('span', { style: { fontFamily: "'Outfit', sans-serif", fontSize: 11, color: "var(--muted)", fontWeight: 600 } }, users.length)),
+    who && React.createElement(RosterPopover, { title: `${emoji} · ${users.length}`, ids: users, nameFor, onClose: () => setWho(false) })
+  );
+};
+
+// Compact reaction chips row. `showAdd` renders a "+" that opens the react bar
+// (kept for system moments; text bubbles add via double-tap / long-press).
+const ReactionChips = ({ msg, currentUserId, onReact, nameFor, align, showAdd, onAdd }) => {
   const active = Object.entries(msg.reactions || {}).filter(([, u]) => (u || []).length > 0);
-  if (!active.length) return null;
+  if (!active.length && !showAdd) return null;
   const justify = align === "right" ? "flex-end" : align === "center" ? "center" : "flex-start";
   return React.createElement('div', {
     style: { display: "flex", flexWrap: "wrap", gap: 4, justifyContent: justify, marginTop: 5, paddingLeft: align === "left" ? 36 : 0 }
   },
-    active.map(([emoji, users]) => {
-      const mine = users.includes(currentUserId);
-      return React.createElement('button', {
-        key: emoji, onClick: () => onReact(msg.id, emoji), onMouseDown: e => e.preventDefault(),
-        style: { display: "inline-flex", alignItems: "center", gap: 4, background: mine ? C.chipOnBg : C.chipBg, border: `1px solid ${mine ? C.chipOnBorder : C.chipBorder}`, borderRadius: 16, padding: "1px 7px", fontSize: 12.5, color: "var(--text)", cursor: "pointer", lineHeight: 1.7 }
-      }, emoji, React.createElement('span', { style: { fontFamily: "'Outfit', sans-serif", fontSize: 11, color: "var(--muted)", fontWeight: 600 } }, users.length));
-    })
+    active.map(([emoji, users]) => React.createElement(ReactionChip, {
+      key: emoji, emoji, users, mine: users.includes(currentUserId), onToggle: () => onReact(msg.id, emoji), nameFor
+    })),
+    showAdd && React.createElement('button', {
+      onClick: onAdd, onMouseDown: e => e.preventDefault(),
+      style: { display: "inline-flex", alignItems: "center", justifyContent: "center", width: 26, height: 22, borderRadius: 16, background: C.chipBg, border: `1px solid ${C.chipBorder}`, color: "var(--muted)", fontSize: 13, cursor: "pointer", userSelect: "none", WebkitUserSelect: "none" }
+    }, "+")
   );
 };
 
-// Gesture wrapper: long-press / right-click opens the react bar, double-tap
-// drops a heart, and (when swipeEnabled) a left-swipe past threshold replies.
-// touch-action:pan-y lets vertical scroll stay native while we own horizontal.
-const Reactable = ({ msg, currentUserId, onReact, onReply, align = "left", swipeEnabled = false, children }) => {
+// Gesture wrapper: press-and-hold (or right-click) opens the react bar,
+// double-tap drops a heart, and (when swipeEnabled) a right-swipe past
+// threshold replies. Tap detection is displacement+time based (not tied to the
+// scroll/swipe mode) so a plain double-tap registers reliably. user-select and
+// the iOS touch-callout are disabled so holding a message never selects text.
+const Reactable = ({ msg, currentUserId, onReact, onReply, nameFor, align = "left", swipeEnabled = false, showAdd = false, children }) => {
   const [swipeX, setSwipeX] = useState(0);
   const [showBar, setShowBar] = useState(false);
-  const g = useRef({ startX: 0, startY: 0, mode: null, lp: null, lastTap: 0, suppress: false, swipe: 0 });
+  const g = useRef({ sx: 0, sy: 0, st: 0, mode: null, lp: null, lastTap: 0, suppress: false, moved: false, swipe: 0 });
 
   const clearLP = () => { if (g.current.lp) { clearTimeout(g.current.lp); g.current.lp = null; } };
 
   const start = (x, y) => {
     const s = g.current;
-    s.startX = x; s.startY = y; s.mode = null; s.suppress = false; s.swipe = 0;
+    s.sx = x; s.sy = y; s.st = Date.now(); s.mode = null; s.suppress = false; s.moved = false; s.swipe = 0;
     clearLP();
-    s.lp = setTimeout(() => { s.mode = "long"; s.suppress = true; setShowBar(true); try { navigator.vibrate && navigator.vibrate(10); } catch (_) {} }, 480);
+    s.lp = setTimeout(() => { s.mode = "long"; s.suppress = true; setShowBar(true); try { navigator.vibrate && navigator.vibrate(10); } catch (_) {} }, 500);
   };
   const move = (x, y) => {
     const s = g.current;
-    const dx = x - s.startX, dy = y - s.startY;
-    if (s.mode == null && (Math.abs(dx) > 8 || Math.abs(dy) > 8)) {
+    const dx = x - s.sx, dy = y - s.sy;
+    if (!s.moved && (Math.abs(dx) > 10 || Math.abs(dy) > 10)) {
+      s.moved = true;
       clearLP();
-      s.mode = (swipeEnabled && Math.abs(dx) > Math.abs(dy)) ? "swipe" : "scroll";
+      s.mode = (swipeEnabled && dx > 0 && Math.abs(dx) > Math.abs(dy)) ? "swipe" : "scroll";
     }
     if (s.mode === "swipe") {
-      s.swipe = Math.max(-96, Math.min(0, dx));
+      s.swipe = Math.max(0, Math.min(96, dx));
       setSwipeX(s.swipe);
     }
   };
@@ -135,11 +181,15 @@ const Reactable = ({ msg, currentUserId, onReact, onReply, align = "left", swipe
     const s = g.current;
     clearLP();
     if (s.mode === "swipe") {
-      if (s.swipe <= -56 && onReply) onReply(msg);
+      if (s.swipe >= 56 && onReply) onReply(msg);
       setSwipeX(0);
-    } else if (s.mode == null && !s.suppress) {
+      s.mode = null;
+      return;
+    }
+    if (s.suppress) { s.mode = null; return; } // long-press already opened the bar
+    if (!s.moved && Date.now() - s.st < 400) {
       const now = Date.now();
-      if (now - s.lastTap < 320) { onReact(msg.id, DOUBLE_TAP_EMOJI); s.lastTap = 0; }
+      if (now - s.lastTap < 400) { onReact(msg.id, DOUBLE_TAP_EMOJI); s.lastTap = 0; }
       else s.lastTap = now;
     }
     s.mode = null;
@@ -147,7 +197,7 @@ const Reactable = ({ msg, currentUserId, onReact, onReply, align = "left", swipe
 
   return React.createElement('div', { style: { position: "relative" } },
     swipeEnabled && React.createElement('div', {
-      style: { position: "absolute", top: 0, bottom: 0, right: 14, display: "flex", alignItems: "center", opacity: Math.min(1, -swipeX / 56), pointerEvents: "none" }
+      style: { position: "absolute", top: 0, bottom: 0, left: 14, display: "flex", alignItems: "center", opacity: Math.min(1, swipeX / 56), pointerEvents: "none" }
     }, React.createElement(AppIcon, { name: "reply", size: 18, stroke: C.accent })),
     React.createElement('div', {
       onTouchStart: e => start(e.touches[0].clientX, e.touches[0].clientY),
@@ -155,10 +205,10 @@ const Reactable = ({ msg, currentUserId, onReact, onReply, align = "left", swipe
       onTouchEnd: end,
       onDoubleClick: () => onReact(msg.id, DOUBLE_TAP_EMOJI),
       onContextMenu: e => { e.preventDefault(); setShowBar(true); },
-      style: { transform: swipeX ? `translateX(${swipeX}px)` : "none", transition: g.current.mode === "swipe" ? "none" : "transform .18s ease", touchAction: swipeEnabled ? "pan-y" : "auto" }
+      style: { transform: swipeX ? `translateX(${swipeX}px)` : "none", transition: g.current.mode === "swipe" ? "none" : "transform .18s ease", touchAction: swipeEnabled ? "pan-y" : "auto", userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none" }
     }, children),
     showBar && React.createElement(ReactBar, { align, onClose: () => setShowBar(false), onPick: emoji => { onReact(msg.id, emoji); setShowBar(false); } }),
-    React.createElement(ReactionChips, { msg, currentUserId, onReact, align })
+    React.createElement(ReactionChips, { msg, currentUserId, onReact, nameFor, align, showAdd, onAdd: () => setShowBar(true) })
   );
 };
 
@@ -213,11 +263,14 @@ const SystemCard = ({ msg }) => {
   );
 };
 
-const AvatarStack = ({ ids, nameFor, size, muted, label }) => {
+const AvatarStack = ({ ids, nameFor, size, muted, label, onClick }) => {
   if (!ids.length) return null;
   const shown = ids.slice(0, 3);
   const extra = ids.length - shown.length;
-  return React.createElement('div', { style: { display: "inline-flex", alignItems: "center" } },
+  return React.createElement('button', {
+    onClick, onMouseDown: e => e.preventDefault(),
+    style: { display: "inline-flex", alignItems: "center", background: "transparent", border: "none", padding: 0, cursor: onClick ? "pointer" : "default" }
+  },
     React.createElement('div', { style: { display: "flex", alignItems: "center" } },
       shown.map((id, i) => React.createElement('div', {
         key: id, style: { marginLeft: i === 0 ? 0 : -7, borderRadius: "50%", boxShadow: `0 0 0 2px ${C.evtBg}`, opacity: muted ? 0.55 : 1, filter: muted ? "grayscale(0.6)" : "none" }
@@ -235,6 +288,7 @@ const EventCard = ({ msg, currentUserId, authorName, nameFor, onRsvp }) => {
   const inIds = Object.keys(rsvp).filter(id => rsvp[id] === "in");
   const passIds = Object.keys(rsvp).filter(id => rsvp[id] === "pass");
   const mine = rsvp[currentUserId];
+  const [roster, setRoster] = useState(null); // "in" | "pass" | null
   const detail = (icon, text) => text ? React.createElement('div', {
     style: { display: "flex", alignItems: "center", gap: 7, fontSize: 12.5, color: "var(--text)", lineHeight: 1.3 }
   }, React.createElement('span', { style: { fontSize: 12, width: 15, textAlign: "center", flexShrink: 0 } }, icon), text) : null;
@@ -255,12 +309,17 @@ const EventCard = ({ msg, currentUserId, authorName, nameFor, onRsvp }) => {
       detail("📍", p.location)
     ),
     React.createElement('div', { style: { display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" } },
-      React.createElement('div', { style: { display: "flex", alignItems: "center", gap: 12, flex: 1, minWidth: 0, flexWrap: "wrap" } },
+      React.createElement('div', { style: { position: "relative", display: "flex", alignItems: "center", gap: 12, flex: 1, minWidth: 0, flexWrap: "wrap" } },
         inIds.length === 0 && passIds.length === 0
           ? React.createElement('span', { style: { fontFamily: "'Outfit', sans-serif", fontSize: 11.5, fontWeight: 600, color: C.meta } }, "No RSVPs yet")
           : null,
-        React.createElement(AvatarStack, { ids: inIds, nameFor, size: 22, muted: false, label: "in" }),
-        React.createElement(AvatarStack, { ids: passIds, nameFor, size: 22, muted: true, label: "pass" })
+        React.createElement(AvatarStack, { ids: inIds, nameFor, size: 22, muted: false, label: "in", onClick: () => setRoster(r => r === "in" ? null : "in") }),
+        React.createElement(AvatarStack, { ids: passIds, nameFor, size: 22, muted: true, label: "pass", onClick: () => setRoster(r => r === "pass" ? null : "pass") }),
+        roster && React.createElement(RosterPopover, {
+          title: roster === "in" ? "Going" : "Passed",
+          ids: roster === "in" ? inIds : passIds,
+          nameFor, onClose: () => setRoster(null), align: "left"
+        })
       ),
       React.createElement('div', { style: { display: "flex", gap: 6, flexShrink: 0 } },
         React.createElement('button', {
@@ -563,13 +622,13 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], onCl
       // Message list
       React.createElement('div', {
         ref: listRef,
-        style: { flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", overscrollBehavior: "contain", padding: "16px 16px 20px", display: "flex", flexDirection: "column", gap: 12 }
+        style: { flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", overscrollBehavior: "contain", padding: "16px 16px 20px", display: "flex", flexDirection: "column", gap: 12, userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none" }
       },
         messages.length === 0
           ? React.createElement('div', { style: { margin: "auto", color: "var(--muted2)", fontSize: 13 } }, "No messages yet")
           : messages.map(msg => {
               if (msg.message_type === "system") {
-                return React.createElement(Reactable, { key: msg.id, msg, currentUserId, onReact: handleReact, align: "center" },
+                return React.createElement(Reactable, { key: msg.id, msg, currentUserId, onReact: handleReact, nameFor, align: "center", showAdd: true },
                   React.createElement(SystemCard, { msg }));
               }
               if (msg.message_type === "event") {
@@ -577,7 +636,7 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], onCl
               }
               const isOwn = msg.author_id === currentUserId;
               const replyToMsg = msg.reply_to ? messages.find(x => x.id === msg.reply_to) : null;
-              return React.createElement(Reactable, { key: msg.id, msg, currentUserId, onReact: handleReact, onReply: handleReply, align: isOwn ? "right" : "left", swipeEnabled: true },
+              return React.createElement(Reactable, { key: msg.id, msg, currentUserId, onReact: handleReact, onReply: handleReply, nameFor, align: isOwn ? "right" : "left", swipeEnabled: true },
                 React.createElement(TextBubble, { msg, isOwn, authorName: nameFor(msg.author_id), nameFor, members, replyToMsg }));
             })
       ),
