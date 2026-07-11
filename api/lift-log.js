@@ -349,6 +349,20 @@ function getCurrentMemberNamesForMonth(group, monthKey) {
   });
 }
 
+function isCurrentGroupMember(group, displayName, authUserId = "") {
+  const safeDisplayName = String(displayName || "").trim();
+  const safeUserId = String(authUserId || "").trim();
+  if (safeUserId) {
+    const membership = group?.memberships?.[safeUserId];
+    if (membership?.displayName) return membership.displayName === safeDisplayName;
+  }
+  if (!safeDisplayName) return false;
+  const activeNames = Array.isArray(group?.activeMemberOrder) && group.activeMemberOrder.length
+    ? group.activeMemberOrder
+    : (Array.isArray(group?.memberOrder) ? group.memberOrder : []);
+  return activeNames.includes(safeDisplayName);
+}
+
 function appendLegacyLeftMemberName(leftMemberNames, authUserId, displayName) {
   const safeDisplayName = String(displayName || "").trim();
   if (!safeDisplayName) return uniqueNames(Array.isArray(leftMemberNames) ? leftMemberNames : []);
@@ -3183,6 +3197,7 @@ function applyCreateGroup(current, payload) {
 
 function applyMultiLog(current, payload) {
   const actor = String(payload?.actor || "").trim();
+  const actorUserId = String(payload?.actorUserId || "").trim();
   const sourceGroupId = String(payload?.sourceGroupId || "").trim();
   const workoutType = normalizeWorkoutType(payload?.workoutType);
   const date = String(payload?.date || "").trim();
@@ -3217,7 +3232,7 @@ function applyMultiLog(current, payload) {
   for (const groupId of allTargetIds) {
     const group = updatedGroups[groupId];
     if (!group) continue;
-    if (!group.memberOrder.includes(actor)) continue;
+    if (!isCurrentGroupMember(group, actor, actorUserId)) continue;
     const accepted = group.settings?.acceptedWorkoutTypes || WORKOUT_TYPES;
     if (!accepted.includes(workoutType)) continue;
 
@@ -3325,9 +3340,7 @@ function applyAddLog(current, payload) {
     error.status = 404;
     throw error;
   }
-  const membership = actorUserId ? group.memberships?.[actorUserId] : null;
-  const actorIsMember = membership?.displayName === actor || group.memberOrder.includes(actor);
-  if (!actorIsMember) {
+  if (!isCurrentGroupMember(group, actor, actorUserId)) {
     const error = new Error("Not a member");
     error.status = 403;
     throw error;
@@ -3565,6 +3578,7 @@ function applySitOutReview(current, payload) {
 
 function updateGroupLog(current, payload, updater, reasonPrefix) {
   const actor = String(payload?.actor || "").trim();
+  const actorUserId = String(payload?.actorUserId || "").trim();
   const groupId = String(payload?.groupId || "").trim();
   const owner = String(payload?.owner || "").trim();
   const logId = String(payload?.logId || "").trim();
@@ -3582,7 +3596,7 @@ function updateGroupLog(current, payload, updater, reasonPrefix) {
     error.status = 404;
     throw error;
   }
-  const updatedLog = updater({ group, actor, owner, log: ownerLogs[logIndex] });
+  const updatedLog = updater({ group, actor, actorUserId, owner, log: ownerLogs[logIndex] });
   ownerLogs[logIndex] = normalizeLogEntry(updatedLog);
   return {
     updated: {
@@ -3608,12 +3622,13 @@ function updateGroupLog(current, payload, updater, reasonPrefix) {
 
 function applyDeleteLog(current, payload) {
   const actor = String(payload?.actor || "").trim();
+  const actorUserId = String(payload?.actorUserId || "").trim();
   const groupId = String(payload?.groupId || "").trim();
   const logId = String(payload?.logId || "").trim();
   const base = rolloverStateIfNeeded(current);
   const group = base.groups[groupId];
   if (!group) { const e = new Error("Bloc not found"); e.status = 404; throw e; }
-  if (!group.memberOrder.includes(actor)) { const e = new Error("Not a member"); e.status = 403; throw e; }
+  if (!isCurrentGroupMember(group, actor, actorUserId)) { const e = new Error("Not a member"); e.status = 403; throw e; }
   const ownerLogs = group.logs?.[actor] || [];
   const logIndex = ownerLogs.findIndex(log => String(log?.id) === logId);
   if (logIndex === -1) { const e = new Error("Workout not found"); e.status = 404; throw e; }
@@ -3654,13 +3669,13 @@ function applyToggleReaction(current, payload) {
 
 function applyFlagLog(current, payload) {
   const reason = typeof payload?.reason === "string" ? payload.reason.slice(0, 280) : "";
-  return updateGroupLog(current, payload, ({ group, actor, owner, log }) => {
+  return updateGroupLog(current, payload, ({ group, actor, actorUserId, owner, log }) => {
     if (owner === actor) {
       const error = new Error("You cannot flag your own workout");
       error.status = 400;
       throw error;
     }
-    if (!group.memberOrder.includes(actor)) {
+    if (!isCurrentGroupMember(group, actor, actorUserId)) {
       const error = new Error("Only Bloc members can flag workouts");
       error.status = 403;
       throw error;

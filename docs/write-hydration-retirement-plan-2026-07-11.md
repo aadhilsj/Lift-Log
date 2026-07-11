@@ -208,6 +208,14 @@ Candidate checks:
 
 Do not rewrite historical keys in the same slice.
 
+Status:
+
+- started on this branch for current-only workout actions
+- `multi-log`, `add-log`, `delete-log`, and `flag` now route actor membership
+  checks through a server helper that prefers `memberships[authUserId]` and
+  falls back to the active member shell for compatibility
+- historical key rewrites and closed-month snapshots were not changed
+
 ### Slice 4 - `leftMemberNames` shrink audit
 
 Verify every remaining write that can mutate `leftMemberNames`:
