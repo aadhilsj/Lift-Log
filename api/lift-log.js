@@ -4497,6 +4497,12 @@ export default async function handler(req, res) {
         return res.status(200).json(readable);
       }
 
+      // Writable mutation boundary:
+      // actions below this point intentionally hydrate the blob-shaped writable
+      // state before computing their compatibility payload. Do not replace this
+      // with fetchReadableCurrentState() broadly; readable state is a composed
+      // user-facing projection and can hide legacy blob gaps that these
+      // mutations still need to preserve or repair.
       current = await getCurrent();
 
       if (payload?.action === "settlement") {
