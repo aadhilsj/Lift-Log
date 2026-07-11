@@ -664,13 +664,17 @@ the live app baseline.
 
 ## Current Remaining Write Gaps
 
-On current local branch state, the meaningful remaining write-authority gaps
-are now:
+On current local branch state, the remaining write-authority gaps are now
+narrower than the older audit text implied:
 
-- `repair-display-name`: still blob-first with best-effort canonical member
-  sync afterward
-- legacy `settlement` month-history mutation: still blob-first with
-  best-effort canonical settlement mirror
+- `repair-display-name` is now a quarantined compatibility repair that writes
+  canonical display-name snapshots and refreshes the active canonical
+  bloc-member row before blob persist; it is still not full display-name
+  de-keying
+- legacy `settlement` month-history mutation now computes the blob-compatible
+  settlement result, writes the canonical settlement status first for existing
+  canonical season-member rows, then persists blob; it is still not a broader
+  historical settlement redesign
 
 ## Repair-Display-Name Audit Amendment — 2026-07-07
 
