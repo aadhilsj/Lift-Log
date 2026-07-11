@@ -226,9 +226,8 @@ const Reactable = ({ msg, currentUserId, onReact, onReply, nameFor, align = "lef
 // and `showTime` only on the last message of a same-minute cluster. Own
 // messages never show a name. The tail corner is only on the first bubble.
 const TextBubble = ({ msg, isOwn, authorName, nameFor, members, replyToMsg, showName, showTime, showAvatar, firstInGroup }) => {
-  const metaText = isOwn
-    ? (showTime ? formatStamp(msg.created_at) : "")
-    : [showName ? authorName : null, showTime ? formatStamp(msg.created_at) : null].filter(Boolean).join(" · ");
+  const nameText = !isOwn && showName ? authorName : "";
+  const timeText = showTime ? formatStamp(msg.created_at) : "";
   const radius = isOwn
     ? (firstInGroup ? "12px 3px 12px 12px" : "12px 12px 12px 12px")
     : (firstInGroup ? "3px 12px 12px 12px" : "12px 12px 12px 12px");
@@ -239,6 +238,9 @@ const TextBubble = ({ msg, isOwn, authorName, nameFor, members, replyToMsg, show
       ? React.createElement('div', { style: { flexShrink: 0 } }, React.createElement(Avatar, { name: authorName, size: 28 }))
       : React.createElement('div', { style: { width: 28, flexShrink: 0 } })),
     React.createElement('div', { style: { maxWidth: "76%", display: "flex", flexDirection: "column", alignItems: isOwn ? "flex-end" : "flex-start" } },
+      nameText && React.createElement('div', {
+        style: { fontFamily: "'Outfit', sans-serif", fontSize: 11, fontWeight: 500, color: C.meta, margin: "0 0 3px 4px" }
+      }, nameText),
       React.createElement('div', {
         style: {
           background: isOwn ? C.ownBg : C.rcvBg,
@@ -259,9 +261,9 @@ const TextBubble = ({ msg, isOwn, authorName, nameFor, members, replyToMsg, show
         ),
         React.createElement('span', null, renderBody(msg.body, members))
       ),
-      metaText && React.createElement('div', {
+      timeText && React.createElement('div', {
         style: { fontFamily: "'Outfit', sans-serif", fontSize: 11, fontWeight: 500, color: C.meta, margin: isOwn ? "3px 4px 0 0" : "3px 0 0 4px" }
-      }, metaText)
+      }, timeText)
     )
   );
 };
