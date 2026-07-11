@@ -41,6 +41,10 @@ function formatStamp(iso) {
   return `${date} · ${time}`;
 }
 
+// Two timestamps fall in the same clock minute (used to collapse timestamps on
+// back-to-back messages from the same sender).
+const sameMinute = (a, b) => Math.floor(new Date(a).getTime() / 60000) === Math.floor(new Date(b).getTime() / 60000);
+
 const escapeRegex = s => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 // One-line preview of a message for reply banners / quoted blocks.
@@ -217,20 +221,32 @@ const Reactable = ({ msg, currentUserId, onReact, onReply, nameFor, align = "lef
   );
 };
 
-const TextBubble = ({ msg, isOwn, authorName, nameFor, members, replyToMsg }) =>
-  React.createElement('div', {
+// WhatsApp-style grouping for runs of consecutive messages from one sender:
+// `showName` (received only) on the first of a run, `showAvatar` on the last,
+// and `showTime` only on the last message of a same-minute cluster. Own
+// messages never show a name. The tail corner is only on the first bubble.
+const TextBubble = ({ msg, isOwn, authorName, nameFor, members, replyToMsg, showName, showTime, showAvatar, firstInGroup }) => {
+  const metaText = isOwn
+    ? (showTime ? formatStamp(msg.created_at) : "")
+    : [showName ? authorName : null, showTime ? formatStamp(msg.created_at) : null].filter(Boolean).join(" · ");
+  const radius = isOwn
+    ? (firstInGroup ? "12px 3px 12px 12px" : "12px 12px 12px 12px")
+    : (firstInGroup ? "3px 12px 12px 12px" : "12px 12px 12px 12px");
+  return React.createElement('div', {
     style: { display: "flex", gap: 8, alignItems: "flex-end", justifyContent: isOwn ? "flex-end" : "flex-start" }
   },
-    !isOwn && React.createElement('div', { style: { flexShrink: 0 } }, React.createElement(Avatar, { name: authorName, size: 28 })),
+    !isOwn && (showAvatar
+      ? React.createElement('div', { style: { flexShrink: 0 } }, React.createElement(Avatar, { name: authorName, size: 28 }))
+      : React.createElement('div', { style: { width: 28, flexShrink: 0 } })),
     React.createElement('div', { style: { maxWidth: "76%", display: "flex", flexDirection: "column", alignItems: isOwn ? "flex-end" : "flex-start" } },
-      React.createElement('div', {
+      metaText && React.createElement('div', {
         style: { fontFamily: "'Outfit', sans-serif", fontSize: 11, fontWeight: 500, color: C.meta, margin: isOwn ? "0 4px 3px 0" : "0 0 3px 4px" }
-      }, `${authorName} · ${formatStamp(msg.created_at)}`),
+      }, metaText),
       React.createElement('div', {
         style: {
           background: isOwn ? C.ownBg : C.rcvBg,
           border: `1px solid ${isOwn ? C.ownBorder : C.rcvBorder}`,
-          borderRadius: isOwn ? "12px 3px 12px 12px" : "3px 12px 12px 12px",
+          borderRadius: radius,
           padding: "9px 12px", color: "var(--text)", fontSize: 14.5, lineHeight: 1.4, wordBreak: "break-word"
         }
       },
@@ -248,6 +264,7 @@ const TextBubble = ({ msg, isOwn, authorName, nameFor, members, replyToMsg }) =>
       )
     )
   );
+};
 
 const SystemCard = ({ msg }) => {
   const toneColor = msg.tone === "warning" ? C.warning : C.positive;
@@ -629,22 +646,34 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], onCl
       // Message list
       React.createElement('div', {
         ref: listRef,
-        style: { flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", overscrollBehavior: "contain", padding: "16px 16px 20px", display: "flex", flexDirection: "column", gap: 12, userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none" }
+        style: { flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", overscrollBehavior: "contain", padding: "16px 16px 20px", display: "flex", flexDirection: "column", userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none" }
       },
         messages.length === 0
           ? React.createElement('div', { style: { margin: "auto", color: "var(--muted2)", fontSize: 13 } }, "No messages yet")
-          : messages.map(msg => {
+          : messages.map((msg, i) => {
+              const prev = messages[i - 1];
+              const next = messages[i + 1];
+              const isText = msg.message_type !== "system" && msg.message_type !== "event";
+              const sameAuthorPrev = isText && prev && prev.message_type !== "system" && prev.message_type !== "event" && prev.author_id === msg.author_id;
+              const sameAuthorNext = isText && next && next.message_type !== "system" && next.message_type !== "event" && next.author_id === msg.author_id;
+              const firstInGroup = isText && !sameAuthorPrev;
+              // Tight spacing within a sender's run, larger between groups / cards.
+              const marginTop = i === 0 ? 0 : (firstInGroup || !isText ? 12 : 3);
+              const wrap = child => React.createElement('div', { key: msg.id, style: { marginTop } }, child);
+
               if (msg.message_type === "system") {
-                return React.createElement(Reactable, { key: msg.id, msg, currentUserId, onReact: handleReact, nameFor, align: "center", showAdd: true },
-                  React.createElement(SystemCard, { msg }));
+                return wrap(React.createElement(Reactable, { msg, currentUserId, onReact: handleReact, nameFor, align: "center", showAdd: true },
+                  React.createElement(SystemCard, { msg })));
               }
               if (msg.message_type === "event") {
-                return React.createElement(EventCard, { key: msg.id, msg, currentUserId, authorName: nameFor(msg.author_id), nameFor, onRsvp: handleRsvp });
+                return wrap(React.createElement(EventCard, { msg, currentUserId, authorName: nameFor(msg.author_id), nameFor, onRsvp: handleRsvp }));
               }
               const isOwn = msg.author_id === currentUserId;
               const replyToMsg = msg.reply_to ? messages.find(x => x.id === msg.reply_to) : null;
-              return React.createElement(Reactable, { key: msg.id, msg, currentUserId, onReact: handleReact, onReply: handleReply, nameFor, align: isOwn ? "right" : "left", swipeEnabled: true },
-                React.createElement(TextBubble, { msg, isOwn, authorName: nameFor(msg.author_id), nameFor, members, replyToMsg }));
+              // Time shows on the last message of a same-minute run from this sender.
+              const showTime = !(sameAuthorNext && sameMinute(msg.created_at, next.created_at));
+              return wrap(React.createElement(Reactable, { msg, currentUserId, onReact: handleReact, onReply: handleReply, nameFor, align: isOwn ? "right" : "left", swipeEnabled: true },
+                React.createElement(TextBubble, { msg, isOwn, authorName: nameFor(msg.author_id), nameFor, members, replyToMsg, showName: firstInGroup, showTime, showAvatar: !sameAuthorNext, firstInGroup })));
             })
       ),
       // Input bar

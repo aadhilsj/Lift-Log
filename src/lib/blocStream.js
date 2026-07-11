@@ -57,7 +57,15 @@ export function seedIfEmpty(blocId, { currentUserId, members = [] } = {}) {
     sys(40, "warning", "Inactivity · 9 Jul", "Rahul — no workout in 7 days.", "", {}),
     (me && other2 && eventMsg)
       ? txt(20, other2.id, `@${me.name} you in for this? 🔥`, { mentions: [currentUserId], replyTo: eventMsg.id })
-      : (other && txt(20, other.id, "let's go 🔥"))
+      : (other && txt(20, other.id, "let's go 🔥")),
+    // Consecutive own run — two in the same minute (time collapses to the last),
+    // then one a minute later (time shows again). No name on own messages.
+    txt(11, currentUserId, "yeah I'm keen"),
+    txt(11, currentUserId, "what time are we thinking?"),
+    txt(5, currentUserId, "actually let's make it 7"),
+    // Consecutive received run — name on the first, avatar on the last only.
+    other && txt(3, other.id, "7 works for me"),
+    other && txt(3, other.id, "see you there 🙌")
   ].filter(Boolean);
 
   store.set(blocId, msgs);
