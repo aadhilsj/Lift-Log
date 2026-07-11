@@ -239,9 +239,6 @@ const TextBubble = ({ msg, isOwn, authorName, nameFor, members, replyToMsg, show
       ? React.createElement('div', { style: { flexShrink: 0 } }, React.createElement(Avatar, { name: authorName, size: 28 }))
       : React.createElement('div', { style: { width: 28, flexShrink: 0 } })),
     React.createElement('div', { style: { maxWidth: "76%", display: "flex", flexDirection: "column", alignItems: isOwn ? "flex-end" : "flex-start" } },
-      metaText && React.createElement('div', {
-        style: { fontFamily: "'Outfit', sans-serif", fontSize: 11, fontWeight: 500, color: C.meta, margin: isOwn ? "0 4px 3px 0" : "0 0 3px 4px" }
-      }, metaText),
       React.createElement('div', {
         style: {
           background: isOwn ? C.ownBg : C.rcvBg,
@@ -261,7 +258,10 @@ const TextBubble = ({ msg, isOwn, authorName, nameFor, members, replyToMsg, show
           }, msgSnippet(replyToMsg))
         ),
         React.createElement('span', null, renderBody(msg.body, members))
-      )
+      ),
+      metaText && React.createElement('div', {
+        style: { fontFamily: "'Outfit', sans-serif", fontSize: 11, fontWeight: 500, color: C.meta, margin: isOwn ? "3px 4px 0 0" : "3px 0 0 4px" }
+      }, metaText)
     )
   );
 };
