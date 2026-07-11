@@ -198,11 +198,15 @@ const EventSheet = ({ onClose, onCreate }) => {
   const firstRef = useRef(null);
   useEffect(() => { firstRef.current?.focus(); }, []);
   const inputStyle = { width: "100%", boxSizing: "border-box", background: C.inputBg, border: `1px solid ${C.inputBorder}`, borderRadius: 10, padding: "11px 13px", color: "var(--text)", fontSize: 14.5, fontFamily: "'Outfit', sans-serif", outline: "none", colorScheme: "dark" };
+  // Native date/time controls carry a large intrinsic width and ignore
+  // width:100% on iOS/Safari — pin min/max width to 0/100% and strip the
+  // native appearance so they shrink into the flex row instead of overflowing.
+  const pickerStyle = { ...inputStyle, padding: "9px 11px", fontSize: 13.5, minWidth: 0, maxWidth: "100%", WebkitAppearance: "none", MozAppearance: "textfield", appearance: "none" };
   const field = (ref, value, setValue, placeholder) => React.createElement('input', {
     ref, value, onChange: e => setValue(e.target.value), placeholder, style: inputStyle
   });
   const picker = (type, value, setValue, ariaLabel) => React.createElement('input', {
-    type, value, "aria-label": ariaLabel, onChange: e => setValue(e.target.value), style: inputStyle
+    type, value, "aria-label": ariaLabel, onChange: e => setValue(e.target.value), style: pickerStyle
   });
   return React.createElement('div', {
     onClick: e => { e.stopPropagation(); onClose(); },
