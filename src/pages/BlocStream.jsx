@@ -110,7 +110,7 @@ const RosterPopover = ({ title, ids, nameFor, onClose, align = "left" }) => {
 // One reaction chip: tap toggles your reaction; press-and-hold (or right-click)
 // reveals who reacted, Discord-style. Pointer events + a movement guard keep tap
 // and long-press from fighting; user-select/callout are off so nothing selects.
-const ReactionChip = ({ emoji, users, mine, onToggle, nameFor }) => {
+const ReactionChip = ({ emoji, users, mine, onToggle, nameFor, align }) => {
   const [who, setWho] = useState(false);
   const p = useRef({ lp: null, moved: false, sup: false, sx: 0, sy: 0 });
   const clear = () => { if (p.current.lp) { clearTimeout(p.current.lp); p.current.lp = null; } };
@@ -123,7 +123,7 @@ const ReactionChip = ({ emoji, users, mine, onToggle, nameFor }) => {
       onContextMenu: e => { e.preventDefault(); setWho(true); },
       style: { display: "inline-flex", alignItems: "center", gap: 4, background: mine ? C.chipOnBg : C.chipBg, border: `1px solid ${mine ? C.chipOnBorder : C.chipBorder}`, borderRadius: 16, padding: "1px 7px", fontSize: 12.5, color: "var(--text)", cursor: "pointer", lineHeight: 1.7, userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none", touchAction: "manipulation" }
     }, emoji, React.createElement('span', { style: { fontFamily: "'Outfit', sans-serif", fontSize: 11, color: "var(--muted)", fontWeight: 600 } }, users.length)),
-    who && React.createElement(RosterPopover, { title: `${emoji} · ${users.length}`, ids: users, nameFor, onClose: () => setWho(false) })
+    who && React.createElement(RosterPopover, { title: `${emoji} · ${users.length}`, ids: users, nameFor, onClose: () => setWho(false), align })
   );
 };
 
@@ -137,7 +137,7 @@ const ReactionChips = ({ msg, currentUserId, onReact, nameFor, align, showAdd, o
     style: { display: "flex", flexWrap: "wrap", gap: 4, justifyContent: justify, marginTop: 5, paddingLeft: align === "left" ? 36 : 0 }
   },
     active.map(([emoji, users]) => React.createElement(ReactionChip, {
-      key: emoji, emoji, users, mine: users.includes(currentUserId), onToggle: () => onReact(msg.id, emoji), nameFor
+      key: emoji, emoji, users, mine: users.includes(currentUserId), onToggle: () => onReact(msg.id, emoji), nameFor, align
     })),
     showAdd && React.createElement('button', {
       onClick: onAdd, onMouseDown: e => e.preventDefault(),
@@ -154,21 +154,22 @@ const ReactionChips = ({ msg, currentUserId, onReact, nameFor, align, showAdd, o
 const Reactable = ({ msg, currentUserId, onReact, onReply, nameFor, align = "left", swipeEnabled = false, showAdd = false, children }) => {
   const [swipeX, setSwipeX] = useState(0);
   const [showBar, setShowBar] = useState(false);
-  const g = useRef({ sx: 0, sy: 0, st: 0, mode: null, lp: null, lastTap: 0, suppress: false, moved: false, swipe: 0 });
+  const g = useRef({ sx: 0, sy: 0, st: 0, mode: null, lp: null, lastTap: 0, suppress: false, maxDist: 0, swipe: 0, lastTouch: 0 });
 
   const clearLP = () => { if (g.current.lp) { clearTimeout(g.current.lp); g.current.lp = null; } };
 
   const start = (x, y) => {
     const s = g.current;
-    s.sx = x; s.sy = y; s.st = Date.now(); s.mode = null; s.suppress = false; s.moved = false; s.swipe = 0;
+    s.sx = x; s.sy = y; s.st = Date.now(); s.mode = null; s.suppress = false; s.maxDist = 0; s.swipe = 0; s.lastTouch = Date.now();
     clearLP();
     s.lp = setTimeout(() => { s.mode = "long"; s.suppress = true; setShowBar(true); try { navigator.vibrate && navigator.vibrate(10); } catch (_) {} }, 500);
   };
   const move = (x, y) => {
     const s = g.current;
     const dx = x - s.sx, dy = y - s.sy;
-    if (!s.moved && (Math.abs(dx) > 10 || Math.abs(dy) > 10)) {
-      s.moved = true;
+    const dist = Math.hypot(dx, dy);
+    if (dist > s.maxDist) s.maxDist = dist;
+    if (s.mode == null && dist > 10) {
       clearLP();
       s.mode = (swipeEnabled && dx > 0 && Math.abs(dx) > Math.abs(dy)) ? "swipe" : "scroll";
     }
@@ -177,22 +178,24 @@ const Reactable = ({ msg, currentUserId, onReact, onReply, nameFor, align = "lef
       setSwipeX(s.swipe);
     }
   };
+  // Fire the heart, dedupe rapid repeats, and remember the moment so the
+  // browser-synthesized dblclick that follows a touch double-tap is ignored.
+  const fireHeart = () => { g.current.lastTap = 0; g.current.lastHeart = Date.now(); onReact(msg.id, DOUBLE_TAP_EMOJI); };
   const end = () => {
     const s = g.current;
     clearLP();
-    if (s.mode === "swipe") {
-      if (s.swipe >= 56 && onReply) onReply(msg);
-      setSwipeX(0);
-      s.mode = null;
-      return;
+    s.lastTouch = Date.now();
+    if (s.suppress) { s.mode = null; setSwipeX(0); return; } // long-press already opened the bar
+    // Tap detection is movement+time based (independent of scroll/swipe mode) so
+    // a plain double-tap registers even with a little finger jitter. Generous
+    // 26px slop and a 600ms window keep it forgiving for slow or quick taps.
+    if (s.maxDist < 26 && Date.now() - s.st < 550) {
+      if (Date.now() - s.lastTap < 600) fireHeart();
+      else s.lastTap = Date.now();
+      setSwipeX(0); s.mode = null; return;
     }
-    if (s.suppress) { s.mode = null; return; } // long-press already opened the bar
-    if (!s.moved && Date.now() - s.st < 400) {
-      const now = Date.now();
-      if (now - s.lastTap < 400) { onReact(msg.id, DOUBLE_TAP_EMOJI); s.lastTap = 0; }
-      else s.lastTap = now;
-    }
-    s.mode = null;
+    if (s.mode === "swipe" && s.swipe >= 56 && onReply) onReply(msg);
+    setSwipeX(0); s.mode = null;
   };
 
   return React.createElement('div', { style: { position: "relative" } },
@@ -203,7 +206,9 @@ const Reactable = ({ msg, currentUserId, onReact, onReply, nameFor, align = "lef
       onTouchStart: e => start(e.touches[0].clientX, e.touches[0].clientY),
       onTouchMove: e => move(e.touches[0].clientX, e.touches[0].clientY),
       onTouchEnd: end,
-      onDoubleClick: () => onReact(msg.id, DOUBLE_TAP_EMOJI),
+      // Mouse double-click is the desktop path; ignore the dblclick that a touch
+      // double-tap synthesizes (touchend just ran) so the heart isn't toggled twice.
+      onDoubleClick: () => { if (Date.now() - g.current.lastTouch > 800) onReact(msg.id, DOUBLE_TAP_EMOJI); },
       onContextMenu: e => { e.preventDefault(); setShowBar(true); },
       style: { transform: swipeX ? `translateX(${swipeX}px)` : "none", transition: g.current.mode === "swipe" ? "none" : "transform .18s ease", touchAction: swipeEnabled ? "pan-y" : "auto", userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none" }
     }, children),
