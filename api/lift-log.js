@@ -4928,6 +4928,7 @@ export default async function handler(req, res) {
         // Quarantined compatibility tool:
         // - repairs one bloc's blob-shaped historical/name-keyed state
         // - repairs canonical display-name snapshots for that same bloc
+        // - refreshes the active canonical membership row when one still exists
         // - should not be expanded into a general rename authority-transfer
         //   path before full display-name de-keying exists
         const updated = applyRepairDisplayName(current, payload);
@@ -4948,6 +4949,12 @@ export default async function handler(req, res) {
             payload.userId,
             payload.oldName,
             repairedMembership.displayName,
+            { throwOnError: true }
+          );
+          await syncBlocMemberToCanonical(
+            repairedGroup,
+            payload.userId,
+            repairedMembership.role || "member",
             { throwOnError: true }
           );
         }

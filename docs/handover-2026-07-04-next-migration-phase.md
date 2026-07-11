@@ -91,7 +91,9 @@ It is still directionally useful, but these corrections now apply on current
 - `delete-account` is also now verified live as a canonical-first slice
 - `repair-display-name` was blob-first at the time of this note; a later local
   July 9 patch converts it into a canonical snapshot-repair slice for one bloc,
-  but that should not be treated as full display-name de-keying
+  and the current branch also refreshes the active canonical bloc-member row
+  from the repaired group when the repaired user is still active; this should
+  still not be treated as full display-name de-keying
 - `upsert-profile` is now locally tightened so canonical profile / bloc-member
   snapshot writes happen before blob persist, closing another remaining
   best-effort dual-write gap
