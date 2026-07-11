@@ -274,7 +274,9 @@ const AvatarStack = ({ ids, nameFor, size, muted, label, onClick }) => {
   const extra = ids.length - shown.length;
   return React.createElement('button', {
     onClick, onMouseDown: e => e.preventDefault(),
-    style: { display: "inline-flex", alignItems: "center", background: "transparent", border: "none", padding: 0, cursor: onClick ? "pointer" : "default" }
+    // Sits above the roster popover's tap-outside catcher so tapping the other
+    // count switches the list in place instead of closing + reopening it.
+    style: { position: "relative", zIndex: onClick ? 45 : "auto", display: "inline-flex", alignItems: "center", background: "transparent", border: "none", padding: 0, cursor: onClick ? "pointer" : "default" }
   },
     React.createElement('div', { style: { display: "flex", alignItems: "center" } },
       shown.map((id, i) => React.createElement('div', {
