@@ -363,6 +363,14 @@ function isCurrentGroupMember(group, displayName, authUserId = "") {
   return activeNames.includes(safeDisplayName);
 }
 
+function isGroupAdminActor(group, actorUserId = "", actorDisplayName = "") {
+  const safeUserId = String(actorUserId || "").trim();
+  const safeDisplayName = String(actorDisplayName || "").trim();
+  return group?.adminUserId
+    ? group.adminUserId === safeUserId
+    : !!group?.adminName && group.adminName === safeDisplayName;
+}
+
 function appendLegacyLeftMemberName(leftMemberNames, authUserId, displayName) {
   const safeDisplayName = String(displayName || "").trim();
   if (!safeDisplayName) return uniqueNames(Array.isArray(leftMemberNames) ? leftMemberNames : []);
@@ -3109,9 +3117,7 @@ function assertGroupAdmin(state, groupId, user, actorDisplayName) {
     throw error;
   }
 
-  const isAdmin = group.adminUserId
-    ? group.adminUserId === user.id
-    : group.adminName === actorDisplayName;
+  const isAdmin = isGroupAdminActor(group, user.id, actorDisplayName);
   if (!isAdmin) {
     const error = new Error("Only the admin can rebuild the projection");
     error.status = 403;
@@ -3284,9 +3290,7 @@ function applyUpdateSettings(current, payload) {
     error.status = 404;
     throw error;
   }
-  const actorIsAdmin = group.adminUserId
-    ? group.adminUserId === actorUserId
-    : group.adminName && group.adminName === actor;
+  const actorIsAdmin = isGroupAdminActor(group, actorUserId, actor);
   if (!actorIsAdmin) {
     const error = new Error("Only the Bloc admin can update settings");
     error.status = 403;
@@ -3415,7 +3419,7 @@ function applySeasonProrationChoice(current, payload) {
     error.status = 404;
     throw error;
   }
-  const actorIsAdmin = group.adminUserId ? group.adminUserId === actorUserId : group.adminName === actor;
+  const actorIsAdmin = isGroupAdminActor(group, actorUserId, actor);
   if (!actorIsAdmin) {
     const error = new Error("Only the Bloc admin can choose the first-month target");
     error.status = 403;
@@ -3474,7 +3478,7 @@ function applySitOutRequest(current, payload) {
     throw error;
   }
   const deputy = getDeputyAdmin(group);
-  const actorIsAdmin = group.adminUserId ? group.adminUserId === actorUserId : group.adminName === actor;
+  const actorIsAdmin = isGroupAdminActor(group, actorUserId, actor);
   const targetApprover = actorIsAdmin ? deputy : (group.adminUserId ? group.memberships?.[group.adminUserId] : null);
   const shouldAutoApprove = month.day <= 5 && !exceptional && !actorIsAdmin && recentCount < 1;
   const nextExcused = { ...(group.excused || {}) };
@@ -3539,7 +3543,7 @@ function applySitOutReview(current, payload) {
     error.status = 404;
     throw error;
   }
-  const actorIsAdmin = group.adminUserId ? group.adminUserId === actorUserId : group.adminName === actor;
+  const actorIsAdmin = isGroupAdminActor(group, actorUserId, actor);
   const deputy = getDeputyAdmin(group);
   const canReview = actorIsAdmin || (request.targetApproverUserId && request.targetApproverUserId === actorUserId) || (request.targetApproverName && request.targetApproverName === actor) || (memberName === group.adminName && deputy?.userId === actorUserId);
   if (!canReview) {
@@ -3727,7 +3731,7 @@ function applyReviewFlag(current, payload) {
   }
   return updateGroupLog(current, payload, ({ group, actor, log }) => {
     const actorUserId = String(payload?.actorUserId || "").trim();
-    const actorIsAdmin = group.adminUserId ? group.adminUserId === actorUserId : group.adminName === actor;
+    const actorIsAdmin = isGroupAdminActor(group, actorUserId, actor);
     if (!actorIsAdmin) {
       const error = new Error("Only the Bloc admin can review flagged workouts");
       error.status = 403;
@@ -4062,9 +4066,7 @@ function applyKickMember(current, payload) {
   // Support legacy groups where adminUserId may not be set
   const actorDisplayName = String(payload?.actorDisplayName || "").trim();
   const actorResolvedName = Object.values(group.memberships||{}).find(m=>m.userId===actorUserId)?.displayName || actorDisplayName;
-  const actorIsAdmin = group.adminUserId
-    ? group.adminUserId === actorUserId
-    : group.adminName === actorResolvedName;
+  const actorIsAdmin = isGroupAdminActor(group, actorUserId, actorResolvedName);
   if (!actorIsAdmin) {
     const error = new Error("Only the admin can remove members");
     error.status = 403;
