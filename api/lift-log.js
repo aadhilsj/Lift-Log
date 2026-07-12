@@ -144,6 +144,20 @@ function isWriteHydrationParityEnabled(action) {
   return WRITE_HYDRATION_PARITY_ACTIONS.has("*") || WRITE_HYDRATION_PARITY_ACTIONS.has(action);
 }
 
+function assertAdminPin(payload) {
+  const adminPin = process.env.ADMIN_PIN;
+  if (!adminPin) {
+    const error = new Error("ADMIN_PIN is not configured");
+    error.status = 500;
+    throw error;
+  }
+  if (payload?.pin !== adminPin) {
+    const error = new Error("Invalid admin PIN");
+    error.status = 401;
+    throw error;
+  }
+}
+
 function redactWriteHydrationVolatileFields(value) {
   const volatileKeys = new Set(["chosenAt", "requestedAt", "decidedAt", "decisionAt"]);
   if (Array.isArray(value)) return value.map(redactWriteHydrationVolatileFields);
@@ -158,6 +172,10 @@ function redactWriteHydrationVolatileFields(value) {
 
 function buildWriteHydrationParityBlob(state) {
   return redactWriteHydrationVolatileFields(serializeStateForBlob(state));
+}
+
+function unwrapMutationState(result) {
+  return result?.updated || result?.state || result;
 }
 
 function normalizeProfiles(profiles) {
@@ -3679,7 +3697,7 @@ async function runWriteHydrationParityProbe(action, payload, auth, actor, writab
       actor: canonicalActor,
       actorUserId: auth.user.id
     });
-    const canonicalUpdated = canonicalMutationResult?.updated || canonicalMutationResult?.state || canonicalMutationResult;
+    const canonicalUpdated = unwrapMutationState(canonicalMutationResult);
 
     const writableBlob = buildWriteHydrationParityBlob(writableUpdated);
     const canonicalBlob = buildWriteHydrationParityBlob(canonicalUpdated);
@@ -3705,6 +3723,275 @@ async function runWriteHydrationParityProbe(action, payload, auth, actor, writab
       message: err?.message || String(err)
     }));
   }
+}
+
+async function compareWriteHydrationMutation(action, groupId, writableInput, canonicalInput, payload, applyMutation) {
+  try {
+    const writableUpdated = unwrapMutationState(applyMutation(writableInput, payload));
+    const canonicalUpdated = unwrapMutationState(applyMutation(canonicalInput, payload));
+    const writableBlob = buildWriteHydrationParityBlob(writableUpdated);
+    const canonicalBlob = buildWriteHydrationParityBlob(canonicalUpdated);
+    const mismatches = collectWriteHydrationGroupMismatches(
+      writableBlob.groups?.[groupId],
+      canonicalBlob.groups?.[groupId],
+      groupId
+    );
+    return {
+      action,
+      groupId,
+      ok: mismatches.length === 0,
+      mismatches
+    };
+  } catch (err) {
+    return {
+      action,
+      groupId,
+      ok: false,
+      error: err?.message || String(err)
+    };
+  }
+}
+
+async function compareWriteHydrationAction(action, baseState, groupId, payload, applyMutation) {
+  try {
+    const canonicalBase = await buildCanonicalWritableStateForGroup(groupId, baseState);
+    return compareWriteHydrationMutation(action, groupId, baseState, canonicalBase, payload, applyMutation);
+  } catch (err) {
+    return {
+      action,
+      groupId,
+      ok: false,
+      error: err?.message || String(err)
+    };
+  }
+}
+
+function collectActiveAuthMembers(group) {
+  return Object.values(group?.memberships || {})
+    .filter(member => member?.userId && member?.displayName && isCurrentGroupMember(group, member.displayName, member.userId));
+}
+
+function findFirstCurrentLogCandidate(group, options = {}) {
+  const {
+    ownerName = null,
+    excludeOwnerName = null,
+    requireNonStrava = false,
+    requireUnflagged = false
+  } = options;
+  for (const [owner, logs] of Object.entries(group?.logs || {})) {
+    if (ownerName && owner !== ownerName) continue;
+    if (excludeOwnerName && owner === excludeOwnerName) continue;
+    for (const log of logs || []) {
+      if (!log?.id) continue;
+      if (requireNonStrava && log.verifiedVia === "strava") continue;
+      if (requireUnflagged && log.flagStatus) continue;
+      return { owner, log };
+    }
+  }
+  return null;
+}
+
+function findSitOutRequestCandidate(groupId, group) {
+  const members = collectActiveAuthMembers(group);
+  for (const member of members) {
+    try {
+      applySitOutRequest({ version: 2, groups: { [groupId]: group }, groupOrder: [groupId], profiles: {}, meta: { revision: 0, updatedAt: null } }, {
+        groupId,
+        actor: member.displayName,
+        actorUserId: member.userId,
+        reason: "Parity probe",
+        exceptional: false
+      });
+      return member;
+    } catch (_) {
+      // Try another member; current data may make this action ineligible.
+    }
+  }
+  return null;
+}
+
+function findSitOutReviewCandidate(group) {
+  const requests = normalizeSitOutRequests(group?.sitOutRequests);
+  for (const [monthKey, monthRequests] of Object.entries(requests || {})) {
+    for (const [memberName, request] of Object.entries(monthRequests || {})) {
+      if (request?.status !== "pending") continue;
+      const reviewer = collectActiveAuthMembers(group).find(member =>
+        canReviewSitOutRequest(group, request, memberName, member.userId, member.displayName)
+      );
+      if (reviewer) return { monthKey, memberName, reviewer };
+    }
+  }
+  return null;
+}
+
+async function buildWriteHydrationParityReport(baseState) {
+  const results = [];
+  const addSkipped = (action, groupId, reason) => results.push({ action, groupId, ok: null, skipped: true, reason });
+
+  const groupIds = Array.isArray(baseState.groupOrder) && baseState.groupOrder.length
+    ? baseState.groupOrder
+    : Object.keys(baseState.groups || {});
+  for (const groupId of groupIds) {
+    const group = baseState.groups?.[groupId];
+    if (!group) continue;
+    const activeMembers = collectActiveAuthMembers(group);
+    const admin = activeMembers.find(member => isGroupAdminActor(group, member.userId, member.displayName));
+
+    if (admin) {
+      results.push(await compareWriteHydrationAction("update-settings", baseState, groupId, {
+        groupId,
+        groupName: group.name,
+        settings: group.settings || {},
+        actor: admin.displayName,
+        actorUserId: admin.userId
+      }, applyUpdateSettings));
+      results.push(await compareWriteHydrationAction("season-proration-choice", baseState, groupId, {
+        groupId,
+        choice: "keep",
+        actor: admin.displayName,
+        actorUserId: admin.userId
+      }, applySeasonProrationChoice));
+    } else {
+      addSkipped("update-settings", groupId, "no active admin candidate");
+      addSkipped("season-proration-choice", groupId, "no active admin candidate");
+    }
+
+    const actor = activeMembers[0];
+    if (!actor) {
+      addSkipped("reaction", groupId, "no active member candidate");
+      addSkipped("delete-log", groupId, "no active member candidate");
+      addSkipped("sitout-request", groupId, "no active member candidate");
+      continue;
+    }
+
+    const anyLog = findFirstCurrentLogCandidate(group);
+    if (anyLog) {
+      results.push(await compareWriteHydrationAction("reaction", baseState, groupId, {
+        groupId,
+        owner: anyLog.owner,
+        logId: anyLog.log.id,
+        emoji: "👍",
+        actor: actor.displayName,
+        actorUserId: actor.userId
+      }, applyToggleReaction));
+    } else {
+      addSkipped("reaction", groupId, "no current workout log candidate");
+    }
+
+    const ownLog = findFirstCurrentLogCandidate(group, { ownerName: actor.displayName });
+    if (ownLog) {
+      results.push(await compareWriteHydrationAction("delete-log", baseState, groupId, {
+        groupId,
+        owner: actor.displayName,
+        logId: ownLog.log.id,
+        actor: actor.displayName,
+        actorUserId: actor.userId
+      }, applyDeleteLog));
+    } else {
+      addSkipped("delete-log", groupId, "no current log owned by sampled member");
+    }
+
+    const flagActor = activeMembers.find(member => findFirstCurrentLogCandidate(group, {
+      excludeOwnerName: member.displayName,
+      requireNonStrava: true,
+      requireUnflagged: true
+    }));
+    const flagCandidate = flagActor
+      ? findFirstCurrentLogCandidate(group, {
+          excludeOwnerName: flagActor.displayName,
+          requireNonStrava: true,
+          requireUnflagged: true
+        })
+      : null;
+    if (flagActor && flagCandidate) {
+      try {
+        const canonicalBase = await buildCanonicalWritableStateForGroup(groupId, baseState);
+        const flagPayload = {
+          groupId,
+          owner: flagCandidate.owner,
+          logId: flagCandidate.log.id,
+          reason: "Parity probe",
+          actor: flagActor.displayName,
+          actorUserId: flagActor.userId
+        };
+        results.push(await compareWriteHydrationMutation("flag", groupId, baseState, canonicalBase, flagPayload, applyFlagLog));
+
+        const writableFlagged = unwrapMutationState(applyFlagLog(baseState, flagPayload));
+        const canonicalFlagged = unwrapMutationState(applyFlagLog(canonicalBase, flagPayload));
+        const ownerMember = activeMembers.find(member => member.displayName === flagCandidate.owner);
+        if (ownerMember) {
+          results.push(await compareWriteHydrationMutation("flag-response", groupId, writableFlagged, canonicalFlagged, {
+            groupId,
+            owner: flagCandidate.owner,
+            logId: flagCandidate.log.id,
+            response: "Parity response",
+            actor: ownerMember.displayName,
+            actorUserId: ownerMember.userId
+          }, applyRespondToFlag));
+        } else {
+          addSkipped("flag-response", groupId, "flag owner has no active auth membership candidate");
+        }
+        if (admin) {
+          results.push(await compareWriteHydrationMutation("flag-review", groupId, writableFlagged, canonicalFlagged, {
+            groupId,
+            owner: flagCandidate.owner,
+            logId: flagCandidate.log.id,
+            decision: "reject",
+            actor: admin.displayName,
+            actorUserId: admin.userId
+          }, applyReviewFlag));
+        } else {
+          addSkipped("flag-review", groupId, "no active admin candidate");
+        }
+      } catch (err) {
+        const error = err?.message || String(err);
+        results.push({ action: "flag", groupId, ok: false, error });
+        results.push({ action: "flag-response", groupId, ok: false, error });
+        results.push({ action: "flag-review", groupId, ok: false, error });
+      }
+    } else {
+      addSkipped("flag", groupId, "no safe non-Strava cross-member log candidate");
+      addSkipped("flag-response", groupId, "no safe non-Strava cross-member log candidate");
+      addSkipped("flag-review", groupId, "no safe non-Strava cross-member log candidate");
+    }
+
+    const sitOutActor = findSitOutRequestCandidate(groupId, group);
+    if (sitOutActor) {
+      results.push(await compareWriteHydrationAction("sitout-request", baseState, groupId, {
+        groupId,
+        reason: "Parity probe",
+        exceptional: false,
+        actor: sitOutActor.displayName,
+        actorUserId: sitOutActor.userId
+      }, applySitOutRequest));
+    } else {
+      addSkipped("sitout-request", groupId, "no eligible current sit-out requester");
+    }
+
+    const reviewCandidate = findSitOutReviewCandidate(group);
+    if (reviewCandidate) {
+      results.push(await compareWriteHydrationAction("sitout-review", baseState, groupId, {
+        groupId,
+        monthKey: reviewCandidate.monthKey,
+        memberName: reviewCandidate.memberName,
+        decision: "decline",
+        actor: reviewCandidate.reviewer.displayName,
+        actorUserId: reviewCandidate.reviewer.userId
+      }, applySitOutReview));
+    } else {
+      addSkipped("sitout-review", groupId, "no pending sit-out request candidate");
+    }
+  }
+
+  const failed = results.filter(result => result.ok === false);
+  const skipped = results.filter(result => result.skipped);
+  return {
+    ok: failed.length === 0,
+    checked: results.length - skipped.length,
+    skipped: skipped.length,
+    failed: failed.length,
+    results
+  };
 }
 
 function applyAddLog(current, payload) {
@@ -4864,6 +5151,12 @@ export default async function handler(req, res) {
         });
         const readable = await fetchReadableCurrentState();
         return res.status(200).json(readable);
+      }
+
+      if (payload?.action === "write-hydration-parity-report") {
+        assertAdminPin(payload);
+        const report = await buildWriteHydrationParityReport(await getCurrent());
+        return res.status(200).json(report);
       }
 
       // Writable mutation boundary:

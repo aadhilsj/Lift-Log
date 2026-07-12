@@ -171,6 +171,17 @@ Follow-up finding after `b6f676d`:
 - the probe now unwraps `result.updated` / `result.state` before serializing the
   canonical mutation result
 
+Admin-only parity report follow-up:
+
+- `POST /api/lift-log` with `action: "write-hydration-parity-report"` now
+  builds a non-persisting parity report behind `ADMIN_PIN`
+- the report compares the existing blob writable input against
+  `buildCanonicalWritableStateForGroup(...)` for sampled current/open actions
+- it returns checked/skipped/failed counts plus per-action mismatches
+- it does not call `persistState()` or canonical write RPCs
+- skipped rows mean the current data did not have a safe candidate for that
+  action, not that the action failed parity
+
 ## Do Not Repeat
 
 Do not revive these approaches without a dedicated replacement plan:
@@ -221,8 +232,15 @@ Vercel project IDs:
 
 ## Immediate Next Work
 
-Deploy the constructor-probe follow-up to preview and inspect Vercel logs while
-exercising current/open actions:
+Deploy the constructor-probe/admin-report follow-up to preview, then call the
+admin-only parity report:
+
+```json
+{ "action": "write-hydration-parity-report", "pin": "<ADMIN_PIN>" }
+```
+
+Also inspect Vercel logs for organic probe output while exercising current/open
+actions when practical:
 
 ```bash
 reaction, flag, flag-response, flag-review, delete-log, update-settings,
