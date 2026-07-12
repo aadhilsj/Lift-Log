@@ -261,6 +261,14 @@ const AppIcon = ({name,size=18,stroke="currentColor"}) => {
     React.createElement('path',{d:"M8 3v3"}),
     React.createElement('path',{d:"M16 3v3"})
   );
+  if (name==="calendar-plus") return React.createElement('svg',common,
+    React.createElement('rect',{x:"3.5",y:"5",width:"17",height:"16",rx:"2"}),
+    React.createElement('path',{d:"M3.5 9.5h17"}),
+    React.createElement('path',{d:"M8 3v3"}),
+    React.createElement('path',{d:"M16 3v3"}),
+    React.createElement('path',{d:"M12 12v5"}),
+    React.createElement('path',{d:"M9.5 14.5h5"})
+  );
   if (name==="clock") return React.createElement('svg',common,
     React.createElement('circle',{cx:"12",cy:"12",r:"8"}),
     React.createElement('path',{d:"M12 8v4l2.5 1.5"})

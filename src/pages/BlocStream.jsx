@@ -549,7 +549,6 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], stre
   const [viewedBlocId, setViewedBlocId] = useState(blocId);
   const [draft, setDraft] = useState("");
   const [eventDraft, setEventDraft] = useState(emptyEventDraft);
-  const [showPlus, setShowPlus] = useState(false);
   const [showEventSheet, setShowEventSheet] = useState(false);
   const [replyTarget, setReplyTarget] = useState(null);
   const [mention, setMention] = useState(null); // { query, start } while typing "@…"
@@ -593,7 +592,6 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], stre
     setEventDraft(saved.eventDraft || emptyEventDraft());
     setShowEventSheet(Boolean(saved.showEventSheet));
     setMention(null);
-    setShowPlus(false);
   };
 
   useEffect(() => {
@@ -603,7 +601,6 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], stre
       setViewedBlocId(blocId);
       setDraft("");
       setEventDraft(emptyEventDraft());
-      setShowPlus(false);
       setShowEventSheet(false);
       setReplyTarget(null);
       setMention(null);
@@ -614,7 +611,6 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], stre
     setViewedBlocId(blocId);
     setDraft("");
     setEventDraft(emptyEventDraft());
-    setShowPlus(false);
     setShowEventSheet(false);
     setReplyTarget(null);
     setMention(null);
@@ -861,26 +857,16 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], stre
             style: { background: "transparent", border: "none", color: "var(--muted)", fontSize: 16, cursor: "pointer", padding: 2, flexShrink: 0 }
           }, "✕")
         ),
-        // + action sheet
-        showPlus && React.createElement('div', {
-          style: {
-            position: "absolute", left: 12, bottom: "calc(100% + 6px)", background: C.sheetBg, border: `1px solid ${C.sheetBorder}`,
-            borderRadius: 12, padding: 6, minWidth: 190, boxShadow: "0 8px 24px rgba(0,0,0,.5)", display: "flex", flexDirection: "column", gap: 2, zIndex: 12
-          }
-        },
-          React.createElement('button', {
-            onClick: () => { setShowPlus(false); setShowEventSheet(true); },
-            style: { textAlign: "left", background: "transparent", border: "none", color: "var(--text)", fontSize: 14, fontWeight: 500, padding: "10px 12px", borderRadius: 8, cursor: "pointer" }
-          }, "Suggest an event")
-        ),
         // @mention picker
         mention && mentionItems.length > 0 && React.createElement(MentionList, { items: mentionItems, onPick: pickMention }),
         // Input row
         React.createElement('div', { style: { display: "flex", alignItems: "center", gap: 8 } },
           React.createElement('button', {
-            onClick: () => setShowPlus(v => !v),
-            style: { flexShrink: 0, width: 36, height: 36, borderRadius: 999, background: C.inputBg, border: `1px solid ${C.inputBorder}`, color: C.accent, fontSize: 20, lineHeight: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }
-          }, "+"),
+            onClick: () => setShowEventSheet(true),
+            title: "Suggest an event",
+            "aria-label": "Suggest an event",
+            style: { flexShrink: 0, width: 36, height: 36, borderRadius: 999, background: C.inputBg, border: `1px solid ${C.inputBorder}`, color: C.accent, lineHeight: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }
+          }, React.createElement(AppIcon, { name: "calendar-plus", size: 17, stroke: C.accent })),
           React.createElement('input', {
             ref: inputRef, value: draft, onChange: onDraftChange,
             onKeyDown: e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } },
