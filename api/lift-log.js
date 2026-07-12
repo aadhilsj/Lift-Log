@@ -4919,6 +4919,7 @@ export default async function handler(req, res) {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
         const updated = applySitOutRequest(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        await runWriteHydrationParityProbe("sitout-request", payload, auth, actor, updated, applySitOutRequest);
         const sitOutGroup = updated.groups?.[payload.groupId];
         const sitOutMonthKey = sitOutGroup?.lastMonth;
         const nextRequest = sitOutMonthKey
@@ -4944,6 +4945,7 @@ export default async function handler(req, res) {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
         const updated = applySitOutReview(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        await runWriteHydrationParityProbe("sitout-review", payload, auth, actor, updated, applySitOutReview);
         const reviewGroup = updated.groups?.[payload.groupId];
         const reviewedRequest = payload.memberName && payload.monthKey
           ? reviewGroup?.sitOutRequests?.[payload.monthKey]?.[payload.memberName]

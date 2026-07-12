@@ -197,9 +197,9 @@ Do not change all four together.
 
 Status:
 
-- `update-settings` and `season-proration-choice` now have opt-in,
-  non-persisting parity probes controlled by
-  `WRITE_HYDRATION_PARITY_ACTIONS=update-settings,season-proration-choice`
+- `update-settings`, `season-proration-choice`, `sitout-request`, and
+  `sitout-review` now have opt-in, non-persisting parity probes controlled by
+  `WRITE_HYDRATION_PARITY_ACTIONS=update-settings,season-proration-choice,sitout-request,sitout-review`
 - when enabled, the server computes the existing writable-blob result and a
   readable/composed-state result, compares timestamp-redacted
   blob-serializable outputs, and logs a compact mismatch summary
