@@ -5681,8 +5681,11 @@ export default async function handler(req, res) {
       if (payload?.action === "delete-log") {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
-        const result = applyDeleteLog(auth.state, { ...payload, actor, actorUserId: auth.user.id });
-        await runWriteHydrationParityProbe("delete-log", payload, auth, actor, result.updated, applyDeleteLog);
+        const shadowBlobResult = applyDeleteLog(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
+        const canonicalActor = resolveDisplayNameForUser(canonicalState, payload.groupId, auth.user.id, auth.user.email) || actor;
+        const result = applyDeleteLog(canonicalState, { ...payload, actor: canonicalActor, actorUserId: auth.user.id });
+        await runWriteHydrationParityProbe("delete-log", payload, auth, actor, shadowBlobResult.updated, applyDeleteLog);
         await deleteWorkoutLogFromCanonical(payload.logId, { throwOnError: true });
         const persisted = await persistState(result.updated, result.reason);
         return res.status(200).json(persisted);
