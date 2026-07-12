@@ -1,7 +1,6 @@
 import React from "react";
 const { useState, useEffect, useMemo, useCallback, useRef } = React;
 import {
-  DEFAULT_FINE_AMOUNT,
   DEFAULT_CURRENCY,
   NAMES,
   MIN_TARGET,
@@ -11,8 +10,6 @@ import {
   curKey,
   MONTH_NAMES,
   getDaysLeft,
-  getStatus,
-  getLeaderboardDisplayStatus,
   getLeaderboardDiffText,
   calcPenalties,
   getLoserAmount,
@@ -61,8 +58,7 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
   const activeCounts=counts.filter(u=>!u.isOut);
   const sorted=[...counts].sort((a,b)=>{if(a.isOut&&!b.isOut)return 1;if(!a.isOut&&b.isOut)return -1;return b.count-a.count;});
   const penalties = calcPenalties(activeCounts, isCurrent ? groupSettings || {} : selMonth?.settings || {});
-  const {winners,losers,perLoser,totalPot,perWinner}=penalties;
-  const currentLeaderQualified = !isCurrent || ((winners[0]?.count || 0) >= (winners[0]?.target || MIN_TARGET));
+  const {winners,losers,perWinner}=penalties;
   const hasActivity=activeCounts.some(u=>u.count>0);
   const resultsCurrency = (isCurrent ? groupSettings : selMonth?.settings)?.currency || DEFAULT_CURRENCY;
   // At Risk = active, not a loser, not a winner, and currently tagged at-risk.
@@ -103,7 +99,7 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
         React.createElement('div',{style:{flex:1}}),
         React.createElement('span',{className:"mono",style:{fontSize:17,fontWeight:700,marginRight:12,color:u.isOut?"var(--muted)":"var(--text)"}},u.isOut?"—":u.count),
         React.createElement('span',{className:"mono",style:{fontSize:12,minWidth:74,textAlign:"right",color:isWin&&losers.length>0?"#4ECDC4":isLose?"var(--red)":"var(--muted)"}},
-          u.isOut?"—":isWin&&losers.length>0?`+${fmtCurrency(perWinner, resultsCurrency)}`:isLose?`-${fmtCurrency(getLoserAmount(penalties, u.name), resultsCurrency)}`:fmtCurrency(0, resultsCurrency))
+          u.isOut?"—":isCurrent?getLeaderboardDiffText(u):isWin&&losers.length>0?`+${fmtCurrency(perWinner, resultsCurrency)}`:isLose?`-${fmtCurrency(getLoserAmount(penalties, u.name), resultsCurrency)}`:fmtCurrency(0, resultsCurrency))
       );
     })
   );
@@ -156,7 +152,7 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
           React.createElement('div',{style:{fontSize:12,color:"var(--muted)",marginTop:2}},counts.find(u=>u.name===currentUser)?.memberDiffLabel || getLeaderboardDiffText(counts.find(u=>u.name===currentUser) || {count:0,target:MIN_TARGET}))
         ),
         React.createElement('div',{style:{textAlign:"right"}},
-          React.createElement('div',{className:"mono",style:{fontSize:18,fontWeight:800,color:losers.some(l=>l.name===currentUser)?"var(--red)":winners.some(w=>w.name===currentUser)?"#4ECDC4":"var(--text)"}},`${counts.find(u=>u.name===currentUser)?.count ?? 0}/${counts.find(u=>u.name===currentUser)?.target ?? MIN_TARGET}`),
+          React.createElement('div',{className:"mono",style:{fontSize:18,fontWeight:800,color:losers.some(l=>l.name===currentUser)?"var(--red)":"#4ECDC4"}},`${counts.find(u=>u.name===currentUser)?.count ?? 0}/${counts.find(u=>u.name===currentUser)?.target ?? MIN_TARGET}`),
           React.createElement('div',{style:{fontSize:11,color:"var(--muted)"}},"workouts")
         )
       ),
