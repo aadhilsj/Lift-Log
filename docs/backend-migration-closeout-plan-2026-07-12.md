@@ -225,7 +225,29 @@ Preview/admin report status:
 
 Remaining current/open candidate needing a separate risk pass:
 
-- none in the admin-report-covered current/open batch
+- `add-log`
+- `multi-log`
+- lifecycle exits that still compute from blob input even though their
+  canonical writes already happen before blob persist:
+  - `kick-member`
+  - `leave-bloc`
+  - `delete-account`
+
+July 12 report-only expansion:
+
+- the admin `write-hydration-parity-report` now includes report-only probes for
+  `add-log`, `multi-log`, `kick-member`, and `leave-bloc`
+- generated workout log ids/timestamps are redacted only for `add-log` and
+  `multi-log` comparisons, because the probe simulates blob and canonical
+  mutations separately
+- local report execution against current data did **not** justify cutting these
+  routes to canonical writable input yet
+- the blocker was historical compatibility-shell drift, mostly
+  `monthHistory`, and for some blocs historical `seasonOverrides`, not a
+  direct failure in the new candidate payloads
+- do not treat this report expansion as approval to move more write inputs; it
+  is evidence that the next safe batch needs a historical-shell reconciliation
+  or a deliberately scoped current/open comparator
 
 Exit criteria:
 
@@ -257,6 +279,16 @@ Do not bundle these with Workstream C unless coverage is proven:
 
 These paths still touch identity repair, lifecycle residue, historical/display-
 name keyed state, or admin transfer behavior.
+
+Current stance after the July 12 report expansion:
+
+- `kick-member` and `leave-bloc` have report-only writable-input coverage, but
+  remain blob-input at runtime
+- `delete-account` remains too global for the current group-scoped parity
+  report and should not be bundled with smaller lifecycle exits
+- `auth-sync`, `upsert-profile`, and `repair-display-name` remain explicitly
+  high risk because readable/canonical state can hide the legacy blob gaps they
+  still repair or rewrite
 
 Exit criteria:
 

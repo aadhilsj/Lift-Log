@@ -216,6 +216,37 @@ function buildWriteHydrationParityBlob(state) {
   return redactWriteHydrationVolatileFields(serializeStateForBlob(state));
 }
 
+function redactGeneratedWorkoutLogFieldsForComparison(value) {
+  if (Array.isArray(value)) {
+    return value.map(entry => redactGeneratedWorkoutLogFieldsForComparison(entry));
+  }
+  if (!value || typeof value !== "object") return value;
+  const entries = Object.entries(value).map(([key, entry]) => {
+    if (key === "logs" && entry && typeof entry === "object") {
+      return [key, Object.fromEntries(
+        Object.entries(entry).map(([owner, logs]) => [
+          owner,
+          Array.isArray(logs)
+            ? logs.map(log => log && typeof log === "object"
+              ? { ...log, id: log.id ? "<volatile>" : log.id, createdAt: log.createdAt ? "<volatile>" : log.createdAt }
+              : log)
+            : logs
+        ])
+      )];
+    }
+    return [key, redactGeneratedWorkoutLogFieldsForComparison(entry)];
+  });
+  return Object.fromEntries(entries);
+}
+
+function buildWriteHydrationComparisonBlob(state, action) {
+  const blob = buildWriteHydrationParityBlob(state);
+  if (action === "add-log" || action === "multi-log") {
+    return redactGeneratedWorkoutLogFieldsForComparison(blob);
+  }
+  return blob;
+}
+
 function unwrapMutationState(result) {
   return result?.updated || result?.state || result;
 }
@@ -3813,8 +3844,8 @@ async function runWriteHydrationParityProbe(action, payload, auth, actor, writab
     });
     const canonicalUpdated = unwrapMutationState(canonicalMutationResult);
 
-    const writableBlob = buildWriteHydrationParityBlob(writableUpdated);
-    const canonicalBlob = buildWriteHydrationParityBlob(canonicalUpdated);
+    const writableBlob = buildWriteHydrationComparisonBlob(writableUpdated, action);
+    const canonicalBlob = buildWriteHydrationComparisonBlob(canonicalUpdated, action);
     const mismatches = collectWriteHydrationGroupMismatches(
       writableBlob.groups?.[groupId],
       canonicalBlob.groups?.[groupId],
@@ -3843,8 +3874,8 @@ async function compareWriteHydrationMutation(action, groupId, writableInput, can
   try {
     const writableUpdated = unwrapMutationState(applyMutation(writableInput, payload));
     const canonicalUpdated = unwrapMutationState(applyMutation(canonicalInput, payload));
-    const writableBlob = buildWriteHydrationParityBlob(writableUpdated);
-    const canonicalBlob = buildWriteHydrationParityBlob(canonicalUpdated);
+    const writableBlob = buildWriteHydrationComparisonBlob(writableUpdated, action);
+    const canonicalBlob = buildWriteHydrationComparisonBlob(canonicalUpdated, action);
     const mismatches = collectWriteHydrationGroupMismatches(
       writableBlob.groups?.[groupId],
       canonicalBlob.groups?.[groupId],
@@ -3997,6 +4028,105 @@ function withSyntheticPendingSitOutReviewRequest(state, groupId, candidate) {
   };
 }
 
+function buildProbeDateForGroup(group, preferredDay = 15) {
+  const monthKey = group?.lastMonth || getLeagueMonthKey(group?.settings?.timeZone);
+  const [year, zeroBasedMonth] = String(monthKey || "").split("-").map(Number);
+  if (!Number.isFinite(year) || !Number.isFinite(zeroBasedMonth)) {
+    return new Date().toISOString().slice(0, 10);
+  }
+  const month = zeroBasedMonth + 1;
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const day = Math.min(Math.max(1, preferredDay), daysInMonth);
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+function chooseProbeWorkoutType(group) {
+  const accepted = Array.isArray(group?.settings?.acceptedWorkoutTypes) && group.settings.acceptedWorkoutTypes.length
+    ? group.settings.acceptedWorkoutTypes
+    : WORKOUT_TYPES;
+  return accepted.includes("Gym") ? "Gym" : accepted[0];
+}
+
+function findCurrentLogWriteCandidate(group) {
+  const actor = collectActiveAuthMembers(group)[0] || null;
+  if (!actor) return null;
+  return {
+    actor,
+    date: buildProbeDateForGroup(group, 16),
+    workoutType: chooseProbeWorkoutType(group)
+  };
+}
+
+function findMultiLogCandidate(baseState, sourceGroupId, sourceGroup, actor) {
+  if (!actor?.userId || !actor?.displayName) return null;
+  const targetGroupIds = (baseState.groupOrder || Object.keys(baseState.groups || {}))
+    .filter(groupId => groupId !== sourceGroupId)
+    .filter(groupId => {
+      const group = baseState.groups?.[groupId];
+      if (!group) return false;
+      if (!isCurrentGroupMember(group, actor.displayName, actor.userId)) return false;
+      const accepted = Array.isArray(group.settings?.acceptedWorkoutTypes) && group.settings.acceptedWorkoutTypes.length
+        ? group.settings.acceptedWorkoutTypes
+        : WORKOUT_TYPES;
+      return accepted.includes(chooseProbeWorkoutType(sourceGroup));
+    });
+  if (!targetGroupIds.length) return null;
+  return {
+    actor,
+    targetGroupIds,
+    date: buildProbeDateForGroup(sourceGroup, 17),
+    workoutType: chooseProbeWorkoutType(sourceGroup)
+  };
+}
+
+function findKickMemberCandidate(group) {
+  const activeMembers = collectActiveAuthMembers(group);
+  const admin = activeMembers.find(member => isGroupAdminActor(group, member.userId, member.displayName));
+  if (!admin) return null;
+  const target = activeMembers.find(member =>
+    member.userId !== admin.userId && !isGroupAdminActor(group, member.userId, member.displayName)
+  );
+  return target ? { admin, target } : null;
+}
+
+function findLeaveBlocCandidate(group) {
+  const activeMembers = collectActiveAuthMembers(group);
+  if (!activeMembers.length) return null;
+  return activeMembers.find(member => !isGroupAdminActor(group, member.userId, member.displayName)) || activeMembers[0];
+}
+
+async function compareWriteHydrationMultiLog(baseState, sourceGroupId, payload) {
+  try {
+    const canonicalBase = await buildCanonicalWritableStateForGroup(sourceGroupId, baseState);
+    const writableUpdated = applyMultiLog(baseState, payload);
+    const canonicalUpdated = applyMultiLog(canonicalBase, payload);
+    const writableBlob = buildWriteHydrationComparisonBlob(writableUpdated, "multi-log");
+    const canonicalBlob = buildWriteHydrationComparisonBlob(canonicalUpdated, "multi-log");
+    const checkedGroupIds = [...new Set([sourceGroupId, ...(payload.targetGroupIds || [])])];
+    const mismatches = checkedGroupIds.flatMap(groupId =>
+      collectWriteHydrationGroupMismatches(
+        writableBlob.groups?.[groupId],
+        canonicalBlob.groups?.[groupId],
+        groupId
+      )
+    );
+    return {
+      action: "multi-log",
+      groupId: sourceGroupId,
+      ok: mismatches.length === 0,
+      targetGroupIds: payload.targetGroupIds || [],
+      mismatches
+    };
+  } catch (err) {
+    return {
+      action: "multi-log",
+      groupId: sourceGroupId,
+      ok: false,
+      error: err?.message || String(err)
+    };
+  }
+}
+
 async function buildWriteHydrationParityReport(baseState) {
   const results = [];
   const addSkipped = (action, groupId, reason) => results.push({ action, groupId, ok: null, skipped: true, reason });
@@ -4024,9 +4154,23 @@ async function buildWriteHydrationParityReport(baseState) {
         actor: admin.displayName,
         actorUserId: admin.userId
       }, applySeasonProrationChoice));
+
+      const kickCandidate = findKickMemberCandidate(group);
+      if (kickCandidate) {
+        results.push(await compareWriteHydrationAction("kick-member", baseState, groupId, {
+          groupId,
+          targetUserId: kickCandidate.target.userId,
+          targetDisplayName: kickCandidate.target.displayName,
+          actorDisplayName: kickCandidate.admin.displayName,
+          actorUserId: kickCandidate.admin.userId
+        }, applyKickMember));
+      } else {
+        addSkipped("kick-member", groupId, "no active non-admin target candidate");
+      }
     } else {
       addSkipped("update-settings", groupId, "no active admin candidate");
       addSkipped("season-proration-choice", groupId, "no active admin candidate");
+      addSkipped("kick-member", groupId, "no active admin candidate");
     }
 
     const actor = activeMembers[0];
@@ -4034,7 +4178,51 @@ async function buildWriteHydrationParityReport(baseState) {
       addSkipped("reaction", groupId, "no active member candidate");
       addSkipped("delete-log", groupId, "no active member candidate");
       addSkipped("sitout-request", groupId, "no active member candidate");
+      addSkipped("add-log", groupId, "no active member candidate");
+      addSkipped("multi-log", groupId, "no active member candidate");
+      addSkipped("leave-bloc", groupId, "no active member candidate");
       continue;
+    }
+
+    const addLogCandidate = findCurrentLogWriteCandidate(group);
+    if (addLogCandidate) {
+      results.push(await compareWriteHydrationAction("add-log", baseState, groupId, {
+        groupId,
+        date: addLogCandidate.date,
+        workoutType: addLogCandidate.workoutType,
+        note: "Parity probe",
+        photoUrl: "https://example.com/parity-probe.jpg",
+        actor: addLogCandidate.actor.displayName,
+        actorUserId: addLogCandidate.actor.userId
+      }, applyAddLog));
+    } else {
+      addSkipped("add-log", groupId, "no current log writer candidate");
+    }
+
+    const multiLogCandidate = findMultiLogCandidate(baseState, groupId, group, actor);
+    if (multiLogCandidate) {
+      results.push(await compareWriteHydrationMultiLog(baseState, groupId, {
+        sourceGroupId: groupId,
+        targetGroupIds: multiLogCandidate.targetGroupIds,
+        date: multiLogCandidate.date,
+        workoutType: multiLogCandidate.workoutType,
+        note: "Parity probe",
+        photoUrl: "https://example.com/parity-probe.jpg",
+        actor: multiLogCandidate.actor.displayName,
+        actorUserId: multiLogCandidate.actor.userId
+      }));
+    } else {
+      addSkipped("multi-log", groupId, "no shared-member target bloc candidate");
+    }
+
+    const leaveCandidate = findLeaveBlocCandidate(group);
+    if (leaveCandidate) {
+      results.push(await compareWriteHydrationAction("leave-bloc", baseState, groupId, {
+        groupId,
+        userId: leaveCandidate.userId
+      }, applyLeaveBloc));
+    } else {
+      addSkipped("leave-bloc", groupId, "no active leave candidate");
     }
 
     const anyLog = findFirstCurrentLogCandidate(group);

@@ -715,3 +715,37 @@ work. Those slices are already done. The remaining scope is now much narrower
 - `repair-display-name`
 - broader display-name / `leftMemberNames` lifecycle cleanup
 - eventual mutation hydration/read-shell retirement away from blob
+
+## Writable-Input Parity Expansion — 2026-07-12
+
+The admin `write-hydration-parity-report` was expanded locally to cover the
+next candidate writable-input routes without changing runtime behavior:
+
+- `add-log`
+- `multi-log`
+- `kick-member`
+- `leave-bloc`
+
+This is report-only coverage. It does not move any of those routes to
+`buildCanonicalWritableStateForAuthenticatedMutation(...)`.
+
+The local report run against current data did not authorize a new cutover. Most
+new and existing report probes were blocked by historical compatibility-shell
+differences:
+
+- `monthHistory` exists or rolls over differently between writable blob input
+  and the canonical writable constructor
+- some blocs also differ in historical `seasonOverrides`
+
+That means the next backend batch should not be a blind writable-input cutover
+for logging or lifecycle exits. The safer options are:
+
+1. reconcile the historical shell so the canonical writable constructor and
+   writable blob shell agree again, then re-run the full report
+2. add a deliberately scoped current/open comparator if the product decision is
+   that historical `monthHistory` drift is allowed during these current-month
+   mutations
+
+Keep `auth-sync`, `upsert-profile`, `repair-display-name`, and
+`delete-account` out of this batch. They remain identity/global lifecycle paths,
+not low-risk current/open writes.
