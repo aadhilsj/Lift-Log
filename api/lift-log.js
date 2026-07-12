@@ -230,30 +230,13 @@ function preferExistingTimestamp(existingTimestamp, canonicalTimestamp) {
     : canonicalTimestamp;
 }
 
-function sortedStringArray(value) {
-  return Array.isArray(value)
-    ? value.map(entry => String(entry || "")).filter(Boolean).sort((a, b) => a.localeCompare(b))
-    : [];
-}
-
-function reactionSetsMatch(existingReactions, canonicalReactions) {
-  const existing = normalizeReactions(existingReactions);
-  const canonical = normalizeReactions(canonicalReactions);
-  const emojis = uniqueNames([...Object.keys(existing), ...Object.keys(canonical)]);
-  return emojis.every(emoji =>
-    stableStringify(sortedStringArray(existing[emoji])) === stableStringify(sortedStringArray(canonical[emoji]))
-  );
-}
-
 function preserveBlobCompatibleLogFields(existingLog, canonicalLog) {
   if (!existingLog) return canonicalLog;
   const preserved = {
     ...canonicalLog,
     createdAt: preferExistingTimestamp(existingLog.createdAt, canonicalLog.createdAt),
     decisionAt: preferExistingTimestamp(existingLog.decisionAt, canonicalLog.decisionAt),
-    reactions: reactionSetsMatch(existingLog.reactions, canonicalLog.reactions)
-      ? normalizeReactions(existingLog.reactions)
-      : canonicalLog.reactions
+    reactions: normalizeReactions(existingLog.reactions)
   };
   if (!Object.prototype.hasOwnProperty.call(existingLog, "ownerDisplayName")) {
     delete preserved.ownerDisplayName;
