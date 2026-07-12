@@ -17,11 +17,15 @@ The app is live and stable in the current hybrid backend model:
 - normal POST mutations still hydrate a blob-shaped writable state before
   computing the in-memory compatibility result
 - blob persistence still acts as compatibility mirror and safety net
+- production includes the lightweight revision-check polling fix from `da5aa4e`,
+  so background sync no longer performs a full composed state read every 3s when
+  the blob revision has not changed
 
 Latest backend preview with active write-hydration probes:
 
-- commit: `a9d5b34` (`focus hydration parity probe on target group`)
-- preview: `https://lift-6nbikork9-aadhilshahjahan11-1221s-projects.vercel.app`
+- latest promoted production/preview baseline before this constructor follow-up:
+  `da5aa4e` (`reduce background state polling cost`)
+- newest constructor-probe follow-up should be deployed from the next commit
 
 ## Important Recent Finding
 
@@ -111,6 +115,13 @@ Scope:
 - preserves blob historical compatibility where still needed for current
   mutation helpers
 - leaves actual mutation authority on `fetchWritableCurrentState()`
+- after inspecting preview logs, the constructor now accepts the already
+  authenticated writable shell as its compatibility base for probes instead of
+  doing an independent blob refetch; this avoids comparing a seven-group real
+  writable mutation against a transiently collapsed one-group constructor shell
+- joined-month compatibility markers are merged from the blob shell and then
+  overlaid by canonical `joined_month_key` rows, instead of being rebuilt from
+  canonical rows only
 
 The write-hydration parity probe now compares blob-write output against this
 canonical writable constructor instead of `fetchReadableCurrentState()`.
@@ -141,6 +152,15 @@ Covered actions:
 
 The probe now reports target-group field differences only, rather than global
 `groupOrder`, `profiles`, or whole group-key-set differences.
+
+Latest log finding before the constructor follow-up:
+
+- preview deployment `dpl_4UbqnPvMF75VwuFSaX3RBjCBxJSt` logged a `reaction`
+  mismatch for `test101-us8qvg`
+- the real writable path serialized `7` groups, while the constructor/probe path
+  serialized `1` group and missed the target group
+- no write-input cutover should happen until the new constructor follow-up has
+  been deployed and the same probe actions are rechecked
 
 ## Do Not Repeat
 
@@ -192,7 +212,7 @@ Vercel project IDs:
 
 ## Immediate Next Work
 
-Deploy the constructor-probe batch to preview and inspect Vercel logs while
+Deploy the constructor-probe follow-up to preview and inspect Vercel logs while
 exercising current/open actions:
 
 ```bash

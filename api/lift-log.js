@@ -2739,12 +2739,11 @@ async function fetchReadableCurrentState() {
   };
 }
 
-async function buildCanonicalWritableStateForGroup(groupId) {
+async function buildCanonicalWritableStateForGroup(groupId, baseStateOverride = null) {
   const safeGroupId = String(groupId || "").trim();
   if (!safeGroupId) return fetchWritableCurrentState();
 
   const [
-    baseState,
     anteProfiles,
     anteBlocs,
     anteSeasonOverrides,
@@ -2752,7 +2751,6 @@ async function buildCanonicalWritableStateForGroup(groupId) {
     anteCurrentLogs,
     anteExcusedSitouts
   ] = await Promise.all([
-    fetchCurrentStateFromSupabase(),
     fetchAnteProfiles(),
     fetchAnteBlocs(),
     fetchAnteSeasonOverrides(),
@@ -2760,6 +2758,9 @@ async function buildCanonicalWritableStateForGroup(groupId) {
     fetchAnteCurrentLogs(),
     fetchAnteCurrentExcusedAndSitouts()
   ]);
+  const baseState = baseStateOverride
+    ? normalizeState(baseStateOverride)
+    : await fetchCurrentStateFromSupabase();
 
   const baseGroup = baseState.groups?.[safeGroupId] || null;
   const bloc = anteBlocs?.[safeGroupId] || null;
@@ -2786,11 +2787,6 @@ async function buildCanonicalWritableStateForGroup(groupId) {
       }
     ])
   );
-  const canonicalJoinedMonthByName = Object.fromEntries(
-    canonicalOrderedMembers
-      .filter(row => row.joined_month_key)
-      .map(row => [row.display_name, row.joined_month_key])
-  );
   const canonicalAdminRow =
     canonicalOrderedMembers.find(row => row.role === "admin") ||
     canonicalOrderedMembers.find(row => row.auth_user_id === baseGroup.adminUserId) ||
@@ -2809,6 +2805,19 @@ async function buildCanonicalWritableStateForGroup(groupId) {
     stravaEnabled:        bloc.strava_enabled         ?? baseGroup.settings?.stravaEnabled,
     acceptedWorkoutTypes: bloc.accepted_workout_types ?? baseGroup.settings?.acceptedWorkoutTypes
   });
+
+  const canonicalJoinedMonthByName = pruneJoinedMonthByNameForRead(
+    { ...baseGroup, memberships: canonicalMemberships, settings },
+    {
+      ...(baseGroup.joinedMonthByName || {}),
+      ...Object.fromEntries(
+        canonicalOrderedMembers
+          .filter(row => row.joined_month_key)
+          .map(row => [row.display_name, row.joined_month_key])
+      )
+    },
+    settings
+  );
 
   const openMonthKey = anteExcusedSitouts?.openSeasonMonthKeys?.[safeGroupId] || baseGroup.lastMonth;
   const canonicalLogsByOwner = {};
@@ -3662,7 +3671,7 @@ async function runWriteHydrationParityProbe(action, payload, auth, actor, writab
   if (!isWriteHydrationParityEnabled(action)) return;
   const groupId = String(payload?.groupId || "").trim();
   try {
-    const canonicalCurrent = await buildCanonicalWritableStateForGroup(groupId);
+    const canonicalCurrent = await buildCanonicalWritableStateForGroup(groupId, auth.state);
     const canonicalAuthState = migrateAuthIdentity(rolloverStateIfNeeded(canonicalCurrent), auth.user.id, auth.user.email).state;
     const canonicalActor = resolveDisplayNameForUser(canonicalAuthState, groupId, auth.user.id, auth.user.email) || actor;
     const canonicalUpdated = applyMutation(canonicalAuthState, {
