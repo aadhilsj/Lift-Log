@@ -5551,26 +5551,30 @@ export default async function handler(req, res) {
       if (payload?.action === "sitout-request") {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
-        const updated = applySitOutRequest(auth.state, { ...payload, actor, actorUserId: auth.user.id });
-        await runWriteHydrationParityProbe("sitout-request", payload, auth, actor, updated, applySitOutRequest);
+        const shadowBlobUpdated = applySitOutRequest(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
+        const canonicalActor = resolveDisplayNameForUser(canonicalState, payload.groupId, auth.user.id, auth.user.email) || actor;
+        const updated = applySitOutRequest(canonicalState, { ...payload, actor: canonicalActor, actorUserId: auth.user.id });
+        await runWriteHydrationParityProbe("sitout-request", payload, auth, actor, shadowBlobUpdated, applySitOutRequest);
         const sitOutGroup = updated.groups?.[payload.groupId];
         const sitOutMonthKey = sitOutGroup?.lastMonth;
         const nextRequest = sitOutMonthKey
-          ? sitOutGroup?.sitOutRequests?.[sitOutMonthKey]?.[actor]
+          ? sitOutGroup?.sitOutRequests?.[sitOutMonthKey]?.[canonicalActor]
           : null;
-        // Second canonical-first write slice:
-        // 1. compute the exact request/excused result in memory
+        // Canonical writable-input cutover for sit-out requests:
+        // 1. authenticate/repair against the blob shell, then compute the
+        //    request/excused result from the canonical writable constructor
         // 2. ensure the open season exists canonically
         // 3. upsert canonical sit-out + excused side-effect from that exact payload
         // 4. mirror the same result into blob immediately after
         if (sitOutGroup && sitOutMonthKey && nextRequest) {
           await syncSeasonToCanonical(sitOutGroup, sitOutMonthKey, "open", null, { throwOnError: true });
-          await upsertSitOutRequestInCanonical(payload.groupId, sitOutMonthKey, actor, nextRequest, { throwOnError: true });
+          await upsertSitOutRequestInCanonical(payload.groupId, sitOutMonthKey, canonicalActor, nextRequest, { throwOnError: true });
           if (nextRequest.status === "approved" && nextRequest.autoApproved) {
-            await upsertSeasonMemberExcusedInCanonical(payload.groupId, sitOutMonthKey, actor, auth.user.id, { throwOnError: true });
+            await upsertSeasonMemberExcusedInCanonical(payload.groupId, sitOutMonthKey, canonicalActor, auth.user.id, { throwOnError: true });
           }
         }
-        const persisted = await persistState(updated, `sitout-request:${payload.groupId}:${actor || auth.user.id}`);
+        const persisted = await persistState(updated, `sitout-request:${payload.groupId}:${canonicalActor || actor || auth.user.id}`);
         return res.status(200).json(persisted);
       }
 
