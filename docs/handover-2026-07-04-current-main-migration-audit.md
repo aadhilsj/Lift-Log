@@ -741,16 +741,25 @@ Those two logging routes now authenticate/repair against the blob shell first,
 then compute from the canonical writable constructor before canonical writes and
 blob mirror persist.
 
-The local report run against current data did not authorize a new cutover. Most
-new and existing report probes were blocked by historical compatibility-shell
-differences:
+Second follow-up: `kick-member` and `leave-bloc` were moved to canonical
+writable input after adding the same current/open report scope:
+
+- `kick-member` current/open: `ok 5`, `failed 0`, `skipped 2`
+- `leave-bloc` current/open: `ok 7`, `failed 0`, `skipped 0`
+
+Those two single-bloc lifecycle exits now authenticate/repair against the blob
+shell first, then compute from the canonical writable constructor before
+canonical writes and blob mirror persist.
+
+The full-group report still does not authorize broader/global cutovers. Most
+full probes are blocked by historical compatibility-shell differences:
 
 - `monthHistory` exists or rolls over differently between writable blob input
   and the canonical writable constructor
 - some blocs also differ in historical `seasonOverrides`
 
 That means the next backend batch should not be a blind writable-input cutover
-for lifecycle exits. The safer options are:
+for global identity/account paths. The safer options are:
 
 1. reconcile the historical shell so the canonical writable constructor and
    writable blob shell agree again, then re-run the full report
@@ -759,5 +768,5 @@ for lifecycle exits. The safer options are:
    mutations
 
 Keep `auth-sync`, `upsert-profile`, `repair-display-name`, and
-`delete-account` out of this batch. They remain identity/global lifecycle paths,
-not low-risk current/open writes.
+`delete-account` out of the current/open cutover bucket. They remain
+identity/global lifecycle paths, not low-risk single-bloc current/open writes.

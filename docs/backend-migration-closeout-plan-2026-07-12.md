@@ -208,6 +208,8 @@ Completed first cutover:
 - `sitout-review`
 - `add-log`
 - `multi-log`
+- `kick-member`
+- `leave-bloc`
 
 These actions now authenticate/repair against the blob shell first, then compute
 the mutation from `buildCanonicalWritableStateForAuthenticatedMutation(...)`.
@@ -231,14 +233,14 @@ Preview/admin report status:
   group parity is now blocked by historical shell drift:
   - `add-log`: `ok 7`, `failed 0`, `skipped 0`
   - `multi-log`: `ok 2`, `failed 0`, `skipped 5`
+- July 13 lifecycle-exit cutover used the same current/open report boundary:
+  - `kick-member`: `ok 5`, `failed 0`, `skipped 2`
+  - `leave-bloc`: `ok 7`, `failed 0`, `skipped 0`
 
 Remaining current/open candidate needing a separate risk pass:
 
-- lifecycle exits that still compute from blob input even though their
-  canonical writes already happen before blob persist:
-  - `kick-member`
-  - `leave-bloc`
-  - `delete-account`
+- `delete-account`, which is global/account-scoped rather than a single-bloc
+  current/open mutation
 
 July 12 report/current-open expansion:
 
@@ -248,18 +250,25 @@ July 12 report/current-open expansion:
   `multi-log` comparisons, because the probe simulates blob and canonical
   mutations separately
 - the report now also emits `scope: "current-open"` comparisons for `add-log`
-  and `multi-log`
+  and `multi-log`; the July 13 batch added the same scoped signal for
+  `kick-member` and `leave-bloc`
 - local current/open report status before the logging cutover:
   - `add-log`: `ok 7`, `failed 0`, `skipped 0`
   - `multi-log`: `ok 2`, `failed 0`, `skipped 5`
 - `add-log` and `multi-log` now authenticate/repair against the blob shell
   first, then compute the logging mutation from the canonical writable
   constructor
+- local current/open report status before the lifecycle-exit cutover:
+  - `kick-member`: `ok 5`, `failed 0`, `skipped 2`
+  - `leave-bloc`: `ok 7`, `failed 0`, `skipped 0`
+- `kick-member` and `leave-bloc` now authenticate/repair against the blob shell
+  first, then compute the departure/removal mutation from the canonical
+  writable constructor
 - full-group report status still fails on historical compatibility-shell drift,
   mostly `monthHistory`, and for some blocs historical `seasonOverrides`
-- do not use the logging current/open result as approval to move lifecycle
-  exits; those still need historical-shell reconciliation or their own scoped
-  comparator
+- do not use these current/open results as approval to move global identity
+  paths; `delete-account`, `auth-sync`, `upsert-profile`, and
+  `repair-display-name` still need separate handling
 
 Exit criteria:
 
@@ -284,18 +293,16 @@ Do not bundle these with Workstream C unless coverage is proven:
 - `upsert-profile`
 - `repair-display-name`
 - `join-group`
-- `kick-member`
-- `leave-bloc`
 - `delete-account`
 - legacy admin `settlement`
 
 These paths still touch identity repair, lifecycle residue, historical/display-
 name keyed state, or admin transfer behavior.
 
-Current stance after the July 12 report expansion:
+Current stance after the July 13 lifecycle-exit cutover:
 
-- `kick-member` and `leave-bloc` have report-only writable-input coverage, but
-  remain blob-input at runtime
+- `kick-member` and `leave-bloc` have moved to canonical writable input for
+  current/open mutation computation
 - `delete-account` remains too global for the current group-scoped parity
   report and should not be bundled with smaller lifecycle exits
 - `auth-sync`, `upsert-profile`, and `repair-display-name` remain explicitly

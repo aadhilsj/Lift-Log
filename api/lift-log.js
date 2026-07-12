@@ -4241,20 +4241,24 @@ async function buildWriteHydrationParityReport(baseState) {
 
       const kickCandidate = findKickMemberCandidate(group);
       if (kickCandidate) {
-        results.push(await compareWriteHydrationAction("kick-member", baseState, groupId, {
+        const kickPayload = {
           groupId,
           targetUserId: kickCandidate.target.userId,
           targetDisplayName: kickCandidate.target.displayName,
           actorDisplayName: kickCandidate.admin.displayName,
           actorUserId: kickCandidate.admin.userId
-        }, applyKickMember));
+        };
+        results.push(await compareWriteHydrationAction("kick-member", baseState, groupId, kickPayload, applyKickMember));
+        results.push(await compareWriteHydrationAction("kick-member", baseState, groupId, kickPayload, applyKickMember, { scope: "current-open" }));
       } else {
         addSkipped("kick-member", groupId, "no active non-admin target candidate");
+        addSkipped("kick-member", groupId, "no active non-admin target candidate", "current-open");
       }
     } else {
       addSkipped("update-settings", groupId, "no active admin candidate");
       addSkipped("season-proration-choice", groupId, "no active admin candidate");
       addSkipped("kick-member", groupId, "no active admin candidate");
+      addSkipped("kick-member", groupId, "no active admin candidate", "current-open");
     }
 
     const actor = activeMembers[0];
@@ -4265,6 +4269,7 @@ async function buildWriteHydrationParityReport(baseState) {
       addSkipped("add-log", groupId, "no active member candidate");
       addSkipped("multi-log", groupId, "no active member candidate");
       addSkipped("leave-bloc", groupId, "no active member candidate");
+      addSkipped("leave-bloc", groupId, "no active member candidate", "current-open");
       continue;
     }
 
@@ -4307,12 +4312,15 @@ async function buildWriteHydrationParityReport(baseState) {
 
     const leaveCandidate = findLeaveBlocCandidate(group);
     if (leaveCandidate) {
-      results.push(await compareWriteHydrationAction("leave-bloc", baseState, groupId, {
+      const leavePayload = {
         groupId,
         userId: leaveCandidate.userId
-      }, applyLeaveBloc));
+      };
+      results.push(await compareWriteHydrationAction("leave-bloc", baseState, groupId, leavePayload, applyLeaveBloc));
+      results.push(await compareWriteHydrationAction("leave-bloc", baseState, groupId, leavePayload, applyLeaveBloc, { scope: "current-open" }));
     } else {
       addSkipped("leave-bloc", groupId, "no active leave candidate");
+      addSkipped("leave-bloc", groupId, "no active leave candidate", "current-open");
     }
 
     const anyLog = findFirstCurrentLogCandidate(group);
@@ -5740,9 +5748,13 @@ export default async function handler(req, res) {
       if (payload?.action === "kick-member") {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actorDisplayName = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
-        const updated = applyKickMember(auth.state, { ...payload, actorUserId: auth.user.id, actorDisplayName });
-        // Canonical-first write slice for kick-member:
-        // 1. compute the exact post-kick blob-compatible state in memory
+        applyKickMember(auth.state, { ...payload, actorUserId: auth.user.id, actorDisplayName });
+        const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
+        const canonicalActorDisplayName = resolveDisplayNameForUser(canonicalState, payload.groupId, auth.user.id, auth.user.email) || actorDisplayName;
+        const updated = applyKickMember(canonicalState, { ...payload, actorUserId: auth.user.id, actorDisplayName: canonicalActorDisplayName });
+        // Canonical writable-input cutover for kick-member:
+        // 1. authenticate/repair against the blob shell, then compute the
+        //    post-kick current/open state from the canonical writable view
         // 2. remove the canonical active membership first for auth-linked members
         // 3. mirror blob only after the canonical removal succeeds
         // Name-only legacy members still have no canonical membership row, so
@@ -5756,15 +5768,17 @@ export default async function handler(req, res) {
 
       if (payload?.action === "leave-bloc") {
         const auth = await requireAuthenticatedContext(req, payload, current);
-        const updated = applyLeaveBloc(auth.state, { ...payload, userId: auth.user.id });
+        applyLeaveBloc(auth.state, { ...payload, userId: auth.user.id });
+        const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
+        const updated = applyLeaveBloc(canonicalState, { ...payload, userId: auth.user.id });
         const nextGroup = updated.groups?.[payload.groupId] || null;
 
-        // Narrow canonical-first leave slice:
+        // Canonical writable-input cutover for leave-bloc:
+        // - authenticate/repair against the blob shell, then compute the
+        //   current/open departure result from the canonical writable view
         // - if the bloc survives, canonical member removal becomes authoritative
         // - if admin changes, canonical admin transfer must also succeed first
         // - only after those writes succeed do we mirror the blob state
-        // We still defer last-member bloc deletion because canonical bloc-delete
-        // semantics are not part of this bounded patch.
         if (nextGroup) {
           await removeBlocMemberFromCanonical(payload.groupId, auth.user.id, { throwOnError: true });
           const nextAdminUserId = nextGroup.adminUserId || null;
