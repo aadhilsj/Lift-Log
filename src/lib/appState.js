@@ -603,11 +603,13 @@ function buildSettlementPairsForMonth(month) {
   const penalties = calcPenalties(activeCounts, settings);
   const { winners, losers } = penalties;
   if (!winners.length || !losers.length) return [];
-  return losers.flatMap(loser => winners
+  return losers.flatMap((loser, loserIndex) => winners
     .filter(winner => winner.name !== loser.name)
-    .map(winner => {
+    .map((winner, winnerIndex) => {
       const loserAmount = getLoserAmount(penalties, loser.name);
-      const pairAmount = winners.length > 0 ? Math.floor(loserAmount / winners.length) : 0;
+      const basePairAmount = winners.length > 0 ? Math.floor(loserAmount / winners.length) : 0;
+      const remainder = winners.length > 0 ? loserAmount % winners.length : 0;
+      const pairAmount = basePairAmount + (((winnerIndex + loserIndex) % winners.length) < remainder ? 1 : 0);
       if (pairAmount <= 0) return null;
       return {
         monthKey: month.key,

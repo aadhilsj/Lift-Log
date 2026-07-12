@@ -16,7 +16,7 @@ const StreamIconButton = ({ onOpenStream, unreadCount = 0, size }) => {
 };
 
 const Nav = ({page,setPage,user,groupName,canEditGroup,onOpenSettings,onOpenProfile,onOpenStream,streamUnreadCount=0,onSwitchUser,onSwitchGroup,onOpenLog,syncing,lastSyncedAt,syncError,onRefresh,showJustSynced,activityAlertCount=0}) => {
-  const navItems = [["today","Today","today"],["activity","Activity","activity"],["month","Results","results"],["history","History","history"]];
+  const navItems = [["today","Today","today"],["activity","Activity","activity"],["month","Month","results"],["history","History","history"]];
   return React.createElement(React.Fragment,null,
   React.createElement('nav',{className:"desktop-only",style:{background:"var(--s1)",borderBottom:"1px solid var(--border)",padding:"0 16px",display:"flex",alignItems:"center",justifyContent:"space-between",height:52,position:"sticky",top:0,zIndex:100}},
     React.createElement('div',{style:{display:"flex",alignItems:"center",minWidth:0,lineHeight:1}},
@@ -70,7 +70,7 @@ const Nav = ({page,setPage,user,groupName,canEditGroup,onOpenSettings,onOpenProf
         ["today","Today","today"],
         ["activity","Activity","activity"],
         ["log","","plus"],
-        ["month","Results","results"],
+        ["month","Month","results"],
         ["history","History","history"]
       ].map(([id,label,icon])=>
         id === "log"
