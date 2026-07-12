@@ -53,13 +53,16 @@ const dayLabel = iso => {
   return Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" });
 };
 
-// Centered date divider shown at the top of each new day's messages.
+// Date divider shown at the top of each new day's messages — a hairline that
+// runs the full width with the date centered in the break.
 const DaySeparator = ({ label }) => React.createElement('div', {
-  style: { display: "flex", justifyContent: "center", margin: "14px 0 10px" }
+  style: { display: "flex", alignItems: "center", gap: 12, margin: "16px 0 12px" }
 },
+  React.createElement('div', { style: { flex: 1, height: 1, background: "rgba(95,129,123,0.18)" } }),
   React.createElement('span', {
-    style: { background: C.sysBg, border: `1px solid ${C.sysBorder}`, borderRadius: 20, padding: "3px 12px", fontFamily: "'Outfit', sans-serif", fontSize: 10.5, fontWeight: 600, color: C.meta, letterSpacing: ".03em" }
-  }, label)
+    style: { fontFamily: "'Outfit', sans-serif", fontSize: 10, fontWeight: 600, color: C.meta, letterSpacing: ".04em", whiteSpace: "nowrap", flexShrink: 0 }
+  }, label),
+  React.createElement('div', { style: { flex: 1, height: 1, background: "rgba(95,129,123,0.18)" } })
 );
 
 const escapeRegex = s => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
