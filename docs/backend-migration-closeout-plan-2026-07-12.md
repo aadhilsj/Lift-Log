@@ -371,12 +371,30 @@ Batch 1 started on 2026-07-13 with historical shell parity:
 - wired the canonical writable constructor to fetch `ante_core` month history
   and compose the target group's historical shell before normalization
 - left client bootstrap and `src/lib/appState.js` untouched
+- expanded the admin report with `mismatchSummary`, a compact field-level count
+  of remaining full-report mismatches
+
+Local report after this slice:
+
+- current/open scopes remain clean
+- full report still fails: `45` failures
+- remaining mismatch fields:
+  - `monthHistory`: `45`
+  - `seasonOverrides`: `29`
+
+Interpretation:
+
+- canonical closed-season history now exists in the writable constructor, but
+  the blob writable shell is missing some canonical-only closed months, so full
+  parity still cannot pass until historical shell backfill/reconciliation is
+  explicit
+- historical `seasonOverrides` still differ on metadata such as
+  `chosenByUserId`
 
 Next Batch 1 steps:
 
 1. Run the admin write-hydration report on preview and inspect the new
-   `summary`; the expected improvement is fewer or no full-report
-   `monthHistory` mismatches.
+   `summary` and `mismatchSummary`.
 2. If full parity still fails, classify the remaining differences by field:
    historical `seasonOverrides`, `joinedMonthByName`, or true coverage gaps.
 3. Keep `auth-sync`, `upsert-profile`, and `repair-display-name` out of this

@@ -4465,12 +4465,25 @@ async function buildWriteHydrationParityReport(baseState) {
     acc[key] = entry;
     return acc;
   }, {});
+  const mismatchSummary = failed.reduce((acc, result) => {
+    for (const mismatch of result.mismatches || []) {
+      const field = mismatch.replace(/^groups\.[^.]+\./, "");
+      const entry = acc[field] || { count: 0, examplePath: null };
+      entry.count += 1;
+      if (!entry.examplePath) {
+        entry.examplePath = result.details?.[mismatch]?.path?.replace(/^groups\.[^.]+\./, "") || field;
+      }
+      acc[field] = entry;
+    }
+    return acc;
+  }, {});
   return {
     ok: failed.length === 0,
     checked: results.length - skipped.length,
     skipped: skipped.length,
     failed: failed.length,
     summary,
+    mismatchSummary,
     excludedActions: [
       {
         action: "auth-sync",
