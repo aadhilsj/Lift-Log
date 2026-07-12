@@ -331,7 +331,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
   const settlementReminderCards = currentGroup?.settlementConfirmationsPreviewMode
     ? previewSettlementCards
     : (currentGroup ? buildSettlementReminderCards(currentGroup, currentUserId, user) : []);
-  const showSettlementReminderSlot = !showLastMonthBanner && settlementReminderCards.length > 0;
+  const showSettlementReminderSlot = settlementReminderCards.length > 0;
   const leaderboardRowBaseStyle = {
     width:"100%",
     background:"#080F0F",
