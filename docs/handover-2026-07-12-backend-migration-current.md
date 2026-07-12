@@ -206,6 +206,32 @@ Second report result on preview `031b7d2`:
   compatibility shell when canonical has matching log IDs, while still sourcing
   canonical log fields by ID
 
+Final constructor parity cleanup:
+
+- preview `a6c74b9` added nested mismatch details to the admin-only report
+- preview `d6b1a6b` preserved legacy absence of `ownerDisplayName` on matched
+  existing blob logs
+- preview `c0d15aa` preserved the existing blob reaction field shape for matched
+  logs
+- direct raw DB inspection before the reaction-field patch showed blob and
+  canonical current logs had matching `(group, owner, logId)` sets and `0`
+  reaction-set diffs, so the remaining report failures were constructor-shape
+  parity issues rather than missing canonical workout/reaction rows
+
+Latest admin-only parity report on preview `c0d15aa`:
+
+- preview URL: `lift-1xrt8n6gf-aadhilshahjahan11-1221s-projects.vercel.app`
+- deployment: `dpl_Eoym8J1XMwgbF2abgi9c7Z9fgDBV`
+- `ok: true`
+- `checked: 43`
+- `skipped: 20`
+- `failed: 0`
+
+This clears the sampled current/open write-hydration constructor parity blocker.
+It does not mean every backend migration task is done; it means the canonical
+writable constructor now matches the existing blob writable base for the
+covered sampled action families.
+
 ## Do Not Repeat
 
 Do not revive these approaches without a dedicated replacement plan:
@@ -256,8 +282,21 @@ Vercel project IDs:
 
 ## Immediate Next Work
 
-Deploy the constructor-probe/admin-report follow-up to preview, then call the
-admin-only parity report:
+The constructor parity report is clean. Next work is a deliberately narrow
+write-input cutover batch for one low-risk action family that is already covered
+by the parity report.
+
+Recommended first cutover candidates:
+
+- `update-settings`
+- `season-proration-choice`
+- possibly `sitout-request`
+
+Keep higher-risk/member-log action families (`reaction`, `delete-log`, flags)
+for a later cutover batch even though they pass the sampled report, because they
+touch user-visible workout rows directly.
+
+To rerun the admin-only parity report before/after a cutover:
 
 ```json
 { "action": "write-hydration-parity-report", "pin": "<ADMIN_PIN>" }
@@ -270,8 +309,5 @@ actions when practical:
 reaction, flag, flag-response, flag-review, delete-log, update-settings,
 season-proration-choice, sitout-request, sitout-review
 ```
-
-If constructor parity is clean, the next code batch can start moving a narrow
-low-risk action family away from blob-hydrated mutation input.
 
 Do not use the readable GET projection as the mutation constructor.
