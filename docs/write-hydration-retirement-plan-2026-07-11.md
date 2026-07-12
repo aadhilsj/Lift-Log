@@ -214,6 +214,10 @@ Additional current-open-workout probe coverage:
   review probes compare mutation semantics instead of wall-clock differences
 - this is still probe-only coverage; mutation input continues to come from the
   writable blob state until parity has been observed with the env flag enabled
+- on Vercel preview deployments for the `codex/create-group-canonical-first`
+  branch only, the covered probe set is enabled by default when
+  `WRITE_HYDRATION_PARITY_ACTIONS` is unset; production remains off unless the
+  env var is explicitly configured
 
 ### Slice 3 - id-first membership resolution
 
@@ -307,8 +311,9 @@ The safe current-write guardrail batch is now complete. See:
 
 The next migration move should be observational, not another authority transfer:
 
-1. enable `WRITE_HYDRATION_PARITY_ACTIONS` on a preview deployment for the
-   covered narrow actions:
+1. use a preview deployment for the `codex/create-group-canonical-first` branch;
+   it enables the covered probe set by default when
+   `WRITE_HYDRATION_PARITY_ACTIONS` is unset:
    `update-settings,season-proration-choice,sitout-request,sitout-review,reaction,flag,flag-response,flag-review,delete-log`
 2. perform normal preview smoke flows for settings, sit-out, reactions, flags,
    and delete-log where practical

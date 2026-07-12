@@ -27,8 +27,24 @@ const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 const ENABLE_SETTLEMENT_CONFIRMATIONS = String(process.env.ENABLE_SETTLEMENT_CONFIRMATIONS || "").trim().toLowerCase() === "true";
 const ENABLE_SETTLEMENT_CONFIRMATIONS_PREVIEW = String(process.env.ENABLE_SETTLEMENT_CONFIRMATIONS_PREVIEW || "").trim().toLowerCase() === "true";
 const ENABLE_LOCAL_PREVIEW_AUTH = String(process.env.ENABLE_LOCAL_PREVIEW_AUTH || "").trim().toLowerCase() === "true";
+const WRITE_HYDRATION_PARITY_PREVIEW_BRANCH = "codex/create-group-canonical-first";
+const WRITE_HYDRATION_PARITY_DEFAULT_ACTIONS = [
+  "update-settings",
+  "season-proration-choice",
+  "sitout-request",
+  "sitout-review",
+  "reaction",
+  "flag",
+  "flag-response",
+  "flag-review",
+  "delete-log"
+];
+const WRITE_HYDRATION_PARITY_ENV = String(process.env.WRITE_HYDRATION_PARITY_ACTIONS || "").trim();
+const ENABLE_PREVIEW_WRITE_HYDRATION_PARITY = !WRITE_HYDRATION_PARITY_ENV
+  && process.env.VERCEL_ENV === "preview"
+  && process.env.VERCEL_GIT_COMMIT_REF === WRITE_HYDRATION_PARITY_PREVIEW_BRANCH;
 const WRITE_HYDRATION_PARITY_ACTIONS = new Set(
-  String(process.env.WRITE_HYDRATION_PARITY_ACTIONS || "")
+  (WRITE_HYDRATION_PARITY_ENV || (ENABLE_PREVIEW_WRITE_HYDRATION_PARITY ? WRITE_HYDRATION_PARITY_DEFAULT_ACTIONS.join(",") : ""))
     .split(",")
     .map(action => action.trim())
     .filter(Boolean)
