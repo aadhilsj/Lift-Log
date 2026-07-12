@@ -247,7 +247,7 @@ function reactionSetsMatch(existingReactions, canonicalReactions) {
 
 function preserveBlobCompatibleLogFields(existingLog, canonicalLog) {
   if (!existingLog) return canonicalLog;
-  return {
+  const preserved = {
     ...canonicalLog,
     createdAt: preferExistingTimestamp(existingLog.createdAt, canonicalLog.createdAt),
     decisionAt: preferExistingTimestamp(existingLog.decisionAt, canonicalLog.decisionAt),
@@ -255,6 +255,10 @@ function preserveBlobCompatibleLogFields(existingLog, canonicalLog) {
       ? normalizeReactions(existingLog.reactions)
       : canonicalLog.reactions
   };
+  if (!Object.prototype.hasOwnProperty.call(existingLog, "ownerDisplayName")) {
+    delete preserved.ownerDisplayName;
+  }
+  return preserved;
 }
 
 function normalizeProfiles(profiles) {
