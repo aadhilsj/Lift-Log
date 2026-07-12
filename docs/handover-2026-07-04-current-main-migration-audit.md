@@ -767,6 +767,21 @@ for global identity/account paths. The safer options are:
    that historical `monthHistory` drift is allowed during these current-month
    mutations
 
-Keep `auth-sync`, `upsert-profile`, `repair-display-name`, and
-`delete-account` out of the current/open cutover bucket. They remain
-identity/global lifecycle paths, not low-risk single-bloc current/open writes.
+Keep `auth-sync`, `upsert-profile`, and `repair-display-name` out of the
+current/open cutover bucket. They remain identity/global lifecycle paths, not
+low-risk single-bloc current/open writes. `delete-account` is already a
+verified canonical-first global account deletion path, but it also stays out of
+group-scoped current/open parity because it deletes profile and membership
+state across the account.
+
+Third follow-up: the admin `write-hydration-parity-report` now returns two
+additional control fields:
+
+- `summary`: per-action/per-scope checked, skipped, and failed counts
+- `excludedActions`: explicit classification for paths outside group-scoped
+  parity, including `auth-sync`, `upsert-profile`, `delete-account`,
+  `repair-display-name`, and legacy admin `settlement`
+
+This is documentation/report hygiene only, not a runtime write-authority
+change. It prevents future handoffs from treating verified global paths such as
+`delete-account` as unfinished current/open group-local slices.

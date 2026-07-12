@@ -4468,11 +4468,50 @@ async function buildWriteHydrationParityReport(baseState) {
 
   const failed = results.filter(result => result.ok === false);
   const skipped = results.filter(result => result.skipped);
+  const summary = results.reduce((acc, result) => {
+    const key = result.scope ? `${result.action}:${result.scope}` : result.action;
+    const entry = acc[key] || { checked: 0, skipped: 0, failed: 0 };
+    if (result.skipped) entry.skipped += 1;
+    else {
+      entry.checked += 1;
+      if (result.ok === false) entry.failed += 1;
+    }
+    acc[key] = entry;
+    return acc;
+  }, {});
   return {
     ok: failed.length === 0,
     checked: results.length - skipped.length,
     skipped: skipped.length,
     failed: failed.length,
+    summary,
+    excludedActions: [
+      {
+        action: "auth-sync",
+        status: "blob-writable-by-design",
+        reason: "Legacy identity repair can expose blob gaps that readable or canonical projections intentionally hide."
+      },
+      {
+        action: "upsert-profile",
+        status: "canonical-first-global-identity",
+        reason: "Global profile/name-key rewrite already writes canonical first, but still depends on blob-shaped compatibility state."
+      },
+      {
+        action: "delete-account",
+        status: "canonical-first-global-account",
+        reason: "Verified canonical-first account deletion, but global destructive account scope is not part of target-group parity probes."
+      },
+      {
+        action: "repair-display-name",
+        status: "quarantined-admin-repair",
+        reason: "Admin-only compatibility repair for legacy name-keyed data; not a normal product rename flow."
+      },
+      {
+        action: "settlement",
+        status: "canonical-first-historical-admin",
+        reason: "Legacy admin historical settlement write touches closed month snapshots outside current/open report scope."
+      }
+    ],
     results
   };
 }

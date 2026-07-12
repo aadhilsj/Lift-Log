@@ -237,10 +237,17 @@ Preview/admin report status:
   - `kick-member`: `ok 5`, `failed 0`, `skipped 2`
   - `leave-bloc`: `ok 7`, `failed 0`, `skipped 0`
 
-Remaining current/open candidate needing a separate risk pass:
+The admin report now includes a `summary` object keyed by action/scope and an
+`excludedActions` list for paths intentionally outside group-scoped parity:
 
-- `delete-account`, which is global/account-scoped rather than a single-bloc
-  current/open mutation
+- `auth-sync`: blob-writable by design until legacy identity repair is replaced
+- `upsert-profile`: canonical-first global identity rewrite, still
+  blob-shaped for compatibility
+- `delete-account`: verified canonical-first account deletion, excluded because
+  it is global/destructive rather than target-group scoped
+- `repair-display-name`: quarantined admin-only compatibility repair
+- legacy admin `settlement`: historical closed-month write outside current/open
+  scope
 
 July 12 report/current-open expansion:
 
@@ -267,8 +274,8 @@ July 12 report/current-open expansion:
 - full-group report status still fails on historical compatibility-shell drift,
   mostly `monthHistory`, and for some blocs historical `seasonOverrides`
 - do not use these current/open results as approval to move global identity
-  paths; `delete-account`, `auth-sync`, `upsert-profile`, and
-  `repair-display-name` still need separate handling
+  paths; `auth-sync`, `upsert-profile`, `repair-display-name`, and legacy
+  admin `settlement` still need separate handling
 
 Exit criteria:
 
@@ -293,7 +300,6 @@ Do not bundle these with Workstream C unless coverage is proven:
 - `upsert-profile`
 - `repair-display-name`
 - `join-group`
-- `delete-account`
 - legacy admin `settlement`
 
 These paths still touch identity repair, lifecycle residue, historical/display-
@@ -303,8 +309,9 @@ Current stance after the July 13 lifecycle-exit cutover:
 
 - `kick-member` and `leave-bloc` have moved to canonical writable input for
   current/open mutation computation
-- `delete-account` remains too global for the current group-scoped parity
-  report and should not be bundled with smaller lifecycle exits
+- `delete-account` is a verified canonical-first global account deletion path,
+  but remains excluded from group-scoped parity reports because it deletes
+  profile/bloc membership state across the account
 - `auth-sync`, `upsert-profile`, and `repair-display-name` remain explicitly
   high risk because readable/canonical state can hide the legacy blob gaps they
   still repair or rewrite
@@ -355,12 +362,15 @@ Use this decision boundary:
 
 ## Immediate Next Batch
 
-1. Run one preview smoke for the completed low-risk cutover:
-   sign-in, blocs load, settings change, and any available sit-out/proration UI.
+1. Use the expanded admin report `summary` and `excludedActions` fields to keep
+   future batches from re-opening completed current/open write slices.
 2. Inspect Vercel logs for `[write-hydration-parity] mismatch` and
-   `[write-hydration-parity] probe failed`.
-3. If clean, start a separate workout-log action audit before touching
-   `reaction`, `delete-log`, or flag write-input cutovers.
+   `[write-hydration-parity] probe failed` after production traffic.
+3. Do not cut `auth-sync` to readable/canonical input until there is a dedicated
+   replacement for legacy identity repair.
+4. Treat the next real migration work as lifecycle/history design:
+   `leftMemberNames`, `joinedMonthByName`, display-name de-keying, and eventual
+   blob mirror retirement.
 
 If a future constructor report reveals missing canonical rows, fix
 coverage/import first.

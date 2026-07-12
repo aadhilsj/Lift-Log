@@ -97,6 +97,22 @@ These generally follow:
 The remaining problem is not canonical write ordering. It is the writable
 input shape.
 
+Status amendment, 2026-07-13:
+
+- the normal current/open group-local write families have now been cut to the
+  canonical writable constructor where that scope is safe:
+  `update-settings`, `season-proration-choice`, `sitout-request`,
+  `sitout-review`, `reaction`, `delete-log`, `flag`, `flag-response`,
+  `flag-review`, `add-log`, `multi-log`, `kick-member`, and `leave-bloc`
+- `delete-account` is already a verified canonical-first global account
+  deletion path, but it is intentionally excluded from group-scoped parity
+  reports because it deletes profile and membership state across the account
+- `upsert-profile` remains canonical-first but blob-shaped because it is a
+  global display-name/profile rewrite, not a target-group current/open mutation
+- the admin `write-hydration-parity-report` now returns `summary` and
+  `excludedActions` so completed paths and intentionally quarantined paths are
+  explicit in the report output
+
 ### Quarantined compatibility tools
 
 - `repair-display-name`
