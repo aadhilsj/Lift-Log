@@ -46,8 +46,12 @@ export function seedIfEmpty(blocId, { currentUserId, members = [] } = {}) {
 
   const msgs = [
     sys(60 * 34, "positive", "SEASON CLOSED · 1 JUL", "June settled — summary ready.", "3 payments outstanding.", { "👏": other ? [other.id] : [] }, { systemKind: "season_closed", payload: { action: "season_results" } }),
-    sys(60 * 33, "positive", "AWARD · 1 JUL", `Bloc MVP: ${other?.name || "Member"}.`, "", {}),
-    sys(60 * 32, "positive", "AWARD · 1 JUL", `Most Consistent: ${other2?.name || other?.name || "Member"}.`, "", {}),
+    sys(60 * 33, "positive", "AWARDS · JUNE", "", "", {}, { systemKind: "awards", payload: { awards: [
+      { title: "Bloc MVP", name: other?.name || "Member" },
+      { title: "Most consistent", name: other2?.name || other?.name || "Member" },
+      { title: "Biggest turnaround", name: me?.name || "Member" },
+      { title: "Furthest behind", name: others[2]?.name || other2?.name || "Member" }
+    ] } }),
     sys(60 * 31, "positive", "NEW SEASON · 1 JUL", "July is here. Raise your ante.", "", {}),
     sys(60 * 30, "neutral", "NEW MEMBER · 5 JUL", "Deyhan joined the Bloc.", "", {}),
     runMsg,
@@ -58,7 +62,7 @@ export function seedIfEmpty(blocId, { currentUserId, members = [] } = {}) {
     eventMsg,
     other && sys(70, "positive", "COMEBACK · 9 JUL", `${other.name}: Behind → On Track.`, "", {}),
     sys(58, "warning", "FINAL STRETCH · 9 JUL", "3 days left. 2 members still short.", "", {}),
-    sys(52, "positive", "PERFECT MONTH · 9 JUL", "Perfect month. Everyone hit target.", "", {}),
+    sys(52, "positive", "PERFECT MONTH · 9 JUL", "Everyone hit target.", "", {}, { systemKind: "perfect_month" }),
     sys(46, "neutral", "SETTINGS · 9 JUL", "Target changed to 12 workouts.", "", {}),
     sys(40, "warning", "INACTIVITY · 9 JUL", "Rahul — no workout in 7 days.", "", {}),
     sys(36, "neutral", "SIT OUT · 9 JUL", "Mikhail sitting out this month.", "", {}),

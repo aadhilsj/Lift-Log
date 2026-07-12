@@ -268,7 +268,57 @@ const TextBubble = ({ msg, isOwn, authorName, nameFor, members, replyToMsg, show
   );
 };
 
+// Filled 4-point sparkle (cyan) for the Perfect Month card.
+const Sparkle = ({ size, opacity, pos }) => React.createElement('svg', {
+  width: size, height: size, viewBox: "0 0 24 24", fill: C.accent, "aria-hidden": true,
+  style: { position: "absolute", opacity, pointerEvents: "none", ...pos }
+}, React.createElement('path', { d: "M12 0c.6 6.3 5.1 10.8 12 12-6.9 1.2-11.4 5.7-12 12-.6-6.3-5.1-10.8-12-12 6.9-1.2 11.4-5.7 12-12z" }));
+
 const SystemCard = ({ msg, onSeasonClosedTap }) => {
+  // Perfect Month — the rare "everyone hit target" moment. Sanctioned exception
+  // to the no-gradients rule: a restrained radial glow + asymmetric sparkles.
+  if (msg.system_kind === "perfect_month") {
+    return React.createElement('div', { style: { display: "flex", flexDirection: "column", alignItems: "center", padding: "4px 0" } },
+      React.createElement('div', {
+        style: {
+          position: "relative", maxWidth: "94%", width: "fit-content",
+          background: "radial-gradient(ellipse at 50% 0%, rgba(78,205,196,0.22) 0%, rgba(78,205,196,0.05) 55%, transparent 80%), #06100E",
+          border: "0.5px solid #2a6b62", borderRadius: 14, padding: "22px 18px", textAlign: "center"
+        }
+      },
+        React.createElement(Sparkle, { size: 14, opacity: 0.6, pos: { top: 10, left: 13 } }),
+        React.createElement(Sparkle, { size: 10, opacity: 0.4, pos: { top: 14, right: 17 } }),
+        React.createElement(Sparkle, { size: 9, opacity: 0.3, pos: { bottom: 13, left: 26 } }),
+        React.createElement('div', {
+          style: { fontFamily: "'Outfit', sans-serif", fontSize: 10, fontWeight: 500, color: C.accent, letterSpacing: ".14em", textTransform: "uppercase", marginBottom: 9 }
+        }, msg.label),
+        React.createElement('div', {
+          style: { fontFamily: "'Outfit', sans-serif", fontSize: 22, fontWeight: 500, color: "#fff", lineHeight: 1.15 }
+        }, msg.body)
+      )
+    );
+  }
+
+  // Awards — one combined card listing every seasonal award. Deliberately the
+  // plainest card in the stream; the visual celebration lives on Results.
+  if (msg.system_kind === "awards") {
+    const awards = (msg.payload && msg.payload.awards) || [];
+    return React.createElement('div', { style: { display: "flex", flexDirection: "column", alignItems: "center", padding: "4px 0" } },
+      React.createElement('div', {
+        style: { maxWidth: "94%", width: "fit-content", background: C.sysBg, border: `1px solid ${C.sysBorder}`, borderRadius: 12, padding: "10px 14px", textAlign: "center" }
+      },
+        React.createElement('div', {
+          style: { fontFamily: "'Outfit', sans-serif", fontSize: 10, fontWeight: 700, color: C.meta, letterSpacing: ".09em", textTransform: "uppercase", marginBottom: 8 }
+        }, msg.label),
+        React.createElement('div', { style: { display: "flex", flexDirection: "column", gap: 4 } },
+          awards.map((a, i) => React.createElement('div', {
+            key: i, style: { fontSize: 14, fontWeight: 500, color: "var(--text)", lineHeight: 1.3 }
+          }, `${a.title} — ${a.name}`))
+        )
+      )
+    );
+  }
+
   const toneColor = msg.tone === "warning" ? C.warning : msg.tone === "neutral" ? C.meta : C.positive;
   const tappable = msg.payload?.action === "season_results" && onSeasonClosedTap;
   const content = React.createElement(React.Fragment, null,
@@ -707,15 +757,17 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], stre
         overflow: "hidden", overscrollBehavior: "contain", boxShadow: "0 -12px 40px rgba(0,0,0,.5)"
       }
     },
-      // Stream header
+      // Stream header — the label + name/chevron row form one unit, centered
+      // relative to each other and anchored to the modal's left margin (not
+      // centered on the full width, which collided with the app header behind).
       React.createElement('div', {
         style: {
-          display: "flex", alignItems: "center", justifyContent: "center",
-          padding: "15px 48px 13px", borderBottom: "1px solid rgba(78,205,196,0.16)",
+          display: "flex", alignItems: "center", justifyContent: "flex-start",
+          padding: "15px 48px 13px 18px", borderBottom: "1px solid rgba(78,205,196,0.16)",
           background: "rgba(5,9,10,0.55)", backdropFilter: "blur(8px)", flexShrink: 0, position: "relative", zIndex: 1
         }
       },
-        React.createElement('div', { style: { minWidth: 0, maxWidth: "100%", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" } },
+        React.createElement('div', { style: { minWidth: 0, maxWidth: "100%", display: "inline-flex", flexDirection: "column", alignItems: "center", textAlign: "center" } },
           React.createElement('div', {
             style: { fontFamily: "'Outfit', sans-serif", fontSize: 10, fontWeight: 700, color: "#8faeaa", letterSpacing: ".1em", textTransform: "uppercase" }
           }, "Bloc Stream"),
