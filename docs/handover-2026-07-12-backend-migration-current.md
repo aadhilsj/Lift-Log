@@ -232,6 +232,43 @@ It does not mean every backend migration task is done; it means the canonical
 writable constructor now matches the existing blob writable base for the
 covered sampled action families.
 
+## First Write-Input Cutover Batch - 2026-07-12
+
+The first low-risk write-input cutover is now landed on this branch.
+
+Covered actions:
+
+- `update-settings`
+- `season-proration-choice`
+- `sitout-request`
+
+Implementation notes:
+
+- these actions still authenticate and perform legacy identity repair against
+  the existing blob writable shell first
+- after auth succeeds, they build the target group's mutation input with
+  `buildCanonicalWritableStateForAuthenticatedMutation(...)`, which wraps
+  `buildCanonicalWritableStateForGroup(...)`
+- they still compute a shadow blob mutation for the write-hydration parity
+  probe, so preview can continue comparing old-vs-new behavior
+- canonical sync and blob mirror persistence order is unchanged
+
+Preview verification:
+
+- commit `9ae307c` cut `update-settings` and `season-proration-choice` to the
+  canonical writable constructor
+- preview report for `9ae307c` returned `ok: true`, `checked: 43`,
+  `skipped: 20`, `failed: 0`
+- commit `1a9b571` cut `sitout-request` to the canonical writable constructor
+- preview `lift-8m5c6f7iq-aadhilshahjahan11-1221s-projects.vercel.app`,
+  deployment `dpl_4Ai3WheCJ2oqfWMShFBVarmVnpiZ`, returned `ok: true`,
+  `checked: 43`, `skipped: 20`, `failed: 0`
+
+Do not cut over `sitout-review`, `reaction`, `delete-log`, or flag actions in
+the same style without a fresh risk pass. The admin report skips
+`sitout-review` today because there are no pending candidates, and the workout
+log actions touch user-visible log rows directly.
+
 ## Do Not Repeat
 
 Do not revive these approaches without a dedicated replacement plan:
@@ -282,19 +319,12 @@ Vercel project IDs:
 
 ## Immediate Next Work
 
-The constructor parity report is clean. Next work is a deliberately narrow
-write-input cutover batch for one low-risk action family that is already covered
-by the parity report.
+The first low-risk write-input cutover batch is complete. Next work is either:
 
-Recommended first cutover candidates:
-
-- `update-settings`
-- `season-proration-choice`
-- possibly `sitout-request`
-
-Keep higher-risk/member-log action families (`reaction`, `delete-log`, flags)
-for a later cutover batch even though they pass the sampled report, because they
-touch user-visible workout rows directly.
+- ask for one preview smoke covering sign-in, bloc load, settings change, and
+  any available sit-out/proration UI
+- or continue with a separate higher-risk audit for workout-log actions before
+  touching `reaction`, `delete-log`, or flags
 
 To rerun the admin-only parity report before/after a cutover:
 

@@ -153,8 +153,10 @@ Current status:
 - `buildCanonicalWritableStateForGroup(groupId)` now exists in `api/lift-log.js`
 - write-hydration parity probes compare blob write output against this
   constructor, not against `fetchReadableCurrentState()`
-- real POST mutations still hydrate from the existing blob writable base
-- this is an observational probe batch, not a write-input cutover
+- admin-only report on preview has returned `ok: true`, `checked: 43`,
+  `failed: 0`
+- the first low-risk write-input cutover batch now uses this constructor for
+  `update-settings`, `season-proration-choice`, and `sitout-request`
 
 This constructor is not `fetchReadableCurrentState()`.
 
@@ -193,20 +195,28 @@ Exit criteria:
 
 ### Workstream C - Low-Risk Write Cutover Batch
 
-Candidate actions after constructor parity:
+Completed first cutover:
+
+- `update-settings`
+- `season-proration-choice`
+- `sitout-request`
+
+These actions now authenticate/repair against the blob shell first, then compute
+the mutation from `buildCanonicalWritableStateForAuthenticatedMutation(...)`.
+They still run a shadow blob mutation for parity probes.
+
+Remaining candidate actions need a separate risk pass:
 
 - `reaction`
 - `flag`
 - `flag-response`
 - `flag-review`
 - `delete-log`
-- `update-settings`
-- `season-proration-choice`
-- `sitout-request`
 - `sitout-review`
 
-These are current/open or row-shaped actions. They are the best batch for moving
-away from blob-hydrated mutation input.
+These are current/open or row-shaped actions, but the workout-log actions touch
+user-visible log rows directly, and `sitout-review` currently has no pending
+candidate coverage in the admin report.
 
 Exit criteria:
 
@@ -278,11 +288,12 @@ Use this decision boundary:
 
 ## Immediate Next Batch
 
-1. Deploy the constructor-probe batch to preview.
-2. Exercise covered current/open actions.
-3. Inspect Vercel logs for `[write-hydration-parity] mismatch` and
+1. Run one preview smoke for the completed low-risk cutover:
+   sign-in, blocs load, settings change, and any available sit-out/proration UI.
+2. Inspect Vercel logs for `[write-hydration-parity] mismatch` and
    `[write-hydration-parity] probe failed`.
-4. Use preview smoke/logs to determine whether the low-risk action batch can be
-   cut over together.
+3. If clean, start a separate workout-log action audit before touching
+   `reaction`, `delete-log`, or flag write-input cutovers.
 
-If the constructor reveals missing canonical rows, fix coverage/import first.
+If a future constructor report reveals missing canonical rows, fix
+coverage/import first.
