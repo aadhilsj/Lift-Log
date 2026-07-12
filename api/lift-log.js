@@ -394,6 +394,15 @@ function isGroupDisplayNameForActor(group, displayName, actorUserId = "", actorD
   return !!safeDisplayName && safeDisplayName === safeActorName;
 }
 
+function resolveMembershipDisplayNameByUserId(group, userId, fallbackDisplayName = "") {
+  const safeUserId = String(userId || "").trim();
+  const safeFallback = String(fallbackDisplayName || "").trim();
+  if (!safeUserId) return safeFallback;
+  return Object.values(group?.memberships || {})
+    .find(membership => membership?.userId === safeUserId)
+    ?.displayName || safeFallback;
+}
+
 function isGroupAdminActor(group, actorUserId = "", actorDisplayName = "") {
   const safeUserId = String(actorUserId || "").trim();
   const safeDisplayName = String(actorDisplayName || "").trim();
@@ -4149,7 +4158,7 @@ function applyKickMember(current, payload) {
   }
   // Support legacy groups where adminUserId may not be set
   const actorDisplayName = String(payload?.actorDisplayName || "").trim();
-  const actorResolvedName = Object.values(group.memberships||{}).find(m=>m.userId===actorUserId)?.displayName || actorDisplayName;
+  const actorResolvedName = resolveMembershipDisplayNameByUserId(group, actorUserId, actorDisplayName);
   const actorIsAdmin = isGroupAdminActor(group, actorUserId, actorResolvedName);
   if (!actorIsAdmin) {
     const error = new Error("Only the admin can remove members");

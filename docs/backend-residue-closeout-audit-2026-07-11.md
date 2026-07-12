@@ -149,6 +149,8 @@ Status:
 - delete-account display-name resolution and sit-out request cleanup now route
   through small helpers
 - kick target resolution now routes through `resolveKickTarget(...)`
+- kick actor display-name resolution now routes through
+  `resolveMembershipDisplayNameByUserId(...)`
 - this is a structure-only cleanup; admin transfer behavior is unchanged
 
 ### 6. Writable Hydration Endgame
