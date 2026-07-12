@@ -45,6 +45,23 @@ function formatStamp(iso) {
 // back-to-back messages from the same sender).
 const sameMinute = (a, b) => Math.floor(new Date(a).getTime() / 60000) === Math.floor(new Date(b).getTime() / 60000);
 
+// Same calendar day (drives the date separators between days).
+const sameDay = (a, b) => new Date(a).toDateString() === new Date(b).toDateString();
+// Separator label, e.g. "Thu 25 Jul".
+const dayLabel = iso => {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" });
+};
+
+// Centered date divider shown at the top of each new day's messages.
+const DaySeparator = ({ label }) => React.createElement('div', {
+  style: { display: "flex", justifyContent: "center", margin: "14px 0 10px" }
+},
+  React.createElement('span', {
+    style: { background: C.sysBg, border: `1px solid ${C.sysBorder}`, borderRadius: 20, padding: "3px 12px", fontFamily: "'Outfit', sans-serif", fontSize: 10.5, fontWeight: 600, color: C.meta, letterSpacing: ".03em" }
+  }, label)
+);
+
 const escapeRegex = s => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 // One-line preview of a message for reply banners / quoted blocks.
@@ -804,9 +821,15 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], stre
               const sameAuthorPrev = isText && prev && prev.message_type !== "system" && prev.message_type !== "event" && prev.author_id === msg.author_id;
               const sameAuthorNext = isText && next && next.message_type !== "system" && next.message_type !== "event" && next.author_id === msg.author_id;
               const firstInGroup = isText && !sameAuthorPrev;
+              // A date divider precedes the first message of each new calendar day.
+              const showDaySep = i === 0 || (prev && !sameDay(prev.created_at, msg.created_at));
               // Tight spacing within a sender's run, larger between groups / cards.
-              const marginTop = i === 0 ? 0 : (firstInGroup || !isText ? 12 : 3);
-              const wrap = child => React.createElement('div', { key: msg.id, style: { marginTop } }, child);
+              // A preceding day separator already provides the gap, so drop the top margin.
+              const marginTop = i === 0 || showDaySep ? 0 : (firstInGroup || !isText ? 12 : 3);
+              const wrap = child => React.createElement(React.Fragment, { key: msg.id },
+                showDaySep && React.createElement(DaySeparator, { label: dayLabel(msg.created_at) }),
+                React.createElement('div', { style: { marginTop } }, child)
+              );
 
               if (msg.message_type === "system") {
                 return wrap(React.createElement(Reactable, { msg, currentUserId, onReact: handleReact, nameFor, align: "center", showAdd: true },

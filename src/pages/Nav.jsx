@@ -2,18 +2,20 @@ import React from "react";
 const { useState, useEffect, useMemo, useCallback, useRef } = React;
 import { AppIcon, AnteWordmark } from "../components/primitives.jsx";
 
-const StreamIconButton = ({ onOpenStream, hasUnread, size }) =>
-  React.createElement('button', {
+const StreamIconButton = ({ onOpenStream, unreadCount = 0, size }) => {
+  const hasUnread = unreadCount > 0;
+  return React.createElement('button', {
     onClick: onOpenStream, className: "icon-btn", title: "Bloc Stream",
     style: { position: "relative", ...(size ? { width: size, height: size, display: "inline-flex", alignItems: "center", justifyContent: "center" } : {}) }
   },
     React.createElement(AppIcon, { name: "message-circle", size: size ? 18 : 14, stroke: hasUnread ? "#4ECDC4" : "#6B9690" }),
     hasUnread && React.createElement('span', {
-      style: { position: "absolute", top: -1, right: -1, width: 8, height: 8, borderRadius: 999, background: "#4ECDC4" }
-    })
+      style: { position: "absolute", top: -5, right: -6, minWidth: 15, height: 15, padding: "0 4px", borderRadius: 999, background: "#4ECDC4", color: "#04110e", fontFamily: "'Outfit', sans-serif", fontSize: 9.5, fontWeight: 700, lineHeight: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", boxShadow: "0 0 0 1.5px var(--s1)" }
+    }, unreadCount > 9 ? "9+" : unreadCount)
   );
+};
 
-const Nav = ({page,setPage,user,groupName,canEditGroup,onOpenSettings,onOpenProfile,onOpenStream,streamHasUnread=false,onSwitchUser,onSwitchGroup,onOpenLog,syncing,lastSyncedAt,syncError,onRefresh,showJustSynced,activityAlertCount=0}) => {
+const Nav = ({page,setPage,user,groupName,canEditGroup,onOpenSettings,onOpenProfile,onOpenStream,streamUnreadCount=0,onSwitchUser,onSwitchGroup,onOpenLog,syncing,lastSyncedAt,syncError,onRefresh,showJustSynced,activityAlertCount=0}) => {
   const navItems = [["today","Today","today"],["activity","Activity","activity"],["month","Results","results"],["history","History","history"]];
   return React.createElement(React.Fragment,null,
   React.createElement('nav',{className:"desktop-only",style:{background:"var(--s1)",borderBottom:"1px solid var(--border)",padding:"0 16px",display:"flex",alignItems:"center",justifyContent:"space-between",height:52,position:"sticky",top:0,zIndex:100}},
@@ -32,7 +34,7 @@ const Nav = ({page,setPage,user,groupName,canEditGroup,onOpenSettings,onOpenProf
       )
     ),
     React.createElement('div',{style:{display:"flex",alignItems:"center",gap:6}},
-      React.createElement(StreamIconButton,{onOpenStream,hasUnread:streamHasUnread}),
+      React.createElement(StreamIconButton,{onOpenStream,unreadCount:streamUnreadCount}),
       React.createElement('button',{onClick:onOpenSettings,className:"icon-btn",title:"Bloc settings"},React.createElement(AppIcon,{name:"settings",size:14})),
       React.createElement('button',{onClick:onOpenProfile,className:"icon-btn",title:"Account",
         onMouseEnter:e=>e.currentTarget.style.borderColor="var(--border2)",onMouseLeave:e=>e.currentTarget.style.borderColor="var(--border)"},
@@ -56,7 +58,7 @@ const Nav = ({page,setPage,user,groupName,canEditGroup,onOpenSettings,onOpenProf
         React.createElement('span',{style:{fontSize:10,lineHeight:1,opacity:.85}},"▾")
       ),
       React.createElement('div',{style:{display:"flex",alignItems:"center",gap:2,flexShrink:0}},
-        React.createElement(StreamIconButton,{onOpenStream,hasUnread:streamHasUnread,size:28}),
+        React.createElement(StreamIconButton,{onOpenStream,unreadCount:streamUnreadCount,size:28}),
         React.createElement('button',{onClick:onOpenSettings,className:"icon-btn",title:"Bloc settings",style:{width:28,height:28,display:"inline-flex",alignItems:"center",justifyContent:"center"}},React.createElement(AppIcon,{name:"settings",size:18})),
         React.createElement('button',{onClick:onOpenProfile,className:"icon-btn",title:"Account",style:{width:28,height:28,display:"inline-flex",alignItems:"center",justifyContent:"center"}},React.createElement(AppIcon,{name:"profile",size:18}))
       )

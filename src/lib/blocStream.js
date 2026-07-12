@@ -11,11 +11,31 @@
 // here as { emoji: [userId, ...] } so counts and "did I react" derive cleanly.
 
 const store = new Map(); // blocId -> message[]
+const lastRead = new Map(); // blocId -> ms timestamp of last read
 let seq = 0;
 const newId = () => `m_${Date.now().toString(36)}_${seq++}`;
 
 export function listMessages(blocId) {
   return store.get(blocId) || [];
+}
+
+// Unread = messages from other members (and system/event moments) newer than
+// this member's last-read marker. Own messages never count. Seeds on demand so
+// the header badge works before the stream has ever been opened. Mirrors an
+// eventual `unread since last_read_at` query; the real value comes from the
+// backend once per-member read state exists.
+export function getUnreadCount(blocId, { currentUserId, members = [] } = {}) {
+  if (!blocId) return 0;
+  seedIfEmpty(blocId, { currentUserId, members });
+  const since = lastRead.get(blocId) || 0;
+  return (store.get(blocId) || []).filter(
+    m => m.author_id !== currentUserId && new Date(m.created_at).getTime() > since
+  ).length;
+}
+
+// Mark a Bloc's stream read up to now (clears its unread badge).
+export function markStreamRead(blocId) {
+  if (blocId) lastRead.set(blocId, Date.now());
 }
 
 // Seed example messages the first time a Bloc's stream is opened, covering the

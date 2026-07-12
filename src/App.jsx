@@ -74,6 +74,7 @@ import { ActivityPage } from "./pages/ActivityPage.jsx";
 import { MonthPage } from "./pages/MonthPage.jsx";
 import { HistoryPage } from "./pages/HistoryPage.jsx";
 import { BlocStream } from "./pages/BlocStream.jsx";
+import { getUnreadCount, markStreamRead } from "./lib/blocStream.js";
 
 const App = () => {
   const cached = readCachedData();
@@ -1156,6 +1157,11 @@ const App = () => {
     });
   }
 
+  const streamUnreadCount = getUnreadCount(currentGroup.id, {
+    currentUserId: effectiveAuthSession?.userId,
+    members: Object.values(currentGroup.memberships || {}).map(m => ({ id: m.userId, name: m.displayName }))
+  });
+
   return React.createElement(React.Fragment,null,
     showJoinModal && !authStep && React.createElement(JoinGroupModal,{inviteContext,joinCode,setJoinCode,onClose:()=>setShowJoinModal(false),onJoin:handleJoinGroup,joining:joiningGroup,error:inviteError,signedIn:true}),
     showProfileModal && React.createElement(ProfileModal,{email:authSession?.email,onSignOut:handleSwitchUser,onClose:()=>setShowProfileModal(false),showDisplayName:true,currentDisplayName:currentUser,onSaveDisplayName:handleSaveProfileFromModal,saving:profileSaving,saveError:profileError,onLeaveBloc:handleLeaveBloc,onDeleteAccount:handleDeleteAccount}),
@@ -1171,7 +1177,7 @@ const App = () => {
       onProrate:()=>handleSeasonProrationChoice("prorate"),
       savingChoice:prorationSavingChoice
     }),
-    React.createElement(Nav,{page,setPage:handleNavSelect,user:currentUser,groupName:currentGroup.name,canEditGroup:isGroupAdmin,onOpenSettings:()=>setShowSettings(true),onOpenProfile:()=>{setProfileError("");setShowProfileModal(true);},onOpenStream:()=>setShowStream(true),streamHasUnread:false,onSwitchUser:handleSwitchUser,onSwitchGroup:handleSwitchGroup,onOpenLog:()=>{setPage("today");setShowTodayLog(true);},syncing,lastSyncedAt,syncError,onRefresh:refreshNow,showJustSynced,activityAlertCount}),
+    React.createElement(Nav,{page,setPage:handleNavSelect,user:currentUser,groupName:currentGroup.name,canEditGroup:isGroupAdmin,onOpenSettings:()=>setShowSettings(true),onOpenProfile:()=>{setProfileError("");setShowProfileModal(true);},onOpenStream:()=>{markStreamRead(currentGroup.id);setShowStream(true);},streamUnreadCount,onSwitchUser:handleSwitchUser,onSwitchGroup:handleSwitchGroup,onOpenLog:()=>{setPage("today");setShowTodayLog(true);},syncing,lastSyncedAt,syncError,onRefresh:refreshNow,showJustSynced,activityAlertCount}),
     localDevMode && React.createElement(LocalDevImpersonationBar,{options:devImpersonationOptions,value:effectiveAuthSession?.devImpersonationActive?effectiveAuthSession.userId:"",onChange:handleSelectDevImpersonation}),
     React.createElement('div',{style:{paddingBottom:isMobileView?(page==="today"?"calc(156px + env(safe-area-inset-bottom))":"calc(86px + env(safe-area-inset-bottom))"):0}},
       page==="today"  &&React.createElement(TodayPageErrorBoundary,{resetKey:`${selectedGroupId}:${navResetToken}:${currentUser}`},
