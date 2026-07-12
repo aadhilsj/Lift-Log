@@ -193,6 +193,33 @@ function preferExistingTimestamp(existingTimestamp, canonicalTimestamp) {
     : canonicalTimestamp;
 }
 
+function sortedStringArray(value) {
+  return Array.isArray(value)
+    ? value.map(entry => String(entry || "")).filter(Boolean).sort((a, b) => a.localeCompare(b))
+    : [];
+}
+
+function reactionSetsMatch(existingReactions, canonicalReactions) {
+  const existing = normalizeReactions(existingReactions);
+  const canonical = normalizeReactions(canonicalReactions);
+  const emojis = uniqueNames([...Object.keys(existing), ...Object.keys(canonical)]);
+  return emojis.every(emoji =>
+    stableStringify(sortedStringArray(existing[emoji])) === stableStringify(sortedStringArray(canonical[emoji]))
+  );
+}
+
+function preserveBlobCompatibleLogFields(existingLog, canonicalLog) {
+  if (!existingLog) return canonicalLog;
+  return {
+    ...canonicalLog,
+    createdAt: preferExistingTimestamp(existingLog.createdAt, canonicalLog.createdAt),
+    decisionAt: preferExistingTimestamp(existingLog.decisionAt, canonicalLog.decisionAt),
+    reactions: reactionSetsMatch(existingLog.reactions, canonicalLog.reactions)
+      ? normalizeReactions(existingLog.reactions)
+      : canonicalLog.reactions
+  };
+}
+
 function normalizeProfiles(profiles) {
   if (!profiles || typeof profiles !== "object") return {};
   return Object.fromEntries(
@@ -2880,11 +2907,31 @@ async function buildCanonicalWritableStateForGroup(groupId, baseStateOverride = 
     canonicalLogsByOwner[owner].push(normalizeLogEntry(log));
   }
   const currentLogOwners = uniqueNames([
+    ...Object.keys(baseGroup.logs || {}),
     ...canonicalMemberOrder,
     ...Object.keys(canonicalLogsByOwner)
   ]);
   const canonicalLogs = Object.fromEntries(
-    currentLogOwners.map(name => [name, canonicalLogsByOwner[name] || []])
+    currentLogOwners.map(name => {
+      const canonicalOwnerLogs = canonicalLogsByOwner[name] || [];
+      const canonicalById = new Map(canonicalOwnerLogs.map(log => [String(log?.id || ""), log]));
+      const baseOwnerLogs = Array.isArray(baseGroup.logs?.[name]) ? baseGroup.logs[name] : [];
+      const usedIds = new Set();
+      const orderedLogs = baseOwnerLogs
+        .map(existingLog => {
+          const logId = String(existingLog?.id || "");
+          const canonicalLog = canonicalById.get(logId);
+          if (!canonicalLog) return null;
+          usedIds.add(logId);
+          return preserveBlobCompatibleLogFields(existingLog, canonicalLog);
+        })
+        .filter(Boolean);
+      for (const canonicalLog of canonicalOwnerLogs) {
+        const logId = String(canonicalLog?.id || "");
+        if (!usedIds.has(logId)) orderedLogs.push(canonicalLog);
+      }
+      return [name, orderedLogs];
+    })
   );
 
   const historicalExcused = { ...(baseGroup.excused || {}) };

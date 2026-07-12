@@ -195,6 +195,17 @@ First report result on preview `974b525`:
   membership insertion order for covered auth-linked members, and treats
   reaction member arrays as sets for parity comparison only
 
+Second report result on preview `031b7d2`:
+
+- membership/timestamp/active-order mismatches cleared
+- remaining failures were all `logs`
+- direct data inspection found `0` missing canonical current logs; raw log
+  differences were reaction-member array ordering and one equivalent
+  `decisionAt` timestamp spelling difference
+- follow-up log constructor patch now keeps blob owner/log ordering as the
+  compatibility shell when canonical has matching log IDs, while still sourcing
+  canonical log fields by ID
+
 ## Do Not Repeat
 
 Do not revive these approaches without a dedicated replacement plan:
