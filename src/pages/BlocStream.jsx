@@ -776,18 +776,25 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], stre
             style: { fontSize: 15, fontWeight: 500, color: "var(--text)", marginTop: 3, maxWidth: "100%", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }
           }, activeGroupName || "")
         ),
-        // Center: independent stream-switcher pill (blind stepper; hidden with one Bloc)
+        // Center: independent stream-switcher pill (blind stepper; hidden with
+        // one Bloc). Centered horizontally on the full row and vertically within
+        // the header's content box (inset by the 15/13 top/bottom padding) so it
+        // aligns with the title block rather than floating below the row.
         canSwitchStreams && React.createElement('div', {
-          style: { position: "absolute", left: "50%", top: "50%", transform: "translate(-50%,-50%)", display: "inline-flex", alignItems: "center", gap: 4, background: "#0D1F1E", border: "0.5px solid #163d36", borderRadius: 20, padding: "4px 8px" }
+          style: { position: "absolute", left: 0, right: 0, top: 15, bottom: 13, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }
         },
-          React.createElement('button', {
-            onClick: () => switchStream(-1), title: "Previous Bloc stream", "aria-label": "Previous Bloc stream",
-            style: { display: "inline-flex", alignItems: "center", justifyContent: "center", background: "transparent", border: "none", color: C.accent, cursor: "pointer", padding: "0 3px", lineHeight: 0 }
-          }, React.createElement(AppIcon, { name: "chevron-left", size: 12, stroke: C.accent })),
-          React.createElement('button', {
-            onClick: () => switchStream(1), title: "Next Bloc stream", "aria-label": "Next Bloc stream",
-            style: { display: "inline-flex", alignItems: "center", justifyContent: "center", background: "transparent", border: "none", color: C.accent, cursor: "pointer", padding: "0 3px", lineHeight: 0 }
-          }, React.createElement(AppIcon, { name: "chevron-right", size: 12, stroke: C.accent }))
+          React.createElement('div', {
+            style: { pointerEvents: "auto", display: "inline-flex", alignItems: "center", gap: 4, background: "#0D1F1E", border: "0.5px solid #163d36", borderRadius: 20, padding: "3px 6px" }
+          },
+            React.createElement('button', {
+              onClick: () => switchStream(-1), title: "Previous Bloc stream", "aria-label": "Previous Bloc stream",
+              style: { display: "inline-flex", alignItems: "center", justifyContent: "center", background: "transparent", border: "none", color: C.accent, cursor: "pointer", padding: "0 2px", lineHeight: 0 }
+            }, React.createElement(AppIcon, { name: "chevron-left", size: 10, stroke: C.accent })),
+            React.createElement('button', {
+              onClick: () => switchStream(1), title: "Next Bloc stream", "aria-label": "Next Bloc stream",
+              style: { display: "inline-flex", alignItems: "center", justifyContent: "center", background: "transparent", border: "none", color: C.accent, cursor: "pointer", padding: "0 2px", lineHeight: 0 }
+            }, React.createElement(AppIcon, { name: "chevron-right", size: 10, stroke: C.accent }))
+          )
         ),
         React.createElement('button', {
           onClick: onClose,
