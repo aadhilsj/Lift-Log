@@ -3948,6 +3948,55 @@ function findSitOutReviewCandidate(group) {
   return null;
 }
 
+function findSyntheticSitOutReviewCandidate(group) {
+  const members = collectActiveAuthMembers(group);
+  const admin = members.find(member => isGroupAdminActor(group, member.userId, member.displayName));
+  if (!admin) return null;
+  const requester = members.find(member => !isGroupAdminActor(group, member.userId, member.displayName));
+  if (!requester) return null;
+  const monthKey = group?.lastMonth || getLeagueMonthKey(group?.settings?.timeZone);
+  return { monthKey, requester, reviewer: admin };
+}
+
+function withSyntheticPendingSitOutReviewRequest(state, groupId, candidate) {
+  const group = state?.groups?.[groupId];
+  if (!group || !candidate?.monthKey || !candidate?.requester?.displayName) return state;
+  const requests = normalizeSitOutRequests(group.sitOutRequests);
+  const memberName = candidate.requester.displayName;
+  const pendingRequest = {
+    memberName,
+    monthKey: candidate.monthKey,
+    status: "pending",
+    reason: "Parity probe",
+    exceptional: true,
+    requestedAt: "2026-07-12T00:00:00.000Z",
+    requestedBy: memberName,
+    requestedByUserId: candidate.requester.userId || null,
+    targetApproverName: candidate.reviewer.displayName || null,
+    targetApproverUserId: candidate.reviewer.userId || null,
+    decidedAt: null,
+    decidedBy: null,
+    decidedByUserId: null,
+    autoApproved: false
+  };
+  return {
+    ...state,
+    groups: {
+      ...(state.groups || {}),
+      [groupId]: normalizeGroup({
+        ...group,
+        sitOutRequests: {
+          ...requests,
+          [candidate.monthKey]: {
+            ...(requests[candidate.monthKey] || {}),
+            [memberName]: pendingRequest
+          }
+        }
+      })
+    }
+  };
+}
+
 async function buildWriteHydrationParityReport(baseState) {
   const results = [];
   const addSkipped = (action, groupId, reason) => results.push({ action, groupId, ok: null, skipped: true, reason });
@@ -4103,7 +4152,31 @@ async function buildWriteHydrationParityReport(baseState) {
         actorUserId: reviewCandidate.reviewer.userId
       }, applySitOutReview));
     } else {
-      addSkipped("sitout-review", groupId, "no pending sit-out request candidate");
+      const syntheticCandidate = findSyntheticSitOutReviewCandidate(group);
+      if (syntheticCandidate) {
+        try {
+          const canonicalBase = await buildCanonicalWritableStateForGroup(groupId, baseState);
+          const writableSynthetic = withSyntheticPendingSitOutReviewRequest(baseState, groupId, syntheticCandidate);
+          const canonicalSynthetic = withSyntheticPendingSitOutReviewRequest(canonicalBase, groupId, syntheticCandidate);
+          results.push(await compareWriteHydrationMutation("sitout-review", groupId, writableSynthetic, canonicalSynthetic, {
+            groupId,
+            monthKey: syntheticCandidate.monthKey,
+            memberName: syntheticCandidate.requester.displayName,
+            decision: "decline",
+            actor: syntheticCandidate.reviewer.displayName,
+            actorUserId: syntheticCandidate.reviewer.userId
+          }, applySitOutReview));
+        } catch (err) {
+          results.push({
+            action: "sitout-review",
+            groupId,
+            ok: false,
+            error: err?.message || String(err)
+          });
+        }
+      } else {
+        addSkipped("sitout-review", groupId, "no pending or synthetic sit-out review candidate");
+      }
     }
   }
 
