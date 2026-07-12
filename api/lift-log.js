@@ -27,6 +27,12 @@ const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 const ENABLE_SETTLEMENT_CONFIRMATIONS = String(process.env.ENABLE_SETTLEMENT_CONFIRMATIONS || "").trim().toLowerCase() === "true";
 const ENABLE_SETTLEMENT_CONFIRMATIONS_PREVIEW = String(process.env.ENABLE_SETTLEMENT_CONFIRMATIONS_PREVIEW || "").trim().toLowerCase() === "true";
 const ENABLE_LOCAL_PREVIEW_AUTH = String(process.env.ENABLE_LOCAL_PREVIEW_AUTH || "").trim().toLowerCase() === "true";
+const WRITE_HYDRATION_PARITY_ACTIONS = new Set(
+  String(process.env.WRITE_HYDRATION_PARITY_ACTIONS || "")
+    .split(",")
+    .map(action => action.trim())
+    .filter(Boolean)
+);
 
 let storageCleanupInFlight = null;
 let storageCleanupLastRunAt = 0;
@@ -93,6 +99,22 @@ function serializeStateForBlob(state) {
     groupOrder: normalized.groupOrder,
     profiles: normalized.profiles
   };
+}
+
+function stableStringify(value) {
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(",")}]`;
+  if (value && typeof value === "object") {
+    return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${stableStringify(value[key])}`).join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function valuesDiffer(a, b) {
+  return stableStringify(a) !== stableStringify(b);
+}
+
+function isWriteHydrationParityEnabled(action) {
+  return WRITE_HYDRATION_PARITY_ACTIONS.has("*") || WRITE_HYDRATION_PARITY_ACTIONS.has(action);
 }
 
 function normalizeProfiles(profiles) {
@@ -3424,6 +3446,45 @@ function applyUpdateSettings(current, payload) {
   };
 }
 
+async function runUpdateSettingsHydrationParityProbe(payload, auth, actor, writableUpdated) {
+  if (!isWriteHydrationParityEnabled("update-settings")) return;
+  const groupId = String(payload?.groupId || "").trim();
+  try {
+    const readableCurrent = await fetchReadableCurrentState();
+    const readableAuthState = migrateAuthIdentity(rolloverStateIfNeeded(readableCurrent), auth.user.id, auth.user.email).state;
+    const readableActor = resolveDisplayNameForUser(readableAuthState, groupId, auth.user.id, auth.user.email) || actor;
+    const readableUpdated = applyUpdateSettings(readableAuthState, {
+      ...payload,
+      actor: readableActor,
+      actorUserId: auth.user.id
+    });
+
+    const writableBlob = serializeStateForBlob(writableUpdated);
+    const readableBlob = serializeStateForBlob(readableUpdated);
+    const mismatches = [];
+    if (valuesDiffer(writableBlob.groupOrder, readableBlob.groupOrder)) mismatches.push("groupOrder");
+    if (valuesDiffer(writableBlob.groups?.[groupId], readableBlob.groups?.[groupId])) mismatches.push(`groups.${groupId}`);
+    if (valuesDiffer(writableBlob.profiles, readableBlob.profiles)) mismatches.push("profiles");
+    if (valuesDiffer(Object.keys(writableBlob.groups || {}).sort(), Object.keys(readableBlob.groups || {}).sort())) mismatches.push("groupKeys");
+
+    if (mismatches.length) {
+      console.warn("[write-hydration-parity] mismatch", JSON.stringify({
+        action: "update-settings",
+        groupId,
+        mismatches,
+        writableGroups: Object.keys(writableBlob.groups || {}).length,
+        readableGroups: Object.keys(readableBlob.groups || {}).length
+      }));
+    }
+  } catch (err) {
+    console.warn("[write-hydration-parity] probe failed", JSON.stringify({
+      action: "update-settings",
+      groupId,
+      message: err?.message || String(err)
+    }));
+  }
+}
+
 function applyAddLog(current, payload) {
   const actor = String(payload?.actor || "").trim();
   const actorUserId = String(payload?.actorUserId || "").trim();
@@ -4789,6 +4850,7 @@ export default async function handler(req, res) {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
         const updated = applyUpdateSettings(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        await runUpdateSettingsHydrationParityProbe(payload, auth, actor, updated);
         const settingsGroup = updated.groups?.[payload.groupId];
         const settingsSortOrder = (updated.groupOrder || []).indexOf(payload.groupId);
         // Third canonical-first write slice:

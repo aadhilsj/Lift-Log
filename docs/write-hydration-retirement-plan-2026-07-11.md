@@ -195,6 +195,16 @@ For each, prove whether the action can use a group reconstructed from
 canonical current state without needing blob-only history or lifecycle fields.
 Do not change all four together.
 
+Status:
+
+- `update-settings` now has an opt-in, non-persisting parity probe controlled by
+  `WRITE_HYDRATION_PARITY_ACTIONS=update-settings`
+- when enabled, the server computes the existing writable-blob result and a
+  readable/composed-state result, compares the blob-serializable outputs, and
+  logs a compact mismatch summary
+- the probe is off by default and does not change the mutation response,
+  canonical writes, or blob persistence
+
 ### Slice 3 - id-first membership resolution
 
 Start replacing display-name membership checks in current-only write paths with
