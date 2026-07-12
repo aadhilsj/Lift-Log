@@ -129,6 +129,17 @@ function valuesDiffer(a, b) {
   return stableStringify(a) !== stableStringify(b);
 }
 
+function collectWriteHydrationGroupMismatches(writableGroup, readableGroup, groupId) {
+  if (!writableGroup && !readableGroup) return [];
+  if (!writableGroup || !readableGroup) return [`groups.${groupId}`];
+  return uniqueNames([
+    ...Object.keys(writableGroup || {}),
+    ...Object.keys(readableGroup || {})
+  ])
+    .filter(key => valuesDiffer(writableGroup?.[key], readableGroup?.[key]))
+    .map(key => `groups.${groupId}.${key}`);
+}
+
 function isWriteHydrationParityEnabled(action) {
   return WRITE_HYDRATION_PARITY_ACTIONS.has("*") || WRITE_HYDRATION_PARITY_ACTIONS.has(action);
 }
@@ -3493,11 +3504,11 @@ async function runWriteHydrationParityProbe(action, payload, auth, actor, writab
 
     const writableBlob = buildWriteHydrationParityBlob(writableUpdated);
     const readableBlob = buildWriteHydrationParityBlob(readableUpdated);
-    const mismatches = [];
-    if (valuesDiffer(writableBlob.groupOrder, readableBlob.groupOrder)) mismatches.push("groupOrder");
-    if (valuesDiffer(writableBlob.groups?.[groupId], readableBlob.groups?.[groupId])) mismatches.push(`groups.${groupId}`);
-    if (valuesDiffer(writableBlob.profiles, readableBlob.profiles)) mismatches.push("profiles");
-    if (valuesDiffer(Object.keys(writableBlob.groups || {}).sort(), Object.keys(readableBlob.groups || {}).sort())) mismatches.push("groupKeys");
+    const mismatches = collectWriteHydrationGroupMismatches(
+      writableBlob.groups?.[groupId],
+      readableBlob.groups?.[groupId],
+      groupId
+    );
 
     if (mismatches.length) {
       console.warn("[write-hydration-parity] mismatch", JSON.stringify({

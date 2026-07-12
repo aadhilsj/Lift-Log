@@ -218,6 +218,11 @@ Additional current-open-workout probe coverage:
   branch only, the covered probe set is enabled by default when
   `WRITE_HYDRATION_PARITY_ACTIONS` is unset; production remains off unless the
   env var is explicitly configured
+- the probe intentionally compares the target group's blob-serializable fields,
+  not global `groupOrder`, `profiles`, or full group key sets. The first preview
+  observation showed readable/composed state may expose a narrower group shell
+  than writable blob state (`readableGroups: 1` vs `writableGroups: 7`), so
+  whole-state comparisons create noise unrelated to the candidate mutation.
 
 ### Slice 3 - id-first membership resolution
 
