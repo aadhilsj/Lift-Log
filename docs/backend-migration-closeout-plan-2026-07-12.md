@@ -205,6 +205,7 @@ Completed first cutover:
 - `flag`
 - `flag-response`
 - `flag-review`
+- `sitout-review`
 
 These actions now authenticate/repair against the blob shell first, then compute
 the mutation from `buildCanonicalWritableStateForAuthenticatedMutation(...)`.
@@ -217,15 +218,14 @@ Preview/admin report status:
 - `a5b2ea5`: reaction report clean
 - `a676af4`: delete-log report clean
 - `26a415d`: flag family report clean
-- latest report shape for these cutovers: `ok: true`, `checked: 43`,
-  `skipped: 20`, `failed: 0`
+- `70d05cb`: report-only synthetic sitout-review candidate coverage added
+- `b637e22`: sitout-review report clean
+- latest report shape for these cutovers after synthetic sitout-review
+  coverage: `ok: true`, `checked: 47`, `skipped: 16`, `failed: 0`
 
 Remaining current/open candidate needing a separate risk pass:
 
-- `sitout-review`
-
-`sitout-review` currently has no pending candidate coverage in the admin
-report, so do not treat it as equivalent to the completed actions.
+- none in the admin-report-covered current/open batch
 
 Exit criteria:
 

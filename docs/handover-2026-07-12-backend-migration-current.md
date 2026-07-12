@@ -310,13 +310,37 @@ Preview verification:
 - parity mismatch logs for the latest flag preview: none in the checked
   30-minute window
 
-Remaining current/open candidate not cut over:
+## Sit-Out Review Cutover - 2026-07-12
 
-- `sitout-review`
+`sitout-review` is now cut over to the canonical writable constructor.
 
-Do not cut over `sitout-review` casually. The admin report skips
-`sitout-review` today because there are no pending candidates, so it lacks the
-same parity coverage as the completed actions.
+Why it needed a separate step:
+
+- live data had no pending sit-out request candidates, so the admin report
+  originally skipped `sitout-review`
+- commit `70d05cb` added report-only synthetic pending request coverage; this
+  does not persist data and does not affect normal API calls
+- preview `lift-aw8e9i52d-aadhilshahjahan11-1221s-projects.vercel.app`,
+  deployment `dpl_3vXzNFxrkWrqhMnX5nnmRZ7HG2SB`, returned `ok: true`,
+  `checked: 47`, `skipped: 16`, `failed: 0`
+
+Runtime cutover:
+
+- commit `b637e22` cut `sitout-review` to
+  `buildCanonicalWritableStateForAuthenticatedMutation(...)`
+- it still authenticates/repairs against the blob shell first
+- it still computes a shadow blob mutation for preview parity
+- canonical sit-out request and excused updates still happen before blob mirror
+  persistence
+- preview `lift-87kh0u4hh-aadhilshahjahan11-1221s-projects.vercel.app`,
+  deployment `dpl_ES4R5nFX7RXBSiVDpsTcwpgU2Pen`, returned `ok: true`,
+  `checked: 47`, `skipped: 16`, `failed: 0`
+- Vercel runtime errors for this preview: none in the checked 30-minute window
+- parity mismatch logs for this preview: none in the checked 30-minute window
+
+This means all admin-report-covered current/open actions now compute their
+runtime mutation from the canonical writable constructor rather than directly
+from blob hydration.
 
 ## Do Not Repeat
 
@@ -368,14 +392,14 @@ Vercel project IDs:
 
 ## Immediate Next Work
 
-The settings/proration/sitout-request/reaction/delete/flag write-input cutover
-batch is complete. Next work is either:
+The settings/proration/sitout-request/sitout-review/reaction/delete/flag
+write-input cutover batch is complete. Next work is either:
 
 - ask for one broader preview smoke covering sign-in, bloc load, settings
-  change, react/unreact, delete a disposable workout, and any practical flag
-  path
-- or continue with a separate higher-risk audit for `sitout-review`,
-  lifecycle/identity paths, and blob mirror retirement prerequisites
+  change, react/unreact, delete a disposable workout, any practical flag path,
+  and any practical sit-out request/review path
+- or continue with a separate higher-risk audit for lifecycle/identity paths
+  and blob mirror retirement prerequisites
 
 To rerun the admin-only parity report before/after a cutover:
 
