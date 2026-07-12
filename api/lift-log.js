@@ -2739,6 +2739,175 @@ async function fetchReadableCurrentState() {
   };
 }
 
+async function buildCanonicalWritableStateForGroup(groupId) {
+  const safeGroupId = String(groupId || "").trim();
+  if (!safeGroupId) return fetchWritableCurrentState();
+
+  const [
+    baseState,
+    anteProfiles,
+    anteBlocs,
+    anteSeasonOverrides,
+    anteBlocMembers,
+    anteCurrentLogs,
+    anteExcusedSitouts
+  ] = await Promise.all([
+    fetchCurrentStateFromSupabase(),
+    fetchAnteProfiles(),
+    fetchAnteBlocs(),
+    fetchAnteSeasonOverrides(),
+    fetchAnteBlocMembers(),
+    fetchAnteCurrentLogs(),
+    fetchAnteCurrentExcusedAndSitouts()
+  ]);
+
+  const baseGroup = baseState.groups?.[safeGroupId] || null;
+  const bloc = anteBlocs?.[safeGroupId] || null;
+  if (!baseGroup || !bloc) return baseState;
+
+  const canonicalMemberRows = anteBlocMembers?.[safeGroupId] || [];
+  const canonicalOrderedMembers = [...canonicalMemberRows]
+    .filter(row => row?.auth_user_id && row?.display_name)
+    .sort((a, b) => {
+      const aSort = Number.isInteger(a.sort_order) ? a.sort_order : Number.MAX_SAFE_INTEGER;
+      const bSort = Number.isInteger(b.sort_order) ? b.sort_order : Number.MAX_SAFE_INTEGER;
+      if (aSort !== bSort) return aSort - bSort;
+      return String(a.display_name).localeCompare(String(b.display_name));
+    });
+  const canonicalMemberOrder = uniqueNames(canonicalOrderedMembers.map(row => row.display_name));
+  const canonicalMemberships = Object.fromEntries(
+    canonicalOrderedMembers.map(row => [
+      row.auth_user_id,
+      {
+        userId: row.auth_user_id,
+        displayName: row.display_name,
+        role: row.role === "admin" ? "admin" : "member",
+        joinedAt: row.joined_at || null
+      }
+    ])
+  );
+  const canonicalJoinedMonthByName = Object.fromEntries(
+    canonicalOrderedMembers
+      .filter(row => row.joined_month_key)
+      .map(row => [row.display_name, row.joined_month_key])
+  );
+  const canonicalAdminRow =
+    canonicalOrderedMembers.find(row => row.role === "admin") ||
+    canonicalOrderedMembers.find(row => row.auth_user_id === baseGroup.adminUserId) ||
+    null;
+
+  const settings = buildNormalizedSettings({
+    ...baseGroup.settings,
+    timeZone:             bloc.time_zone              ?? baseGroup.settings?.timeZone,
+    currency:             bloc.currency               ?? baseGroup.settings?.currency,
+    minTarget:            bloc.min_target             ?? baseGroup.settings?.minTarget,
+    fineAmount:           bloc.fine_amount            ?? baseGroup.settings?.fineAmount,
+    feeModel:             bloc.fee_model              ?? baseGroup.settings?.feeModel,
+    escalationStepAmount: bloc.escalation_step_amount ?? baseGroup.settings?.escalationStepAmount,
+    minRunDistance:       bloc.min_run_distance       ?? baseGroup.settings?.minRunDistance,
+    distanceUnit:         bloc.distance_unit          ?? baseGroup.settings?.distanceUnit,
+    stravaEnabled:        bloc.strava_enabled         ?? baseGroup.settings?.stravaEnabled,
+    acceptedWorkoutTypes: bloc.accepted_workout_types ?? baseGroup.settings?.acceptedWorkoutTypes
+  });
+
+  const openMonthKey = anteExcusedSitouts?.openSeasonMonthKeys?.[safeGroupId] || baseGroup.lastMonth;
+  const canonicalLogsByOwner = {};
+  for (const log of anteCurrentLogs?.[safeGroupId] || []) {
+    const owner = log.ownerDisplayName;
+    if (!owner) continue;
+    if (!canonicalLogsByOwner[owner]) canonicalLogsByOwner[owner] = [];
+    canonicalLogsByOwner[owner].push(normalizeLogEntry(log));
+  }
+  const currentLogOwners = uniqueNames([
+    ...canonicalMemberOrder,
+    ...Object.keys(canonicalLogsByOwner)
+  ]);
+  const canonicalLogs = Object.fromEntries(
+    currentLogOwners.map(name => [name, canonicalLogsByOwner[name] || []])
+  );
+
+  const historicalExcused = { ...(baseGroup.excused || {}) };
+  const currentExcusedRows = anteExcusedSitouts?.excused?.[safeGroupId] || [];
+  const canonicalExcusedByName = {};
+  for (const row of currentExcusedRows) {
+    if (!row.displayName || !row.monthKey || !row.excused) continue;
+    if (!canonicalExcusedByName[row.displayName]) canonicalExcusedByName[row.displayName] = {};
+    canonicalExcusedByName[row.displayName][row.monthKey] = true;
+  }
+  const canonicalExcused = Object.fromEntries(
+    uniqueNames([...Object.keys(historicalExcused), ...canonicalMemberOrder]).map(name => {
+      const prior = { ...(historicalExcused[name] || {}) };
+      if (openMonthKey) delete prior[openMonthKey];
+      return [name, { ...prior, ...(canonicalExcusedByName[name] || {}) }];
+    })
+  );
+
+  const historicalSitouts = { ...(baseGroup.sitOutRequests || {}) };
+  if (openMonthKey) delete historicalSitouts[openMonthKey];
+  const canonicalSitoutRows = anteExcusedSitouts?.sitOutRequests?.[safeGroupId] || [];
+  const currentSitoutRequests = {};
+  for (const row of canonicalSitoutRows) {
+    if (!row.displayName) continue;
+    currentSitoutRequests[row.displayName] = {
+      memberName: row.displayName,
+      monthKey: openMonthKey || row.monthKey,
+      status: row.status || "pending",
+      reason: row.reason || "",
+      exceptional: !!row.exceptional,
+      requestedAt: row.requestedAt || null,
+      requestedBy: row.requestedBy || row.displayName,
+      requestedByUserId: row.requestedByUserId || null,
+      targetApproverName: row.targetApproverName || null,
+      targetApproverUserId: row.targetApproverUserId || null,
+      decidedAt: row.decidedAt || null,
+      decidedBy: row.decidedBy || null,
+      decidedByUserId: row.decidedByUserId || null,
+      autoApproved: !!row.autoApproved
+    };
+  }
+  const canonicalSitOutRequests = {
+    ...historicalSitouts,
+    ...(openMonthKey && Object.keys(currentSitoutRequests).length > 0
+      ? { [openMonthKey]: currentSitoutRequests }
+      : {})
+  };
+
+  const canonicalSeasonOverrides = normalizeSeasonOverrides({
+    ...(baseGroup.seasonOverrides || {}),
+    ...(anteSeasonOverrides?.[safeGroupId] || {})
+  });
+
+  const canonicalGroup = normalizeGroup({
+    ...baseGroup,
+    id: safeGroupId,
+    name: bloc.name || baseGroup.name,
+    inviteCode: bloc.invite_code || baseGroup.inviteCode,
+    createdAt: bloc.created_at || baseGroup.createdAt,
+    adminName: canonicalAdminRow?.display_name || baseGroup.adminName,
+    adminUserId: canonicalAdminRow?.auth_user_id || baseGroup.adminUserId,
+    memberOrder: canonicalMemberOrder,
+    memberships: canonicalMemberships,
+    joinedMonthByName: canonicalJoinedMonthByName,
+    settings,
+    logs: canonicalLogs,
+    excused: canonicalExcused,
+    sitOutRequests: canonicalSitOutRequests,
+    seasonOverrides: canonicalSeasonOverrides,
+    lastMonth: openMonthKey || baseGroup.lastMonth
+  });
+
+  return {
+    ...baseState,
+    groups: {
+      ...(baseState.groups || {}),
+      [safeGroupId]: canonicalGroup
+    },
+    profiles: anteProfiles
+      ? { ...(baseState.profiles || {}), ...anteProfiles }
+      : baseState.profiles
+  };
+}
+
 // Mutations must always hydrate from the blob source of truth.
 // Projection reads are safe for GET optimization, but using a lagging or
 // lossy projection snapshot as the base for writes can permanently erase
@@ -3493,20 +3662,20 @@ async function runWriteHydrationParityProbe(action, payload, auth, actor, writab
   if (!isWriteHydrationParityEnabled(action)) return;
   const groupId = String(payload?.groupId || "").trim();
   try {
-    const readableCurrent = await fetchReadableCurrentState();
-    const readableAuthState = migrateAuthIdentity(rolloverStateIfNeeded(readableCurrent), auth.user.id, auth.user.email).state;
-    const readableActor = resolveDisplayNameForUser(readableAuthState, groupId, auth.user.id, auth.user.email) || actor;
-    const readableUpdated = applyMutation(readableAuthState, {
+    const canonicalCurrent = await buildCanonicalWritableStateForGroup(groupId);
+    const canonicalAuthState = migrateAuthIdentity(rolloverStateIfNeeded(canonicalCurrent), auth.user.id, auth.user.email).state;
+    const canonicalActor = resolveDisplayNameForUser(canonicalAuthState, groupId, auth.user.id, auth.user.email) || actor;
+    const canonicalUpdated = applyMutation(canonicalAuthState, {
       ...payload,
-      actor: readableActor,
+      actor: canonicalActor,
       actorUserId: auth.user.id
     });
 
     const writableBlob = buildWriteHydrationParityBlob(writableUpdated);
-    const readableBlob = buildWriteHydrationParityBlob(readableUpdated);
+    const canonicalBlob = buildWriteHydrationParityBlob(canonicalUpdated);
     const mismatches = collectWriteHydrationGroupMismatches(
       writableBlob.groups?.[groupId],
-      readableBlob.groups?.[groupId],
+      canonicalBlob.groups?.[groupId],
       groupId
     );
 
@@ -3516,7 +3685,7 @@ async function runWriteHydrationParityProbe(action, payload, auth, actor, writab
         groupId,
         mismatches,
         writableGroups: Object.keys(writableBlob.groups || {}).length,
-        readableGroups: Object.keys(readableBlob.groups || {}).length
+        canonicalGroups: Object.keys(canonicalBlob.groups || {}).length
       }));
     }
   } catch (err) {

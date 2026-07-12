@@ -68,28 +68,55 @@ Verified installed/callable read RPCs:
 All are executable by `service_role` and not executable by `anon` or
 `authenticated`.
 
-Latest coverage report:
+Initial coverage report before backfill:
 
 - path: `migration-output/coverage/canonical-coverage-2026-07-12T17-26-07-363Z.json`
 - blob groups: `7`
 - canonical blocs visible via read RPCs: `1`
 - failures: `79`
-- core blocker: canonical data coverage is incomplete, especially current
-  blocs/open seasons/logs
 
-Fresh backfill artifacts were generated locally from the current blob snapshot:
+Fresh backfill artifacts were regenerated locally from the current blob snapshot:
 
-- path: `migration-output/canonical-run-2026-07-12/`
+- path: `migration-output/canonical-run-2026-07-12-current/`
 - summary: `28` profiles, `7` blocs, `34` bloc members, `9` seasons,
   `54` season member status rows, `413` workout logs, `166` reactions,
   `6` season overrides, `4` sit-out requests
 - warning: one reaction by display name `isindug` could not resolve to a
   canonical profile and is skipped by the generated import
 
-The generated import SQL has not been applied from this workspace because there
-is no local `supabase` or `psql` CLI and the SQL is too large for a clean
-connector paste. Do not apply the stale July 2 import; use the fresh July 12
-artifacts or regenerate again immediately before applying.
+The generated import SQL was applied from this workspace through a temporary
+service-role-only SQL executor RPC. The temporary RPC was dropped immediately
+after apply and verified absent.
+
+Latest coverage report after backfill:
+
+- path: `migration-output/coverage/canonical-coverage-2026-07-12T17-42-19-811Z.json`
+- blob groups: `7`
+- canonical blocs visible via read RPCs: `7`
+- failures: `0`
+
+Canonical coverage is now clean enough to begin constructor parity work.
+
+## Constructor Probe Batch - 2026-07-12
+
+Current branch now includes `buildCanonicalWritableStateForGroup(groupId)` in
+`api/lift-log.js`.
+
+Scope:
+
+- starts from the blob-shaped state only as the outer compatibility shell
+- replaces the target group's current writable fields from canonical reads:
+  settings, memberships, joined-month markers, current logs, current
+  excused/sit-out state, and season overrides
+- preserves blob historical compatibility where still needed for current
+  mutation helpers
+- leaves actual mutation authority on `fetchWritableCurrentState()`
+
+The write-hydration parity probe now compares blob-write output against this
+canonical writable constructor instead of `fetchReadableCurrentState()`.
+
+This is observational. The covered POST actions still execute against the
+existing blob writable base.
 
 ## Latest Probe Status
 
@@ -165,16 +192,15 @@ Vercel project IDs:
 
 ## Immediate Next Work
 
-Apply or regenerate the fresh canonical backfill, then rerun:
+Deploy the constructor-probe batch to preview and inspect Vercel logs while
+exercising current/open actions:
 
 ```bash
-/Users/opera_user/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node scripts/canonical-coverage-report.mjs
+reaction, flag, flag-response, flag-review, delete-log, update-settings,
+season-proration-choice, sitout-request, sitout-review
 ```
 
-Only after coverage is materially clean should the next code batch build a
-canonical writable-state constructor for a bounded target group/action family.
-It must reconstruct the blob-shaped fields mutation helpers actually need,
-using canonical rows where available and explicit compatibility fallback rules
-where canonical coverage is incomplete.
+If constructor parity is clean, the next code batch can start moving a narrow
+low-risk action family away from blob-hydrated mutation input.
 
 Do not use the readable GET projection as the mutation constructor.

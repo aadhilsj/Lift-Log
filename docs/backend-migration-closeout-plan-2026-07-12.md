@@ -92,27 +92,31 @@ path exists.
 Purpose: prove canonical tables cover all runtime-required data before relying
 on them for writes.
 
-Current result on 2026-07-12:
+Initial result on 2026-07-12:
 
 - service-role read RPCs are now installed and callable
 - `read_ante_core_current_logs()` SQL source was fixed so ordering happens
   inside `jsonb_agg(...)`
-- coverage still fails because canonical data is incomplete, not because the
-  read RPCs are missing
-- latest report: `migration-output/coverage/canonical-coverage-2026-07-12T17-26-07-363Z.json`
+- coverage failed because canonical data was incomplete, not because the read
+  RPCs were missing
+- initial report: `migration-output/coverage/canonical-coverage-2026-07-12T17-26-07-363Z.json`
 - visible canonical blocs: `1` of `7`
 - visible current canonical workout logs: `0` while blob has current logs
 
-Fresh local backfill artifacts:
+Fresh local backfill artifacts were regenerated and applied:
 
-- `migration-output/canonical-run-2026-07-12/`
+- `migration-output/canonical-run-2026-07-12-current/`
 - generated from blob revision `858`
-- generated SQL: `migration-output/canonical-run-2026-07-12/canonical-import.sql`
+- generated SQL: `migration-output/canonical-run-2026-07-12-current/canonical-import.sql`
 - one non-blocking warning: a reaction by `isindug` has no resolvable profile
+- apply method: temporary service-role-only executor RPC, dropped immediately
+  after import and verified absent
+- latest report: `migration-output/coverage/canonical-coverage-2026-07-12T17-42-19-811Z.json`
+- visible canonical blocs: `7` of `7`
+- failures: `0`
 
 Do not apply older generated imports unless they are regenerated from a fresh
-snapshot. The July 12 artifacts are the current evidence, but should still be
-regenerated if there has been meaningful production write activity.
+snapshot. Coverage is clean as of the report above.
 
 Audit:
 
@@ -144,9 +148,13 @@ Exit criteria:
 Purpose: replace blob hydration with a canonical-built blob-shaped state for
 safe action families.
 
-Blocked until Workstream A coverage is materially improved. The constructor
-must not be built against a canonical dataset that only contains one visible
-bloc and zero visible current logs.
+Current status:
+
+- `buildCanonicalWritableStateForGroup(groupId)` now exists in `api/lift-log.js`
+- write-hydration parity probes compare blob write output against this
+  constructor, not against `fetchReadableCurrentState()`
+- real POST mutations still hydrate from the existing blob writable base
+- this is an observational probe batch, not a write-input cutover
 
 This constructor is not `fetchReadableCurrentState()`.
 
@@ -270,13 +278,11 @@ Use this decision boundary:
 
 ## Immediate Next Batch
 
-1. Apply or regenerate the canonical backfill from
-   `migration-output/canonical-run-2026-07-12/`.
-2. Rerun `scripts/canonical-coverage-report.mjs` and inspect group-level
-   failures.
-3. Add the first canonical writable constructor for one target group.
-4. Point parity probes at the constructor, not `fetchReadableCurrentState()`.
-5. Use preview smoke/logs to determine whether the low-risk action batch can be
+1. Deploy the constructor-probe batch to preview.
+2. Exercise covered current/open actions.
+3. Inspect Vercel logs for `[write-hydration-parity] mismatch` and
+   `[write-hydration-parity] probe failed`.
+4. Use preview smoke/logs to determine whether the low-risk action batch can be
    cut over together.
 
 If the constructor reveals missing canonical rows, fix coverage/import first.
