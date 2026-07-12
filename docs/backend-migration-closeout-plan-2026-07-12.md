@@ -206,10 +206,15 @@ Completed first cutover:
 - `flag-response`
 - `flag-review`
 - `sitout-review`
+- `add-log`
+- `multi-log`
 
 These actions now authenticate/repair against the blob shell first, then compute
 the mutation from `buildCanonicalWritableStateForAuthenticatedMutation(...)`.
-They still run a shadow blob mutation for parity probes.
+The earlier current/open cutovers still run shadow blob parity probes where
+their handler has a runtime probe. The logging cutover keeps a shadow blob
+calculation for compatibility validation, while the admin report carries the
+explicit current/open parity signal.
 
 Preview/admin report status:
 
@@ -222,32 +227,39 @@ Preview/admin report status:
 - `b637e22`: sitout-review report clean
 - latest report shape for these cutovers after synthetic sitout-review
   coverage: `ok: true`, `checked: 47`, `skipped: 16`, `failed: 0`
+- July 12 logging cutover used the narrower current/open report because full
+  group parity is now blocked by historical shell drift:
+  - `add-log`: `ok 7`, `failed 0`, `skipped 0`
+  - `multi-log`: `ok 2`, `failed 0`, `skipped 5`
 
 Remaining current/open candidate needing a separate risk pass:
 
-- `add-log`
-- `multi-log`
 - lifecycle exits that still compute from blob input even though their
   canonical writes already happen before blob persist:
   - `kick-member`
   - `leave-bloc`
   - `delete-account`
 
-July 12 report-only expansion:
+July 12 report/current-open expansion:
 
 - the admin `write-hydration-parity-report` now includes report-only probes for
   `add-log`, `multi-log`, `kick-member`, and `leave-bloc`
 - generated workout log ids/timestamps are redacted only for `add-log` and
   `multi-log` comparisons, because the probe simulates blob and canonical
   mutations separately
-- local report execution against current data did **not** justify cutting these
-  routes to canonical writable input yet
-- the blocker was historical compatibility-shell drift, mostly
-  `monthHistory`, and for some blocs historical `seasonOverrides`, not a
-  direct failure in the new candidate payloads
-- do not treat this report expansion as approval to move more write inputs; it
-  is evidence that the next safe batch needs a historical-shell reconciliation
-  or a deliberately scoped current/open comparator
+- the report now also emits `scope: "current-open"` comparisons for `add-log`
+  and `multi-log`
+- local current/open report status before the logging cutover:
+  - `add-log`: `ok 7`, `failed 0`, `skipped 0`
+  - `multi-log`: `ok 2`, `failed 0`, `skipped 5`
+- `add-log` and `multi-log` now authenticate/repair against the blob shell
+  first, then compute the logging mutation from the canonical writable
+  constructor
+- full-group report status still fails on historical compatibility-shell drift,
+  mostly `monthHistory`, and for some blocs historical `seasonOverrides`
+- do not use the logging current/open result as approval to move lifecycle
+  exits; those still need historical-shell reconciliation or their own scoped
+  comparator
 
 Exit criteria:
 

@@ -729,6 +729,18 @@ next candidate writable-input routes without changing runtime behavior:
 This is report-only coverage. It does not move any of those routes to
 `buildCanonicalWritableStateForAuthenticatedMutation(...)`.
 
+Follow-up: `add-log` and `multi-log` were then moved to canonical writable input
+using a deliberately narrower current/open report. The full-group report still
+fails on closed historical shell fields, but the logging mutation surfaces were
+clean:
+
+- `add-log` current/open: `ok 7`, `failed 0`, `skipped 0`
+- `multi-log` current/open: `ok 2`, `failed 0`, `skipped 5`
+
+Those two logging routes now authenticate/repair against the blob shell first,
+then compute from the canonical writable constructor before canonical writes and
+blob mirror persist.
+
 The local report run against current data did not authorize a new cutover. Most
 new and existing report probes were blocked by historical compatibility-shell
 differences:
@@ -738,7 +750,7 @@ differences:
 - some blocs also differ in historical `seasonOverrides`
 
 That means the next backend batch should not be a blind writable-input cutover
-for logging or lifecycle exits. The safer options are:
+for lifecycle exits. The safer options are:
 
 1. reconcile the historical shell so the canonical writable constructor and
    writable blob shell agree again, then re-run the full report

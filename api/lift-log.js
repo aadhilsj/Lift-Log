@@ -177,6 +177,48 @@ function collectWriteHydrationGroupMismatchDetails(writableGroup, canonicalGroup
   );
 }
 
+function pickCurrentMonthOnlyMap(monthMap, monthKey) {
+  return Object.fromEntries(
+    Object.entries(monthMap || {}).map(([name, entries]) => [
+      name,
+      entries?.[monthKey] ? { [monthKey]: entries[monthKey] } : {}
+    ])
+  );
+}
+
+function buildCurrentOpenComparisonGroup(group) {
+  if (!group) return null;
+  const monthKey = group.lastMonth || getLeagueMonthKey(group.settings?.timeZone);
+  const seasonOverrides = normalizeSeasonOverrides(group.seasonOverrides);
+  const sitOutRequests = normalizeSitOutRequests(group.sitOutRequests);
+  return {
+    id: group.id,
+    name: group.name,
+    adminName: group.adminName,
+    adminUserId: group.adminUserId || null,
+    inviteCode: group.inviteCode,
+    activeMemberOrder: group.activeMemberOrder || [],
+    memberships: group.memberships || {},
+    joinedMonthByName: group.joinedMonthByName || {},
+    settings: group.settings || {},
+    logs: group.logs || {},
+    excused: pickCurrentMonthOnlyMap(group.excused || {}, monthKey),
+    seasonOverrides: seasonOverrides[monthKey] ? { [monthKey]: seasonOverrides[monthKey] } : {},
+    sitOutRequests: sitOutRequests[monthKey] ? { [monthKey]: sitOutRequests[monthKey] } : {},
+    settlementConfirmationsEnabled: !!group.settlementConfirmationsEnabled,
+    settlementConfirmationsPreviewMode: !!group.settlementConfirmationsPreviewMode,
+    lastMonth: monthKey
+  };
+}
+
+function collectWriteHydrationCurrentOpenMismatches(writableGroup, canonicalGroup, groupId) {
+  return collectWriteHydrationGroupMismatches(
+    buildCurrentOpenComparisonGroup(writableGroup),
+    buildCurrentOpenComparisonGroup(canonicalGroup),
+    groupId
+  );
+}
+
 function isWriteHydrationParityEnabled(action) {
   return WRITE_HYDRATION_PARITY_ACTIONS.has("*") || WRITE_HYDRATION_PARITY_ACTIONS.has(action);
 }
@@ -3870,20 +3912,20 @@ async function runWriteHydrationParityProbe(action, payload, auth, actor, writab
   }
 }
 
-async function compareWriteHydrationMutation(action, groupId, writableInput, canonicalInput, payload, applyMutation) {
+async function compareWriteHydrationMutation(action, groupId, writableInput, canonicalInput, payload, applyMutation, options = {}) {
   try {
     const writableUpdated = unwrapMutationState(applyMutation(writableInput, payload));
     const canonicalUpdated = unwrapMutationState(applyMutation(canonicalInput, payload));
     const writableBlob = buildWriteHydrationComparisonBlob(writableUpdated, action);
     const canonicalBlob = buildWriteHydrationComparisonBlob(canonicalUpdated, action);
-    const mismatches = collectWriteHydrationGroupMismatches(
-      writableBlob.groups?.[groupId],
-      canonicalBlob.groups?.[groupId],
-      groupId
-    );
+    const mismatchCollector = options.scope === "current-open"
+      ? collectWriteHydrationCurrentOpenMismatches
+      : collectWriteHydrationGroupMismatches;
+    const mismatches = mismatchCollector(writableBlob.groups?.[groupId], canonicalBlob.groups?.[groupId], groupId);
     return {
       action,
       groupId,
+      ...(options.scope ? { scope: options.scope } : {}),
       ok: mismatches.length === 0,
       mismatches,
       ...(mismatches.length
@@ -3907,14 +3949,15 @@ async function compareWriteHydrationMutation(action, groupId, writableInput, can
   }
 }
 
-async function compareWriteHydrationAction(action, baseState, groupId, payload, applyMutation) {
+async function compareWriteHydrationAction(action, baseState, groupId, payload, applyMutation, options = {}) {
   try {
     const canonicalBase = await buildCanonicalWritableStateForGroup(groupId, baseState);
-    return compareWriteHydrationMutation(action, groupId, baseState, canonicalBase, payload, applyMutation);
+    return compareWriteHydrationMutation(action, groupId, baseState, canonicalBase, payload, applyMutation, options);
   } catch (err) {
     return {
       action,
       groupId,
+      ...(options.scope ? { scope: options.scope } : {}),
       ok: false,
       error: err?.message || String(err)
     };
@@ -4127,9 +4170,50 @@ async function compareWriteHydrationMultiLog(baseState, sourceGroupId, payload) 
   }
 }
 
+async function compareWriteHydrationMultiLogCurrentOpen(baseState, sourceGroupId, payload) {
+  try {
+    const canonicalBase = await buildCanonicalWritableStateForGroup(sourceGroupId, baseState);
+    const writableUpdated = applyMultiLog(baseState, payload);
+    const canonicalUpdated = applyMultiLog(canonicalBase, payload);
+    const writableBlob = buildWriteHydrationComparisonBlob(writableUpdated, "multi-log");
+    const canonicalBlob = buildWriteHydrationComparisonBlob(canonicalUpdated, "multi-log");
+    const checkedGroupIds = [...new Set([sourceGroupId, ...(payload.targetGroupIds || [])])];
+    const mismatches = checkedGroupIds.flatMap(groupId =>
+      collectWriteHydrationCurrentOpenMismatches(
+        writableBlob.groups?.[groupId],
+        canonicalBlob.groups?.[groupId],
+        groupId
+      )
+    );
+    return {
+      action: "multi-log",
+      groupId: sourceGroupId,
+      scope: "current-open",
+      ok: mismatches.length === 0,
+      targetGroupIds: payload.targetGroupIds || [],
+      mismatches
+    };
+  } catch (err) {
+    return {
+      action: "multi-log",
+      groupId: sourceGroupId,
+      scope: "current-open",
+      ok: false,
+      error: err?.message || String(err)
+    };
+  }
+}
+
 async function buildWriteHydrationParityReport(baseState) {
   const results = [];
-  const addSkipped = (action, groupId, reason) => results.push({ action, groupId, ok: null, skipped: true, reason });
+  const addSkipped = (action, groupId, reason, scope = null) => results.push({
+    action,
+    groupId,
+    ...(scope ? { scope } : {}),
+    ok: null,
+    skipped: true,
+    reason
+  });
 
   const groupIds = Array.isArray(baseState.groupOrder) && baseState.groupOrder.length
     ? baseState.groupOrder
@@ -4186,7 +4270,7 @@ async function buildWriteHydrationParityReport(baseState) {
 
     const addLogCandidate = findCurrentLogWriteCandidate(group);
     if (addLogCandidate) {
-      results.push(await compareWriteHydrationAction("add-log", baseState, groupId, {
+      const addLogPayload = {
         groupId,
         date: addLogCandidate.date,
         workoutType: addLogCandidate.workoutType,
@@ -4194,14 +4278,17 @@ async function buildWriteHydrationParityReport(baseState) {
         photoUrl: "https://example.com/parity-probe.jpg",
         actor: addLogCandidate.actor.displayName,
         actorUserId: addLogCandidate.actor.userId
-      }, applyAddLog));
+      };
+      results.push(await compareWriteHydrationAction("add-log", baseState, groupId, addLogPayload, applyAddLog));
+      results.push(await compareWriteHydrationAction("add-log", baseState, groupId, addLogPayload, applyAddLog, { scope: "current-open" }));
     } else {
       addSkipped("add-log", groupId, "no current log writer candidate");
+      addSkipped("add-log", groupId, "no current log writer candidate", "current-open");
     }
 
     const multiLogCandidate = findMultiLogCandidate(baseState, groupId, group, actor);
     if (multiLogCandidate) {
-      results.push(await compareWriteHydrationMultiLog(baseState, groupId, {
+      const multiLogPayload = {
         sourceGroupId: groupId,
         targetGroupIds: multiLogCandidate.targetGroupIds,
         date: multiLogCandidate.date,
@@ -4210,9 +4297,12 @@ async function buildWriteHydrationParityReport(baseState) {
         photoUrl: "https://example.com/parity-probe.jpg",
         actor: multiLogCandidate.actor.displayName,
         actorUserId: multiLogCandidate.actor.userId
-      }));
+      };
+      results.push(await compareWriteHydrationMultiLog(baseState, groupId, multiLogPayload));
+      results.push(await compareWriteHydrationMultiLogCurrentOpen(baseState, groupId, multiLogPayload));
     } else {
       addSkipped("multi-log", groupId, "no shared-member target bloc candidate");
+      addSkipped("multi-log", groupId, "no shared-member target bloc candidate", "current-open");
     }
 
     const leaveCandidate = findLeaveBlocCandidate(group);
@@ -5697,27 +5787,33 @@ export default async function handler(req, res) {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actor = resolveDisplayNameForUser(auth.state, payload.sourceGroupId, auth.user.id, auth.user.email);
         const allTargetIds = [...new Set([payload.sourceGroupId, ...(Array.isArray(payload.targetGroupIds) ? payload.targetGroupIds.filter(Boolean) : [])])];
+        applyMultiLog(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.sourceGroupId);
+        const canonicalActor = resolveDisplayNameForUser(canonicalState, payload.sourceGroupId, auth.user.id, auth.user.email) || actor;
         const beforeLogIdsByGroup = Object.fromEntries(
           allTargetIds.map(groupId => [
             groupId,
-            new Set((auth.state.groups?.[groupId]?.logs?.[actor] || []).map(log => String(log?.id)))
+            new Set((canonicalState.groups?.[groupId]?.logs?.[canonicalActor] || []).map(log => String(log?.id)))
           ])
         );
-        const updated = applyMultiLog(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        const updated = applyMultiLog(canonicalState, { ...payload, actor: canonicalActor, actorUserId: auth.user.id });
         const pendingLogsByGroup = Object.fromEntries(
           allTargetIds.map(groupId => {
             const group = updated.groups?.[groupId];
             if (!group) return [groupId, []];
             const beforeIds = beforeLogIdsByGroup[groupId] || new Set();
-            const ownerLogs = group.logs?.[actor] || [];
+            const ownerLogs = group.logs?.[canonicalActor] || [];
             return [groupId, ownerLogs.filter(log => !beforeIds.has(String(log?.id)))];
           })
         );
-        // Canonical-first workout logging slice:
-        // 1. compute the exact post-log blob-compatible state in memory
+        // Canonical writable-input cutover for multi-log:
+        // 1. authenticate/repair against the blob shell, then compute the
+        //    post-log state from the source bloc's canonical writable view
         // 2. ensure canonical bloc/open-season rows exist for each target bloc
         // 3. upsert the exact new logs canonically from that in-memory payload
         // 4. persist blob afterward as the compatibility mirror
+        // The target blocs still use their existing blob-shaped shells here;
+        // the current/open parity report covers the mixed-source behavior.
         for (const groupId of allTargetIds) {
           const group = updated.groups?.[groupId];
           if (!group) continue;
@@ -5727,24 +5823,30 @@ export default async function handler(req, res) {
           await syncBlocToCanonical(group, group.adminUserId || null, groupSortOrder >= 0 ? groupSortOrder : null, { throwOnError: true });
           await syncSeasonToCanonical(group, group.lastMonth, "open", null, { throwOnError: true });
           for (const log of newLogs) {
-            await upsertWorkoutLogToCanonical(group, group.lastMonth, actor, auth.user.id, log, { throwOnError: true });
+            await upsertWorkoutLogToCanonical(group, group.lastMonth, canonicalActor, auth.user.id, log, { throwOnError: true });
           }
         }
-        const persisted = await persistState(updated, `multi-log:${actor || auth.user.id}:${payload.date}:${payload.workoutType}`);
+        const persisted = await persistState(updated, `multi-log:${canonicalActor || actor || auth.user.id}:${payload.date}:${payload.workoutType}`);
         return res.status(200).json(persisted);
       }
 
       if (payload?.action === "add-log") {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
-        const result = applyAddLog(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        applyAddLog(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
+        const canonicalActor = resolveDisplayNameForUser(canonicalState, payload.groupId, auth.user.id, auth.user.email) || actor;
+        const result = applyAddLog(canonicalState, { ...payload, actor: canonicalActor, actorUserId: auth.user.id });
         const group = result.updated.groups?.[payload.groupId];
         const groupSortOrder = (result.updated.groupOrder || []).indexOf(payload.groupId);
         const targetMonth = (group?.monthHistory || []).find(month => month?.key === result.monthKey) || null;
+        // Canonical writable-input cutover for add-log:
+        // authenticate/repair against the blob shell, compute the new workout
+        // from the canonical writable constructor, then mirror blob afterward.
         if (group) {
           await syncBlocToCanonical(group, group.adminUserId || null, groupSortOrder >= 0 ? groupSortOrder : null, { throwOnError: true });
           await syncSeasonToCanonical(group, result.monthKey, targetMonth ? "closed" : "open", targetMonth?.closedAt || null, { throwOnError: true });
-          await upsertWorkoutLogToCanonical(group, result.monthKey, actor, auth.user.id, result.log, { throwOnError: true });
+          await upsertWorkoutLogToCanonical(group, result.monthKey, canonicalActor, auth.user.id, result.log, { throwOnError: true });
         }
         const persisted = await persistState(result.updated, result.reason);
         return res.status(200).json(persisted);
