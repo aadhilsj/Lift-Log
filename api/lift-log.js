@@ -5613,20 +5613,24 @@ export default async function handler(req, res) {
         // Normalize emoji the same way applyToggleReaction does so the blob lookup
         // and the canonical RPC call use the same key.
         const emoji = String(payload?.emoji || "").trim();
-        const result = applyToggleReaction(auth.state, { ...payload, actor, actorUserId: auth.user.id });
-        await runWriteHydrationParityProbe("reaction", payload, auth, actor, result.updated, applyToggleReaction);
+        const shadowBlobResult = applyToggleReaction(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
+        const canonicalActor = resolveDisplayNameForUser(canonicalState, payload.groupId, auth.user.id, auth.user.email) || actor;
+        const result = applyToggleReaction(canonicalState, { ...payload, actor: canonicalActor, actorUserId: auth.user.id });
+        await runWriteHydrationParityProbe("reaction", payload, auth, actor, shadowBlobResult.updated, applyToggleReaction);
         const reactionGroup = result.updated.groups?.[payload.groupId];
         const reactionLog = reactionGroup?.logs?.[payload.owner]
           ?.find(e => String(e?.id) === String(payload.logId));
         if (reactionGroup && reactionLog) {
-          // Canonical-first reaction slice:
-          // 1. compute the exact post-toggle blob-compatible state in memory
+          // Canonical writable-input cutover for reactions:
+          // 1. authenticate/repair against the blob shell, then compute the
+          //    post-toggle state from the canonical writable constructor
           // 2. ensure the parent canonical workout log exists from that payload
           // 3. apply the exact reaction direction canonically
           // 4. persist blob afterward as the compatibility mirror
           await syncOpenWorkoutLogSnapshotToCanonical(reactionGroup, payload.owner, reactionLog, { throwOnError: true });
-          const isAdding = (reactionLog.reactions?.[emoji] || []).includes(actor);
-          await toggleWorkoutReactionInCanonical(payload.logId, auth.user.id, actor, emoji, isAdding, { throwOnError: true });
+          const isAdding = (reactionLog.reactions?.[emoji] || []).includes(canonicalActor);
+          await toggleWorkoutReactionInCanonical(payload.logId, auth.user.id, canonicalActor, emoji, isAdding, { throwOnError: true });
         }
         const persisted = await persistState(result.updated, result.reason);
         return res.status(200).json(persisted);
