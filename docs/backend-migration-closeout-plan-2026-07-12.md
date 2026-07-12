@@ -235,6 +235,13 @@ Exit criteria:
 - preview smoke: sign in, blocs load, react/unreact, setting change, one flag
   path if practical
 
+Settlement reminder note:
+
+- commit `aa016e9` fixed a frontend-only reminder visibility issue where Today
+  settlement cards were hidden while the last-month results banner was active
+- backend data was still present, and the production API had no runtime errors
+- do not treat that incident as canonical settlement data loss
+
 ### Workstream D - High-Risk Compatibility Paths
 
 Do not bundle these with Workstream C unless coverage is proven:

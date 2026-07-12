@@ -342,6 +342,30 @@ This means all admin-report-covered current/open actions now compute their
 runtime mutation from the canonical writable constructor rather than directly
 from blob hydration.
 
+## Settlement Reminder UI Follow-Up - 2026-07-12
+
+Production briefly appeared to lose Go To Da Gym settlement reminders after the
+polling/cutover work. Investigation found:
+
+- production was still on `da5aa4e` at the time, not the later write-input
+  cutover previews
+- `/api/lift-log` had no runtime errors
+- composed backend state still produced six June settlement reminder cards for
+  Go To Da Gym
+- the April Rishane -> Aadhil reminder was correctly hidden by an existing
+  confirmed settlement-confirmation row, although legacy season-member status
+  still shows that older settlement as outstanding
+- the visible issue was frontend gating: `TodayPage` suppressed settlement
+  reminders while the "Last month results are in" banner was active, which made
+  reminders fragile around stale-tab/date-state timing
+
+Fix:
+
+- commit `aa016e9` `show settlement reminders with results banner`
+- one-line UI change in `src/pages/TodayPage.jsx`: show settlement reminders
+  whenever cards exist, instead of hiding them behind the results banner
+- preview smoke passed and the user promoted it to production
+
 ## Do Not Repeat
 
 Do not revive these approaches without a dedicated replacement plan:
