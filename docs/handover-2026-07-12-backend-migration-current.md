@@ -234,7 +234,8 @@ covered sampled action families.
 
 ## First Write-Input Cutover Batch - 2026-07-12
 
-The first low-risk write-input cutover is now landed on this branch.
+The first low-risk write-input cutover is landed, pushed, and user-smoked on
+this branch.
 
 Covered actions:
 
@@ -263,11 +264,59 @@ Preview verification:
 - preview `lift-8m5c6f7iq-aadhilshahjahan11-1221s-projects.vercel.app`,
   deployment `dpl_4Ai3WheCJ2oqfWMShFBVarmVnpiZ`, returned `ok: true`,
   `checked: 43`, `skipped: 20`, `failed: 0`
+- user smoke after this batch: sign-in worked, blocs loaded, setting change in
+  Test 101 worked
 
-Do not cut over `sitout-review`, `reaction`, `delete-log`, or flag actions in
-the same style without a fresh risk pass. The admin report skips
-`sitout-review` today because there are no pending candidates, and the workout
-log actions touch user-visible log rows directly.
+## Workout-Log Write-Input Cutover Batch - 2026-07-12
+
+The next bounded current/open workout-log batch is also landed and pushed.
+
+Covered actions:
+
+- `reaction`
+- `delete-log`
+- `flag`
+- `flag-response`
+- `flag-review`
+
+Implementation notes:
+
+- each action still authenticates and performs legacy repair against the blob
+  writable shell first
+- each action computes a shadow blob mutation for the preview parity probe
+- the real mutation input comes from
+  `buildCanonicalWritableStateForAuthenticatedMutation(...)`
+- canonical sync and blob mirror persistence order remains unchanged
+- actor display names are resolved from the canonical constructor where
+  possible, falling back to the authenticated blob actor when needed
+
+Preview verification:
+
+- commit `a5b2ea5` cut `reaction` to the canonical writable constructor
+- preview `lift-at3db90vy-aadhilshahjahan11-1221s-projects.vercel.app`,
+  deployment `dpl_SAUuqCrbWVUveVmy2nmpLLwQuLM4`, returned `ok: true`,
+  `checked: 43`, `skipped: 20`, `failed: 0`
+- commit `a676af4` cut `delete-log` to the canonical writable constructor
+- preview `lift-47ubsn3ag-aadhilshahjahan11-1221s-projects.vercel.app`,
+  deployment `dpl_4Mcz8m23Ythj1cJTkUZTwSLs2e7t`, returned `ok: true`,
+  `checked: 43`, `skipped: 20`, `failed: 0`
+- commit `26a415d` cut the flag action family to the canonical writable
+  constructor
+- preview `lift-lje2cpcrf-aadhilshahjahan11-1221s-projects.vercel.app`,
+  deployment `dpl_8zDzN7jAGbREFGHgnPkt3FYGGD6j`, returned `ok: true`,
+  `checked: 43`, `skipped: 20`, `failed: 0`
+- Vercel runtime errors for the latest flag preview: none in the checked
+  30-minute window
+- parity mismatch logs for the latest flag preview: none in the checked
+  30-minute window
+
+Remaining current/open candidate not cut over:
+
+- `sitout-review`
+
+Do not cut over `sitout-review` casually. The admin report skips
+`sitout-review` today because there are no pending candidates, so it lacks the
+same parity coverage as the completed actions.
 
 ## Do Not Repeat
 
@@ -319,12 +368,14 @@ Vercel project IDs:
 
 ## Immediate Next Work
 
-The first low-risk write-input cutover batch is complete. Next work is either:
+The settings/proration/sitout-request/reaction/delete/flag write-input cutover
+batch is complete. Next work is either:
 
-- ask for one preview smoke covering sign-in, bloc load, settings change, and
-  any available sit-out/proration UI
-- or continue with a separate higher-risk audit for workout-log actions before
-  touching `reaction`, `delete-log`, or flags
+- ask for one broader preview smoke covering sign-in, bloc load, settings
+  change, react/unreact, delete a disposable workout, and any practical flag
+  path
+- or continue with a separate higher-risk audit for `sitout-review`,
+  lifecycle/identity paths, and blob mirror retirement prerequisites
 
 To rerun the admin-only parity report before/after a cutover:
 

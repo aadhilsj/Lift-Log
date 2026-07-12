@@ -200,23 +200,32 @@ Completed first cutover:
 - `update-settings`
 - `season-proration-choice`
 - `sitout-request`
+- `reaction`
+- `delete-log`
+- `flag`
+- `flag-response`
+- `flag-review`
 
 These actions now authenticate/repair against the blob shell first, then compute
 the mutation from `buildCanonicalWritableStateForAuthenticatedMutation(...)`.
 They still run a shadow blob mutation for parity probes.
 
-Remaining candidate actions need a separate risk pass:
+Preview/admin report status:
 
-- `reaction`
-- `flag`
-- `flag-response`
-- `flag-review`
-- `delete-log`
+- `9ae307c`: settings/proration report clean
+- `1a9b571`: sitout-request report clean
+- `a5b2ea5`: reaction report clean
+- `a676af4`: delete-log report clean
+- `26a415d`: flag family report clean
+- latest report shape for these cutovers: `ok: true`, `checked: 43`,
+  `skipped: 20`, `failed: 0`
+
+Remaining current/open candidate needing a separate risk pass:
+
 - `sitout-review`
 
-These are current/open or row-shaped actions, but the workout-log actions touch
-user-visible log rows directly, and `sitout-review` currently has no pending
-candidate coverage in the admin report.
+`sitout-review` currently has no pending candidate coverage in the admin
+report, so do not treat it as equivalent to the completed actions.
 
 Exit criteria:
 
