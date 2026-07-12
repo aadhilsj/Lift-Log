@@ -362,15 +362,25 @@ Use this decision boundary:
 
 ## Immediate Next Batch
 
-1. Use the expanded admin report `summary` and `excludedActions` fields to keep
-   future batches from re-opening completed current/open write slices.
-2. Inspect Vercel logs for `[write-hydration-parity] mismatch` and
-   `[write-hydration-parity] probe failed` after production traffic.
-3. Do not cut `auth-sync` to readable/canonical input until there is a dedicated
-   replacement for legacy identity repair.
-4. Treat the next real migration work as lifecycle/history design:
-   `leftMemberNames`, `joinedMonthByName`, display-name de-keying, and eventual
-   blob mirror retirement.
+Batch 1 started on 2026-07-13 with historical shell parity:
+
+- extracted the closed-season `monthHistory` canonical composer into
+  `buildCanonicalMonthHistoryForGroup(...)`
+- kept the same completeness guard already used on reads: if canonical closed
+  season coverage is narrower than the blob month, preserve the blob month
+- wired the canonical writable constructor to fetch `ante_core` month history
+  and compose the target group's historical shell before normalization
+- left client bootstrap and `src/lib/appState.js` untouched
+
+Next Batch 1 steps:
+
+1. Run the admin write-hydration report on preview and inspect the new
+   `summary`; the expected improvement is fewer or no full-report
+   `monthHistory` mismatches.
+2. If full parity still fails, classify the remaining differences by field:
+   historical `seasonOverrides`, `joinedMonthByName`, or true coverage gaps.
+3. Keep `auth-sync`, `upsert-profile`, and `repair-display-name` out of this
+   batch; they belong to the identity/display-name and auth-sync batches.
 
 If a future constructor report reveals missing canonical rows, fix
 coverage/import first.

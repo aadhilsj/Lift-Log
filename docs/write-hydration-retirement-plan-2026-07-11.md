@@ -113,6 +113,17 @@ Status amendment, 2026-07-13:
   `excludedActions` so completed paths and intentionally quarantined paths are
   explicit in the report output
 
+Historical shell amendment, 2026-07-13:
+
+- closed-season `monthHistory` composition now lives in the shared server helper
+  `buildCanonicalMonthHistoryForGroup(...)`
+- the readable GET path and the canonical writable constructor use the same
+  historical composer and the same completeness guard
+- the canonical writable constructor now fetches canonical month history for the
+  target group before normalizing the mutation-grade group shell
+- this reduces the remaining full-report drift without touching client
+  bootstrap normalization or changing identity repair paths
+
 ### Quarantined compatibility tools
 
 - `repair-display-name`
