@@ -214,6 +214,48 @@ function backfillLegacyMembershipForProfile(group, userId, displayName) {
   });
 }
 
+function rekeyAuthReference(value, legacyUserId, nextUserId) {
+  return value === legacyUserId ? nextUserId : value || null;
+}
+
+function rekeySitOutRequestUserIds(sitOutRequests, legacyUserId, nextUserId) {
+  return Object.fromEntries(
+    Object.entries(sitOutRequests || {}).map(([monthKey, requests]) => [
+      monthKey,
+      Object.fromEntries(
+        Object.entries(requests || {}).map(([memberName, request]) => [
+          memberName,
+          {
+            ...request,
+            requestedByUserId: rekeyAuthReference(request?.requestedByUserId, legacyUserId, nextUserId),
+            targetApproverUserId: rekeyAuthReference(request?.targetApproverUserId, legacyUserId, nextUserId),
+            decidedByUserId: rekeyAuthReference(request?.decidedByUserId, legacyUserId, nextUserId)
+          }
+        ])
+      )
+    ])
+  );
+}
+
+function rekeyLegacyAuthIdentityInGroup(group, legacyUserId, nextUserId) {
+  const memberships = { ...(group.memberships || {}) };
+  const legacyMembership = memberships[legacyUserId];
+  if (legacyMembership) {
+    delete memberships[legacyUserId];
+    memberships[nextUserId] = {
+      ...legacyMembership,
+      userId: nextUserId
+    };
+  }
+
+  return normalizeGroup({
+    ...group,
+    adminUserId: group.adminUserId === legacyUserId ? nextUserId : group.adminUserId,
+    memberships,
+    sitOutRequests: rekeySitOutRequestUserIds(group.sitOutRequests, legacyUserId, nextUserId)
+  });
+}
+
 function migrateAuthIdentity(base, nextUserId, email) {
   const normalizedEmail = String(email || "").trim().toLowerCase();
   const normalizedUserId = String(nextUserId || "").trim();
@@ -261,41 +303,10 @@ function migrateAuthIdentity(base, nextUserId, email) {
   };
 
   const nextGroups = Object.fromEntries(
-    Object.entries(base.groups || {}).map(([groupId, group]) => {
-      const memberships = { ...(group.memberships || {}) };
-      const legacyMembership = memberships[legacyUserId];
-      if (legacyMembership) {
-        delete memberships[legacyUserId];
-        memberships[normalizedUserId] = {
-          ...legacyMembership,
-          userId: normalizedUserId
-        };
-      }
-
-      const nextSitOutRequests = Object.fromEntries(
-        Object.entries(group.sitOutRequests || {}).map(([monthKey, requests]) => [
-          monthKey,
-          Object.fromEntries(
-            Object.entries(requests || {}).map(([memberName, request]) => [
-              memberName,
-              {
-                ...request,
-                requestedByUserId: request?.requestedByUserId === legacyUserId ? normalizedUserId : request?.requestedByUserId || null,
-                targetApproverUserId: request?.targetApproverUserId === legacyUserId ? normalizedUserId : request?.targetApproverUserId || null,
-                decidedByUserId: request?.decidedByUserId === legacyUserId ? normalizedUserId : request?.decidedByUserId || null
-              }
-            ])
-          )
-        ])
-      );
-
-      return [groupId, normalizeGroup({
-        ...group,
-        adminUserId: group.adminUserId === legacyUserId ? normalizedUserId : group.adminUserId,
-        memberships,
-        sitOutRequests: nextSitOutRequests
-      })];
-    })
+    Object.entries(base.groups || {}).map(([groupId, group]) => [
+      groupId,
+      rekeyLegacyAuthIdentityInGroup(group, legacyUserId, normalizedUserId)
+    ])
   );
 
   return {

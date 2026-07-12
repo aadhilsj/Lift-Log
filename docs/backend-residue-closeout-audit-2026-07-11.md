@@ -47,6 +47,9 @@ Status:
 - direct-profile legacy membership backfill now routes through
   `needsLegacyMembershipBackfill(...)` and
   `backfillLegacyMembershipForProfile(...)`
+- legacy auth-id rekeying now routes through
+  `rekeyLegacyAuthIdentityInGroup(...)` and
+  `rekeySitOutRequestUserIds(...)`
 - this is a structure-only cleanup; `auth-sync` still hydrates writable blob
   state first and repair behavior is unchanged
 
