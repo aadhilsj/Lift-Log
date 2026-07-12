@@ -42,7 +42,7 @@ export function seedIfEmpty(blocId, { currentUserId, members = [] } = {}) {
 
   // Captured so later messages can reply to them (reply_to is id-keyed).
   const runMsg = other && txt(60 * 6, other.id, "anyone running this weekend?");
-  const eventMsg = other && evt(80, other.id, { activity: "Saturday long run", when: "Sat 12 Jul · 8:00 AM", location: "Marina Beach", rsvp: other2 ? { [other.id]: "in", [other2.id]: "pass" } : { [other.id]: "in" } });
+  const eventMsg = other && evt(80, other.id, { activity: "Saturday long run", when: "Sat 12 Jul · 8:00 AM", location: "Marina Beach", rsvp: other2 ? { [other.id]: "in", [other2.id]: "maybe", ...(others[2] ? { [others[2].id]: "pass" } : {}) } : { [other.id]: "in" } });
 
   const msgs = [
     sys(60 * 34, "positive", "SEASON CLOSED · 1 JUL", "June settled — summary ready.", "3 payments outstanding.", { "👏": other ? [other.id] : [] }, { systemKind: "season_closed", payload: { action: "season_results" } }),

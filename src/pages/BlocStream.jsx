@@ -372,59 +372,60 @@ const EventCard = ({ msg, currentUserId, authorName, nameFor, onRsvp }) => {
   const p = msg.payload || {};
   const rsvp = p.rsvp || {};
   const inIds = Object.keys(rsvp).filter(id => rsvp[id] === "in");
+  const maybeIds = Object.keys(rsvp).filter(id => rsvp[id] === "maybe");
   const passIds = Object.keys(rsvp).filter(id => rsvp[id] === "pass");
   const mine = rsvp[currentUserId];
-  const [roster, setRoster] = useState(null); // "in" | "pass" | null
+  const [roster, setRoster] = useState(null); // "in" | "maybe" | "pass" | null
   const detail = (icon, text) => text ? React.createElement('div', {
-    style: { display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--text)", lineHeight: 1.25 }
-  }, React.createElement('span', { style: { fontSize: 11.5, width: 14, textAlign: "center", flexShrink: 0 } }, icon), text) : null;
+    style: { display: "flex", alignItems: "center", gap: 6, fontSize: 11.5, color: "var(--text)", lineHeight: 1.25 }
+  }, React.createElement('span', { style: { fontSize: 11, width: 13, textAlign: "center", flexShrink: 0 } }, icon), text) : null;
+  // Three equal-width RSVP buttons; the active one fills, the rest outline.
+  const rsvpBtn = (status, text, activeBg, activeColor, activeBorder) => React.createElement('button', {
+    onClick: () => onRsvp(msg.id, status),
+    style: {
+      flex: 1, borderRadius: 16, padding: "5px 4px", fontFamily: "'Outfit', sans-serif", fontSize: 11.5,
+      fontWeight: mine === status ? 700 : 600, cursor: "pointer", whiteSpace: "nowrap",
+      background: mine === status ? activeBg : "transparent",
+      color: mine === status ? activeColor : (status === "in" ? C.accent : "var(--muted)"),
+      border: `1px solid ${mine === status ? activeBorder : (status === "in" ? C.accent : C.inputBorder)}`
+    }
+  }, text);
+  const anyRsvp = inIds.length || maybeIds.length || passIds.length;
   return React.createElement('div', {
     style: {
       alignSelf: "stretch", background: C.evtBg, border: `1px solid ${C.accent}`,
-      borderRadius: 10, padding: "8px 11px 9px", boxShadow: "0 0 0 1px rgba(78,205,196,0.08), 0 5px 15px rgba(0,0,0,.24)"
+      borderRadius: 10, padding: "8px 10px", boxShadow: "0 0 0 1px rgba(78,205,196,0.08), 0 5px 15px rgba(0,0,0,.24)"
     }
   },
     React.createElement('div', {
-      style: { fontFamily: "'Outfit', sans-serif", fontSize: 8.5, fontWeight: 700, color: C.accent, letterSpacing: ".07em", textTransform: "uppercase", marginBottom: 5 }
+      style: { fontFamily: "'Outfit', sans-serif", fontSize: 8.5, fontWeight: 700, color: C.accent, letterSpacing: ".07em", textTransform: "uppercase", marginBottom: 4 }
     }, `${authorName} suggested an event`),
     React.createElement('div', {
-      style: { fontFamily: "'Outfit', sans-serif", fontSize: 13.5, fontWeight: 600, color: "var(--text)", marginBottom: 5 }
+      style: { fontFamily: "'Outfit', sans-serif", fontSize: 13, fontWeight: 600, color: "var(--text)", marginBottom: 4 }
     }, p.activity),
-    React.createElement('div', { style: { display: "flex", flexDirection: "column", gap: 2, marginBottom: 8 } },
+    React.createElement('div', { style: { display: "flex", flexDirection: "column", gap: 2, marginBottom: 7 } },
       detail("🗓", p.when),
       detail("📍", p.location)
     ),
-    React.createElement('div', { style: { display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" } },
-      React.createElement('div', { style: { position: "relative", display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0, flexWrap: "wrap" } },
-        inIds.length === 0 && passIds.length === 0
-          ? React.createElement('span', { style: { fontFamily: "'Outfit', sans-serif", fontSize: 11, fontWeight: 600, color: C.meta } }, "No RSVPs yet")
-          : null,
-        React.createElement(AvatarStack, { ids: inIds, nameFor, size: 20, muted: false, label: "in", onClick: () => setRoster(r => r === "in" ? null : "in") }),
-        React.createElement(AvatarStack, { ids: passIds, nameFor, size: 20, muted: true, label: "pass", onClick: () => setRoster(r => r === "pass" ? null : "pass") }),
-        roster && React.createElement(RosterPopover, {
-          title: roster === "in" ? "Going" : "Passed",
-          ids: roster === "in" ? inIds : passIds,
-          nameFor, onClose: () => setRoster(null), align: "left"
-        })
-      ),
-      React.createElement('div', { style: { display: "flex", gap: 6, flexShrink: 0 } },
-        React.createElement('button', {
-          onClick: () => onRsvp(msg.id, "in"),
-          style: {
-            background: mine === "in" ? C.accent : "transparent", color: mine === "in" ? "#04110e" : C.accent,
-            border: `1px solid ${C.accent}`, borderRadius: 18, padding: "4px 11px",
-            fontFamily: "'Outfit', sans-serif", fontSize: 12, fontWeight: 700, cursor: "pointer"
-          }
-        }, "I'm in"),
-        React.createElement('button', {
-          onClick: () => onRsvp(msg.id, "pass"),
-          style: {
-            background: mine === "pass" ? C.chipOnBg : "transparent", color: mine === "pass" ? "var(--text)" : "var(--muted)",
-            border: `1px solid ${mine === "pass" ? C.chipOnBorder : C.inputBorder}`, borderRadius: 18, padding: "4px 11px",
-            fontFamily: "'Outfit', sans-serif", fontSize: 12, fontWeight: 600, cursor: "pointer"
-          }
-        }, "Pass")
-      )
+    // Attendance summary — tap a cluster to see who's in / maybe / passed.
+    React.createElement('div', { style: { position: "relative", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 7, minHeight: 18 } },
+      !anyRsvp
+        ? React.createElement('span', { style: { fontFamily: "'Outfit', sans-serif", fontSize: 11, fontWeight: 600, color: C.meta } }, "No RSVPs yet")
+        : null,
+      React.createElement(AvatarStack, { ids: inIds, nameFor, size: 18, muted: false, label: "in", onClick: () => setRoster(r => r === "in" ? null : "in") }),
+      React.createElement(AvatarStack, { ids: maybeIds, nameFor, size: 18, muted: false, label: "maybe", onClick: () => setRoster(r => r === "maybe" ? null : "maybe") }),
+      React.createElement(AvatarStack, { ids: passIds, nameFor, size: 18, muted: true, label: "pass", onClick: () => setRoster(r => r === "pass" ? null : "pass") }),
+      roster && React.createElement(RosterPopover, {
+        title: roster === "in" ? "Going" : roster === "maybe" ? "Maybe" : "Passed",
+        ids: roster === "in" ? inIds : roster === "maybe" ? maybeIds : passIds,
+        nameFor, onClose: () => setRoster(null), align: "left"
+      })
+    ),
+    // Three RSVP buttons, equal width.
+    React.createElement('div', { style: { display: "flex", gap: 6 } },
+      rsvpBtn("in", "I'm in", C.accent, "#04110e", C.accent),
+      rsvpBtn("maybe", "Maybe", C.warning, "#1a1205", C.warning),
+      rsvpBtn("pass", "Pass", C.chipOnBg, "var(--text)", C.chipOnBorder)
     )
   );
 };
@@ -867,10 +868,6 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], stre
             borderRadius: 12, padding: 6, minWidth: 190, boxShadow: "0 8px 24px rgba(0,0,0,.5)", display: "flex", flexDirection: "column", gap: 2, zIndex: 12
           }
         },
-          React.createElement('button', {
-            onClick: () => { setShowPlus(false); inputRef.current?.focus(); },
-            style: { textAlign: "left", background: "transparent", border: "none", color: "var(--text)", fontSize: 14, fontWeight: 500, padding: "10px 12px", borderRadius: 8, cursor: "pointer" }
-          }, "Send a message"),
           React.createElement('button', {
             onClick: () => { setShowPlus(false); setShowEventSheet(true); },
             style: { textAlign: "left", background: "transparent", border: "none", color: "var(--text)", fontSize: 14, fontWeight: 500, padding: "10px 12px", borderRadius: 8, cursor: "pointer" }
