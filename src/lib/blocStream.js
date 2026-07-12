@@ -12,6 +12,7 @@
 
 const store = new Map(); // blocId -> message[]
 const lastRead = new Map(); // blocId -> ms timestamp of last read
+const DEFAULT_UNREAD_LOOKBACK_MS = 30 * 60 * 1000;
 let seq = 0;
 const newId = () => `m_${Date.now().toString(36)}_${seq++}`;
 
@@ -27,7 +28,7 @@ export function listMessages(blocId) {
 export function getUnreadCount(blocId, { currentUserId, members = [] } = {}) {
   if (!blocId) return 0;
   seedIfEmpty(blocId, { currentUserId, members });
-  const since = lastRead.get(blocId) || 0;
+  const since = lastRead.get(blocId) || (Date.now() - DEFAULT_UNREAD_LOOKBACK_MS);
   return (store.get(blocId) || []).filter(
     m => m.author_id !== currentUserId && new Date(m.created_at).getTime() > since
   ).length;
