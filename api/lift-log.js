@@ -1809,6 +1809,19 @@ async function upsertWorkoutLogToCanonical(group, monthKey, ownerDisplayName, ow
   }
 }
 
+async function syncOpenWorkoutLogSnapshotToCanonical(group, ownerDisplayName, log, options = {}) {
+  if (!group || !log) return;
+  await syncSeasonToCanonical(group, group.lastMonth, "open", null, options);
+  await upsertWorkoutLogToCanonical(
+    group,
+    group.lastMonth,
+    ownerDisplayName,
+    findAuthUserIdForDisplayName(group, ownerDisplayName),
+    log,
+    options
+  );
+}
+
 async function deleteWorkoutLogFromCanonical(logId, options = {}) {
   const { throwOnError = false } = options;
   if (!logId) return;
@@ -4892,15 +4905,7 @@ export default async function handler(req, res) {
           // 2. ensure the parent canonical workout log exists from that payload
           // 3. apply the exact reaction direction canonically
           // 4. persist blob afterward as the compatibility mirror
-          await syncSeasonToCanonical(reactionGroup, reactionGroup.lastMonth, "open", null, { throwOnError: true });
-          await upsertWorkoutLogToCanonical(
-            reactionGroup,
-            reactionGroup.lastMonth,
-            payload.owner,
-            findAuthUserIdForDisplayName(reactionGroup, payload.owner),
-            reactionLog,
-            { throwOnError: true }
-          );
+          await syncOpenWorkoutLogSnapshotToCanonical(reactionGroup, payload.owner, reactionLog, { throwOnError: true });
           const isAdding = (reactionLog.reactions?.[emoji] || []).includes(actor);
           await toggleWorkoutReactionInCanonical(payload.logId, auth.user.id, actor, emoji, isAdding, { throwOnError: true });
         }
@@ -4915,15 +4920,7 @@ export default async function handler(req, res) {
         const group = result.updated.groups?.[payload.groupId];
         const log = group?.logs?.[payload.owner]?.find(entry => String(entry?.id) === String(payload.logId));
         if (group && log) {
-          await syncSeasonToCanonical(group, group.lastMonth, "open", null, { throwOnError: true });
-          await upsertWorkoutLogToCanonical(
-            group,
-            group.lastMonth,
-            payload.owner,
-            findAuthUserIdForDisplayName(group, payload.owner),
-            log,
-            { throwOnError: true }
-          );
+          await syncOpenWorkoutLogSnapshotToCanonical(group, payload.owner, log, { throwOnError: true });
         }
         const persisted = await persistState(result.updated, result.reason);
         return res.status(200).json(persisted);
@@ -4936,15 +4933,7 @@ export default async function handler(req, res) {
         const group = result.updated.groups?.[payload.groupId];
         const log = group?.logs?.[payload.owner]?.find(entry => String(entry?.id) === String(payload.logId));
         if (group && log) {
-          await syncSeasonToCanonical(group, group.lastMonth, "open", null, { throwOnError: true });
-          await upsertWorkoutLogToCanonical(
-            group,
-            group.lastMonth,
-            payload.owner,
-            findAuthUserIdForDisplayName(group, payload.owner),
-            log,
-            { throwOnError: true }
-          );
+          await syncOpenWorkoutLogSnapshotToCanonical(group, payload.owner, log, { throwOnError: true });
         }
         const persisted = await persistState(result.updated, result.reason);
         return res.status(200).json(persisted);
@@ -4957,15 +4946,7 @@ export default async function handler(req, res) {
         const group = result.updated.groups?.[payload.groupId];
         const log = group?.logs?.[payload.owner]?.find(entry => String(entry?.id) === String(payload.logId));
         if (group && log) {
-          await syncSeasonToCanonical(group, group.lastMonth, "open", null, { throwOnError: true });
-          await upsertWorkoutLogToCanonical(
-            group,
-            group.lastMonth,
-            payload.owner,
-            findAuthUserIdForDisplayName(group, payload.owner),
-            log,
-            { throwOnError: true }
-          );
+          await syncOpenWorkoutLogSnapshotToCanonical(group, payload.owner, log, { throwOnError: true });
         }
         const persisted = await persistState(result.updated, result.reason);
         return res.status(200).json(persisted);

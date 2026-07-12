@@ -14,6 +14,8 @@ id-first slices on `codex/create-group-canonical-first`.
 - flag self-checks and flag responses now use `isGroupDisplayNameForActor(...)`
   so display-name keyed workout owners are matched against
   `memberships[actorUserId]` first.
+- reaction and flag-family canonical workout-log mirror writes now route
+  through `syncOpenWorkoutLogSnapshotToCanonical(...)`.
 - sit-out review authorization now routes through
   `canReviewSitOutRequest(...)`, preserving the existing admin, target
   approver, and deputy fallback behavior.
