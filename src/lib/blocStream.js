@@ -45,7 +45,7 @@ export function seedIfEmpty(blocId, { currentUserId, members = [] } = {}) {
   const eventMsg = other && evt(80, other.id, { activity: "Saturday long run", when: "Sat 12 Jul · 8:00 AM", location: "Marina Beach", rsvp: other2 ? { [other.id]: "in", [other2.id]: "maybe", ...(others[2] ? { [others[2].id]: "pass" } : {}) } : { [other.id]: "in" } });
 
   const msgs = [
-    sys(60 * 34, "positive", "SEASON CLOSED · 1 JUL", "June settled — summary ready.", "3 payments outstanding.", { "👏": other ? [other.id] : [] }, { systemKind: "season_closed", payload: { action: "season_results" } }),
+    sys(60 * 34, "positive", "MONTH CLOSED", "June ended — summary ready.", "3 to pay", { "👏": other ? [other.id] : [] }, { systemKind: "season_closed", payload: { action: "season_results" } }),
     sys(60 * 33, "positive", "AWARDS · JUNE", "", "", {}, { systemKind: "awards", payload: { awards: [
       { title: "Bloc MVP", name: other?.name || "Member" },
       { title: "Most consistent", name: other2?.name || other?.name || "Member" },

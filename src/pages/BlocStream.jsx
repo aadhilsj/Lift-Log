@@ -268,15 +268,9 @@ const TextBubble = ({ msg, isOwn, authorName, nameFor, members, replyToMsg, show
   );
 };
 
-// Filled 4-point sparkle (cyan) for the Perfect Month card.
-const Sparkle = ({ size, opacity, pos }) => React.createElement('svg', {
-  width: size, height: size, viewBox: "0 0 24 24", fill: C.accent, "aria-hidden": true,
-  style: { position: "absolute", opacity, pointerEvents: "none", ...pos }
-}, React.createElement('path', { d: "M12 0c.6 6.3 5.1 10.8 12 12-6.9 1.2-11.4 5.7-12 12-.6-6.3-5.1-10.8-12-12 6.9-1.2 11.4-5.7 12-12z" }));
-
 const SystemCard = ({ msg, onSeasonClosedTap }) => {
   // Perfect Month — the rare "everyone hit target" moment. Sanctioned exception
-  // to the no-gradients rule: a restrained radial glow + asymmetric sparkles.
+  // to the no-gradients rule: a restrained radial glow.
   if (msg.system_kind === "perfect_month") {
     return React.createElement('div', { style: { display: "flex", flexDirection: "column", alignItems: "center", padding: "4px 0" } },
       React.createElement('div', {
@@ -286,9 +280,6 @@ const SystemCard = ({ msg, onSeasonClosedTap }) => {
           border: "0.5px solid #2a6b62", borderRadius: 14, padding: "22px 18px", textAlign: "center"
         }
       },
-        React.createElement(Sparkle, { size: 14, opacity: 0.6, pos: { top: 10, left: 13 } }),
-        React.createElement(Sparkle, { size: 10, opacity: 0.4, pos: { top: 14, right: 17 } }),
-        React.createElement(Sparkle, { size: 9, opacity: 0.3, pos: { bottom: 13, left: 26 } }),
         React.createElement('div', {
           style: { fontFamily: "'Outfit', sans-serif", fontSize: 10, fontWeight: 500, color: C.accent, letterSpacing: ".14em", textTransform: "uppercase", marginBottom: 9 }
         }, msg.label),
