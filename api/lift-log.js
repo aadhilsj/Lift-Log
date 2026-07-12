@@ -117,6 +117,22 @@ function isWriteHydrationParityEnabled(action) {
   return WRITE_HYDRATION_PARITY_ACTIONS.has("*") || WRITE_HYDRATION_PARITY_ACTIONS.has(action);
 }
 
+function redactWriteHydrationVolatileFields(value) {
+  const volatileKeys = new Set(["chosenAt", "requestedAt", "decidedAt"]);
+  if (Array.isArray(value)) return value.map(redactWriteHydrationVolatileFields);
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(
+    Object.entries(value).map(([key, entry]) => [
+      key,
+      volatileKeys.has(key) && entry ? "<volatile>" : redactWriteHydrationVolatileFields(entry)
+    ])
+  );
+}
+
+function buildWriteHydrationParityBlob(state) {
+  return redactWriteHydrationVolatileFields(serializeStateForBlob(state));
+}
+
 function normalizeProfiles(profiles) {
   if (!profiles || typeof profiles !== "object") return {};
   return Object.fromEntries(
@@ -3446,21 +3462,21 @@ function applyUpdateSettings(current, payload) {
   };
 }
 
-async function runUpdateSettingsHydrationParityProbe(payload, auth, actor, writableUpdated) {
-  if (!isWriteHydrationParityEnabled("update-settings")) return;
+async function runWriteHydrationParityProbe(action, payload, auth, actor, writableUpdated, applyMutation) {
+  if (!isWriteHydrationParityEnabled(action)) return;
   const groupId = String(payload?.groupId || "").trim();
   try {
     const readableCurrent = await fetchReadableCurrentState();
     const readableAuthState = migrateAuthIdentity(rolloverStateIfNeeded(readableCurrent), auth.user.id, auth.user.email).state;
     const readableActor = resolveDisplayNameForUser(readableAuthState, groupId, auth.user.id, auth.user.email) || actor;
-    const readableUpdated = applyUpdateSettings(readableAuthState, {
+    const readableUpdated = applyMutation(readableAuthState, {
       ...payload,
       actor: readableActor,
       actorUserId: auth.user.id
     });
 
-    const writableBlob = serializeStateForBlob(writableUpdated);
-    const readableBlob = serializeStateForBlob(readableUpdated);
+    const writableBlob = buildWriteHydrationParityBlob(writableUpdated);
+    const readableBlob = buildWriteHydrationParityBlob(readableUpdated);
     const mismatches = [];
     if (valuesDiffer(writableBlob.groupOrder, readableBlob.groupOrder)) mismatches.push("groupOrder");
     if (valuesDiffer(writableBlob.groups?.[groupId], readableBlob.groups?.[groupId])) mismatches.push(`groups.${groupId}`);
@@ -3469,7 +3485,7 @@ async function runUpdateSettingsHydrationParityProbe(payload, auth, actor, writa
 
     if (mismatches.length) {
       console.warn("[write-hydration-parity] mismatch", JSON.stringify({
-        action: "update-settings",
+        action,
         groupId,
         mismatches,
         writableGroups: Object.keys(writableBlob.groups || {}).length,
@@ -3478,7 +3494,7 @@ async function runUpdateSettingsHydrationParityProbe(payload, auth, actor, writa
     }
   } catch (err) {
     console.warn("[write-hydration-parity] probe failed", JSON.stringify({
-      action: "update-settings",
+      action,
       groupId,
       message: err?.message || String(err)
     }));
@@ -4850,7 +4866,7 @@ export default async function handler(req, res) {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
         const updated = applyUpdateSettings(auth.state, { ...payload, actor, actorUserId: auth.user.id });
-        await runUpdateSettingsHydrationParityProbe(payload, auth, actor, updated);
+        await runWriteHydrationParityProbe("update-settings", payload, auth, actor, updated, applyUpdateSettings);
         const settingsGroup = updated.groups?.[payload.groupId];
         const settingsSortOrder = (updated.groupOrder || []).indexOf(payload.groupId);
         // Third canonical-first write slice:
@@ -4870,6 +4886,7 @@ export default async function handler(req, res) {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
         const updated = applySeasonProrationChoice(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        await runWriteHydrationParityProbe("season-proration-choice", payload, auth, actor, updated, applySeasonProrationChoice);
         const overrideGroup = updated.groups?.[payload.groupId];
         const overrideMonthKey = overrideGroup?.lastMonth;
         const nextOverride = overrideMonthKey
