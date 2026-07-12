@@ -123,7 +123,7 @@ const LOCAL_CACHE_KEY = "ll_cached_data_v2";
 const LOCAL_GROUP_KEY = "ll_group_id";
 const LOCAL_PREVIEW_AUTH_KEY = "ll_preview_auth";
 const LOCAL_DEV_IMPERSONATION_KEY = "ll_dev_impersonation_user_id";
-const SYNC_POLL_INTERVAL_MS = 3000;
+const SYNC_POLL_INTERVAL_MS = 6000;
 const getDaysLeft = () => DAYS_IN_MON - DAY_OF_MON + 1;
 
 function refreshActiveTimeContext(timeZone = DEFAULT_GROUP_TIME_ZONE) {

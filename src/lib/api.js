@@ -288,6 +288,46 @@ async function fetchData() {
   } catch(e){ console.error("Fetch error:", e); return null; }
 }
 
+async function fetchRevision() {
+  try {
+    const session = await getCurrentAuthSession();
+    if (!session?.accessToken) return null;
+    const res = await fetch("./api/lift-log?revision=1", {
+      cache: "no-store",
+      headers: {
+        "Accept":"application/json",
+        "Authorization": `Bearer ${session.accessToken}`
+      }
+    });
+    if (!res.ok && res.status === 401) {
+      const refreshed = await refreshAuthSession();
+      if (refreshed?.accessToken) {
+        const retryRes = await fetch("./api/lift-log?revision=1", {
+          cache: "no-store",
+          headers: {
+            "Accept":"application/json",
+            "Authorization": `Bearer ${refreshed.accessToken}`
+          }
+        });
+        if (!retryRes.ok) {
+          if (retryRes.status === 401) {
+            await signOutAuthSession().catch(()=>{});
+          }
+          console.error("Revision retry failed:", retryRes.status, await retryRes.text());
+          return null;
+        }
+        const retryBody = await retryRes.json();
+        return Number.isFinite(Number(retryBody?.revision)) ? Number(retryBody.revision) : null;
+      }
+      await signOutAuthSession().catch(()=>{});
+      return null;
+    }
+    if(!res.ok){ console.error("Revision fetch failed:", res.status, await res.text()); return null; }
+    const body = await res.json();
+    return Number.isFinite(Number(body?.revision)) ? Number(body.revision) : null;
+  } catch(e){ console.error("Revision fetch error:", e); return null; }
+}
+
 async function addLogData(payload) {
   const result = await postApi("add-log", payload);
   if (!result.ok) return { ok:false, error: result.error || "Unable to save workout" };
@@ -510,6 +550,7 @@ export {
   refreshAuthSession,
   postApi,
   fetchData,
+  fetchRevision,
   addLogData,
   claimSettlementConfirmationData,
   confirmSettlementConfirmationData,

@@ -4685,6 +4685,10 @@ export default async function handler(req, res) {
         return res.status(200).json(getClientAuthConfig());
       }
       const authUser = await fetchAuthenticatedUser(readBearerToken(req));
+      if (url.searchParams.get("revision") === "1") {
+        const revision = await fetchBlobRevision();
+        return res.status(200).json({ revision: revision ?? 0 });
+      }
       const current = await fetchReadableCurrentState();
       return res.status(200).json(scopeReadableStateForUser(current, authUser.id));
     }
