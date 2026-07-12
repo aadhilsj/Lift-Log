@@ -140,6 +140,43 @@ function collectWriteHydrationGroupMismatches(writableGroup, readableGroup, grou
     .map(key => `groups.${groupId}.${key}`);
 }
 
+function findFirstNestedDifference(a, b, path = "") {
+  if (!valuesDiffer(a, b)) return null;
+  if (Array.isArray(a) || Array.isArray(b)) {
+    const aArray = Array.isArray(a) ? a : [];
+    const bArray = Array.isArray(b) ? b : [];
+    const maxLength = Math.max(aArray.length, bArray.length);
+    for (let i = 0; i < maxLength; i += 1) {
+      const childPath = `${path}[${i}]`;
+      const diff = findFirstNestedDifference(aArray[i], bArray[i], childPath);
+      if (diff) return diff;
+    }
+    return { path, writable: a, canonical: b };
+  }
+  if (a && b && typeof a === "object" && typeof b === "object") {
+    const keys = uniqueNames([...Object.keys(a), ...Object.keys(b)]).sort();
+    for (const key of keys) {
+      const childPath = path ? `${path}.${key}` : key;
+      const diff = findFirstNestedDifference(a?.[key], b?.[key], childPath);
+      if (diff) return diff;
+    }
+  }
+  return { path, writable: a ?? null, canonical: b ?? null };
+}
+
+function collectWriteHydrationGroupMismatchDetails(writableGroup, canonicalGroup, groupId, mismatches) {
+  return Object.fromEntries(
+    mismatches.map(mismatch => {
+      const prefix = `groups.${groupId}.`;
+      const key = mismatch.startsWith(prefix) ? mismatch.slice(prefix.length) : "";
+      const detail = key
+        ? findFirstNestedDifference(writableGroup?.[key], canonicalGroup?.[key], mismatch)
+        : findFirstNestedDifference(writableGroup, canonicalGroup, mismatch);
+      return [mismatch, detail];
+    })
+  );
+}
+
 function isWriteHydrationParityEnabled(action) {
   return WRITE_HYDRATION_PARITY_ACTIONS.has("*") || WRITE_HYDRATION_PARITY_ACTIONS.has(action);
 }
@@ -3821,7 +3858,17 @@ async function compareWriteHydrationMutation(action, groupId, writableInput, can
       action,
       groupId,
       ok: mismatches.length === 0,
-      mismatches
+      mismatches,
+      ...(mismatches.length
+        ? {
+            details: collectWriteHydrationGroupMismatchDetails(
+              writableBlob.groups?.[groupId],
+              canonicalBlob.groups?.[groupId],
+              groupId,
+              mismatches
+            )
+          }
+        : {})
     };
   } catch (err) {
     return {
