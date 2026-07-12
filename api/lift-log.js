@@ -3674,11 +3674,12 @@ async function runWriteHydrationParityProbe(action, payload, auth, actor, writab
     const canonicalCurrent = await buildCanonicalWritableStateForGroup(groupId, auth.state);
     const canonicalAuthState = migrateAuthIdentity(rolloverStateIfNeeded(canonicalCurrent), auth.user.id, auth.user.email).state;
     const canonicalActor = resolveDisplayNameForUser(canonicalAuthState, groupId, auth.user.id, auth.user.email) || actor;
-    const canonicalUpdated = applyMutation(canonicalAuthState, {
+    const canonicalMutationResult = applyMutation(canonicalAuthState, {
       ...payload,
       actor: canonicalActor,
       actorUserId: auth.user.id
     });
+    const canonicalUpdated = canonicalMutationResult?.updated || canonicalMutationResult?.state || canonicalMutationResult;
 
     const writableBlob = buildWriteHydrationParityBlob(writableUpdated);
     const canonicalBlob = buildWriteHydrationParityBlob(canonicalUpdated);

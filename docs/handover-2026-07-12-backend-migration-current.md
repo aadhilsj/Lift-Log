@@ -162,6 +162,15 @@ Latest log finding before the constructor follow-up:
 - no write-input cutover should happen until the new constructor follow-up has
   been deployed and the same probe actions are rechecked
 
+Follow-up finding after `b6f676d`:
+
+- the same `reaction` mismatch remained on preview
+- root cause was probe result normalization: some helpers, including
+  `applyToggleReaction`, return `{ updated, reason }`, while others return the
+  state object directly
+- the probe now unwraps `result.updated` / `result.state` before serializing the
+  canonical mutation result
+
 ## Do Not Repeat
 
 Do not revive these approaches without a dedicated replacement plan:
