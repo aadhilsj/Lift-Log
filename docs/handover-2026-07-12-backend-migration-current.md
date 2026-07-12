@@ -182,6 +182,19 @@ Admin-only parity report follow-up:
 - skipped rows mean the current data did not have a safe candidate for that
   action, not that the action failed parity
 
+First report result on preview `974b525`:
+
+- `checked: 43`, `failed: 43`, `skipped: 20`
+- dominant mismatches were constructor/base shape issues:
+  `createdAt`, `memberships`, `activeMemberOrder`, and `logs`
+- direct data inspection showed current canonical log counts matched blob log
+  counts; one common log mismatch was reaction-member array order, not missing
+  workouts
+- follow-up constructor patch preserves blob-compatible timestamp spelling when
+  canonical and blob timestamps represent the same instant, preserves existing
+  membership insertion order for covered auth-linked members, and treats
+  reaction member arrays as sets for parity comparison only
+
 ## Do Not Repeat
 
 Do not revive these approaches without a dedicated replacement plan:

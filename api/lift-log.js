@@ -158,14 +158,19 @@ function assertAdminPin(payload) {
   }
 }
 
-function redactWriteHydrationVolatileFields(value) {
+function redactWriteHydrationVolatileFields(value, inReactions = false) {
   const volatileKeys = new Set(["chosenAt", "requestedAt", "decidedAt", "decisionAt"]);
-  if (Array.isArray(value)) return value.map(redactWriteHydrationVolatileFields);
+  if (Array.isArray(value)) {
+    if (inReactions && value.every(entry => typeof entry === "string")) {
+      return [...value].sort((a, b) => a.localeCompare(b));
+    }
+    return value.map(entry => redactWriteHydrationVolatileFields(entry, inReactions));
+  }
   if (!value || typeof value !== "object") return value;
   return Object.fromEntries(
     Object.entries(value).map(([key, entry]) => [
       key,
-      volatileKeys.has(key) && entry ? "<volatile>" : redactWriteHydrationVolatileFields(entry)
+      volatileKeys.has(key) && entry ? "<volatile>" : redactWriteHydrationVolatileFields(entry, inReactions || key === "reactions")
     ])
   );
 }
@@ -176,6 +181,16 @@ function buildWriteHydrationParityBlob(state) {
 
 function unwrapMutationState(result) {
   return result?.updated || result?.state || result;
+}
+
+function preferExistingTimestamp(existingTimestamp, canonicalTimestamp) {
+  if (!existingTimestamp) return canonicalTimestamp || null;
+  if (!canonicalTimestamp) return existingTimestamp;
+  const existingTime = Date.parse(existingTimestamp);
+  const canonicalTime = Date.parse(canonicalTimestamp);
+  return Number.isFinite(existingTime) && Number.isFinite(canonicalTime) && existingTime === canonicalTime
+    ? existingTimestamp
+    : canonicalTimestamp;
 }
 
 function normalizeProfiles(profiles) {
@@ -2794,8 +2809,24 @@ async function buildCanonicalWritableStateForGroup(groupId, baseStateOverride = 
       return String(a.display_name).localeCompare(String(b.display_name));
     });
   const canonicalMemberOrder = uniqueNames(canonicalOrderedMembers.map(row => row.display_name));
-  const canonicalMemberships = Object.fromEntries(
-    canonicalOrderedMembers.map(row => [
+  const canonicalRowsByUserId = new Map(canonicalOrderedMembers.map(row => [row.auth_user_id, row]));
+  const baseMembershipEntries = Object.entries(baseGroup.memberships || {});
+  const coveredBaseMembershipEntries = baseMembershipEntries
+    .filter(([userId]) => canonicalRowsByUserId.has(userId))
+    .map(([userId, existingMembership]) => {
+      const row = canonicalRowsByUserId.get(userId);
+      return [userId, {
+        ...existingMembership,
+        userId,
+        displayName: row.display_name,
+        role: row.role === "admin" ? "admin" : "member",
+        joinedAt: preferExistingTimestamp(existingMembership?.joinedAt, row.joined_at)
+      }];
+    });
+  const coveredBaseUserIds = new Set(coveredBaseMembershipEntries.map(([userId]) => userId));
+  const newCanonicalMembershipEntries = canonicalOrderedMembers
+    .filter(row => !coveredBaseUserIds.has(row.auth_user_id))
+    .map(row => [
       row.auth_user_id,
       {
         userId: row.auth_user_id,
@@ -2803,8 +2834,11 @@ async function buildCanonicalWritableStateForGroup(groupId, baseStateOverride = 
         role: row.role === "admin" ? "admin" : "member",
         joinedAt: row.joined_at || null
       }
-    ])
-  );
+    ]);
+  const canonicalMemberships = Object.fromEntries([
+    ...coveredBaseMembershipEntries,
+    ...newCanonicalMembershipEntries
+  ]);
   const canonicalAdminRow =
     canonicalOrderedMembers.find(row => row.role === "admin") ||
     canonicalOrderedMembers.find(row => row.auth_user_id === baseGroup.adminUserId) ||
@@ -2909,7 +2943,7 @@ async function buildCanonicalWritableStateForGroup(groupId, baseStateOverride = 
     id: safeGroupId,
     name: bloc.name || baseGroup.name,
     inviteCode: bloc.invite_code || baseGroup.inviteCode,
-    createdAt: bloc.created_at || baseGroup.createdAt,
+    createdAt: preferExistingTimestamp(baseGroup.createdAt, bloc.created_at),
     adminName: canonicalAdminRow?.display_name || baseGroup.adminName,
     adminUserId: canonicalAdminRow?.auth_user_id || baseGroup.adminUserId,
     memberOrder: canonicalMemberOrder,
