@@ -3433,6 +3433,15 @@ function resolveDisplayNameForUser(state, groupId, userId, email) {
   return "";
 }
 
+async function buildCanonicalWritableStateForAuthenticatedMutation(auth, groupId) {
+  const canonicalCurrent = await buildCanonicalWritableStateForGroup(groupId, auth.state);
+  return migrateAuthIdentity(
+    rolloverStateIfNeeded(canonicalCurrent),
+    auth.user.id,
+    auth.user.email
+  ).state;
+}
+
 function applyAuthSync(current, user) {
   const migrated = migrateAuthIdentity(rolloverStateIfNeeded(current), user.id, user.email);
   const profile = migrated.state.profiles?.[user.id] || null;
@@ -5483,12 +5492,16 @@ export default async function handler(req, res) {
       if (payload?.action === "update-settings") {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
-        const updated = applyUpdateSettings(auth.state, { ...payload, actor, actorUserId: auth.user.id });
-        await runWriteHydrationParityProbe("update-settings", payload, auth, actor, updated, applyUpdateSettings);
+        const shadowBlobUpdated = applyUpdateSettings(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
+        const canonicalActor = resolveDisplayNameForUser(canonicalState, payload.groupId, auth.user.id, auth.user.email) || actor;
+        const updated = applyUpdateSettings(canonicalState, { ...payload, actor: canonicalActor, actorUserId: auth.user.id });
+        await runWriteHydrationParityProbe("update-settings", payload, auth, actor, shadowBlobUpdated, applyUpdateSettings);
         const settingsGroup = updated.groups?.[payload.groupId];
         const settingsSortOrder = (updated.groupOrder || []).indexOf(payload.groupId);
-        // Third canonical-first write slice:
-        // 1. compute the exact post-settings bloc/season shape in memory
+        // Canonical writable-input cutover for settings:
+        // 1. authenticate/repair against the blob shell, then compute the
+        //    mutation from the canonical writable constructor
         // 2. sync canonical bloc settings/name from that exact payload
         // 3. sync the canonical open-season snapshot from the same payload
         // 4. mirror blob state afterward without changing the response contract
@@ -5496,26 +5509,28 @@ export default async function handler(req, res) {
           await syncBlocToCanonical(settingsGroup, auth.user.id, settingsSortOrder, { throwOnError: true });
           await syncSeasonToCanonical(settingsGroup, settingsGroup?.lastMonth, "open", null, { throwOnError: true });
         }
-        const persisted = await persistState(updated, `settings:${payload.groupId}:${actor || auth.user.id}`);
+        const persisted = await persistState(updated, `settings:${payload.groupId}:${canonicalActor || actor || auth.user.id}`);
         return res.status(200).json(persisted);
       }
 
       if (payload?.action === "season-proration-choice") {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
-        const updated = applySeasonProrationChoice(auth.state, { ...payload, actor, actorUserId: auth.user.id });
-        await runWriteHydrationParityProbe("season-proration-choice", payload, auth, actor, updated, applySeasonProrationChoice);
+        const shadowBlobUpdated = applySeasonProrationChoice(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
+        const canonicalActor = resolveDisplayNameForUser(canonicalState, payload.groupId, auth.user.id, auth.user.email) || actor;
+        const updated = applySeasonProrationChoice(canonicalState, { ...payload, actor: canonicalActor, actorUserId: auth.user.id });
+        await runWriteHydrationParityProbe("season-proration-choice", payload, auth, actor, shadowBlobUpdated, applySeasonProrationChoice);
         const overrideGroup = updated.groups?.[payload.groupId];
         const overrideMonthKey = overrideGroup?.lastMonth;
         const nextOverride = overrideMonthKey
           ? overrideGroup?.seasonOverrides?.[overrideMonthKey]
           : null;
-        // First canonical-first write slice:
-        // 1. compute the exact blob-shaped override in memory
+        // Canonical writable-input cutover for proration:
+        // 1. authenticate/repair against the blob shell, then compute the
+        //    override from the canonical writable constructor
         // 2. upsert canonical from that exact payload
         // 3. mirror the same result into blob immediately after
-        // This keeps the response shape unchanged while moving the authority
-        // boundary for this narrow action toward canonical.
         if (overrideGroup && overrideMonthKey && nextOverride) {
           await syncSeasonToCanonical(overrideGroup, overrideMonthKey, "open", null, { throwOnError: true });
           await upsertSeasonOverrideInCanonical(
