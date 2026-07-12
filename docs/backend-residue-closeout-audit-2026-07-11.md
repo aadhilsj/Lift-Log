@@ -42,6 +42,14 @@ Safe next work:
   repair before changing the hydration source
 - keep the current writable blob base until those fixtures exist
 
+Status:
+
+- direct-profile legacy membership backfill now routes through
+  `needsLegacyMembershipBackfill(...)` and
+  `backfillLegacyMembershipForProfile(...)`
+- this is a structure-only cleanup; `auth-sync` still hydrates writable blob
+  state first and repair behavior is unchanged
+
 ### 2. Profile Rename / `upsert-profile`
 
 Location: `applyUpsertProfile(...)`.

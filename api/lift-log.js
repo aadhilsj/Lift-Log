@@ -188,6 +188,32 @@ function findProfileEntryByEmail(profiles, email) {
   return Object.entries(profiles).find(([, profile]) => profile?.email === email) || null;
 }
 
+function needsLegacyMembershipBackfill(groups, userId, displayName) {
+  return !!displayName && Object.values(groups || {}).some(group =>
+    group.memberOrder?.includes(displayName) && !group.memberships?.[userId]
+  );
+}
+
+function backfillLegacyMembershipForProfile(group, userId, displayName) {
+  if (!group.memberOrder?.includes(displayName) || group.memberships?.[userId]) {
+    return group;
+  }
+  const isAdmin = group.adminName === displayName;
+  return normalizeGroup({
+    ...group,
+    adminUserId: isAdmin ? userId : (group.adminUserId || null),
+    memberships: {
+      ...group.memberships,
+      [userId]: {
+        userId,
+        displayName,
+        role: isAdmin ? "admin" : "member",
+        joinedAt: null
+      }
+    }
+  });
+}
+
 function migrateAuthIdentity(base, nextUserId, email) {
   const normalizedEmail = String(email || "").trim().toLowerCase();
   const normalizedUserId = String(nextUserId || "").trim();
@@ -198,31 +224,14 @@ function migrateAuthIdentity(base, nextUserId, email) {
     // Profile found — ensure the userId is wired into group memberships so the
     // primary lookup works (legacy groups have empty memberships objects).
     const displayName = directProfile.displayName || "";
-    const needsMembership = displayName && Object.values(base.groups || {}).some(group =>
-      group.memberOrder?.includes(displayName) && !group.memberships?.[normalizedUserId]
-    );
+    const needsMembership = needsLegacyMembershipBackfill(base.groups, normalizedUserId, displayName);
     if (!needsMembership) return { state: base, profile: directProfile, changed: false };
 
     const nextGroups = Object.fromEntries(
-      Object.entries(base.groups || {}).map(([groupId, group]) => {
-        if (!group.memberOrder?.includes(displayName) || group.memberships?.[normalizedUserId]) {
-          return [groupId, group];
-        }
-        const isAdmin = group.adminName === displayName;
-        return [groupId, normalizeGroup({
-          ...group,
-          adminUserId: isAdmin ? normalizedUserId : (group.adminUserId || null),
-          memberships: {
-            ...group.memberships,
-            [normalizedUserId]: {
-              userId: normalizedUserId,
-              displayName,
-              role: isAdmin ? "admin" : "member",
-              joinedAt: null
-            }
-          }
-        })];
-      })
+      Object.entries(base.groups || {}).map(([groupId, group]) => [
+        groupId,
+        backfillLegacyMembershipForProfile(group, normalizedUserId, displayName)
+      ])
     );
     return {
       state: {
