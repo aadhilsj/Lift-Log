@@ -5654,15 +5654,18 @@ export default async function handler(req, res) {
       if (payload?.action === "sitout-review") {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
-        const updated = applySitOutReview(auth.state, { ...payload, actor, actorUserId: auth.user.id });
-        await runWriteHydrationParityProbe("sitout-review", payload, auth, actor, updated, applySitOutReview);
+        const shadowBlobUpdated = applySitOutReview(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
+        const canonicalActor = resolveDisplayNameForUser(canonicalState, payload.groupId, auth.user.id, auth.user.email) || actor;
+        const updated = applySitOutReview(canonicalState, { ...payload, actor: canonicalActor, actorUserId: auth.user.id });
+        await runWriteHydrationParityProbe("sitout-review", payload, auth, actor, shadowBlobUpdated, applySitOutReview);
         const reviewGroup = updated.groups?.[payload.groupId];
         const reviewedRequest = payload.memberName && payload.monthKey
           ? reviewGroup?.sitOutRequests?.[payload.monthKey]?.[payload.memberName]
           : null;
-        // Same canonical-first pattern as proration/request:
-        // write the reviewed request canonically from the exact in-memory payload,
-        // then mirror blob state after the authoritative write succeeds.
+        // Canonical writable-input cutover for sit-out review:
+        // authenticate/repair against the blob shell, compute the review result
+        // from the canonical writable constructor, then mirror blob afterward.
         if (reviewGroup && payload.monthKey && payload.memberName && reviewedRequest) {
           await syncSeasonToCanonical(reviewGroup, payload.monthKey, "open", null, { throwOnError: true });
           await upsertSitOutRequestInCanonical(payload.groupId, payload.monthKey, payload.memberName, reviewedRequest, { throwOnError: true });
