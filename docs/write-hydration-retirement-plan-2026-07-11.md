@@ -1,5 +1,13 @@
 # Write Hydration Retirement Plan - 2026-07-11
 
+Superseded for active execution by:
+
+- `docs/handover-2026-07-12-backend-migration-current.md`
+- `docs/backend-migration-closeout-plan-2026-07-12.md`
+
+Keep this file as historical context for the probe work and the write-hydration
+boundary, but use the July 12 closeout plan for current execution.
+
 This note records the post-promotion audit of the remaining
 `fetchWritableCurrentState()` dependency on
 `codex/create-group-canonical-first`.
