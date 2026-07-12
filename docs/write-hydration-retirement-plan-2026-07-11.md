@@ -206,6 +206,15 @@ Status:
 - the probe is off by default and does not change the mutation response,
   canonical writes, or blob persistence
 
+Additional current-open-workout probe coverage:
+
+- `reaction`, `flag`, `flag-response`, `flag-review`, and `delete-log` now use
+  the same opt-in, non-persisting parity probe
+- `decisionAt` is redacted with the existing generated timestamp fields so flag
+  review probes compare mutation semantics instead of wall-clock differences
+- this is still probe-only coverage; mutation input continues to come from the
+  writable blob state until parity has been observed with the env flag enabled
+
 ### Slice 3 - id-first membership resolution
 
 Start replacing display-name membership checks in current-only write paths with

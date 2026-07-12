@@ -118,7 +118,7 @@ function isWriteHydrationParityEnabled(action) {
 }
 
 function redactWriteHydrationVolatileFields(value) {
-  const volatileKeys = new Set(["chosenAt", "requestedAt", "decidedAt"]);
+  const volatileKeys = new Set(["chosenAt", "requestedAt", "decidedAt", "decisionAt"]);
   if (Array.isArray(value)) return value.map(redactWriteHydrationVolatileFields);
   if (!value || typeof value !== "object") return value;
   return Object.fromEntries(
@@ -4977,6 +4977,7 @@ export default async function handler(req, res) {
         // and the canonical RPC call use the same key.
         const emoji = String(payload?.emoji || "").trim();
         const result = applyToggleReaction(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        await runWriteHydrationParityProbe("reaction", payload, auth, actor, result.updated, applyToggleReaction);
         const reactionGroup = result.updated.groups?.[payload.groupId];
         const reactionLog = reactionGroup?.logs?.[payload.owner]
           ?.find(e => String(e?.id) === String(payload.logId));
@@ -4998,6 +4999,7 @@ export default async function handler(req, res) {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
         const result = applyFlagLog(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        await runWriteHydrationParityProbe("flag", payload, auth, actor, result.updated, applyFlagLog);
         const group = result.updated.groups?.[payload.groupId];
         const log = group?.logs?.[payload.owner]?.find(entry => String(entry?.id) === String(payload.logId));
         if (group && log) {
@@ -5011,6 +5013,7 @@ export default async function handler(req, res) {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
         const result = applyRespondToFlag(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        await runWriteHydrationParityProbe("flag-response", payload, auth, actor, result.updated, applyRespondToFlag);
         const group = result.updated.groups?.[payload.groupId];
         const log = group?.logs?.[payload.owner]?.find(entry => String(entry?.id) === String(payload.logId));
         if (group && log) {
@@ -5024,6 +5027,7 @@ export default async function handler(req, res) {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
         const result = applyReviewFlag(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        await runWriteHydrationParityProbe("flag-review", payload, auth, actor, result.updated, applyReviewFlag);
         const group = result.updated.groups?.[payload.groupId];
         const log = group?.logs?.[payload.owner]?.find(entry => String(entry?.id) === String(payload.logId));
         if (group && log) {
@@ -5037,6 +5041,7 @@ export default async function handler(req, res) {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
         const result = applyDeleteLog(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        await runWriteHydrationParityProbe("delete-log", payload, auth, actor, result.updated, applyDeleteLog);
         await deleteWorkoutLogFromCanonical(payload.logId, { throwOnError: true });
         const persisted = await persistState(result.updated, result.reason);
         return res.status(200).json(persisted);
