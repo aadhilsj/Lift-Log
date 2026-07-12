@@ -305,9 +305,21 @@ The safe current-write guardrail batch is now complete. See:
 
 - [docs/backend-residue-closeout-audit-2026-07-11.md](/Users/opera_user/Documents/Codex%20Space/Lift%20Log/docs/backend-residue-closeout-audit-2026-07-11.md)
 
-The next code change should either be:
+The next migration move should be observational, not another authority transfer:
 
-1. a non-persisting parity harness for one narrow action family, or
-2. a deliberately preview-tested runtime slice from the closeout audit.
+1. enable `WRITE_HYDRATION_PARITY_ACTIONS` on a preview deployment for the
+   covered narrow actions:
+   `update-settings,season-proration-choice,sitout-request,sitout-review,reaction,flag,flag-response,flag-review,delete-log`
+2. perform normal preview smoke flows for settings, sit-out, reactions, flags,
+   and delete-log where practical
+3. inspect Vercel function logs for `[write-hydration-parity] mismatch` or
+   `[write-hydration-parity] probe failed`
+4. only after clean observations, build a canonical writable-state constructor
+   for one narrow family and compare it against the existing blob-shaped base
+
+Do not treat "no user-visible regression" as proof of parity. These probes are
+specifically for finding hidden differences between the writable blob base and
+the readable/composed base before any POST mutation starts hydrating from the
+canonical projection.
 
 Do not continue with broad authority transfer or client normalization cleanup.
