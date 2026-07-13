@@ -176,6 +176,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
     display:"inline-block",
     fontFamily:"'Outfit', sans-serif",
     fontSize:11,
+    lineHeight:1.05,
     fontWeight:900,
     letterSpacing:".06em",
     textTransform:"uppercase",
