@@ -1064,3 +1064,47 @@ Smoke focus after deploy:
 - confirm own workouts still do not show flag controls
 - if a flagged-workout owner/admin setup is available, test response/review
 - delete one test workout and confirm it stays deleted after reload
+
+## Batch 16 - Add Proration And Sit-Out To Preview Gate
+
+Batch 16 started on 2026-07-13 after the expanded reaction/flag/delete preview
+soak passed for sign-in, blocs loading, reaction/unreaction, own-workout flag
+guard, and delete-log persistence.
+
+Scope:
+
+- add the following current/open action families to the mirror-skip allow/wired
+  lists:
+  - `season-proration-choice`
+  - `sitout-request`
+  - `sitout-review`
+- leave `update-settings` out because settings/currency had a recent regression
+  and should not be part of the next skip expansion
+- leave add/multi-log, create/join/leave, settlement, auth-sync, and
+  repair-display-name outside this batch
+
+Rationale:
+
+- these handlers already authenticate/repair against the writable blob shell
+- they compute post-action state from the canonical writable constructor
+- they write canonical rows first, then mirror blob
+- parity report coverage for proration and sit-out paths was previously added
+  and recorded as clean/synthetic-covered where applicable
+
+Behavior:
+
+- no production env var exists for `BLOB_MIRROR_SKIP_ACTIONS`; production
+  remains unchanged
+- preview only skips blob writes for these actions after the branch-scoped
+  Preview env is deliberately expanded
+
+Preview smoke focus:
+
+- sign in and load blocs
+- if a first-month/proration test bloc is available, choose/confirm proration
+  and reload
+- if a sit-out option is available, request sit-out and reload
+- if an admin review setup is available, approve/reject a pending sit-out and
+  reload
+- repeat a basic reaction/delete smoke to make sure the previous skip family
+  still behaves

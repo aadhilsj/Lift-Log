@@ -50,6 +50,9 @@ const WRITE_HYDRATION_PARITY_ACTIONS = new Set(
     .filter(Boolean)
 );
 const BLOB_MIRROR_SKIP_ALLOWED_ACTIONS = new Set([
+  "season-proration-choice",
+  "sitout-request",
+  "sitout-review",
   "reaction",
   "flag",
   "flag-response",
@@ -57,6 +60,9 @@ const BLOB_MIRROR_SKIP_ALLOWED_ACTIONS = new Set([
   "delete-log"
 ]);
 const BLOB_MIRROR_SKIP_WIRED_ACTIONS = new Set([
+  "season-proration-choice",
+  "sitout-request",
+  "sitout-review",
   "reaction",
   "flag",
   "flag-response",
@@ -3580,7 +3586,7 @@ async function buildBlobMirrorRetirementReadinessReport(baseState) {
     trueBlobInputAuthorities: dependencyReport.trueBlobInputAuthorities.map(entry => entry.action),
     requiredBeforeFirstSkip: BLOB_MIRROR_RETIREMENT_READINESS.requiredBeforeFirstSkip,
     nextSafeMove: revisionStamp.canonicalRevisionAvailable
-      ? "Enable BLOB_MIRROR_SKIP_ACTIONS=reaction,flag,flag-response,flag-review,delete-log in preview for a narrow mirror-skip soak, then inspect dependency/readiness reports and smoke behavior."
+      ? "Enable BLOB_MIRROR_SKIP_ACTIONS=season-proration-choice,sitout-request,sitout-review,reaction,flag,flag-response,flag-review,delete-log in preview for a narrow mirror-skip soak, then inspect dependency/readiness reports and smoke behavior."
       : "Apply the canonical revision clock RPC before disabling blob writes for any action family."
   };
 }
@@ -7154,7 +7160,7 @@ export default async function handler(req, res) {
             { throwOnError: true }
           );
         }
-        const persisted = await persistState(updated, `season-proration:${payload.groupId}:${payload.choice}`);
+        const persisted = await persistOrSkipBlobMirror(updated, `season-proration:${payload.groupId}:${payload.choice}`, "season-proration-choice");
         return res.status(200).json(persisted);
       }
 
@@ -7184,7 +7190,7 @@ export default async function handler(req, res) {
             await upsertSeasonMemberExcusedInCanonical(payload.groupId, sitOutMonthKey, canonicalActor, auth.user.id, { throwOnError: true });
           }
         }
-        const persisted = await persistState(updated, `sitout-request:${payload.groupId}:${canonicalActor || actor || auth.user.id}`);
+        const persisted = await persistOrSkipBlobMirror(updated, `sitout-request:${payload.groupId}:${canonicalActor || actor || auth.user.id}`, "sitout-request");
         return res.status(200).json(persisted);
       }
 
@@ -7216,7 +7222,7 @@ export default async function handler(req, res) {
             );
           }
         }
-        const persisted = await persistState(updated, `sitout-review:${payload.groupId}:${payload.memberName}:${payload.decision}`);
+        const persisted = await persistOrSkipBlobMirror(updated, `sitout-review:${payload.groupId}:${payload.memberName}:${payload.decision}`, "sitout-review");
         return res.status(200).json(persisted);
       }
 
