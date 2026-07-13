@@ -301,7 +301,7 @@ const SystemCard = ({ msg, onSeasonClosedTap }) => {
         }
       },
         React.createElement('div', {
-          style: { fontFamily: "'Outfit', sans-serif", fontSize: 10, fontWeight: 500, color: C.accent, letterSpacing: ".14em", textTransform: "uppercase", marginBottom: 9 }
+          style: { fontFamily: "'Outfit', sans-serif", fontSize: 10, fontWeight: 500, color: C.accent, letterSpacing: ".14em", textTransform: "uppercase", marginBottom: 9, textAlign: "center" }
         }, msg.label),
         React.createElement('div', {
           style: { fontFamily: "'Outfit', sans-serif", fontSize: 22, fontWeight: 500, color: "#fff", lineHeight: 1.15 }
@@ -319,7 +319,7 @@ const SystemCard = ({ msg, onSeasonClosedTap }) => {
         style: { maxWidth: "94%", width: "fit-content", background: C.sysBg, border: `1px solid ${C.sysBorder}`, borderRadius: 12, padding: "10px 14px", textAlign: "center" }
       },
         React.createElement('div', {
-          style: { fontFamily: "'Outfit', sans-serif", fontSize: 10, fontWeight: 700, color: C.meta, letterSpacing: ".09em", textTransform: "uppercase", marginBottom: 8 }
+          style: { fontFamily: "'Outfit', sans-serif", fontSize: 10, fontWeight: 700, color: C.meta, letterSpacing: ".09em", textTransform: "uppercase", marginBottom: 8, textAlign: "center" }
         }, msg.label),
         React.createElement('div', { style: { display: "flex", flexDirection: "column", gap: 4 } },
           awards.map((a, i) => React.createElement('div', {
@@ -334,7 +334,7 @@ const SystemCard = ({ msg, onSeasonClosedTap }) => {
   const tappable = msg.payload?.action === "season_results" && onSeasonClosedTap;
   const content = React.createElement(React.Fragment, null,
     React.createElement('div', {
-      style: { fontFamily: "'Outfit', sans-serif", fontSize: 10, fontWeight: 700, color: C.meta, letterSpacing: ".09em", textTransform: "uppercase", marginBottom: 4 }
+      style: { fontFamily: "'Outfit', sans-serif", fontSize: 10, fontWeight: 700, color: C.meta, letterSpacing: ".09em", textTransform: "uppercase", marginBottom: 4, textAlign: "center" }
     }, msg.label),
     React.createElement('div', {
       style: { display: "flex", alignItems: "center", justifyContent: "center", gap: 5, fontSize: 13, fontWeight: 600, color: toneColor, lineHeight: 1.3 }
