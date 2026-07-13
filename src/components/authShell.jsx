@@ -215,7 +215,39 @@ const JoinGroupModal = ({inviteContext,joinCode,setJoinCode,onClose,onJoin,joini
 };
 
 
-const AuthFlowModal = ({step,email,setEmail,code,setCode,displayName,setDisplayName,onClose,onSendOtp,onVerifyOtp,onSaveProfile,sending,verifying,savingProfile,error,devCode}) => React.createElement('div',{className:"overlay center-mobile",onClick:()=>{}},
+const AuthFlowModal = ({step,email,setEmail,code,setCode,displayName,setDisplayName,onClose,onSendOtp,onVerifyOtp,onSaveProfile,sending,verifying,savingProfile,error,devCode}) => {
+  React.useEffect(() => {
+    const scrollY = window.scrollY || window.pageYOffset || 0;
+    const { body, documentElement } = document;
+    const previous = {
+      bodyPosition: body.style.position,
+      bodyTop: body.style.top,
+      bodyLeft: body.style.left,
+      bodyRight: body.style.right,
+      bodyWidth: body.style.width,
+      bodyOverflow: body.style.overflow,
+      htmlOverflow: documentElement.style.overflow
+    };
+    body.style.position = "fixed";
+    body.style.top = `-${scrollY}px`;
+    body.style.left = "0";
+    body.style.right = "0";
+    body.style.width = "100%";
+    body.style.overflow = "hidden";
+    documentElement.style.overflow = "hidden";
+    return () => {
+      body.style.position = previous.bodyPosition;
+      body.style.top = previous.bodyTop;
+      body.style.left = previous.bodyLeft;
+      body.style.right = previous.bodyRight;
+      body.style.width = previous.bodyWidth;
+      body.style.overflow = previous.bodyOverflow;
+      documentElement.style.overflow = previous.htmlOverflow;
+      window.scrollTo({ top: scrollY, left: 0, behavior: "auto" });
+    };
+  }, []);
+
+  return React.createElement('div',{className:"overlay center-mobile",style:{height:"100dvh",minHeight:"100dvh"}},
   React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{maxWidth:420}},
     React.createElement('div',{style:{fontWeight:800,fontSize:20,marginBottom:6}},
       step==="name" ? "Set your Antè name" : "Continue with email"
@@ -251,7 +283,7 @@ const AuthFlowModal = ({step,email,setEmail,code,setCode,displayName,setDisplayN
       step==="name" && React.createElement('button',{type:"button",disabled:!displayName.trim()||savingProfile,onClick:onSaveProfile,style:{flex:1,background:displayName.trim()&&!savingProfile?"var(--green)":"var(--s3)",color:displayName.trim()&&!savingProfile?"#000":"var(--muted2)",padding:"14px",borderRadius:10,fontSize:15,fontWeight:800}},savingProfile?"Saving...":"Continue")
     )
   )
-);
+);};
 
 
 const IdentitySetup = ({members,onSelect}) => (
