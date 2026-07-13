@@ -122,7 +122,7 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
         ? "If the month ended today, these would be the money movements. This is not final."
         : hasQualifiedWinner
           ? "If the month ended today, no money would move because nobody would owe."
-          : "If the month ended today, no money would move because nobody has hit MAS yet."
+          : "If the month ended today, no money would move because nobody has hit target yet."
     ),
     wouldMoveMoney&&winners.length>0&&React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:7}},
       React.createElement('div',{className:"mono",style:{fontSize:9,color:"#4ECDC4",textTransform:"uppercase",letterSpacing:".12em"}},"Would collect"),
@@ -144,7 +144,7 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
         React.createElement('span',{className:"mono",style:{fontSize:13,fontWeight:800,color:"var(--red)",flexShrink:0}},`-${fmtCurrency(getLoserAmount(penalties, l.name), resultsCurrency)}`)
       ))
     ),
-    hasQualifiedWinner&&!wouldMoveMoney&&React.createElement('div',{style:{fontSize:13,fontWeight:800,color:"#4ECDC4"}},"Everyone active is currently safe. No one would pay.")
+    hasQualifiedWinner&&!wouldMoveMoney&&React.createElement('div',{style:{fontSize:13,fontWeight:800,color:"#4ECDC4"}},"Everyone active would keep their money. No one would pay.")
   );
 
   // ── Closed month → settlement screen ───────────────────────────────────────
@@ -184,7 +184,7 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
             React.createElement('span',{style:{display:"inline-flex",color:"#F5A623",flexShrink:0}},React.createElement(TrophyIcon,{size:22,color:"#F5A623"})),
             React.createElement('div',{style:{flex:1,minWidth:0}},
               React.createElement('div',{style:{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",marginBottom:3}},
-                winners.map(w=>React.createElement('div',{key:w.name,style:{display:"flex",alignItems:"center",gap:6}},React.createElement(Avatar,{name:w.name,size:22}),React.createElement('span',{style:{fontSize:winners.length>1?15:18,fontWeight:800,color:"var(--text)",lineHeight:1.12}},w.name),React.createElement('span',{style:{fontFamily:"'Outfit', sans-serif",fontSize:8,fontWeight:500,color:"rgba(245,166,35,.7)",textTransform:"uppercase",letterSpacing:".05em",whiteSpace:"nowrap",paddingTop:2}},"leader")))
+                winners.map(w=>React.createElement('div',{key:w.name,style:{display:"flex",alignItems:"center",gap:6}},React.createElement(Avatar,{name:w.name,size:22}),React.createElement('span',{style:{fontSize:winners.length>1?15:18,fontWeight:800,color:"var(--text)",lineHeight:1.12}},w.name),React.createElement('span',{style:{fontFamily:"'Outfit', sans-serif",fontSize:8,fontWeight:500,color:"rgba(245,166,35,.7)",textTransform:"uppercase",letterSpacing:".05em",whiteSpace:"nowrap",paddingTop:2}},"current leader")))
               ),
               React.createElement('span',{className:"mono",style:{fontSize:11,color:"var(--muted)"}},`${winners[0].count} workouts`)
             )
@@ -200,7 +200,6 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
           React.createElement('div',{style:{fontSize:11,color:"var(--muted)"}},"logged")
         )
       ),
-      React.createElement('div',{style:{fontSize:12,color:"var(--muted)",lineHeight:1.5}},"Live counts update as workouts are logged. Money is only settled after the month closes."),
       React.createElement('button',{type:"button",onClick:onOpenToday,style:{alignSelf:"flex-start",background:"transparent",border:"none",padding:0,color:"#4ECDC4",fontSize:13,fontWeight:800,cursor:"pointer"}},"See Live Leaderboard")
     ),
     React.createElement('div',{style:{border:"1px solid var(--border)",borderRadius:10,overflow:"hidden",background:"var(--s1)"}},

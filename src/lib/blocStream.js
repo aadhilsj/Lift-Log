@@ -68,7 +68,7 @@ export function seedIfEmpty(blocId, { currentUserId, members = [] } = {}) {
   const msgs = [
     sys(60 * 34, "positive", "MONTH CLOSED", "June ended — summary ready.", "3 to pay", { "👏": other ? [other.id] : [] }, { systemKind: "season_closed", payload: { action: "season_results" } }),
     sys(60 * 33, "positive", "AWARDS · JUNE", "", "", {}, { systemKind: "awards", payload: { awards: [
-      { title: "Bloc MVP", name: other?.name || "Member" },
+      { title: "Bloc Champ", name: other?.name || "Member" },
       { title: "Most consistent", name: other2?.name || other?.name || "Member" },
       { title: "Biggest turnaround", name: me?.name || "Member" },
       { title: "Furthest behind", name: others[2]?.name || other2?.name || "Member" }
@@ -76,7 +76,7 @@ export function seedIfEmpty(blocId, { currentUserId, members = [] } = {}) {
     sys(60 * 31, "positive", "NEW SEASON · 1 JUL", "July is here. Raise your ante.", "", {}),
     sys(60 * 30, "neutral", "NEW MEMBER · 5 JUL", "Deyhan joined the Bloc.", "", {}),
     runMsg,
-    sys(60 * 5, "positive", "TARGET HIT · 6 JUL", "Aadhil hit target — 21 days early.", "First to MAS this month.", { "🔥": [currentUserId] }),
+    sys(60 * 5, "positive", "TARGET HIT · 6 JUL", "Aadhil hit target — 21 days early.", "First to target this month.", { "🔥": [currentUserId] }),
     txt(60 * 3, currentUserId, "just logged mine 💪", { reactions: other ? { "❤️": [other.id] } : {} }),
     other2 && sys(150, "warning", "COOKED · 8 JUL", `${other2.name} can't reach target this month.`, "Fine locked at season close.", { "😤": other ? [other.id] : [] }),
     other && runMsg && txt(90, other.id, "2 behind pace, gonna catch up tmrw", { replyTo: runMsg.id }),

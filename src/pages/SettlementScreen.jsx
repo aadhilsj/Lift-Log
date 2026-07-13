@@ -112,10 +112,10 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
   const hero = (() => {
     if (userIsWinner && isBlocPerfect) {
       return {
-        tag: "1st · PERFECT BLOC",
+        tag: "1st · PERFECT BLOC MONTH",
         stat: `${userCount} workouts`,
         line: streakLine || "You led the way.",
-        footerLine: `Everyone hit their MAS this ${selectedMonthName}.`,
+        footerLine: `Everyone hit their target this ${selectedMonthName}.`,
         tone: "perfect"
       };
     }
@@ -123,22 +123,22 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
       return {
         tag: "Winner · 1st Place",
         stat: `+${fmtCurrency(perWinner, currency)}`,
-        line: `${userCount} workouts. Top of the bloc.`,
+        line: `${userCount} workouts. Top of the Bloc.`,
         tone: "winner"
       };
     }
     if (isBlocPerfect) {
       return {
-        tag: "PERFECT BLOC",
+        tag: "PERFECT BLOC MONTH",
         stat: `${userCount} workouts`,
         line: streakLine || "",
-        footerLine: `Everyone hit their MAS this ${selectedMonthName}.`,
+        footerLine: `Everyone hit their target this ${selectedMonthName}.`,
         tone: "perfect"
       };
     }
     if (!userIsLoser) {
       return {
-        tag: `MAS Hit · ${ordinal(userRank)} Place`,
+        tag: `Target Hit · ${ordinal(userRank)} Place`,
         stat: `${userCount} workouts`,
         line: streakLine ? `Solid month. ${streakLine}` : "Solid month. Build on it next month.",
         tone: "neutral"
@@ -213,8 +213,8 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
               disabled:settlementBusy===key || state.pending,
               style:{fontSize:11,fontWeight:800,padding:"6px 10px",borderRadius:8,background:state.pending?"var(--s3)":"var(--red-dim)",border:`1px solid ${state.pending?"var(--border)":"rgba(224,80,32,.35)"}`,color:state.pending?"var(--muted)":"#e05020"}
             }, settlementBusy===key ? "Saving..." : state.pending ? "Waiting" : "Mark as paid");
-        return React.createElement('div',{key:key,style:{...C.card,padding:"9px 11px"}},
-          React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,minHeight:28}},
+        return React.createElement('div',{key:key,style:{...C.card,padding:"9px 11px",background:outcome==="winner"?"linear-gradient(135deg, rgba(57,168,90,.105), rgba(8,15,15,.98) 62%)":C.card.background}},
+          React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:outcome==="winner"?"center":"space-between",gap:10,minHeight:28,textAlign:outcome==="winner"?"center":"left"}},
             outcome==="winner"
               ? React.createElement('div',{style:{fontSize:13,fontWeight:800,color:"var(--text)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},pair.payerDisplayName)
               : React.createElement('div',{style:{display:"flex",alignItems:"center",gap:8,minWidth:0}},
@@ -222,7 +222,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
                   React.createElement('span',{style:{color:"var(--muted)"}},"→"),
                   React.createElement('div',{style:{fontSize:13,fontWeight:800,color:"var(--text)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},pair.receiverDisplayName)
                 ),
-            React.createElement('div',{style:{display:"flex",alignItems:"center",gap:8,flexShrink:0}},
+            React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"center",gap:8,flexShrink:0}},
               outcome!=="winner" && React.createElement('span',{style:{fontSize:11,fontWeight:800,fontFamily:"'JetBrains Mono',monospace",color:state.confirmed?C.greenText:"var(--amber)",whiteSpace:"nowrap"}},text),
               React.createElement('div',{style:{fontSize:14,fontWeight:900,color:totalColor}},`${outcome === "winner" ? "+" : "-"}${fmtCurrency(pair.amount, currency)}`),
               outcome!=="winner" && action
@@ -242,7 +242,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
     {title:"Bloc Champ", name:mvpNames.length ? mvpNames.join(" & ") : "No winner", detail:mvpNames.length ? `${mvpCount} workouts` : "No workouts", tone:"gold", gradient:"linear-gradient(135deg, rgba(245,166,35,.16), rgba(255,224,132,.06))"},
     {title:"Most Consistent", name:fallbackAwardNames[1] || fallbackAwardNames[0] || "Isira", detail:"Steady all month", tone:"violet", gradient:"linear-gradient(135deg, rgba(135,113,255,.16), rgba(78,112,205,.07))"},
     {title:"Comeback", name:fallbackAwardNames[2] || fallbackAwardNames[0] || "Rahul", detail:"Finished strong", tone:"cyan", gradient:"linear-gradient(135deg, rgba(78,205,196,.14), rgba(71,118,230,.06))"},
-    {title:"Furthest Behind", name:furthestBehind ? furthestBehind.name : "No one", detail:furthestBehind ? `${furthestBehind.miss} short of MAS` : "Everyone hit MAS", tone:furthestBehind ? "red" : "silver", gradient:"linear-gradient(135deg, rgba(185,50,50,.14), rgba(245,166,35,.055))"}
+    {title:"Furthest Behind", name:furthestBehind ? furthestBehind.name : "No one", detail:furthestBehind ? `${furthestBehind.miss} short of target` : "Everyone hit target", tone:furthestBehind ? "red" : "silver", gradient:"linear-gradient(135deg, rgba(185,50,50,.14), rgba(245,166,35,.055))"}
   ];
 
   const renderAwards = () => React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(138px,1fr))",gap:7}},
@@ -261,7 +261,8 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
       const isMe = row.name === currentUser;
       const isWinner = winners.some(w => w.name === row.name);
       const isLoser = losers.some(l => l.name === row.name);
-      return React.createElement('div',{key:row.name,style:{display:"flex",alignItems:"center",gap:9,padding:"9px 10px",border:"1px solid rgba(255,255,255,.055)",borderRadius:8,background:isMe?"rgba(78,205,196,.06)":"rgba(255,255,255,.018)"}},
+      const moneyTint = isWinner && losers.length > 0 ? "rgba(57,168,90,.075)" : isLoser ? "rgba(185,50,50,.08)" : null;
+      return React.createElement('div',{key:row.name,style:{display:"flex",alignItems:"center",gap:9,padding:"9px 10px",border:"1px solid rgba(255,255,255,.055)",borderRadius:8,background:moneyTint || (isMe?"rgba(78,205,196,.06)":"rgba(255,255,255,.018)")}},
         React.createElement('div',{className:"mono",style:{fontSize:10,color:"var(--muted)",width:18,textAlign:"right",flexShrink:0}},i+1),
         React.createElement('div',{style:{width:26,height:26,borderRadius:999,background:avatarColor(row.name),color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,flexShrink:0}},initialsFor(row.name)),
         React.createElement('div',{style:{flex:1,minWidth:0}},
@@ -272,7 +273,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
           ? React.createElement('span',{style:{fontSize:12,fontWeight:900,color:C.greenText}},`+${fmtCurrency(perWinner,currency)}`)
           : isLoser
             ? React.createElement('span',{style:{fontSize:12,fontWeight:900,color:C.redText}},`-${fmtCurrency(getLoserAmount(penalties,row.name),currency)}`)
-            : React.createElement('span',{style:{...C.pill,background:"rgba(215,226,225,.07)",color:"#AAB6B5",fontSize:9,padding:"2px 8px"}},"safe")
+            : React.createElement('span',{style:{...C.pill,background:"rgba(78,205,196,.075)",color:"#8EE7DF",fontSize:9,padding:"2px 8px"}},"Target hit")
       );
     })
   );
@@ -281,7 +282,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
     ? `Taking the L this month — ${userCount}/${mas} workouts. Owe ${fmtCurrency(userOwes, currency)}. Back next month. #Ante`
     : userIsWinner
       ? `Won ${month.label} with ${userCount} workouts. #Ante`
-      : `Hit MAS — ${userCount} workouts in ${month.label}. #Ante`;
+      : `Hit target — ${userCount} workouts in ${month.label}. #Ante`;
 
   const handleShare = () => {
     if (outcome === "missed") {
@@ -310,7 +311,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
     renderAwards(),
     React.createElement('div',{style:{border:"1px solid var(--border)",borderRadius:10,overflow:"hidden",background:"var(--s1)"}},
       React.createElement('button',{type:"button",onClick:()=>setShowStandings(v=>!v),style:{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"13px 15px",background:"transparent",border:"none",color:"var(--text)",fontSize:13,fontWeight:800,cursor:"pointer"}},
-        React.createElement('span',null,"Full Ranked Standings"),
+        React.createElement('span',null,"Final Month Summary"),
         React.createElement('span',{style:{color:"var(--muted)",fontSize:16}},showStandings?"−":"+")
       ),
       showStandings&&renderLeaderboard()

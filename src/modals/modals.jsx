@@ -78,7 +78,7 @@ const GroupSettingsFields = ({settings,setSettings,showAdvanced,setShowAdvanced,
   const needsEscalationStep = settings.feeModel === "escalating";
   const missingEscalationStep = needsEscalationStep && normalizeEscalationStepAmount(settings.escalationStepAmount) === null;
   return React.createElement(React.Fragment,null,
-    React.createElement(SettingsField,{title:"Monthly fine amount",description:"What each person who misses the MAS owes.",compact},
+    React.createElement(SettingsField,{title:"Monthly fine amount",description:"What each person who misses the target owes.",compact},
       React.createElement('div',{style:{display:"inline-flex",alignItems:"center",gap:6}},
         React.createElement(SelectField,{
           value:settings.currency,
@@ -95,8 +95,8 @@ const GroupSettingsFields = ({settings,setSettings,showAdvanced,setShowAdvanced,
     React.createElement(SettingsField,{title:"How fines are calculated",compact},
       React.createElement('div',{style:{display:"grid",gap:9,marginTop:6}},
         [
-          {id:"escalating",title:"Escalating",body:"Each additional person who misses the MAS increases the fine for all losers.",badge:"Recommended"},
-          {id:"flat",title:"Flat fine",body:"Everyone who misses the MAS pays the same fixed amount."}
+          {id:"escalating",title:"Escalating",body:"Each additional person who misses the target increases the fine for all losers.",badge:"Recommended"},
+          {id:"flat",title:"Flat fine",body:"Everyone who misses the target pays the same fixed amount."}
         ].map(option=>{
           const active = settings.feeModel === option.id;
           return React.createElement('button',{key:option.id,type:"button",onClick:()=>setSettings(current=>({...current,feeModel:option.id,escalationStepAmount:option.id==="flat" ? null : current.escalationStepAmount})),style:{
@@ -124,7 +124,7 @@ const GroupSettingsFields = ({settings,setSettings,showAdvanced,setShowAdvanced,
         showValidation && missingEscalationStep && React.createElement('div',{style:{fontSize:12,color:"var(--red)",marginTop:8}},"Set a step amount to continue.")
       )
     ),
-    React.createElement(SettingsField,{title:"MAS (Minimum Achievable Score)",description:"Between 6 and 30 workouts per month.",compact},
+    React.createElement(SettingsField,{title:"Monthly workout target",description:"Between 6 and 30 workouts per month.",compact},
       React.createElement(StepperField,{value:settings.minTarget,onChange:value=>setSettings(current=>({...current,minTarget:value})),min:6,max:30,compact})
     ),
     React.createElement(SettingsField,{title:"Which workout types count",description:"Members can only log workouts from these categories.",compact},
@@ -765,7 +765,7 @@ const ProrationChoiceModal = ({monthName,fullMas,daysRemaining,daysInMonth,prora
   React.createElement('div',{className:"modal pi",style:{maxWidth:430}},
     React.createElement('div',{style:{fontWeight:800,fontSize:20,marginBottom:10}},"You're starting mid-month."),
     React.createElement('div',{style:{color:"var(--muted)",fontSize:13,lineHeight:1.6,marginBottom:18}},
-      `Your MAS is ${fullMas} workouts. There are ${daysRemaining} days left in ${monthName} — a prorated target would be ${proratedMas}.`
+      `Your target is ${fullMas} workouts. There are ${daysRemaining} days left in ${monthName} — a prorated target would be ${proratedMas}.`
     ),
     React.createElement('div',{style:{fontSize:13,color:"var(--text-soft)",marginBottom:14}},"Which do you want for this first month?"),
     React.createElement('div',{style:{display:"flex",gap:9}},
