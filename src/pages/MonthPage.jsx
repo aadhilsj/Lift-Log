@@ -162,7 +162,7 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
       ),
       monthSelector
     ),
-    React.createElement(Card,{style:{padding:"18px 18px 16px",background:"#080F0F",border:"1px dashed rgba(245,166,35,.55)",display:"flex",flexDirection:"column",gap:14}},
+    React.createElement(Card,{style:{padding:"18px 18px 16px",background:"linear-gradient(135deg, rgba(245,166,35,.16), rgba(245,210,105,.08) 48%, rgba(8,15,15,.92))",border:"1px dashed rgba(245,166,35,.55)",display:"flex",flexDirection:"column",gap:14,fontFamily:"'Outfit', sans-serif"}},
       React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}},
         React.createElement('span',{className:"mono",style:{fontSize:10,color:"#F5A623",textTransform:"uppercase",letterSpacing:".12em"}},"Month in progress"),
         React.createElement('span',{className:"mono",style:{fontSize:11,color:"var(--muted)"}},`${getDaysLeft()} days remaining`)
@@ -188,7 +188,7 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
           React.createElement('div',{style:{fontSize:11,color:"var(--muted)"}},"logged")
         )
       ),
-      React.createElement('div',{style:{fontSize:12,color:"var(--muted)",lineHeight:1.5}},"Live counts update as workouts are approved. Money is only settled after the month closes."),
+      React.createElement('div',{style:{fontSize:12,color:"var(--muted)",lineHeight:1.5}},"Live counts update as workouts are logged. Money is only settled after the month closes."),
       React.createElement('button',{type:"button",onClick:onOpenToday,style:{alignSelf:"flex-start",background:"transparent",border:"none",padding:0,color:"#4ECDC4",fontSize:13,fontWeight:800,cursor:"pointer"}},"See live leaderboard")
     ),
     React.createElement('div',{style:{border:"1px solid var(--border)",borderRadius:10,overflow:"hidden",background:"var(--s1)"}},
