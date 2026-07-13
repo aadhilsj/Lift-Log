@@ -211,7 +211,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
               type:"button",
               onClick:()=>handleSettlementAction({key,kind:"claim",payerDisplayName:pair.payerDisplayName,receiverDisplayName:pair.receiverDisplayName,amount:pair.amount}),
               disabled:settlementBusy===key,
-              style:{fontSize:8,fontWeight:800,lineHeight:1,padding:"4px 6px",borderRadius:999,background:"rgba(224,80,32,.055)",border:"1px solid rgba(224,80,32,.18)",color:"rgba(240,109,67,.82)",whiteSpace:"nowrap",fontFamily:"'Outfit', sans-serif"}
+              style:{display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:8,fontWeight:800,lineHeight:1,padding:"4px 6px",borderRadius:999,background:"rgba(224,80,32,.035)",border:"1px solid rgba(224,80,32,.12)",color:"rgba(240,109,67,.68)",whiteSpace:"nowrap",fontFamily:"'Outfit', sans-serif"}
             }, settlementBusy===key ? "Saving..." : "Mark as paid");
         return outcome==="winner"
           ? React.createElement(React.Fragment,{key:key},
