@@ -36,20 +36,27 @@ const FULL_MONTH_NAMES = ["January","February","March","April","May","June","Jul
 const shortDate = value => {
   const date = value ? new Date(value) : null;
   if (!date || Number.isNaN(date.getTime())) return "—";
-  return date.toLocaleDateString(undefined, { month: "short", year: "numeric" });
+  return date.toLocaleDateString(undefined, { month: "long", year: "numeric" });
 };
 const currencyShortLabel = currency => {
   const symbols = {USD:"$",EUR:"€",GBP:"£",NOK:"kr",SEK:"kr",DKK:"kr",AUD:"A$",CAD:"C$",CHF:"CHF",INR:"₹",SGD:"S$",NZD:"NZ$",LKR:"LKR"};
   return symbols[currency] || currency || DEFAULT_CURRENCY;
 };
-const cleanMonthLabel = (label, key = "") => {
+const cleanMonthLabel = (label, key = "", fullYear = false) => {
   const fromLabel = /^([A-Z][a-z]{2})\s+'?(\d{2})$/.exec(String(label || "").trim());
   if (fromLabel) {
     const monthName = FULL_MONTH_NAMES[MONTH_NAMES.indexOf(fromLabel[1])] || fromLabel[1];
-    return `${monthName} ${fromLabel[2]}`;
+    return `${monthName} ${fullYear ? `20${fromLabel[2]}` : fromLabel[2]}`;
   }
   const [year, month] = String(key || label || "").split("-").map(Number);
-  if (Number.isFinite(year) && Number.isFinite(month)) return `${FULL_MONTH_NAMES[month] || MONTH_NAMES[month] || "Month"} ${String(year).slice(2)}`;
+  if (Number.isFinite(year) && Number.isFinite(month)) return `${FULL_MONTH_NAMES[month] || MONTH_NAMES[month] || "Month"} ${fullYear ? year : String(year).slice(2)}`;
+  return String(label || "—").replace(/\s+'(\d{2})$/, " $1");
+};
+const compactMonthLabel = (label, key = "") => {
+  const fromLabel = /^([A-Z][a-z]{2})\s+'?(\d{2})$/.exec(String(label || "").trim());
+  if (fromLabel) return `${fromLabel[1]} ${fromLabel[2]}`;
+  const [year, month] = String(key || label || "").split("-").map(Number);
+  if (Number.isFinite(year) && Number.isFinite(month)) return `${MONTH_NAMES[month] || "Mon"} ${String(year).slice(2)}`;
   return String(label || "—").replace(/\s+'(\d{2})$/, " $1");
 };
 const monthOrder = key => {
@@ -146,13 +153,13 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
   const toughestMonth=[...closedMonthlyTotals].filter(m=>m.activeCount>0).sort((a,b)=>a.total-b.total)[0];
   const sortedWorkoutTypes=[...WORKOUT_TYPES].sort((a,b)=>(groupTypeBreakdown[b]||0)-(groupTypeBreakdown[a]||0)||WORKOUT_TYPES.indexOf(a)-WORKOUT_TYPES.indexOf(b));
   const legacyRows=[
-    ["Started", earliestMonth ? cleanMonthLabel(earliestMonth.label, earliestMonth.key) : shortDate(group?.createdAt)],
+    ["Started", earliestMonth ? cleanMonthLabel(earliestMonth.label, earliestMonth.key, true) : shortDate(group?.createdAt)],
     ["Months completed", completedMonths ? String(completedMonths) : "No closed months yet"],
     ["Total workouts logged", totalGroupLogs ? String(totalGroupLogs) : "—"],
     ["Money settled", totalSettled ? fmtCurrency(totalSettled,currency) : "—"],
     ["Members participated", participantCount ? String(participantCount) : "—"],
-    ["Best month", highestMonth?.total ? `${cleanMonthLabel(highestMonth.label, highestMonth.key)} - ${highestMonth.total}` : "—"],
-    ["Toughest month", toughestMonth?.total>=0 ? `${cleanMonthLabel(toughestMonth.label, toughestMonth.key)} - ${toughestMonth.total}` : "—"]
+    ["Best month", highestMonth?.total ? `${cleanMonthLabel(highestMonth.label, highestMonth.key, true)} - ${highestMonth.total}` : "—"],
+    ["Toughest month", toughestMonth?.total>=0 ? `${cleanMonthLabel(toughestMonth.label, toughestMonth.key, true)} - ${toughestMonth.total}` : "—"]
   ];
   const gradientText = gradient => ({
     background: gradient,
@@ -166,14 +173,14 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
       React.createElement('div',{style:{fontSize:24,fontWeight:800}},"History")
     ),
     HISTORY_FEATURES.summaryStats&&React.createElement('div',{className:"fu2",style:{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:7}},
-      [{label:"Total workouts",val:totalGroupLogs||"—",sub:"logged by the Bloc",color:"#4ECDC4"},
+      [{label:"Total workouts",val:totalGroupLogs||"—",sub:"logged by the Bloc",gradient:"linear-gradient(135deg,#DFFFFC,#4ECDC4 52%,#1A8E88)"},
        {label:"Most wins",val:hasClosedHistory&&mostWins?.wins>0?mostWins.name:"—",sub:hasClosedHistory&&mostWins?.wins>0?`${mostWins.wins} win${mostWins.wins>1?"s":""}`:"no closed months yet",gradient:"linear-gradient(135deg,#FFE7A3,#F5A623 45%,#C47A18)"},
-       {label:"Most consistent",val:hasClosedHistory&&mostConsistent?.avg!=="—"?mostConsistent.name:"—",sub:hasClosedHistory&&mostConsistent?.avg!=="—"?`${mostConsistent.avg} avg/mo`:"no closed months yet",color:"#FFFFFF"},
+       {label:"Most consistent",val:hasClosedHistory&&mostConsistent?.avg!=="—"?mostConsistent.name:"—",sub:hasClosedHistory&&mostConsistent?.avg!=="—"?`${mostConsistent.avg} avg/mo`:"no closed months yet",gradient:"linear-gradient(135deg,#FFFFFF,#DDE7EE 52%,#94B7C7)"},
        {label:`Most ${currencyShortLabel(currency)} lost`,val:hasClosedHistory&&biggestLoser?.moneyLost>0?biggestLoser.name:"—",sub:hasClosedHistory&&biggestLoser?.moneyLost>0?`-${fmtCurrency(biggestLoser.moneyLost, currency)} total`:"no losses yet",gradient:"linear-gradient(135deg,#FFD0C6,#F06D43 48%,#B93232)"}
-      ].map(x=>React.createElement(Card,{key:x.label,style:{padding:"8px 10px"}},
-        React.createElement('span',{className:"lbl",style:{fontFamily:"'Outfit', sans-serif",fontSize:8.5,marginBottom:1,textAlign:"center",width:"100%"}},x.label),
-        React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontSize:16,fontWeight:800,color:x.color,lineHeight:1.06,textAlign:"center",width:"100%",...(x.gradient?gradientText(x.gradient):{})}},x.val),
-        React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontSize:9,color:"var(--muted)",marginTop:2,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",textAlign:"center",width:"100%"}},x.sub)
+      ].map(x=>React.createElement(Card,{key:x.label,style:{padding:"10px 10px"}},
+        React.createElement('span',{className:"lbl",style:{fontFamily:"'Outfit', sans-serif",fontSize:8.5,marginBottom:4,textAlign:"center",width:"100%"}},x.label),
+        React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontSize:16,fontWeight:800,color:x.color,lineHeight:1.1,textAlign:"center",width:"100%",...(x.gradient?gradientText(x.gradient):{})}},x.val),
+        React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontSize:9,color:"var(--muted)",marginTop:5,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",textAlign:"center",width:"100%"}},x.sub)
       ))
     ),
     HISTORY_FEATURES.trailingWorkoutHistory&&React.createElement(Card,{className:"fu3",style:{padding:"13px 14px"}},
@@ -188,7 +195,7 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
                 return React.createElement('div',{key:m.key||m.label,style:{flex:"0 0 auto",width:34,display:"flex",flexDirection:"column",alignItems:"center",gap:0}},
                   React.createElement('span',{className:"mono",style:{fontSize:10,fontWeight:700,color:isHighlighted?"#4ECDC4":"var(--muted)",marginBottom:4,display:"block"}},m.total),
                   React.createElement('div',{style:{width:18,height:h,background:isHighlighted?"rgba(78,205,196,.72)":"#0D2828",borderRadius:"3px 3px 0 0"}}),
-                  React.createElement('span',{className:"mono",style:{fontSize:8.5,color:isHighlighted?"#4ECDC4":"#1E4040",textAlign:"center",lineHeight:1.25,marginTop:4}},m.label)
+                  React.createElement('span',{style:{fontFamily:"'Outfit', sans-serif",fontSize:7.5,fontWeight:700,color:isHighlighted?"#4ECDC4":"#1E4040",textAlign:"center",lineHeight:1,marginTop:4,whiteSpace:"nowrap"}},compactMonthLabel(m.label, m.key))
                 );
               })
             )
@@ -224,23 +231,23 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
       React.createElement('div',{style:{position:"relative"}},
         React.createElement('div',{style:{position:"absolute",top:0,right:0,bottom:0,width:34,pointerEvents:"none",background:"linear-gradient(to right, rgba(8,15,15,0), #080F0F)",zIndex:1}}),
         React.createElement('div',{style:{overflowX:"auto",WebkitOverflowScrolling:"touch"}},
-        React.createElement('div',{style:{minWidth:504,padding:"8px"}},
-          React.createElement('div',{style:{display:"grid",gridTemplateColumns:"24px 30px 1fr 58px 52px 46px 60px 60px 16px",padding:"7px 10px",borderBottom:"1px solid rgba(255,255,255,.055)",gap:6,fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".08em"}},
-            ["#","","Name","Total","Avg","Wins","Won","Lost",""].map((h,i)=>React.createElement('div',{key:i,style:{textAlign:i>2?"right":"left"}},h))
+        React.createElement('div',{style:{minWidth:568,padding:"8px"}},
+          React.createElement('div',{style:{display:"grid",gridTemplateColumns:"24px 30px 1fr 58px 64px 46px 68px 68px 16px",padding:"7px 10px",borderBottom:"1px solid rgba(255,255,255,.055)",gap:6,fontFamily:"'Outfit', sans-serif",fontSize:9,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".06em",fontWeight:800}},
+            ["#","","Name","Total","Average","Wins",`${currencyShortLabel(currency)} Won`,`${currencyShortLabel(currency)} Lost`,""].map((h,i)=>React.createElement('div',{key:i,style:{textAlign:i>2?"right":"left"}},h))
           ),
           React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:6,marginTop:6}},
           visibleLeaderboard.map((u,i)=>React.createElement('div',{key:u.name,
-            style:{display:"grid",gridTemplateColumns:"24px 30px 1fr 58px 52px 46px 60px 60px 16px",padding:"9px 10px",gap:6,alignItems:"center",background:u.name===currentUser?"rgba(78,205,196,.055)":"rgba(255,255,255,.018)",border:`0.5px solid ${u.name===currentUser?"rgba(78,205,196,.22)":"rgba(255,255,255,.055)"}`,borderRadius:9,boxShadow:"inset 0 1px 0 rgba(255,255,255,0.045)",textAlign:"left"}},
-            React.createElement('div',{className:"mono",style:{fontSize:11,color:"var(--muted)",textAlign:"center"}},`#${i+1}`),
+            style:{display:"grid",gridTemplateColumns:"24px 30px 1fr 58px 64px 46px 68px 68px 16px",padding:"9px 10px",gap:6,alignItems:"center",background:u.name===currentUser?"rgba(78,205,196,.055)":"rgba(255,255,255,.018)",border:`0.5px solid ${u.name===currentUser?"rgba(78,205,196,.22)":"rgba(255,255,255,.055)"}`,borderRadius:9,boxShadow:"inset 0 1px 0 rgba(255,255,255,0.045)",textAlign:"left",fontFamily:"'Outfit', sans-serif"}},
+            React.createElement('div',{style:{fontSize:11,fontWeight:700,color:"var(--muted)",textAlign:"center"}},`#${i+1}`),
             React.createElement(Avatar,{name:u.name,size:24}),
             React.createElement('div',{style:{fontWeight:600,fontSize:14,display:"flex",alignItems:"baseline",gap:6,flexWrap:"wrap",color:"var(--text)"}},u.name,u.name===currentUser&&React.createElement('span',{className:"mono",style:{fontSize:8,color:"#3d5e59"}},"you")),
-            React.createElement('span',{className:"mono",style:{fontSize:14,fontWeight:700,textAlign:"right",color:"var(--text)"}},u.total||"—"),
-            React.createElement('span',{className:"mono",style:{fontSize:11,color:"var(--muted)",textAlign:"right"}},u.avg),
-            React.createElement('span',{className:"mono",style:{fontSize:11,textAlign:"right",color:hasClosedHistory&&u.wins>0?"var(--gold)":"var(--muted)",display:"inline-flex",alignItems:"center",justifyContent:"flex-end",gap:4}},
+            React.createElement('span',{style:{fontSize:14,fontWeight:700,textAlign:"right",color:"var(--text)"}},u.total||"—"),
+            React.createElement('span',{style:{fontSize:11,fontWeight:700,color:"var(--muted)",textAlign:"right"}},u.avg),
+            React.createElement('span',{style:{fontSize:11,fontWeight:700,textAlign:"right",color:hasClosedHistory&&u.wins>0?"var(--gold)":"var(--muted)",display:"inline-flex",alignItems:"center",justifyContent:"flex-end",gap:4}},
               hasClosedHistory&&u.wins>0 ? u.wins : "—"
             ),
-            React.createElement('span',{className:"mono",style:{fontSize:11,textAlign:"right",color:hasClosedHistory&&u.moneyWon>0?"var(--green)":"var(--muted)"}},hasClosedHistory&&u.moneyWon>0?`+${fmtCurrency(u.moneyWon, currency)}`:"—"),
-            React.createElement('span',{className:"mono",style:{fontSize:11,textAlign:"right",color:hasClosedHistory&&u.moneyLost>0?"var(--red)":"var(--muted)"}},hasClosedHistory&&u.moneyLost>0?`-${fmtCurrency(u.moneyLost, currency)}`:"—"),
+            React.createElement('span',{style:{fontSize:11,fontWeight:700,textAlign:"right",color:hasClosedHistory&&u.moneyWon>0?"var(--green)":"var(--muted)"}},hasClosedHistory&&u.moneyWon>0?`+${fmtCurrency(u.moneyWon, currency)}`:"—"),
+            React.createElement('span',{style:{fontSize:11,fontWeight:700,textAlign:"right",color:hasClosedHistory&&u.moneyLost>0?"var(--red)":"var(--muted)"}},hasClosedHistory&&u.moneyLost>0?`-${fmtCurrency(u.moneyLost, currency)}`:"—"),
             React.createElement('span',null)
           )))
         ),
@@ -254,7 +261,7 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
       React.createElement('div',{style:{display:"flex",flexDirection:"column"}},
         legacyRows.map((row,i)=>React.createElement('div',{key:row[0],style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,padding:"10px 15px",borderBottom:i<legacyRows.length-1?"1px solid rgba(255,255,255,.055)":"none"}},
           React.createElement('span',{style:{fontSize:12,color:"var(--muted)",fontWeight:700}},row[0]),
-          React.createElement('span',{style:{fontSize:12,color:"var(--text)",fontWeight:800,textAlign:"right"}},row[1])
+          React.createElement('span',{style:{fontSize:12,color:"var(--text)",fontWeight:600,textAlign:"right"}},row[1])
         ))
       )
     )
