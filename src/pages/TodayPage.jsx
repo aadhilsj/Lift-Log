@@ -901,14 +901,13 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
         const isMe=u.name===user;
         const displayStatus = getLeaderboardDisplayStatus(u.status, u.count);
         const earlyMonthQuiet = !u.isOut && isEarlyMonthNeutralWindow() && u.count === 0;
-        const displayDiffText = earlyMonthQuiet ? "month just started" : getLeaderboardDiffText(u);
         const aArr=leaderboardRows.filter(x=>!x.isOut);
         const aIdx=aArr.findIndex(x=>x.name===u.name);
         return React.createElement('button',{key:u.key || u.name,type:"button",onClick:()=>setViewPlayer(u.name),
           style:{...leaderboardRowBaseStyle,borderColor:isMe&&!u.isOut?"#163d36":"#0D1F1E",backgroundColor:leaderboardRowTint(displayStatus),opacity:u.isOut?.55:1}},
           React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10}},
-            React.createElement('div',{style:{flex:1,minWidth:0}},
-              React.createElement('div',{style:{display:"flex",alignItems:"center",gap:8,marginBottom:u.isOut?0:6}},
+            React.createElement('div',{style:{flex:1,minWidth:0,display:"flex",alignItems:"center",alignSelf:"stretch"}},
+              React.createElement('div',{style:{display:"flex",alignItems:"center",gap:8,width:"100%"}},
                 React.createElement('div',{style:{minWidth:20}},u.isOut?React.createElement('span',{style:{fontSize:12,color:"#2A4040"}},"💤"):React.createElement(RankIcon,{rank:aIdx+1})),
                 React.createElement(Avatar,{name:u.name,size:22,muted:u.isOut}),
                 React.createElement('div',{style:{flex:1,minWidth:0,textAlign:"left",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",display:"inline-flex",alignItems:"center",gap:6,fontWeight:600,fontSize:13,color:u.isOut?"#2A4040":"var(--text)"}},
@@ -916,9 +915,6 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
                   isMe&&React.createElement('span',{className:"mono",style:{fontSize:8,color:"#3d5e59",marginLeft:6}},"you"),
                   u.prorated&&!u.isOut&&React.createElement('span',{className:"mono",style:{fontSize:8,color:"var(--muted)",marginLeft:6,textTransform:"uppercase",letterSpacing:".08em"}},"joined mid-month")
                 )
-              ),
-              !u.isOut&&React.createElement('div',{style:{paddingLeft:28,display:"flex",justifyContent:"space-between",marginTop:4}},
-                React.createElement('span',{style:{fontSize:9,fontWeight:700,color:groupStatusColor(displayStatus),fontFamily:"'Outfit',sans-serif"}},displayDiffText)
               )
             ),
             u.isOut
@@ -993,14 +989,13 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
           const isMe=u.name===user;
           const displayStatus = getLeaderboardDisplayStatus(u.status, u.count);
           const earlyMonthQuiet = !u.isOut && isEarlyMonthNeutralWindow() && u.count === 0;
-          const displayDiffText = earlyMonthQuiet ? "month just started" : getLeaderboardDiffText(u);
           const aArr=leaderboardRows.filter(x=>!x.isOut);
           const aIdx=aArr.findIndex(x=>x.name===u.name);
           return React.createElement('button',{key:u.key || u.name,type:"button",onClick:()=>setViewPlayer(u.name),style:{...leaderboardRowBaseStyle,borderColor:isMe&&!u.isOut?"#163d36":"#0D1F1E",opacity:u.isOut?.55:1},
             onMouseEnter:e=>e.currentTarget.style.borderColor=isMe&&!u.isOut?"#1c4a43":"#15302c",onMouseLeave:e=>e.currentTarget.style.borderColor=isMe&&!u.isOut?"#163d36":"#0D1F1E",backgroundColor:leaderboardRowTint(displayStatus)},
             React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}},
-              React.createElement('div',{style:{flex:1,minWidth:0}},
-                React.createElement('div',{style:{display:"flex",alignItems:"center",gap:9,marginBottom:u.isOut?0:7}},
+              React.createElement('div',{style:{flex:1,minWidth:0,display:"flex",alignItems:"center",alignSelf:"stretch"}},
+                React.createElement('div',{style:{display:"flex",alignItems:"center",gap:9,width:"100%"}},
                   React.createElement('div',{style:{minWidth:22}},u.isOut?React.createElement('span',{style:{fontSize:13,color:"#2A4040"}},"💤"):React.createElement(RankIcon,{rank:aIdx+1})),
                   React.createElement(Avatar,{name:u.name,size:24,muted:u.isOut}),
                   React.createElement('div',{style:{flex:1,minWidth:0,textAlign:"left",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",display:"inline-flex",alignItems:"center",gap:7,fontWeight:600,fontSize:14,color:u.isOut?"#2A4040":"var(--text)"}},
@@ -1008,9 +1003,6 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
                     isMe&&React.createElement('span',{className:"mono",style:{fontSize:8,color:"#3d5e59",marginLeft:7}},"you"),
                     u.prorated&&!u.isOut&&React.createElement('span',{className:"mono",style:{fontSize:8,color:"var(--muted)",marginLeft:6,textTransform:"uppercase",letterSpacing:".08em"}},"joined mid-month")
                   )
-                ),
-                !u.isOut&&React.createElement('div',{style:{paddingLeft:31,display:"flex",justifyContent:"space-between",marginTop:4}},
-                  React.createElement('span',{style:{fontSize:9,fontWeight:700,color:groupStatusColor(displayStatus),fontFamily:"'Outfit',sans-serif"}},displayDiffText)
                 )
               ),
               u.isOut

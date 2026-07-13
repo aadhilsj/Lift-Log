@@ -144,7 +144,7 @@ const StatusBadge = ({status}) => {
 
 const RankIcon = ({rank}) => {
   if(rank===1) return React.createElement(MedalIcon,{place:1,size:16});
-  return React.createElement('span',{className:"mono",style:{fontSize:11,color:"var(--muted)",minWidth:20,display:"inline-block",textAlign:"center"}},`#${rank}`);
+  return React.createElement('span',{style:{fontSize:11,color:"var(--muted)",minWidth:20,display:"inline-block",textAlign:"center",fontFamily:"'Outfit',sans-serif",fontWeight:800,letterSpacing:0}},`#${rank}`);
 };
 
 
