@@ -360,7 +360,7 @@ const GroupHome = ({groups,currentIdentity,currentEmail,onOpenProfile,onOpenGrou
           );
         })
       ),
-      React.createElement('div',{style:{display:"flex",gap:10,justifyContent:"center",flexWrap:"wrap",width:"100%",maxWidth:744,marginTop:"auto",paddingTop:compactMobile?20:26,marginBottom:compactMobile?10:0}},
+      React.createElement('div',{style:{display:"flex",gap:10,justifyContent:"center",flexWrap:"wrap",width:"100%",maxWidth:744,marginTop:compactMobile?0:2,marginBottom:compactMobile?28:34}},
         React.createElement('button',{onClick:()=>setShowCreate(true),style:{background:"var(--green)",color:"#000",padding:compactMobile?"12px 18px":"12px 20px",borderRadius:10,fontSize:14,fontWeight:800}},"Create Bloc"),
         React.createElement('button',{onClick:onJoinGroup,style:{background:"var(--green)",color:"#000",padding:compactMobile?"12px 18px":"12px 20px",borderRadius:10,fontSize:14,fontWeight:800}},"Join Existing")
       )

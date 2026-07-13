@@ -223,12 +223,13 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
             )
           : React.createElement(React.Fragment,{key:key},
               index>0&&React.createElement('div',{style:{height:1,width:"34%",margin:"2px auto",background:"linear-gradient(90deg, transparent, rgba(255,255,255,.12), transparent)"}}),
-              React.createElement('div',{style:{position:"relative",minHeight:26,display:"flex",alignItems:"center",justifyContent:"center",padding:"2px 0",textAlign:"center"}},
-                React.createElement('div',{style:{display:"inline-flex",alignItems:"center",justifyContent:"center",gap:7,minWidth:0,maxWidth:action?"calc(100% - 72px)":"100%"}},
+              React.createElement('div',{style:{minHeight:26,display:"grid",gridTemplateColumns:action?"58px minmax(0,1fr) 58px":"1fr",alignItems:"center",padding:"2px 0",textAlign:"center"}},
+                action && React.createElement('div',null),
+                React.createElement('div',{style:{display:"inline-flex",alignItems:"center",justifyContent:"center",gap:7,minWidth:0,maxWidth:"100%"}},
                   React.createElement('div',{style:{fontSize:12,fontWeight:800,color:"var(--text)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",minWidth:0,maxWidth:120}},pair.receiverDisplayName),
                   React.createElement('div',{style:{fontSize:12,fontWeight:900,color:totalColor,whiteSpace:"nowrap"}},`-${fmtCurrency(pair.amount, currency)}`)
                 ),
-                action && React.createElement('div',{style:{position:"absolute",right:0,top:"50%",transform:"translateY(-50%)"}},action)
+                action && React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"flex-end"}},action)
               )
             );
       })
