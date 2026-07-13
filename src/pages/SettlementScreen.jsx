@@ -59,7 +59,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
     gold: "#F5A623",
     pill: {padding:"3px 10px", borderRadius:999, fontSize:11, fontWeight:700, display:"inline-block"},
     card: {background:"var(--s1)", border:"1px solid var(--border)", borderRadius:10, overflow:"hidden"},
-    sectionLabel: {fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:".12em", color:"var(--muted)", fontFamily:"'JetBrains Mono',monospace"}
+    sectionLabel: {fontSize:10, fontWeight:800, textTransform:"uppercase", letterSpacing:".07em", color:"var(--muted)", fontFamily:"'Outfit', sans-serif"}
   };
 
   const initialsFor = name => name.split(" ").map(part => part[0]).join("").slice(0,2).toUpperCase();
@@ -165,14 +165,25 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
         ? {background:"rgba(185,50,50,.07)", border:"1px solid rgba(185,50,50,.18)"}
         : {background:"linear-gradient(135deg, rgba(235,242,241,.18), rgba(185,199,198,.11) 54%, rgba(78,205,196,.025))", border:"1px solid rgba(235,242,241,.22)"};
   const heroColor = hero.tone === "winner" ? C.greenText : hero.tone === "missed" ? C.redText : hero.tone === "neutral" ? "#D7E2E1" : "var(--text)";
-  const heroBadgeBase = {...C.pill,borderRadius:5,padding:"4px 8px",fontSize:10,letterSpacing:".055em",textTransform:"uppercase"};
-  const heroPillStyle = hero.tone === "neutral"
-    ? {...heroBadgeBase,alignSelf:"center",background:"linear-gradient(135deg, rgba(255,255,255,.20), rgba(190,202,202,.105) 58%, rgba(255,255,255,.16))",border:"1px solid rgba(235,242,241,.32)",color:"#F2F7F6",fontWeight:900,boxShadow:"inset 0 1px 0 rgba(255,255,255,.16), 0 0 18px rgba(215,226,225,.08)"}
-    : hero.tone === "perfect"
-      ? {...heroBadgeBase,alignSelf:"center",background:"linear-gradient(135deg, rgba(218,255,237,.22), rgba(78,205,196,.13) 46%, rgba(57,168,90,.2))",border:"1px solid rgba(116,232,157,.32)",color:"#E7FFF0",fontWeight:900,boxShadow:"inset 0 1px 0 rgba(255,255,255,.16), 0 0 18px rgba(57,168,90,.1)"}
-      : hero.tone === "winner"
-        ? {...heroBadgeBase,alignSelf:"center",background:"linear-gradient(135deg, rgba(218,255,237,.2), rgba(57,168,90,.16) 52%, rgba(78,205,196,.09))",border:"1px solid rgba(57,168,90,.32)",color:"#E7FFF0",fontWeight:900,boxShadow:"inset 0 1px 0 rgba(255,255,255,.14), 0 0 18px rgba(57,168,90,.1)"}
-        : {...heroBadgeBase,alignSelf:"center",background:C.redBg,color:C.redText,fontWeight:900};
+  const heroLabelGradients = {
+    neutral: "linear-gradient(135deg, #FFFFFF, #D7E2E1 55%, #9DB4B3)",
+    perfect: "linear-gradient(135deg, #FFFFFF, #DDFDE9 42%, #63D989)",
+    winner: "linear-gradient(135deg, #DDFDE9, #39A85A 54%, #1E7C3D)",
+    missed: "linear-gradient(135deg, #FFD8D8, #E65A5A 50%, #A92F2F)"
+  };
+  const heroPillStyle = {
+    alignSelf:"center",
+    display:"inline-block",
+    fontFamily:"'Outfit', sans-serif",
+    fontSize:11,
+    fontWeight:900,
+    letterSpacing:".06em",
+    textTransform:"uppercase",
+    background:heroLabelGradients[hero.tone] || heroLabelGradients.neutral,
+    WebkitBackgroundClip:"text",
+    backgroundClip:"text",
+    color:"transparent"
+  };
   const isStreakLine = text => /\bconsistent months in a row\b/.test(String(text || ""));
   const renderHeroLine = () => {
     if (!hero.line) return null;
@@ -228,7 +239,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
 
     return React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:outcome==="winner"?2:4,width:"100%",maxWidth:outcome==="winner"?150:260,margin:"0 auto"}},
       React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"center",gap:10,textAlign:"center"}},
-        React.createElement('div',{style:{...C.sectionLabel,fontSize:8,letterSpacing:".035em"}},title)
+        React.createElement('div',{style:{...C.sectionLabel,fontSize:8,letterSpacing:".04em"}},title)
       ),
       rows.map((pair, index) => {
         const {state} = statusForPair(pair);
@@ -285,7 +296,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
     awardCards.map(award => React.createElement('div',{key:award.title,style:{...C.card,background:award.gradient,padding:"10px 10px 9px",minHeight:72}},
       React.createElement('div',{style:{display:"flex",alignItems:"center",gap:6,marginBottom:6}},
         award.tone==="gold" && React.createElement(TrophyIcon,{size:13,color:C.gold}),
-        React.createElement('div',{style:{...C.sectionLabel,fontSize:9,letterSpacing:".1em"}},award.title)
+        React.createElement('div',{style:{...C.sectionLabel,fontSize:9,letterSpacing:".06em"}},award.title)
       ),
       React.createElement('div',{style:{fontSize:14,fontWeight:900,color:award.tone==="red"?C.redText:"var(--text)",lineHeight:1.18,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},award.name),
       React.createElement('div',{style:{fontSize:11,color:"var(--muted)",marginTop:3,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},award.detail)
