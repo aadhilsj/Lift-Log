@@ -212,7 +212,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
   const fallbackAwardNames = sortedActive.map(member => member.name).filter(Boolean);
   const awardCards = [
     {title:"Bloc MVP", name:mvpNames.length ? mvpNames.join(" & ") : "No winner", detail:mvpNames.length ? `${mvpCount} workouts` : "No workouts", tone:"gold", gradient:"linear-gradient(135deg, rgba(245,166,35,.16), rgba(255,224,132,.06))"},
-    {title:"Most Consistent", name:fallbackAwardNames[1] || fallbackAwardNames[0] || "Isira", detail:"Steady all month", tone:"silver", gradient:"linear-gradient(135deg, rgba(215,226,225,.13), rgba(78,205,196,.045))"},
+    {title:"Most Consistent", name:fallbackAwardNames[1] || fallbackAwardNames[0] || "Isira", detail:"Steady all month", tone:"violet", gradient:"linear-gradient(135deg, rgba(135,113,255,.16), rgba(78,112,205,.07))"},
     {title:"Comeback", name:fallbackAwardNames[2] || fallbackAwardNames[0] || "Rahul", detail:"Finished strong", tone:"cyan", gradient:"linear-gradient(135deg, rgba(78,205,196,.14), rgba(71,118,230,.06))"},
     {title:"Furthest Behind", name:furthestBehind ? furthestBehind.name : "No one", detail:furthestBehind ? `${furthestBehind.miss} short of MAS` : "Everyone hit MAS", tone:furthestBehind ? "red" : "silver", gradient:"linear-gradient(135deg, rgba(185,50,50,.14), rgba(245,166,35,.055))"}
   ];
@@ -271,7 +271,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
     : "clamp(36px, 10vw, 52px)";
 
   return React.createElement('div',{style:{width:"100%",maxWidth:"100%",margin:"0 auto",padding:"0 0 32px",display:"flex",flexDirection:"column",gap:12,fontFamily:"'Outfit', sans-serif"}},
-    React.createElement('div',{style:{...C.sectionLabel,textAlign:"center",paddingTop:4}},`${month.label.toUpperCase()} · MONTH CLOSED`),
+    React.createElement('div',{style:{...C.sectionLabel,textAlign:"center",paddingTop:4}},`${month.label.toUpperCase()} · MONTH ENDED`),
     React.createElement('div',{style:{...heroStyle,borderRadius:12,padding:"18px 18px 16px",textAlign:"center",display:"flex",flexDirection:"column",gap:10}},
       React.createElement('span',{style:{...C.pill,alignSelf:"center",background:hero.tone==="missed"?C.redBg:hero.tone==="neutral"?C.neutralBg:"rgba(78,205,196,.14)",color:hero.tone==="missed"?C.redText:hero.tone==="neutral"?C.neutralText:C.greenText}},hero.tag),
       React.createElement('div',{style:{fontSize:heroStatSize,fontWeight:900,lineHeight:1.05,color:heroColor,letterSpacing:0,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},hero.stat),

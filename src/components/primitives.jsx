@@ -434,7 +434,7 @@ const SettingsField = ({title,description,children,compact=false}) => React.crea
 );
 
 
-const SelectField = ({value,onChange,options,width,maxWidth,compact=false,arrowColor,textAlign}) => (
+const SelectField = ({value,onChange,options,width,maxWidth,compact=false,arrowColor,textAlign,inputStyle}) => (
   React.createElement('div',{style:{position:"relative",width:width || "100%",maxWidth:maxWidth || "100%" }},
     React.createElement('select',{
       value,
@@ -450,7 +450,8 @@ const SelectField = ({value,onChange,options,width,maxWidth,compact=false,arrowC
         fontSize:compact?12:inputShellStyle.fontSize,
         borderRadius:compact?8:inputShellStyle.borderRadius,
         textAlign:textAlign || "left",
-        textAlignLast:textAlign || "left"
+        textAlignLast:textAlign || "left",
+        ...(inputStyle || {})
       }
     },
       options.map(option=>React.createElement('option',{key:option.value,value:option.value},option.label))

@@ -68,7 +68,16 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
   const monthSelector=React.createElement(SelectField,{
     value:selIdx??"",
     onChange:e=>setSelIdx(e.target.value===""?null:Number(e.target.value)),
-    width:isMobile()?"176px":"188px",
+    width:isMobile()?"142px":"154px",
+    compact:true,
+    arrowColor:"rgba(245,166,35,.85)",
+    inputStyle:{
+      background:"rgba(8,15,15,.48)",
+      border:"1px solid rgba(245,166,35,.18)",
+      color:"var(--text)",
+      fontFamily:"'Outfit', sans-serif",
+      fontWeight:700
+    },
     options:[
       {value:"",label:"Current Month"},
       ...histReversed.map((m,i)=>({value:String(i),label:m.label}))
@@ -164,8 +173,8 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
     ),
     React.createElement(Card,{style:{padding:"18px 18px 16px",background:"linear-gradient(135deg, rgba(245,166,35,.16), rgba(245,210,105,.08) 48%, rgba(8,15,15,.92))",border:"1px dashed rgba(245,166,35,.55)",display:"flex",flexDirection:"column",gap:14,fontFamily:"'Outfit', sans-serif"}},
       React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}},
-        React.createElement('span',{className:"mono",style:{fontSize:10,color:"#F5A623",textTransform:"uppercase",letterSpacing:".12em"}},"Month in progress"),
-        React.createElement('span',{className:"mono",style:{fontSize:11,color:"var(--muted)"}},`${getDaysLeft()} days remaining`)
+        React.createElement('span',{style:{fontFamily:"'Outfit', sans-serif",fontSize:11,fontWeight:800,color:"#F5A623",textTransform:"uppercase",letterSpacing:".08em"}},"Month in progress"),
+        React.createElement('span',{style:{fontFamily:"'Outfit', sans-serif",fontSize:11,fontWeight:700,color:"var(--muted)"}},`${getDaysLeft()} days remaining`)
       ),
       hasActivity&&winners.length>0
         ? React.createElement('div',{style:{display:"flex",alignItems:"center",gap:12}},
@@ -178,7 +187,7 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
             )
           )
         : React.createElement('div',{style:{fontSize:18,fontWeight:800,color:"var(--text)"}},"No leader yet"),
-      currentUser&&React.createElement('div',{style:{background:"var(--s1)",border:"1px solid var(--border)",borderRadius:8,padding:"12px 13px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}},
+      currentUser&&React.createElement('div',{style:{background:"rgba(8,17,17,.56)",border:"1px solid rgba(245,166,35,.16)",borderRadius:8,padding:"12px 13px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,boxShadow:"inset 0 1px 0 rgba(255,255,255,.035)"}},
         React.createElement('div',null,
           React.createElement('div',{style:{fontSize:13,fontWeight:700,color:"var(--text)"}},"Your month so far"),
           React.createElement('div',{style:{fontSize:12,color:"var(--muted)",marginTop:2}},counts.find(u=>u.name===currentUser)?.memberDiffLabel || getLeaderboardDiffText(counts.find(u=>u.name===currentUser) || {count:0,target:MIN_TARGET}))
@@ -189,7 +198,7 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
         )
       ),
       React.createElement('div',{style:{fontSize:12,color:"var(--muted)",lineHeight:1.5}},"Live counts update as workouts are logged. Money is only settled after the month closes."),
-      React.createElement('button',{type:"button",onClick:onOpenToday,style:{alignSelf:"flex-start",background:"transparent",border:"none",padding:0,color:"#4ECDC4",fontSize:13,fontWeight:800,cursor:"pointer"}},"See live leaderboard")
+      React.createElement('button',{type:"button",onClick:onOpenToday,style:{alignSelf:"flex-start",background:"transparent",border:"none",padding:0,color:"#4ECDC4",fontSize:13,fontWeight:800,cursor:"pointer"}},"See Live Leaderboard")
     ),
     React.createElement('div',{style:{border:"1px solid var(--border)",borderRadius:10,overflow:"hidden",background:"var(--s1)"}},
       React.createElement('button',{type:"button",onClick:()=>setShowStandings(v=>!v),style:{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"13px 15px",background:"transparent",border:"none",color:"var(--text)",fontSize:13,fontWeight:800,cursor:"pointer"}},
