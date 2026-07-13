@@ -5380,7 +5380,10 @@ function assertProfileRenameDoesNotCollide(groups, oldNames, displayName, userId
   for (const [groupId, group] of Object.entries(groups)) {
     const oldName = oldNames.get(groupId);
     if (!oldName || oldName === displayName) continue;
-    if (group.memberOrder.includes(displayName) && !groupDisplayNameBelongsToUser(group, displayName, userId)) {
+    const conflictingActiveMembership = Object.values(group.memberships || {}).find(membership =>
+      membership?.displayName === displayName && membership?.userId !== userId
+    );
+    if (conflictingActiveMembership || (group.memberOrder.includes(displayName) && !groupDisplayNameBelongsToUser(group, displayName, userId) && Object.keys(group.memberships || {}).length === 0)) {
       const error = new Error(`That name is already taken in ${group.name || "a Bloc"}`);
       error.status = 409;
       throw error;

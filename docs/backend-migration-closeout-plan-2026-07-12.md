@@ -568,6 +568,10 @@ Implemented:
   residue: it still rejects another member's display name, but it no longer
   blocks a rename just because the target name already appears in historical
   `memberAuthUserIds` for the same auth user
+- follow-up from preview testing: auth-linked blocs use active memberships as
+  the collision authority. Historical-only `memberOrder` names are not enough
+  to block a profile rename, because they can be stale closed-season residue
+  for the same account.
 
 Remaining caveat:
 
