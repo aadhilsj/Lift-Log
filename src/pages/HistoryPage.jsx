@@ -87,6 +87,7 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
 
   const allTime=useMemo(()=>historicalNames.map(name=>{
     const participated=fullHistory.filter(m=>isJoinedForMonth(name, m.key) && !m.excused?.[name]);
+    const monthsInBloc=fullHistory.filter(m=>isJoinedForMonth(name, m.key)).length;
     const total=participated.reduce((s,m)=>s+(m.counts[name]||0),0);
     const closedP=monthHistory.filter(m=>isJoinedForMonth(name, m.key) && !m.excused?.[name]);
     const closedTotal=closedP.reduce((s,m)=>s+(m.counts[name]||0),0);
@@ -102,7 +103,7 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
       if(winners.find(w=>w.name===name)){wins++;moneyWon+=perWinner;}
       if(losers.find(l=>l.name===name)){moneyLost+=getLoserAmount(penalties, name);}
     });
-    return {name,total,avg,wins,moneyWon,moneyLost};
+    return {name,total,avg,monthsInBloc,wins,moneyWon,moneyLost};
   }),[fullHistory, monthHistory, historicalNames]);
 
   const groupMonthlyAvg=useMemo(()=>{
@@ -176,7 +177,7 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
       [{label:"Total workouts",val:totalGroupLogs||"—",sub:"logged by the Bloc",gradient:"linear-gradient(135deg,#DFFFFC,#4ECDC4 52%,#1A8E88)"},
        {label:"Most wins",val:hasClosedHistory&&mostWins?.wins>0?mostWins.name:"—",sub:hasClosedHistory&&mostWins?.wins>0?`${mostWins.wins} win${mostWins.wins>1?"s":""}`:"no closed months yet",gradient:"linear-gradient(135deg,#FFE7A3,#F5A623 45%,#C47A18)"},
        {label:"Most consistent",val:hasClosedHistory&&mostConsistent?.avg!=="—"?mostConsistent.name:"—",sub:hasClosedHistory&&mostConsistent?.avg!=="—"?`${mostConsistent.avg} avg/mo`:"no closed months yet",gradient:"linear-gradient(135deg,#FFFFFF,#DDE7EE 52%,#94B7C7)"},
-       {label:`Most ${currencyShortLabel(currency)} lost`,val:hasClosedHistory&&biggestLoser?.moneyLost>0?biggestLoser.name:"—",sub:hasClosedHistory&&biggestLoser?.moneyLost>0?`-${fmtCurrency(biggestLoser.moneyLost, currency)} total`:"no losses yet",gradient:"linear-gradient(135deg,#FFD0C6,#F06D43 48%,#B93232)"}
+       {label:`Most ${currencyShortLabel(currency)} lost`,val:hasClosedHistory&&biggestLoser?.moneyLost>0?biggestLoser.name:"—",sub:hasClosedHistory&&biggestLoser?.moneyLost>0?`-${fmtCurrency(biggestLoser.moneyLost, currency)} total`:"no losses yet",gradient:"linear-gradient(135deg,#F7C8C0,#E95F45 52%,#A93A3A)"}
       ].map(x=>React.createElement(Card,{key:x.label,style:{padding:"10px 10px"}},
         React.createElement('span',{className:"lbl",style:{fontFamily:"'Outfit', sans-serif",fontSize:8.5,marginBottom:4,textAlign:"center",width:"100%"}},x.label),
         React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontSize:16,fontWeight:800,color:x.color,lineHeight:1.1,textAlign:"center",width:"100%",...(x.gradient?gradientText(x.gradient):{})}},x.val),
@@ -226,23 +227,24 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
     HISTORY_FEATURES.allTimeLeaderboard&&React.createElement(Card,{className:"fu5",style:{overflow:"hidden"}},
       React.createElement('div',{style:{padding:"11px 15px",borderBottom:"1px solid var(--border)",display:"flex",alignItems:"center",justifyContent:"space-between"}},
         React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontWeight:800,fontSize:14}},"All-Time Leaderboard"),
-        React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontSize:10,color:"var(--muted)",fontWeight:700,letterSpacing:".04em",textTransform:"uppercase"}},"Swipe →")
+        React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontSize:9,color:"var(--muted)",fontWeight:700,letterSpacing:".04em",textTransform:"uppercase"}},"Swipe →")
       ),
       React.createElement('div',{style:{position:"relative"}},
         React.createElement('div',{style:{position:"absolute",top:0,right:0,bottom:0,width:34,pointerEvents:"none",background:"linear-gradient(to right, rgba(8,15,15,0), #080F0F)",zIndex:1}}),
         React.createElement('div',{style:{overflowX:"auto",WebkitOverflowScrolling:"touch"}},
-        React.createElement('div',{style:{minWidth:568,padding:"8px"}},
-          React.createElement('div',{style:{display:"grid",gridTemplateColumns:"24px 30px 1fr 58px 64px 46px 68px 68px 16px",padding:"7px 10px",borderBottom:"1px solid rgba(255,255,255,.055)",gap:6,fontFamily:"'Outfit', sans-serif",fontSize:9,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".06em",fontWeight:800}},
-            ["#","","Name","Total","Average","Wins",`${currencyShortLabel(currency)} Won`,`${currencyShortLabel(currency)} Lost`,""].map((h,i)=>React.createElement('div',{key:i,style:{textAlign:i>2?"right":"left"}},h))
+        React.createElement('div',{style:{minWidth:632,padding:"8px"}},
+          React.createElement('div',{style:{display:"grid",gridTemplateColumns:"24px 30px 1fr 58px 52px 58px 46px 68px 68px 16px",padding:"7px 10px",borderBottom:"1px solid rgba(255,255,255,.055)",gap:6,fontFamily:"'Outfit', sans-serif",fontSize:9,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".06em",fontWeight:800}},
+            ["#","","Name","Total","AVG","Months","Wins",`${currencyShortLabel(currency)} Won`,`${currencyShortLabel(currency)} Lost`,""].map((h,i)=>React.createElement('div',{key:i,style:{textAlign:i>2?"right":"left"}},h))
           ),
           React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:6,marginTop:6}},
           visibleLeaderboard.map((u,i)=>React.createElement('div',{key:u.name,
-            style:{display:"grid",gridTemplateColumns:"24px 30px 1fr 58px 64px 46px 68px 68px 16px",padding:"9px 10px",gap:6,alignItems:"center",background:u.name===currentUser?"rgba(78,205,196,.055)":"rgba(255,255,255,.018)",border:`0.5px solid ${u.name===currentUser?"rgba(78,205,196,.22)":"rgba(255,255,255,.055)"}`,borderRadius:9,boxShadow:"inset 0 1px 0 rgba(255,255,255,0.045)",textAlign:"left",fontFamily:"'Outfit', sans-serif"}},
+            style:{display:"grid",gridTemplateColumns:"24px 30px 1fr 58px 52px 58px 46px 68px 68px 16px",padding:"9px 10px",gap:6,alignItems:"center",background:u.name===currentUser?"rgba(78,205,196,.055)":"rgba(255,255,255,.018)",border:`0.5px solid ${u.name===currentUser?"rgba(78,205,196,.22)":"rgba(255,255,255,.055)"}`,borderRadius:9,boxShadow:"inset 0 1px 0 rgba(255,255,255,0.045)",textAlign:"left",fontFamily:"'Outfit', sans-serif"}},
             React.createElement('div',{style:{fontSize:11,fontWeight:700,color:"var(--muted)",textAlign:"center"}},`#${i+1}`),
             React.createElement(Avatar,{name:u.name,size:24}),
             React.createElement('div',{style:{fontWeight:600,fontSize:14,display:"flex",alignItems:"baseline",gap:6,flexWrap:"wrap",color:"var(--text)"}},u.name,u.name===currentUser&&React.createElement('span',{className:"mono",style:{fontSize:8,color:"#3d5e59"}},"you")),
             React.createElement('span',{style:{fontSize:14,fontWeight:700,textAlign:"right",color:"var(--text)"}},u.total||"—"),
             React.createElement('span',{style:{fontSize:11,fontWeight:700,color:"var(--muted)",textAlign:"right"}},u.avg),
+            React.createElement('span',{style:{fontSize:11,fontWeight:700,color:"var(--muted)",textAlign:"right"}},u.monthsInBloc||"—"),
             React.createElement('span',{style:{fontSize:11,fontWeight:700,textAlign:"right",color:hasClosedHistory&&u.wins>0?"var(--gold)":"var(--muted)",display:"inline-flex",alignItems:"center",justifyContent:"flex-end",gap:4}},
               hasClosedHistory&&u.wins>0 ? u.wins : "—"
             ),
@@ -251,7 +253,7 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
             React.createElement('span',null)
           )))
         ),
-        sortedAll.length>5&&React.createElement('button',{type:"button",onClick:()=>setShowAllLeaderboard(v=>!v),style:{width:"100%",marginTop:6,padding:"10px",background:"transparent",border:"1px solid var(--border)",borderRadius:8,color:"var(--text)",fontSize:12,fontWeight:800}},
+        sortedAll.length>5&&React.createElement('button',{type:"button",onClick:()=>setShowAllLeaderboard(v=>!v),style:{width:"100%",minWidth:632,margin:"6px 8px 8px",padding:"10px",background:"transparent",border:"1px solid var(--border)",borderRadius:8,color:"var(--text)",fontSize:12,fontWeight:800,textAlign:"center"}},
           showAllLeaderboard?"Show Less":`Show ${sortedAll.length-5} More`
         )
       ))
@@ -261,7 +263,7 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
       React.createElement('div',{style:{display:"flex",flexDirection:"column"}},
         legacyRows.map((row,i)=>React.createElement('div',{key:row[0],style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,padding:"10px 15px",borderBottom:i<legacyRows.length-1?"1px solid rgba(255,255,255,.055)":"none"}},
           React.createElement('span',{style:{fontSize:12,color:"var(--muted)",fontWeight:700}},row[0]),
-          React.createElement('span',{style:{fontSize:12,color:"var(--text)",fontWeight:600,textAlign:"right"}},row[1])
+          React.createElement('span',{style:{fontSize:12,color:"var(--text)",fontWeight:500,textAlign:"right"}},row[1])
         ))
       )
     )
