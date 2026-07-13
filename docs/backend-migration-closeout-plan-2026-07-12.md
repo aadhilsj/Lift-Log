@@ -421,14 +421,14 @@ Local report after adding the identity probe:
 - the failures mostly inherit Batch 1 historical shell drift:
   - `monthHistory`
   - `seasonOverrides`
-- some candidates also show `profiles.*.createdAt` drift between blob profile
-  state and canonical profile overlay state
+- the identity probe now ignores `profiles.*.createdAt` because profile rename
+  does not semantically change account creation time and the canonical profile
+  RPC preserves its own row creation timestamp
 
 Interpretation:
 
 - `upsert-profile` is not ready to compute from canonical global writable state
   yet
-- identity/display-name cleanup depends on finishing the historical shell
-  reconciliation and deciding how profile metadata such as `createdAt` should
-  be preserved
+- identity/display-name cleanup now depends on finishing historical shell
+  reconciliation, not on profile metadata drift
 - no auth/bootstrap or client normalization paths were touched

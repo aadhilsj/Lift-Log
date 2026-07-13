@@ -4236,7 +4236,9 @@ function collectProfileRenameTouchedGroupIds(writableInput, canonicalInput, user
 }
 
 function compareProfileEntryMismatch(writableProfile, canonicalProfile, userId) {
-  return valuesDiffer(writableProfile, canonicalProfile) ? [`profiles.${userId}`] : [];
+  const comparableWritable = writableProfile ? { ...writableProfile, createdAt: "<ignored>" } : writableProfile;
+  const comparableCanonical = canonicalProfile ? { ...canonicalProfile, createdAt: "<ignored>" } : canonicalProfile;
+  return valuesDiffer(comparableWritable, comparableCanonical) ? [`profiles.${userId}`] : [];
 }
 
 function summarizeReportMismatchField(mismatch) {

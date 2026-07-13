@@ -131,7 +131,10 @@ Identity report amendment, 2026-07-13:
 - these probes compare writable blob input against canonical-built global
   writable input without changing runtime `upsert-profile`
 - local results show identity rename is still blocked by historical
-  `monthHistory` / `seasonOverrides` drift and some profile `createdAt` drift
+  `monthHistory` / `seasonOverrides` drift
+- the probe ignores profile `createdAt`, because canonical profile rows preserve
+  their own creation timestamp and profile rename does not semantically mutate
+  account creation time
 
 ### Quarantined compatibility tools
 
