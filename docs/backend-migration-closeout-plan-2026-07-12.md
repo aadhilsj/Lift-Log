@@ -984,9 +984,11 @@ Operational change:
 
 Soak deployment:
 
-- preview:
-  `https://lift-5n3f6rivx-aadhilshahjahan11-1221s-projects.vercel.app`
-- deployment id: `dpl_4pwkpQHX9xtKjTYJkuoB64dYDh1C`
+- stable branch preview:
+  `https://lift-log-git-codex-crea-40fc2b-aadhilshahjahan11-1221s-projects.vercel.app`
+- latest generated preview when Batch 14 was started:
+  `https://lift-ly9gohh5b-aadhilshahjahan11-1221s-projects.vercel.app`
+- deployment id: `dpl_Mmq8Mq7HghUfpmCsmU6ZogD6kybn`
 - Vercel inspect status: Ready
 
 Verification notes:
