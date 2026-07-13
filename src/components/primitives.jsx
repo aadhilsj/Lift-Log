@@ -255,6 +255,11 @@ const AppIcon = ({name,size=18,stroke="currentColor"}) => {
   if (name==="message-circle") return React.createElement('svg',common,
     React.createElement('path',{d:"M4 19.5l1.2-3.6A8 8 0 1 1 8.4 18.3L4 19.5"})
   );
+  if (name==="home") return React.createElement('svg',common,
+    React.createElement('path',{d:"M4 11.5 12 5l8 6.5"}),
+    React.createElement('path',{d:"M6.5 10.5V20h11v-9.5"}),
+    React.createElement('path',{d:"M10 20v-5h4v5"})
+  );
   if (name==="calendar") return React.createElement('svg',common,
     React.createElement('rect',{x:"3.5",y:"5",width:"17",height:"16",rx:"2"}),
     React.createElement('path',{d:"M3.5 9.5h17"}),

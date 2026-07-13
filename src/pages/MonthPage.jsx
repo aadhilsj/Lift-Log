@@ -63,12 +63,12 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
   const resultsCurrency = (isCurrent ? groupSettings : selMonth?.settings)?.currency || DEFAULT_CURRENCY;
   const hasQualifiedWinner = winners.some(w => (w.count || 0) >= (w.target || MIN_TARGET));
   const wouldMoveMoney = hasQualifiedWinner && losers.length > 0 && perWinner > 0;
-  const monthLabel=isCurrent?`${MONTH_NAMES[CUR_MONTH]} ${CUR_YEAR}`:selMonth.label;
+  const monthLabel=isCurrent?`${MONTH_NAMES[CUR_MONTH]} '${String(CUR_YEAR).slice(2)}`:selMonth.label;
 
   const monthSelector=React.createElement(SelectField,{
     value:selIdx??"",
     onChange:e=>{ setSelIdx(e.target.value===""?null:Number(e.target.value)); e.currentTarget.blur(); },
-    width:isMobile()?"122px":"132px",
+    width:isMobile()?"112px":"120px",
     compact:true,
     arrowColor:"#4ECDC4",
     textAlign:"center",
@@ -81,10 +81,11 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
       outline:"none",
       boxShadow:"none",
       textAlign:"center",
-      paddingRight:26
+      paddingLeft:18,
+      paddingRight:24
     },
     options:[
-      {value:"",label:"Current Month"},
+      {value:"",label:"This Month"},
       ...histReversed.map((m,i)=>({value:String(i),label:m.label}))
     ]
   });

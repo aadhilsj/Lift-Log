@@ -161,14 +161,14 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
         : {background:"linear-gradient(135deg, rgba(235,242,241,.18), rgba(185,199,198,.11) 54%, rgba(78,205,196,.025))", border:"1px solid rgba(235,242,241,.22)"};
   const heroColor = hero.tone === "winner" ? C.greenText : hero.tone === "missed" ? C.redText : hero.tone === "neutral" ? "#D7E2E1" : "var(--text)";
 
-  const renderPerfectRoster = () => isBlocPerfect && React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:8}},
-    sortedActive.map(member => React.createElement('button',{key:member.name,type:"button",onClick:()=>onViewProfileMonth?.(member.name, month.key),style:{display:"flex",alignItems:"center",gap:8,background:"rgba(5,24,21,.78)",border:"1px solid rgba(78,205,196,.26)",borderRadius:8,padding:"8px 10px",minWidth:0,textAlign:"left",cursor:onViewProfileMonth?"pointer":"default",fontFamily:"'Outfit', sans-serif",color:"var(--text)",boxShadow:"inset 0 1px 0 rgba(255,255,255,.055), 0 6px 14px rgba(0,0,0,.16)"}},
-      React.createElement('div',{style:{width:26,height:26,borderRadius:999,background:avatarColor(member.name),color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,flexShrink:0}},initialsFor(member.name)),
+  const renderPerfectRoster = () => isBlocPerfect && React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:7}},
+    sortedActive.map(member => React.createElement('button',{key:member.name,type:"button",onClick:()=>onViewProfileMonth?.(member.name, month.key),style:{display:"flex",alignItems:"center",gap:7,background:"rgba(5,24,21,.78)",border:"1px solid rgba(78,205,196,.26)",borderRadius:8,padding:"7px 9px",minWidth:0,textAlign:"left",cursor:onViewProfileMonth?"pointer":"default",fontFamily:"'Outfit', sans-serif",color:"var(--text)",boxShadow:"inset 0 1px 0 rgba(255,255,255,.055), 0 6px 14px rgba(0,0,0,.16)"}},
+      React.createElement('div',{style:{width:24,height:24,borderRadius:999,background:avatarColor(member.name),color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:800,flexShrink:0}},initialsFor(member.name)),
       React.createElement('div',{style:{minWidth:0,flex:1}},
-        React.createElement('div',{style:{fontSize:12,fontWeight:800,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},member.name),
-        React.createElement('div',{className:"mono",style:{fontSize:10,color:"var(--muted)"}},`${member.count}/${member.target}`)
+        React.createElement('div',{style:{fontSize:11,fontWeight:800,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},member.name),
+        React.createElement('div',{className:"mono",style:{fontSize:9,color:"var(--muted)"}},`${member.count}/${member.target}`)
       ),
-      React.createElement('span',{style:{color:C.cyan,fontWeight:900,fontSize:13}},"✓")
+      React.createElement('span',{style:{color:C.cyan,fontWeight:900,fontSize:12}},"✓")
     ))
   );
 
@@ -213,7 +213,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
               disabled:settlementBusy===key || state.pending,
               style:{fontSize:11,fontWeight:800,padding:"6px 10px",borderRadius:8,background:state.pending?"var(--s3)":"var(--red-dim)",border:`1px solid ${state.pending?"var(--border)":"rgba(224,80,32,.35)"}`,color:state.pending?"var(--muted)":"#e05020"}
             }, settlementBusy===key ? "Saving..." : state.pending ? "Waiting" : "Mark as paid");
-        return React.createElement('div',{key:key,style:{...C.card,padding:outcome==="winner"?"7px 9px":"9px 11px",background:outcome==="winner"?"linear-gradient(135deg, rgba(255,255,255,.075), rgba(8,15,15,.98) 64%)":C.card.background}},
+        return React.createElement('div',{key:key,style:{...C.card,padding:outcome==="winner"?"7px 9px":"9px 11px",background:outcome==="winner"?"linear-gradient(180deg, rgba(255,255,255,.08), rgba(57,168,90,.055) 44%, rgba(8,15,15,.98) 100%)":C.card.background}},
           React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:outcome==="winner"?"center":"space-between",gap:outcome==="winner"?7:10,minHeight:outcome==="winner"?22:28,textAlign:outcome==="winner"?"center":"left"}},
             outcome==="winner"
               ? React.createElement('div',{style:{fontSize:12,fontWeight:800,color:"var(--text)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",minWidth:0}},pair.payerDisplayName)

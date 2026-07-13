@@ -288,13 +288,14 @@ const GroupHome = ({groups,currentIdentity,currentEmail,onOpenProfile,onOpenGrou
   const statusColor = status => status==="cruising" ? "#CBD5E1" : status==="on-track" ? "#5ABF5A" : status==="at-risk" ? "#D4A843" : status==="behind" ? "#D47843" : status==="cooked" ? "#D44A4A" : "#CBD5E1";
   const statusOverlay = status => {
     if (!status || status === "starting-soon") return "linear-gradient(180deg,rgba(11,17,17,.985),rgba(8,12,12,.985))";
-    const color = status==="locked-in" || status==="cruising" ? "203,213,225"
+    const isCruising = status==="locked-in" || status==="cruising";
+    const color = isCruising ? "203,213,225"
       : status==="on-track" ? "90,191,90"
       : status==="at-risk" ? "212,168,67"
       : status==="behind" ? "212,120,67"
       : status==="cooked" ? "212,74,74"
       : "78,205,196";
-    return `radial-gradient(ellipse 90% 105% at 12% 0%, rgba(${color},.16), rgba(${color},.06) 44%, transparent 76%), linear-gradient(180deg,rgba(11,17,17,.985),rgba(8,12,12,.985))`;
+    return `radial-gradient(ellipse 90% 105% at 12% 0%, rgba(${color},${isCruising?".115":".16"}), rgba(${color},${isCruising?".04":".06"}) 44%, transparent 76%), linear-gradient(180deg,rgba(11,17,17,.985),rgba(8,12,12,.985))`;
   };
   return React.createElement(React.Fragment,null,
     React.createElement('div',{style:{minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-start",padding:compactMobile?"calc(env(safe-area-inset-top) + 16px) 16px 28px":"32px 18px",background:"transparent"}},
@@ -302,7 +303,7 @@ const GroupHome = ({groups,currentIdentity,currentEmail,onOpenProfile,onOpenGrou
         groups.length>0
           ? React.createElement('div',{style:{display:"flex",gap:7,alignItems:"center",flexWrap:"wrap"}},
               React.createElement('button',{onClick:()=>setShowCreate(true),style:{background:"var(--green)",color:"#000",padding:compactMobile?"7px 10px":"8px 11px",borderRadius:8,fontSize:11,fontWeight:800}},"New Bloc"),
-              React.createElement('button',{onClick:onJoinGroup,style:{background:"rgba(78,205,196,.18)",border:"1px solid rgba(78,205,196,.28)",color:"#BFEFEB",padding:compactMobile?"7px 10px":"8px 11px",borderRadius:8,fontSize:11,fontWeight:800}},"Join")
+              React.createElement('button',{onClick:onJoinGroup,style:{background:"rgba(24,136,130,.34)",border:"1px solid rgba(78,205,196,.24)",color:"#FFFFFF",padding:compactMobile?"7px 10px":"8px 11px",borderRadius:8,fontSize:11,fontWeight:800}},"Join")
             )
           : React.createElement('div',null),
         React.createElement('button',{type:"button",onClick:onOpenProfile,title:currentEmail||"Account",style:{width:32,height:32,display:"inline-flex",alignItems:"center",justifyContent:"center",borderRadius:999,background:"rgba(24,24,31,.62)",border:"1px solid rgba(62,62,82,.55)",color:"rgba(124,136,152,.78)",fontSize:14,lineHeight:1,flexShrink:0}},React.createElement(AppIcon,{name:"profile",size:13}))
