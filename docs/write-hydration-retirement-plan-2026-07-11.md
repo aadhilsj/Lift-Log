@@ -123,6 +123,15 @@ Historical shell amendment, 2026-07-13:
   target group before normalizing the mutation-grade group shell
 - this reduces the remaining full-report drift without touching client
   bootstrap normalization or changing identity repair paths
+- admin-only `historical-shell-reconciliation-report` now compares blob
+  `monthHistory` / `seasonOverrides` with the canonical writable constructor
+  without persisting anything; local status is clean for all 7 blocs
+- season override overlays now preserve blob compatibility metadata
+  (`chosenAt`, `chosenBy`, `chosenByUserId`) when canonical rows are otherwise
+  authoritative
+- preview parity warning probes for current/open actions use the same
+  current/open comparison scope as the report slices, avoiding warning noise
+  from known historical-shell residue
 
 Identity report amendment, 2026-07-13:
 
@@ -131,7 +140,7 @@ Identity report amendment, 2026-07-13:
 - these probes compare writable blob input against canonical-built global
   writable input without changing runtime `upsert-profile`
 - local results show identity rename is still blocked by historical
-  `monthHistory` / `seasonOverrides` drift
+  `monthHistory` drift after synthetic rename mutation
 - the probe ignores profile `createdAt`, because canonical profile rows preserve
   their own creation timestamp and profile rename does not semantically mutate
   account creation time

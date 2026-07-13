@@ -273,6 +273,18 @@ July 12 report/current-open expansion:
   writable constructor
 - full-group report status still fails on historical compatibility-shell drift,
   mostly `monthHistory`, and for some blocs historical `seasonOverrides`
+- July 13 historical-shell probe:
+  - added admin-only `historical-shell-reconciliation-report`
+  - the report compares blob `monthHistory` / `seasonOverrides` against the
+    canonical writable constructor without persisting anything
+  - local status after preserving season override metadata: `ok: true`,
+    `checked: 7`, `needsReconciliation: 0`
+- canonical season override merges now preserve blob-side compatibility
+  metadata (`chosenAt`, `chosenBy`, `chosenByUserId`) when the canonical row is
+  otherwise authoritative
+- preview parity warnings for current/open cutover actions now use the same
+  current/open comparison scope as the report slices, so known historical-shell
+  residue does not generate noisy warning logs for those actions
 - do not use these current/open results as approval to move global identity
   paths; `auth-sync`, `upsert-profile`, `repair-display-name`, and legacy
   admin `settlement` still need separate handling
@@ -420,10 +432,14 @@ Local report after adding the identity probe:
 - `upsert-profile:identity-rename`: `12` checked, `12` failed, `1` skipped
 - the failures mostly inherit Batch 1 historical shell drift:
   - `monthHistory`
-  - `seasonOverrides`
 - the identity probe now ignores `profiles.*.createdAt` because profile rename
   does not semantically change account creation time and the canonical profile
   RPC preserves its own row creation timestamp
+- after the historical-shell probe landed, at-rest `monthHistory` /
+  `seasonOverrides` reconciliation is clean; the remaining broad
+  `upsert-profile:identity-rename` failures are still `monthHistory` after
+  synthetic global rename mutation, so runtime `upsert-profile` remains out of
+  scope for canonical writable input
 
 Interpretation:
 

@@ -223,6 +223,14 @@ function isWriteHydrationParityEnabled(action) {
   return WRITE_HYDRATION_PARITY_ACTIONS.has("*") || WRITE_HYDRATION_PARITY_ACTIONS.has(action);
 }
 
+function isCurrentOpenWriteHydrationAction(action) {
+  return WRITE_HYDRATION_PARITY_DEFAULT_ACTIONS.includes(action)
+    || action === "add-log"
+    || action === "multi-log"
+    || action === "kick-member"
+    || action === "leave-bloc";
+}
+
 function assertAdminPin(payload) {
   const adminPin = process.env.ADMIN_PIN;
   if (!adminPin) {
@@ -773,6 +781,26 @@ function normalizeSeasonOverrides(seasonOverrides) {
         }];
       })
       .filter(Boolean)
+  );
+}
+
+function mergeSeasonOverridesPreservingMetadata(blobOverrides, canonicalOverrides) {
+  const normalizedBlob = normalizeSeasonOverrides(blobOverrides);
+  const normalizedCanonical = normalizeSeasonOverrides(canonicalOverrides);
+  return Object.fromEntries(
+    uniqueNames([...Object.keys(normalizedBlob), ...Object.keys(normalizedCanonical)])
+      .map(monthKey => {
+        const blobOverride = normalizedBlob[monthKey] || {};
+        const canonicalOverride = normalizedCanonical[monthKey] || null;
+        if (!canonicalOverride) return [monthKey, blobOverride];
+        return [monthKey, {
+          ...blobOverride,
+          ...canonicalOverride,
+          chosenAt: canonicalOverride.chosenAt || blobOverride.chosenAt || null,
+          chosenBy: canonicalOverride.chosenBy || blobOverride.chosenBy || null,
+          chosenByUserId: canonicalOverride.chosenByUserId || blobOverride.chosenByUserId || null
+        }];
+      })
   );
 }
 
@@ -2570,10 +2598,7 @@ async function fetchReadableCurrentState() {
         if (!overrides) return [groupId, group];
         return [groupId, {
           ...group,
-          seasonOverrides: normalizeSeasonOverrides({
-            ...(group.seasonOverrides || {}),
-            ...overrides
-          })
+          seasonOverrides: mergeSeasonOverridesPreservingMetadata(group.seasonOverrides, overrides)
         }];
       })
     );
@@ -3051,10 +3076,10 @@ async function buildCanonicalWritableStateForGroup(groupId, baseStateOverride = 
       : {})
   };
 
-  const canonicalSeasonOverrides = normalizeSeasonOverrides({
-    ...(baseGroup.seasonOverrides || {}),
-    ...(anteSeasonOverrides?.[safeGroupId] || {})
-  });
+  const canonicalSeasonOverrides = mergeSeasonOverridesPreservingMetadata(
+    baseGroup.seasonOverrides,
+    anteSeasonOverrides?.[safeGroupId] || {}
+  );
   const canonicalHistoryGroup = {
     ...baseGroup,
     memberships: canonicalMemberships,
@@ -3111,6 +3136,77 @@ async function buildCanonicalWritableStateForAllGroups(baseStateOverride = null)
     state = await buildCanonicalWritableStateForGroup(groupId, state);
   }
   return state;
+}
+
+async function buildHistoricalShellReconciliationReport(baseState) {
+  const canonicalState = await buildCanonicalWritableStateForAllGroups(baseState);
+  const writableBlob = buildWriteHydrationComparisonBlob(baseState, "historical-shell");
+  const canonicalBlob = buildWriteHydrationComparisonBlob(canonicalState, "historical-shell");
+  const groupIds = uniqueNames([
+    ...(Array.isArray(baseState.groupOrder) ? baseState.groupOrder : []),
+    ...Object.keys(baseState.groups || {}),
+    ...Object.keys(canonicalState.groups || {})
+  ]);
+  const groups = groupIds.map(groupId => {
+    const writableGroup = writableBlob.groups?.[groupId] || null;
+    const canonicalGroup = canonicalBlob.groups?.[groupId] || null;
+    const writableMonthsByKey = Object.fromEntries((writableGroup?.monthHistory || []).map(month => [month.key, month]));
+    const canonicalMonthsByKey = Object.fromEntries((canonicalGroup?.monthHistory || []).map(month => [month.key, month]));
+    const monthKeys = uniqueNames([...Object.keys(writableMonthsByKey), ...Object.keys(canonicalMonthsByKey)]).sort(compareMonthKeys);
+    const missingBlobMonthKeys = monthKeys.filter(monthKey => !writableMonthsByKey[monthKey] && canonicalMonthsByKey[monthKey]);
+    const missingCanonicalMonthKeys = monthKeys.filter(monthKey => writableMonthsByKey[monthKey] && !canonicalMonthsByKey[monthKey]);
+    const differingMonthKeys = monthKeys.filter(monthKey =>
+      writableMonthsByKey[monthKey] &&
+      canonicalMonthsByKey[monthKey] &&
+      valuesDiffer(writableMonthsByKey[monthKey], canonicalMonthsByKey[monthKey])
+    );
+    const writableOverrides = normalizeSeasonOverrides(writableGroup?.seasonOverrides);
+    const canonicalOverrides = normalizeSeasonOverrides(canonicalGroup?.seasonOverrides);
+    const overrideMonthKeys = uniqueNames([...Object.keys(writableOverrides), ...Object.keys(canonicalOverrides)]).sort(compareMonthKeys);
+    const missingBlobOverrideKeys = overrideMonthKeys.filter(monthKey => !writableOverrides[monthKey] && canonicalOverrides[monthKey]);
+    const missingCanonicalOverrideKeys = overrideMonthKeys.filter(monthKey => writableOverrides[monthKey] && !canonicalOverrides[monthKey]);
+    const differingOverrideKeys = overrideMonthKeys.filter(monthKey =>
+      writableOverrides[monthKey] &&
+      canonicalOverrides[monthKey] &&
+      valuesDiffer(writableOverrides[monthKey], canonicalOverrides[monthKey])
+    );
+    return {
+      groupId,
+      name: canonicalGroup?.name || writableGroup?.name || "",
+      blobMonthCount: Object.keys(writableMonthsByKey).length,
+      canonicalMonthCount: Object.keys(canonicalMonthsByKey).length,
+      missingBlobMonthKeys,
+      missingCanonicalMonthKeys,
+      differingMonthKeys,
+      blobSeasonOverrideCount: Object.keys(writableOverrides).length,
+      canonicalSeasonOverrideCount: Object.keys(canonicalOverrides).length,
+      missingBlobOverrideKeys,
+      missingCanonicalOverrideKeys,
+      differingOverrideKeys,
+      needsReconciliation:
+        missingBlobMonthKeys.length > 0 ||
+        missingCanonicalMonthKeys.length > 0 ||
+        differingMonthKeys.length > 0 ||
+        missingBlobOverrideKeys.length > 0 ||
+        missingCanonicalOverrideKeys.length > 0 ||
+        differingOverrideKeys.length > 0
+    };
+  });
+  const groupsNeedingReconciliation = groups.filter(group => group.needsReconciliation);
+  return {
+    ok: groupsNeedingReconciliation.length === 0,
+    checked: groups.length,
+    needsReconciliation: groupsNeedingReconciliation.length,
+    totals: {
+      missingBlobMonths: groups.reduce((sum, group) => sum + group.missingBlobMonthKeys.length, 0),
+      missingCanonicalMonths: groups.reduce((sum, group) => sum + group.missingCanonicalMonthKeys.length, 0),
+      differingMonths: groups.reduce((sum, group) => sum + group.differingMonthKeys.length, 0),
+      missingBlobOverrides: groups.reduce((sum, group) => sum + group.missingBlobOverrideKeys.length, 0),
+      missingCanonicalOverrides: groups.reduce((sum, group) => sum + group.missingCanonicalOverrideKeys.length, 0),
+      differingOverrides: groups.reduce((sum, group) => sum + group.differingOverrideKeys.length, 0)
+    },
+    groups: groupsNeedingReconciliation
+  };
 }
 
 // Mutations must always hydrate from the blob source of truth.
@@ -3888,7 +3984,10 @@ async function runWriteHydrationParityProbe(action, payload, auth, actor, writab
 
     const writableBlob = buildWriteHydrationComparisonBlob(writableUpdated, action);
     const canonicalBlob = buildWriteHydrationComparisonBlob(canonicalUpdated, action);
-    const mismatches = collectWriteHydrationGroupMismatches(
+    const mismatchCollector = isCurrentOpenWriteHydrationAction(action)
+      ? collectWriteHydrationCurrentOpenMismatches
+      : collectWriteHydrationGroupMismatches;
+    const mismatches = mismatchCollector(
       writableBlob.groups?.[groupId],
       canonicalBlob.groups?.[groupId],
       groupId
@@ -5823,6 +5922,12 @@ export default async function handler(req, res) {
       if (payload?.action === "write-hydration-parity-report") {
         assertAdminPin(payload);
         const report = await buildWriteHydrationParityReport(await getCurrent());
+        return res.status(200).json(report);
+      }
+
+      if (payload?.action === "historical-shell-reconciliation-report") {
+        assertAdminPin(payload);
+        const report = await buildHistoricalShellReconciliationReport(await getCurrent());
         return res.status(200).json(report);
       }
 
