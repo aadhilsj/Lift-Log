@@ -910,3 +910,19 @@ Follow-up fix:
 - failed reaction saves drop the local override so the UI returns to server state
 - this keeps reaction taps instant without reintroducing overlapping full-state
   writes
+
+### Batch 12 follow-up - preserve reaction feedback across tab switches
+
+Preview testing showed a remaining reaction edge case: reaction taps were instant
+and persisted, but switching away from Activity and back before the queued server
+writes finished briefly showed stale server state. The Activity feed component
+was unmounting and losing its local reaction override while the server queue was
+still draining.
+
+Follow-up fix:
+
+- pending reaction overrides now live in `App`, not only inside `ActivityFeed`
+- Activity still renders the override immediately
+- the override survives navigation between Today and Activity
+- app-level cleanup removes overrides once canonical state matches the pending
+  reaction state

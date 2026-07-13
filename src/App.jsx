@@ -19,6 +19,7 @@ import {
   getMembershipForUser,
   syncActiveGroupGlobals,
   getCurrentGroupMemberNames,
+  flattenFeedPosts,
   setActiveSessionUserId
 } from "./lib/appState.js";
 import {
@@ -76,6 +77,16 @@ import { ActivityPage } from "./pages/ActivityPage.jsx";
 import { MonthPage } from "./pages/MonthPage.jsx";
 import { HistoryPage } from "./pages/HistoryPage.jsx";
 
+const normalizeReactionMembers = (members) => Array.isArray(members)
+  ? Array.from(new Set(members.filter(Boolean))).sort()
+  : [];
+
+const reactionsMatch = (a, b) => {
+  const left = normalizeReactionMembers(a);
+  const right = normalizeReactionMembers(b);
+  return left.length === right.length && left.every((member, index) => member === right[index]);
+};
+
 const App = () => {
   const cached = readCachedData();
   const initialPersistedSession = readPersistedAuthSession();
@@ -127,6 +138,7 @@ const App = () => {
   const [syncError,setSyncError]=useState(false);
   const [lastSyncedAt,setLastSyncedAt]=useState(null);
   const [showJustSynced,setShowJustSynced]=useState(false);
+  const [reactionOverrides,setReactionOverrides]=useState({});
   const [isMobileView,setIsMobileView]=useState(()=>isMobile());
   const [clockTick,setClockTick]=useState(Date.now());
   const [authReady,setAuthReady]=useState(()=>!!initialPersistedSession?.userId);
@@ -214,6 +226,32 @@ const App = () => {
 
   setActiveSessionUserId(effectiveAuthSession?.userId || "");
   syncActiveGroupGlobals(currentGroup);
+
+  useEffect(()=>{
+    setReactionOverrides(current => {
+      let changed = false;
+      const next = {};
+      Object.entries(current).forEach(([key, override]) => {
+        const group = appState.groups?.[override.groupId];
+        if (!group) {
+          changed = true;
+          return;
+        }
+        const post = flattenFeedPosts(group).find(item => item.owner === override.owner && item.id === override.logId);
+        if (!post) {
+          changed = true;
+          return;
+        }
+        const baseMembers = post.reactions?.[override.emoji] || [];
+        if (reactionsMatch(baseMembers, override.members)) {
+          changed = true;
+          return;
+        }
+        next[key] = override;
+      });
+      return changed ? next : current;
+    });
+  },[appState]);
 
   const buildOptimisticState = useCallback((incoming) => {
     const nextState = normalizeAppState({
@@ -1195,7 +1233,7 @@ const App = () => {
       page==="today"  &&React.createElement(TodayPageErrorBoundary,{resetKey:`${selectedGroupId}:${navResetToken}:${currentUser}`},
         React.createElement(TodayPage,  {user:currentUser,currentUserId:effectiveAuthSession?.userId,currentGroupId:selectedGroupId,groups,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,saving,onSave:handleSave,onMultiLog:handleMultiLog,onLogMutation:handleLogMutation,clockTick,onViewLastMonth:()=>{setMonthInitialIdx(0);setPage("month");},onSitOutRequest:handleSitOutRequest,onSettlementClaimPaid:handleSettlementClaimPaid,onSettlementConfirmPaid:handleSettlementConfirmPaid,onSettlementDisputePaid:handleSettlementDisputePaid,navResetToken,showLog:showTodayLog,setShowLog:setShowTodayLog})
       ),
-      page==="activity"&&React.createElement(ActivityPage,{group:currentGroup,currentUser,onLogMutation:handleLogMutation,clockTick}),
+      page==="activity"&&React.createElement(ActivityPage,{group:currentGroup,currentUser,onLogMutation:handleLogMutation,clockTick,reactionOverrides,setReactionOverrides}),
       page==="month"  &&React.createElement(MonthPage,  {group:currentGroup,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,groupSettings:currentGroup.settings,currentUser,currentUserId:effectiveAuthSession?.userId,initialSelIdx:monthInitialIdx,onStartNextMonth:()=>{setMonthInitialIdx(null);setPage("today");},onSettlementClaimPaid:handleSettlementClaimPaid,onSettlementConfirmPaid:handleSettlementConfirmPaid,navResetToken}),
       page==="history"&&React.createElement(HistoryPage,{logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,groupSettings:currentGroup.settings,navResetToken,currentUser})
     ),

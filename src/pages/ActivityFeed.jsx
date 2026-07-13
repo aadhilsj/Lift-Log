@@ -26,28 +26,30 @@ const reactionsMatch = (a, b) => {
   return left.length === right.length && left.every((member, index) => member === right[index]);
 };
 
-const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clockTick}) => {
+const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clockTick,reactionOverrides,setReactionOverrides}) => {
   const [flagTarget,setFlagTarget]=useState(null);
   const [flagReason,setFlagReason]=useState("");
   const [responseTarget,setResponseTarget]=useState(null);
   const [responseText,setResponseText]=useState("");
   const [reactionTarget,setReactionTarget]=useState(null);
   const [reactionPopover,setReactionPopover]=useState(null);
-  const [reactionOverrides,setReactionOverrides]=useState({});
+  const [localReactionOverrides,setLocalReactionOverrides]=useState({});
   const [imageTarget,setImageTarget]=useState(null);
   const [notice,setNotice]=useState(null);
   const reactionPressTimer = useRef(null);
   const reactionLongPressKey = useRef("");
   const reactionPopoverRef = useRef(null);
+  const activeReactionOverrides = reactionOverrides || localReactionOverrides;
+  const updateReactionOverrides = setReactionOverrides || setLocalReactionOverrides;
   const baseFeedPosts = useMemo(()=>flattenFeedPosts(group),[group]);
   const feedPosts = useMemo(()=>baseFeedPosts.map(post => {
     const reactions = { ...(post.reactions || {}) };
-    Object.values(reactionOverrides).forEach(override => {
-      if (override.owner !== post.owner || override.logId !== post.id) return;
+    Object.values(activeReactionOverrides).forEach(override => {
+      if (override.groupId !== group?.id || override.owner !== post.owner || override.logId !== post.id) return;
       reactions[override.emoji] = override.members;
     });
     return { ...post, reactions };
-  }),[baseFeedPosts, reactionOverrides]);
+  }),[activeReactionOverrides, baseFeedPosts, group?.id]);
   const isAdmin = group?.adminName === currentUser;
   const approvedFlagCount = countApprovedFlagsForActor(group, currentUser);
   const cannotFlagMore = approvedFlagCount >= 3;
@@ -63,10 +65,14 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
     return ()=>document.removeEventListener("pointerdown", handlePointerDown);
   },[reactionPopover]);
   useEffect(()=>{
-    setReactionOverrides(current => {
+    updateReactionOverrides(current => {
       let changed = false;
       const next = {};
       Object.entries(current).forEach(([key, override]) => {
+        if (override.groupId !== group?.id) {
+          next[key] = override;
+          return;
+        }
         const post = baseFeedPosts.find(item => item.owner === override.owner && item.id === override.logId);
         if (!post) {
           changed = true;
@@ -81,7 +87,7 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
       });
       return changed ? next : current;
     });
-  },[baseFeedPosts]);
+  },[baseFeedPosts, group?.id, updateReactionOverrides]);
   const clearReactionTimer = () => {
     if (reactionPressTimer.current) {
       clearTimeout(reactionPressTimer.current);
@@ -103,9 +109,10 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
     const nextMembers = currentMembers.includes(currentUser)
       ? currentMembers.filter(member => member !== currentUser)
       : [...currentMembers, currentUser].sort();
-    setReactionOverrides(current => ({
+    updateReactionOverrides(current => ({
       ...current,
       [key]: {
+        groupId: group?.id,
         owner: post.owner,
         logId: post.id,
         emoji,
@@ -114,20 +121,20 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
     }));
     Promise.resolve(onReact(post.owner, post.id, emoji)).then(result => {
       if (result?.ok === false) {
-        setReactionOverrides(current => {
+        updateReactionOverrides(current => {
           const next = { ...current };
           delete next[key];
           return next;
         });
       }
     }).catch(() => {
-      setReactionOverrides(current => {
+      updateReactionOverrides(current => {
         const next = { ...current };
         delete next[key];
         return next;
       });
     });
-  },[currentUser, group?.id, onReact]);
+  },[currentUser, group?.id, onReact, updateReactionOverrides]);
 
   return React.createElement(React.Fragment,null,
     imageTarget && React.createElement(ImageLightbox,{src:imageTarget.src,alt:imageTarget.alt,onClose:()=>setImageTarget(null),canFlag:imageTarget.canFlag,onFlag:()=>{ setImageTarget(null); setFlagTarget(imageTarget.post); }}),
