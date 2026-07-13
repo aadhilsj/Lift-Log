@@ -1230,3 +1230,43 @@ Next smoke focus:
 - delete-log
 - own-workout flag guard
 - if available, flag another user's workout and review/respond to the flag
+
+## Batch 20 - Wire Add-Log Mirror-Skip Candidate
+
+Batch 20 started on 2026-07-13 after Batch 19 preview smoke passed for sign-in,
+blocs loading, reaction/unreaction, delete-log, and the own-workout flag guard.
+The user did not have a convenient second-user flag review setup, so the flag
+family was re-checked in code before this batch:
+
+- self-flag rejection still lives inside `applyFlagLog`
+- flag response still requires the workout owner
+- flag review still requires the Bloc admin
+- Batch 19 only changed the optional writable-blob shadow step so a blob-shell
+  `404` no longer blocks a canonical-successful log-adjacent mutation
+
+Implemented:
+
+- added `add-log` to the disabled-by-default `BLOB_MIRROR_SKIP_ACTIONS`
+  allowed/wired sets
+- kept the current preview/prod env values unchanged, so this commit by itself
+  does not skip blob persistence for add-log anywhere
+- captured the writable blob-shell add-log result and runs the existing
+  write-hydration parity probe before the final persistence step
+- changed add-log final persistence to `persistOrSkipBlobMirror(...)`, which is
+  behaviorally identical while `add-log` is absent from the env flag
+
+Deliberately not combined:
+
+- `multi-log` remains mirrored and is not added to the skip allow-list
+- reason: multi-log spans multiple target blocs, while the runtime parity helper
+  is single-group and derives `groupId` from `payload.groupId`; multi-log needs
+  an explicit multi-target parity path before it should be eligible for mirror
+  skip
+
+Next smoke focus:
+
+- sign in / blocs load
+- add one normal workout
+- delete that test workout
+- reaction/unreaction sanity
+- if possible, one multi-log sanity check to confirm it remains unaffected

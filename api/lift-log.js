@@ -33,6 +33,7 @@ const WRITE_HYDRATION_PARITY_DEFAULT_ACTIONS = [
   "season-proration-choice",
   "sitout-request",
   "sitout-review",
+  "add-log",
   "reaction",
   "flag",
   "flag-response",
@@ -51,6 +52,7 @@ const WRITE_HYDRATION_PARITY_ACTIONS = new Set(
 );
 const BLOB_MIRROR_SKIP_ALLOWED_ACTIONS = new Set([
   "season-proration-choice",
+  "add-log",
   "reaction",
   "flag",
   "flag-response",
@@ -59,6 +61,7 @@ const BLOB_MIRROR_SKIP_ALLOWED_ACTIONS = new Set([
 ]);
 const BLOB_MIRROR_SKIP_WIRED_ACTIONS = new Set([
   "season-proration-choice",
+  "add-log",
   "reaction",
   "flag",
   "flag-response",
@@ -7082,7 +7085,7 @@ export default async function handler(req, res) {
       if (payload?.action === "add-log") {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
-        applyAddLog(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        const shadowBlobUpdated = applyAddLog(auth.state, { ...payload, actor, actorUserId: auth.user.id });
         const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
         const canonicalActor = resolveDisplayNameForUser(canonicalState, payload.groupId, auth.user.id, auth.user.email) || actor;
         const result = applyAddLog(canonicalState, { ...payload, actor: canonicalActor, actorUserId: auth.user.id });
@@ -7097,7 +7100,8 @@ export default async function handler(req, res) {
           await syncSeasonToCanonical(group, result.monthKey, targetMonth ? "closed" : "open", targetMonth?.closedAt || null, { throwOnError: true });
           await upsertWorkoutLogToCanonical(group, result.monthKey, canonicalActor, auth.user.id, result.log, { throwOnError: true });
         }
-        const persisted = await persistState(result.updated, result.reason);
+        await runWriteHydrationParityProbe("add-log", payload, auth, actor, shadowBlobUpdated.updated, applyAddLog);
+        const persisted = await persistOrSkipBlobMirror(result.updated, result.reason, "add-log");
         return res.status(200).json(persisted);
       }
 
