@@ -87,7 +87,7 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
 
   const allTime=useMemo(()=>historicalNames.map(name=>{
     const participated=fullHistory.filter(m=>isJoinedForMonth(name, m.key) && !m.excused?.[name]);
-    const monthsInBloc=fullHistory.filter(m=>isJoinedForMonth(name, m.key)).length;
+    const activeMonths=participated.length;
     const total=participated.reduce((s,m)=>s+(m.counts[name]||0),0);
     const closedP=monthHistory.filter(m=>isJoinedForMonth(name, m.key) && !m.excused?.[name]);
     const closedTotal=closedP.reduce((s,m)=>s+(m.counts[name]||0),0);
@@ -103,7 +103,7 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
       if(winners.find(w=>w.name===name)){wins++;moneyWon+=perWinner;}
       if(losers.find(l=>l.name===name)){moneyLost+=getLoserAmount(penalties, name);}
     });
-    return {name,total,avg,monthsInBloc,wins,moneyWon,moneyLost};
+    return {name,total,avg,activeMonths,wins,moneyWon,moneyLost};
   }),[fullHistory, monthHistory, historicalNames]);
 
   const groupMonthlyAvg=useMemo(()=>{
@@ -244,7 +244,7 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
             React.createElement('div',{style:{fontWeight:600,fontSize:14,display:"flex",alignItems:"baseline",gap:6,flexWrap:"wrap",color:"var(--text)"}},u.name,u.name===currentUser&&React.createElement('span',{className:"mono",style:{fontSize:8,color:"#3d5e59"}},"you")),
             React.createElement('span',{style:{fontSize:14,fontWeight:700,textAlign:"right",color:"var(--text)"}},u.total||"—"),
             React.createElement('span',{style:{fontSize:11,fontWeight:700,color:"var(--muted)",textAlign:"right"}},u.avg),
-            React.createElement('span',{style:{fontSize:11,fontWeight:700,color:"var(--muted)",textAlign:"right"}},u.monthsInBloc||"—"),
+            React.createElement('span',{style:{fontSize:11,fontWeight:700,color:"var(--muted)",textAlign:"right"}},u.activeMonths||"—"),
             React.createElement('span',{style:{fontSize:11,fontWeight:700,textAlign:"right",color:hasClosedHistory&&u.wins>0?"var(--gold)":"var(--muted)",display:"inline-flex",alignItems:"center",justifyContent:"flex-end",gap:4}},
               hasClosedHistory&&u.wins>0 ? u.wins : "—"
             ),
