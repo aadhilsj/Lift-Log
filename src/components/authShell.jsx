@@ -293,11 +293,17 @@ const GroupHome = ({groups,currentIdentity,currentEmail,onOpenProfile,onOpenGrou
       : status==="behind" ? "212,120,67"
       : status==="cooked" ? "212,74,74"
       : "78,205,196";
-    return `radial-gradient(ellipse 85% 95% at 12% 0%, rgba(${color},.105), rgba(${color},.035) 42%, transparent 72%), linear-gradient(180deg,rgba(11,17,17,.985),rgba(8,12,12,.985))`;
+    return `radial-gradient(ellipse 90% 105% at 12% 0%, rgba(${color},.16), rgba(${color},.06) 44%, transparent 76%), linear-gradient(180deg,rgba(11,17,17,.985),rgba(8,12,12,.985))`;
   };
   return React.createElement(React.Fragment,null,
     React.createElement('div',{style:{minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-start",padding:compactMobile?"calc(env(safe-area-inset-top) + 16px) 16px 28px":"32px 18px",background:"transparent"}},
-      React.createElement('div',{style:{width:"100%",maxWidth:744,display:"flex",justifyContent:"flex-end",marginBottom:compactMobile?10:12}},
+      React.createElement('div',{style:{width:"100%",maxWidth:744,display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,marginBottom:compactMobile?10:12}},
+        groups.length>0
+          ? React.createElement('div',{style:{display:"flex",gap:7,alignItems:"center",flexWrap:"wrap"}},
+              React.createElement('button',{onClick:()=>setShowCreate(true),style:{background:"var(--green)",color:"#000",padding:compactMobile?"7px 10px":"8px 11px",borderRadius:8,fontSize:11,fontWeight:800}},"New Bloc"),
+              React.createElement('button',{onClick:onJoinGroup,style:{background:"rgba(24,24,31,.62)",border:"1px solid rgba(62,62,82,.55)",color:"var(--text)",padding:compactMobile?"7px 10px":"8px 11px",borderRadius:8,fontSize:11,fontWeight:800}},"Join")
+            )
+          : React.createElement('div',null),
         React.createElement('button',{type:"button",onClick:onOpenProfile,title:currentEmail||"Account",style:{width:32,height:32,display:"inline-flex",alignItems:"center",justifyContent:"center",borderRadius:999,background:"rgba(24,24,31,.62)",border:"1px solid rgba(62,62,82,.55)",color:"rgba(124,136,152,.78)",fontSize:14,lineHeight:1,flexShrink:0}},React.createElement(AppIcon,{name:"profile",size:13}))
       ),
       groups.length===0
@@ -312,8 +318,7 @@ const GroupHome = ({groups,currentIdentity,currentEmail,onOpenProfile,onOpenGrou
         : React.createElement(React.Fragment,null,
       React.createElement('div',{className:"fu",style:{textAlign:"center",marginBottom:compactMobile?16:32,maxWidth:560}},
         React.createElement('span',{className:"mono",style:{fontSize:10,color:"var(--cyan)",letterSpacing:".2em",textTransform:"uppercase"}},"Your Blocs"),
-      React.createElement('div',{style:{margin:compactMobile?"6px 0 8px":"14px 0"}},React.createElement(AnteWordmark,{size:compactMobile?38:58})),
-      React.createElement('div',{style:{color:"var(--muted)",fontSize:compactMobile?12:16,fontWeight:500,lineHeight:1.45,marginBottom:compactMobile?10:14,maxWidth:compactMobile?340:560}},"Choose a Bloc to enter, or create a new one. Antè keeps each Bloc separate, with its own rules, invites, and stakes.")
+      React.createElement('div',{style:{margin:compactMobile?"6px 0 8px":"14px 0"}},React.createElement(AnteWordmark,{size:compactMobile?38:58}))
       ),
       React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(228px,1fr))",gap:compactMobile?7:12,width:"100%",maxWidth:744,marginBottom:compactMobile?30:34}},
         groups.map((group,index)=>{
@@ -367,10 +372,7 @@ const GroupHome = ({groups,currentIdentity,currentEmail,onOpenProfile,onOpenGrou
           );
         })
       ),
-      React.createElement('div',{style:{display:"flex",gap:10,flexWrap:"wrap",justifyContent:"center"}},
-        React.createElement('button',{onClick:()=>setShowCreate(true),style:{background:"var(--green)",color:"#000",padding:compactMobile?"12px 18px":"12px 20px",borderRadius:10,fontSize:14,fontWeight:800}},"+ Create Bloc"),
-        React.createElement('button',{onClick:onJoinGroup,style:{background:"var(--s2)",border:"1px solid var(--border)",color:"var(--text)",padding:compactMobile?"12px 18px":"12px 20px",borderRadius:10,fontSize:14,fontWeight:800}},"Join Bloc")
-      )
+      React.createElement('div',{style:{height:compactMobile?4:8}})
     )/* end non-empty Fragment */),
     showCreate && React.createElement(GroupCreateModal,{
       creating,

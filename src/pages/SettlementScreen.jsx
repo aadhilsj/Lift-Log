@@ -114,7 +114,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
       return {
         tag: "1st · PERFECT BLOC MONTH",
         stat: `${userCount} workouts`,
-        line: streakLine || "You led the way.",
+        line: streakLine ? `Great work. ${streakLine}` : "You led the way.",
         footerLine: `Everyone hit their target this ${selectedMonthName}.`,
         tone: "perfect"
       };
@@ -131,7 +131,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
       return {
         tag: "PERFECT BLOC MONTH",
         stat: `${userCount} workouts`,
-        line: streakLine || "",
+        line: streakLine ? `Great work. ${streakLine}` : "",
         footerLine: `Everyone hit their target this ${selectedMonthName}.`,
         tone: "perfect"
       };
@@ -140,7 +140,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
       return {
         tag: `Target Hit · ${ordinal(userRank)} Place`,
         stat: `${userCount} workouts`,
-        line: streakLine ? `Solid month. ${streakLine}` : "Solid month. Build on it next month.",
+        line: streakLine ? `Great work. ${streakLine}` : "Great work. Build on it next month.",
         tone: "neutral"
       };
     }
@@ -192,9 +192,9 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
     const title = outcome === "winner" ? "Collecting from" : "You owe";
     const totalColor = outcome === "winner" ? C.greenText : C.redText;
 
-    return React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:7,width:"100%",maxWidth:outcome==="winner"?230:"100%",margin:outcome==="winner"?"0 auto":"0"}},
+    return React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:6,width:"100%",maxWidth:outcome==="winner"?168:"100%",margin:outcome==="winner"?"0 auto":"0"}},
       React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:outcome==="winner"?"center":"space-between",gap:10,textAlign:outcome==="winner"?"center":"left"}},
-        React.createElement('div',{style:C.sectionLabel},title),
+        React.createElement('div',{style:outcome==="winner"?{...C.sectionLabel,fontSize:9,letterSpacing:".045em"}:C.sectionLabel},title),
         outcome !== "winner" && React.createElement('div',{style:{fontSize:14,fontWeight:900,color:totalColor}},`-${fmtCurrency(rows.reduce((sum, row) => sum + row.amount, 0), currency)}`)
       ),
       rows.map(pair => {
@@ -213,8 +213,8 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
               disabled:settlementBusy===key || state.pending,
               style:{fontSize:11,fontWeight:800,padding:"6px 10px",borderRadius:8,background:state.pending?"var(--s3)":"var(--red-dim)",border:`1px solid ${state.pending?"var(--border)":"rgba(224,80,32,.35)"}`,color:state.pending?"var(--muted)":"#e05020"}
             }, settlementBusy===key ? "Saving..." : state.pending ? "Waiting" : "Mark as paid");
-        return React.createElement('div',{key:key,style:{...C.card,padding:"9px 11px",background:outcome==="winner"?"linear-gradient(135deg, rgba(57,168,90,.105), rgba(8,15,15,.98) 62%)":C.card.background}},
-          React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:outcome==="winner"?"center":"space-between",gap:10,minHeight:28,textAlign:outcome==="winner"?"center":"left"}},
+        return React.createElement('div',{key:key,style:{...C.card,padding:outcome==="winner"?"9px 10px":"9px 11px",background:outcome==="winner"?"linear-gradient(135deg, rgba(255,255,255,.075), rgba(8,15,15,.98) 64%)":C.card.background}},
+          React.createElement('div',{style:{display:"flex",flexDirection:outcome==="winner"?"column":"row",alignItems:"center",justifyContent:outcome==="winner"?"center":"space-between",gap:outcome==="winner"?3:10,minHeight:28,textAlign:outcome==="winner"?"center":"left"}},
             outcome==="winner"
               ? React.createElement('div',{style:{fontSize:13,fontWeight:800,color:"var(--text)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},pair.payerDisplayName)
               : React.createElement('div',{style:{display:"flex",alignItems:"center",gap:8,minWidth:0}},
@@ -241,7 +241,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
   const awardCards = [
     {title:"Bloc Champ", name:mvpNames.length ? mvpNames.join(" & ") : "No winner", detail:mvpNames.length ? `${mvpCount} workouts` : "No workouts", tone:"gold", gradient:"linear-gradient(135deg, rgba(245,166,35,.16), rgba(255,224,132,.06))"},
     {title:"Most Consistent", name:fallbackAwardNames[1] || fallbackAwardNames[0] || "Isira", detail:"Steady all month", tone:"violet", gradient:"linear-gradient(135deg, rgba(135,113,255,.16), rgba(78,112,205,.07))"},
-    {title:"Comeback", name:fallbackAwardNames[2] || fallbackAwardNames[0] || "Rahul", detail:"Finished strong", tone:"cyan", gradient:"linear-gradient(135deg, rgba(78,205,196,.14), rgba(71,118,230,.06))"},
+    {title:"Biggest Turnaround", name:fallbackAwardNames[2] || fallbackAwardNames[0] || "Rahul", detail:"Finished strong", tone:"cyan", gradient:"linear-gradient(135deg, rgba(78,205,196,.14), rgba(71,118,230,.06))"},
     {title:"Furthest Behind", name:furthestBehind ? furthestBehind.name : "No one", detail:furthestBehind ? `${furthestBehind.miss} short of target` : "Everyone hit target", tone:furthestBehind ? "red" : "silver", gradient:"linear-gradient(135deg, rgba(185,50,50,.14), rgba(245,166,35,.055))"}
   ];
 
@@ -293,8 +293,6 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
     else navigator.clipboard?.writeText(shareText).then(()=>window.alert("Copied to clipboard!")).catch(()=>{});
   };
 
-  const liveMonthName = MONTH_NAMES[CUR_MONTH];
-  const ctaLabel = DAY_OF_MON <= 2 ? `Start ${liveMonthName} →` : `Go to ${liveMonthName} →`;
   const heroStatSize = String(hero.stat).includes("workouts")
     ? "clamp(31px, 8vw, 42px)"
     : "clamp(36px, 10vw, 52px)";
@@ -319,9 +317,6 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
     React.createElement('div',{style:{display:"flex",gap:8,paddingTop:2}},
       React.createElement('button',{onClick:handleShare,style:{flex:1,padding:"13px",borderRadius:10,background:"var(--s2)",border:"1px solid var(--border)",color:"var(--text)",fontSize:13,fontWeight:800}},
         outcome === "missed" ? "View the settlement" : "Share this month"
-      ),
-      onStartNextMonth && React.createElement('button',{onClick:onStartNextMonth,style:{flex:1,padding:"13px",borderRadius:10,background:"var(--green)",border:"none",color:"#000",fontSize:13,fontWeight:800}},
-        ctaLabel
       )
     )
   );
