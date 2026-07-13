@@ -115,7 +115,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
   const hero = (() => {
     if (userIsWinner && isBlocPerfect) {
       return {
-        tag: "1st · PERFECT BLOC MONTH",
+        tag: "PERFECT BLOC MONTH",
         stat: workoutsLabel(userCount),
         line: perfectLine,
         footerLine: perfectFooterLine,
@@ -124,7 +124,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
     }
     if (userIsWinner) {
       return {
-        tag: "Winner · 1st Place",
+        tag: "Winner",
         stat: `+${fmtCurrency(perWinner, currency)}`,
         topLine: "Top of the Bloc.",
         line: `${workoutsLabel(userCount)}.`,
@@ -143,7 +143,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
     }
     if (!userIsLoser) {
       return {
-        tag: `Target Hit · ${ordinal(userRank)} Place`,
+        tag: "Target Hit",
         stat: workoutsLabel(userCount),
         line: streakLine,
         tone: "neutral"
@@ -165,7 +165,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
         ? {background:"rgba(185,50,50,.07)", border:"1px solid rgba(185,50,50,.18)"}
         : {background:"linear-gradient(135deg, rgba(235,242,241,.18), rgba(185,199,198,.11) 54%, rgba(78,205,196,.025))", border:"1px solid rgba(235,242,241,.22)"};
   const heroColor = hero.tone === "winner" ? C.greenText : hero.tone === "missed" ? C.redText : hero.tone === "neutral" ? "#D7E2E1" : "var(--text)";
-  const heroBadgeBase = {...C.pill,borderRadius:3,padding:"5px 10px",letterSpacing:".06em",textTransform:"uppercase"};
+  const heroBadgeBase = {...C.pill,borderRadius:5,padding:"4px 8px",fontSize:10,letterSpacing:".055em",textTransform:"uppercase"};
   const heroPillStyle = hero.tone === "neutral"
     ? {...heroBadgeBase,alignSelf:"center",background:"linear-gradient(135deg, rgba(255,255,255,.20), rgba(190,202,202,.105) 58%, rgba(255,255,255,.16))",border:"1px solid rgba(235,242,241,.32)",color:"#F2F7F6",fontWeight:900,boxShadow:"inset 0 1px 0 rgba(255,255,255,.16), 0 0 18px rgba(215,226,225,.08)"}
     : hero.tone === "perfect"
