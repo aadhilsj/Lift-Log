@@ -61,7 +61,8 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
   const {winners,losers,perWinner}=penalties;
   const hasActivity=activeCounts.some(u=>u.count>0);
   const resultsCurrency = (isCurrent ? groupSettings : selMonth?.settings)?.currency || DEFAULT_CURRENCY;
-  // At Risk = active, not a loser, not a winner, and currently tagged at-risk.
+  const hasQualifiedWinner = winners.some(w => (w.count || 0) >= (w.target || MIN_TARGET));
+  const wouldMoveMoney = hasQualifiedWinner && losers.length > 0 && perWinner > 0;
   const monthLabel=isCurrent?`${MONTH_NAMES[CUR_MONTH]} ${CUR_YEAR}`:selMonth.label;
 
   const monthSelector=React.createElement(SelectField,{
@@ -104,9 +105,40 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
     })
   );
 
+  const renderCurrentFinancialSnapshot=()=>React.createElement('div',{style:{padding:"13px 15px",borderTop:"1px solid var(--border)",display:"flex",flexDirection:"column",gap:12}},
+    React.createElement('div',{style:{fontSize:12,color:"var(--muted)",lineHeight:1.5}},
+      wouldMoveMoney
+        ? "If the month ended today, these would be the money movements. This is not final."
+        : hasQualifiedWinner
+          ? "If the month ended today, no money would move because nobody would owe."
+          : "If the month ended today, no money would move because nobody has hit MAS yet."
+    ),
+    wouldMoveMoney&&winners.length>0&&React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:7}},
+      React.createElement('div',{className:"mono",style:{fontSize:9,color:"#4ECDC4",textTransform:"uppercase",letterSpacing:".12em"}},"Would collect"),
+      winners.map(w=>React.createElement('div',{key:`win-${w.name}`,style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,background:"rgba(78,205,196,.06)",border:"1px solid rgba(78,205,196,.14)",borderRadius:8,padding:"9px 10px"}},
+        React.createElement('div',{style:{display:"flex",alignItems:"center",gap:8,minWidth:0}},
+          React.createElement(Avatar,{name:w.name,size:24}),
+          React.createElement('span',{style:{fontSize:13,fontWeight:800,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},w.name)
+        ),
+        React.createElement('span',{className:"mono",style:{fontSize:13,fontWeight:800,color:"#4ECDC4",flexShrink:0}},`+${fmtCurrency(perWinner, resultsCurrency)}`)
+      ))
+    ),
+    wouldMoveMoney&&losers.length>0&&React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:7}},
+      React.createElement('div',{className:"mono",style:{fontSize:9,color:"var(--red)",textTransform:"uppercase",letterSpacing:".12em"}},"Would pay"),
+      losers.map(l=>React.createElement('div',{key:`lose-${l.name}`,style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,background:"rgba(232,69,69,.055)",border:"1px solid rgba(232,69,69,.14)",borderRadius:8,padding:"9px 10px"}},
+        React.createElement('div',{style:{display:"flex",alignItems:"center",gap:8,minWidth:0}},
+          React.createElement(Avatar,{name:l.name,size:24}),
+          React.createElement('span',{style:{fontSize:13,fontWeight:800,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},l.name)
+        ),
+        React.createElement('span',{className:"mono",style:{fontSize:13,fontWeight:800,color:"var(--red)",flexShrink:0}},`-${fmtCurrency(getLoserAmount(penalties, l.name), resultsCurrency)}`)
+      ))
+    ),
+    hasQualifiedWinner&&!wouldMoveMoney&&React.createElement('div',{style:{fontSize:13,fontWeight:800,color:"#4ECDC4"}},"Everyone active is currently safe. No one would pay.")
+  );
+
   // ── Closed month → settlement screen ───────────────────────────────────────
   if (!isCurrent && selMonth && currentUser) {
-    return React.createElement('div',{style:{maxWidth:680,margin:"0 auto",padding:"16px",display:"flex",flexDirection:"column",gap:16}},
+    return React.createElement('div',{style:{maxWidth:840,margin:"0 auto",padding:"12px 12px 16px",display:"flex",flexDirection:"column",gap:12}},
       React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10}},
         React.createElement('div',null,
           React.createElement('span',{className:"mono",style:{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".12em",display:"block",marginBottom:3}},"Month"),
@@ -148,7 +180,7 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
         : React.createElement('div',{style:{fontSize:18,fontWeight:800,color:"var(--text)"}},"No leader yet"),
       currentUser&&React.createElement('div',{style:{background:"var(--s1)",border:"1px solid var(--border)",borderRadius:8,padding:"12px 13px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}},
         React.createElement('div',null,
-          React.createElement('div',{style:{fontSize:13,fontWeight:700,color:"var(--text)"}},`${currentUser}'s month so far`),
+          React.createElement('div',{style:{fontSize:13,fontWeight:700,color:"var(--text)"}},"Your month so far"),
           React.createElement('div',{style:{fontSize:12,color:"var(--muted)",marginTop:2}},counts.find(u=>u.name===currentUser)?.memberDiffLabel || getLeaderboardDiffText(counts.find(u=>u.name===currentUser) || {count:0,target:MIN_TARGET}))
         ),
         React.createElement('div',{style:{textAlign:"right"}},
@@ -161,10 +193,10 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
     ),
     React.createElement('div',{style:{border:"1px solid var(--border)",borderRadius:10,overflow:"hidden",background:"var(--s1)"}},
       React.createElement('button',{type:"button",onClick:()=>setShowStandings(v=>!v),style:{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"13px 15px",background:"transparent",border:"none",color:"var(--text)",fontSize:13,fontWeight:800,cursor:"pointer"}},
-        React.createElement('span',null,`Full bloc standings · ${activeCounts.length} members`),
+        React.createElement('span',null,"If the month ended today"),
         React.createElement('span',{style:{color:"var(--muted)",fontSize:16}},showStandings?"−":"+")
       ),
-      showStandings&&renderStandings()
+      showStandings&&renderCurrentFinancialSnapshot()
     )
     )
   );

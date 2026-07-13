@@ -60,11 +60,6 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
   };
 
   const initialsFor = name => name.split(" ").map(part => part[0]).join("").slice(0,2).toUpperCase();
-  const formatConfirmedDate = value => {
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return "";
-    return date.toLocaleDateString("en-US", {month:"short", day:"numeric"});
-  };
 
   const handleSettlementAction = async ({ key, kind, payerDisplayName, receiverDisplayName, amount }) => {
     setSettlementBusy(key);
@@ -138,7 +133,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
         : {background:"linear-gradient(135deg, rgba(215,226,225,.1), rgba(78,205,196,.045))", border:"1px solid rgba(215,226,225,.16)"};
   const heroColor = hero.tone === "winner" ? C.greenText : hero.tone === "missed" ? C.redText : "var(--text)";
 
-  const renderPerfectRoster = () => isBlocPerfect && React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(118px,1fr))",gap:8}},
+  const renderPerfectRoster = () => isBlocPerfect && React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:8}},
     sortedActive.map(member => React.createElement('div',{key:member.name,style:{display:"flex",alignItems:"center",gap:8,background:"rgba(78,205,196,.075)",border:"1px solid rgba(78,205,196,.16)",borderRadius:8,padding:"8px 10px",minWidth:0}},
       React.createElement('div',{style:{width:26,height:26,borderRadius:999,background:avatarColor(member.name),color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,flexShrink:0}},initialsFor(member.name)),
       React.createElement('div',{style:{minWidth:0,flex:1}},
@@ -154,7 +149,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
     return {
       state,
       text: state.confirmed
-        ? `Confirmed ${formatConfirmedDate(state.confirmedAt)}`
+        ? "Confirmed"
         : state.pending
           ? "Pending confirmation"
           : "Outstanding"
@@ -220,7 +215,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
     {title:"Furthest Behind", name:furthestBehind ? furthestBehind.name : "No one", detail:furthestBehind ? `${furthestBehind.miss} short of MAS` : "Everyone hit MAS", tone:furthestBehind ? "red" : "silver"}
   ];
 
-  const renderAwards = () => React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:7}},
+  const renderAwards = () => React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(138px,1fr))",gap:7}},
     awardCards.map(award => React.createElement('div',{key:award.title,style:{...C.card,padding:"10px 10px 9px",minHeight:72}},
       React.createElement('div',{style:{display:"flex",alignItems:"center",gap:6,marginBottom:6}},
         award.tone==="gold" && React.createElement(TrophyIcon,{size:13,color:C.gold}),
@@ -273,9 +268,9 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
     ? "clamp(31px, 8vw, 42px)"
     : "clamp(36px, 10vw, 52px)";
 
-  return React.createElement('div',{style:{maxWidth:640,margin:"0 auto",padding:"0 0 32px",display:"flex",flexDirection:"column",gap:12,fontFamily:"'Outfit', sans-serif"}},
+  return React.createElement('div',{style:{width:"100%",maxWidth:"100%",margin:"0 auto",padding:"0 0 32px",display:"flex",flexDirection:"column",gap:12,fontFamily:"'Outfit', sans-serif"}},
     React.createElement('div',{style:{...C.sectionLabel,textAlign:"center",paddingTop:4}},`${month.label.toUpperCase()} · MONTH CLOSED`),
-    React.createElement('div',{style:{...heroStyle,borderRadius:12,padding:"25px 18px 18px",textAlign:"center",display:"flex",flexDirection:"column",gap:12}},
+    React.createElement('div',{style:{...heroStyle,borderRadius:12,padding:"18px 18px 16px",textAlign:"center",display:"flex",flexDirection:"column",gap:10}},
       React.createElement('span',{style:{...C.pill,alignSelf:"center",background:hero.tone==="missed"?C.redBg:hero.tone==="neutral"?C.neutralBg:"rgba(78,205,196,.14)",color:hero.tone==="missed"?C.redText:hero.tone==="neutral"?C.neutralText:C.greenText}},hero.tag),
       React.createElement('div',{style:{fontSize:heroStatSize,fontWeight:900,lineHeight:1.05,color:heroColor,letterSpacing:0,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},hero.stat),
       React.createElement('div',{style:{fontSize:14,color:"var(--muted)",lineHeight:1.45}},hero.line),
