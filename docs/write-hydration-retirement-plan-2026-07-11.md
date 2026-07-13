@@ -107,6 +107,11 @@ Status amendment, 2026-07-13:
 - `join-group` now also computes its post-join result from the canonical
   writable constructor, using a global constructor because invite joins can
   target a bloc the actor is not already a member of
+- `create-group` now validates against the blob shell, then computes its
+  post-create result from the canonical global writable constructor using one
+  generated group id, invite code, and timestamp payload for both simulations;
+  `create-group:current-open` report coverage is `12` checked, `0` failed,
+  `1` skipped
 - `delete-account` is already a verified canonical-first global account
   deletion path, but it is intentionally excluded from group-scoped parity
   reports because it deletes profile and membership state across the account

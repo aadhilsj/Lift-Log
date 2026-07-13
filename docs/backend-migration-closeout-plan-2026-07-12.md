@@ -580,3 +580,32 @@ Remaining caveat:
   the blob boundary; normal runtime rename now repairs canonical historical
   snapshots by auth ID, but this is not the same as fully de-keying all
   historical rendering from display names
+
+## Batch 6 - Create Group Canonical Writable Input
+
+Batch 6 started on 2026-07-13 after the profile rename regression was fixed and
+verified on preview.
+
+Implemented:
+
+- `applyCreateGroup(...)` now accepts caller-supplied generated values for the
+  new group id, invite code, and creation timestamp
+- added `create-group:current-open` write-hydration report coverage using those
+  stable generated values so blob-shell input and canonical global input can be
+  compared without random id/invite noise
+- local report status: `12` checked, `0` failed, `1` skipped
+- runtime `create-group` now validates against the blob shell first, then
+  computes the post-create result from
+  `buildCanonicalWritableStateForAuthenticatedGlobalMutation(...)` using the
+  same generated id/invite/timestamps
+- canonical profile, bloc, open-season, bloc-member, and open-season member
+  status writes still complete before blob mirror persistence
+
+Verification:
+
+- `node --check api/lift-log.js`
+- Vite production build
+- `historical-shell-reconciliation-report`: `7` checked, `0` needing
+  reconciliation
+- `write-hydration-parity-report`: broad failures remain confined to the known
+  `monthHistory` bucket

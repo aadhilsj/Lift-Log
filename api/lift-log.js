@@ -228,7 +228,8 @@ function isCurrentOpenWriteHydrationAction(action) {
     || action === "add-log"
     || action === "multi-log"
     || action === "kick-member"
-    || action === "leave-bloc";
+    || action === "leave-bloc"
+    || action === "create-group";
 }
 
 function assertAdminPin(payload) {
@@ -3841,21 +3842,22 @@ function applyCreateGroup(current, payload) {
   }
 
   const base = rolloverStateIfNeeded(current);
-  const id = generateGroupId(groupName);
+  const now = payload?.createdAt || new Date().toISOString();
+  const id = String(payload?.createdGroupId || "").trim() || generateGroupId(groupName);
   const group = normalizeGroup({
     id,
     name: groupName,
     adminName: creatorName,
     adminUserId: actorUserId || null,
-    inviteCode: generateInviteCode(),
-    createdAt: new Date().toISOString(),
+    inviteCode: String(payload?.inviteCode || "").trim().toUpperCase() || generateInviteCode(),
+    createdAt: now,
     memberOrder: uniqueNames([creatorName, ...extraMembers]),
     memberships: actorUserId ? {
       [actorUserId]: {
         userId: actorUserId,
         displayName: creatorName,
         role: "admin",
-        joinedAt: new Date().toISOString()
+        joinedAt: now
       }
     } : {},
     joinedMonthByName: {},
@@ -3876,7 +3878,7 @@ function applyCreateGroup(current, payload) {
       groupOrder: [...base.groupOrder, id],
       meta: {
         revision: base.meta.revision + 1,
-        updatedAt: new Date().toISOString()
+        updatedAt: now
       }
     },
     createdGroupId: id
@@ -4388,6 +4390,44 @@ function collectProfileRenameCandidates(state) {
     .filter(Boolean);
 }
 
+function collectCreateGroupCandidates(state) {
+  return Object.entries(state.profiles || {})
+    .map(([userId, profile]) => {
+      const email = String(profile?.email || "").trim().toLowerCase();
+      const displayName = String(profile?.displayName || "").trim();
+      if (!userId || !email || !displayName) return null;
+      return { userId, email, displayName };
+    })
+    .filter(Boolean);
+}
+
+function buildSyntheticCreateGroupPayload(candidate) {
+  const suffix = String(candidate.userId || "").slice(0, 8)
+    || String(candidate.displayName || "user").toLowerCase().replace(/[^a-z0-9]+/g, "").slice(0, 8)
+    || "user";
+  const groupName = `Parity Create ${suffix}`;
+  const createdGroupId = `parity-create-${suffix}`.toLowerCase().replace(/[^a-z0-9-]+/g, "-");
+  return {
+    groupName,
+    creatorName: candidate.displayName,
+    actorUserId: candidate.userId,
+    createdGroupId,
+    inviteCode: `P${suffix}`.replace(/[^A-Z0-9]/gi, "").slice(0, 8).toUpperCase().padEnd(6, "X"),
+    createdAt: "2026-07-13T00:00:00.000Z",
+    minTarget: DEFAULT_MIN_TARGET,
+    fineAmount: DEFAULT_FINE_AMOUNT,
+    feeModel: "flat",
+    escalationStepAmount: null,
+    currency: DEFAULT_CURRENCY,
+    groupTimeZone: DEFAULT_GROUP_TIME_ZONE,
+    acceptedWorkoutTypes: [...WORKOUT_TYPES],
+    minRunDistance: DEFAULT_MIN_RUN_DISTANCE,
+    distanceUnit: DEFAULT_DISTANCE_UNIT,
+    stravaEnabled: DEFAULT_STRAVA_ENABLED,
+    extraMembers: ""
+  };
+}
+
 function buildSyntheticProfileRenameDisplayName(state, currentDisplayName, userId) {
   const base = `${currentDisplayName} Rename Probe`.trim();
   const usedNames = new Set(
@@ -4397,6 +4437,50 @@ function buildSyntheticProfileRenameDisplayName(state, currentDisplayName, userI
   );
   if (!usedNames.has(base)) return base;
   return `${base} ${String(userId || "").slice(0, 8) || "user"}`;
+}
+
+function compareCreateGroupResult(writableUpdated, canonicalUpdated, createdGroupId) {
+  const writableBlob = buildWriteHydrationComparisonBlob(writableUpdated, "create-group");
+  const canonicalBlob = buildWriteHydrationComparisonBlob(canonicalUpdated, "create-group");
+  const mismatches = collectWriteHydrationCurrentOpenMismatches(
+    writableBlob.groups?.[createdGroupId],
+    canonicalBlob.groups?.[createdGroupId],
+    createdGroupId
+  );
+  return {
+    action: "create-group",
+    scope: "current-open",
+    groupId: createdGroupId,
+    ok: mismatches.length === 0,
+    mismatches,
+    ...(mismatches.length
+      ? {
+          details: collectWriteHydrationGroupMismatchDetails(
+            writableBlob.groups?.[createdGroupId],
+            canonicalBlob.groups?.[createdGroupId],
+            createdGroupId,
+            mismatches
+          )
+        }
+      : {})
+  };
+}
+
+async function compareWriteHydrationCreateGroup(baseState, canonicalBase, candidate) {
+  const payload = buildSyntheticCreateGroupPayload(candidate);
+  try {
+    const writableUpdated = applyCreateGroup(baseState, payload);
+    const canonicalUpdated = applyCreateGroup(canonicalBase, payload);
+    return compareCreateGroupResult(writableUpdated.state, canonicalUpdated.state, payload.createdGroupId);
+  } catch (err) {
+    return {
+      action: "create-group",
+      scope: "current-open",
+      groupId: payload.createdGroupId,
+      ok: false,
+      error: err?.message || String(err)
+    };
+  }
 }
 
 function collectProfileRenameTouchedGroupIds(writableInput, canonicalInput, userId, existingDisplayName) {
@@ -4793,6 +4877,29 @@ async function buildWriteHydrationParityReport(baseState) {
         addSkipped("sitout-review", groupId, "no pending or synthetic sit-out review candidate");
       }
     }
+  }
+
+  const createGroupCandidates = collectCreateGroupCandidates(baseState);
+  if (createGroupCandidates.length > 0) {
+    try {
+      const canonicalGlobalBase = await buildCanonicalWritableStateForAllGroups(baseState);
+      for (const candidate of createGroupCandidates.slice(0, 12)) {
+        results.push(await compareWriteHydrationCreateGroup(baseState, canonicalGlobalBase, candidate));
+      }
+      if (createGroupCandidates.length > 12) {
+        addSkipped("create-group", null, `${createGroupCandidates.length - 12} additional create candidates omitted`, "current-open");
+      }
+    } catch (err) {
+      results.push({
+        action: "create-group",
+        scope: "current-open",
+        groupId: null,
+        ok: false,
+        error: err?.message || String(err)
+      });
+    }
+  } else {
+    addSkipped("create-group", null, "no profile candidate", "current-open");
   }
 
   const profileRenameCandidates = collectProfileRenameCandidates(baseState);
@@ -6142,13 +6249,25 @@ export default async function handler(req, res) {
       if (payload?.action === "create-group") {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const creatorName = auth.profile?.displayName || String(payload?.creatorName || "").trim();
-        const created = applyCreateGroup(auth.state, { ...payload, actorUserId: auth.user.id, creatorName });
+        const createPayload = {
+          ...payload,
+          actorUserId: auth.user.id,
+          creatorName,
+          createdGroupId: generateGroupId(String(payload?.groupName || "group")),
+          inviteCode: generateInviteCode(),
+          createdAt: new Date().toISOString()
+        };
+        applyCreateGroup(auth.state, createPayload);
+        const canonicalState = await buildCanonicalWritableStateForAuthenticatedGlobalMutation(auth);
+        const created = applyCreateGroup(canonicalState, createPayload);
         const newGroup = created.state.groups?.[created.createdGroupId];
         const newGroupSortOrder = (created.state.groupOrder || []).indexOf(created.createdGroupId);
-        // Canonical-first write slice for create-group:
-        // 1. compute the exact post-create group in memory
-        // 2. write canonical state from that exact payload
-        // 3. mirror blob only after the canonical writes succeed
+        // Canonical writable-input cutover for create-group:
+        // 1. authenticate/repair and validate against the blob shell
+        // 2. compute the post-create result from the canonical global
+        //    writable view using the same generated id/invite/timestamps
+        // 3. write canonical state from that exact payload
+        // 4. mirror blob only after the canonical writes succeed
         if (newGroup) {
           await syncProfileToCanonical(auth.user.id, auth.user.email, creatorName, { throwOnError: true });
           await syncBlocToCanonical(newGroup, auth.user.id, newGroupSortOrder >= 0 ? newGroupSortOrder : null, { throwOnError: true });
