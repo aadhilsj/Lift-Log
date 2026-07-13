@@ -174,8 +174,8 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
     );
   }
 
-  return React.createElement(React.Fragment,null,
-  React.createElement('div',{style:{maxWidth:840,margin:"0 auto",padding:"12px 12px 16px",display:"flex",flexDirection:"column",gap:12,background:"radial-gradient(ellipse 105% 90% at 50% 58%, rgba(78,205,196,.075), rgba(78,205,196,.028) 52%, transparent 88%), radial-gradient(ellipse 120% 72% at 50% 100%, rgba(78,205,196,.04), transparent 72%)",borderRadius:16}},
+  return React.createElement('div',{style:{minHeight:"calc(100vh - 136px)",padding:"0 0 28px",background:"radial-gradient(ellipse 125% 44% at 50% 0%, rgba(78,205,196,.09), rgba(78,205,196,.035) 42%, rgba(78,205,196,.014) 68%, transparent 100%), linear-gradient(180deg, rgba(78,205,196,.018) 0%, rgba(78,205,196,.012) 42%, rgba(78,205,196,.006) 72%, transparent 100%)"}},
+  React.createElement('div',{style:{maxWidth:840,margin:"0 auto",padding:"12px 12px 16px",display:"flex",flexDirection:"column",gap:12,background:"transparent",borderRadius:16}},
     React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10}},
       React.createElement('div',{style:{textAlign:"center"}},
         React.createElement('div',{style:{fontSize:20,fontWeight:800}},monthLabel)

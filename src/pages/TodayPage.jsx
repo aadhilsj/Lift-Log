@@ -635,9 +635,9 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
             lineHeight:1,
             padding:"4px 8px",
             borderRadius:999,
-            background:card.action.kind === "confirm" ? "rgba(239,159,39,.14)" : "rgba(224,80,32,.14)",
-            border:`1px solid ${card.action.kind === "confirm" ? "rgba(239,159,39,.45)" : "rgba(224,80,32,.42)"}`,
-            color:card.action.kind === "confirm" ? "#EFB04B" : "#F06D43",
+            background:card.action.kind === "confirm" ? "rgba(239,159,39,.10)" : "rgba(224,80,32,.035)",
+            border:`1px solid ${card.action.kind === "confirm" ? "rgba(239,159,39,.32)" : "rgba(224,80,32,.12)"}`,
+            color:card.action.kind === "confirm" ? "rgba(239,176,75,.82)" : "rgba(240,109,67,.58)",
             whiteSpace:"nowrap",
             fontFamily:"'Outfit', sans-serif"
           }
