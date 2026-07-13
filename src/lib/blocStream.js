@@ -73,7 +73,7 @@ export function seedIfEmpty(blocId, { currentUserId, members = [] } = {}) {
       { title: "Biggest turnaround", name: me?.name || "Member" },
       { title: "Furthest behind", name: others[2]?.name || other2?.name || "Member" }
     ] } }),
-    sys(60 * 31, "positive", "NEW SEASON · 1 JUL", "July is here. Raise your ante.", "", {}),
+    sys(60 * 31, "positive", "NEW MONTH", "July is here. Raise your ante.", "", {}),
     sys(60 * 30, "neutral", "NEW MEMBER · 5 JUL", "Deyhan joined the Bloc.", "", {}),
     runMsg,
     sys(60 * 5, "positive", "TARGET HIT · 6 JUL", "Aadhil hit target — 21 days early.", "First to target this month.", { "🔥": [currentUserId] }),
@@ -83,7 +83,7 @@ export function seedIfEmpty(blocId, { currentUserId, members = [] } = {}) {
     eventMsg,
     other && sys(70, "positive", "COMEBACK · 9 JUL", `${other.name}: Behind → On Track.`, "", {}),
     sys(58, "warning", "FINAL STRETCH · 9 JUL", "3 days left. 2 members still short.", "", {}),
-    sys(52, "positive", "PERFECT MONTH · 9 JUL", "Everyone hit target.", "", {}, { systemKind: "perfect_month" }),
+    sys(52, "positive", "PERFECT BLOCK MONTH", "June", "", {}, { systemKind: "perfect_month" }),
     sys(46, "neutral", "SETTINGS · 9 JUL", "Target changed to 12 workouts.", "", {}),
     sys(40, "warning", "INACTIVITY · 9 JUL", "Rahul — no workout in 7 days.", "", {}),
     sys(36, "neutral", "SIT OUT · 9 JUL", "Mikhail sitting out this month.", "", {}),
