@@ -38,6 +38,24 @@ const shortDate = value => {
   if (!date || Number.isNaN(date.getTime())) return "—";
   return date.toLocaleDateString(undefined, { month: "short", year: "numeric" });
 };
+const currencyShortLabel = currency => {
+  const symbols = {USD:"$",EUR:"€",GBP:"£",NOK:"kr",SEK:"kr",DKK:"kr",AUD:"A$",CAD:"C$",CHF:"CHF",INR:"₹",SGD:"S$",NZD:"NZ$",LKR:"LKR"};
+  return symbols[currency] || currency || DEFAULT_CURRENCY;
+};
+const cleanMonthLabel = (label, key = "") => {
+  const fromLabel = /^([A-Z][a-z]{2})\s+'?(\d{2})$/.exec(String(label || "").trim());
+  if (fromLabel) {
+    const monthName = FULL_MONTH_NAMES[MONTH_NAMES.indexOf(fromLabel[1])] || fromLabel[1];
+    return `${monthName} ${fromLabel[2]}`;
+  }
+  const [year, month] = String(key || label || "").split("-").map(Number);
+  if (Number.isFinite(year) && Number.isFinite(month)) return `${FULL_MONTH_NAMES[month] || MONTH_NAMES[month] || "Month"} ${String(year).slice(2)}`;
+  return String(label || "—").replace(/\s+'(\d{2})$/, " $1");
+};
+const monthOrder = key => {
+  const [year, month] = String(key || "").split("-").map(Number);
+  return Number.isFinite(year) && Number.isFinite(month) ? year * 12 + month : Infinity;
+};
 
 const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToken,currentUser}) => {
   const currency = groupSettings?.currency || DEFAULT_CURRENCY;
@@ -111,10 +129,14 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
   const visibleLeaderboard=showAllLeaderboard?sortedAll:sortedAll.slice(0,5);
   const maxChartTotal=Math.max(...trailingMonthlyAvg.map(m=>m.total),1);
   const hasClosedHistory=monthHistory.length>0;
+  const mostWins=[...allTime].sort((a,b)=>b.wins-a.wins)[0];
+  const mostConsistent=[...allTime].filter(u=>u.avg!=="—").sort((a,b)=>Number(b.avg)-Number(a.avg))[0];
+  const biggestLoser=[...allTime].sort((a,b)=>b.moneyLost-a.moneyLost)[0];
   const totalSettled=useMemo(()=>monthHistory.reduce((sum,m)=>sum+buildSettlementPairsForMonth(m).reduce((s,p)=>s+(p.amount||0),0),0),[monthHistory]);
   const completedMonths=monthHistory.length;
   const participantCount=historicalNames.length;
   const highestMonth=[...groupMonthlyAvg].sort((a,b)=>b.total-a.total)[0];
+  const earliestMonth=[...fullHistory].filter(m=>m?.key).sort((a,b)=>monthOrder(a.key)-monthOrder(b.key))[0];
   const closedMonthlyTotals=monthHistory.map(m=>{
     const monthNames=getHistoricalMemberNamesForMonth(m,historicalNames);
     const active=monthNames.filter(n=>isJoinedForMonth(n,m.key)&&!m.excused?.[n]);
@@ -122,19 +144,22 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
     return {...m,total,activeCount:active.length};
   });
   const toughestMonth=[...closedMonthlyTotals].filter(m=>m.activeCount>0).sort((a,b)=>a.total-b.total)[0];
-  const longestServing=Object.values(group?.memberships||{})
-    .filter(m=>m?.displayName)
-    .sort((a,b)=>Date.parse(a.joinedAt||group?.createdAt||"")-Date.parse(b.joinedAt||group?.createdAt||""))[0];
+  const sortedWorkoutTypes=[...WORKOUT_TYPES].sort((a,b)=>(groupTypeBreakdown[b]||0)-(groupTypeBreakdown[a]||0)||WORKOUT_TYPES.indexOf(a)-WORKOUT_TYPES.indexOf(b));
   const legacyRows=[
-    ["Founded", shortDate(group?.createdAt)],
+    ["Started", earliestMonth ? cleanMonthLabel(earliestMonth.label, earliestMonth.key) : shortDate(group?.createdAt)],
     ["Months completed", completedMonths ? String(completedMonths) : "No closed months yet"],
-    ["Total workouts", totalGroupLogs ? String(totalGroupLogs) : "—"],
+    ["Total workouts logged", totalGroupLogs ? String(totalGroupLogs) : "—"],
     ["Money settled", totalSettled ? fmtCurrency(totalSettled,currency) : "—"],
     ["Members participated", participantCount ? String(participantCount) : "—"],
-    ["Highest month", highestMonth?.total ? `${highestMonth.label} · ${highestMonth.total}` : "—"],
-    ["Toughest month", toughestMonth?.total>=0 ? `${toughestMonth.label || toughestMonth.key} · ${toughestMonth.total}` : "—"],
-    ["Longest-serving", longestServing?.displayName || group?.adminName || "—"]
+    ["Best month", highestMonth?.total ? `${cleanMonthLabel(highestMonth.label, highestMonth.key)} - ${highestMonth.total}` : "—"],
+    ["Toughest month", toughestMonth?.total>=0 ? `${cleanMonthLabel(toughestMonth.label, toughestMonth.key)} - ${toughestMonth.total}` : "—"]
   ];
+  const gradientText = gradient => ({
+    background: gradient,
+    WebkitBackgroundClip: "text",
+    backgroundClip: "text",
+    color: "transparent"
+  });
 
   return React.createElement('div',{style:{maxWidth:960,margin:"0 auto",padding:"16px",display:"flex",flexDirection:"column",gap:12}},
     React.createElement('div',{className:"fu"},
@@ -142,13 +167,13 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
     ),
     HISTORY_FEATURES.summaryStats&&React.createElement('div',{className:"fu2",style:{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:7}},
       [{label:"Total workouts",val:totalGroupLogs||"—",sub:"logged by the Bloc",color:"#4ECDC4"},
-       {label:"Months closed",val:completedMonths||"—",sub:completedMonths?"completed":"no closed months yet",color:"#FFFFFF"},
-       {label:"Money settled",val:totalSettled?fmtCurrency(totalSettled,currency):"—",sub:"across closed months",color:"#F5A623"},
-       {label:"Members",val:participantCount||"—",sub:"participated over time",color:"var(--text)"}
+       {label:"Most wins",val:hasClosedHistory&&mostWins?.wins>0?mostWins.name:"—",sub:hasClosedHistory&&mostWins?.wins>0?`${mostWins.wins} win${mostWins.wins>1?"s":""}`:"no closed months yet",gradient:"linear-gradient(135deg,#FFE7A3,#F5A623 45%,#C47A18)"},
+       {label:"Most consistent",val:hasClosedHistory&&mostConsistent?.avg!=="—"?mostConsistent.name:"—",sub:hasClosedHistory&&mostConsistent?.avg!=="—"?`${mostConsistent.avg} avg/mo`:"no closed months yet",color:"#FFFFFF"},
+       {label:`Most ${currencyShortLabel(currency)} lost`,val:hasClosedHistory&&biggestLoser?.moneyLost>0?biggestLoser.name:"—",sub:hasClosedHistory&&biggestLoser?.moneyLost>0?`-${fmtCurrency(biggestLoser.moneyLost, currency)} total`:"no losses yet",gradient:"linear-gradient(135deg,#FFD0C6,#F06D43 48%,#B93232)"}
       ].map(x=>React.createElement(Card,{key:x.label,style:{padding:"8px 10px"}},
-        React.createElement('span',{className:"lbl",style:{fontSize:8.5,marginBottom:1}},x.label),
-        React.createElement('div',{style:{fontSize:16,fontWeight:800,color:x.color,lineHeight:1.06}},x.val),
-        React.createElement('div',{style:{fontSize:9,color:"var(--muted)",marginTop:2,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},x.sub)
+        React.createElement('span',{className:"lbl",style:{fontFamily:"'Outfit', sans-serif",fontSize:8.5,marginBottom:1,textAlign:"center",width:"100%"}},x.label),
+        React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontSize:16,fontWeight:800,color:x.color,lineHeight:1.06,textAlign:"center",width:"100%",...(x.gradient?gradientText(x.gradient):{})}},x.val),
+        React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontSize:9,color:"var(--muted)",marginTop:2,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",textAlign:"center",width:"100%"}},x.sub)
       ))
     ),
     HISTORY_FEATURES.trailingWorkoutHistory&&React.createElement(Card,{className:"fu3",style:{padding:"13px 14px"}},
@@ -156,7 +181,7 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
       trailingMonthlyAvg.every(m=>m.total===0)
         ? React.createElement('div',{style:{color:"var(--muted)",fontSize:13,textAlign:"center",padding:"20px 0"}},"Data will appear here as the month progresses.")
         : React.createElement('div',{style:{overflowX:"auto",paddingBottom:4}},
-            React.createElement('div',{style:{display:"flex",alignItems:"flex-end",justifyContent:"space-between",gap:6,height:124,minWidth:"max-content"}},
+            React.createElement('div',{style:{display:"flex",alignItems:"flex-end",justifyContent:"flex-start",gap:9,height:124,minWidth:"max-content"}},
               trailingMonthlyAvg.map((m,i)=>{
                 const h=Math.max(4,Math.round((m.total/maxChartTotal)*82));
                 const isHighlighted = !!m.isCurrent;
@@ -174,7 +199,7 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
       totalGroupLogs===0
         ? React.createElement('div',{style:{color:"var(--muted)",fontSize:13,textAlign:"center",padding:"12px 0"}},"No workouts logged yet.")
         : React.createElement('div',{style:{display:"flex",gap:6,alignItems:"stretch"}},
-            WORKOUT_TYPES.map(t=>{
+            sortedWorkoutTypes.map(t=>{
               const count=groupTypeBreakdown[t];
               const pct=totalGroupLogs>0?Math.round((count/totalGroupLogs)*100):0;
               const barH=Math.max(count>0?6:0,Math.round((count/maxTypeCount)*68));
@@ -193,18 +218,19 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
     ),
     HISTORY_FEATURES.allTimeLeaderboard&&React.createElement(Card,{className:"fu5",style:{overflow:"hidden"}},
       React.createElement('div',{style:{padding:"11px 15px",borderBottom:"1px solid var(--border)",display:"flex",alignItems:"center",justifyContent:"space-between"}},
-        React.createElement('div',{style:{fontWeight:800,fontSize:14}},"All-Time Leaderboard")
+        React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontWeight:800,fontSize:14}},"All-Time Leaderboard"),
+        React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontSize:10,color:"var(--muted)",fontWeight:700,letterSpacing:".04em",textTransform:"uppercase"}},"Swipe →")
       ),
       React.createElement('div',{style:{position:"relative"}},
-        React.createElement('div',{style:{position:"absolute",top:0,right:0,bottom:0,width:26,pointerEvents:"none",background:"linear-gradient(to right, rgba(8,15,15,0), #080F0F)",zIndex:1}}),
+        React.createElement('div',{style:{position:"absolute",top:0,right:0,bottom:0,width:34,pointerEvents:"none",background:"linear-gradient(to right, rgba(8,15,15,0), #080F0F)",zIndex:1}}),
         React.createElement('div',{style:{overflowX:"auto",WebkitOverflowScrolling:"touch"}},
         React.createElement('div',{style:{minWidth:504,padding:"8px"}},
-          React.createElement('div',{style:{display:"grid",gridTemplateColumns:"24px 30px 1fr 58px 52px 46px 60px 60px 16px",padding:"7px 10px",borderBottom:"1px solid var(--border)",gap:6,fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".08em"}},
+          React.createElement('div',{style:{display:"grid",gridTemplateColumns:"24px 30px 1fr 58px 52px 46px 60px 60px 16px",padding:"7px 10px",borderBottom:"1px solid rgba(255,255,255,.055)",gap:6,fontFamily:"'JetBrains Mono',monospace",fontSize:9,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".08em"}},
             ["#","","Name","Total","Avg","Wins","Won","Lost",""].map((h,i)=>React.createElement('div',{key:i,style:{textAlign:i>2?"right":"left"}},h))
           ),
-          React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:4,marginTop:4}},
+          React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:6,marginTop:6}},
           visibleLeaderboard.map((u,i)=>React.createElement('div',{key:u.name,
-            style:{display:"grid",gridTemplateColumns:"24px 30px 1fr 58px 52px 46px 60px 60px 16px",padding:"8px 10px",gap:6,alignItems:"center",background:"#080F0F",border:`0.5px solid ${u.name===currentUser?"#163d36":"#0D1F1E"}`,borderRadius:8,boxShadow:"inset 0 1px 0 rgba(255,255,255,0.04)",textAlign:"left"}},
+            style:{display:"grid",gridTemplateColumns:"24px 30px 1fr 58px 52px 46px 60px 60px 16px",padding:"9px 10px",gap:6,alignItems:"center",background:u.name===currentUser?"rgba(78,205,196,.055)":"rgba(255,255,255,.018)",border:`0.5px solid ${u.name===currentUser?"rgba(78,205,196,.22)":"rgba(255,255,255,.055)"}`,borderRadius:9,boxShadow:"inset 0 1px 0 rgba(255,255,255,0.045)",textAlign:"left"}},
             React.createElement('div',{className:"mono",style:{fontSize:11,color:"var(--muted)",textAlign:"center"}},`#${i+1}`),
             React.createElement(Avatar,{name:u.name,size:24}),
             React.createElement('div',{style:{fontWeight:600,fontSize:14,display:"flex",alignItems:"baseline",gap:6,flexWrap:"wrap",color:"var(--text)"}},u.name,u.name===currentUser&&React.createElement('span',{className:"mono",style:{fontSize:8,color:"#3d5e59"}},"you")),
