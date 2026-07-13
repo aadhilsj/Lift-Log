@@ -1108,3 +1108,28 @@ Preview smoke focus:
   reload
 - repeat a basic reaction/delete smoke to make sure the previous skip family
   still behaves
+
+### Batch 16 follow-up - keep sit-out request mirrored
+
+Preview smoke testing found a real dependency between sit-out request and
+sit-out review:
+
+- `sitout-request` was allowed to skip the blob mirror
+- `sitout-review` still looked for the pending request in the writable blob
+  shell before reviewing it
+- this meant a request could be created canonically, then approve/decline from
+  the admin account would not work because the blob shell had no pending request
+
+Fix:
+
+- removed `sitout-request` from the mirror-skip allow/wired set
+- `sitout-request` now persists the blob mirror normally again
+- `sitout-review` remains eligible for mirror-skip, but now tolerates the
+  transitional canonical-only pending request created during the bad preview
+  window
+- the review handler also tolerates the opposite blob-only case by using the
+  blob-shaped review result to repair canonical state
+
+Updated preview gate should exclude `sitout-request`:
+
+`BLOB_MIRROR_SKIP_ACTIONS=season-proration-choice,sitout-review,reaction,flag,flag-response,flag-review,delete-log`

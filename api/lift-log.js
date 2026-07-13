@@ -51,7 +51,6 @@ const WRITE_HYDRATION_PARITY_ACTIONS = new Set(
 );
 const BLOB_MIRROR_SKIP_ALLOWED_ACTIONS = new Set([
   "season-proration-choice",
-  "sitout-request",
   "sitout-review",
   "reaction",
   "flag",
@@ -61,7 +60,6 @@ const BLOB_MIRROR_SKIP_ALLOWED_ACTIONS = new Set([
 ]);
 const BLOB_MIRROR_SKIP_WIRED_ACTIONS = new Set([
   "season-proration-choice",
-  "sitout-request",
   "sitout-review",
   "reaction",
   "flag",
@@ -3586,7 +3584,7 @@ async function buildBlobMirrorRetirementReadinessReport(baseState) {
     trueBlobInputAuthorities: dependencyReport.trueBlobInputAuthorities.map(entry => entry.action),
     requiredBeforeFirstSkip: BLOB_MIRROR_RETIREMENT_READINESS.requiredBeforeFirstSkip,
     nextSafeMove: revisionStamp.canonicalRevisionAvailable
-      ? "Enable BLOB_MIRROR_SKIP_ACTIONS=season-proration-choice,sitout-request,sitout-review,reaction,flag,flag-response,flag-review,delete-log in preview for a narrow mirror-skip soak, then inspect dependency/readiness reports and smoke behavior."
+      ? "Enable BLOB_MIRROR_SKIP_ACTIONS=season-proration-choice,sitout-review,reaction,flag,flag-response,flag-review,delete-log in preview for a narrow mirror-skip soak, then inspect dependency/readiness reports and smoke behavior."
       : "Apply the canonical revision clock RPC before disabling blob writes for any action family."
   };
 }
@@ -7190,18 +7188,34 @@ export default async function handler(req, res) {
             await upsertSeasonMemberExcusedInCanonical(payload.groupId, sitOutMonthKey, canonicalActor, auth.user.id, { throwOnError: true });
           }
         }
-        const persisted = await persistOrSkipBlobMirror(updated, `sitout-request:${payload.groupId}:${canonicalActor || actor || auth.user.id}`, "sitout-request");
+        const persisted = await persistState(updated, `sitout-request:${payload.groupId}:${canonicalActor || actor || auth.user.id}`);
         return res.status(200).json(persisted);
       }
 
       if (payload?.action === "sitout-review") {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
-        const shadowBlobUpdated = applySitOutReview(auth.state, { ...payload, actor, actorUserId: auth.user.id });
         const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
         const canonicalActor = resolveDisplayNameForUser(canonicalState, payload.groupId, auth.user.id, auth.user.email) || actor;
-        const updated = applySitOutReview(canonicalState, { ...payload, actor: canonicalActor, actorUserId: auth.user.id });
-        await runWriteHydrationParityProbe("sitout-review", payload, auth, actor, shadowBlobUpdated, applySitOutReview);
+        let updated = null;
+        try {
+          updated = applySitOutReview(canonicalState, { ...payload, actor: canonicalActor, actorUserId: auth.user.id });
+        } catch (err) {
+          if (err?.status !== 404) throw err;
+        }
+        let shadowBlobUpdated = null;
+        try {
+          shadowBlobUpdated = applySitOutReview(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        } catch (err) {
+          // A sit-out request created while request-side blob skipping was
+          // enabled can exist canonically without a blob mirror. Canonical
+          // writable state is the authority for this review path.
+          if (err?.status !== 404 || !updated) throw err;
+        }
+        if (!updated) updated = shadowBlobUpdated;
+        if (shadowBlobUpdated) {
+          await runWriteHydrationParityProbe("sitout-review", payload, auth, actor, shadowBlobUpdated, applySitOutReview);
+        }
         const reviewGroup = updated.groups?.[payload.groupId];
         const reviewedRequest = payload.memberName && payload.monthKey
           ? reviewGroup?.sitOutRequests?.[payload.monthKey]?.[payload.memberName]
