@@ -24,7 +24,7 @@ const C = {
   accent: "#4ECDC4",
   sheetBg: "#081110", sheetBorder: "#1b332e",
   sysBg: "#0a1513", sysBorder: "#243f38",
-  evtBg: "#08201d",
+  evtBg: "#091716",
   warning: "#EF9F27", positive: "#4ECDC4",
   chipBg: "#0b1413", chipBorder: "#1b332e", chipOnBg: "rgba(78,205,196,0.14)", chipOnBorder: "rgba(78,205,196,0.4)",
   quote: "rgba(78,205,196,0.06)"
@@ -404,8 +404,8 @@ const EventCard = ({ msg, currentUserId, authorName, nameFor, onRsvp }) => {
   const anyRsvp = inIds.length || maybeIds.length || passIds.length;
   return React.createElement('div', {
     style: {
-      alignSelf: "stretch", background: C.evtBg, border: `1px solid ${C.accent}`,
-      borderRadius: 10, padding: "8px 10px", boxShadow: "0 0 0 1px rgba(78,205,196,0.08), 0 5px 15px rgba(0,0,0,.24)"
+      alignSelf: "stretch", background: C.evtBg, border: "1px solid rgba(78,205,196,0.34)",
+      borderRadius: 10, padding: "8px 10px", boxShadow: "0 5px 15px rgba(0,0,0,.22)"
     }
   },
     React.createElement('div', {

@@ -14,7 +14,9 @@ import {
 } from "../lib/appState.js";
 import { TrophyIcon } from "../components/primitives.jsx";
 
-const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistory, onSettlementClaimPaid, onSettlementConfirmPaid, onStartNextMonth}) => {
+const FULL_MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+
+const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistory, onSettlementClaimPaid, onSettlementConfirmPaid, onStartNextMonth, onViewProfileMonth}) => {
   const [settlementBusy, setSettlementBusy] = React.useState(null);
   const [showStandings, setShowStandings] = React.useState(false);
   const ledgerRef = React.useRef(null);
@@ -60,6 +62,30 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
   };
 
   const initialsFor = name => name.split(" ").map(part => part[0]).join("").slice(0,2).toUpperCase();
+  const monthKeyParts = key => {
+    const [year, monthIndex] = String(key || "").split("-").map(Number);
+    return Number.isFinite(year) && Number.isFinite(monthIndex) ? { year, monthIndex } : null;
+  };
+  const monthOrder = key => {
+    const parts = monthKeyParts(key);
+    return parts ? (parts.year * 12) + parts.monthIndex : -Infinity;
+  };
+  const hitTargetForMonth = (memberName, snapshot) => {
+    if (!memberName || !snapshot || snapshot.excused?.[memberName]) return false;
+    const target = snapshot.memberTargets?.[memberName] || snapshot.settings?.minTarget || MIN_TARGET;
+    return (Number(snapshot.counts?.[memberName] || 0) >= target);
+  };
+  const consistentStreak = (() => {
+    const months = [...(monthHistory || [])].filter(m => m?.key && monthOrder(m.key) <= monthOrder(month.key)).sort((a,b) => monthOrder(a.key) - monthOrder(b.key));
+    let streak = 0;
+    for (let i = months.length - 1; i >= 0; i -= 1) {
+      if (!hitTargetForMonth(currentUser, months[i])) break;
+      streak += 1;
+    }
+    return streak;
+  })();
+  const streakLine = consistentStreak >= 2 ? `That's ${consistentStreak} consistent months in a row for you.` : null;
+  const selectedMonthName = FULL_MONTH_NAMES[month.month ?? monthKeyParts(month.key)?.monthIndex ?? 0] || MONTH_NAMES[month.month ?? monthKeyParts(month.key)?.monthIndex ?? 0] || "month";
 
   const handleSettlementAction = async ({ key, kind, payerDisplayName, receiverDisplayName, amount }) => {
     setSettlementBusy(key);
@@ -88,7 +114,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
       return {
         tag: "1st · PERFECT BLOC",
         stat: `${userCount} workouts`,
-        line: "Everyone hit their MAS. You led the way.",
+        line: `Everyone hit their MAS this ${selectedMonthName}. ${streakLine || "You led the way."}`,
         tone: "perfect"
       };
     }
@@ -104,7 +130,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
       return {
         tag: "PERFECT BLOC",
         stat: `${userCount} workouts`,
-        line: "Everyone hit their MAS this month.",
+        line: `Everyone hit their MAS this ${selectedMonthName}.${streakLine ? ` ${streakLine}` : ""}`,
         tone: "perfect"
       };
     }
@@ -112,7 +138,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
       return {
         tag: `MAS Hit · ${ordinal(userRank)} Place`,
         stat: `${userCount} workouts`,
-        line: "Solid month. Build on it next month.",
+        line: streakLine ? `Solid month. ${streakLine}` : "Solid month. Build on it next month.",
         tone: "neutral"
       };
     }
@@ -134,7 +160,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
   const heroColor = hero.tone === "winner" ? C.greenText : hero.tone === "missed" ? C.redText : hero.tone === "neutral" ? "#D7E2E1" : "var(--text)";
 
   const renderPerfectRoster = () => isBlocPerfect && React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:8}},
-    sortedActive.map(member => React.createElement('div',{key:member.name,style:{display:"flex",alignItems:"center",gap:8,background:"rgba(78,205,196,.075)",border:"1px solid rgba(78,205,196,.16)",borderRadius:8,padding:"8px 10px",minWidth:0}},
+    sortedActive.map(member => React.createElement('button',{key:member.name,type:"button",onClick:()=>onViewProfileMonth?.(member.name, month.key),style:{display:"flex",alignItems:"center",gap:8,background:"rgba(20,58,50,.42)",border:"1px solid rgba(78,205,196,.14)",borderRadius:8,padding:"8px 10px",minWidth:0,textAlign:"left",cursor:onViewProfileMonth?"pointer":"default",fontFamily:"'Outfit', sans-serif",color:"var(--text)"}},
       React.createElement('div',{style:{width:26,height:26,borderRadius:999,background:avatarColor(member.name),color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,flexShrink:0}},initialsFor(member.name)),
       React.createElement('div',{style:{minWidth:0,flex:1}},
         React.createElement('div',{style:{fontSize:12,fontWeight:800,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},member.name),

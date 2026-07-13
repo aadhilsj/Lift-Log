@@ -28,13 +28,23 @@ import {
 import { Avatar, WorkoutTypeIcon, Bar, Card, SelectField } from "../components/primitives.jsx";
 import { DeleteModal } from "../modals/modals.jsx";
 
-const PlayerProfile = ({name,logs,excused,monthHistory,onBack,groupSettings,onDeleteLog}) => {
+const PlayerProfile = ({name,logs,excused,monthHistory,onBack,groupSettings,onDeleteLog,initialMonthKey}) => {
   const compactMobile = isMobile();
   const [deleteTarget,setDeleteTarget]=useState(null);
   const currency = groupSettings?.currency || DEFAULT_CURRENCY;
   const [selMonthIdx,setSelMonthIdx]=useState(null); // null = current month
+  const appliedInitialMonthKeyRef = useRef(null);
   const histReversed=[...monthHistory].reverse();
   const visibleHistoryMonths=histReversed.filter(m=>isJoinedForMonth(name, m?.key));
+  useEffect(()=>{
+    const selectionKey = initialMonthKey ? `${name}:${initialMonthKey}` : "";
+    if (!initialMonthKey || appliedInitialMonthKeyRef.current === selectionKey) return;
+    const idx = visibleHistoryMonths.findIndex(m => m?.key === initialMonthKey);
+    if (idx >= 0) {
+      setSelMonthIdx(idx);
+      appliedInitialMonthKeyRef.current = selectionKey;
+    }
+  }, [name, initialMonthKey, visibleHistoryMonths]);
   const isCurMonth=selMonthIdx===null;
   const selHistMonth=isCurMonth?null:visibleHistoryMonths[selMonthIdx];
   const selectedMonthKey = isCurMonth ? curKey : selHistMonth?.key;
