@@ -3099,6 +3099,20 @@ async function buildCanonicalWritableStateForGroup(groupId, baseStateOverride = 
   };
 }
 
+async function buildCanonicalWritableStateForAllGroups(baseStateOverride = null) {
+  const baseState = baseStateOverride
+    ? normalizeState(baseStateOverride)
+    : await fetchCurrentStateFromSupabase();
+  const groupIds = Array.isArray(baseState.groupOrder) && baseState.groupOrder.length
+    ? baseState.groupOrder
+    : Object.keys(baseState.groups || {});
+  let state = baseState;
+  for (const groupId of groupIds) {
+    state = await buildCanonicalWritableStateForGroup(groupId, state);
+  }
+  return state;
+}
+
 // Mutations must always hydrate from the blob source of truth.
 // Projection reads are safe for GET optimization, but using a lagging or
 // lossy projection snapshot as the base for writes can permanently erase
@@ -4190,6 +4204,113 @@ async function compareWriteHydrationMultiLogCurrentOpen(baseState, sourceGroupId
   }
 }
 
+function collectProfileRenameCandidates(state) {
+  return Object.entries(state.profiles || {})
+    .map(([userId, profile]) => {
+      const email = String(profile?.email || "").trim().toLowerCase();
+      const displayName = String(profile?.displayName || "").trim();
+      if (!userId || !email || !displayName) return null;
+      const oldNames = collectProfileRenameOldNames(state.groups || {}, userId, displayName);
+      if (oldNames.size === 0) return null;
+      return { userId, email, displayName, groupIds: [...oldNames.keys()] };
+    })
+    .filter(Boolean);
+}
+
+function buildSyntheticProfileRenameDisplayName(state, currentDisplayName, userId) {
+  const base = `${currentDisplayName} Rename Probe`.trim();
+  const usedNames = new Set(
+    Object.values(state.groups || {})
+      .flatMap(group => Array.isArray(group?.memberOrder) ? group.memberOrder : [])
+      .filter(Boolean)
+  );
+  if (!usedNames.has(base)) return base;
+  return `${base} ${String(userId || "").slice(0, 8) || "user"}`;
+}
+
+function collectProfileRenameTouchedGroupIds(writableInput, canonicalInput, userId, existingDisplayName) {
+  return uniqueNames([
+    ...collectProfileRenameOldNames(writableInput.groups || {}, userId, existingDisplayName).keys(),
+    ...collectProfileRenameOldNames(canonicalInput.groups || {}, userId, existingDisplayName).keys()
+  ]);
+}
+
+function compareProfileEntryMismatch(writableProfile, canonicalProfile, userId) {
+  return valuesDiffer(writableProfile, canonicalProfile) ? [`profiles.${userId}`] : [];
+}
+
+function summarizeReportMismatchField(mismatch) {
+  if (mismatch.startsWith("profiles.")) return "profiles.*";
+  return mismatch.replace(/^groups\.[^.]+\./, "");
+}
+
+async function compareWriteHydrationProfileRename(baseState, canonicalBase, candidate) {
+  const payload = {
+    userId: candidate.userId,
+    email: candidate.email,
+    displayName: buildSyntheticProfileRenameDisplayName(baseState, candidate.displayName, candidate.userId)
+  };
+  try {
+    const writableUpdated = applyUpsertProfile(baseState, payload);
+    const canonicalUpdated = applyUpsertProfile(canonicalBase, payload);
+    const writableBlob = buildWriteHydrationComparisonBlob(writableUpdated, "upsert-profile");
+    const canonicalBlob = buildWriteHydrationComparisonBlob(canonicalUpdated, "upsert-profile");
+    const touchedGroupIds = collectProfileRenameTouchedGroupIds(baseState, canonicalBase, candidate.userId, candidate.displayName);
+    const profileMismatches = compareProfileEntryMismatch(
+      writableBlob.profiles?.[candidate.userId],
+      canonicalBlob.profiles?.[candidate.userId],
+      candidate.userId
+    );
+    const groupMismatches = touchedGroupIds.flatMap(groupId =>
+      collectWriteHydrationGroupMismatches(
+        writableBlob.groups?.[groupId],
+        canonicalBlob.groups?.[groupId],
+        groupId
+      )
+    );
+    const mismatches = [...profileMismatches, ...groupMismatches];
+    return {
+      action: "upsert-profile",
+      scope: "identity-rename",
+      userId: candidate.userId,
+      groupIds: touchedGroupIds,
+      ok: mismatches.length === 0,
+      mismatches,
+      ...(mismatches.length
+        ? {
+            details: Object.fromEntries(
+              mismatches.map(mismatch => {
+                if (mismatch === `profiles.${candidate.userId}`) {
+                  return [mismatch, findFirstNestedDifference(
+                    writableBlob.profiles?.[candidate.userId],
+                    canonicalBlob.profiles?.[candidate.userId],
+                    mismatch
+                  )];
+                }
+                const groupId = mismatch.match(/^groups\.([^.]+)\./)?.[1] || "";
+                return [mismatch, collectWriteHydrationGroupMismatchDetails(
+                  writableBlob.groups?.[groupId],
+                  canonicalBlob.groups?.[groupId],
+                  groupId,
+                  [mismatch]
+                )[mismatch]];
+              })
+            )
+          }
+        : {})
+    };
+  } catch (err) {
+    return {
+      action: "upsert-profile",
+      scope: "identity-rename",
+      userId: candidate.userId,
+      groupIds: candidate.groupIds || [],
+      ok: false,
+      error: err?.message || String(err)
+    };
+  }
+}
+
 async function buildWriteHydrationParityReport(baseState) {
   const results = [];
   const addSkipped = (action, groupId, reason, scope = null) => results.push({
@@ -4452,6 +4573,29 @@ async function buildWriteHydrationParityReport(baseState) {
     }
   }
 
+  const profileRenameCandidates = collectProfileRenameCandidates(baseState);
+  if (profileRenameCandidates.length > 0) {
+    try {
+      const canonicalGlobalBase = await buildCanonicalWritableStateForAllGroups(baseState);
+      for (const candidate of profileRenameCandidates.slice(0, 12)) {
+        results.push(await compareWriteHydrationProfileRename(baseState, canonicalGlobalBase, candidate));
+      }
+      if (profileRenameCandidates.length > 12) {
+        addSkipped("upsert-profile", null, `${profileRenameCandidates.length - 12} additional identity rename candidates omitted`, "identity-rename");
+      }
+    } catch (err) {
+      results.push({
+        action: "upsert-profile",
+        scope: "identity-rename",
+        groupId: null,
+        ok: false,
+        error: err?.message || String(err)
+      });
+    }
+  } else {
+    addSkipped("upsert-profile", null, "no profile rename candidate", "identity-rename");
+  }
+
   const failed = results.filter(result => result.ok === false);
   const skipped = results.filter(result => result.skipped);
   const summary = results.reduce((acc, result) => {
@@ -4467,7 +4611,7 @@ async function buildWriteHydrationParityReport(baseState) {
   }, {});
   const mismatchSummary = failed.reduce((acc, result) => {
     for (const mismatch of result.mismatches || []) {
-      const field = mismatch.replace(/^groups\.[^.]+\./, "");
+      const field = summarizeReportMismatchField(mismatch);
       const entry = acc[field] || { count: 0, examplePath: null };
       entry.count += 1;
       if (!entry.examplePath) {
@@ -4492,8 +4636,8 @@ async function buildWriteHydrationParityReport(baseState) {
       },
       {
         action: "upsert-profile",
-        status: "canonical-first-global-identity",
-        reason: "Global profile/name-key rewrite already writes canonical first, but still depends on blob-shaped compatibility state."
+        status: "canonical-first-global-identity-report-covered",
+        reason: "Global profile/name-key rewrite writes canonical first; identity-rename report coverage compares synthetic rename behavior without changing runtime."
       },
       {
         action: "delete-account",

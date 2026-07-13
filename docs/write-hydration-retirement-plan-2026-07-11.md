@@ -124,6 +124,15 @@ Historical shell amendment, 2026-07-13:
 - this reduces the remaining full-report drift without touching client
   bootstrap normalization or changing identity repair paths
 
+Identity report amendment, 2026-07-13:
+
+- `write-hydration-parity-report` now includes report-only
+  `upsert-profile:identity-rename` probes using synthetic display names
+- these probes compare writable blob input against canonical-built global
+  writable input without changing runtime `upsert-profile`
+- local results show identity rename is still blocked by historical
+  `monthHistory` / `seasonOverrides` drift and some profile `createdAt` drift
+
 ### Quarantined compatibility tools
 
 - `repair-display-name`

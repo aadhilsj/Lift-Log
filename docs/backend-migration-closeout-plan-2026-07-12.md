@@ -402,3 +402,33 @@ Next Batch 1 steps:
 
 If a future constructor report reveals missing canonical rows, fix
 coverage/import first.
+
+## Batch 2 - Identity / Display Name Cleanup
+
+Batch 2 started on 2026-07-13 with report-only profile rename coverage:
+
+- added `buildCanonicalWritableStateForAllGroups(...)` for admin/report use
+- added synthetic `upsert-profile:identity-rename` comparisons to
+  `write-hydration-parity-report`
+- capped identity rename probes at 12 candidates per report run to keep the
+  admin endpoint bounded
+- kept `upsert-profile` runtime behavior unchanged
+- kept `repair-display-name` quarantined as an admin compatibility tool
+
+Local report after adding the identity probe:
+
+- `upsert-profile:identity-rename`: `12` checked, `12` failed, `1` skipped
+- the failures mostly inherit Batch 1 historical shell drift:
+  - `monthHistory`
+  - `seasonOverrides`
+- some candidates also show `profiles.*.createdAt` drift between blob profile
+  state and canonical profile overlay state
+
+Interpretation:
+
+- `upsert-profile` is not ready to compute from canonical global writable state
+  yet
+- identity/display-name cleanup depends on finishing the historical shell
+  reconciliation and deciding how profile metadata such as `createdAt` should
+  be preserved
+- no auth/bootstrap or client normalization paths were touched
