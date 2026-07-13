@@ -1192,3 +1192,41 @@ Operational note:
 
 - avoid duplicate preview deployments by relying on Git auto-preview after code
   pushes and using manual Vercel deploys only for env-only or production deploys
+
+## Batch 19 - Canonical-Tolerant Log-Adjacent Mutations
+
+Batch 19 started on 2026-07-13 after production smoke passed for sign-in, blocs
+loading, reaction/unreaction, delete-log, multi-log, and the own-workout flag
+guard.
+
+Problem found during the next audit:
+
+- `reaction`, `flag`, `flag-response`, `flag-review`, and `delete-log` all
+  already write canonically first and can skip blob persistence
+- however, each handler still tried to apply a shadow mutation to the writable
+  blob shell before completing
+- if a future `add-log` / `multi-log` skip creates a canonical-only workout log,
+  those log-adjacent actions would fail with `Workout not found` before their
+  canonical path could run
+
+Implemented:
+
+- the five log-adjacent handlers now compute the canonical mutation first
+- they still run the writable-blob shadow mutation for parity when the blob has
+  the matching log
+- a blob-shadow `404` is treated as a non-blocking parity gap after canonical
+  mutation succeeds
+- non-404 blob-shadow errors still fail the request
+
+What this does not do:
+
+- does not enable add-log or multi-log blob skipping
+- does not change Production env
+- does not make membership/lifecycle validation canonical-input yet
+
+Next smoke focus:
+
+- reaction/unreaction
+- delete-log
+- own-workout flag guard
+- if available, flag another user's workout and review/respond to the flag

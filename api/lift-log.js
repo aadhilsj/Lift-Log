@@ -7244,11 +7244,18 @@ export default async function handler(req, res) {
         // Normalize emoji the same way applyToggleReaction does so the blob lookup
         // and the canonical RPC call use the same key.
         const emoji = String(payload?.emoji || "").trim();
-        const shadowBlobResult = applyToggleReaction(auth.state, { ...payload, actor, actorUserId: auth.user.id });
         const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
         const canonicalActor = resolveDisplayNameForUser(canonicalState, payload.groupId, auth.user.id, auth.user.email) || actor;
         const result = applyToggleReaction(canonicalState, { ...payload, actor: canonicalActor, actorUserId: auth.user.id });
-        await runWriteHydrationParityProbe("reaction", payload, auth, actor, shadowBlobResult.updated, applyToggleReaction);
+        let shadowBlobResult = null;
+        try {
+          shadowBlobResult = applyToggleReaction(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        } catch (err) {
+          if (err?.status !== 404) throw err;
+        }
+        if (shadowBlobResult) {
+          await runWriteHydrationParityProbe("reaction", payload, auth, actor, shadowBlobResult.updated, applyToggleReaction);
+        }
         const reactionGroup = result.updated.groups?.[payload.groupId];
         const reactionLog = reactionGroup?.logs?.[payload.owner]
           ?.find(e => String(e?.id) === String(payload.logId));
@@ -7270,11 +7277,18 @@ export default async function handler(req, res) {
       if (payload?.action === "flag") {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
-        const shadowBlobResult = applyFlagLog(auth.state, { ...payload, actor, actorUserId: auth.user.id });
         const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
         const canonicalActor = resolveDisplayNameForUser(canonicalState, payload.groupId, auth.user.id, auth.user.email) || actor;
         const result = applyFlagLog(canonicalState, { ...payload, actor: canonicalActor, actorUserId: auth.user.id });
-        await runWriteHydrationParityProbe("flag", payload, auth, actor, shadowBlobResult.updated, applyFlagLog);
+        let shadowBlobResult = null;
+        try {
+          shadowBlobResult = applyFlagLog(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        } catch (err) {
+          if (err?.status !== 404) throw err;
+        }
+        if (shadowBlobResult) {
+          await runWriteHydrationParityProbe("flag", payload, auth, actor, shadowBlobResult.updated, applyFlagLog);
+        }
         const group = result.updated.groups?.[payload.groupId];
         const log = group?.logs?.[payload.owner]?.find(entry => String(entry?.id) === String(payload.logId));
         if (group && log) {
@@ -7287,11 +7301,18 @@ export default async function handler(req, res) {
       if (payload?.action === "flag-response") {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
-        const shadowBlobResult = applyRespondToFlag(auth.state, { ...payload, actor, actorUserId: auth.user.id });
         const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
         const canonicalActor = resolveDisplayNameForUser(canonicalState, payload.groupId, auth.user.id, auth.user.email) || actor;
         const result = applyRespondToFlag(canonicalState, { ...payload, actor: canonicalActor, actorUserId: auth.user.id });
-        await runWriteHydrationParityProbe("flag-response", payload, auth, actor, shadowBlobResult.updated, applyRespondToFlag);
+        let shadowBlobResult = null;
+        try {
+          shadowBlobResult = applyRespondToFlag(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        } catch (err) {
+          if (err?.status !== 404) throw err;
+        }
+        if (shadowBlobResult) {
+          await runWriteHydrationParityProbe("flag-response", payload, auth, actor, shadowBlobResult.updated, applyRespondToFlag);
+        }
         const group = result.updated.groups?.[payload.groupId];
         const log = group?.logs?.[payload.owner]?.find(entry => String(entry?.id) === String(payload.logId));
         if (group && log) {
@@ -7304,11 +7325,18 @@ export default async function handler(req, res) {
       if (payload?.action === "flag-review") {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
-        const shadowBlobResult = applyReviewFlag(auth.state, { ...payload, actor, actorUserId: auth.user.id });
         const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
         const canonicalActor = resolveDisplayNameForUser(canonicalState, payload.groupId, auth.user.id, auth.user.email) || actor;
         const result = applyReviewFlag(canonicalState, { ...payload, actor: canonicalActor, actorUserId: auth.user.id });
-        await runWriteHydrationParityProbe("flag-review", payload, auth, actor, shadowBlobResult.updated, applyReviewFlag);
+        let shadowBlobResult = null;
+        try {
+          shadowBlobResult = applyReviewFlag(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        } catch (err) {
+          if (err?.status !== 404) throw err;
+        }
+        if (shadowBlobResult) {
+          await runWriteHydrationParityProbe("flag-review", payload, auth, actor, shadowBlobResult.updated, applyReviewFlag);
+        }
         const group = result.updated.groups?.[payload.groupId];
         const log = group?.logs?.[payload.owner]?.find(entry => String(entry?.id) === String(payload.logId));
         if (group && log) {
@@ -7321,11 +7349,18 @@ export default async function handler(req, res) {
       if (payload?.action === "delete-log") {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
-        const shadowBlobResult = applyDeleteLog(auth.state, { ...payload, actor, actorUserId: auth.user.id });
         const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
         const canonicalActor = resolveDisplayNameForUser(canonicalState, payload.groupId, auth.user.id, auth.user.email) || actor;
         const result = applyDeleteLog(canonicalState, { ...payload, actor: canonicalActor, actorUserId: auth.user.id });
-        await runWriteHydrationParityProbe("delete-log", payload, auth, actor, shadowBlobResult.updated, applyDeleteLog);
+        let shadowBlobResult = null;
+        try {
+          shadowBlobResult = applyDeleteLog(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        } catch (err) {
+          if (err?.status !== 404) throw err;
+        }
+        if (shadowBlobResult) {
+          await runWriteHydrationParityProbe("delete-log", payload, auth, actor, shadowBlobResult.updated, applyDeleteLog);
+        }
         await deleteWorkoutLogFromCanonical(payload.logId, { throwOnError: true });
         const persisted = await persistOrSkipBlobMirror(result.updated, result.reason, "delete-log");
         return res.status(200).json(persisted);
