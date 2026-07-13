@@ -847,3 +847,42 @@ Fix:
   settlements are built only for members joined for that season
 - this keeps late joiners out of April/May-style historical settlement
   reminders without changing current-month behavior or mutation writes
+
+## Batch 12 - Disabled Reaction Blob-Mirror Skip Gate
+
+Batch 12 started on 2026-07-13 after the canonical closed-month eligibility fix
+was smoke-tested on preview.
+
+Implemented:
+
+- added `BLOB_MIRROR_SKIP_ACTIONS` as a disabled-by-default server env gate
+- only `reaction` is currently allowed by the gate; unknown action names are
+  ignored
+- normal production/preview behavior is unchanged unless
+  `BLOB_MIRROR_SKIP_ACTIONS=reaction` is configured
+- when enabled for `reaction`, the reaction handler:
+  - still authenticates and validates against the writable blob shell
+  - still computes the post-toggle state from the canonical writable
+    constructor
+  - still writes the workout-log snapshot and reaction row canonically first
+  - skips `persistState(...)` for the blob mirror
+  - bumps `ante_core.revision_clock` so revision polling sees the change
+  - returns a readable canonical-overlaid state to keep the client response
+    contract stable
+- `blob-mirror-dependency-report` and
+  `blob-mirror-retirement-readiness-report` now include `mirrorSkipRuntime`
+  with allowed/enabled action lists
+
+Important behavior:
+
+- the flag is not enabled in code and should be turned on only for a deliberate
+  preview/prod soak
+- all other actions still persist the blob exactly as before
+- this is the first reversible proving ground for blob-write retirement, not a
+  broad blob removal
+
+Recommended smoke test:
+
+- with the flag disabled, sign in, load blocs, react and unreact to a workout
+- if enabling the flag later, repeat the same reaction/unreaction flow and
+  confirm another tab/user sees the update through revision polling

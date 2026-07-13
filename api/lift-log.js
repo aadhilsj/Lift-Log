@@ -49,6 +49,16 @@ const WRITE_HYDRATION_PARITY_ACTIONS = new Set(
     .map(action => action.trim())
     .filter(Boolean)
 );
+const BLOB_MIRROR_SKIP_ALLOWED_ACTIONS = new Set(["reaction"]);
+const BLOB_MIRROR_SKIP_ACTIONS = new Set(
+  String(process.env.BLOB_MIRROR_SKIP_ACTIONS || "")
+    .split(",")
+    .map(action => action.trim())
+    .filter(action => BLOB_MIRROR_SKIP_ALLOWED_ACTIONS.has(action))
+);
+function shouldSkipBlobMirrorForAction(action) {
+  return BLOB_MIRROR_SKIP_ACTIONS.has(action);
+}
 const BLOB_MIRROR_DEPENDENCY_AUDIT = {
   generatedOn: "2026-07-13",
   writableBoundary: {
@@ -3504,6 +3514,11 @@ function buildBlobMirrorDependencyReport(baseState) {
     canonicalInputMutations: BLOB_MIRROR_DEPENDENCY_AUDIT.canonicalInputMutations,
     readableOrCanonicalOnlyActions: BLOB_MIRROR_DEPENDENCY_AUDIT.readableOrCanonicalOnlyActions,
     disabledLegacyActions: BLOB_MIRROR_DEPENDENCY_AUDIT.disabledLegacyActions,
+    mirrorSkipRuntime: {
+      allowedActions: [...BLOB_MIRROR_SKIP_ALLOWED_ACTIONS],
+      enabledActions: [...BLOB_MIRROR_SKIP_ACTIONS],
+      enabled: BLOB_MIRROR_SKIP_ACTIONS.size > 0
+    },
     remainingMirrorDependencies: BLOB_MIRROR_DEPENDENCY_AUDIT.remainingMirrorDependencies,
     nextRetirementBatches: BLOB_MIRROR_DEPENDENCY_AUDIT.nextRetirementBatches
   };
@@ -3544,6 +3559,7 @@ async function buildBlobMirrorRetirementReadinessReport(baseState) {
       canonicalRevision: revisionStamp.canonicalRevision,
       canonicalRevisionAvailable: revisionStamp.canonicalRevisionAvailable
     },
+    mirrorSkipRuntime: dependencyReport.mirrorSkipRuntime,
     mirrorSkipCandidates: BLOB_MIRROR_RETIREMENT_READINESS.mirrorSkipCandidates,
     blockedActionFamilies: BLOB_MIRROR_RETIREMENT_READINESS.blockedActionFamilies,
     unresolvedCompatibilityFields,
@@ -3611,6 +3627,24 @@ async function persistState(nextState, reason) {
   return applyEffectiveRevision(persisted, {
     revision: Math.max(
       Number(persisted?.meta?.revision ?? safeState.meta.revision) || 0,
+      Number(canonicalRevision?.revision) || 0
+    ),
+    canonicalUpdatedAt: canonicalRevision?.updatedAt || null
+  });
+}
+
+async function persistOrSkipBlobMirror(nextState, reason, action) {
+  if (!shouldSkipBlobMirrorForAction(action)) {
+    return persistState(nextState, reason);
+  }
+
+  const safeState = normalizeState(nextState);
+  const canonicalRevision = await bumpCanonicalRevision(reason, safeState.meta.revision);
+  const readable = await fetchReadableCurrentState();
+  return applyEffectiveRevision(readable, {
+    revision: Math.max(
+      Number(readable?.meta?.revision) || 0,
+      Number(safeState.meta.revision) || 0,
       Number(canonicalRevision?.revision) || 0
     ),
     canonicalUpdatedAt: canonicalRevision?.updatedAt || null
@@ -7192,12 +7226,13 @@ export default async function handler(req, res) {
           //    post-toggle state from the canonical writable constructor
           // 2. ensure the parent canonical workout log exists from that payload
           // 3. apply the exact reaction direction canonically
-          // 4. persist blob afterward as the compatibility mirror
+          // 4. persist blob afterward as the compatibility mirror, unless the
+          //    disabled-by-default reaction mirror-skip flag is enabled
           await syncOpenWorkoutLogSnapshotToCanonical(reactionGroup, payload.owner, reactionLog, { throwOnError: true });
           const isAdding = (reactionLog.reactions?.[emoji] || []).includes(canonicalActor);
           await toggleWorkoutReactionInCanonical(payload.logId, auth.user.id, canonicalActor, emoji, isAdding, { throwOnError: true });
         }
-        const persisted = await persistState(result.updated, result.reason);
+        const persisted = await persistOrSkipBlobMirror(result.updated, result.reason, "reaction");
         return res.status(200).json(persisted);
       }
 
