@@ -829,3 +829,21 @@ Fix:
 - month calculations still use the historical month settings for target/fine
   math; only the displayed currency code/symbol follows the current bloc
   currency
+
+### Batch 11 follow-up - canonical closed-month eligibility
+
+After the currency fix, preview smoke testing exposed late-joiner leakage in
+closed-month settlement reminders: stale blob `settlements` / `memberTargets`
+residue could make a member who joined later appear as a zero-count loser in
+months before they were part of the bloc.
+
+Fix:
+
+- canonical closed-month composition now treats canonical
+  `season_member_status.joined_for_month` rows as the participant authority
+- stale blob `settlements` and `memberTargets` no longer count as coverage when
+  deciding whether the canonical closed-month overlay is complete enough to use
+- canonical closed-month `counts`, `logsByUser`, `memberTargets`, and derived
+  settlements are built only for members joined for that season
+- this keeps late joiners out of April/May-style historical settlement
+  reminders without changing current-month behavior or mutation writes

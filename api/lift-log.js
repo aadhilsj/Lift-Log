@@ -1468,11 +1468,9 @@ function buildCanonicalMonthHistoryForGroup(group, canonicalSeasons) {
     }
 
     const blobCoverage = uniqueNames([
-      ...Object.keys(blobMonth?.counts || {}),
+      ...Object.keys(blobMonth?.counts || {}).filter(name => Number(blobMonth?.counts?.[name] || 0) > 0),
       ...Object.keys(blobMonth?.logsByUser || {}).filter(name => ((blobMonth?.logsByUser || {})[name] || []).length > 0),
-      ...Object.keys(blobMonth?.excused || {}).filter(name => !!blobMonth?.excused?.[name]),
-      ...Object.keys(blobMonth?.settlements || {}),
-      ...Object.keys(blobMonth?.memberTargets || {})
+      ...Object.keys(blobMonth?.excused || {}).filter(name => !!blobMonth?.excused?.[name])
     ]).length;
     const canonicalCoverage = uniqueNames([
       ...Object.keys(membersByName),
@@ -1480,13 +1478,15 @@ function buildCanonicalMonthHistoryForGroup(group, canonicalSeasons) {
     ]).length;
     if (canonicalCoverage < blobCoverage) continue;
 
+    const relevantNames = Object.keys(membersByName).filter(
+      name => membersByName[name]?.joined_for_month !== false
+    );
+    const relevantNameSet = new Set(relevantNames);
     const historicalMemberNames = uniqueNames([
-      ...Object.keys(blobMonth?.counts || {}),
-      ...Object.keys(blobMonth?.logsByUser || {}),
-      ...Object.keys(blobMonth?.settlements || {}),
-      ...Object.keys(blobMonth?.memberTargets || {}),
-      ...Object.keys(membersByName),
-      ...(season.logs || []).map(log => log?.owner_display_name).filter(Boolean)
+      ...relevantNames,
+      ...(season.logs || [])
+        .map(log => log?.owner_display_name)
+        .filter(name => name && relevantNameSet.has(name))
     ]);
 
     const canonicalSettings = buildNormalizedSettings({
@@ -1501,10 +1501,6 @@ function buildCanonicalMonthHistoryForGroup(group, canonicalSeasons) {
       timeZone:             season.timeZone,
       acceptedWorkoutTypes: season.acceptedWorkoutTypes
     });
-    const relevantNames = historicalMemberNames.filter(
-      name => membersByName[name]?.joined_for_month !== false
-    );
-
     const counts = {};
     const excused = {};
     const memberAuthUserIds = {};
