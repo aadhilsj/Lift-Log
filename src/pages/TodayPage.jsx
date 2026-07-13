@@ -405,7 +405,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
   const todayTargetText = earlyMonthPaceQuiet ? "month just started" : `${expected} by today`;
   const paceValueStyle = !earlyMonthPaceQuiet
     ? {
-        fontSize:paceDelta === 0 ? "clamp(10px, 1.35vw, 16px)" : "clamp(9px, 1.15vw, 13px)",
+        fontSize:paceDelta === 0 ? "clamp(11px, 1.45vw, 17px)" : "clamp(10px, 1.25vw, 14px)",
         fontWeight:700,
         letterSpacing:"0.01em",
         whiteSpace:"nowrap"

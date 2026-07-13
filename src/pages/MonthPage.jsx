@@ -66,8 +66,6 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
   const hasQualifiedWinner = winners.some(w => (w.count || 0) >= (w.target || MIN_TARGET));
   const wouldMoveMoney = hasQualifiedWinner && losers.length > 0 && perWinner > 0;
   const expandMonthLabel = label => String(label || "").replace(/^([A-Z][a-z]{2})\s+'(\d{2})$/, (_, shortName, year) => `${FULL_MONTH_NAMES[MONTH_NAMES.indexOf(shortName)] || shortName} '${year}`);
-  const monthLabel=isCurrent?`${FULL_MONTH_NAMES[CUR_MONTH] || MONTH_NAMES[CUR_MONTH]} '${String(CUR_YEAR).slice(2)}`:expandMonthLabel(selMonth.label);
-
   const monthSelector=React.createElement(SelectField,{
     value:selIdx??"",
     onChange:e=>{
@@ -92,7 +90,7 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
       paddingRight:20
     },
     options:[
-      {value:"",label:monthLabel},
+      {value:"",label:"This Month"},
       ...histReversed.map((m,i)=>({value:String(i),label:expandMonthLabel(m.label)}))
     ]
   });
