@@ -88,6 +88,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
   const streakLine = consistentStreak >= 2 ? `${consistentStreak} consistent months in a row. Keep it going.` : "Build on it next month.";
   const selectedMonthName = FULL_MONTH_NAMES[month.month ?? monthKeyParts(month.key)?.monthIndex ?? 0] || MONTH_NAMES[month.month ?? monthKeyParts(month.key)?.monthIndex ?? 0] || "month";
   const perfectLine = `Everyone hit their target this ${selectedMonthName}.`;
+  const perfectFooterLine = consistentStreak >= 2 ? `${consistentStreak} consistent months in a row for you.` : "Keep it going.";
 
   const handleSettlementAction = async ({ key, kind, payerDisplayName, receiverDisplayName, amount }) => {
     setSettlementBusy(key);
@@ -117,6 +118,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
         tag: "1st · PERFECT BLOC MONTH",
         stat: workoutsLabel(userCount),
         line: perfectLine,
+        footerLine: perfectFooterLine,
         tone: "perfect"
       };
     }
@@ -133,6 +135,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
         tag: "PERFECT BLOC MONTH",
         stat: workoutsLabel(userCount),
         line: perfectLine,
+        footerLine: perfectFooterLine,
         tone: "perfect"
       };
     }
@@ -160,6 +163,10 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
         ? {background:"rgba(185,50,50,.07)", border:"1px solid rgba(185,50,50,.18)"}
         : {background:"linear-gradient(135deg, rgba(235,242,241,.18), rgba(185,199,198,.11) 54%, rgba(78,205,196,.025))", border:"1px solid rgba(235,242,241,.22)"};
   const heroColor = hero.tone === "winner" ? C.greenText : hero.tone === "missed" ? C.redText : hero.tone === "neutral" ? "#D7E2E1" : "var(--text)";
+  const heroPillStyle = hero.tone === "neutral"
+    ? {...C.pill,alignSelf:"center",background:"linear-gradient(135deg, rgba(255,255,255,.20), rgba(190,202,202,.105) 58%, rgba(255,255,255,.16))",border:"1px solid rgba(235,242,241,.32)",color:"#F2F7F6",fontWeight:900,boxShadow:"inset 0 1px 0 rgba(255,255,255,.16), 0 0 18px rgba(215,226,225,.08)"}
+    : {...C.pill,alignSelf:"center",background:hero.tone==="missed"?C.redBg:"rgba(78,205,196,.14)",color:hero.tone==="missed"?C.redText:C.greenText,fontWeight:900};
+  const isStreakLine = text => /\bconsistent months in a row\b/.test(String(text || ""));
 
   const renderPerfectRoster = () => isBlocPerfect && React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(132px,1fr))",gap:7}},
     sortedActive.map(member => React.createElement('button',{key:member.name,type:"button",onClick:()=>onViewProfileMonth?.(member.name, month.key),style:{display:"flex",alignItems:"center",gap:7,background:"rgba(5,24,21,.68)",border:"1px solid rgba(78,205,196,.23)",borderRadius:8,padding:"6px 8px",minWidth:0,textAlign:"left",cursor:onViewProfileMonth?"pointer":"default",fontFamily:"'Outfit', sans-serif",color:"var(--text)",boxShadow:"inset 0 1px 0 rgba(255,255,255,.05), 0 6px 14px rgba(0,0,0,.13)",backdropFilter:"blur(3px)"}},
@@ -302,11 +309,11 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
 
   return React.createElement('div',{style:{width:"100%",maxWidth:"100%",margin:"0 auto",padding:"0 0 32px",display:"flex",flexDirection:"column",gap:12,fontFamily:"'Outfit', sans-serif"}},
     React.createElement('div',{style:{...heroStyle,borderRadius:12,padding:"18px 18px 16px",textAlign:"center",display:"flex",flexDirection:"column",gap:10}},
-      React.createElement('span',{style:{...C.pill,alignSelf:"center",background:hero.tone==="missed"?C.redBg:hero.tone==="neutral"?C.neutralBg:"rgba(78,205,196,.14)",color:hero.tone==="missed"?C.redText:hero.tone==="neutral"?C.neutralText:C.greenText,fontWeight:900}},hero.tag),
+      React.createElement('span',{style:heroPillStyle},hero.tag),
       React.createElement('div',{style:{fontSize:heroStatSize,fontWeight:900,lineHeight:1.05,color:heroColor,letterSpacing:0,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},hero.stat),
-      hero.line&&React.createElement('div',{style:{fontSize:hero.tone==="neutral"||hero.tone==="missed"?12:13,color:"var(--muted)",lineHeight:1.35,whiteSpace:hero.tone==="neutral"||hero.tone==="missed"?"nowrap":"normal",overflow:"hidden",textOverflow:"ellipsis"}},hero.line),
+      hero.line&&React.createElement('div',{style:{fontSize:hero.tone==="neutral"||hero.tone==="missed"?12:13,color:"var(--muted)",fontWeight:isStreakLine(hero.line)?800:500,lineHeight:1.35,whiteSpace:hero.tone==="neutral"||hero.tone==="missed"?"nowrap":"normal",overflow:"hidden",textOverflow:"ellipsis"}},hero.line),
       renderPerfectRoster(),
-      hero.footerLine&&React.createElement('div',{style:{fontSize:13,color:"var(--muted)",lineHeight:1.35}},hero.footerLine)
+      hero.footerLine&&React.createElement('div',{style:{fontSize:13,color:"var(--muted)",fontWeight:isStreakLine(hero.footerLine)?800:500,lineHeight:1.35}},hero.footerLine)
     ),
     React.createElement('div',{ref:ledgerRef},renderLedger()),
     sectionSeparator,
