@@ -1047,6 +1047,15 @@ Behavior:
 - the next preview soak can use:
   `BLOB_MIRROR_SKIP_ACTIONS=reaction,flag,flag-response,flag-review,delete-log`
 
+Preview soak update:
+
+- branch-scoped Preview env was expanded to:
+  `BLOB_MIRROR_SKIP_ACTIONS=reaction,flag,flag-response,flag-review,delete-log`
+- preview:
+  `https://lift-rjrnuaz7f-aadhilshahjahan11-1221s-projects.vercel.app`
+- deployment id: `dpl_z23SRXAa88Sw6pjVbvNYoPL5Vy5Y`
+- production remains unchanged
+
 Smoke focus after deploy:
 
 - sign in and load blocs
