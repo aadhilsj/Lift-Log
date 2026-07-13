@@ -215,10 +215,8 @@ const JoinGroupModal = ({inviteContext,joinCode,setJoinCode,onClose,onJoin,joini
 };
 
 
-const swallowEvent = e => e.stopPropagation();
-
-const AuthFlowModal = ({step,email,setEmail,code,setCode,displayName,setDisplayName,onClose,onSendOtp,onVerifyOtp,onSaveProfile,sending,verifying,savingProfile,error,devCode}) => React.createElement('div',{className:"overlay center-mobile",onClick:swallowEvent},
-  React.createElement('div',{className:"modal pi",onClick:swallowEvent,onPointerDown:swallowEvent,onTouchStart:swallowEvent,style:{maxWidth:420}},
+const AuthFlowModal = ({step,email,setEmail,code,setCode,displayName,setDisplayName,onClose,onSendOtp,onVerifyOtp,onSaveProfile,sending,verifying,savingProfile,error,devCode}) => React.createElement('div',{className:"overlay center-mobile",onClick:()=>{}},
+  React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{maxWidth:420}},
     React.createElement('div',{style:{fontWeight:800,fontSize:20,marginBottom:6}},
       step==="name" ? "Set your Antè name" : "Continue with email"
     ),
