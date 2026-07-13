@@ -136,6 +136,7 @@ const App = () => {
   const latestRevisionRef = useRef(getRevision(cached));
   const justSyncedTimerRef = useRef(null);
   const optimisticMutationRef = useRef(null);
+  const logMutationQueueRef = useRef(Promise.resolve());
 
   const persistGroupSelection = useCallback((groupId) => {
     try {
@@ -661,51 +662,43 @@ const App = () => {
   },[applyData, currentUser, refreshNow, selectedGroupId, authSession]);
 
   const handleLogMutation = useCallback(async(payload)=>{
-    // Optimistic update for delete-log: remove the entry immediately.
-    if(payload.action === "delete-log" && payload.logId && currentGroup) {
-      const optimisticLogs = Object.fromEntries(
-        Object.entries(currentGroup.logs || {}).map(([name, logs]) => [name, logs.filter(l => l.id !== payload.logId)])
-      );
-      beginOptimisticMutation();
-      applyData(buildOptimisticState({ groupId: payload.groupId || selectedGroupId, group: { ...currentGroup, logs: optimisticLogs } }), { optimistic:true });
-    }
-    // Optimistic update for reaction: toggle the reactor immediately.
-    if(payload.action === "reaction" && payload.logId && payload.emoji && payload.actor && currentGroup) {
-      const optimisticLogs = Object.fromEntries(
-        Object.entries(currentGroup.logs || {}).map(([name, logs]) => [name, logs.map(l => {
-          if(l.id !== payload.logId) return l;
-          const reactors = Array.isArray(l.reactions?.[payload.emoji]) ? l.reactions[payload.emoji] : [];
-          const already = reactors.includes(payload.actor);
-          return { ...l, reactions: { ...l.reactions, [payload.emoji]: already ? reactors.filter(r => r !== payload.actor) : [...reactors, payload.actor] } };
-        })])
-      );
-      beginOptimisticMutation();
-      applyData(buildOptimisticState({ groupId: payload.groupId || selectedGroupId, group: { ...currentGroup, logs: optimisticLogs } }), { optimistic:true });
-    }
-    setSaving(true);
-    try {
-      const result = await mutateLogData({ ...payload, actorUserId: authSession?.userId || payload.actorUserId });
-      if(result.ok && result.data){
-        const applied = applyData(result.data, { fromMutation: true });
-        if (applied) {
-          setLastSyncedAt(new Date());
-          setSyncError(false);
+    const runMutation = async()=>{
+      // Optimistic update for delete-log: remove the entry immediately.
+      if(payload.action === "delete-log" && payload.logId && currentGroup) {
+        const optimisticLogs = Object.fromEntries(
+          Object.entries(currentGroup.logs || {}).map(([name, logs]) => [name, logs.filter(l => l.id !== payload.logId)])
+        );
+        beginOptimisticMutation();
+        applyData(buildOptimisticState({ groupId: payload.groupId || selectedGroupId, group: { ...currentGroup, logs: optimisticLogs } }), { optimistic:true });
+      }
+      setSaving(true);
+      try {
+        const result = await mutateLogData({ ...payload, actorUserId: authSession?.userId || payload.actorUserId });
+        if(result.ok && result.data){
+          const applied = applyData(result.data, { fromMutation: true });
+          if (applied) {
+            setLastSyncedAt(new Date());
+            setSyncError(false);
+          }
+        } else {
+          clearOptimisticMutation();
+          setSyncError(true);
+          await refreshNow();
         }
-      } else {
+        return result;
+      } catch (e) {
+        console.error("Log mutation failed", e);
         clearOptimisticMutation();
         setSyncError(true);
         await refreshNow();
+        return { ok:false, error:"Unable to save change" };
+      } finally {
+        setSaving(false);
       }
-      return result;
-    } catch (e) {
-      console.error("Log mutation failed", e);
-      clearOptimisticMutation();
-      setSyncError(true);
-      await refreshNow();
-      return { ok:false, error:"Unable to save change" };
-    } finally {
-      setSaving(false);
-    }
+    };
+    const queued = logMutationQueueRef.current.then(runMutation, runMutation);
+    logMutationQueueRef.current = queued.catch(()=>{});
+    return queued;
   },[applyData, beginOptimisticMutation, buildOptimisticState, clearOptimisticMutation, currentGroup, refreshNow, selectedGroupId, authSession]);
 
   const handleSettlementClaimPaid = useCallback(async(payload)=>{

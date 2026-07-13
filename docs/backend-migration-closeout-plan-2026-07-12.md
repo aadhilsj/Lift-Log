@@ -879,3 +879,19 @@ Recommended smoke test:
 
 - sign in, load blocs, react and unreact to a workout
 - reaction UI should no longer flicker between old and new state
+
+### Batch 12 follow-up - serialize log mutations after reaction flicker
+
+Preview smoke testing still showed reaction flicker when several reactions were
+tapped quickly. The issue was overlapping full-state log mutation requests:
+each request could be based on a different writable blob snapshot, so later
+responses could overwrite earlier reaction changes.
+
+Fix:
+
+- client log mutations now run through a small in-memory queue
+- reaction optimistic toggles were removed while the backend still persists a
+  full blob-shaped mirror
+- delete-log keeps its existing optimistic removal behavior
+- this avoids competing reaction writes and prevents stale optimistic state from
+  being replaced by an older mutation response
