@@ -130,16 +130,16 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
   })();
 
   const heroStyle = hero.tone === "perfect"
-    ? {background:"linear-gradient(135deg, rgba(245,166,35,.16), rgba(78,205,196,.16))", border:"1px solid rgba(245,166,35,.28)"}
+    ? {background:"linear-gradient(135deg, rgba(78,205,196,.18), rgba(215,226,225,.12) 52%, rgba(42,122,59,.14))", border:"1px solid rgba(78,205,196,.28)"}
     : hero.tone === "winner"
       ? {background:"rgba(42,122,59,.07)", border:"1px solid rgba(42,122,59,.18)"}
       : hero.tone === "missed"
         ? {background:"rgba(185,50,50,.07)", border:"1px solid rgba(185,50,50,.18)"}
-        : {background:"var(--s1)", border:"1px solid var(--border)"};
+        : {background:"linear-gradient(135deg, rgba(215,226,225,.1), rgba(78,205,196,.045))", border:"1px solid rgba(215,226,225,.16)"};
   const heroColor = hero.tone === "winner" ? C.greenText : hero.tone === "missed" ? C.redText : "var(--text)";
 
-  const renderPerfectRoster = () => isBlocPerfect && React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(92px,1fr))",gap:8}},
-    sortedActive.map(member => React.createElement('div',{key:member.name,style:{display:"flex",alignItems:"center",gap:8,background:"rgba(78,205,196,.07)",border:"1px solid rgba(78,205,196,.14)",borderRadius:8,padding:"8px 9px",minWidth:0}},
+  const renderPerfectRoster = () => isBlocPerfect && React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(118px,1fr))",gap:8}},
+    sortedActive.map(member => React.createElement('div',{key:member.name,style:{display:"flex",alignItems:"center",gap:8,background:"rgba(78,205,196,.075)",border:"1px solid rgba(78,205,196,.16)",borderRadius:8,padding:"8px 10px",minWidth:0}},
       React.createElement('div',{style:{width:26,height:26,borderRadius:999,background:avatarColor(member.name),color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,flexShrink:0}},initialsFor(member.name)),
       React.createElement('div',{style:{minWidth:0,flex:1}},
         React.createElement('div',{style:{fontSize:12,fontWeight:800,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},member.name),
@@ -163,12 +163,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
 
   const renderLedger = () => {
     if (isBlocPerfect) return null;
-    if (!incomingRows.length && !outgoingRows.length) {
-      return React.createElement('div',{style:{...C.card,padding:"15px 14px"}},
-        React.createElement('div',{style:{fontSize:14,fontWeight:800,marginBottom:5}},isBlocPerfect ? "No settlement this month." : "You're not involved."),
-        React.createElement('div',{style:{fontSize:13,color:"var(--muted)",lineHeight:1.5}},isBlocPerfect ? "Everyone hit their MAS, so nobody owes." : "You hit MAS and did not finish first. Nothing to pay or collect.")
-      );
-    }
+    if (!incomingRows.length && !outgoingRows.length) return null;
 
     const rows = outcome === "winner" ? incomingRows : outgoingRows;
     const title = outcome === "winner" ? "Collecting from" : "You owe";
@@ -195,22 +190,21 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
               disabled:settlementBusy===key || state.pending,
               style:{fontSize:11,fontWeight:800,padding:"6px 10px",borderRadius:8,background:state.pending?"var(--s3)":"var(--red-dim)",border:`1px solid ${state.pending?"var(--border)":"rgba(224,80,32,.35)"}`,color:state.pending?"var(--muted)":"#e05020"}
             }, settlementBusy===key ? "Saving..." : state.pending ? "Waiting" : "Mark as paid");
-        return React.createElement('div',{key:key,style:{...C.card,padding:"12px 13px"}},
-          React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10}},
+        return React.createElement('div',{key:key,style:{...C.card,padding:"9px 11px"}},
+          React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,minHeight:28}},
             React.createElement('div',{style:{display:"flex",alignItems:"center",gap:8,minWidth:0}},
               React.createElement('div',{style:{fontSize:13,fontWeight:800,color:outcome==="winner"?"var(--text)":C.redText,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},outcome==="winner" ? pair.payerDisplayName : "You"),
               React.createElement('span',{style:{color:"var(--muted)"}},"→"),
               React.createElement('div',{style:{fontSize:13,fontWeight:800,color:outcome==="winner"?C.greenText:"var(--text)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},outcome==="winner" ? "You" : pair.receiverDisplayName)
             ),
-            React.createElement('div',{style:{fontSize:14,fontWeight:900,color:totalColor,flexShrink:0}},`${outcome === "winner" ? "+" : "-"}${fmtCurrency(pair.amount, currency)}`)
-          ),
-          React.createElement('div',{style:{marginTop:10,display:"flex",alignItems:"center",justifyContent:"space-between",gap:10}},
-            React.createElement('span',{style:{fontSize:11,fontWeight:800,fontFamily:"'JetBrains Mono',monospace",color:state.confirmed?C.greenText:"var(--amber)"}},text),
-            action
+            React.createElement('div',{style:{display:"flex",alignItems:"center",gap:8,flexShrink:0}},
+              React.createElement('span',{style:{fontSize:11,fontWeight:800,fontFamily:"'JetBrains Mono',monospace",color:state.confirmed?C.greenText:"var(--amber)",whiteSpace:"nowrap"}},text),
+              React.createElement('div',{style:{fontSize:14,fontWeight:900,color:totalColor}},`${outcome === "winner" ? "+" : "-"}${fmtCurrency(pair.amount, currency)}`),
+              action
+            )
           )
         );
-      }),
-      React.createElement('div',{style:{...C.sectionLabel,paddingTop:4}},"Via Vipps, Revolut, or bank transfer")
+      })
     );
   };
 
@@ -218,21 +212,23 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
   const mvpNames = sortedActive.filter(member => member.count === mvpCount && mvpCount > 0).map(member => member.name);
   const behindRows = activeCounts.map(member => ({...member, miss: Math.max(0, member.target - member.count)})).sort((a,b) => b.miss - a.miss || a.name.localeCompare(b.name));
   const furthestBehind = behindRows[0]?.miss > 0 ? behindRows[0] : null;
+  const fallbackAwardNames = sortedActive.map(member => member.name).filter(Boolean);
+  const awardCards = [
+    {title:"Bloc MVP", name:mvpNames.length ? mvpNames.join(" & ") : "No winner", detail:mvpNames.length ? `${mvpCount} workouts` : "No workouts", tone:"gold"},
+    {title:"Most Consistent", name:fallbackAwardNames[1] || fallbackAwardNames[0] || "Isira", detail:"Steady all month", tone:"silver"},
+    {title:"Comeback", name:fallbackAwardNames[2] || fallbackAwardNames[0] || "Rahul", detail:"Finished strong", tone:"cyan"},
+    {title:"Furthest Behind", name:furthestBehind ? furthestBehind.name : "No one", detail:furthestBehind ? `${furthestBehind.miss} short of MAS` : "Everyone hit MAS", tone:furthestBehind ? "red" : "silver"}
+  ];
 
-  const renderAwards = () => React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:8}},
-    React.createElement('div',{style:{...C.card,padding:"13px 12px"}},
-      React.createElement('div',{style:{display:"flex",alignItems:"center",gap:7,marginBottom:8}},
-        React.createElement(TrophyIcon,{size:15,color:C.gold}),
-        React.createElement('div',{style:C.sectionLabel},"Bloc MVP")
+  const renderAwards = () => React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:7}},
+    awardCards.map(award => React.createElement('div',{key:award.title,style:{...C.card,padding:"10px 10px 9px",minHeight:72}},
+      React.createElement('div',{style:{display:"flex",alignItems:"center",gap:6,marginBottom:6}},
+        award.tone==="gold" && React.createElement(TrophyIcon,{size:13,color:C.gold}),
+        React.createElement('div',{style:{...C.sectionLabel,fontSize:9,letterSpacing:".1em"}},award.title)
       ),
-      React.createElement('div',{style:{fontSize:15,fontWeight:900,color:"var(--text)",lineHeight:1.25}},mvpNames.length ? mvpNames.join(" & ") : "No winner"),
-      React.createElement('div',{className:"mono",style:{fontSize:11,color:"var(--muted)",marginTop:4}},mvpNames.length ? `${mvpCount} workouts` : "No workouts")
-    ),
-    React.createElement('div',{style:{...C.card,padding:"13px 12px"}},
-      React.createElement('div',{style:C.sectionLabel},"Furthest Behind"),
-      React.createElement('div',{style:{fontSize:15,fontWeight:900,color:furthestBehind?C.redText:"var(--text)",lineHeight:1.25,marginTop:8}},furthestBehind ? furthestBehind.name : "No one"),
-      React.createElement('div',{className:"mono",style:{fontSize:11,color:"var(--muted)",marginTop:4}},furthestBehind ? `${furthestBehind.miss} short of MAS` : "Everyone hit MAS")
-    )
+      React.createElement('div',{style:{fontSize:14,fontWeight:900,color:award.tone==="red"?C.redText:"var(--text)",lineHeight:1.18,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},award.name),
+      React.createElement('div',{style:{fontSize:11,color:"var(--muted)",marginTop:3,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},award.detail)
+    ))
   );
 
   const renderLeaderboard = () => React.createElement('div',{style:C.card},
@@ -277,7 +273,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
     ? "clamp(31px, 8vw, 42px)"
     : "clamp(36px, 10vw, 52px)";
 
-  return React.createElement('div',{style:{maxWidth:480,margin:"0 auto",padding:"0 0 32px",display:"flex",flexDirection:"column",gap:12}},
+  return React.createElement('div',{style:{maxWidth:640,margin:"0 auto",padding:"0 0 32px",display:"flex",flexDirection:"column",gap:12,fontFamily:"'Outfit', sans-serif"}},
     React.createElement('div',{style:{...C.sectionLabel,textAlign:"center",paddingTop:4}},`${month.label.toUpperCase()} · MONTH CLOSED`),
     React.createElement('div',{style:{...heroStyle,borderRadius:12,padding:"25px 18px 18px",textAlign:"center",display:"flex",flexDirection:"column",gap:12}},
       React.createElement('span',{style:{...C.pill,alignSelf:"center",background:hero.tone==="missed"?C.redBg:hero.tone==="neutral"?C.neutralBg:"rgba(78,205,196,.14)",color:hero.tone==="missed"?C.redText:hero.tone==="neutral"?C.neutralText:C.greenText}},hero.tag),

@@ -148,15 +148,15 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
         : React.createElement('div',{style:{fontSize:18,fontWeight:800,color:"var(--text)"}},"No leader yet"),
       currentUser&&React.createElement('div',{style:{background:"var(--s1)",border:"1px solid var(--border)",borderRadius:8,padding:"12px 13px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}},
         React.createElement('div',null,
-          React.createElement('div',{style:{fontSize:13,fontWeight:700,color:"var(--text)"}},`${currentUser}'s projection`),
+          React.createElement('div',{style:{fontSize:13,fontWeight:700,color:"var(--text)"}},`${currentUser}'s month so far`),
           React.createElement('div',{style:{fontSize:12,color:"var(--muted)",marginTop:2}},counts.find(u=>u.name===currentUser)?.memberDiffLabel || getLeaderboardDiffText(counts.find(u=>u.name===currentUser) || {count:0,target:MIN_TARGET}))
         ),
         React.createElement('div',{style:{textAlign:"right"}},
           React.createElement('div',{className:"mono",style:{fontSize:18,fontWeight:800,color:losers.some(l=>l.name===currentUser)?"var(--red)":"#4ECDC4"}},`${counts.find(u=>u.name===currentUser)?.count ?? 0}/${counts.find(u=>u.name===currentUser)?.target ?? MIN_TARGET}`),
-          React.createElement('div',{style:{fontSize:11,color:"var(--muted)"}},"workouts")
+          React.createElement('div',{style:{fontSize:11,color:"var(--muted)"}},"logged")
         )
       ),
-      React.createElement('div',{style:{fontSize:12,color:"var(--muted)",lineHeight:1.5}},"Projection is not final until the month closes."),
+      React.createElement('div',{style:{fontSize:12,color:"var(--muted)",lineHeight:1.5}},"Live counts update as workouts are approved. Money is only settled after the month closes."),
       React.createElement('button',{type:"button",onClick:onOpenToday,style:{alignSelf:"flex-start",background:"transparent",border:"none",padding:0,color:"#4ECDC4",fontSize:13,fontWeight:800,cursor:"pointer"}},"See live leaderboard")
     ),
     React.createElement('div',{style:{border:"1px solid var(--border)",borderRadius:10,overflow:"hidden",background:"var(--s1)"}},
