@@ -170,8 +170,8 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
   });
 
   return React.createElement('div',{style:{maxWidth:960,margin:"0 auto",padding:"16px",display:"flex",flexDirection:"column",gap:12}},
-    React.createElement('div',{className:"fu"},
-      React.createElement('div',{style:{fontSize:24,fontWeight:800}},"History")
+    React.createElement('div',{className:"fu",style:{textAlign:"center"}},
+      React.createElement('div',{style:{fontSize:24,fontWeight:800,textAlign:"center"}},"History")
     ),
     HISTORY_FEATURES.summaryStats&&React.createElement('div',{className:"fu2",style:{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:6}},
       [{label:"Total workouts",val:totalGroupLogs||"—",sub:"logged by the Bloc",gradient:"linear-gradient(135deg,#DFFFFC,#4ECDC4 52%,#1A8E88)"},
