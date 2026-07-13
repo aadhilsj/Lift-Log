@@ -1159,3 +1159,36 @@ Decision:
 Updated preview gate should exclude all sit-out actions:
 
 `BLOB_MIRROR_SKIP_ACTIONS=season-proration-choice,reaction,flag,flag-response,flag-review,delete-log`
+
+## Batch 18 - Production Soak For Exercised Mirror-Skip Set
+
+Batch 18 started on 2026-07-13 after the Batch 17 preview smoke passed for
+sign-in, blocs loading, reaction/unreaction, and the previously verified delete
+path. Sit-out actions remain mirrored.
+
+Production scope:
+
+- enable `BLOB_MIRROR_SKIP_ACTIONS` in Production for the exercised narrow set:
+  - `reaction`
+  - `flag`
+  - `flag-response`
+  - `flag-review`
+  - `delete-log`
+- do not enable `season-proration-choice` in Production yet because it has not
+  had a direct user smoke test
+- keep all sit-out actions mirrored
+- keep settings, add/multi-log, lifecycle membership actions, settlement,
+  auth-sync, and repair-display-name mirrored
+
+Rationale:
+
+- this is the first production blob-write reduction
+- the selected actions have canonical-first write paths and have either direct
+  smoke coverage or tightly bounded guard coverage
+- higher-impact write families are still blocked by writable-blob validation
+  dependencies
+
+Operational note:
+
+- avoid duplicate preview deployments by relying on Git auto-preview after code
+  pushes and using manual Vercel deploys only for env-only or production deploys
