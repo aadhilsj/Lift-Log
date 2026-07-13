@@ -51,7 +51,6 @@ const WRITE_HYDRATION_PARITY_ACTIONS = new Set(
 );
 const BLOB_MIRROR_SKIP_ALLOWED_ACTIONS = new Set([
   "season-proration-choice",
-  "sitout-review",
   "reaction",
   "flag",
   "flag-response",
@@ -60,7 +59,6 @@ const BLOB_MIRROR_SKIP_ALLOWED_ACTIONS = new Set([
 ]);
 const BLOB_MIRROR_SKIP_WIRED_ACTIONS = new Set([
   "season-proration-choice",
-  "sitout-review",
   "reaction",
   "flag",
   "flag-response",
@@ -3584,7 +3582,7 @@ async function buildBlobMirrorRetirementReadinessReport(baseState) {
     trueBlobInputAuthorities: dependencyReport.trueBlobInputAuthorities.map(entry => entry.action),
     requiredBeforeFirstSkip: BLOB_MIRROR_RETIREMENT_READINESS.requiredBeforeFirstSkip,
     nextSafeMove: revisionStamp.canonicalRevisionAvailable
-      ? "Enable BLOB_MIRROR_SKIP_ACTIONS=season-proration-choice,sitout-review,reaction,flag,flag-response,flag-review,delete-log in preview for a narrow mirror-skip soak, then inspect dependency/readiness reports and smoke behavior."
+      ? "Enable BLOB_MIRROR_SKIP_ACTIONS=season-proration-choice,reaction,flag,flag-response,flag-review,delete-log in preview for a narrow mirror-skip soak, then inspect dependency/readiness reports and smoke behavior."
       : "Apply the canonical revision clock RPC before disabling blob writes for any action family."
   };
 }
@@ -7236,7 +7234,7 @@ export default async function handler(req, res) {
             );
           }
         }
-        const persisted = await persistOrSkipBlobMirror(updated, `sitout-review:${payload.groupId}:${payload.memberName}:${payload.decision}`, "sitout-review");
+        const persisted = await persistState(updated, `sitout-review:${payload.groupId}:${payload.memberName}:${payload.decision}`);
         return res.status(200).json(persisted);
       }
 

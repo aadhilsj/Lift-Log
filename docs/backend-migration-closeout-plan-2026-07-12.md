@@ -1133,3 +1133,29 @@ Fix:
 Updated preview gate should exclude `sitout-request`:
 
 `BLOB_MIRROR_SKIP_ACTIONS=season-proration-choice,sitout-review,reaction,flag,flag-response,flag-review,delete-log`
+
+## Batch 17 - Back Sit-Out Review Out Of Mirror-Skip
+
+Batch 17 started on 2026-07-13 after the user confirmed the fixed preview could
+approve the pending sit-out created during the bad preview window.
+
+Follow-up audit found a second-order dependency:
+
+- `sitout-review` approval writes `excused` / reviewed request state
+- later `sitout-request` validation still reads `excused`, existing requests,
+  and recent sit-out count from the writable blob shell
+- therefore, skipping the blob on review can leave future sit-out validation
+  with stale lifecycle state
+
+Decision:
+
+- remove `sitout-review` from the mirror-skip allow/wired set
+- keep both `sitout-request` and `sitout-review` mirrored until the whole
+  sit-out lifecycle is canonical-input for validation, not just canonical-write
+  for persistence
+- keep `season-proration-choice` in the skip experiment because it does not
+  feed a following writable-blob validator in the same way
+
+Updated preview gate should exclude all sit-out actions:
+
+`BLOB_MIRROR_SKIP_ACTIONS=season-proration-choice,reaction,flag,flag-response,flag-review,delete-log`
