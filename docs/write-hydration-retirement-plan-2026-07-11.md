@@ -104,6 +104,9 @@ Status amendment, 2026-07-13:
   `update-settings`, `season-proration-choice`, `sitout-request`,
   `sitout-review`, `reaction`, `delete-log`, `flag`, `flag-response`,
   `flag-review`, `add-log`, `multi-log`, `kick-member`, and `leave-bloc`
+- `join-group` now also computes its post-join result from the canonical
+  writable constructor, using a global constructor because invite joins can
+  target a bloc the actor is not already a member of
 - `delete-account` is already a verified canonical-first global account
   deletion path, but it is intentionally excluded from group-scoped parity
   reports because it deletes profile and membership state across the account
@@ -154,8 +157,11 @@ Join-group report amendment, 2026-07-13:
 - synthetic `memberships[*].joinedAt` timestamps are redacted for this action
   only because the probe runs the two simulations separately
 - local result: `7` checked, `0` failed, `0` skipped
-- runtime `join-group` still hydrates the blob shell and should move only in a
-  dedicated cutover batch
+- runtime `join-group` then moved in a dedicated cutover batch: it validates
+  against the blob shell first, computes the post-join result from
+  `buildCanonicalWritableStateForAuthenticatedGlobalMutation(...)`, writes
+  canonical profile/member/open-season rows, and mirrors blob only after those
+  writes succeed
 
 ### Quarantined compatibility tools
 

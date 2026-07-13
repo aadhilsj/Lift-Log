@@ -210,13 +210,20 @@ Completed first cutover:
 - `multi-log`
 - `kick-member`
 - `leave-bloc`
+- `join-group`
 
 These actions now authenticate/repair against the blob shell first, then compute
-the mutation from `buildCanonicalWritableStateForAuthenticatedMutation(...)`.
+the mutation from a canonical writable constructor.
 The earlier current/open cutovers still run shadow blob parity probes where
 their handler has a runtime probe. The logging cutover keeps a shadow blob
 calculation for compatibility validation, while the admin report carries the
 explicit current/open parity signal.
+
+Most group-local actions use
+`buildCanonicalWritableStateForAuthenticatedMutation(...)`. `join-group` uses
+the global canonical writable constructor because the target bloc can be
+resolved by invite code and may not be one of the actor's current blocs before
+the mutation.
 
 Preview/admin report status:
 
@@ -335,8 +342,12 @@ Current stance after the July 13 lifecycle-exit cutover:
   - synthetic join `memberships[*].joinedAt` timestamps are redacted for this
     report only because the probe runs the two simulations separately
   - local status: `7` checked, `0` failed, `0` skipped
-  - runtime `join-group` remains blob-hydrated in this slice; the report is
-    evidence for a later coherent cutover, not the cutover itself
+- July 13 follow-up cutover:
+  - `join-group` now authenticates/repairs and validates against the blob shell
+  - it then computes the post-join result from
+    `buildCanonicalWritableStateForAuthenticatedGlobalMutation(...)`
+  - canonical profile/bloc-member/open-season writes still run before blob
+    mirror persistence
 
 Exit criteria:
 
@@ -459,9 +470,9 @@ Interpretation:
   reconciliation, not on profile metadata drift
 - no auth/bootstrap or client normalization paths were touched
 
-## Batch 3 - Join Group Coverage
+## Batch 3 - Join Group Coverage And Cutover
 
-Batch 3 started on 2026-07-13 as report-only coverage, not a runtime cutover:
+Batch 3 started on 2026-07-13 as report-only coverage:
 
 - added `join-group:current-open` to the admin write-hydration parity report
 - candidates are existing profiles that are not members of the sampled bloc and
@@ -471,10 +482,19 @@ Batch 3 started on 2026-07-13 as report-only coverage, not a runtime cutover:
   residue remains outside this report scope
 - local result: `7` checked, `0` failed, `0` skipped
 
+Runtime follow-up:
+
+- added `buildCanonicalWritableStateForAuthenticatedGlobalMutation(...)`
+- `join-group` still validates against the blob shell first
+- the persisted post-join state is now computed from the canonical global
+  writable constructor
+- canonical profile/bloc/member/open-season writes remain authoritative and
+  still complete before blob persistence
+
 Interpretation:
 
 - canonical-built global input can reproduce current/open join behavior for
   the sampled production-like candidates
-- `join-group` can be considered for a dedicated cutover batch, but should not
-  be bundled with `auth-sync` or `upsert-profile`
+- `join-group` moved in a dedicated cutover batch and should not be bundled
+  with `auth-sync` or `upsert-profile`
 - client bootstrap and app-state normalization were untouched

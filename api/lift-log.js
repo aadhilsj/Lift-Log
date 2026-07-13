@@ -3634,6 +3634,15 @@ async function buildCanonicalWritableStateForAuthenticatedMutation(auth, groupId
   ).state;
 }
 
+async function buildCanonicalWritableStateForAuthenticatedGlobalMutation(auth) {
+  const canonicalCurrent = await buildCanonicalWritableStateForAllGroups(auth.state);
+  return migrateAuthIdentity(
+    rolloverStateIfNeeded(canonicalCurrent),
+    auth.user.id,
+    auth.user.email
+  ).state;
+}
+
 function applyAuthSync(current, user) {
   const migrated = migrateAuthIdentity(rolloverStateIfNeeded(current), user.id, user.email);
   const profile = migrated.state.profiles?.[user.id] || null;
@@ -6137,19 +6146,22 @@ export default async function handler(req, res) {
         const canonicalBloc = !payload?.groupId && payload?.inviteCode
           ? await fetchCanonicalBlocByInviteCode(payload.inviteCode)
           : null;
-        const joined = applyJoinGroup(auth.state, {
+        const joinPayload = {
           ...payload,
           userId: auth.user.id,
           ...(canonicalBloc?.legacy_group_key ? { groupId: canonicalBloc.legacy_group_key } : {})
-        });
+        };
+        applyJoinGroup(auth.state, joinPayload);
+        const canonicalState = await buildCanonicalWritableStateForAuthenticatedGlobalMutation(auth);
+        const joined = applyJoinGroup(canonicalState, joinPayload);
         const joinedGroup = joined.state.groups?.[joined.joinedGroupId];
         const joinedDisplayName = joinedGroup?.memberships?.[auth.user.id]?.displayName || auth.profile?.displayName || null;
         const joinedGroupSortOrder = (joined.state.groupOrder || []).indexOf(joined.joinedGroupId);
-        // Canonical-first write slice for join-group:
-        // 1. compute the exact post-join group in memory using the existing
-        //    blob-compatible lifecycle semantics
-        // 2. write canonical profile/member/open-season state from that exact payload
-        // 3. mirror blob only after the canonical writes succeed
+        // Canonical writable-input cutover for join-group:
+        // 1. authenticate/repair and validate against the blob shell
+        // 2. compute the post-join result from the canonical global writable view
+        // 3. write canonical profile/member/open-season state from that payload
+        // 4. mirror blob only after the canonical writes succeed
         if (joinedGroup) {
           await syncProfileToCanonical(auth.user.id, auth.user.email, joinedDisplayName, { throwOnError: true });
           await syncBlocToCanonical(joinedGroup, joinedGroup.adminUserId || null, joinedGroupSortOrder >= 0 ? joinedGroupSortOrder : null, { throwOnError: true });
