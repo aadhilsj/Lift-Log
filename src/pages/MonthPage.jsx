@@ -175,6 +175,52 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
     );
   }
 
+  // "This time last month" — personal-only pace check vs the same day-of-month
+  // of the last closed month. Only shown when the member was joined on/before
+  // day D of that month (otherwise the baseline would be misleadingly low).
+  const lastMonthCompare = (() => {
+    if (!isCurrent || !currentUser) return null;
+    const priorMonth = histReversed[0];
+    if (!priorMonth || !priorMonth.key) return null;
+    if (!isJoinedForMonth(currentUser, priorMonth.key)) return null;
+    const priorInfo = getCurrentMemberTargetInfo(currentUser, priorMonth.key, priorMonth.settings?.minTarget || MIN_TARGET);
+    if ((priorInfo.joinDay || 1) > DAY_OF_MON) return null; // joined after day D last month → skip
+    const dayOf = d => { const m = /^\d{4}-\d{2}-(\d{2})/.exec(String(d || "")); return m ? Number(m[1]) : NaN; };
+    const priorLogs = priorMonth.logsByUser?.[currentUser] || [];
+    const priorCount = getCountedLogCount(priorLogs.filter(l => { const day = dayOf(l.date); return Number.isFinite(day) && day <= DAY_OF_MON; }));
+    const thisCount = counts.find(u => u.name === currentUser)?.count ?? getCountedLogCount(logs[currentUser] || []);
+    const diff = thisCount - priorCount;
+    return {
+      thisCount, priorCount,
+      tone: diff > 0 ? "ahead" : diff < 0 ? "behind" : "even",
+      takeaway: diff > 0 ? "Ahead of where you were last month" : diff < 0 ? "Behind where you were last month" : "Right on pace with last month"
+    };
+  })();
+
+  const lastMonthCard = lastMonthCompare && (() => {
+    const { thisCount, priorCount, tone, takeaway } = lastMonthCompare;
+    const maxC = Math.max(thisCount, priorCount, 1);
+    const barH = n => n > 0 ? Math.max(4, Math.round(42 * n / maxC)) : 0;
+    const takeawayColor = tone === "ahead" ? "#4ECDC4" : tone === "behind" ? "#F5A623" : "var(--muted)";
+    const bar = (label, n, color, numColor) => React.createElement('div', { key: label, style: { display: "flex", flexDirection: "column", alignItems: "center", gap: 5, width: 40 } },
+      React.createElement('div', { style: { fontFamily: "'Outfit', sans-serif", fontSize: 16, fontWeight: 800, color: numColor, lineHeight: 1 } }, n),
+      React.createElement('div', { style: { width: 24, height: 42, display: "flex", alignItems: "flex-end" } },
+        React.createElement('div', { style: { width: "100%", height: barH(n), background: color, borderRadius: "4px 4px 0 0" } })
+      ),
+      React.createElement('div', { style: { fontSize: 9.5, color: "var(--muted)", whiteSpace: "nowrap" } }, label)
+    );
+    return React.createElement('div', { style: { border: "1px solid rgba(78,205,196,.1)", borderRadius: 10, background: "rgba(8,15,15,.5)", padding: "13px 15px", display: "flex", flexDirection: "column", gap: 12 } },
+      React.createElement('div', { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".12em", color: "var(--muted)" } }, "This time last month"),
+      React.createElement('div', { style: { display: "flex", alignItems: "flex-end", gap: 18 } },
+        React.createElement('div', { style: { display: "flex", alignItems: "flex-end", gap: 10, flexShrink: 0 } },
+          bar("This month", thisCount, "#4ECDC4", "var(--text)"),
+          bar("Last month", priorCount, "rgba(124,150,145,.5)", "var(--muted)")
+        ),
+        React.createElement('div', { style: { flex: 1, minWidth: 0, fontSize: 12.5, fontWeight: 700, color: takeawayColor, lineHeight: 1.35 } }, takeaway)
+      )
+    );
+  })();
+
   return React.createElement('div',{style:{minHeight:"calc(100vh - 136px)",padding:"0 0 28px",background:"radial-gradient(ellipse 125% 44% at 50% 0%, rgba(78,205,196,.09), rgba(78,205,196,.035) 42%, rgba(78,205,196,.014) 68%, transparent 100%), linear-gradient(180deg, rgba(78,205,196,.018) 0%, rgba(78,205,196,.012) 42%, rgba(78,205,196,.006) 72%, transparent 100%)"}},
   React.createElement('div',{style:{maxWidth:840,margin:"0 auto",padding:"12px 12px 16px",display:"flex",flexDirection:"column",gap:12,background:"transparent",borderRadius:16}},
     React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10}},
@@ -218,7 +264,9 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
         React.createElement('span',{style:{color:"var(--muted)",fontSize:16}},showStandings?"−":"+")
       ),
       showStandings&&renderCurrentFinancialSnapshot()
-    )
+    ),
+    lastMonthCard&&React.createElement('div',{style:{height:1,width:"100%",background:"linear-gradient(90deg, transparent, rgba(78,205,196,.2), rgba(255,255,255,.12), rgba(78,205,196,.2), transparent)",margin:"1px 0"}}),
+    lastMonthCard
     )
   );
 };
