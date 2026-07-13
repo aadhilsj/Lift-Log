@@ -211,6 +211,7 @@ Completed first cutover:
 - `kick-member`
 - `leave-bloc`
 - `join-group`
+- `upsert-profile`
 
 These actions now authenticate/repair against the blob shell first, then compute
 the mutation from a canonical writable constructor.
@@ -223,7 +224,8 @@ Most group-local actions use
 `buildCanonicalWritableStateForAuthenticatedMutation(...)`. `join-group` uses
 the global canonical writable constructor because the target bloc can be
 resolved by invite code and may not be one of the actor's current blocs before
-the mutation.
+the mutation. `upsert-profile` also uses the global constructor because a
+display-name/profile update is account-wide across every bloc membership.
 
 Preview/admin report status:
 
@@ -464,10 +466,12 @@ Local report after adding the identity probe:
 
 Interpretation:
 
-- `upsert-profile` is not ready to compute from canonical global writable state
-  yet
-- identity/display-name cleanup now depends on finishing historical shell
-  reconciliation, not on profile metadata drift
+- `upsert-profile` current/open profile rename behavior is ready for canonical
+  global writable input, but full historical rename parity still reports
+  `monthHistory` residue
+- identity/display-name cleanup still has deeper historical month semantics,
+  but the normal account-wide current/open rename path no longer needs blob
+  input for computation
 - no auth/bootstrap or client normalization paths were touched
 
 ## Batch 3 - Join Group Coverage And Cutover
@@ -533,3 +537,27 @@ Focused local regression:
 - a current active member with the same display name but the wrong auth ID gets
   `0` generated settlement reminders
 - the historical auth ID gets the expected reminder
+
+## Batch 5 - Profile Rename Current/Open Cutover
+
+Batch 5 started on 2026-07-13 after settling historical reminder identity.
+
+Implemented:
+
+- added `upsert-profile:current-open` report coverage alongside the existing
+  full `upsert-profile:identity-rename` report
+- the current/open report compares the profile row plus active/current bloc
+  surfaces and intentionally excludes deeper historical month-history rename
+  residue
+- local report status: `12` checked, `0` failed, `1` skipped
+- `upsert-profile` now validates against the blob shell first, then computes
+  the post-profile result from
+  `buildCanonicalWritableStateForAuthenticatedGlobalMutation(...)`
+- canonical profile and active bloc-member display-name snapshots still sync
+  before blob mirror persistence
+
+Remaining caveat:
+
+- full `upsert-profile:identity-rename` parity still fails on `monthHistory`
+  only; do not use this cutover as proof that all historical display-name
+  snapshots are fully de-keyed from names

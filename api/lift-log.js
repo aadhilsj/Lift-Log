@@ -4417,7 +4417,7 @@ function summarizeReportMismatchField(mismatch) {
   return mismatch.replace(/^groups\.[^.]+\./, "");
 }
 
-async function compareWriteHydrationProfileRename(baseState, canonicalBase, candidate) {
+async function compareWriteHydrationProfileRename(baseState, canonicalBase, candidate, options = {}) {
   const payload = {
     userId: candidate.userId,
     email: candidate.email,
@@ -4434,8 +4434,11 @@ async function compareWriteHydrationProfileRename(baseState, canonicalBase, cand
       canonicalBlob.profiles?.[candidate.userId],
       candidate.userId
     );
+    const groupMismatchCollector = options.scope === "current-open"
+      ? collectWriteHydrationCurrentOpenMismatches
+      : collectWriteHydrationGroupMismatches;
     const groupMismatches = touchedGroupIds.flatMap(groupId =>
-      collectWriteHydrationGroupMismatches(
+      groupMismatchCollector(
         writableBlob.groups?.[groupId],
         canonicalBlob.groups?.[groupId],
         groupId
@@ -4444,7 +4447,7 @@ async function compareWriteHydrationProfileRename(baseState, canonicalBase, cand
     const mismatches = [...profileMismatches, ...groupMismatches];
     return {
       action: "upsert-profile",
-      scope: "identity-rename",
+      scope: options.scope || "identity-rename",
       userId: candidate.userId,
       groupIds: touchedGroupIds,
       ok: mismatches.length === 0,
@@ -4475,7 +4478,7 @@ async function compareWriteHydrationProfileRename(baseState, canonicalBase, cand
   } catch (err) {
     return {
       action: "upsert-profile",
-      scope: "identity-rename",
+      scope: options.scope || "identity-rename",
       userId: candidate.userId,
       groupIds: candidate.groupIds || [],
       ok: false,
@@ -4798,9 +4801,11 @@ async function buildWriteHydrationParityReport(baseState) {
       const canonicalGlobalBase = await buildCanonicalWritableStateForAllGroups(baseState);
       for (const candidate of profileRenameCandidates.slice(0, 12)) {
         results.push(await compareWriteHydrationProfileRename(baseState, canonicalGlobalBase, candidate));
+        results.push(await compareWriteHydrationProfileRename(baseState, canonicalGlobalBase, candidate, { scope: "current-open" }));
       }
       if (profileRenameCandidates.length > 12) {
         addSkipped("upsert-profile", null, `${profileRenameCandidates.length - 12} additional identity rename candidates omitted`, "identity-rename");
+        addSkipped("upsert-profile", null, `${profileRenameCandidates.length - 12} additional current/open rename candidates omitted`, "current-open");
       }
     } catch (err) {
       results.push({
@@ -4810,9 +4815,17 @@ async function buildWriteHydrationParityReport(baseState) {
         ok: false,
         error: err?.message || String(err)
       });
+      results.push({
+        action: "upsert-profile",
+        scope: "current-open",
+        groupId: null,
+        ok: false,
+        error: err?.message || String(err)
+      });
     }
   } else {
     addSkipped("upsert-profile", null, "no profile rename candidate", "identity-rename");
+    addSkipped("upsert-profile", null, "no profile rename candidate", "current-open");
   }
 
   const joinGroupCandidates = collectJoinGroupCandidates(baseState);
@@ -6124,12 +6137,14 @@ export default async function handler(req, res) {
 
       if (payload?.action === "upsert-profile") {
         const auth = await requireAuthenticatedContext(req, payload, current);
-        const updated = applyUpsertProfile(auth.state, { ...payload, userId: auth.user.id, email: auth.user.email });
-        // Canonical-first write slice for upsert-profile:
-        // 1. compute the exact post-update state in memory
-        // 2. sync canonical profile first
-        // 3. sync canonical bloc-member display-name snapshots for every active
-        //    auth-linked membership in that computed state
+        applyUpsertProfile(auth.state, { ...payload, userId: auth.user.id, email: auth.user.email });
+        const canonicalState = await buildCanonicalWritableStateForAuthenticatedGlobalMutation(auth);
+        const updated = applyUpsertProfile(canonicalState, { ...payload, userId: auth.user.id, email: auth.user.email });
+        // Canonical writable-input cutover for upsert-profile:
+        // 1. authenticate/repair and validate against the blob shell
+        // 2. compute the current/open profile rename from the canonical global
+        //    writable view
+        // 3. sync canonical profile and active bloc-member display-name snapshots
         // 4. mirror blob only after canonical writes succeed
         await syncProfileToCanonical(
           auth.user.id,

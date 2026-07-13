@@ -111,7 +111,10 @@ Status amendment, 2026-07-13:
   deletion path, but it is intentionally excluded from group-scoped parity
   reports because it deletes profile and membership state across the account
 - `upsert-profile` remains canonical-first but blob-shaped because it is a
-  global display-name/profile rewrite, not a target-group current/open mutation
+  global display-name/profile rewrite; as of the Batch 5 follow-up it computes
+  current/open profile rename behavior from the canonical global writable
+  constructor, while full historical rename semantics remain caveated by
+  `monthHistory` residue
 - the admin `write-hydration-parity-report` now returns `summary` and
   `excludedActions` so completed paths and intentionally quarantined paths are
   explicit in the report output
@@ -147,6 +150,13 @@ Identity report amendment, 2026-07-13:
 - the probe ignores profile `createdAt`, because canonical profile rows preserve
   their own creation timestamp and profile rename does not semantically mutate
   account creation time
+- a narrower `upsert-profile:current-open` report now covers profile row plus
+  active/current bloc surfaces; local status is `12` checked, `0` failed,
+  `1` skipped
+- runtime `upsert-profile` now validates against the blob shell first, computes
+  the current/open rename result from
+  `buildCanonicalWritableStateForAuthenticatedGlobalMutation(...)`, syncs
+  canonical profile/member snapshots, then mirrors blob
 
 Join-group report amendment, 2026-07-13:
 
