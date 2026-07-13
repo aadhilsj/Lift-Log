@@ -22,7 +22,7 @@ import {
   getCountedLogCount,
   isJoinedForMonth
 } from "../lib/appState.js";
-import { Avatar, WorkoutTypeIcon, Card } from "../components/primitives.jsx";
+import { Avatar, WorkoutTypeIcon, Card, AppIcon } from "../components/primitives.jsx";
 
 const HISTORY_FEATURES = {
   summaryStats: true,
@@ -234,7 +234,11 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
         React.createElement('div',{style:{overflowX:"auto",WebkitOverflowScrolling:"touch"}},
         React.createElement('div',{style:{minWidth:632,padding:"8px"}},
           React.createElement('div',{style:{display:"grid",gridTemplateColumns:"24px 30px 1fr 58px 52px 58px 46px 68px 68px 16px",padding:"7px 10px",borderBottom:"1px solid rgba(255,255,255,.055)",gap:6,fontFamily:"'Outfit', sans-serif",fontSize:9,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".06em",fontWeight:800}},
-            ["#","","Name","Total","AVG","Months","Wins",`${currencyShortLabel(currency)} Won`,`${currencyShortLabel(currency)} Lost`,""].map((h,i)=>React.createElement('div',{key:i,style:{textAlign:i>2?"right":"left"}},h))
+            ["#","","Name","Total","AVG","Months","Wins",null,null,""].map((h,i)=>React.createElement('div',{key:i,style:{textAlign:i>2?"right":"left",display:"flex",alignItems:"center",justifyContent:i>2?"flex-end":"flex-start",gap:3}},
+              i===7||i===8
+                ? React.createElement(React.Fragment,null,React.createElement(AppIcon,{name:"money-bag",size:10,stroke:"rgba(214,226,224,.72)"}),React.createElement('span',null,i===7?"Won":"Lost"))
+                : h
+            ))
           ),
           React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:6,marginTop:6}},
           visibleLeaderboard.map((u,i)=>React.createElement('div',{key:u.name,

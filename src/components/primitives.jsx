@@ -255,6 +255,14 @@ const AppIcon = ({name,size=18,stroke="currentColor"}) => {
   if (name==="message-circle") return React.createElement('svg',common,
     React.createElement('path',{d:"M4 19.5l1.2-3.6A8 8 0 1 1 8.4 18.3L4 19.5"})
   );
+  if (name==="money-bag") return React.createElement('svg',common,
+    React.createElement('path',{d:"M9 5.5h6"}),
+    React.createElement('path',{d:"M10 5.5 8.5 3.5h7L14 5.5"}),
+    React.createElement('path',{d:"M8.5 8.5c-2 1.7-3 4-3 6.4 0 3.3 2.5 5.1 6.5 5.1s6.5-1.8 6.5-5.1c0-2.4-1-4.7-3-6.4"}),
+    React.createElement('path',{d:"M9.2 8.5h5.6"}),
+    React.createElement('path',{d:"M12 11.2v5.1"}),
+    React.createElement('path',{d:"M10.2 12.2c.4-.6 1-.9 1.8-.9 1 0 1.8.5 1.8 1.3 0 1.9-3.6.9-3.6 2.8 0 .8.8 1.3 1.8 1.3.8 0 1.5-.3 1.9-.9"})
+  );
   if (name==="home") return React.createElement('svg',common,
     React.createElement('path',{d:"M4 11.5 12 5l8 6.5"}),
     React.createElement('path',{d:"M6.5 10.5V20h11v-9.5"}),
