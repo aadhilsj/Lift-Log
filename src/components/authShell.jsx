@@ -215,8 +215,31 @@ const JoinGroupModal = ({inviteContext,joinCode,setJoinCode,onClose,onJoin,joini
 };
 
 
-const AuthFlowModal = ({step,email,setEmail,code,setCode,displayName,setDisplayName,onClose,onSendOtp,onVerifyOtp,onSaveProfile,sending,verifying,savingProfile,error,devCode}) => React.createElement('div',{className:"overlay center-mobile"},
-  React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{maxWidth:420}},
+const authModalBackdropStyle = {
+  position:"fixed",
+  inset:0,
+  background:"rgba(2,3,6,.86)",
+  backdropFilter:"blur(18px)",
+  zIndex:200,
+  pointerEvents:"auto"
+};
+const authModalPanelStyle = {
+  position:"fixed",
+  left:"50%",
+  top:"50%",
+  transform:"translate(-50%,-50%)",
+  zIndex:201,
+  width:"calc(100% - 24px)",
+  maxWidth:420,
+  maxHeight:"min(82vh,760px)",
+  overflowY:"auto",
+  WebkitOverflowScrolling:"touch",
+  pointerEvents:"auto"
+};
+
+const AuthFlowModal = ({step,email,setEmail,code,setCode,displayName,setDisplayName,onClose,onSendOtp,onVerifyOtp,onSaveProfile,sending,verifying,savingProfile,error,devCode}) => React.createElement(React.Fragment,null,
+  React.createElement('div',{style:authModalBackdropStyle}),
+  React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:authModalPanelStyle},
     React.createElement('div',{style:{fontWeight:800,fontSize:20,marginBottom:6}},
       step==="name" ? "Set your Antè name" : "Continue with email"
     ),
