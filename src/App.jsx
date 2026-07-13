@@ -74,6 +74,7 @@ import { ActivityPage } from "./pages/ActivityPage.jsx";
 import { MonthPage } from "./pages/MonthPage.jsx";
 import { HistoryPage } from "./pages/HistoryPage.jsx";
 import { BlocStream } from "./pages/BlocStream.jsx";
+import { ProfilePage } from "./pages/ProfilePage.jsx";
 import { getUnreadCount, markStreamRead } from "./lib/blocStream.js";
 
 const App = () => {
@@ -89,6 +90,7 @@ const App = () => {
   const [savingSettings,setSavingSettings]=useState(false);
   const [showSettings,setShowSettings]=useState(false);
   const [showProfileModal,setShowProfileModal]=useState(false);
+  const [showProfile,setShowProfile]=useState(false);
   const [showStream,setShowStream]=useState(false);
   const [monthInitialIdx,setMonthInitialIdx]=useState(null);
   const [profileSaving,setProfileSaving]=useState(false);
@@ -1135,18 +1137,30 @@ const App = () => {
     return React.createElement(React.Fragment,null,
       showJoinModal && !authStep && React.createElement(JoinGroupModal,{inviteContext,joinCode,setJoinCode,onClose:()=>setShowJoinModal(false),onJoin:handleJoinGroup,joining:joiningGroup,error:inviteError,signedIn:true}),
       showProfileModal && React.createElement(ProfileModal,{email:authSession?.email,onSignOut:handleSwitchUser,onClose:()=>{setProfileError("");setShowProfileModal(false);},currentDisplayName:profile?.displayName||"",onSaveDisplayName:handleSaveProfileFromModal,saving:profileSaving,saveError:profileError,onDeleteAccount:handleDeleteAccount}),
-      React.createElement(GroupHome,{
-        groups: visibleGroups,
-        currentIdentity: effectiveProfile?.displayName || effectiveAuthSession?.email?.split("@")[0] || "",
-        currentEmail: effectiveAuthSession?.email,
-        onOpenProfile:()=>setShowProfileModal(true),
-        creating: creatingGroup,
-        autoOpenCreate: queuedCreate,
-        onAutoOpenHandled:()=>setQueuedCreate(false),
-        onOpenGroup:groupId=>{ persistGroupSelection(groupId); setPage("today"); },
-        onCreateGroup:handleCreateGroup,
-        onJoinGroup:()=>setShowJoinModal(true)
-      })
+      showProfile
+        ? React.createElement(ProfilePage,{
+            visibleGroups,
+            currentUserId: effectiveAuthSession?.userId,
+            displayName: effectiveProfile?.displayName || profile?.displayName || "",
+            email: authSession?.email,
+            accountCreatedAt: profile?.createdAt,
+            onBack:()=>setShowProfile(false),
+            onEditName:()=>setShowProfileModal(true),
+            onSignOut:handleSwitchUser,
+            onDeleteAccount:handleDeleteAccount
+          })
+        : React.createElement(GroupHome,{
+            groups: visibleGroups,
+            currentIdentity: effectiveProfile?.displayName || effectiveAuthSession?.email?.split("@")[0] || "",
+            currentEmail: effectiveAuthSession?.email,
+            onOpenProfile:()=>setShowProfile(true),
+            creating: creatingGroup,
+            autoOpenCreate: queuedCreate,
+            onAutoOpenHandled:()=>setQueuedCreate(false),
+            onOpenGroup:groupId=>{ persistGroupSelection(groupId); setPage("today"); },
+            onCreateGroup:handleCreateGroup,
+            onJoinGroup:()=>setShowJoinModal(true)
+          })
     );
   }
   if(!currentUser || !getMembershipForUser(currentGroup, effectiveAuthSession, effectiveProfile)) {

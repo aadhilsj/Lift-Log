@@ -290,6 +290,10 @@ const AppIcon = ({name,size=18,stroke="currentColor"}) => {
     React.createElement('polyline',{points:"9 7 4 12 9 17"}),
     React.createElement('path',{d:"M4 12h9a6 6 0 0 1 6 6v1"})
   );
+  if (name==="edit") return React.createElement('svg',common,
+    React.createElement('path',{d:"M4 20h4l10.5-10.5a1.9 1.9 0 0 0-4-4L4 16v4z"}),
+    React.createElement('path',{d:"M13 6.5l4 4"})
+  );
   if (name==="chevron-left") return React.createElement('svg',common,
     React.createElement('path',{d:"M15 6l-6 6 6 6"})
   );
