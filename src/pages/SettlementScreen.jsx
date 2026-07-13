@@ -126,8 +126,8 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
       return {
         tag: "Winner · 1st Place",
         stat: `+${fmtCurrency(perWinner, currency)}`,
-        line: `${workoutsLabel(userCount)}.`,
         topLine: "Top of the Bloc.",
+        line: `${workoutsLabel(userCount)}.`,
         keepLine: "Keep it going.",
         tone: "winner"
       };
@@ -165,20 +165,22 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
         ? {background:"rgba(185,50,50,.07)", border:"1px solid rgba(185,50,50,.18)"}
         : {background:"linear-gradient(135deg, rgba(235,242,241,.18), rgba(185,199,198,.11) 54%, rgba(78,205,196,.025))", border:"1px solid rgba(235,242,241,.22)"};
   const heroColor = hero.tone === "winner" ? C.greenText : hero.tone === "missed" ? C.redText : hero.tone === "neutral" ? "#D7E2E1" : "var(--text)";
+  const heroBadgeBase = {...C.pill,borderRadius:3,padding:"5px 10px",letterSpacing:".06em",textTransform:"uppercase"};
   const heroPillStyle = hero.tone === "neutral"
-    ? {...C.pill,alignSelf:"center",background:"linear-gradient(135deg, rgba(255,255,255,.20), rgba(190,202,202,.105) 58%, rgba(255,255,255,.16))",border:"1px solid rgba(235,242,241,.32)",color:"#F2F7F6",fontWeight:900,boxShadow:"inset 0 1px 0 rgba(255,255,255,.16), 0 0 18px rgba(215,226,225,.08)"}
+    ? {...heroBadgeBase,alignSelf:"center",background:"linear-gradient(135deg, rgba(255,255,255,.20), rgba(190,202,202,.105) 58%, rgba(255,255,255,.16))",border:"1px solid rgba(235,242,241,.32)",color:"#F2F7F6",fontWeight:900,boxShadow:"inset 0 1px 0 rgba(255,255,255,.16), 0 0 18px rgba(215,226,225,.08)"}
     : hero.tone === "perfect"
-      ? {...C.pill,alignSelf:"center",background:"linear-gradient(135deg, rgba(218,255,237,.22), rgba(78,205,196,.13) 46%, rgba(57,168,90,.2))",border:"1px solid rgba(116,232,157,.32)",color:"#E7FFF0",fontWeight:900,boxShadow:"inset 0 1px 0 rgba(255,255,255,.16), 0 0 18px rgba(57,168,90,.1)"}
+      ? {...heroBadgeBase,alignSelf:"center",background:"linear-gradient(135deg, rgba(218,255,237,.22), rgba(78,205,196,.13) 46%, rgba(57,168,90,.2))",border:"1px solid rgba(116,232,157,.32)",color:"#E7FFF0",fontWeight:900,boxShadow:"inset 0 1px 0 rgba(255,255,255,.16), 0 0 18px rgba(57,168,90,.1)"}
       : hero.tone === "winner"
-        ? {...C.pill,alignSelf:"center",background:"linear-gradient(135deg, rgba(218,255,237,.2), rgba(57,168,90,.16) 52%, rgba(78,205,196,.09))",border:"1px solid rgba(57,168,90,.32)",color:"#E7FFF0",fontWeight:900,boxShadow:"inset 0 1px 0 rgba(255,255,255,.14), 0 0 18px rgba(57,168,90,.1)"}
-        : {...C.pill,alignSelf:"center",background:C.redBg,color:C.redText,fontWeight:900};
+        ? {...heroBadgeBase,alignSelf:"center",background:"linear-gradient(135deg, rgba(218,255,237,.2), rgba(57,168,90,.16) 52%, rgba(78,205,196,.09))",border:"1px solid rgba(57,168,90,.32)",color:"#E7FFF0",fontWeight:900,boxShadow:"inset 0 1px 0 rgba(255,255,255,.14), 0 0 18px rgba(57,168,90,.1)"}
+        : {...heroBadgeBase,alignSelf:"center",background:C.redBg,color:C.redText,fontWeight:900};
   const isStreakLine = text => /\bconsistent months in a row\b/.test(String(text || ""));
   const renderHeroLine = () => {
     if (!hero.line) return null;
     if (hero.tone === "winner") {
       return React.createElement('div',{style:{fontSize:13,color:"var(--muted)",fontWeight:500,lineHeight:1.35}},
-        hero.line," ",
         React.createElement('span',{style:{fontWeight:800,color:"var(--muted)"}},hero.topLine),
+        " ",
+        hero.line,
         " ",
         hero.keepLine
       );
@@ -221,7 +223,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
     if (!incomingRows.length && !outgoingRows.length) return null;
 
     const rows = outcome === "winner" ? incomingRows : outgoingRows;
-    const title = outcome === "winner" ? `${rows.length} to pay ··` : "You owe ··";
+    const title = outcome === "winner" ? `${rows.length} to pay:` : "You owe:";
     const totalColor = outcome === "winner" ? C.greenText : C.redText;
 
     return React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:outcome==="winner"?2:4,width:"100%",maxWidth:outcome==="winner"?150:260,margin:"0 auto"}},
