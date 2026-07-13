@@ -1008,3 +1008,50 @@ If smoke testing is clean:
   path if possible
 - do not promote this flag to production until the reaction soak has had at
   least one clean preview pass
+
+## Batch 15 - Expand Narrow Mirror-Skip Gate
+
+Batch 15 started on 2026-07-13 after the user smoke tested the preview-only
+reaction mirror-skip soak successfully.
+
+Important correction:
+
+- inspection found the previous gate wiring had drifted:
+  - `settlement` was incorrectly routed through
+    `persistOrSkipBlobMirror(..., "reaction")`
+  - the live `reaction` handler was still on `persistState(...)`
+- Batch 15 corrects that before expanding anything:
+  - settlement remains normal blob mirror persistence
+  - reaction is the action routed through the reaction mirror-skip gate
+
+Implemented:
+
+- expanded `BLOB_MIRROR_SKIP_ALLOWED_ACTIONS` and
+  `BLOB_MIRROR_SKIP_WIRED_ACTIONS` to:
+  - `reaction`
+  - `flag`
+  - `flag-response`
+  - `flag-review`
+  - `delete-log`
+- wired the flag-family and delete-log handlers through
+  `persistOrSkipBlobMirror(...)`
+- left settings, proration, sit-out, add-log, multi-log, create/join/leave,
+  auth-sync, repair-display-name, and settlement outside this batch
+
+Behavior:
+
+- if `BLOB_MIRROR_SKIP_ACTIONS` is unset, these handlers still persist the blob
+  normally
+- current preview env still only enables `reaction` until it is deliberately
+  changed
+- the next preview soak can use:
+  `BLOB_MIRROR_SKIP_ACTIONS=reaction,flag,flag-response,flag-review,delete-log`
+
+Smoke focus after deploy:
+
+- sign in and load blocs
+- react/unreact
+- flag another user's workout if test data allows
+- confirm own workouts still do not show flag controls
+- if a flagged-workout owner/admin setup is available, test response/review
+- delete one test workout and confirm it stays deleted after reload

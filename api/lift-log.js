@@ -49,8 +49,20 @@ const WRITE_HYDRATION_PARITY_ACTIONS = new Set(
     .map(action => action.trim())
     .filter(Boolean)
 );
-const BLOB_MIRROR_SKIP_ALLOWED_ACTIONS = new Set(["reaction"]);
-const BLOB_MIRROR_SKIP_WIRED_ACTIONS = new Set(["reaction"]);
+const BLOB_MIRROR_SKIP_ALLOWED_ACTIONS = new Set([
+  "reaction",
+  "flag",
+  "flag-response",
+  "flag-review",
+  "delete-log"
+]);
+const BLOB_MIRROR_SKIP_WIRED_ACTIONS = new Set([
+  "reaction",
+  "flag",
+  "flag-response",
+  "flag-review",
+  "delete-log"
+]);
 const BLOB_MIRROR_SKIP_ACTIONS = new Set(
   String(process.env.BLOB_MIRROR_SKIP_ACTIONS || "")
     .split(",")
@@ -138,8 +150,8 @@ const BLOB_MIRROR_DEPENDENCY_AUDIT = {
     }
   ],
   nextRetirementBatches: [
-    "Add a disabled-by-default mirror-skip flag for one low-risk current/open action family.",
-    "Stop blob writes only for that small action family after proving the canonical revision clock drives polling correctly.",
+    "Soak a disabled-by-default mirror-skip flag for narrow current/open action families.",
+    "Stop blob writes only for those small action families after proving the canonical revision clock drives polling correctly.",
     "Keep auth-sync and repair-display-name out of blob-write retirement until replacement repair paths exist."
   ]
 };
@@ -3568,7 +3580,7 @@ async function buildBlobMirrorRetirementReadinessReport(baseState) {
     trueBlobInputAuthorities: dependencyReport.trueBlobInputAuthorities.map(entry => entry.action),
     requiredBeforeFirstSkip: BLOB_MIRROR_RETIREMENT_READINESS.requiredBeforeFirstSkip,
     nextSafeMove: revisionStamp.canonicalRevisionAvailable
-      ? "Enable BLOB_MIRROR_SKIP_ACTIONS=reaction in preview for a narrow mirror-skip soak, then inspect dependency/readiness reports and reaction smoke behavior."
+      ? "Enable BLOB_MIRROR_SKIP_ACTIONS=reaction,flag,flag-response,flag-review,delete-log in preview for a narrow mirror-skip soak, then inspect dependency/readiness reports and smoke behavior."
       : "Apply the canonical revision clock RPC before disabling blob writes for any action family."
   };
 }
@@ -6848,7 +6860,7 @@ export default async function handler(req, res) {
             { throwOnError: true }
           );
         }
-        const persisted = await persistOrSkipBlobMirror(result.updated, result.reason, "reaction");
+        const persisted = await persistState(result.updated, result.reason);
         return res.status(200).json(persisted);
       }
 
@@ -7233,7 +7245,7 @@ export default async function handler(req, res) {
           const isAdding = (reactionLog.reactions?.[emoji] || []).includes(canonicalActor);
           await toggleWorkoutReactionInCanonical(payload.logId, auth.user.id, canonicalActor, emoji, isAdding, { throwOnError: true });
         }
-        const persisted = await persistState(result.updated, result.reason);
+        const persisted = await persistOrSkipBlobMirror(result.updated, result.reason, "reaction");
         return res.status(200).json(persisted);
       }
 
@@ -7250,7 +7262,7 @@ export default async function handler(req, res) {
         if (group && log) {
           await syncOpenWorkoutLogSnapshotToCanonical(group, payload.owner, log, { throwOnError: true });
         }
-        const persisted = await persistState(result.updated, result.reason);
+        const persisted = await persistOrSkipBlobMirror(result.updated, result.reason, "flag");
         return res.status(200).json(persisted);
       }
 
@@ -7267,7 +7279,7 @@ export default async function handler(req, res) {
         if (group && log) {
           await syncOpenWorkoutLogSnapshotToCanonical(group, payload.owner, log, { throwOnError: true });
         }
-        const persisted = await persistState(result.updated, result.reason);
+        const persisted = await persistOrSkipBlobMirror(result.updated, result.reason, "flag-response");
         return res.status(200).json(persisted);
       }
 
@@ -7284,7 +7296,7 @@ export default async function handler(req, res) {
         if (group && log) {
           await syncOpenWorkoutLogSnapshotToCanonical(group, payload.owner, log, { throwOnError: true });
         }
-        const persisted = await persistState(result.updated, result.reason);
+        const persisted = await persistOrSkipBlobMirror(result.updated, result.reason, "flag-review");
         return res.status(200).json(persisted);
       }
 
@@ -7297,7 +7309,7 @@ export default async function handler(req, res) {
         const result = applyDeleteLog(canonicalState, { ...payload, actor: canonicalActor, actorUserId: auth.user.id });
         await runWriteHydrationParityProbe("delete-log", payload, auth, actor, shadowBlobResult.updated, applyDeleteLog);
         await deleteWorkoutLogFromCanonical(payload.logId, { throwOnError: true });
-        const persisted = await persistState(result.updated, result.reason);
+        const persisted = await persistOrSkipBlobMirror(result.updated, result.reason, "delete-log");
         return res.status(200).json(persisted);
       }
 
