@@ -926,3 +926,45 @@ Follow-up fix:
 - the override survives navigation between Today and Activity
 - app-level cleanup removes overrides once canonical state matches the pending
   reaction state
+
+## Batch 13 - Wire Reaction Mirror-Skip Gate
+
+Batch 13 started on 2026-07-13 after preview confirmed reaction taps are
+instant, persist correctly, and stay visually stable across Activity/Today
+navigation while the serialized write queue drains.
+
+Implemented:
+
+- the live `reaction` handler now persists through
+  `persistOrSkipBlobMirror(..., "reaction")`
+- with the default environment (`BLOB_MIRROR_SKIP_ACTIONS` unset), behavior is
+  unchanged because the helper delegates to normal `persistState(...)`
+- if `BLOB_MIRROR_SKIP_ACTIONS=reaction` is configured, the handler writes the
+  canonical reaction, bumps the canonical revision clock, skips blob mirror
+  persistence for that reaction, and returns the readable canonical state
+- dependency/readiness reports now distinguish:
+  - `allowedActions`
+  - `wiredActions`
+  - `enabledActions`
+- the readiness report's next step now points to a preview-only
+  `BLOB_MIRROR_SKIP_ACTIONS=reaction` soak instead of saying the gate still
+  needs to be introduced
+
+Important behavior:
+
+- no blob writes are skipped unless the environment variable is explicitly set
+- `auth-sync`, `repair-display-name`, lifecycle/global paths, and historical
+  settlement paths remain outside mirror-skip
+- reaction UI stability depends on the client-side serialized log mutation
+  queue plus app-level pending reaction overlay from the Batch 12 follow-ups
+
+Recommended next move:
+
+- deploy this code normally with the env var unset and smoke sign-in / blocs /
+  reactions
+- if clean, set `BLOB_MIRROR_SKIP_ACTIONS=reaction` on preview only and test:
+  react, unreact, switch Activity/Today during pending writes, reload, and
+  verify reactions persist
+- inspect `blob-mirror-retirement-readiness-report` and
+  `blob-mirror-dependency-report` on that preview; they should show
+  `wiredActions: ["reaction"]` and `enabledActions: ["reaction"]`

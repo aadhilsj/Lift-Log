@@ -50,6 +50,7 @@ const WRITE_HYDRATION_PARITY_ACTIONS = new Set(
     .filter(Boolean)
 );
 const BLOB_MIRROR_SKIP_ALLOWED_ACTIONS = new Set(["reaction"]);
+const BLOB_MIRROR_SKIP_WIRED_ACTIONS = new Set(["reaction"]);
 const BLOB_MIRROR_SKIP_ACTIONS = new Set(
   String(process.env.BLOB_MIRROR_SKIP_ACTIONS || "")
     .split(",")
@@ -3516,6 +3517,7 @@ function buildBlobMirrorDependencyReport(baseState) {
     disabledLegacyActions: BLOB_MIRROR_DEPENDENCY_AUDIT.disabledLegacyActions,
     mirrorSkipRuntime: {
       allowedActions: [...BLOB_MIRROR_SKIP_ALLOWED_ACTIONS],
+      wiredActions: [...BLOB_MIRROR_SKIP_WIRED_ACTIONS],
       enabledActions: [...BLOB_MIRROR_SKIP_ACTIONS],
       enabled: BLOB_MIRROR_SKIP_ACTIONS.size > 0
     },
@@ -3566,7 +3568,7 @@ async function buildBlobMirrorRetirementReadinessReport(baseState) {
     trueBlobInputAuthorities: dependencyReport.trueBlobInputAuthorities.map(entry => entry.action),
     requiredBeforeFirstSkip: BLOB_MIRROR_RETIREMENT_READINESS.requiredBeforeFirstSkip,
     nextSafeMove: revisionStamp.canonicalRevisionAvailable
-      ? "Introduce a disabled-by-default mirror-skip flag for one narrow current/open action family."
+      ? "Enable BLOB_MIRROR_SKIP_ACTIONS=reaction in preview for a narrow mirror-skip soak, then inspect dependency/readiness reports and reaction smoke behavior."
       : "Apply the canonical revision clock RPC before disabling blob writes for any action family."
   };
 }
@@ -6846,7 +6848,7 @@ export default async function handler(req, res) {
             { throwOnError: true }
           );
         }
-        const persisted = await persistState(result.updated, result.reason);
+        const persisted = await persistOrSkipBlobMirror(result.updated, result.reason, "reaction");
         return res.status(200).json(persisted);
       }
 
