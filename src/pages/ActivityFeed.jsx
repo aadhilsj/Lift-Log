@@ -146,16 +146,16 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
                             const active = members.includes(currentUser);
                             const reactionKey = `${post.id}:${emoji}`;
                             return React.createElement('div',{key:`bottom-${emoji}`,style:{position:"relative",display:"inline-flex"}},
-                              React.createElement('button',{type:"button",onContextMenu:e=>e.preventDefault(),onMouseDown:()=>startReactionPress(post.id, emoji, members),onMouseUp:clearReactionTimer,onMouseLeave:clearReactionTimer,onTouchStart:()=>startReactionPress(post.id, emoji, members),onTouchEnd:clearReactionTimer,onTouchCancel:clearReactionTimer,onClick:()=>{ if (reactionLongPressKey.current===reactionKey) { reactionLongPressKey.current=""; return; } onReact(post.owner, post.id, emoji); },style:{height:24,padding:"0 8px",borderRadius:999,background:active?"rgba(78,205,196,.12)":"var(--s1)",border:`1px solid ${active?"rgba(78,205,196,.35)":"var(--border)"}`,fontSize:11,color:active?"var(--cyan)":"var(--muted)",display:"inline-flex",alignItems:"center",gap:4}},
+                              React.createElement('button',{type:"button",onContextMenu:e=>e.preventDefault(),onMouseDown:()=>startReactionPress(post.id, emoji, members),onMouseUp:clearReactionTimer,onMouseLeave:clearReactionTimer,onTouchStart:()=>startReactionPress(post.id, emoji, members),onTouchEnd:clearReactionTimer,onTouchCancel:clearReactionTimer,onClick:()=>{ if (reactionLongPressKey.current===reactionKey) { reactionLongPressKey.current=""; return; } onReact(post.owner, post.id, emoji); },style:{height:22,padding:"0 7px",borderRadius:999,background:active?"rgba(78,205,196,.12)":"var(--s1)",border:`1px solid ${active?"rgba(78,205,196,.35)":"var(--border)"}`,fontSize:10.5,color:active?"var(--cyan)":"var(--muted)",display:"inline-flex",alignItems:"center",gap:3}},
                                 React.createElement('span',null,emoji),
-                                React.createElement('span',{className:"mono",style:{fontSize:9,color:active?"var(--cyan)":"var(--muted)"}},members.length)
+                                React.createElement('span',{className:"mono",style:{fontSize:8.5,color:active?"var(--cyan)":"var(--muted)"}},members.length)
                               ),
                               reactionPopover?.postId===post.id && reactionPopover?.emoji===emoji && React.createElement('div',{ref:reactionPopoverRef,style:{position:"absolute",left:0,bottom:"calc(100% + 6px)",zIndex:5,minWidth:120,maxWidth:220,padding:"8px 10px",borderRadius:10,background:"rgba(9,14,14,.98)",border:"1px solid var(--border2)",boxShadow:"0 14px 30px rgba(0,0,0,.28)",fontSize:12,color:"var(--text)",lineHeight:1.4,whiteSpace:"normal",userSelect:"none",WebkitUserSelect:"none",WebkitTouchCallout:"none",pointerEvents:"none"}},
                                 `${emoji} ${reactionPopover.names.join(", ")}`
                               )
                             );
                           }),
-                          React.createElement('button',{type:"button",onClick:()=>setReactionTarget(reactionTarget===post.id?null:post.id),style:{height:24,padding:"0 8px",borderRadius:999,background:"var(--s1)",border:"1px solid var(--border)",fontSize:11,color:"var(--muted)"}},"＋")
+                          React.createElement('button',{type:"button",onClick:()=>setReactionTarget(reactionTarget===post.id?null:post.id),style:{height:22,padding:"0 7px",borderRadius:999,background:"var(--s1)",border:"1px solid var(--border)",fontSize:10.5,color:"var(--muted)"}},"＋")
                         ),
                       ),
                       React.createElement('button',{type:"button",onClick:()=>setImageTarget({src:post.photoUrl,alt:`${post.owner} ${post.type}`,post,canFlag}),style:{display:"block",width:72,height:72,padding:0,borderRadius:8,overflow:"hidden",background:"#050507",border:"1px solid rgba(255,255,255,.08)",flexShrink:0,marginTop:2}},
@@ -184,16 +184,16 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
                         const active = members.includes(currentUser);
                         const reactionKey = `${post.id}:${emoji}`;
                         return React.createElement('div',{key:`compact-${emoji}`,style:{position:"relative",display:"inline-flex"}},
-                          React.createElement('button',{type:"button",onContextMenu:e=>e.preventDefault(),onMouseDown:()=>startReactionPress(post.id, emoji, members),onMouseUp:clearReactionTimer,onMouseLeave:clearReactionTimer,onTouchStart:()=>startReactionPress(post.id, emoji, members),onTouchEnd:clearReactionTimer,onTouchCancel:clearReactionTimer,onClick:()=>{ if (reactionLongPressKey.current===reactionKey) { reactionLongPressKey.current=""; return; } onReact(post.owner, post.id, emoji); },style:{height:22,padding:"0 7px",borderRadius:999,background:active?"rgba(78,205,196,.12)":"var(--s1)",border:`1px solid ${active?"rgba(78,205,196,.35)":"var(--border)"}`,fontSize:11,color:active?"var(--cyan)":"var(--muted)",display:"inline-flex",alignItems:"center",gap:4}},
+                          React.createElement('button',{type:"button",onContextMenu:e=>e.preventDefault(),onMouseDown:()=>startReactionPress(post.id, emoji, members),onMouseUp:clearReactionTimer,onMouseLeave:clearReactionTimer,onTouchStart:()=>startReactionPress(post.id, emoji, members),onTouchEnd:clearReactionTimer,onTouchCancel:clearReactionTimer,onClick:()=>{ if (reactionLongPressKey.current===reactionKey) { reactionLongPressKey.current=""; return; } onReact(post.owner, post.id, emoji); },style:{height:20,padding:"0 6px",borderRadius:999,background:active?"rgba(78,205,196,.12)":"var(--s1)",border:`1px solid ${active?"rgba(78,205,196,.35)":"var(--border)"}`,fontSize:10.5,color:active?"var(--cyan)":"var(--muted)",display:"inline-flex",alignItems:"center",gap:3}},
                             React.createElement('span',null,emoji),
-                            React.createElement('span',{className:"mono",style:{fontSize:9,color:active?"var(--cyan)":"var(--muted)"}},members.length)
+                            React.createElement('span',{className:"mono",style:{fontSize:8.5,color:active?"var(--cyan)":"var(--muted)"}},members.length)
                           ),
                           reactionPopover?.postId===post.id && reactionPopover?.emoji===emoji && React.createElement('div',{ref:reactionPopoverRef,style:{position:"absolute",left:0,bottom:"calc(100% + 6px)",zIndex:5,minWidth:120,maxWidth:220,padding:"8px 10px",borderRadius:10,background:"rgba(9,14,14,.98)",border:"1px solid var(--border2)",boxShadow:"0 14px 30px rgba(0,0,0,.28)",fontSize:12,color:"var(--text)",lineHeight:1.4,whiteSpace:"normal",userSelect:"none",WebkitUserSelect:"none",WebkitTouchCallout:"none",pointerEvents:"none"}},
                             `${emoji} ${reactionPopover.names.join(", ")}`
                           )
                         );
                       }),
-                      React.createElement('button',{type:"button",onClick:()=>setReactionTarget(reactionTarget===post.id?null:post.id),style:{height:22,padding:"0 7px",borderRadius:999,background:"var(--s1)",border:"1px solid var(--border)",fontSize:11,color:"var(--muted)"}},"＋")
+                      React.createElement('button',{type:"button",onClick:()=>setReactionTarget(reactionTarget===post.id?null:post.id),style:{height:20,padding:"0 6px",borderRadius:999,background:"var(--s1)",border:"1px solid var(--border)",fontSize:10.5,color:"var(--muted)"}},"＋")
                     )
                   ),
                   post.flagStatus==="flagged" && React.createElement('div',{style:{padding:"9px 11px",borderRadius:10,background:"rgba(232,69,69,.08)",border:"1px solid rgba(232,69,69,.22)",marginBottom:8}},
@@ -217,7 +217,7 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
                   reactionTarget===post.id && React.createElement('div',{style:{marginTop:8,padding:"10px 12px",borderRadius:12,background:"var(--s1)",border:"1px solid var(--border)",display:"grid",gap:10}},
                     React.createElement('div',{style:{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}},
                       QUICK_REACTIONS.map(emoji=>
-                        React.createElement('button',{key:emoji,type:"button",onClick:()=>{ onReact(post.owner, post.id, emoji); setReactionTarget(null); },style:{width:40,height:40,borderRadius:999,background:"var(--s2)",border:"1px solid var(--border)",fontSize:22,color:"var(--text)"}},emoji)
+                        React.createElement('button',{key:emoji,type:"button",onClick:()=>{ onReact(post.owner, post.id, emoji); setReactionTarget(null); },style:{width:36,height:36,borderRadius:999,background:"var(--s2)",border:"1px solid var(--border)",fontSize:20,color:"var(--text)"}},emoji)
                       )
                     )
                   )
