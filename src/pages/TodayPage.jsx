@@ -933,7 +933,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
                       React.createElement(StatusBadge,{status:displayStatus}),
                       React.createElement(ChevronRightIcon,null)
                     ),
-                  React.createElement('span',{style:{fontSize:9,fontWeight:700,color:lastWorkout(logs[u.name])==='today'?'var(--green)':lastWorkout(logs[u.name])==='1 day ago'?'var(--amber)':'#C97B2E',fontFamily:"'Outfit',sans-serif",minWidth:92,textAlign:"center",gridColumn:"2",gridRow:"2"}},lastWorkout(logs[u.name])?`last: ${lastWorkout(logs[u.name])}`:"no logs")
+                  React.createElement('span',{style:{fontSize:8,fontWeight:700,color:lastWorkout(logs[u.name])==='today'?'var(--green)':lastWorkout(logs[u.name])==='1 day ago'?'var(--amber)':'#C97B2E',fontFamily:"'Outfit',sans-serif",minWidth:92,textAlign:"center",gridColumn:"2",gridRow:"2"}},lastWorkout(logs[u.name])?`last: ${lastWorkout(logs[u.name])}`:"no logs")
                 )
           )
         );
@@ -1021,7 +1021,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
                         React.createElement(StatusBadge,{status:displayStatus}),
                         React.createElement(ChevronRightIcon,null)
                       ),
-                    React.createElement('span',{style:{fontSize:9,fontWeight:700,color:lastWorkout(logs[u.name])==='today'?'var(--green)':lastWorkout(logs[u.name])==='1 day ago'?'var(--amber)':'#C97B2E',fontFamily:"'Outfit',sans-serif",minWidth:98,textAlign:"center",gridColumn:"2",gridRow:"2"}},lastWorkout(logs[u.name])?`last: ${lastWorkout(logs[u.name])}`:"no logs yet")
+                    React.createElement('span',{style:{fontSize:8,fontWeight:700,color:lastWorkout(logs[u.name])==='today'?'var(--green)':lastWorkout(logs[u.name])==='1 day ago'?'var(--amber)':'#C97B2E',fontFamily:"'Outfit',sans-serif",minWidth:98,textAlign:"center",gridColumn:"2",gridRow:"2"}},lastWorkout(logs[u.name])?`last: ${lastWorkout(logs[u.name])}`:"no logs yet")
                   )
             )
           );
