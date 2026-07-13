@@ -447,6 +447,33 @@ Status:
 - next retirement move should be instrumentation for canonical revision /
   mirror-write skipping, not immediate global blob deletion
 
+### Slice 4 follow-up - blob mirror retirement readiness
+
+Status:
+
+- added admin-only `blob-mirror-retirement-readiness-report`
+- this report confirms blob writes are not ready to disable yet because
+  `GET /api/lift-log?revision=1` still reads `lift_log_state.revision`
+- there is not yet an independent canonical revision source that changes for
+  every canonical-input mutation
+- low-risk future skip candidates are current/open action families such as
+  settings, proration, sit-out, reactions, flags, and delete-log
+- higher-risk or blocked families remain:
+  - `auth-sync`
+  - `repair-display-name`
+  - membership lifecycle writes
+  - account/profile global writes
+  - closed-month settlement compatibility writes
+
+Required before the first blob-write skip:
+
+- create or expose a canonical revision source independent of the blob row
+- route revision polling to that source or to a dual-source revision stamp
+- add a disabled-by-default skip flag for one narrow action family
+- keep full state response metadata compatible while the client still consumes
+  blob-shaped `meta`
+- soak the selected action family in preview and production before expanding
+
 ### Slice 5 - canonical writable state constructor
 
 Only after the smaller audits:

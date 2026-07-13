@@ -733,3 +733,37 @@ Interpretation:
   replacements or explicit retirement rules
 - the next retirement batch should focus on canonical revision / mirror-write
   instrumentation before disabling blob persistence for any action family
+
+## Batch 10 - Blob Mirror Retirement Readiness
+
+Batch 10 started on 2026-07-13 after the Batch 9 blob mirror dependency audit
+was smoke-tested on preview.
+
+Implemented:
+
+- added admin-only `blob-mirror-retirement-readiness-report`
+- the report is intentionally read-only/report-only; no mutation behavior,
+  client polling behavior, or blob persistence behavior changed
+- the report records:
+  - current blob revision / updated timestamp and mirror field counts
+  - the fact that `GET /api/lift-log?revision=1` still reads
+    `lift_log_state.revision`
+  - that no independent canonical revision source exists yet
+  - candidate action families for a future blob-write skip experiment
+  - blocked action families that must not be used as the first skip
+  - required steps before disabling blob writes for even one action family
+
+Current conclusion:
+
+- `canDisableBlobWritesNow: false`
+- the first real blob-write skip must wait until the revision endpoint no
+  longer depends only on the blob row
+- otherwise skipped writes would leave background polling blind to canonical
+  changes until a later full refresh or unrelated blob write
+
+Recommended next move:
+
+- add a canonical revision source or dual-source revision stamp that changes
+  for every canonical-input mutation
+- only after that should a disabled-by-default mirror-skip flag be introduced
+  for one narrow current/open action family

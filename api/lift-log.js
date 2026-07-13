@@ -132,6 +132,71 @@ const BLOB_MIRROR_DEPENDENCY_AUDIT = {
     "Keep auth-sync and repair-display-name out of blob-write retirement until replacement repair paths exist."
   ]
 };
+const BLOB_MIRROR_RETIREMENT_READINESS = {
+  generatedOn: "2026-07-13",
+  revisionEndpoint: {
+    route: "GET /api/lift-log?revision=1",
+    currentSource: "lift_log_state.revision",
+    clientPollingDependsOnBlobRevision: true,
+    canSkipBlobWritesWhileBlobRevisionPowersPolling: false,
+    retirementCondition: "Add a canonical revision source that changes for every canonical-input mutation, then move revision polling to that source before skipping mirror writes."
+  },
+  mirrorSkipCandidates: [
+    {
+      actionFamilies: [
+        "update-settings",
+        "season-proration-choice",
+        "sitout-request",
+        "sitout-review",
+        "reaction",
+        "flag",
+        "flag-response",
+        "flag-review",
+        "delete-log"
+      ],
+      status: "candidate-after-canonical-revision",
+      reason: "These narrow current/open actions already compute post-action state from canonical writable input and have focused parity probes."
+    },
+    {
+      actionFamilies: [
+        "add-log",
+        "multi-log"
+      ],
+      status: "candidate-after-canonical-revision-and-log-soak",
+      reason: "Workout writes are canonical-input now, but they are high-traffic and directly user-visible, so they should follow the narrower action families."
+    }
+  ],
+  blockedActionFamilies: [
+    {
+      actionFamilies: ["auth-sync"],
+      blocker: "true-blob-input-authority",
+      reason: "Legacy identity repair still needs to see blob gaps and backfill missing auth-linked membership rows."
+    },
+    {
+      actionFamilies: ["repair-display-name"],
+      blocker: "admin-compatibility-repair",
+      reason: "This is a quarantined legacy name-keyed repair path and should not be used as a mirror-retirement proving ground."
+    },
+    {
+      actionFamilies: ["create-group", "join-group", "leave-bloc", "kick-member", "delete-account", "upsert-profile"],
+      blocker: "membership-lifecycle-scope",
+      reason: "These mutate global membership/profile/lifecycle state and should wait until the low-risk current/open families prove the skip path."
+    },
+    {
+      actionFamilies: ["settlement"],
+      blocker: "historical-closed-month-scope",
+      reason: "Legacy settlement toggles touch closed-month compatibility shells, so they should wait until historical shell dependencies are retired or explicitly accepted."
+    }
+  ],
+  requiredBeforeFirstSkip: [
+    "Create or expose a canonical revision source independent of lift_log_state.",
+    "Move GET /api/lift-log?revision=1 to canonical revision semantics or return a dual-source stamp that changes when skipped mirror writes occur.",
+    "Add a disabled-by-default server flag for one narrow action family before skipping blob persistence.",
+    "Keep the full state response contract stable while the client still consumes blob-shaped meta.",
+    "Soak in preview and production with the readiness/dependency reports clean for the selected action family."
+  ],
+  canDisableBlobWritesNow: false
+};
 
 let storageCleanupInFlight = null;
 let storageCleanupLastRunAt = 0;
@@ -3355,6 +3420,38 @@ function buildBlobMirrorDependencyReport(baseState) {
   };
 }
 
+function buildBlobMirrorRetirementReadinessReport(baseState) {
+  const dependencyReport = buildBlobMirrorDependencyReport(baseState);
+  const unresolvedCompatibilityFields = dependencyReport.remainingMirrorDependencies
+    .filter(entry => ["leftMemberNames", "joinedMonthByName", "memberOrder"].includes(entry.field))
+    .map(entry => entry.field);
+
+  return {
+    ok: true,
+    generatedOn: BLOB_MIRROR_RETIREMENT_READINESS.generatedOn,
+    canDisableBlobWritesNow: BLOB_MIRROR_RETIREMENT_READINESS.canDisableBlobWritesNow,
+    blobMirror: {
+      revision: dependencyReport.blobRevision,
+      updatedAt: dependencyReport.blobUpdatedAt,
+      groupCount: dependencyReport.groupCount,
+      profileCount: dependencyReport.profileCount,
+      fieldUsage: dependencyReport.fieldUsage
+    },
+    canonicalRevision: {
+      available: false,
+      source: null,
+      blocker: "No canonical revision source currently replaces lift_log_state.revision for client polling."
+    },
+    revisionEndpoint: BLOB_MIRROR_RETIREMENT_READINESS.revisionEndpoint,
+    mirrorSkipCandidates: BLOB_MIRROR_RETIREMENT_READINESS.mirrorSkipCandidates,
+    blockedActionFamilies: BLOB_MIRROR_RETIREMENT_READINESS.blockedActionFamilies,
+    unresolvedCompatibilityFields,
+    trueBlobInputAuthorities: dependencyReport.trueBlobInputAuthorities.map(entry => entry.action),
+    requiredBeforeFirstSkip: BLOB_MIRROR_RETIREMENT_READINESS.requiredBeforeFirstSkip,
+    nextSafeMove: "Add a canonical revision source or dual-source revision stamp before disabling blob writes for any action family."
+  };
+}
+
 // Mutations must always hydrate from the blob source of truth.
 // Projection reads are safe for GET optimization, but using a lagging or
 // lossy projection snapshot as the base for writes can permanently erase
@@ -6568,10 +6665,17 @@ export default async function handler(req, res) {
         return res.status(200).json(report);
       }
 
+      if (payload?.action === "blob-mirror-retirement-readiness-report") {
+        assertAdminPin(payload);
+        const report = buildBlobMirrorRetirementReadinessReport(await getCurrent());
+        return res.status(200).json(report);
+      }
+
       // Writable mutation boundary:
-      // actions below this point intentionally hydrate the blob-shaped writable
-      // state before computing their compatibility payload. Do not replace this
-      // with fetchReadableCurrentState() broadly; readable state is a composed
+      // actions below this point intentionally hydrate the blob-shaped shell
+      // before validation/repair, even when the final post-action state is now
+      // computed from canonical writable input. Do not replace this with
+      // fetchReadableCurrentState() broadly; readable state is a composed
       // user-facing projection and can hide legacy blob gaps that these
       // mutations still need to preserve or repair.
       current = await getCurrent();
