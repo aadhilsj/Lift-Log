@@ -14,6 +14,18 @@ import {
 import { Avatar, WorkoutTypeIcon, Card } from "../components/primitives.jsx";
 import { TextEntryModal, NoticeModal, ImageLightbox } from "../modals/modals.jsx";
 
+const getReactionKey = (groupId, owner, logId, emoji) => `${groupId || ""}:${owner || ""}:${logId || ""}:${emoji || ""}`;
+
+const normalizeReactionMembers = (members) => Array.isArray(members)
+  ? Array.from(new Set(members.filter(Boolean))).sort()
+  : [];
+
+const reactionsMatch = (a, b) => {
+  const left = normalizeReactionMembers(a);
+  const right = normalizeReactionMembers(b);
+  return left.length === right.length && left.every((member, index) => member === right[index]);
+};
+
 const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clockTick}) => {
   const [flagTarget,setFlagTarget]=useState(null);
   const [flagReason,setFlagReason]=useState("");
@@ -21,12 +33,21 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
   const [responseText,setResponseText]=useState("");
   const [reactionTarget,setReactionTarget]=useState(null);
   const [reactionPopover,setReactionPopover]=useState(null);
+  const [reactionOverrides,setReactionOverrides]=useState({});
   const [imageTarget,setImageTarget]=useState(null);
   const [notice,setNotice]=useState(null);
   const reactionPressTimer = useRef(null);
   const reactionLongPressKey = useRef("");
   const reactionPopoverRef = useRef(null);
-  const feedPosts = useMemo(()=>flattenFeedPosts(group),[group]);
+  const baseFeedPosts = useMemo(()=>flattenFeedPosts(group),[group]);
+  const feedPosts = useMemo(()=>baseFeedPosts.map(post => {
+    const reactions = { ...(post.reactions || {}) };
+    Object.values(reactionOverrides).forEach(override => {
+      if (override.owner !== post.owner || override.logId !== post.id) return;
+      reactions[override.emoji] = override.members;
+    });
+    return { ...post, reactions };
+  }),[baseFeedPosts, reactionOverrides]);
   const isAdmin = group?.adminName === currentUser;
   const approvedFlagCount = countApprovedFlagsForActor(group, currentUser);
   const cannotFlagMore = approvedFlagCount >= 3;
@@ -41,6 +62,26 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
     document.addEventListener("pointerdown", handlePointerDown);
     return ()=>document.removeEventListener("pointerdown", handlePointerDown);
   },[reactionPopover]);
+  useEffect(()=>{
+    setReactionOverrides(current => {
+      let changed = false;
+      const next = {};
+      Object.entries(current).forEach(([key, override]) => {
+        const post = baseFeedPosts.find(item => item.owner === override.owner && item.id === override.logId);
+        if (!post) {
+          changed = true;
+          return;
+        }
+        const baseMembers = post?.reactions?.[override.emoji] || [];
+        if (reactionsMatch(baseMembers, override.members)) {
+          changed = true;
+          return;
+        }
+        next[key] = override;
+      });
+      return changed ? next : current;
+    });
+  },[baseFeedPosts]);
   const clearReactionTimer = () => {
     if (reactionPressTimer.current) {
       clearTimeout(reactionPressTimer.current);
@@ -55,6 +96,38 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
       setReactionPopover({postId, emoji, names:members});
     }, 420);
   };
+  const handleReact = useCallback((post, emoji) => {
+    if (!currentUser) return;
+    const key = getReactionKey(group?.id, post.owner, post.id, emoji);
+    const currentMembers = normalizeReactionMembers(post.reactions?.[emoji]);
+    const nextMembers = currentMembers.includes(currentUser)
+      ? currentMembers.filter(member => member !== currentUser)
+      : [...currentMembers, currentUser].sort();
+    setReactionOverrides(current => ({
+      ...current,
+      [key]: {
+        owner: post.owner,
+        logId: post.id,
+        emoji,
+        members: nextMembers
+      }
+    }));
+    Promise.resolve(onReact(post.owner, post.id, emoji)).then(result => {
+      if (result?.ok === false) {
+        setReactionOverrides(current => {
+          const next = { ...current };
+          delete next[key];
+          return next;
+        });
+      }
+    }).catch(() => {
+      setReactionOverrides(current => {
+        const next = { ...current };
+        delete next[key];
+        return next;
+      });
+    });
+  },[currentUser, group?.id, onReact]);
 
   return React.createElement(React.Fragment,null,
     imageTarget && React.createElement(ImageLightbox,{src:imageTarget.src,alt:imageTarget.alt,onClose:()=>setImageTarget(null),canFlag:imageTarget.canFlag,onFlag:()=>{ setImageTarget(null); setFlagTarget(imageTarget.post); }}),
@@ -105,7 +178,9 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
               const hasThumbnail = Boolean(post.photoUrl);
               const isOwner = post.owner === currentUser;
               const canFlag = !isOwner && post.verifiedVia !== "strava";
-              const reactionEntries = Object.entries(post.reactions || {}).sort((a,b)=>b[1].length-a[1].length);
+              const reactionEntries = Object.entries(post.reactions || {})
+                .filter(([, members]) => Array.isArray(members) && members.length)
+                .sort((a,b)=>b[1].length-a[1].length);
               const categoryIcon = React.createElement(WorkoutTypeIcon,{type:post.type,size:13});
               const showRelativeTime = isRecentPastTimestamp(post.createdAt, clockTick || Date.now());
               const compactRelativeTime = showRelativeTime ? formatCompactRelativeTime(post.createdAt) : "";
@@ -147,7 +222,7 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
                             const active = members.includes(currentUser);
                             const reactionKey = `${post.id}:${emoji}`;
                             return React.createElement('div',{key:`bottom-${emoji}`,style:{position:"relative",display:"inline-flex"}},
-                              React.createElement('button',{type:"button",onContextMenu:e=>e.preventDefault(),onMouseDown:()=>startReactionPress(post.id, emoji, members),onMouseUp:clearReactionTimer,onMouseLeave:clearReactionTimer,onTouchStart:()=>startReactionPress(post.id, emoji, members),onTouchEnd:clearReactionTimer,onTouchCancel:clearReactionTimer,onClick:()=>{ if (reactionLongPressKey.current===reactionKey) { reactionLongPressKey.current=""; return; } onReact(post.owner, post.id, emoji); },style:{height:24,padding:"0 8px",borderRadius:999,background:active?"rgba(78,205,196,.12)":"var(--s1)",border:`1px solid ${active?"rgba(78,205,196,.35)":"var(--border)"}`,fontSize:11,color:active?"var(--cyan)":"var(--muted)",display:"inline-flex",alignItems:"center",gap:4}},
+                              React.createElement('button',{type:"button",onContextMenu:e=>e.preventDefault(),onMouseDown:()=>startReactionPress(post.id, emoji, members),onMouseUp:clearReactionTimer,onMouseLeave:clearReactionTimer,onTouchStart:()=>startReactionPress(post.id, emoji, members),onTouchEnd:clearReactionTimer,onTouchCancel:clearReactionTimer,onClick:()=>{ if (reactionLongPressKey.current===reactionKey) { reactionLongPressKey.current=""; return; } handleReact(post, emoji); },style:{height:24,padding:"0 8px",borderRadius:999,background:active?"rgba(78,205,196,.12)":"var(--s1)",border:`1px solid ${active?"rgba(78,205,196,.35)":"var(--border)"}`,fontSize:11,color:active?"var(--cyan)":"var(--muted)",display:"inline-flex",alignItems:"center",gap:4}},
                                 React.createElement('span',null,emoji),
                                 React.createElement('span',{className:"mono",style:{fontSize:9,color:active?"var(--cyan)":"var(--muted)"}},members.length)
                               ),
@@ -185,7 +260,7 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
                         const active = members.includes(currentUser);
                         const reactionKey = `${post.id}:${emoji}`;
                         return React.createElement('div',{key:`compact-${emoji}`,style:{position:"relative",display:"inline-flex"}},
-                          React.createElement('button',{type:"button",onContextMenu:e=>e.preventDefault(),onMouseDown:()=>startReactionPress(post.id, emoji, members),onMouseUp:clearReactionTimer,onMouseLeave:clearReactionTimer,onTouchStart:()=>startReactionPress(post.id, emoji, members),onTouchEnd:clearReactionTimer,onTouchCancel:clearReactionTimer,onClick:()=>{ if (reactionLongPressKey.current===reactionKey) { reactionLongPressKey.current=""; return; } onReact(post.owner, post.id, emoji); },style:{height:22,padding:"0 7px",borderRadius:999,background:active?"rgba(78,205,196,.12)":"var(--s1)",border:`1px solid ${active?"rgba(78,205,196,.35)":"var(--border)"}`,fontSize:11,color:active?"var(--cyan)":"var(--muted)",display:"inline-flex",alignItems:"center",gap:4}},
+                          React.createElement('button',{type:"button",onContextMenu:e=>e.preventDefault(),onMouseDown:()=>startReactionPress(post.id, emoji, members),onMouseUp:clearReactionTimer,onMouseLeave:clearReactionTimer,onTouchStart:()=>startReactionPress(post.id, emoji, members),onTouchEnd:clearReactionTimer,onTouchCancel:clearReactionTimer,onClick:()=>{ if (reactionLongPressKey.current===reactionKey) { reactionLongPressKey.current=""; return; } handleReact(post, emoji); },style:{height:22,padding:"0 7px",borderRadius:999,background:active?"rgba(78,205,196,.12)":"var(--s1)",border:`1px solid ${active?"rgba(78,205,196,.35)":"var(--border)"}`,fontSize:11,color:active?"var(--cyan)":"var(--muted)",display:"inline-flex",alignItems:"center",gap:4}},
                             React.createElement('span',null,emoji),
                             React.createElement('span',{className:"mono",style:{fontSize:9,color:active?"var(--cyan)":"var(--muted)"}},members.length)
                           ),
@@ -218,7 +293,7 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
                   reactionTarget===post.id && React.createElement('div',{style:{marginTop:8,padding:"10px 12px",borderRadius:12,background:"var(--s1)",border:"1px solid var(--border)",display:"grid",gap:10}},
                     React.createElement('div',{style:{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}},
                       QUICK_REACTIONS.map(emoji=>
-                        React.createElement('button',{key:emoji,type:"button",onClick:()=>{ onReact(post.owner, post.id, emoji); setReactionTarget(null); },style:{width:40,height:40,borderRadius:999,background:"var(--s2)",border:"1px solid var(--border)",fontSize:22,color:"var(--text)"}},emoji)
+                        React.createElement('button',{key:emoji,type:"button",onClick:()=>{ handleReact(post, emoji); setReactionTarget(null); },style:{width:40,height:40,borderRadius:999,background:"var(--s2)",border:"1px solid var(--border)",fontSize:22,color:"var(--text)"}},emoji)
                       )
                     )
                   )

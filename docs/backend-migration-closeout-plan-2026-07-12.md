@@ -895,3 +895,18 @@ Fix:
 - delete-log keeps its existing optimistic removal behavior
 - this avoids competing reaction writes and prevents stale optimistic state from
   being replaced by an older mutation response
+
+### Batch 12 follow-up - restore instant reaction feedback
+
+The serialized mutation queue fixed lost reaction writes, but it made reaction
+buttons wait for the full server round trip before changing on screen. That was
+too slow for normal use.
+
+Follow-up fix:
+
+- activity feed reactions now apply a local render-only override immediately
+- the serialized server queue remains in place for correctness
+- local overrides clear once the canonical server response catches up
+- failed reaction saves drop the local override so the UI returns to server state
+- this keeps reaction taps instant without reintroducing overlapping full-state
+  writes
