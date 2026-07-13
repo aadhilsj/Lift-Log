@@ -202,21 +202,21 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
     const maxC = Math.max(thisCount, priorCount, 1);
     const barH = n => n > 0 ? Math.max(4, Math.round(42 * n / maxC)) : 0;
     const takeawayColor = tone === "ahead" ? "#4ECDC4" : tone === "behind" ? "#F5A623" : "var(--muted)";
-    const bar = (label, n, color, numColor) => React.createElement('div', { key: label, style: { display: "flex", flexDirection: "column", alignItems: "center", gap: 5, width: 40 } },
+    const bar = (label, n, color, numColor) => React.createElement('div', { key: label, style: { display: "flex", flexDirection: "column", alignItems: "center", gap: 5, width: 52 } },
       React.createElement('div', { style: { fontFamily: "'Outfit', sans-serif", fontSize: 16, fontWeight: 800, color: numColor, lineHeight: 1 } }, n),
       React.createElement('div', { style: { width: 24, height: 42, display: "flex", alignItems: "flex-end" } },
         React.createElement('div', { style: { width: "100%", height: barH(n), background: color, borderRadius: "4px 4px 0 0" } })
       ),
       React.createElement('div', { style: { fontSize: 9.5, color: "var(--muted)", whiteSpace: "nowrap" } }, label)
     );
-    return React.createElement('div', { style: { border: "1px solid rgba(78,205,196,.1)", borderRadius: 10, background: "rgba(8,15,15,.5)", padding: "13px 15px", display: "flex", flexDirection: "column", gap: 12 } },
-      React.createElement('div', { style: { fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".12em", color: "var(--muted)" } }, "This time last month"),
-      React.createElement('div', { style: { display: "flex", alignItems: "flex-end", gap: 18 } },
-        React.createElement('div', { style: { display: "flex", alignItems: "flex-end", gap: 10, flexShrink: 0 } },
+    return React.createElement('div', { style: { border: "1px solid rgba(78,205,196,.1)", borderRadius: 10, background: "rgba(8,15,15,.5)", padding: "12px 15px", display: "flex", flexDirection: "column", gap: 10 } },
+      React.createElement('div', { style: { fontFamily: "'Outfit', sans-serif", fontSize: 8.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".1em", color: "var(--muted)", textAlign: "center" } }, "This time last month"),
+      React.createElement('div', { style: { display: "flex", alignItems: "center", gap: 20 } },
+        React.createElement('div', { style: { display: "flex", alignItems: "flex-end", gap: 16, flexShrink: 0 } },
           bar("This month", thisCount, "#4ECDC4", "var(--text)"),
           bar("Last month", priorCount, "rgba(124,150,145,.5)", "var(--muted)")
         ),
-        React.createElement('div', { style: { flex: 1, minWidth: 0, fontSize: 12.5, fontWeight: 700, color: takeawayColor, lineHeight: 1.35 } }, takeaway)
+        React.createElement('div', { style: { flex: 1, minWidth: 0, fontSize: 11, fontWeight: 700, color: takeawayColor, lineHeight: 1.3, display: "flex", alignItems: "center", alignSelf: "stretch" } }, takeaway)
       )
     );
   })();
@@ -258,15 +258,15 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
       React.createElement('button',{type:"button",onClick:onOpenToday,style:{alignSelf:"flex-start",background:"transparent",border:"none",padding:0,color:"var(--text)",fontSize:13,fontWeight:800,cursor:"pointer"}},"See Leaderboard")
     ),
     React.createElement('div',{style:{height:1,width:"100%",background:"linear-gradient(90deg, transparent, rgba(78,205,196,.2), rgba(255,255,255,.12), rgba(78,205,196,.2), transparent)",margin:"1px 0"}}),
+    lastMonthCard,
+    lastMonthCard&&React.createElement('div',{style:{height:1,width:"100%",background:"linear-gradient(90deg, transparent, rgba(78,205,196,.2), rgba(255,255,255,.12), rgba(78,205,196,.2), transparent)",margin:"1px 0"}}),
     React.createElement('div',{style:{border:"1px solid rgba(78,205,196,.13)",borderRadius:10,overflow:"hidden",background:"rgba(8,15,15,.68)",boxShadow:"inset 0 1px 0 rgba(255,255,255,.025)"}},
       React.createElement('button',{type:"button",onClick:()=>setShowStandings(v=>!v),style:{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"13px 15px",background:"transparent",border:"none",color:"var(--text)",fontSize:13,fontWeight:800,cursor:"pointer"}},
         React.createElement('span',null,"If the month ended today"),
         React.createElement('span',{style:{color:"var(--muted)",fontSize:16}},showStandings?"−":"+")
       ),
       showStandings&&renderCurrentFinancialSnapshot()
-    ),
-    lastMonthCard&&React.createElement('div',{style:{height:1,width:"100%",background:"linear-gradient(90deg, transparent, rgba(78,205,196,.2), rgba(255,255,255,.12), rgba(78,205,196,.2), transparent)",margin:"1px 0"}}),
-    lastMonthCard
+    )
     )
   );
 };
