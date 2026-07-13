@@ -182,8 +182,9 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
         ? React.createElement('div',{style:{display:"flex",alignItems:"center",gap:12}},
             React.createElement('span',{style:{display:"inline-flex",color:"#F5A623",flexShrink:0}},React.createElement(TrophyIcon,{size:22,color:"#F5A623"})),
             React.createElement('div',{style:{flex:1,minWidth:0}},
+              React.createElement('div',{className:"mono",style:{fontSize:9,color:"rgba(245,166,35,.82)",textTransform:"uppercase",letterSpacing:".12em",marginBottom:4}},winners.length>1?"Current leaders":"Currently leading"),
               React.createElement('div',{style:{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",marginBottom:3}},
-                winners.map(w=>React.createElement('div',{key:w.name,style:{display:"flex",alignItems:"center",gap:7}},React.createElement(Avatar,{name:w.name,size:24}),React.createElement('span',{style:{fontSize:winners.length>1?17:22,fontWeight:800,color:"var(--text)"}},w.name)))
+                winners.map(w=>React.createElement('div',{key:w.name,style:{display:"flex",alignItems:"center",gap:7}},React.createElement(Avatar,{name:w.name,size:22}),React.createElement('span',{style:{fontSize:winners.length>1?15:18,fontWeight:800,color:"var(--text)",lineHeight:1.12}},w.name)))
               ),
               React.createElement('span',{className:"mono",style:{fontSize:11,color:"var(--muted)"}},`${winners[0].count} workouts`)
             )
