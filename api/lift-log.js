@@ -4401,6 +4401,42 @@ function collectCreateGroupCandidates(state) {
     .filter(Boolean);
 }
 
+function collectDeleteAccountCandidates(state) {
+  return Object.entries(state.profiles || {})
+    .map(([userId, profile]) => {
+      const email = String(profile?.email || "").trim().toLowerCase();
+      const displayName = String(profile?.displayName || "").trim();
+      if (!userId || (!email && !displayName)) return null;
+      const groupIds = Object.entries(state.groups || {})
+        .filter(([, group]) => group?.memberships?.[userId])
+        .map(([groupId]) => groupId);
+      return { userId, email, displayName, groupIds };
+    })
+    .filter(Boolean);
+}
+
+function collectDeleteAccountTouchedGroupIds(writableInput, canonicalInput, userId) {
+  const writableProfile = writableInput.profiles?.[userId] || null;
+  const canonicalProfile = canonicalInput.profiles?.[userId] || null;
+  const displayNames = uniqueNames([
+    resolveDeletedAccountDisplayName(writableProfile, writableInput.groups, userId),
+    resolveDeletedAccountDisplayName(canonicalProfile, canonicalInput.groups, userId)
+  ].filter(Boolean));
+  const groupIds = uniqueNames([
+    ...Object.keys(writableInput.groups || {}),
+    ...Object.keys(canonicalInput.groups || {})
+  ]);
+  return groupIds.filter(groupId => {
+    const writableGroup = writableInput.groups?.[groupId] || null;
+    const canonicalGroup = canonicalInput.groups?.[groupId] || null;
+    if (writableGroup?.memberships?.[userId] || canonicalGroup?.memberships?.[userId]) return true;
+    return displayNames.some(displayName =>
+      writableGroup?.logs?.[displayName] ||
+      canonicalGroup?.logs?.[displayName]
+    );
+  });
+}
+
 function buildSyntheticCreateGroupPayload(candidate) {
   const suffix = String(candidate.userId || "").slice(0, 8)
     || String(candidate.displayName || "user").toLowerCase().replace(/[^a-z0-9]+/g, "").slice(0, 8)
@@ -4477,6 +4513,76 @@ async function compareWriteHydrationCreateGroup(baseState, canonicalBase, candid
       action: "create-group",
       scope: "current-open",
       groupId: payload.createdGroupId,
+      ok: false,
+      error: err?.message || String(err)
+    };
+  }
+}
+
+async function compareWriteHydrationDeleteAccount(baseState, canonicalBase, candidate) {
+  const payload = { userId: candidate.userId };
+  try {
+    const writableUpdated = applyDeleteAccount(baseState, payload);
+    const canonicalUpdated = applyDeleteAccount(canonicalBase, payload);
+    const writableBlob = buildWriteHydrationComparisonBlob(writableUpdated, "delete-account");
+    const canonicalBlob = buildWriteHydrationComparisonBlob(canonicalUpdated, "delete-account");
+    const touchedGroupIds = collectDeleteAccountTouchedGroupIds(baseState, canonicalBase, candidate.userId);
+    const profileMismatches = valuesDiffer(
+      writableBlob.profiles?.[candidate.userId] || null,
+      canonicalBlob.profiles?.[candidate.userId] || null
+    )
+      ? [`profiles.${candidate.userId}`]
+      : [];
+    const orderMismatches = valuesDiffer(writableBlob.groupOrder || [], canonicalBlob.groupOrder || [])
+      ? ["groupOrder"]
+      : [];
+    const groupMismatches = touchedGroupIds.flatMap(groupId =>
+      collectWriteHydrationCurrentOpenMismatches(
+        writableBlob.groups?.[groupId],
+        canonicalBlob.groups?.[groupId],
+        groupId
+      )
+    );
+    const mismatches = [...profileMismatches, ...orderMismatches, ...groupMismatches];
+    return {
+      action: "delete-account",
+      scope: "global-account-current-open",
+      userId: candidate.userId,
+      groupIds: touchedGroupIds,
+      ok: mismatches.length === 0,
+      mismatches,
+      ...(mismatches.length
+        ? {
+            details: Object.fromEntries(
+              mismatches.map(mismatch => {
+                if (mismatch === "groupOrder") {
+                  return [mismatch, findFirstNestedDifference(writableBlob.groupOrder, canonicalBlob.groupOrder, mismatch)];
+                }
+                if (mismatch === `profiles.${candidate.userId}`) {
+                  return [mismatch, findFirstNestedDifference(
+                    writableBlob.profiles?.[candidate.userId] || null,
+                    canonicalBlob.profiles?.[candidate.userId] || null,
+                    mismatch
+                  )];
+                }
+                const groupId = mismatch.match(/^groups\.([^.]+)\./)?.[1] || "";
+                return [mismatch, collectWriteHydrationGroupMismatchDetails(
+                  writableBlob.groups?.[groupId],
+                  canonicalBlob.groups?.[groupId],
+                  groupId,
+                  [mismatch]
+                )[mismatch]];
+              })
+            )
+          }
+        : {})
+    };
+  } catch (err) {
+    return {
+      action: "delete-account",
+      scope: "global-account-current-open",
+      userId: candidate.userId,
+      groupIds: candidate.groupIds || [],
       ok: false,
       error: err?.message || String(err)
     };
@@ -4958,6 +5064,29 @@ async function buildWriteHydrationParityReport(baseState) {
     addSkipped("join-group", null, "no safe cross-bloc profile candidate", "current-open");
   }
 
+  const deleteAccountCandidates = collectDeleteAccountCandidates(baseState);
+  if (deleteAccountCandidates.length > 0) {
+    try {
+      const canonicalGlobalBase = await buildCanonicalWritableStateForAllGroups(baseState);
+      for (const candidate of deleteAccountCandidates.slice(0, 12)) {
+        results.push(await compareWriteHydrationDeleteAccount(baseState, canonicalGlobalBase, candidate));
+      }
+      if (deleteAccountCandidates.length > 12) {
+        addSkipped("delete-account", null, `${deleteAccountCandidates.length - 12} additional account deletion candidates omitted`, "global-account-current-open");
+      }
+    } catch (err) {
+      results.push({
+        action: "delete-account",
+        scope: "global-account-current-open",
+        groupId: null,
+        ok: false,
+        error: err?.message || String(err)
+      });
+    }
+  } else {
+    addSkipped("delete-account", null, "no profile candidate", "global-account-current-open");
+  }
+
   const failed = results.filter(result => result.ok === false);
   const skipped = results.filter(result => result.skipped);
   const summary = results.reduce((acc, result) => {
@@ -5003,8 +5132,8 @@ async function buildWriteHydrationParityReport(baseState) {
       },
       {
         action: "delete-account",
-        status: "canonical-first-global-account",
-        reason: "Verified canonical-first account deletion, but global destructive account scope is not part of target-group parity probes."
+        status: "canonical-first-global-account-report-covered",
+        reason: "Global destructive account scope is covered by synthetic current/open report probes; runtime validates against the blob shell, then computes from canonical global input."
       },
       {
         action: "repair-display-name",
@@ -6697,15 +6826,19 @@ export default async function handler(req, res) {
 
       if (payload?.action === "delete-account") {
         const auth = await requireAuthenticatedContext(req, payload, current);
-        const updated = applyDeleteAccount(auth.state, { ...payload, userId: auth.user.id });
+        applyDeleteAccount(auth.state, { ...payload, userId: auth.user.id });
+        const canonicalState = await buildCanonicalWritableStateForAuthenticatedGlobalMutation(auth);
+        const updated = applyDeleteAccount(canonicalState, { ...payload, userId: auth.user.id });
 
         // Canonical-first account deletion slice:
-        // 1. compute the exact post-delete blob-compatible state in memory
-        // 2. delete canonical blocs first for any sole-member blocs
-        // 3. transfer canonical admin first for any surviving admin-owned blocs
-        // 4. delete the canonical profile so dependent memberships cascade away
-        // 5. persist blob afterward as the compatibility mirror
-        for (const [groupId, group] of Object.entries(auth.state.groups || {})) {
+        // 1. authenticate/repair and validate against the blob shell
+        // 2. compute the exact post-delete blob-compatible state from the
+        //    canonical global writable constructor
+        // 3. delete canonical blocs first for any sole-member blocs
+        // 4. transfer canonical admin first for any surviving admin-owned blocs
+        // 5. delete the canonical profile so dependent memberships cascade away
+        // 6. persist blob afterward as the compatibility mirror
+        for (const [groupId, group] of Object.entries(canonicalState.groups || {})) {
           const survivingGroup = updated.groups?.[groupId];
           if (!group.memberships?.[auth.user.id]) continue;
           if (!survivingGroup) {

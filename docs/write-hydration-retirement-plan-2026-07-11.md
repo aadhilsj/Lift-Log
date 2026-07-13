@@ -394,6 +394,22 @@ Status:
   the legacy name-keyed state
 - no lifecycle behavior changed in this audit slice
 
+### Slice 4 follow-up - delete-account global cutover
+
+Status:
+
+- `write-hydration-parity-report` now includes a capped
+  `delete-account:global-account-current-open` synthetic probe
+- the probe simulates account deletion from blob-shaped input and
+  canonical-global input, then compares profile removal, global `groupOrder`,
+  and touched blocs' current/open surfaces
+- local report status before cutover: `12` checked, `0` failed, `1` skipped
+- runtime `delete-account` now validates against the blob shell first, then
+  computes the post-delete result from the canonical global writable
+  constructor
+- canonical bloc deletion, admin transfer, and profile deletion still happen
+  before blob mirror persistence
+
 ### Slice 5 - canonical writable state constructor
 
 Only after the smaller audits:

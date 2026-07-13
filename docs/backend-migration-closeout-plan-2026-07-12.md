@@ -252,8 +252,9 @@ The admin report now includes a `summary` object keyed by action/scope and an
 - `auth-sync`: blob-writable by design until legacy identity repair is replaced
 - `upsert-profile`: canonical-first global identity rewrite, still
   blob-shaped for compatibility
-- `delete-account`: verified canonical-first account deletion, excluded because
-  it is global/destructive rather than target-group scoped
+- `delete-account`: verified canonical-first account deletion, now covered by
+  a synthetic global/current-open report bucket and cut to canonical global
+  writable input after clean local parity
 - `repair-display-name`: quarantined admin-only compatibility repair
 - legacy admin `settlement`: historical closed-month write outside current/open
   scope
@@ -609,3 +610,30 @@ Verification:
   reconciliation
 - `write-hydration-parity-report`: broad failures remain confined to the known
   `monthHistory` bucket
+
+## Batch 7 - Delete Account Global Cutover
+
+Batch 7 started on 2026-07-13 after create-group was verified on preview.
+
+Implemented:
+
+- added `delete-account:global-account-current-open` synthetic report coverage
+  to `write-hydration-parity-report`
+- report candidates are capped at 12 profiles per run, matching the other
+  global probes
+- the probe compares profile removal, global `groupOrder`, and current/open
+  surfaces for touched blocs after simulating `applyDeleteAccount(...)` against
+  blob-shaped input and canonical-global input
+- local report status before cutover: `12` checked, `0` failed, `1` skipped
+- runtime `delete-account` now validates against the blob shell first, then
+  computes the post-delete result from
+  `buildCanonicalWritableStateForAuthenticatedGlobalMutation(...)`
+- canonical bloc deletion, admin transfer, and profile deletion still complete
+  before blob mirror persistence
+
+Interpretation:
+
+- account deletion was moved only after synthetic current/open parity was clean
+  on production-like local data
+- this remains a high-risk global path; do not bundle any future account/auth
+  repair changes with `auth-sync` or `repair-display-name`
