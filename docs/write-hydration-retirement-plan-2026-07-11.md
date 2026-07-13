@@ -145,6 +145,18 @@ Identity report amendment, 2026-07-13:
   their own creation timestamp and profile rename does not semantically mutate
   account creation time
 
+Join-group report amendment, 2026-07-13:
+
+- `write-hydration-parity-report` now includes report-only
+  `join-group:current-open` probes
+- the probes compare safe cross-bloc join candidates from blob input against
+  canonical-built global input without changing runtime `join-group`
+- synthetic `memberships[*].joinedAt` timestamps are redacted for this action
+  only because the probe runs the two simulations separately
+- local result: `7` checked, `0` failed, `0` skipped
+- runtime `join-group` still hydrates the blob shell and should move only in a
+  dedicated cutover batch
+
 ### Quarantined compatibility tools
 
 - `repair-display-name`

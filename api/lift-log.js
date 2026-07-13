@@ -289,10 +289,33 @@ function redactGeneratedWorkoutLogFieldsForComparison(value) {
   return Object.fromEntries(entries);
 }
 
+function redactJoinGroupFieldsForComparison(value) {
+  if (Array.isArray(value)) return value.map(entry => redactJoinGroupFieldsForComparison(entry));
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(
+    Object.entries(value).map(([key, entry]) => {
+      if (key === "memberships" && entry && typeof entry === "object") {
+        return [key, Object.fromEntries(
+          Object.entries(entry).map(([userId, membership]) => [
+            userId,
+            membership && typeof membership === "object"
+              ? { ...membership, joinedAt: membership.joinedAt ? "<volatile>" : membership.joinedAt }
+              : membership
+          ])
+        )];
+      }
+      return [key, redactJoinGroupFieldsForComparison(entry)];
+    })
+  );
+}
+
 function buildWriteHydrationComparisonBlob(state, action) {
   const blob = buildWriteHydrationParityBlob(state);
   if (action === "add-log" || action === "multi-log") {
     return redactGeneratedWorkoutLogFieldsForComparison(blob);
+  }
+  if (action === "join-group") {
+    return redactJoinGroupFieldsForComparison(blob);
   }
   return blob;
 }
@@ -4237,6 +4260,41 @@ function findLeaveBlocCandidate(group) {
   return activeMembers.find(member => !isGroupAdminActor(group, member.userId, member.displayName)) || activeMembers[0];
 }
 
+function collectJoinGroupCandidates(state) {
+  const profiles = Object.entries(state.profiles || {})
+    .map(([userId, profile]) => ({
+      userId,
+      email: String(profile?.email || "").trim().toLowerCase(),
+      displayName: String(profile?.displayName || "").trim()
+    }))
+    .filter(profile => profile.userId && profile.email && profile.displayName);
+  const groupIds = Array.isArray(state.groupOrder) && state.groupOrder.length
+    ? state.groupOrder
+    : Object.keys(state.groups || {});
+  const candidates = [];
+  for (const groupId of groupIds) {
+    const group = state.groups?.[groupId];
+    if (!group) continue;
+    const currentMemberCount = Array.isArray(group.activeMemberOrder) && group.activeMemberOrder.length
+      ? group.activeMemberOrder.length
+      : (Object.keys(group.memberships || {}).length || group.memberOrder?.length || 0);
+    if (currentMemberCount >= 20) continue;
+    const candidate = profiles.find(profile =>
+      !group.memberships?.[profile.userId] &&
+      !group.memberOrder?.includes(profile.displayName)
+    );
+    if (!candidate) continue;
+    candidates.push({
+      groupId,
+      inviteCode: group.inviteCode,
+      userId: candidate.userId,
+      email: candidate.email,
+      displayName: candidate.displayName
+    });
+  }
+  return candidates;
+}
+
 async function compareWriteHydrationMultiLog(baseState, sourceGroupId, payload) {
   try {
     const canonicalBase = await buildCanonicalWritableStateForGroup(sourceGroupId, baseState);
@@ -4406,6 +4464,52 @@ async function compareWriteHydrationProfileRename(baseState, canonicalBase, cand
       scope: "identity-rename",
       userId: candidate.userId,
       groupIds: candidate.groupIds || [],
+      ok: false,
+      error: err?.message || String(err)
+    };
+  }
+}
+
+async function compareWriteHydrationJoinGroup(baseState, canonicalBase, candidate) {
+  const payload = {
+    groupId: candidate.groupId,
+    inviteCode: candidate.inviteCode,
+    userId: candidate.userId
+  };
+  try {
+    const writableUpdated = unwrapMutationState(applyJoinGroup(baseState, payload));
+    const canonicalUpdated = unwrapMutationState(applyJoinGroup(canonicalBase, payload));
+    const writableBlob = buildWriteHydrationComparisonBlob(writableUpdated.state || writableUpdated, "join-group");
+    const canonicalBlob = buildWriteHydrationComparisonBlob(canonicalUpdated.state || canonicalUpdated, "join-group");
+    const mismatches = collectWriteHydrationCurrentOpenMismatches(
+      writableBlob.groups?.[candidate.groupId],
+      canonicalBlob.groups?.[candidate.groupId],
+      candidate.groupId
+    );
+    return {
+      action: "join-group",
+      scope: "current-open",
+      groupId: candidate.groupId,
+      userId: candidate.userId,
+      ok: mismatches.length === 0,
+      mismatches,
+      ...(mismatches.length
+        ? {
+            details: collectWriteHydrationGroupMismatchDetails(
+              writableBlob.groups?.[candidate.groupId],
+              canonicalBlob.groups?.[candidate.groupId],
+              candidate.groupId,
+              mismatches
+            )
+          }
+        : {})
+    };
+  } catch (err) {
+    return {
+      action: "join-group",
+      scope: "current-open",
+      groupId: candidate.groupId,
+      userId: candidate.userId,
       ok: false,
       error: err?.message || String(err)
     };
@@ -4695,6 +4799,29 @@ async function buildWriteHydrationParityReport(baseState) {
     }
   } else {
     addSkipped("upsert-profile", null, "no profile rename candidate", "identity-rename");
+  }
+
+  const joinGroupCandidates = collectJoinGroupCandidates(baseState);
+  if (joinGroupCandidates.length > 0) {
+    try {
+      const canonicalGlobalBase = await buildCanonicalWritableStateForAllGroups(baseState);
+      for (const candidate of joinGroupCandidates.slice(0, 12)) {
+        results.push(await compareWriteHydrationJoinGroup(baseState, canonicalGlobalBase, candidate));
+      }
+      if (joinGroupCandidates.length > 12) {
+        addSkipped("join-group", null, `${joinGroupCandidates.length - 12} additional join candidates omitted`, "current-open");
+      }
+    } catch (err) {
+      results.push({
+        action: "join-group",
+        scope: "current-open",
+        groupId: null,
+        ok: false,
+        error: err?.message || String(err)
+      });
+    }
+  } else {
+    addSkipped("join-group", null, "no safe cross-bloc profile candidate", "current-open");
   }
 
   const failed = results.filter(result => result.ok === false);

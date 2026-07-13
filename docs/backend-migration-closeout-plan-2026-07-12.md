@@ -327,6 +327,16 @@ Current stance after the July 13 lifecycle-exit cutover:
 - `auth-sync`, `upsert-profile`, and `repair-display-name` remain explicitly
   high risk because readable/canonical state can hide the legacy blob gaps they
   still repair or rewrite
+- July 13 join-group report-only coverage:
+  - added `join-group:current-open` probes to `write-hydration-parity-report`
+  - the probe samples safe cross-bloc profile candidates and compares the
+    post-join current/open target bloc shell from blob input vs canonical-built
+    global input
+  - synthetic join `memberships[*].joinedAt` timestamps are redacted for this
+    report only because the probe runs the two simulations separately
+  - local status: `7` checked, `0` failed, `0` skipped
+  - runtime `join-group` remains blob-hydrated in this slice; the report is
+    evidence for a later coherent cutover, not the cutover itself
 
 Exit criteria:
 
@@ -448,3 +458,23 @@ Interpretation:
 - identity/display-name cleanup now depends on finishing historical shell
   reconciliation, not on profile metadata drift
 - no auth/bootstrap or client normalization paths were touched
+
+## Batch 3 - Join Group Coverage
+
+Batch 3 started on 2026-07-13 as report-only coverage, not a runtime cutover:
+
+- added `join-group:current-open` to the admin write-hydration parity report
+- candidates are existing profiles that are not members of the sampled bloc and
+  whose display name does not collide with the target bloc shell
+- comparisons are capped at 12 candidates per report run
+- only the current/open target bloc shell is compared; historical/global
+  residue remains outside this report scope
+- local result: `7` checked, `0` failed, `0` skipped
+
+Interpretation:
+
+- canonical-built global input can reproduce current/open join behavior for
+  the sampled production-like candidates
+- `join-group` can be considered for a dedicated cutover batch, but should not
+  be bundled with `auth-sync` or `upsert-profile`
+- client bootstrap and app-state normalization were untouched
