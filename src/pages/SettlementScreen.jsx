@@ -88,7 +88,9 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
   const streakLine = consistentStreak >= 2 ? `${consistentStreak} consistent months in a row. Keep it going.` : "Build on it next month.";
   const selectedMonthName = FULL_MONTH_NAMES[month.month ?? monthKeyParts(month.key)?.monthIndex ?? 0] || MONTH_NAMES[month.month ?? monthKeyParts(month.key)?.monthIndex ?? 0] || "month";
   const perfectLine = `Everyone hit their target this ${selectedMonthName}.`;
-  const perfectFooterLine = consistentStreak >= 2 ? `${consistentStreak} consistent months in a row for you.` : "Keep it going.";
+  const perfectFooterLine = consistentStreak >= 2
+    ? [`${consistentStreak} consistent months in a row for you.`, "Keep it going."]
+    : ["Keep it going."];
 
   const handleSettlementAction = async ({ key, kind, payerDisplayName, receiverDisplayName, amount }) => {
     setSettlementBusy(key);
@@ -204,6 +206,12 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
         rest.length ? `. ${rest.join(". ")}` : ""
       );
     }
+    if (hero.tone === "perfect") {
+      return React.createElement('div',{style:{fontSize:13,color:"var(--muted)",fontWeight:500,lineHeight:1.35}},
+        React.createElement('span',{style:{fontWeight:800}},"Everyone"),
+        ` hit their target this ${selectedMonthName}.`
+      );
+    }
     return React.createElement('div',{style:{fontSize:hero.tone==="neutral"||hero.tone==="missed"?12:13,color:"var(--muted)",fontWeight:500,lineHeight:1.35,whiteSpace:hero.tone==="neutral"||hero.tone==="missed"?"nowrap":"normal",overflow:"hidden",textOverflow:"ellipsis"}},hero.line);
   };
 
@@ -287,10 +295,10 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
   const furthestBehind = behindRows[0]?.miss > 0 ? behindRows[0] : null;
   const fallbackAwardNames = sortedActive.map(member => member.name).filter(Boolean);
   const awardCards = [
-    {title:"Bloc Champ", name:mvpNames.length ? mvpNames.join(" & ") : "No winner", detail:mvpNames.length ? workoutsLabel(mvpCount) : "No workouts", tone:"gold", gradient:"linear-gradient(135deg, rgba(245,166,35,.16), rgba(255,224,132,.06))"},
-    {title:"Most Consistent", name:fallbackAwardNames[1] || fallbackAwardNames[0] || "Isira", detail:"Steady all month", tone:"violet", gradient:"linear-gradient(135deg, rgba(135,113,255,.16), rgba(78,112,205,.07))"},
-    {title:"Biggest Turnaround", name:fallbackAwardNames[2] || fallbackAwardNames[0] || "Rahul", detail:"Finished strong", tone:"cyan", gradient:"linear-gradient(135deg, rgba(78,205,196,.14), rgba(71,118,230,.06))"},
-    {title:"Furthest Behind", name:furthestBehind ? furthestBehind.name : "No one", detail:furthestBehind ? `${furthestBehind.miss} short of target` : "Everyone hit target", tone:furthestBehind ? "red" : "silver", gradient:"linear-gradient(135deg, rgba(185,50,50,.14), rgba(245,166,35,.055))"}
+    {title:"Bloc Champ", name:mvpNames.length ? mvpNames.join(" & ") : "No winner", detail:mvpNames.length ? workoutsLabel(mvpCount) : "No workouts", tone:"gold", gradient:"linear-gradient(135deg, rgba(245,166,35,.13), rgba(255,224,132,.048))"},
+    {title:"Most Consistent", name:fallbackAwardNames[1] || fallbackAwardNames[0] || "Isira", detail:"Steady all month", tone:"violet", gradient:"linear-gradient(135deg, rgba(135,113,255,.13), rgba(78,112,205,.056))"},
+    {title:"Biggest Turnaround", name:fallbackAwardNames[2] || fallbackAwardNames[0] || "Rahul", detail:"Finished strong", tone:"cyan", gradient:"linear-gradient(135deg, rgba(78,205,196,.115), rgba(71,118,230,.048))"},
+    {title:"Furthest Behind", name:furthestBehind ? furthestBehind.name : "No one", detail:furthestBehind ? `${furthestBehind.miss} short of target` : "Everyone hit target", tone:furthestBehind ? "red" : "silver", gradient:"linear-gradient(135deg, rgba(185,50,50,.115), rgba(245,166,35,.045))"}
   ];
 
   const renderAwards = () => React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(138px,1fr))",gap:7}},
@@ -352,13 +360,17 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
       React.createElement('div',{style:{fontSize:heroStatSize,fontWeight:900,lineHeight:1.05,color:heroColor,letterSpacing:0,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},hero.stat),
       renderHeroLine(),
       renderPerfectRoster(),
-      hero.footerLine&&React.createElement('div',{style:{fontSize:13,color:"var(--muted)",fontWeight:isStreakLine(hero.footerLine)?800:500,lineHeight:1.35}},hero.footerLine)
+      hero.footerLine&&React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:2,fontSize:13,color:"var(--muted)",fontWeight:500,lineHeight:1.32}},
+        (Array.isArray(hero.footerLine) ? hero.footerLine : [hero.footerLine]).map((line, index) =>
+          React.createElement('div',{key:line,style:{fontWeight:isStreakLine(line)?800:500,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},line)
+        )
+      )
     ),
     React.createElement('div',{ref:ledgerRef},renderLedger()),
     sectionSeparator,
     renderAwards(),
     sectionSeparator,
-    React.createElement('div',{style:{border:"1px solid var(--border)",borderRadius:10,overflow:"hidden",background:"var(--s1)"}},
+    React.createElement('div',{style:{border:"1px solid rgba(78,205,196,.15)",borderRadius:10,overflow:"hidden",background:"linear-gradient(135deg, rgba(78,205,196,.045), rgba(8,15,15,.78) 52%, rgba(255,255,255,.018))",boxShadow:"inset 0 1px 0 rgba(255,255,255,.03), 0 10px 26px rgba(78,205,196,.035)"}},
       React.createElement('button',{type:"button",onClick:()=>setShowStandings(v=>!v),style:{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"13px 15px",background:"transparent",border:"none",color:"var(--text)",fontSize:13,fontWeight:800,cursor:"pointer"}},
         React.createElement('span',null,"Month Summary"),
         React.createElement('span',{style:{color:"var(--muted)",fontSize:16}},showStandings?"−":"+")

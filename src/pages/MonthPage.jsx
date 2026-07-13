@@ -217,7 +217,7 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
       ),
       React.createElement('div', { style: { fontSize: 9.5, color: "var(--muted)", whiteSpace: "nowrap" } }, label)
     );
-    return React.createElement('div', { style: { border: "1px solid rgba(78,205,196,.1)", borderRadius: 10, background: "rgba(8,15,15,.5)", padding: "12px 15px", display: "flex", flexDirection: "column", gap: 10 } },
+    return React.createElement('div', { style: { border: "1px solid rgba(78,205,196,.16)", borderRadius: 10, background: "linear-gradient(135deg, rgba(78,205,196,.075), rgba(8,15,15,.58) 48%, rgba(78,205,196,.035))", boxShadow: "inset 0 1px 0 rgba(255,255,255,.035), 0 10px 28px rgba(78,205,196,.045)", padding: "12px 15px", display: "flex", flexDirection: "column", gap: 10 } },
       React.createElement('div', { style: { fontFamily: "'Outfit', sans-serif", fontSize: 8.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".1em", color: "var(--muted)", textAlign: "center" } }, "This time last month"),
       React.createElement('div', { style: { display: "flex", alignItems: "center", gap: 20 } },
         React.createElement('div', { style: { display: "flex", alignItems: "flex-end", gap: 16, flexShrink: 0 } },
@@ -268,10 +268,10 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
     React.createElement('div',{style:{height:1,width:"100%",background:"linear-gradient(90deg, transparent, rgba(78,205,196,.2), rgba(255,255,255,.12), rgba(78,205,196,.2), transparent)",margin:"1px 0"}}),
     lastMonthCard,
     lastMonthCard&&React.createElement('div',{style:{height:1,width:"100%",background:"linear-gradient(90deg, transparent, rgba(78,205,196,.2), rgba(255,255,255,.12), rgba(78,205,196,.2), transparent)",margin:"1px 0"}}),
-    React.createElement('div',{style:{border:"1px solid rgba(78,205,196,.13)",borderRadius:10,overflow:"hidden",background:"rgba(8,15,15,.68)",boxShadow:"inset 0 1px 0 rgba(255,255,255,.025)"}},
+    React.createElement('div',{style:{border:"1px solid rgba(78,205,196,.17)",borderRadius:10,overflow:"hidden",background:"linear-gradient(135deg, rgba(78,205,196,.055), rgba(8,15,15,.74) 52%, rgba(78,205,196,.025))",boxShadow:"inset 0 1px 0 rgba(255,255,255,.035), 0 10px 26px rgba(78,205,196,.04)"}},
       React.createElement('button',{type:"button",onClick:()=>setShowStandings(v=>!v),style:{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"13px 15px",background:"transparent",border:"none",color:"var(--text)",fontSize:13,fontWeight:800,cursor:"pointer"}},
         React.createElement('span',null,"If the Month Ended Today"),
-        React.createElement('span',{style:{color:"var(--muted)",fontSize:16}},showStandings?"−":"+")
+        React.createElement('span',{style:{color:"var(--muted)",fontSize:14,lineHeight:1}},showStandings?"↑":"↓")
       ),
       showStandings&&renderCurrentFinancialSnapshot()
     )
