@@ -16,7 +16,8 @@ import {
   getCurrentMemberTargetInfo,
   fmtCurrency,
   getCountedLogCount,
-  isJoinedForMonth
+  isJoinedForMonth,
+  workoutsLabel
 } from "../lib/appState.js";
 import {
   isMobile
@@ -194,7 +195,7 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
               React.createElement('div',{style:{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",marginBottom:3}},
                 winners.map(w=>React.createElement('div',{key:w.name,style:{display:"flex",alignItems:"center",gap:10}},React.createElement(Avatar,{name:w.name,size:22}),React.createElement('span',{style:{fontSize:winners.length>1?15:18,fontWeight:800,color:"var(--text)",lineHeight:1.12}},w.name),React.createElement('span',{style:{fontFamily:"'Outfit', sans-serif",fontSize:8,fontWeight:500,color:"rgba(245,166,35,.7)",textTransform:"uppercase",letterSpacing:".05em",whiteSpace:"nowrap",paddingTop:2,marginLeft:2}},"current leader")))
               ),
-              React.createElement('span',{className:"mono",style:{fontSize:11,color:"var(--muted)"}},`${winners[0].count} workouts`)
+              React.createElement('span',{className:"mono",style:{fontSize:11,color:"var(--muted)"}},workoutsLabel(winners[0].count))
             )
           )
         : React.createElement('div',{style:{fontSize:18,fontWeight:800,color:"var(--text)"}},"No leader yet"),

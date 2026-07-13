@@ -946,6 +946,12 @@ function ordinal(n) {
   return n + (s[(v-20)%10]||s[v]||s[0]);
 }
 
+// "1 workout" / "3 workouts" — singular/plural count label.
+function workoutsLabel(n) {
+  const count = Number(n) || 0;
+  return `${count} workout${count === 1 ? "" : "s"}`;
+}
+
 function buildMonthLogsSnapshot(logsByName) {
   return Object.fromEntries(
     NAMES.map(name => [name, [...(logsByName?.[name] || [])].map(log => normalizeLogEntry({ ...log, photoUrl: "" }))])
@@ -1823,6 +1829,7 @@ export {
   getUserWinsThisYear,
   getWorkoutDaysForMonth,
   ordinal,
+  workoutsLabel,
   buildMonthLogsSnapshot,
   uniqueNames,
   normalizeWorkoutType,

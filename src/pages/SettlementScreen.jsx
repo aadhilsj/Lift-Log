@@ -10,7 +10,8 @@ import {
   buildSettlementPairsForMonth,
   buildSettlementPairState,
   fmtCurrency,
-  ordinal
+  ordinal,
+  workoutsLabel
 } from "../lib/appState.js";
 import { TrophyIcon } from "../components/primitives.jsx";
 
@@ -84,9 +85,9 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
     }
     return streak;
   })();
-  const streakLine = consistentStreak >= 2 ? `That's ${consistentStreak} consistent months in a row for you.` : "Build on it next month.";
+  const streakLine = consistentStreak >= 2 ? `${consistentStreak} consistent months in a row. Keep it going.` : "Build on it next month.";
   const selectedMonthName = FULL_MONTH_NAMES[month.month ?? monthKeyParts(month.key)?.monthIndex ?? 0] || MONTH_NAMES[month.month ?? monthKeyParts(month.key)?.monthIndex ?? 0] || "month";
-  const perfectLine = `Great work. Everyone hit their target this ${selectedMonthName}.`;
+  const perfectLine = `Everyone hit their target this ${selectedMonthName}.`;
 
   const handleSettlementAction = async ({ key, kind, payerDisplayName, receiverDisplayName, amount }) => {
     setSettlementBusy(key);
@@ -114,9 +115,8 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
     if (userIsWinner && isBlocPerfect) {
       return {
         tag: "1st · PERFECT BLOC MONTH",
-        stat: `${userCount} workouts`,
+        stat: workoutsLabel(userCount),
         line: perfectLine,
-        footerLine: streakLine,
         tone: "perfect"
       };
     }
@@ -124,30 +124,29 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
       return {
         tag: "Winner · 1st Place",
         stat: `+${fmtCurrency(perWinner, currency)}`,
-        line: `${userCount} workouts. Top of the Bloc.`,
+        line: `${workoutsLabel(userCount)}. Top of the Bloc.`,
         tone: "winner"
       };
     }
     if (isBlocPerfect) {
       return {
         tag: "PERFECT BLOC MONTH",
-        stat: `${userCount} workouts`,
+        stat: workoutsLabel(userCount),
         line: perfectLine,
-        footerLine: streakLine,
         tone: "perfect"
       };
     }
     if (!userIsLoser) {
       return {
         tag: `Target Hit · ${ordinal(userRank)} Place`,
-        stat: `${userCount} workouts`,
-        line: streakLine ? `Great work. ${streakLine}` : "Great work. Build on it next month.",
+        stat: workoutsLabel(userCount),
+        line: streakLine,
         tone: "neutral"
       };
     }
     return {
       tag: "Tough Month",
-      stat: `${userCount} workouts`,
+      stat: workoutsLabel(userCount),
       line: `You needed ${mas}. Bounce back next month.`,
       tone: "missed"
     };
@@ -242,7 +241,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
   const furthestBehind = behindRows[0]?.miss > 0 ? behindRows[0] : null;
   const fallbackAwardNames = sortedActive.map(member => member.name).filter(Boolean);
   const awardCards = [
-    {title:"Bloc Champ", name:mvpNames.length ? mvpNames.join(" & ") : "No winner", detail:mvpNames.length ? `${mvpCount} workouts` : "No workouts", tone:"gold", gradient:"linear-gradient(135deg, rgba(245,166,35,.16), rgba(255,224,132,.06))"},
+    {title:"Bloc Champ", name:mvpNames.length ? mvpNames.join(" & ") : "No winner", detail:mvpNames.length ? workoutsLabel(mvpCount) : "No workouts", tone:"gold", gradient:"linear-gradient(135deg, rgba(245,166,35,.16), rgba(255,224,132,.06))"},
     {title:"Most Consistent", name:fallbackAwardNames[1] || fallbackAwardNames[0] || "Isira", detail:"Steady all month", tone:"violet", gradient:"linear-gradient(135deg, rgba(135,113,255,.16), rgba(78,112,205,.07))"},
     {title:"Biggest Turnaround", name:fallbackAwardNames[2] || fallbackAwardNames[0] || "Rahul", detail:"Finished strong", tone:"cyan", gradient:"linear-gradient(135deg, rgba(78,205,196,.14), rgba(71,118,230,.06))"},
     {title:"Furthest Behind", name:furthestBehind ? furthestBehind.name : "No one", detail:furthestBehind ? `${furthestBehind.miss} short of target` : "Everyone hit target", tone:furthestBehind ? "red" : "silver", gradient:"linear-gradient(135deg, rgba(185,50,50,.14), rgba(245,166,35,.055))"}
@@ -271,7 +270,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
         React.createElement('div',{style:{width:26,height:26,borderRadius:999,background:avatarColor(row.name),color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,flexShrink:0}},initialsFor(row.name)),
         React.createElement('div',{style:{flex:1,minWidth:0}},
           React.createElement('div',{style:{fontSize:13,fontWeight:isMe?900:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},row.name + (isMe ? " (you)" : "")),
-          React.createElement('div',{style:{fontSize:10,color:"var(--muted)",marginTop:1}},`${row.count} workouts`)
+          React.createElement('div',{style:{fontSize:10,color:"var(--muted)",marginTop:1}},workoutsLabel(row.count))
         ),
         isWinner && losers.length > 0
           ? React.createElement('span',{style:{fontSize:12,fontWeight:900,color:C.greenText}},`+${fmtCurrency(perWinner,currency)}`)
@@ -285,8 +284,8 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
   const shareText = outcome === "missed"
     ? `Taking the L this month — ${userCount}/${mas} workouts. Owe ${fmtCurrency(userOwes, currency)}. Back next month. #Ante`
     : userIsWinner
-      ? `Won ${month.label} with ${userCount} workouts. #Ante`
-      : `Hit target — ${userCount} workouts in ${month.label}. #Ante`;
+      ? `Won ${month.label} with ${workoutsLabel(userCount)}. #Ante`
+      : `Hit target — ${workoutsLabel(userCount)} in ${month.label}. #Ante`;
 
   const handleShare = () => {
     if (outcome === "missed") {
@@ -315,7 +314,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
     sectionSeparator,
     React.createElement('div',{style:{border:"1px solid var(--border)",borderRadius:10,overflow:"hidden",background:"var(--s1)"}},
       React.createElement('button',{type:"button",onClick:()=>setShowStandings(v=>!v),style:{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"13px 15px",background:"transparent",border:"none",color:"var(--text)",fontSize:13,fontWeight:800,cursor:"pointer"}},
-        React.createElement('span',null,"Final Month Summary"),
+        React.createElement('span',null,"Month Summary"),
         React.createElement('span',{style:{color:"var(--muted)",fontSize:16}},showStandings?"−":"+")
       ),
       showStandings&&renderLeaderboard()
