@@ -64,7 +64,7 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
   const {winners,losers,perLoser,totalPot,perWinner}=penalties;
   const currentLeaderQualified = !isCurrent || ((winners[0]?.count || 0) >= (winners[0]?.target || MIN_TARGET));
   const hasActivity=activeCounts.some(u=>u.count>0);
-  const resultsCurrency = (isCurrent ? groupSettings : selMonth?.settings)?.currency || DEFAULT_CURRENCY;
+  const resultsCurrency = groupSettings?.currency || DEFAULT_CURRENCY;
   // At Risk = active, not a loser, not a winner, and currently tagged at-risk.
   const atRisk=isCurrent?activeCounts.filter(u=>{
     const isWinner=winners.find(w=>w.name===u.name);

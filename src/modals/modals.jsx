@@ -65,7 +65,7 @@ const TIME_ZONE_OPTIONS = (() => {
 })();
 
 
-const GroupSettingsFields = ({settings,setSettings,showAdvanced,setShowAdvanced,showValidation=false,compact=false}) => {
+const GroupSettingsFields = ({settings,setSettings,showAdvanced,setShowAdvanced,showValidation=false,compact=false,lockCurrency=false}) => {
   const desktopNumericWidth = compact && !isMobile() ? 54 : 39;
   const fineCurrencyWidth = compact && isMobile() ? 110 : 85;
   const fineAmountWidth = compact && isMobile() ? 95 : 75;
@@ -80,15 +80,17 @@ const GroupSettingsFields = ({settings,setSettings,showAdvanced,setShowAdvanced,
   return React.createElement(React.Fragment,null,
     React.createElement(SettingsField,{title:"Monthly fine amount",description:"What each person who misses the MAS owes.",compact},
       React.createElement('div',{style:{display:"inline-flex",alignItems:"center",gap:6}},
-        React.createElement(SelectField,{
-          value:settings.currency,
-          onChange:e=>setSettings(current=>({...current,currency:e.target.value})),
-          width:fineCurrencyWidth,
-          textAlign:"center",
-          options:CURRENCY_OPTIONS.map(option=>({value:option.code,label:option.code})),
-          compact,
-          arrowColor:"#4ECDC4"
-        }),
+        lockCurrency
+          ? React.createElement('div',{style:{...inputShellStyle,width:fineCurrencyWidth,fontSize:compact?12:15,padding:compact?"7px 9px":inputShellStyle.padding,borderRadius:compact?8:inputShellStyle.borderRadius,textAlign:"center",color:"var(--muted)",display:"inline-flex",alignItems:"center",justifyContent:"center"}},settings.currency || DEFAULT_CURRENCY)
+          : React.createElement(SelectField,{
+              value:settings.currency,
+              onChange:e=>setSettings(current=>({...current,currency:e.target.value})),
+              width:fineCurrencyWidth,
+              textAlign:"center",
+              options:CURRENCY_OPTIONS.map(option=>({value:option.code,label:option.code})),
+              compact,
+              arrowColor:"#4ECDC4"
+            }),
         React.createElement('input',{type:"number",min:1,value:settings.fineAmount,onChange:e=>setSettings(current=>({...current,fineAmount:e.target.value})),style:{...inputShellStyle,width:fineAmountWidth,fontSize:compact?12:15,padding:compact?"7px 9px":inputShellStyle.padding,borderRadius:compact?8:inputShellStyle.borderRadius,textAlign:"center"}})
       )
     ),
@@ -275,7 +277,7 @@ const GroupSettingsModal = ({group,actor,actorUserId,onSave,onClose,saving,onRev
         ))
       ),
       React.createElement('div',{style:onSave?{}:{pointerEvents:"none",opacity:0.4}},
-        React.createElement(GroupSettingsFields,{settings,setSettings,showAdvanced,setShowAdvanced,showValidation:submitAttempted,compact:true})
+        React.createElement(GroupSettingsFields,{settings,setSettings,showAdvanced,setShowAdvanced,showValidation:submitAttempted,compact:true,lockCurrency:true})
       ),
       onKickMember && React.createElement('div',{style:{marginTop:14,marginBottom:4}},
         React.createElement('div',{style:{fontWeight:700,fontSize:12,color:"var(--text)",marginBottom:8,letterSpacing:".04em"}},`Members (${getCurrentGroupMemberNames(group).length})`),

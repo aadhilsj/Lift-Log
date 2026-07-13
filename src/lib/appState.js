@@ -745,7 +745,7 @@ function buildSettlementReminderCards(group, currentUserId, currentUserName) {
         payerAuthUserId,
         receiverAuthUserId,
         amount: pair.amount,
-        currency: pair.currency,
+        currency: group?.settings?.currency || pair.currency,
         pending,
         label,
         labelColor,

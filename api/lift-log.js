@@ -4310,7 +4310,8 @@ function applyUpdateSettings(current, payload) {
   }
   const nextSettings = buildNormalizedSettings({
     ...group.settings,
-    ...payload?.settings
+    ...payload?.settings,
+    currency: group.settings?.currency || DEFAULT_CURRENCY
   });
   if (nextSettings.feeModel === "escalating" && nextSettings.escalationStepAmount === null) {
     const error = new Error("Set a step amount to continue.");

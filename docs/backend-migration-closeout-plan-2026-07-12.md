@@ -812,3 +812,20 @@ Recommended next move:
 - smoke test sign-in and blocs load on preview
 - then introduce a disabled-by-default mirror-skip flag for one narrow
   current/open action family, probably `reaction` or `update-settings`
+
+### Batch 11 follow-up - lock existing bloc currency
+
+After preview smoke testing, changing a test bloc from EUR to USD exposed that
+closed-month result screens and settlement reminder cards could display stale
+historical currency even when the current bloc currency had changed.
+
+Fix:
+
+- existing bloc settings no longer allow currency edits in the settings modal
+- `update-settings` preserves the existing bloc currency server-side even if an
+  old client submits a different `settings.currency`
+- settlement reminders, closed-month results, and the settlement screen display
+  money using the current bloc currency
+- month calculations still use the historical month settings for target/fine
+  math; only the displayed currency code/symbol follows the current bloc
+  currency

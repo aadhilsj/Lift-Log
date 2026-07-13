@@ -42,7 +42,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
   const winsThisYear = getUserWinsThisYear(monthHistory, currentUser, month.year);
   const workoutLogsByDay = Object.fromEntries(((month.logsByUser?.[currentUser]) || []).map(log => [Number(String(log.date || "").split("-")[2]), log]));
 
-  const currency = month.settings?.currency || "USD";
+  const currency = group?.settings?.currency || month.settings?.currency || "USD";
   const mas      = month.memberTargets?.[currentUser] || month.settings?.minTarget || MIN_TARGET;
 
   // Calendar — month.month is 0-indexed (matches JS Date)
