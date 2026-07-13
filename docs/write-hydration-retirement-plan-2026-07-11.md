@@ -474,6 +474,31 @@ Required before the first blob-write skip:
   blob-shaped `meta`
 - soak the selected action family in preview and production before expanding
 
+### Slice 4 follow-up - canonical revision clock
+
+Status:
+
+- added and applied `supabase/ante-core-revision-clock-rpc.sql`
+- `ante_core.revision_clock` is a private singleton canonical clock seeded
+  from the blob revision
+- `read_ante_core_revision()` and `bump_ante_core_revision(...)` are
+  service-role-only RPCs
+- `GET /api/lift-log?revision=1` now returns a numeric effective revision from
+  both blob and canonical clock sources
+- full state responses also carry the same effective revision in `meta` so the
+  existing client poller does not repeatedly refetch after seeing a canonical
+  revision
+- if the RPC is unavailable in an environment, the API falls back to blob
+  revision semantics
+
+Remaining before first skip:
+
+- add a disabled-by-default server flag for one narrow current/open action
+  family
+- keep calling `bump_ante_core_revision(...)` for any action family that skips
+  blob persistence
+- preview/production soak before expanding beyond the first family
+
 ### Slice 5 - canonical writable state constructor
 
 Only after the smaller audits:

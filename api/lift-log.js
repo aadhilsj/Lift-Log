@@ -101,9 +101,9 @@ const BLOB_MIRROR_DEPENDENCY_AUDIT = {
   ],
   remainingMirrorDependencies: [
     {
-      field: "blob revision / updated_at",
+      field: "dual-source revision / updated_at",
       usedBy: "GET /api/lift-log?revision=1 and client polling",
-      retirementCondition: "Expose a canonical revision source and move the client poll away from blob revision semantics."
+      retirementCondition: "Keep ante_core.revision_clock as the polling authority before skipping blob writes for any action family."
     },
     {
       field: "blob meta.revision / meta.updatedAt",
@@ -127,8 +127,8 @@ const BLOB_MIRROR_DEPENDENCY_AUDIT = {
     }
   ],
   nextRetirementBatches: [
-    "Add canonical revision/mirror-dependency instrumentation before disabling any blob writes.",
-    "Stop blob writes only for a small low-risk action family after proving the client no longer needs blob revision for that action.",
+    "Add a disabled-by-default mirror-skip flag for one low-risk current/open action family.",
+    "Stop blob writes only for that small action family after proving the canonical revision clock drives polling correctly.",
     "Keep auth-sync and repair-display-name out of blob-write retirement until replacement repair paths exist."
   ]
 };
@@ -136,10 +136,10 @@ const BLOB_MIRROR_RETIREMENT_READINESS = {
   generatedOn: "2026-07-13",
   revisionEndpoint: {
     route: "GET /api/lift-log?revision=1",
-    currentSource: "lift_log_state.revision",
-    clientPollingDependsOnBlobRevision: true,
-    canSkipBlobWritesWhileBlobRevisionPowersPolling: false,
-    retirementCondition: "Add a canonical revision source that changes for every canonical-input mutation, then move revision polling to that source before skipping mirror writes."
+    currentSource: "max(lift_log_state.revision, ante_core.revision_clock.revision)",
+    clientPollingDependsOnBlobRevision: false,
+    canSkipBlobWritesWhileBlobRevisionPowersPolling: true,
+    retirementCondition: "Keep bumping ante_core.revision_clock for any action family that skips blob persistence."
   },
   mirrorSkipCandidates: [
     {
@@ -189,8 +189,8 @@ const BLOB_MIRROR_RETIREMENT_READINESS = {
     }
   ],
   requiredBeforeFirstSkip: [
-    "Create or expose a canonical revision source independent of lift_log_state.",
-    "Move GET /api/lift-log?revision=1 to canonical revision semantics or return a dual-source stamp that changes when skipped mirror writes occur.",
+    "Apply ante-core-revision-clock-rpc.sql to every Supabase environment.",
+    "Confirm GET /api/lift-log?revision=1 reports canonicalRevisionAvailable=true in preview and production.",
     "Add a disabled-by-default server flag for one narrow action family before skipping blob persistence.",
     "Keep the full state response contract stable while the client still consumes blob-shaped meta.",
     "Soak in preview and production with the readiness/dependency reports clean for the selected action family."
@@ -2404,6 +2404,98 @@ async function fetchBlobRevision() {
   }
 }
 
+function isMissingCanonicalRevisionRpcError(error) {
+  const message = String(error?.message || error || "");
+  return error?.status === 404
+    || message.includes("PGRST202")
+    || message.includes("Could not find the function")
+    || message.includes("read_ante_core_revision")
+    || message.includes("bump_ante_core_revision");
+}
+
+function normalizeRevisionRecord(payload) {
+  const source = Array.isArray(payload) ? payload[0] : payload;
+  const revision = Number(source?.revision);
+  return {
+    revision: Number.isFinite(revision) ? revision : null,
+    updatedAt: source?.updated_at || source?.updatedAt || null,
+    lastReason: source?.last_reason || source?.lastReason || null
+  };
+}
+
+async function fetchCanonicalRevision() {
+  try {
+    const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_revision", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({})
+    });
+    return { available: true, ...normalizeRevisionRecord(await response.json()) };
+  } catch (err) {
+    if (isMissingCanonicalRevisionRpcError(err)) {
+      return { available: false, revision: null, updatedAt: null, lastReason: null };
+    }
+    throw err;
+  }
+}
+
+async function bumpCanonicalRevision(reason, floorRevision = null) {
+  try {
+    const response = await supabaseFetch("/rest/v1/rpc/bump_ante_core_revision", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({
+        p_reason: reason || null,
+        p_floor_revision: Number.isFinite(Number(floorRevision)) ? Number(floorRevision) : null
+      })
+    });
+    return { available: true, ...normalizeRevisionRecord(await response.json()) };
+  } catch (err) {
+    if (isMissingCanonicalRevisionRpcError(err)) {
+      return { available: false, revision: null, updatedAt: null, lastReason: null };
+    }
+    console.warn("Canonical revision bump skipped:", err?.message || err);
+    return { available: false, revision: null, updatedAt: null, lastReason: null };
+  }
+}
+
+async function fetchRevisionStamp() {
+  const [blobRevision, canonicalRevisionResult] = await Promise.allSettled([
+    fetchBlobRevision(),
+    fetchCanonicalRevision()
+  ]);
+  const resolvedBlobRevision = blobRevision.status === "fulfilled" ? blobRevision.value : null;
+  const canonicalRevision = canonicalRevisionResult.status === "fulfilled"
+    ? canonicalRevisionResult.value
+    : { available: false, revision: null, updatedAt: null, lastReason: null };
+  const effectiveRevision = Math.max(
+    Number.isFinite(Number(resolvedBlobRevision)) ? Number(resolvedBlobRevision) : 0,
+    Number.isFinite(Number(canonicalRevision.revision)) ? Number(canonicalRevision.revision) : 0
+  );
+  return {
+    revision: effectiveRevision,
+    blobRevision: Number.isFinite(Number(resolvedBlobRevision)) ? Number(resolvedBlobRevision) : null,
+    canonicalRevision: canonicalRevision.revision,
+    canonicalRevisionAvailable: canonicalRevision.available,
+    canonicalUpdatedAt: canonicalRevision.updatedAt,
+    canonicalLastReason: canonicalRevision.lastReason
+  };
+}
+
+function applyEffectiveRevision(state, revisionStamp) {
+  const normalized = normalizeState(state || {});
+  const effectiveRevision = Number(revisionStamp?.revision);
+  if (!Number.isFinite(effectiveRevision) || effectiveRevision <= normalized.meta.revision) return normalized;
+  return normalizeState({
+    ...normalized,
+    meta: {
+      ...normalized.meta,
+      revision: effectiveRevision,
+      updatedAt: revisionStamp?.canonicalUpdatedAt || normalized.meta.updatedAt || new Date().toISOString()
+    }
+  });
+}
+
 async function fetchAnteBlocs() {
   try {
     const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_blocs", {
@@ -3064,10 +3156,11 @@ async function fetchReadableCurrentState() {
     )
   };
 
-  return {
+  const readableState = {
     ...state,
     defaultGroupId: deriveDefaultGroupId(state.groupOrder)
   };
+  return applyEffectiveRevision(readableState, await fetchRevisionStamp());
 }
 
 async function buildCanonicalWritableStateForGroup(groupId, baseStateOverride = null) {
@@ -3420,8 +3513,9 @@ function buildBlobMirrorDependencyReport(baseState) {
   };
 }
 
-function buildBlobMirrorRetirementReadinessReport(baseState) {
+async function buildBlobMirrorRetirementReadinessReport(baseState) {
   const dependencyReport = buildBlobMirrorDependencyReport(baseState);
+  const revisionStamp = await fetchRevisionStamp();
   const unresolvedCompatibilityFields = dependencyReport.remainingMirrorDependencies
     .filter(entry => ["leftMemberNames", "joinedMonthByName", "memberOrder"].includes(entry.field))
     .map(entry => entry.field);
@@ -3438,17 +3532,30 @@ function buildBlobMirrorRetirementReadinessReport(baseState) {
       fieldUsage: dependencyReport.fieldUsage
     },
     canonicalRevision: {
-      available: false,
-      source: null,
-      blocker: "No canonical revision source currently replaces lift_log_state.revision for client polling."
+      available: revisionStamp.canonicalRevisionAvailable,
+      source: revisionStamp.canonicalRevisionAvailable ? "ante_core.revision_clock" : null,
+      revision: revisionStamp.canonicalRevision,
+      updatedAt: revisionStamp.canonicalUpdatedAt,
+      lastReason: revisionStamp.canonicalLastReason,
+      blocker: revisionStamp.canonicalRevisionAvailable
+        ? null
+        : "ante-core-revision-clock-rpc.sql has not been applied in this environment."
     },
     revisionEndpoint: BLOB_MIRROR_RETIREMENT_READINESS.revisionEndpoint,
+    revisionEndpointStamp: {
+      revision: revisionStamp.revision,
+      blobRevision: revisionStamp.blobRevision,
+      canonicalRevision: revisionStamp.canonicalRevision,
+      canonicalRevisionAvailable: revisionStamp.canonicalRevisionAvailable
+    },
     mirrorSkipCandidates: BLOB_MIRROR_RETIREMENT_READINESS.mirrorSkipCandidates,
     blockedActionFamilies: BLOB_MIRROR_RETIREMENT_READINESS.blockedActionFamilies,
     unresolvedCompatibilityFields,
     trueBlobInputAuthorities: dependencyReport.trueBlobInputAuthorities.map(entry => entry.action),
     requiredBeforeFirstSkip: BLOB_MIRROR_RETIREMENT_READINESS.requiredBeforeFirstSkip,
-    nextSafeMove: "Add a canonical revision source or dual-source revision stamp before disabling blob writes for any action family."
+    nextSafeMove: revisionStamp.canonicalRevisionAvailable
+      ? "Introduce a disabled-by-default mirror-skip flag for one narrow current/open action family."
+      : "Apply the canonical revision clock RPC before disabling blob writes for any action family."
   };
 }
 
@@ -3504,7 +3611,14 @@ async function persistState(nextState, reason) {
   }
 
   const persisted = await persistStateToSupabase(safeState, reason);
-  return persisted;
+  const canonicalRevision = await bumpCanonicalRevision(reason, persisted?.meta?.revision ?? safeState.meta.revision);
+  return applyEffectiveRevision(persisted, {
+    revision: Math.max(
+      Number(persisted?.meta?.revision ?? safeState.meta.revision) || 0,
+      Number(canonicalRevision?.revision) || 0
+    ),
+    canonicalUpdatedAt: canonicalRevision?.updatedAt || null
+  });
 }
 
 async function fetchCurrentStateFromSupabase() {
@@ -6477,8 +6591,8 @@ export default async function handler(req, res) {
       }
       const authUser = await fetchAuthenticatedUser(readBearerToken(req));
       if (url.searchParams.get("revision") === "1") {
-        const revision = await fetchBlobRevision();
-        return res.status(200).json({ revision: revision ?? 0 });
+        const revisionStamp = await fetchRevisionStamp();
+        return res.status(200).json(revisionStamp);
       }
       const current = await fetchReadableCurrentState();
       return res.status(200).json(scopeReadableStateForUser(current, authUser.id));
@@ -6667,7 +6781,7 @@ export default async function handler(req, res) {
 
       if (payload?.action === "blob-mirror-retirement-readiness-report") {
         assertAdminPin(payload);
-        const report = buildBlobMirrorRetirementReadinessReport(await getCurrent());
+        const report = await buildBlobMirrorRetirementReadinessReport(await getCurrent());
         return res.status(200).json(report);
       }
 

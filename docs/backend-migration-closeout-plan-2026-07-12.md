@@ -767,3 +767,48 @@ Recommended next move:
   for every canonical-input mutation
 - only after that should a disabled-by-default mirror-skip flag be introduced
   for one narrow current/open action family
+
+## Batch 11 - Canonical Revision Clock
+
+Batch 11 started on 2026-07-13 after the Batch 10 readiness report was
+confirmed as report-only.
+
+Implemented:
+
+- added `supabase/ante-core-revision-clock-rpc.sql`
+- applied the additive migration to the live Lift Log Supabase project and the
+  preview Supabase project used by local preview testing
+- created private `ante_core.revision_clock` singleton state seeded from
+  `public.lift_log_state.revision`
+- added service-role-only RPCs:
+  - `read_ante_core_revision()`
+  - `bump_ante_core_revision(reason, floor_revision)`
+- changed `GET /api/lift-log?revision=1` to return an effective numeric stamp
+  based on both:
+  - blob `lift_log_state.revision`
+  - canonical `ante_core.revision_clock.revision`
+- changed full readable state responses and mutation responses to carry the
+  same effective revision in `meta.revision`
+
+Verification:
+
+- Supabase SQL verification read the seeded clock, bumped it once with
+  `batch-11-verification`, and read the bumped value back
+- `read_ante_core_revision()` returned revision `1268` before the test bump
+- `bump_ante_core_revision(...)` returned revision `1269`
+- preview Supabase verification read revision `858`, bumped once with
+  `batch-11-preview-verification`, and returned revision `859`
+
+Important behavior:
+
+- no blob writes are disabled yet
+- if the canonical revision RPC is missing in an environment, polling falls
+  back to the blob revision instead of failing
+- this batch removes the biggest polling blocker for a future narrow
+  mirror-write skip experiment
+
+Recommended next move:
+
+- smoke test sign-in and blocs load on preview
+- then introduce a disabled-by-default mirror-skip flag for one narrow
+  current/open action family, probably `reaction` or `update-settings`
