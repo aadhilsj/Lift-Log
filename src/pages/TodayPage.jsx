@@ -49,6 +49,8 @@ import { Avatar, WorkoutTypeIcon, ChevronRightIcon, TargetHitHexIcon, StatusBadg
 import { LogModal, DeleteModal, SitOutModal } from "../modals/modals.jsx";
 import { PlayerProfile } from "../pages/PlayerProfile.jsx";
 
+const FULL_MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+
 const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthHistory,saving,onSave,onMultiLog,onLogMutation,clockTick,onViewLastMonth,onSitOutRequest,onSettlementClaimPaid,onSettlementConfirmPaid,onSettlementDisputePaid,navResetToken,showLog,setShowLog}) => {
   const [showExcuse,setShowExcuse]=useState(false);
   const [sitOutSubmitting,setSitOutSubmitting]=useState(false);
@@ -305,14 +307,16 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
     }),
   [currentWeekStart]);
   const currentMonthKey = `${CUR_YEAR}-${CUR_MONTH}`;
-  const currentMonthLabel = `${MONTH_NAMES[CUR_MONTH]} '${String(CUR_YEAR).slice(-2)}`;
+  const currentMonthLabel = `${FULL_MONTH_NAMES[CUR_MONTH] || MONTH_NAMES[CUR_MONTH]} '${String(CUR_YEAR).slice(-2)}`;
+  const todayHeaderMonthName = FULL_MONTH_NAMES[CUR_MONTH] || MONTH_NAMES[CUR_MONTH];
+  const expandMonthLabel = label => String(label || "").replace(/^([A-Z][a-z]{2})\s+'(\d{2})$/, (_, shortName, year) => `${FULL_MONTH_NAMES[MONTH_NAMES.indexOf(shortName)] || shortName} '${year}`);
   const blocMonthHistoryRows = useMemo(() => {
     const closedRows = [...monthHistory]
       .filter(month => month?.key && month.key !== currentMonthKey)
       .sort((a,b)=>b.key.localeCompare(a.key))
       .map(month => ({
         key: month.key,
-        label: month.label,
+        label: expandMonthLabel(month.label),
         total: Object.values(month.counts || {}).reduce((sum, count) => sum + (Number(count) || 0), 0),
         isCurrent: false
       }));
@@ -557,8 +561,8 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
   };
   const mobileStatLabelStyle = {fontSize:8,marginBottom:0,whiteSpace:"nowrap",letterSpacing:".07em",fontWeight:700,color:"#8FAEAA",fontFamily:"'Outfit', sans-serif",textAlign:"center",width:"100%"};
   const desktopStatLabelStyle = {fontSize:9,marginBottom:0,whiteSpace:"nowrap",letterSpacing:".07em",fontWeight:700,color:"#8FAEAA",fontFamily:"'Outfit', sans-serif",textAlign:"center",width:"100%"};
-  const mobileStatSubStyle = {fontSize:8.5,color:"var(--muted)",marginTop:3,lineHeight:1.15,minHeight:20,display:"flex",alignItems:"center",justifyContent:"center",textAlign:"center",fontFamily:"'Outfit', sans-serif",width:"100%"};
-  const desktopStatSubStyle = {fontSize:10,color:"var(--muted)",marginTop:4,lineHeight:1.15,minHeight:24,display:"flex",alignItems:"center",justifyContent:"center",textAlign:"center",fontFamily:"'Outfit', sans-serif",width:"100%"};
+  const mobileStatSubStyle = {fontSize:8.5,color:"var(--muted)",marginTop:3,lineHeight:1.15,minHeight:20,display:"flex",alignItems:"center",justifyContent:"center",textAlign:"center",fontFamily:"'Outfit', sans-serif",width:"100%",whiteSpace:"nowrap"};
+  const desktopStatSubStyle = {fontSize:10,color:"var(--muted)",marginTop:4,lineHeight:1.15,minHeight:24,display:"flex",alignItems:"center",justifyContent:"center",textAlign:"center",fontFamily:"'Outfit', sans-serif",width:"100%",whiteSpace:"nowrap"};
   const statCardSurfaceStyle = {
     background:"linear-gradient(180deg, #080F0F 0%, #0A1314 100%)",
     border:"0.5px solid #152827",
@@ -573,10 +577,10 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
   const desktopStatCardStyle = {...statCardSurfaceStyle,padding:"10px 12px",minHeight:106};
 
   const statCards = [
-    {kind:"pace",label:"Pace Check",val:paceDeltaText,sub:todayTargetText,color:paceDeltaColor,valueStyle:paceValueStyle},
     needed === 0
       ? {kind:"target",label:"Target",valueNode:React.createElement(TargetHitHexIcon,{size:22}),sub:"target hit!",meta:targetCardMeta}
       : {kind:"target",label:"Target",val:needed,sub:"more to go",meta:targetCardMeta,color:"#4ECDC4"},
+    {kind:"pace",label:"Pace Check",val:paceDeltaText,sub:todayTargetText,color:paceDeltaColor,valueStyle:paceValueStyle},
     {kind:"week-mvp",label:"Week's MVP",val:weeklyMvpDisplayValue,sub:"most logs this week",color:"var(--text)",valueStyle:weeklyMvpValueStyle},
     {kind:"bloc-month",label:"Bloc Month",val:blocMonthCount,sub:"workouts logged",color:"var(--text)",valueStyle:blocMonthValueStyle}
   ];
@@ -592,7 +596,6 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
     monthIndex: CUR_MONTH,
     logsByDay: desktopLogsByDay
   });
-  const leaderboardCloseText = closeMeta ? `closes ${closeMeta.closeDate} · ${closeMeta.closeTime} · ${closeMeta.offsetLabel}` : `${leaderboardRows.filter(u=>!u.isOut).length} active`;
   const settlementReminderSlot = showSettlementReminderSlot && React.createElement(Card,{style:{padding:"9px 10px",display:"flex",flexDirection:"column",gap:6,background:"#0A1412",border:"0.5px solid #163d36",boxShadow:"inset 0 1px 0 rgba(78,205,196,.03)"}},
     React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}},
       React.createElement('span',{className:"lbl",style:{fontSize:8,marginBottom:0,color:"#7DB8B1",fontFamily:"'Outfit', sans-serif",fontWeight:700}},"Settlement reminders"),
@@ -874,7 +877,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
   const mobileView = React.createElement('div',{className:"mobile-only",style:{padding:"12px 14px 0",display:"flex",flexDirection:"column",gap:12}},
     React.createElement('div',{style:{display:"grid",gap:10}},
       React.createElement('div',{style:{minWidth:0,flex:1}},
-        React.createElement('div',{className:"mono",style:{fontSize:9,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".12em"}},`${MONTH_NAMES[CUR_MONTH]} · Day ${DAY_OF_MON}/${DAYS_IN_MON}`),
+        React.createElement('div',{className:"mono",style:{fontSize:9,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".12em"}},`${todayHeaderMonthName} · Day ${DAY_OF_MON}/${DAYS_IN_MON}`),
       ),
     ),
     lastMonthBanner,
@@ -891,8 +894,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
     settlementReminderSlot,
     React.createElement(Card,null,
       React.createElement('div',{style:{padding:"11px 14px",borderBottom:"1px solid var(--border)",display:"flex",justifyContent:"space-between",alignItems:"center"}},
-        React.createElement('div',{style:{fontWeight:600,fontSize:15}},"Bloc Leaderboard"),
-        React.createElement('span',{className:"mono",style:{fontSize:7,color:"#1E4040",letterSpacing:".02em",lineHeight:1,whiteSpace:"nowrap"}},leaderboardCloseText)
+        React.createElement('div',{style:{fontWeight:600,fontSize:15}},"Bloc Leaderboard")
       ),
       React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:4,padding:"8px"}},
       leaderboardRows.map(u=>{
@@ -953,7 +955,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
   const desktopView = React.createElement('div',{className:"desktop-only",style:{maxWidth:1060,margin:"0 auto",padding:"20px 16px 0",display:"flex",flexDirection:"column",gap:14}},
     React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10}},
       React.createElement('div',null,
-        React.createElement('span',{className:"mono",style:{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".14em",display:"block"}},`${MONTH_NAMES[CUR_MONTH]} ${CUR_YEAR} · Day ${DAY_OF_MON}/${DAYS_IN_MON}`)
+        React.createElement('span',{className:"mono",style:{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".14em",display:"block"}},`${todayHeaderMonthName} ${CUR_YEAR} · Day ${DAY_OF_MON}/${DAYS_IN_MON}`)
       ),
       isExcused
         ? React.createElement('div',{style:{display:"flex",alignItems:"center",gap:10,background:"var(--amber-dim)",border:"1px solid #f0a50030",borderRadius:10,padding:"10px 16px"}},
@@ -984,8 +986,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
     React.createElement('div',{style:{display:"grid",gridTemplateColumns:"1fr 280px",gap:12,alignItems:"start"}},
       React.createElement(Card,null,
         React.createElement('div',{style:{padding:"12px 15px",borderBottom:"1px solid var(--border)",display:"flex",alignItems:"center",justifyContent:"space-between"}},
-          React.createElement('div',{style:{fontWeight:600,fontSize:13}},"Bloc leaderboard"),
-          React.createElement('span',{className:"mono",style:{fontSize:8,color:"#1E4040",letterSpacing:".02em",lineHeight:1,whiteSpace:"nowrap"}},leaderboardCloseText)
+          React.createElement('div',{style:{fontWeight:600,fontSize:13}},"Bloc leaderboard")
         ),
         React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:4,padding:"8px"}},
         leaderboardRows.map(u=>{

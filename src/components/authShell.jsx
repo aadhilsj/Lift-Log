@@ -303,7 +303,7 @@ const GroupHome = ({groups,currentIdentity,currentEmail,onOpenProfile,onOpenGrou
         groups.length>0
           ? React.createElement('div',{style:{display:"flex",gap:7,alignItems:"center",flexWrap:"wrap"}},
               React.createElement('button',{onClick:()=>setShowCreate(true),style:{background:"var(--green)",color:"#000",padding:compactMobile?"7px 10px":"8px 11px",borderRadius:8,fontSize:11,fontWeight:800}},"New Bloc"),
-              React.createElement('button',{onClick:onJoinGroup,style:{background:"rgba(9,60,57,.5)",border:"1px solid rgba(78,205,196,.16)",color:"#050909",padding:compactMobile?"7px 10px":"8px 11px",borderRadius:8,fontSize:11,fontWeight:800}},"Join")
+              React.createElement('button',{onClick:onJoinGroup,style:{background:"#38BDF8",border:"1px solid rgba(56,189,248,.42)",color:"#050909",padding:compactMobile?"7px 10px":"8px 11px",borderRadius:8,fontSize:11,fontWeight:800}},"Join")
             )
           : React.createElement('div',null),
         React.createElement('button',{type:"button",onClick:onOpenProfile,title:currentEmail||"Account",style:{width:32,height:32,display:"inline-flex",alignItems:"center",justifyContent:"center",borderRadius:999,background:"rgba(24,24,31,.62)",border:"1px solid rgba(62,62,82,.55)",color:"rgba(124,136,152,.78)",fontSize:14,lineHeight:1,flexShrink:0}},React.createElement(AppIcon,{name:"profile",size:13}))
@@ -318,7 +318,7 @@ const GroupHome = ({groups,currentIdentity,currentEmail,onOpenProfile,onOpenGrou
             )
           )
         : React.createElement(React.Fragment,null,
-      React.createElement('div',{className:"fu",style:{textAlign:"center",marginBottom:compactMobile?16:32,maxWidth:560}},
+      React.createElement('div',{className:"fu",style:{width:"100%",display:"grid",justifyItems:"center",textAlign:"center",marginBottom:compactMobile?16:32,maxWidth:560}},
         React.createElement('span',{className:"mono",style:{fontSize:10,color:"var(--cyan)",letterSpacing:".2em",textTransform:"uppercase"}},"Your Blocs"),
       React.createElement('div',{style:{margin:compactMobile?"6px 0 8px":"14px 0"}},React.createElement(AnteWordmark,{size:compactMobile?38:58}))
       ),

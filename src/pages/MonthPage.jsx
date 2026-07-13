@@ -25,6 +25,8 @@ import { Avatar, RankIcon, TrophyIcon, Card, SelectField, PlayerProfileErrorBoun
 import { PlayerProfile } from "../pages/PlayerProfile.jsx";
 import { SettlementScreen } from "../pages/SettlementScreen.jsx";
 
+const FULL_MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+
 const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,currentUserId,initialSelIdx,onStartNextMonth,onSettlementClaimPaid,onSettlementConfirmPaid,onOpenToday,navResetToken}) => {
   const [selIdx,setSelIdx]=useState(initialSelIdx ?? null); // null = current month
   const [viewPlayer,setViewPlayer]=useState(null);
@@ -63,7 +65,8 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
   const resultsCurrency = (isCurrent ? groupSettings : selMonth?.settings)?.currency || DEFAULT_CURRENCY;
   const hasQualifiedWinner = winners.some(w => (w.count || 0) >= (w.target || MIN_TARGET));
   const wouldMoveMoney = hasQualifiedWinner && losers.length > 0 && perWinner > 0;
-  const monthLabel=isCurrent?`${MONTH_NAMES[CUR_MONTH]} '${String(CUR_YEAR).slice(2)}`:selMonth.label;
+  const expandMonthLabel = label => String(label || "").replace(/^([A-Z][a-z]{2})\s+'(\d{2})$/, (_, shortName, year) => `${FULL_MONTH_NAMES[MONTH_NAMES.indexOf(shortName)] || shortName} '${year}`);
+  const monthLabel=isCurrent?`${FULL_MONTH_NAMES[CUR_MONTH] || MONTH_NAMES[CUR_MONTH]} '${String(CUR_YEAR).slice(2)}`:expandMonthLabel(selMonth.label);
 
   const monthSelector=React.createElement(SelectField,{
     value:selIdx??"",
@@ -72,7 +75,7 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
       setSelIdx(e.target.value===""?null:Number(e.target.value));
       requestAnimationFrame(()=>selectEl.blur());
     },
-    width:isMobile()?"100px":"108px",
+    width:isMobile()?"132px":"144px",
     compact:true,
     arrowColor:"#4ECDC4",
     textAlign:"center",
@@ -89,8 +92,8 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
       paddingRight:20
     },
     options:[
-      {value:"",label:"This Month"},
-      ...histReversed.map((m,i)=>({value:String(i),label:m.label}))
+      {value:"",label:monthLabel},
+      ...histReversed.map((m,i)=>({value:String(i),label:expandMonthLabel(m.label)}))
     ]
   });
 
@@ -160,8 +163,7 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
     return React.createElement('div',{style:{maxWidth:840,margin:"0 auto",padding:"12px 12px 16px",display:"flex",flexDirection:"column",gap:12,background:"radial-gradient(ellipse 95% 72% at 50% 62%, rgba(78,205,196,.075), rgba(78,205,196,.025) 46%, transparent 76%)",borderRadius:16}},
       React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10}},
       React.createElement('div',{style:{textAlign:"center"}},
-        React.createElement('span',{className:"mono",style:{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".12em",display:"block",marginBottom:3,textAlign:"center"}},"Month"),
-        React.createElement('div',{style:{fontSize:20,fontWeight:800}},selMonth.label)
+        React.createElement('div',{style:{fontSize:20,fontWeight:800}},monthLabel)
       ),
         monthSelector
       ),
@@ -177,7 +179,6 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
   React.createElement('div',{style:{maxWidth:840,margin:"0 auto",padding:"12px 12px 16px",display:"flex",flexDirection:"column",gap:12,background:"radial-gradient(ellipse 95% 72% at 50% 62%, rgba(78,205,196,.07), rgba(78,205,196,.02) 46%, transparent 76%)",borderRadius:16}},
     React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10}},
       React.createElement('div',{style:{textAlign:"center"}},
-        React.createElement('span',{className:"mono",style:{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".12em",display:"block",marginBottom:3,textAlign:"center"}},"Month"),
         React.createElement('div',{style:{fontSize:20,fontWeight:800}},monthLabel)
       ),
       monthSelector

@@ -84,8 +84,9 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
     }
     return streak;
   })();
-  const streakLine = consistentStreak >= 2 ? `That's ${consistentStreak} consistent months in a row for you.` : null;
+  const streakLine = consistentStreak >= 2 ? `That's ${consistentStreak} consistent months in a row for you.` : "Build on it next month.";
   const selectedMonthName = FULL_MONTH_NAMES[month.month ?? monthKeyParts(month.key)?.monthIndex ?? 0] || MONTH_NAMES[month.month ?? monthKeyParts(month.key)?.monthIndex ?? 0] || "month";
+  const perfectLine = `Great work. Everyone hit their target this ${selectedMonthName}.`;
 
   const handleSettlementAction = async ({ key, kind, payerDisplayName, receiverDisplayName, amount }) => {
     setSettlementBusy(key);
@@ -114,8 +115,8 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
       return {
         tag: "1st · PERFECT BLOC MONTH",
         stat: `${userCount} workouts`,
-        line: streakLine ? `Great work. ${streakLine}` : "You led the way.",
-        footerLine: `Everyone hit their target this ${selectedMonthName}.`,
+        line: perfectLine,
+        footerLine: streakLine,
         tone: "perfect"
       };
     }
@@ -131,8 +132,8 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
       return {
         tag: "PERFECT BLOC MONTH",
         stat: `${userCount} workouts`,
-        line: streakLine ? `Great work. ${streakLine}` : "",
-        footerLine: `Everyone hit their target this ${selectedMonthName}.`,
+        line: perfectLine,
+        footerLine: streakLine,
         tone: "perfect"
       };
     }
@@ -189,7 +190,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
     if (!incomingRows.length && !outgoingRows.length) return null;
 
     const rows = outcome === "winner" ? incomingRows : outgoingRows;
-    const title = outcome === "winner" ? "Collecting from" : "You owe";
+    const title = outcome === "winner" ? `${rows.length} to pay` : "You owe";
     const totalColor = outcome === "winner" ? C.greenText : C.redText;
 
     return React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:outcome==="winner"?2:5,width:"100%",maxWidth:outcome==="winner"?150:"100%",margin:outcome==="winner"?"0 auto":"0"}},
@@ -215,7 +216,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
             }, settlementBusy===key ? "Saving..." : state.pending ? "Waiting" : "Mark as paid");
         return outcome==="winner"
           ? React.createElement(React.Fragment,{key:key},
-              index>0&&React.createElement('div',{style:{height:1,width:"78%",margin:"2px auto",background:"linear-gradient(90deg, transparent, rgba(255,255,255,.12), transparent)"}}),
+              index>0&&React.createElement('div',{style:{height:1,width:"34%",margin:"2px auto",background:"linear-gradient(90deg, transparent, rgba(255,255,255,.12), transparent)"}}),
               React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"center",gap:7,minHeight:22,textAlign:"center",padding:"2px 0"}},
                 React.createElement('div',{style:{fontSize:12,fontWeight:800,color:"var(--text)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",minWidth:0}},pair.payerDisplayName),
                 React.createElement('div',{style:{fontSize:12,fontWeight:900,color:totalColor,whiteSpace:"nowrap"}},`+${fmtCurrency(pair.amount, currency)}`)
@@ -261,6 +262,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
       React.createElement('div',{style:{fontSize:11,color:"var(--muted)",marginTop:3,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},award.detail)
     ))
   );
+  const sectionSeparator = React.createElement('div',{style:{height:1,width:"100%",background:"linear-gradient(90deg, transparent, rgba(78,205,196,.2), rgba(255,255,255,.12), rgba(78,205,196,.2), transparent)",margin:"2px 0"}});
 
   const renderLeaderboard = () => React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:6,padding:"7px",background:"rgba(8,15,15,.32)",borderTop:"1px solid rgba(255,255,255,.05)"}},
     sortedActive.map((row, i) => {
@@ -307,12 +309,14 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
     React.createElement('div',{style:{...heroStyle,borderRadius:12,padding:"18px 18px 16px",textAlign:"center",display:"flex",flexDirection:"column",gap:10}},
       React.createElement('span',{style:{...C.pill,alignSelf:"center",background:hero.tone==="missed"?C.redBg:hero.tone==="neutral"?C.neutralBg:"rgba(78,205,196,.14)",color:hero.tone==="missed"?C.redText:hero.tone==="neutral"?C.neutralText:C.greenText,fontWeight:900}},hero.tag),
       React.createElement('div',{style:{fontSize:heroStatSize,fontWeight:900,lineHeight:1.05,color:heroColor,letterSpacing:0,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},hero.stat),
-      hero.line&&React.createElement('div',{style:{fontSize:hero.tone==="neutral"?12:13,color:"var(--muted)",lineHeight:1.35,whiteSpace:hero.tone==="neutral"||hero.tone==="perfect"?"nowrap":"normal",overflow:"hidden",textOverflow:"ellipsis"}},hero.line),
+      hero.line&&React.createElement('div',{style:{fontSize:hero.tone==="neutral"?12:13,color:"var(--muted)",lineHeight:1.35,whiteSpace:hero.tone==="neutral"?"nowrap":"normal",overflow:"hidden",textOverflow:"ellipsis"}},hero.line),
       renderPerfectRoster(),
       hero.footerLine&&React.createElement('div',{style:{fontSize:13,color:"var(--muted)",lineHeight:1.35}},hero.footerLine)
     ),
     React.createElement('div',{ref:ledgerRef},renderLedger()),
+    sectionSeparator,
     renderAwards(),
+    sectionSeparator,
     React.createElement('div',{style:{border:"1px solid var(--border)",borderRadius:10,overflow:"hidden",background:"var(--s1)"}},
       React.createElement('button',{type:"button",onClick:()=>setShowStandings(v=>!v),style:{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"13px 15px",background:"transparent",border:"none",color:"var(--text)",fontSize:13,fontWeight:800,cursor:"pointer"}},
         React.createElement('span',null,"Final Month Summary"),
