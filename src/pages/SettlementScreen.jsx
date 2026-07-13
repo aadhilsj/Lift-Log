@@ -211,7 +211,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
               type:"button",
               onClick:()=>handleSettlementAction({key,kind:"claim",payerDisplayName:pair.payerDisplayName,receiverDisplayName:pair.receiverDisplayName,amount:pair.amount}),
               disabled:settlementBusy===key,
-              style:{fontSize:8,fontWeight:800,lineHeight:1,padding:"4px 6px",borderRadius:999,background:"rgba(224,80,32,.1)",border:"1px solid rgba(224,80,32,.28)",color:"#F06D43",whiteSpace:"nowrap",fontFamily:"'Outfit', sans-serif"}
+              style:{fontSize:8,fontWeight:800,lineHeight:1,padding:"4px 6px",borderRadius:999,background:"rgba(224,80,32,.055)",border:"1px solid rgba(224,80,32,.18)",color:"rgba(240,109,67,.82)",whiteSpace:"nowrap",fontFamily:"'Outfit', sans-serif"}
             }, settlementBusy===key ? "Saving..." : "Mark as paid");
         return outcome==="winner"
           ? React.createElement(React.Fragment,{key:key},
@@ -223,8 +223,8 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
             )
           : React.createElement(React.Fragment,{key:key},
               index>0&&React.createElement('div',{style:{height:1,width:"34%",margin:"2px auto",background:"linear-gradient(90deg, transparent, rgba(255,255,255,.12), transparent)"}}),
-              React.createElement('div',{style:{position:"relative",minHeight:26,display:"flex",alignItems:"center",justifyContent:"center",padding:"2px 58px 2px 0",textAlign:"center"}},
-                React.createElement('div',{style:{display:"inline-flex",alignItems:"center",justifyContent:"center",gap:7,minWidth:0}},
+              React.createElement('div',{style:{position:"relative",minHeight:26,display:"flex",alignItems:"center",justifyContent:"center",padding:"2px 0",textAlign:"center"}},
+                React.createElement('div',{style:{display:"inline-flex",alignItems:"center",justifyContent:"center",gap:7,minWidth:0,maxWidth:action?"calc(100% - 72px)":"100%"}},
                   React.createElement('div',{style:{fontSize:12,fontWeight:800,color:"var(--text)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",minWidth:0,maxWidth:120}},pair.receiverDisplayName),
                   React.createElement('div',{style:{fontSize:12,fontWeight:900,color:totalColor,whiteSpace:"nowrap"}},`-${fmtCurrency(pair.amount, currency)}`)
                 ),

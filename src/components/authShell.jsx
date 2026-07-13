@@ -290,12 +290,7 @@ const GroupHome = ({groups,currentIdentity,currentEmail,onOpenProfile,onOpenGrou
   return React.createElement(React.Fragment,null,
     React.createElement('div',{style:{minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-start",padding:compactMobile?"calc(env(safe-area-inset-top) + 16px) 16px 28px":"32px 18px",background:"transparent"}},
       React.createElement('div',{style:{width:"100%",maxWidth:744,display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,marginBottom:compactMobile?10:12}},
-        groups.length>0
-          ? React.createElement('div',{style:{display:"flex",gap:7,alignItems:"center",flexWrap:"wrap"}},
-              React.createElement('button',{onClick:()=>setShowCreate(true),style:{background:"var(--green)",color:"#000",padding:compactMobile?"7px 10px":"8px 11px",borderRadius:8,fontSize:11,fontWeight:800}},"Create Bloc"),
-              React.createElement('button',{onClick:onJoinGroup,style:{background:"var(--green)",color:"#000",padding:compactMobile?"7px 10px":"8px 11px",borderRadius:8,fontSize:11,fontWeight:800}},"Join Existing")
-            )
-          : React.createElement('div',null),
+        React.createElement('div',null),
         React.createElement('button',{type:"button",onClick:onOpenProfile,title:currentEmail||"Account",style:{width:32,height:32,display:"inline-flex",alignItems:"center",justifyContent:"center",borderRadius:999,background:"rgba(24,24,31,.62)",border:"1px solid rgba(62,62,82,.55)",color:"rgba(124,136,152,.78)",fontSize:14,lineHeight:1,flexShrink:0}},React.createElement(AppIcon,{name:"profile",size:13}))
       ),
       groups.length===0
@@ -317,7 +312,7 @@ const GroupHome = ({groups,currentIdentity,currentEmail,onOpenProfile,onOpenGrou
           const preview = getGroupMemberPreview(group, currentIdentity);
           const acceptedTypes = getAcceptedWorkoutTypes(group);
           return React.createElement('button',{key:group.id,onClick:()=>onOpenGroup(group.id),onMouseEnter:e=>{e.currentTarget.style.border="1px solid rgba(78,205,196,.18)";e.currentTarget.style.boxShadow="inset 0 1px 0 rgba(78,205,196,.14), 0 0 0 1px rgba(78,205,196,.04), 0 18px 36px rgba(0,0,0,.28), 0 3px 10px rgba(78,205,196,.06)";e.currentTarget.style.transform="translateY(-1px)"},onMouseLeave:e=>{e.currentTarget.style.border=compactMobile?"1px solid rgba(18,36,36,.96)":"0.5px solid #0D1F1E";e.currentTarget.style.boxShadow=compactMobile?"inset 0 1px 0 rgba(78,205,196,.12), 0 0 0 1px rgba(10,27,27,.24), 0 14px 30px rgba(0,0,0,.16), 0 2px 8px rgba(78,205,196,.04)":"inset 0 1px 0 rgba(78,205,196,.12), 0 2px 12px rgba(0,0,0,.18), 0 1px 4px rgba(78,205,196,.03)";e.currentTarget.style.transform="translateY(0)"},onMouseDown:e=>{e.currentTarget.style.transform="translateY(2px)";e.currentTarget.style.boxShadow=compactMobile?"inset 0 1px 0 rgba(78,205,196,.07), 0 0 0 1px rgba(10,27,27,.22), 0 8px 18px rgba(0,0,0,.16), 0 1px 4px rgba(78,205,196,.03)":"inset 0 1px 0 rgba(78,205,196,.07), 0 1px 7px rgba(0,0,0,.18), 0 1px 3px rgba(78,205,196,.02)"},onMouseUp:e=>{e.currentTarget.style.transform="translateY(-1px)";e.currentTarget.style.boxShadow="inset 0 1px 0 rgba(78,205,196,.14), 0 0 0 1px rgba(78,205,196,.04), 0 18px 36px rgba(0,0,0,.28), 0 3px 10px rgba(78,205,196,.06)"},onTouchStart:e=>{e.currentTarget.style.transform="translateY(2px)";e.currentTarget.style.boxShadow=compactMobile?"inset 0 1px 0 rgba(78,205,196,.07), 0 0 0 1px rgba(10,27,27,.22), 0 8px 18px rgba(0,0,0,.16), 0 1px 4px rgba(78,205,196,.03)":"inset 0 1px 0 rgba(78,205,196,.07), 0 1px 7px rgba(0,0,0,.18), 0 1px 3px rgba(78,205,196,.02)"},onTouchEnd:e=>{e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.boxShadow=compactMobile?"inset 0 1px 0 rgba(78,205,196,.12), 0 0 0 1px rgba(10,27,27,.24), 0 14px 30px rgba(0,0,0,.16), 0 2px 8px rgba(78,205,196,.04)":"inset 0 1px 0 rgba(78,205,196,.12), 0 2px 12px rgba(0,0,0,.18), 0 1px 4px rgba(78,205,196,.03)"},style:{position:"relative",overflow:"hidden",background:"linear-gradient(180deg,rgba(11,17,17,.985),rgba(8,12,12,.985))",border:compactMobile?"1px solid rgba(18,36,36,.96)":"0.5px solid #0D1F1E",boxShadow:compactMobile?"inset 0 1px 0 rgba(78,205,196,.12), 0 0 0 1px rgba(10,27,27,.24), 0 14px 30px rgba(0,0,0,.16), 0 2px 8px rgba(78,205,196,.04)":"inset 0 1px 0 rgba(78,205,196,.12), 0 2px 12px rgba(0,0,0,.18), 0 1px 4px rgba(78,205,196,.03)",borderRadius:compactMobile?15:18,padding:compactMobile?"12px 10px 12px 16px":"15px 16px 15px 22px",textAlign:"left",cursor:"pointer",transition:"border .15s, box-shadow .15s, transform .15s",animation:`fadeUp .35s ${index*.04}s ease both`}},
-            React.createElement('span',{style:{position:"absolute",left:0,top:0,bottom:0,width:compactMobile?3:4,background:statusRailColor(preview?.status),boxShadow:preview?.status&&preview.status!=="starting-soon"?`0 0 12px ${statusRailColor(preview.status)}44`:"none"}}),
+            React.createElement('span',{style:{position:"absolute",left:0,top:0,bottom:0,width:compactMobile?3:4,background:statusRailColor(preview?.status),opacity:.62,boxShadow:preview?.status&&preview.status!=="starting-soon"?`0 0 10px ${statusRailColor(preview.status)}33`:"none"}}),
             React.createElement('div',{style:{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:8,marginBottom:compactMobile?6:10}},
               React.createElement('div',{style:{display:"inline-flex",alignItems:"center",gap:5,minWidth:0}},
                 React.createElement('div',{style:{fontSize:compactMobile?17:21,fontWeight:900,color:"#f5f7ff",letterSpacing:"-.03em",lineHeight:1.15,minWidth:0}},group.name)
@@ -365,7 +360,10 @@ const GroupHome = ({groups,currentIdentity,currentEmail,onOpenProfile,onOpenGrou
           );
         })
       ),
-      React.createElement('div',{style:{height:compactMobile?4:8}})
+      React.createElement('div',{style:{display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap",width:"100%",maxWidth:744,marginTop:compactMobile?0:2,marginBottom:compactMobile?28:34}},
+        React.createElement('button',{onClick:()=>setShowCreate(true),style:{background:"var(--green)",color:"#000",padding:compactMobile?"8px 12px":"9px 13px",borderRadius:8,fontSize:11,fontWeight:800}},"Create Bloc"),
+        React.createElement('button',{onClick:onJoinGroup,style:{background:"var(--green)",color:"#000",padding:compactMobile?"8px 12px":"9px 13px",borderRadius:8,fontSize:11,fontWeight:800}},"Join Existing")
+      )
     )/* end non-empty Fragment */),
     showCreate && React.createElement(GroupCreateModal,{
       creating,
