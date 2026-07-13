@@ -8,7 +8,7 @@ const StreamIconButton = ({ onOpenStream, unreadCount = 0, size }) => {
     onClick: onOpenStream, className: "icon-btn", title: "Bloc Stream",
     style: { position: "relative", ...(size ? { width: size, height: size, display: "inline-flex", alignItems: "center", justifyContent: "center" } : {}) }
   },
-    React.createElement(AppIcon, { name: "message-circle", size: size ? 18 : 14, stroke: hasUnread ? "#4ECDC4" : "#6B9690" }),
+    React.createElement(AppIcon, { name: "message-circle", size: size ? 18 : 14, stroke: "rgba(124,136,152,.78)" }),
     hasUnread && React.createElement('span', {
       style: { position: "absolute", top: -4, right: -5, minWidth: 12, height: 12, padding: "0 2.5px", borderRadius: 999, background: "#4ECDC4", color: "#04110e", fontFamily: "'Outfit', sans-serif", fontSize: 7, fontWeight: 700, lineHeight: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", boxShadow: "0 0 0 1.5px var(--s1)" }
     }, unreadCount > 9 ? "9+" : unreadCount)

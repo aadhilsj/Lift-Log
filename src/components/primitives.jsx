@@ -456,6 +456,8 @@ const SelectField = ({value,onChange,options,width,maxWidth,compact=false,arrowC
         borderRadius:compact?8:inputShellStyle.borderRadius,
         textAlign:textAlign || "left",
         textAlignLast:textAlign || "left",
+        outline:"none",
+        boxShadow:"none",
         ...(inputStyle || {})
       }
     },
@@ -465,12 +467,12 @@ const SelectField = ({value,onChange,options,width,maxWidth,compact=false,arrowC
       "aria-hidden":"true",
       style:{
         position:"absolute",
-        right:compact?10:12,
+        right:compact?9:12,
         top:"50%",
         transform:"translateY(-50%)",
         pointerEvents:"none",
         color:arrowColor || "var(--muted)",
-        fontSize:compact?10:11,
+        fontSize:compact?7:11,
         lineHeight:1
       }
     },"▼")

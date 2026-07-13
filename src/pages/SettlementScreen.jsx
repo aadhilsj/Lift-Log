@@ -192,12 +192,12 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
     const title = outcome === "winner" ? "Collecting from" : "You owe";
     const totalColor = outcome === "winner" ? C.greenText : C.redText;
 
-    return React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:5,width:"100%",maxWidth:outcome==="winner"?148:"100%",margin:outcome==="winner"?"0 auto":"0"}},
+    return React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:outcome==="winner"?2:5,width:"100%",maxWidth:outcome==="winner"?150:"100%",margin:outcome==="winner"?"0 auto":"0"}},
       React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:outcome==="winner"?"center":"space-between",gap:10,textAlign:outcome==="winner"?"center":"left"}},
         React.createElement('div',{style:outcome==="winner"?{...C.sectionLabel,fontSize:8,letterSpacing:".035em"}:C.sectionLabel},title),
         outcome !== "winner" && React.createElement('div',{style:{fontSize:14,fontWeight:900,color:totalColor}},`-${fmtCurrency(rows.reduce((sum, row) => sum + row.amount, 0), currency)}`)
       ),
-      rows.map(pair => {
+      rows.map((pair, index) => {
         const {state, text} = statusForPair(pair);
         const key = `${month.key}:${pair.payerDisplayName}:${pair.receiverDisplayName}`;
         const action = outcome === "winner"
@@ -213,19 +213,25 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
               disabled:settlementBusy===key || state.pending,
               style:{fontSize:11,fontWeight:800,padding:"6px 10px",borderRadius:8,background:state.pending?"var(--s3)":"var(--red-dim)",border:`1px solid ${state.pending?"var(--border)":"rgba(224,80,32,.35)"}`,color:state.pending?"var(--muted)":"#e05020"}
             }, settlementBusy===key ? "Saving..." : state.pending ? "Waiting" : "Mark as paid");
-        return React.createElement('div',{key:key,style:{...C.card,padding:outcome==="winner"?"7px 9px":"9px 11px",background:outcome==="winner"?"linear-gradient(180deg, rgba(255,255,255,.13), rgba(57,168,90,.075) 48%, rgba(8,15,15,.68) 100%)":"rgba(8,15,15,.78)",border:outcome==="winner"?"1px solid rgba(255,255,255,.09)":"1px solid rgba(255,255,255,.07)",backdropFilter:"blur(4px)"}},
+        return outcome==="winner"
+          ? React.createElement(React.Fragment,{key:key},
+              index>0&&React.createElement('div',{style:{height:1,width:"78%",margin:"2px auto",background:"linear-gradient(90deg, transparent, rgba(255,255,255,.12), transparent)"}}),
+              React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"center",gap:7,minHeight:22,textAlign:"center",padding:"2px 0"}},
+                React.createElement('div',{style:{fontSize:12,fontWeight:800,color:"var(--text)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",minWidth:0}},pair.payerDisplayName),
+                React.createElement('div',{style:{fontSize:12,fontWeight:900,color:totalColor,whiteSpace:"nowrap"}},`+${fmtCurrency(pair.amount, currency)}`)
+              )
+            )
+          : React.createElement('div',{key:key,style:{...C.card,padding:"9px 11px",background:"rgba(8,15,15,.78)",border:"1px solid rgba(255,255,255,.07)",backdropFilter:"blur(4px)"}},
           React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:outcome==="winner"?"center":"space-between",gap:outcome==="winner"?7:10,minHeight:outcome==="winner"?22:28,textAlign:outcome==="winner"?"center":"left"}},
-            outcome==="winner"
-              ? React.createElement('div',{style:{fontSize:12,fontWeight:800,color:"var(--text)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",minWidth:0}},pair.payerDisplayName)
-              : React.createElement('div',{style:{display:"flex",alignItems:"center",gap:8,minWidth:0}},
+            React.createElement('div',{style:{display:"flex",alignItems:"center",gap:8,minWidth:0}},
                   React.createElement('div',{style:{fontSize:13,fontWeight:800,color:C.redText,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},"You"),
                   React.createElement('span',{style:{color:"var(--muted)"}},"→"),
                   React.createElement('div',{style:{fontSize:13,fontWeight:800,color:"var(--text)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},pair.receiverDisplayName)
                 ),
             React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"center",gap:8,flexShrink:0}},
-              outcome!=="winner" && React.createElement('span',{style:{fontSize:11,fontWeight:800,fontFamily:"'JetBrains Mono',monospace",color:state.confirmed?C.greenText:"var(--amber)",whiteSpace:"nowrap"}},text),
-              React.createElement('div',{style:{fontSize:outcome==="winner"?12:14,fontWeight:900,color:totalColor,whiteSpace:"nowrap"}},`${outcome === "winner" ? "+" : "-"}${fmtCurrency(pair.amount, currency)}`),
-              outcome!=="winner" && action
+              React.createElement('span',{style:{fontSize:11,fontWeight:800,fontFamily:"'JetBrains Mono',monospace",color:state.confirmed?C.greenText:"var(--amber)",whiteSpace:"nowrap"}},text),
+              React.createElement('div',{style:{fontSize:14,fontWeight:900,color:totalColor,whiteSpace:"nowrap"}},`-${fmtCurrency(pair.amount, currency)}`),
+              action
             )
           )
         );

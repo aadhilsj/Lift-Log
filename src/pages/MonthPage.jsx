@@ -67,8 +67,12 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
 
   const monthSelector=React.createElement(SelectField,{
     value:selIdx??"",
-    onChange:e=>{ setSelIdx(e.target.value===""?null:Number(e.target.value)); },
-    width:isMobile()?"104px":"112px",
+    onChange:e=>{
+      const selectEl = e.currentTarget;
+      setSelIdx(e.target.value===""?null:Number(e.target.value));
+      requestAnimationFrame(()=>selectEl.blur());
+    },
+    width:isMobile()?"100px":"108px",
     compact:true,
     arrowColor:"#4ECDC4",
     textAlign:"center",
@@ -81,8 +85,8 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
       outline:"none",
       boxShadow:"none",
       textAlign:"center",
-      paddingLeft:16,
-      paddingRight:22
+      paddingLeft:14,
+      paddingRight:20
     },
     options:[
       {value:"",label:"This Month"},
@@ -155,10 +159,10 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
   if (!isCurrent && selMonth && currentUser) {
     return React.createElement('div',{style:{maxWidth:840,margin:"0 auto",padding:"12px 12px 16px",display:"flex",flexDirection:"column",gap:12,background:"radial-gradient(ellipse 95% 72% at 50% 62%, rgba(78,205,196,.075), rgba(78,205,196,.025) 46%, transparent 76%)",borderRadius:16}},
       React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10}},
-        React.createElement('div',null,
-          React.createElement('span',{className:"mono",style:{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".12em",display:"block",marginBottom:3}},"Month"),
-          React.createElement('div',{style:{fontSize:20,fontWeight:800}},selMonth.label)
-        ),
+      React.createElement('div',{style:{textAlign:"center"}},
+        React.createElement('span',{className:"mono",style:{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".12em",display:"block",marginBottom:3,textAlign:"center"}},"Month"),
+        React.createElement('div',{style:{fontSize:20,fontWeight:800}},selMonth.label)
+      ),
         monthSelector
       ),
       React.createElement(SettlementScreen,{
@@ -172,13 +176,13 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
   return React.createElement(React.Fragment,null,
   React.createElement('div',{style:{maxWidth:840,margin:"0 auto",padding:"12px 12px 16px",display:"flex",flexDirection:"column",gap:12,background:"radial-gradient(ellipse 95% 72% at 50% 62%, rgba(78,205,196,.07), rgba(78,205,196,.02) 46%, transparent 76%)",borderRadius:16}},
     React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10}},
-      React.createElement('div',null,
-        React.createElement('span',{className:"mono",style:{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".12em",display:"block",marginBottom:3}},"Month"),
+      React.createElement('div',{style:{textAlign:"center"}},
+        React.createElement('span',{className:"mono",style:{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".12em",display:"block",marginBottom:3,textAlign:"center"}},"Month"),
         React.createElement('div',{style:{fontSize:20,fontWeight:800}},monthLabel)
       ),
       monthSelector
     ),
-    React.createElement(Card,{style:{padding:"18px 18px 16px",background:"linear-gradient(135deg, rgba(245,166,35,.16), rgba(245,210,105,.08) 48%, rgba(8,15,15,.92))",border:"1px dashed rgba(245,166,35,.55)",display:"flex",flexDirection:"column",gap:14,fontFamily:"'Outfit', sans-serif"}},
+    React.createElement(Card,{style:{padding:"18px 18px 16px",background:"linear-gradient(135deg, rgba(245,166,35,.16), rgba(245,210,105,.08) 48%, rgba(8,15,15,.92))",border:"1px solid rgba(245,166,35,.28)",display:"flex",flexDirection:"column",gap:14,fontFamily:"'Outfit', sans-serif"}},
       React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}},
         React.createElement('span',{style:{fontFamily:"'Outfit', sans-serif",fontSize:11,fontWeight:800,color:"#F5A623",textTransform:"uppercase",letterSpacing:".08em"}},"Month in progress"),
         React.createElement('span',{style:{fontFamily:"'Outfit', sans-serif",fontSize:11,fontWeight:700,color:"var(--muted)"}},`${getDaysLeft()} days remaining`)
@@ -188,7 +192,7 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
             React.createElement('span',{style:{display:"inline-flex",color:"#F5A623",flexShrink:0}},React.createElement(TrophyIcon,{size:22,color:"#F5A623"})),
             React.createElement('div',{style:{flex:1,minWidth:0}},
               React.createElement('div',{style:{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",marginBottom:3}},
-                winners.map(w=>React.createElement('div',{key:w.name,style:{display:"flex",alignItems:"center",gap:6}},React.createElement(Avatar,{name:w.name,size:22}),React.createElement('span',{style:{fontSize:winners.length>1?15:18,fontWeight:800,color:"var(--text)",lineHeight:1.12}},w.name),React.createElement('span',{style:{fontFamily:"'Outfit', sans-serif",fontSize:8,fontWeight:500,color:"rgba(245,166,35,.7)",textTransform:"uppercase",letterSpacing:".05em",whiteSpace:"nowrap",paddingTop:2}},"current leader")))
+                winners.map(w=>React.createElement('div',{key:w.name,style:{display:"flex",alignItems:"center",gap:10}},React.createElement(Avatar,{name:w.name,size:22}),React.createElement('span',{style:{fontSize:winners.length>1?15:18,fontWeight:800,color:"var(--text)",lineHeight:1.12}},w.name),React.createElement('span',{style:{fontFamily:"'Outfit', sans-serif",fontSize:8,fontWeight:500,color:"rgba(245,166,35,.7)",textTransform:"uppercase",letterSpacing:".05em",whiteSpace:"nowrap",paddingTop:2,marginLeft:2}},"current leader")))
               ),
               React.createElement('span',{className:"mono",style:{fontSize:11,color:"var(--muted)"}},`${winners[0].count} workouts`)
             )
