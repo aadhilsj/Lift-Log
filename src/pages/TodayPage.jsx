@@ -215,7 +215,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
                 pending: false,
                 label: `OWED TO YOU${entry.monthKey !== curKey ? ` · ${entry.monthLabel.toUpperCase()}` : ""}`,
                 labelColor: "#1a6b3a",
-                body: `${entry.payerDisplayName} still owes you`,
+                body: `${entry.payerDisplayName} owes you`,
                 amountColor: "#2ecc71",
                 secondaryAction: null,
                 action: null

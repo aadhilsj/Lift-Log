@@ -68,9 +68,10 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
   const monthSelector=React.createElement(SelectField,{
     value:selIdx??"",
     onChange:e=>{ setSelIdx(e.target.value===""?null:Number(e.target.value)); e.currentTarget.blur(); },
-    width:isMobile()?"142px":"154px",
+    width:isMobile()?"122px":"132px",
     compact:true,
     arrowColor:"#4ECDC4",
+    textAlign:"center",
     inputStyle:{
       background:"rgba(8,15,15,.48)",
       border:"1px solid rgba(78,205,196,.18)",
@@ -78,7 +79,9 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
       fontFamily:"'Outfit', sans-serif",
       fontWeight:700,
       outline:"none",
-      boxShadow:"none"
+      boxShadow:"none",
+      textAlign:"center",
+      paddingRight:26
     },
     options:[
       {value:"",label:"Current Month"},
@@ -200,7 +203,7 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
           React.createElement('div',{style:{fontSize:11,color:"var(--muted)"}},"logged")
         )
       ),
-      React.createElement('button',{type:"button",onClick:onOpenToday,style:{alignSelf:"flex-start",background:"transparent",border:"none",padding:0,color:"#4ECDC4",fontSize:13,fontWeight:800,cursor:"pointer"}},"See Leaderboard")
+      React.createElement('button',{type:"button",onClick:onOpenToday,style:{alignSelf:"flex-start",background:"transparent",border:"none",padding:0,color:"var(--text)",fontSize:13,fontWeight:800,cursor:"pointer"}},"See Leaderboard")
     ),
     React.createElement('div',{style:{border:"1px solid var(--border)",borderRadius:10,overflow:"hidden",background:"var(--s1)"}},
       React.createElement('button',{type:"button",onClick:()=>setShowStandings(v=>!v),style:{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"13px 15px",background:"transparent",border:"none",color:"var(--text)",fontSize:13,fontWeight:800,cursor:"pointer"}},

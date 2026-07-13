@@ -705,7 +705,7 @@ function buildSettlementReminderCards(group, currentUserId, currentUserName) {
         amountColor = "#6B9690";
       } else if (isPayer) {
         label = `YOU OWE${monthSuffix}`;
-        body = `You still owe ${pair.receiverDisplayName}`;
+        body = `You owe ${pair.receiverDisplayName}`;
         labelColor = "#7A4B46";
         amountColor = "#e05020";
         action = {
@@ -714,12 +714,12 @@ function buildSettlementReminderCards(group, currentUserId, currentUserName) {
         };
       } else if (isReceiver) {
         label = `OWED TO YOU${monthSuffix}`;
-        body = `${pair.payerDisplayName} still owes you`;
+        body = `${pair.payerDisplayName} owes you`;
         labelColor = "#1a6b3a";
         amountColor = "#2ecc71";
       } else {
         label = `UNPAID${monthSuffix}`;
-        body = `${pair.payerDisplayName} still owes ${pair.receiverDisplayName}`;
+        body = `${pair.payerDisplayName} owes ${pair.receiverDisplayName}`;
         labelColor = "#6B9690";
         amountColor = "#6B9690";
       }
@@ -805,7 +805,7 @@ function buildSettlementPreviewCards(currentUserName) {
       pending: false,
       label: "YOU OWE · APR '26",
       labelColor: "#7A4B46",
-      body: "You still owe Rahul",
+      body: "You owe Rahul",
       amountColor: "#e05020",
       statusTag: null,
       action: { kind: "claim", label: "Mark as paid" }
@@ -842,7 +842,7 @@ function buildSettlementPreviewCards(currentUserName) {
       pending: false,
       label: "OWED TO YOU · FEB '26",
       labelColor: "#1a6b3a",
-      body: "Rishane still owes you",
+      body: "Rishane owes you",
       amountColor: "#2ecc71",
       action: null
     },
@@ -876,7 +876,7 @@ function buildSettlementPreviewCards(currentUserName) {
       pending: false,
       label: "UNPAID · NOV '25",
       labelColor: "#6B9690",
-      body: "Kisal still owes Aysha",
+      body: "Kisal owes Aysha",
       amountColor: "#6B9690",
       action: null
     }
