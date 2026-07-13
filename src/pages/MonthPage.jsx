@@ -67,7 +67,13 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
   const hasQualifiedWinner = winners.some(w => (w.count || 0) >= (w.target || MIN_TARGET));
   const wouldMoveMoney = hasQualifiedWinner && losers.length > 0 && perWinner > 0;
   const expandMonthLabel = label => String(label || "").replace(/^([A-Z][a-z]{2})\s+'(\d{2})$/, (_, shortName, year) => `${FULL_MONTH_NAMES[MONTH_NAMES.indexOf(shortName)] || shortName} '${year}`);
-  const monthLabel=isCurrent?`${FULL_MONTH_NAMES[CUR_MONTH] || MONTH_NAMES[CUR_MONTH]} '${String(CUR_YEAR).slice(2)}`:expandMonthLabel(selMonth.label);
+  const expandMonthFullYear = (label, key) => {
+    const fromLabel = /^([A-Z][a-z]{2})\s+'?(\d{2})$/.exec(String(label || "").trim());
+    if (fromLabel) return `${FULL_MONTH_NAMES[MONTH_NAMES.indexOf(fromLabel[1])] || fromLabel[1]} 20${fromLabel[2]}`;
+    const [year, month] = String(key || "").split("-").map(Number);
+    return Number.isFinite(year) && Number.isFinite(month) ? `${FULL_MONTH_NAMES[month] || MONTH_NAMES[month] || "Month"} ${year}` : expandMonthLabel(label);
+  };
+  const monthLabel=isCurrent?`${FULL_MONTH_NAMES[CUR_MONTH] || MONTH_NAMES[CUR_MONTH]} ${CUR_YEAR}`:expandMonthFullYear(selMonth.label, selMonth.key);
   const monthSelector=React.createElement(SelectField,{
     value:selIdx??"",
     onChange:e=>{
@@ -163,7 +169,7 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
     return React.createElement('div',{style:{maxWidth:840,margin:"0 auto",padding:"12px 12px 16px",display:"flex",flexDirection:"column",gap:12,background:"radial-gradient(ellipse 95% 72% at 50% 62%, rgba(78,205,196,.075), rgba(78,205,196,.025) 46%, transparent 76%)",borderRadius:16}},
       React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10}},
       React.createElement('div',{style:{textAlign:"center"}},
-        React.createElement('div',{style:{fontSize:20,fontWeight:800}},monthLabel)
+        React.createElement('div',{style:{fontSize:19,fontWeight:800}},monthLabel)
       ),
         monthSelector
       ),
@@ -227,7 +233,7 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
   React.createElement('div',{style:{maxWidth:840,margin:"0 auto",padding:"12px 12px 16px",display:"flex",flexDirection:"column",gap:12,background:"transparent",borderRadius:16}},
     React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10}},
       React.createElement('div',{style:{textAlign:"center"}},
-        React.createElement('div',{style:{fontSize:20,fontWeight:800}},monthLabel)
+        React.createElement('div',{style:{fontSize:19,fontWeight:800}},monthLabel)
       ),
       monthSelector
     ),
@@ -264,7 +270,7 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
     lastMonthCard&&React.createElement('div',{style:{height:1,width:"100%",background:"linear-gradient(90deg, transparent, rgba(78,205,196,.2), rgba(255,255,255,.12), rgba(78,205,196,.2), transparent)",margin:"1px 0"}}),
     React.createElement('div',{style:{border:"1px solid rgba(78,205,196,.13)",borderRadius:10,overflow:"hidden",background:"rgba(8,15,15,.68)",boxShadow:"inset 0 1px 0 rgba(255,255,255,.025)"}},
       React.createElement('button',{type:"button",onClick:()=>setShowStandings(v=>!v),style:{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"13px 15px",background:"transparent",border:"none",color:"var(--text)",fontSize:13,fontWeight:800,cursor:"pointer"}},
-        React.createElement('span',null,"If the month ended today"),
+        React.createElement('span',null,"If the Month Ended Today"),
         React.createElement('span',{style:{color:"var(--muted)",fontSize:16}},showStandings?"−":"+")
       ),
       showStandings&&renderCurrentFinancialSnapshot()

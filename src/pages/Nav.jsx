@@ -33,7 +33,7 @@ const Nav = ({page,setPage,user,groupName,canEditGroup,onOpenSettings,onOpenProf
         )
       )
     ),
-    React.createElement('div',{style:{display:"flex",alignItems:"center",gap:6}},
+    React.createElement('div',{style:{display:"flex",alignItems:"center",gap:8}},
       React.createElement(StreamIconButton,{onOpenStream,unreadCount:streamUnreadCount}),
       React.createElement('button',{onClick:onOpenSettings,className:"icon-btn",title:"Bloc settings"},React.createElement(AppIcon,{name:"settings",size:14})),
       React.createElement('button',{onClick:onOpenProfile,className:"icon-btn",title:"Account",
@@ -57,7 +57,7 @@ const Nav = ({page,setPage,user,groupName,canEditGroup,onOpenSettings,onOpenProf
         groupName,
         React.createElement(AppIcon,{name:"home",size:14,stroke:"#4ECDC4"})
       ),
-      React.createElement('div',{style:{display:"flex",alignItems:"center",gap:2,flexShrink:0}},
+      React.createElement('div',{style:{display:"flex",alignItems:"center",gap:4,flexShrink:0}},
         React.createElement(StreamIconButton,{onOpenStream,unreadCount:streamUnreadCount,size:28}),
         React.createElement('button',{onClick:onOpenSettings,className:"icon-btn",title:"Bloc settings",style:{width:28,height:28,display:"inline-flex",alignItems:"center",justifyContent:"center"}},React.createElement(AppIcon,{name:"settings",size:18})),
         React.createElement('button',{onClick:onOpenProfile,className:"icon-btn",title:"Account",style:{width:28,height:28,display:"inline-flex",alignItems:"center",justifyContent:"center"}},React.createElement(AppIcon,{name:"profile",size:18}))

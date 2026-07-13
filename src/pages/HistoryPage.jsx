@@ -263,7 +263,7 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
       React.createElement('div',{style:{display:"flex",flexDirection:"column"}},
         legacyRows.map((row,i)=>React.createElement('div',{key:row[0],style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,padding:"10px 15px",borderBottom:i<legacyRows.length-1?"1px solid rgba(255,255,255,.055)":"none"}},
           React.createElement('span',{style:{fontSize:12,color:"var(--muted)",fontWeight:700}},row[0]),
-          React.createElement('span',{style:{fontSize:12,color:"var(--text)",fontWeight:500,textAlign:"right"}},row[1])
+          React.createElement('span',{style:{fontSize:12,color:"var(--text)",fontWeight:530,textAlign:"right"}},row[1])
         ))
       )
     )
