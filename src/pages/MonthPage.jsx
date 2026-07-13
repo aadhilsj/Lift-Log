@@ -175,7 +175,7 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
   }
 
   return React.createElement(React.Fragment,null,
-  React.createElement('div',{style:{maxWidth:840,margin:"0 auto",padding:"12px 12px 16px",display:"flex",flexDirection:"column",gap:12,background:"radial-gradient(ellipse 95% 72% at 50% 62%, rgba(78,205,196,.07), rgba(78,205,196,.02) 46%, transparent 76%)",borderRadius:16}},
+  React.createElement('div',{style:{maxWidth:840,margin:"0 auto",padding:"12px 12px 16px",display:"flex",flexDirection:"column",gap:12,background:"radial-gradient(ellipse 105% 90% at 50% 58%, rgba(78,205,196,.075), rgba(78,205,196,.028) 52%, transparent 88%), radial-gradient(ellipse 120% 72% at 50% 100%, rgba(78,205,196,.04), transparent 72%)",borderRadius:16}},
     React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10}},
       React.createElement('div',{style:{textAlign:"center"}},
         React.createElement('div',{style:{fontSize:20,fontWeight:800}},monthLabel)
@@ -210,7 +210,8 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
       ),
       React.createElement('button',{type:"button",onClick:onOpenToday,style:{alignSelf:"flex-start",background:"transparent",border:"none",padding:0,color:"var(--text)",fontSize:13,fontWeight:800,cursor:"pointer"}},"See Leaderboard")
     ),
-    React.createElement('div',{style:{border:"1px solid var(--border)",borderRadius:10,overflow:"hidden",background:"var(--s1)"}},
+    React.createElement('div',{style:{height:1,width:"100%",background:"linear-gradient(90deg, transparent, rgba(78,205,196,.2), rgba(255,255,255,.12), rgba(78,205,196,.2), transparent)",margin:"1px 0"}}),
+    React.createElement('div',{style:{border:"1px solid rgba(78,205,196,.13)",borderRadius:10,overflow:"hidden",background:"rgba(8,15,15,.68)",boxShadow:"inset 0 1px 0 rgba(255,255,255,.025)"}},
       React.createElement('button',{type:"button",onClick:()=>setShowStandings(v=>!v),style:{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"13px 15px",background:"transparent",border:"none",color:"var(--text)",fontSize:13,fontWeight:800,cursor:"pointer"}},
         React.createElement('span',null,"If the month ended today"),
         React.createElement('span',{style:{color:"var(--muted)",fontSize:16}},showStandings?"−":"+")
