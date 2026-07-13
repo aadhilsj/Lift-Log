@@ -5397,7 +5397,8 @@ function renameGroupDisplayNameSurfaces(group, userId, oldName, displayName, opt
     excused:     renameKey(month.excused     || {}, oldName, displayName),
     logsByUser:  renameKey(month.logsByUser  || {}, oldName, displayName),
     settlements: renameKey(month.settlements || {}, oldName, displayName),
-    ...(month.memberTargets ? { memberTargets: renameKey(month.memberTargets, oldName, displayName) } : {})
+    ...(month.memberTargets ? { memberTargets: renameKey(month.memberTargets, oldName, displayName) } : {}),
+    ...(month.memberAuthUserIds ? { memberAuthUserIds: renameKey(month.memberAuthUserIds, oldName, displayName) } : {})
   }));
 
   const nextSitOutRequests = Object.fromEntries(
@@ -5406,6 +5407,15 @@ function renameGroupDisplayNameSurfaces(group, userId, oldName, displayName, opt
       renameKey(requests || {}, oldName, displayName)
     ])
   );
+  const nextSettlementConfirmations = (group.settlementConfirmations || []).map(row => ({
+    ...row,
+    payerDisplayName: row?.payerAuthUserId === userId || row?.payerDisplayName === oldName
+      ? displayName
+      : row?.payerDisplayName,
+    receiverDisplayName: row?.receiverAuthUserId === userId || row?.receiverDisplayName === oldName
+      ? displayName
+      : row?.receiverDisplayName
+  }));
 
   return normalizeGroup({
     ...group,
@@ -5416,6 +5426,7 @@ function renameGroupDisplayNameSurfaces(group, userId, oldName, displayName, opt
     excused:           renameKey(group.excused           || {}, oldName, displayName),
     joinedMonthByName: renameKey(group.joinedMonthByName || {}, oldName, displayName),
     sitOutRequests:    nextSitOutRequests,
+    settlementConfirmations: nextSettlementConfirmations,
     monthHistory:      nextMonthHistory
   });
 }
@@ -6137,21 +6148,44 @@ export default async function handler(req, res) {
 
       if (payload?.action === "upsert-profile") {
         const auth = await requireAuthenticatedContext(req, payload, current);
+        const requestedDisplayName = String(payload?.displayName || "").trim();
+        const shellOldNames = collectProfileRenameOldNames(
+          auth.state.groups || {},
+          auth.user.id,
+          auth.state.profiles?.[auth.user.id]?.displayName
+        );
         applyUpsertProfile(auth.state, { ...payload, userId: auth.user.id, email: auth.user.email });
         const canonicalState = await buildCanonicalWritableStateForAuthenticatedGlobalMutation(auth);
+        const canonicalOldNames = collectProfileRenameOldNames(
+          canonicalState.groups || {},
+          auth.user.id,
+          canonicalState.profiles?.[auth.user.id]?.displayName
+        );
+        const displayNameRepairs = new Map([...shellOldNames, ...canonicalOldNames]
+          .filter(([, oldName]) => oldName && oldName !== requestedDisplayName));
         const updated = applyUpsertProfile(canonicalState, { ...payload, userId: auth.user.id, email: auth.user.email });
         // Canonical writable-input cutover for upsert-profile:
         // 1. authenticate/repair and validate against the blob shell
         // 2. compute the current/open profile rename from the canonical global
         //    writable view
-        // 3. sync canonical profile and active bloc-member display-name snapshots
+        // 3. sync canonical profile, auth-scoped display-name snapshots, and
+        //    active bloc-member display-name snapshots
         // 4. mirror blob only after canonical writes succeed
         await syncProfileToCanonical(
           auth.user.id,
           auth.user.email,
-          String(payload?.displayName || "").trim(),
+          requestedDisplayName,
           { throwOnError: true }
         );
+        for (const [groupId, oldName] of displayNameRepairs) {
+          await repairDisplayNameSnapshotsInCanonical(
+            groupId,
+            auth.user.id,
+            oldName,
+            requestedDisplayName,
+            { throwOnError: true }
+          );
+        }
         for (const [, group] of Object.entries(updated.groups || {})) {
           if (!group.memberships?.[auth.user.id]) continue;
           const memberRole = group.memberships[auth.user.id].role || "member";

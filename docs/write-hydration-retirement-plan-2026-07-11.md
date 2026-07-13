@@ -157,6 +157,13 @@ Identity report amendment, 2026-07-13:
   the current/open rename result from
   `buildCanonicalWritableStateForAuthenticatedGlobalMutation(...)`, syncs
   canonical profile/member snapshots, then mirrors blob
+- preview smoke after this cutover exposed that current/open-only sync was not
+  enough for the product rename model: the same auth user could appear under
+  the old closed-season display name and the new active display name. Runtime
+  `upsert-profile` now also calls the auth-ID scoped canonical display-name
+  snapshot repair for each touched bloc, and the blob mirror rename rewrites
+  `monthHistory[*].memberAuthUserIds` plus settlement confirmation display
+  names for the renamed auth user.
 
 Join-group report amendment, 2026-07-13:
 

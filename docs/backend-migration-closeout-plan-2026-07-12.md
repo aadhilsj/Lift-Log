@@ -555,9 +555,20 @@ Implemented:
   `buildCanonicalWritableStateForAuthenticatedGlobalMutation(...)`
 - canonical profile and active bloc-member display-name snapshots still sync
   before blob mirror persistence
+- follow-up regression fix after preview smoke: normal profile rename now also
+  runs the auth-ID scoped canonical display-name snapshot repair for each
+  touched bloc before blob mirror persistence; this keeps closed-season
+  `season_member_status`, workout-log, reaction, sit-out, and settlement
+  confirmation display-name snapshots aligned with the account's current
+  display name
+- the blob mirror rename now also rewrites `monthHistory[*].memberAuthUserIds`
+  and `settlementConfirmations[*].payerDisplayName/receiverDisplayName` when
+  the row belongs to the renamed auth user
 
 Remaining caveat:
 
-- full `upsert-profile:identity-rename` parity still fails on `monthHistory`
-  only; do not use this cutover as proof that all historical display-name
-  snapshots are fully de-keyed from names
+- full `upsert-profile:identity-rename` parity still has `monthHistory`
+  coverage gaps because historical snapshots are still display-name-shaped at
+  the blob boundary; normal runtime rename now repairs canonical historical
+  snapshots by auth ID, but this is not the same as fully de-keying all
+  historical rendering from display names
