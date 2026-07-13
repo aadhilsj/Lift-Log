@@ -190,10 +190,12 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
     const priorCount = getCountedLogCount(priorLogs.filter(l => { const day = dayOf(l.date); return Number.isFinite(day) && day <= DAY_OF_MON; }));
     const thisCount = counts.find(u => u.name === currentUser)?.count ?? getCountedLogCount(logs[currentUser] || []);
     const diff = thisCount - priorCount;
+    const keyMonth = Number(String(priorMonth.key || "").split("-")[1]);
+    const priorMonthName = FULL_MONTH_NAMES[priorMonth.month ?? (Number.isFinite(keyMonth) ? keyMonth : 0)] || "last month";
     return {
       thisCount, priorCount,
       tone: diff > 0 ? "ahead" : diff < 0 ? "behind" : "even",
-      takeaway: diff > 0 ? "Ahead of where you were last month" : diff < 0 ? "Behind where you were last month" : "Right on pace with last month"
+      takeaway: diff > 0 ? `Ahead of where you were in ${priorMonthName}` : diff < 0 ? `Behind where you were in ${priorMonthName}` : `Right on pace with ${priorMonthName}`
     };
   })();
 
