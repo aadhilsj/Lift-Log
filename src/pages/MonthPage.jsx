@@ -67,16 +67,18 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
 
   const monthSelector=React.createElement(SelectField,{
     value:selIdx??"",
-    onChange:e=>setSelIdx(e.target.value===""?null:Number(e.target.value)),
+    onChange:e=>{ setSelIdx(e.target.value===""?null:Number(e.target.value)); e.currentTarget.blur(); },
     width:isMobile()?"142px":"154px",
     compact:true,
-    arrowColor:"rgba(245,166,35,.85)",
+    arrowColor:"#4ECDC4",
     inputStyle:{
       background:"rgba(8,15,15,.48)",
-      border:"1px solid rgba(245,166,35,.18)",
+      border:"1px solid rgba(78,205,196,.18)",
       color:"var(--text)",
       fontFamily:"'Outfit', sans-serif",
-      fontWeight:700
+      fontWeight:700,
+      outline:"none",
+      boxShadow:"none"
     },
     options:[
       {value:"",label:"Current Month"},
@@ -147,7 +149,7 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
 
   // ── Closed month → settlement screen ───────────────────────────────────────
   if (!isCurrent && selMonth && currentUser) {
-    return React.createElement('div',{style:{maxWidth:840,margin:"0 auto",padding:"12px 12px 16px",display:"flex",flexDirection:"column",gap:12}},
+    return React.createElement('div',{style:{maxWidth:840,margin:"0 auto",padding:"12px 12px 16px",display:"flex",flexDirection:"column",gap:12,background:"radial-gradient(ellipse 95% 72% at 50% 62%, rgba(78,205,196,.075), rgba(78,205,196,.025) 46%, transparent 76%)",borderRadius:16}},
       React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10}},
         React.createElement('div',null,
           React.createElement('span',{className:"mono",style:{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".12em",display:"block",marginBottom:3}},"Month"),
@@ -163,7 +165,7 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
   }
 
   return React.createElement(React.Fragment,null,
-  React.createElement('div',{style:{maxWidth:680,margin:"0 auto",padding:"16px",display:"flex",flexDirection:"column",gap:12}},
+  React.createElement('div',{style:{maxWidth:680,margin:"0 auto",padding:"16px",display:"flex",flexDirection:"column",gap:12,background:"radial-gradient(ellipse 95% 72% at 50% 62%, rgba(78,205,196,.07), rgba(78,205,196,.02) 46%, transparent 76%)",borderRadius:16}},
     React.createElement('div',{style:{display:"flex",alignItems:"flex-end",justifyContent:"space-between",flexWrap:"wrap",gap:10}},
       React.createElement('div',null,
         React.createElement('span',{className:"mono",style:{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".12em",display:"block",marginBottom:3}},"Month"),
@@ -187,7 +189,7 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
             )
           )
         : React.createElement('div',{style:{fontSize:18,fontWeight:800,color:"var(--text)"}},"No leader yet"),
-      currentUser&&React.createElement('div',{style:{background:"rgba(8,17,17,.56)",border:"1px solid rgba(245,166,35,.16)",borderRadius:8,padding:"12px 13px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,boxShadow:"inset 0 1px 0 rgba(255,255,255,.035)"}},
+      currentUser&&React.createElement('div',{style:{background:"rgba(8,17,17,.24)",border:"1px solid rgba(245,166,35,.13)",borderRadius:8,padding:"12px 13px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,boxShadow:"inset 0 1px 0 rgba(255,255,255,.035)",backdropFilter:"blur(3px)"}},
         React.createElement('div',null,
           React.createElement('div',{style:{fontSize:13,fontWeight:700,color:"var(--text)"}},"Your month so far"),
           React.createElement('div',{style:{fontSize:12,color:"var(--muted)",marginTop:2}},counts.find(u=>u.name===currentUser)?.memberDiffLabel || getLeaderboardDiffText(counts.find(u=>u.name===currentUser) || {count:0,target:MIN_TARGET}))

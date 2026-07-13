@@ -46,7 +46,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
   const outgoingRows = settlementPairs.filter(pair => pair.payerDisplayName === currentUser);
 
   const C = {
-    greenText: "#2a7a3b",
+    greenText: "#39A85A",
     greenBg: "#e6f4ea",
     redText: "#b93232",
     redBg: "#fdecea",
@@ -110,7 +110,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
     }
     if (!userIsLoser) {
       return {
-        tag: `MAS hit · ${ordinal(userRank)} Place`,
+        tag: `MAS Hit · ${ordinal(userRank)} Place`,
         stat: `${userCount} workouts`,
         line: "Solid month. Build on it next month.",
         tone: "neutral"
@@ -125,9 +125,9 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
   })();
 
   const heroStyle = hero.tone === "perfect"
-    ? {background:"linear-gradient(135deg, rgba(78,205,196,.18), rgba(215,226,225,.12) 52%, rgba(42,122,59,.14))", border:"1px solid rgba(78,205,196,.28)"}
+    ? {background:"linear-gradient(135deg, rgba(78,205,196,.2), rgba(215,226,225,.12) 48%, rgba(58,168,90,.2))", border:"1px solid rgba(78,205,196,.3)"}
     : hero.tone === "winner"
-      ? {background:"rgba(42,122,59,.07)", border:"1px solid rgba(42,122,59,.18)"}
+      ? {background:"rgba(57,168,90,.11)", border:"1px solid rgba(57,168,90,.24)"}
       : hero.tone === "missed"
         ? {background:"rgba(185,50,50,.07)", border:"1px solid rgba(185,50,50,.18)"}
         : {background:"linear-gradient(135deg, rgba(215,226,225,.1), rgba(78,205,196,.045))", border:"1px solid rgba(215,226,225,.16)"};
@@ -164,7 +164,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
     const title = outcome === "winner" ? "Collecting from" : "You owe";
     const totalColor = outcome === "winner" ? C.greenText : C.redText;
 
-    return React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:8}},
+    return React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:8,width:"100%",maxWidth:outcome==="winner"?420:"100%",margin:outcome==="winner"?"0 auto":"0"}},
       React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10}},
         React.createElement('div',{style:C.sectionLabel},title),
         outcome !== "winner" && React.createElement('div',{style:{fontSize:14,fontWeight:900,color:totalColor}},`-${fmtCurrency(rows.reduce((sum, row) => sum + row.amount, 0), currency)}`)
@@ -271,9 +271,8 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
     : "clamp(36px, 10vw, 52px)";
 
   return React.createElement('div',{style:{width:"100%",maxWidth:"100%",margin:"0 auto",padding:"0 0 32px",display:"flex",flexDirection:"column",gap:12,fontFamily:"'Outfit', sans-serif"}},
-    React.createElement('div',{style:{...C.sectionLabel,textAlign:"center",paddingTop:4}},`${month.label.toUpperCase()} · MONTH ENDED`),
     React.createElement('div',{style:{...heroStyle,borderRadius:12,padding:"18px 18px 16px",textAlign:"center",display:"flex",flexDirection:"column",gap:10}},
-      React.createElement('span',{style:{...C.pill,alignSelf:"center",background:hero.tone==="missed"?C.redBg:hero.tone==="neutral"?C.neutralBg:"rgba(78,205,196,.14)",color:hero.tone==="missed"?C.redText:hero.tone==="neutral"?C.neutralText:C.greenText}},hero.tag),
+      React.createElement('span',{style:{...C.pill,alignSelf:"center",background:hero.tone==="missed"?C.redBg:hero.tone==="neutral"?C.neutralBg:"rgba(78,205,196,.14)",color:hero.tone==="missed"?C.redText:hero.tone==="neutral"?C.neutralText:C.greenText,fontWeight:900}},hero.tag),
       React.createElement('div',{style:{fontSize:heroStatSize,fontWeight:900,lineHeight:1.05,color:heroColor,letterSpacing:0,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},hero.stat),
       React.createElement('div',{style:{fontSize:14,color:"var(--muted)",lineHeight:1.45}},hero.line),
       renderPerfectRoster()
