@@ -179,9 +179,9 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
        {label:"Most consistent",val:hasClosedHistory&&mostConsistent?.avg!=="—"?mostConsistent.name:"—",sub:hasClosedHistory&&mostConsistent?.avg!=="—"?`${mostConsistent.avg} avg/mo`:"no closed months yet",gradient:"linear-gradient(135deg,#FFFFFF,#DDE7EE 52%,#94B7C7)"},
        {label:`Most ${currencyShortLabel(currency)} lost`,val:hasClosedHistory&&biggestLoser?.moneyLost>0?biggestLoser.name:"—",sub:hasClosedHistory&&biggestLoser?.moneyLost>0?`-${fmtCurrency(biggestLoser.moneyLost, currency)} total`:"no losses yet",gradient:"linear-gradient(135deg,#F7C8C0,#E95F45 52%,#A93A3A)"}
       ].map(x=>React.createElement(Card,{key:x.label,style:{padding:"8px 9px"}},
-        React.createElement('span',{className:"lbl",style:{fontFamily:"'Outfit', sans-serif",fontSize:8,marginBottom:3,textAlign:"center",width:"100%"}},x.label),
+        React.createElement('span',{style:{display:"block",fontFamily:"'Outfit', sans-serif",fontSize:8,fontWeight:700,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".06em",marginBottom:3,textAlign:"center",width:"100%"}},x.label),
         React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontSize:15,fontWeight:800,color:x.color,lineHeight:1.06,textAlign:"center",width:"100%",...(x.gradient?gradientText(x.gradient):{})}},x.val),
-        React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontSize:8.5,color:"var(--muted)",marginTop:4,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",textAlign:"center",width:"100%"}},x.sub)
+        React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontSize:8.5,fontWeight:600,color:"var(--muted)",marginTop:4,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",textAlign:"center",width:"100%"}},x.sub)
       ))
     ),
     HISTORY_FEATURES.trailingWorkoutHistory&&React.createElement(Card,{className:"fu3",style:{padding:"11px 12px"}},
@@ -209,11 +209,12 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
         : React.createElement('div',{style:{display:"flex",gap:6,alignItems:"stretch"}},
             sortedWorkoutTypes.map(t=>{
               const count=groupTypeBreakdown[t];
-              const pct=totalGroupLogs>0?Math.round((count/totalGroupLogs)*100):0;
+              const rawPct=totalGroupLogs>0?(count/totalGroupLogs)*100:0;
+              const pct=count>0?Math.max(1,Math.round(rawPct)):0;
               const barH=Math.max(count>0?6:0,Math.round((count/maxTypeCount)*56));
               const isTop = count === maxTypeCount && count > 0;
               return React.createElement('div',{key:t,style:{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:4,minWidth:0}},
-                React.createElement('span',{className:"mono",style:{fontSize:10,color:count>0?"var(--muted)":"var(--muted2)",height:16,display:"flex",alignItems:"center"}},count>0?`${pct}%`:""),
+                React.createElement('span',{style:{fontFamily:"'Outfit', sans-serif",fontSize:9.5,fontWeight:700,color:count>0?"var(--muted)":"var(--muted2)",height:16,display:"flex",alignItems:"center"}},count>0?`${pct}%`:""),
                 React.createElement('div',{style:{width:"100%",height:56,display:"flex",alignItems:"flex-end"}},
                   React.createElement('div',{style:{width:"100%",height:barH,background:count>0?(isTop?"rgba(78, 205, 196, 0.5)":"#0D2828"):"var(--border)",borderRadius:"3px 3px 0 0",opacity:count>0?1:.3}})
                 ),
