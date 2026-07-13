@@ -4415,6 +4415,39 @@ function collectDeleteAccountCandidates(state) {
     .filter(Boolean);
 }
 
+function collectSettlementUpdateCandidates(state) {
+  const groupIds = Array.isArray(state.groupOrder) && state.groupOrder.length
+    ? state.groupOrder
+    : Object.keys(state.groups || {});
+  const candidates = [];
+  for (const groupId of groupIds) {
+    const group = state.groups?.[groupId];
+    if (!group) continue;
+    const monthHistory = normalizeMonthHistory(group.monthHistory, group.memberOrder, group.joinedMonthByName, group.settings);
+    for (const month of monthHistory) {
+      const settlements = month?.settlements || buildDefaultSettlements(month, group.memberOrder, month?.settings || group.settings);
+      for (const [player, settlement] of Object.entries(settlements || {})) {
+        if (!player) continue;
+        candidates.push({
+          groupId,
+          monthKey: month.key,
+          player,
+          settled: settlement?.status !== "settled"
+        });
+      }
+    }
+  }
+  return candidates;
+}
+
+function comparableSettlementEntry(entry) {
+  if (!entry) return null;
+  return {
+    status: entry.status || "outstanding",
+    settled: !!entry.settledAt
+  };
+}
+
 function collectDeleteAccountTouchedGroupIds(writableInput, canonicalInput, userId) {
   const writableProfile = writableInput.profiles?.[userId] || null;
   const canonicalProfile = canonicalInput.profiles?.[userId] || null;
@@ -4583,6 +4616,60 @@ async function compareWriteHydrationDeleteAccount(baseState, canonicalBase, cand
       scope: "global-account-current-open",
       userId: candidate.userId,
       groupIds: candidate.groupIds || [],
+      ok: false,
+      error: err?.message || String(err)
+    };
+  }
+}
+
+async function compareWriteHydrationSettlement(baseState, candidate) {
+  const payload = {
+    groupId: candidate.groupId,
+    monthKey: candidate.monthKey,
+    player: candidate.player,
+    settled: candidate.settled,
+    pin: process.env.ADMIN_PIN || ""
+  };
+  try {
+    const canonicalBase = await buildCanonicalWritableStateForGroup(candidate.groupId, baseState);
+    const writableResult = applySettlementUpdate(baseState, payload);
+    const canonicalResult = applySettlementUpdate(canonicalBase, payload);
+    const writableMonth = writableResult.updated.groups?.[candidate.groupId]?.monthHistory
+      ?.find(month => month?.key === candidate.monthKey) || null;
+    const canonicalMonth = canonicalResult.updated.groups?.[candidate.groupId]?.monthHistory
+      ?.find(month => month?.key === candidate.monthKey) || null;
+    const writableEntry = comparableSettlementEntry(writableMonth?.settlements?.[candidate.player]);
+    const canonicalEntry = comparableSettlementEntry(canonicalMonth?.settlements?.[candidate.player]);
+    const mismatches = valuesDiffer(writableEntry, canonicalEntry)
+      ? [`groups.${candidate.groupId}.monthHistory.${candidate.monthKey}.settlements.${candidate.player}`]
+      : [];
+    return {
+      action: "settlement",
+      scope: "historical-admin-settlement-entry",
+      groupId: candidate.groupId,
+      monthKey: candidate.monthKey,
+      player: candidate.player,
+      ok: mismatches.length === 0,
+      mismatches,
+      ...(mismatches.length
+        ? {
+            details: {
+              [mismatches[0]]: {
+                path: `groups.${candidate.groupId}.monthHistory.${candidate.monthKey}.settlements.${candidate.player}`,
+                writable: writableEntry,
+                canonical: canonicalEntry
+              }
+            }
+          }
+        : {})
+    };
+  } catch (err) {
+    return {
+      action: "settlement",
+      scope: "historical-admin-settlement-entry",
+      groupId: candidate.groupId,
+      monthKey: candidate.monthKey,
+      player: candidate.player,
       ok: false,
       error: err?.message || String(err)
     };
@@ -5087,6 +5174,18 @@ async function buildWriteHydrationParityReport(baseState) {
     addSkipped("delete-account", null, "no profile candidate", "global-account-current-open");
   }
 
+  const settlementCandidates = collectSettlementUpdateCandidates(baseState);
+  if (settlementCandidates.length > 0) {
+    for (const candidate of settlementCandidates.slice(0, 12)) {
+      results.push(await compareWriteHydrationSettlement(baseState, candidate));
+    }
+    if (settlementCandidates.length > 12) {
+      addSkipped("settlement", null, `${settlementCandidates.length - 12} additional settlement candidates omitted`, "historical-admin-settlement-entry");
+    }
+  } else {
+    addSkipped("settlement", null, "no historical settlement candidate", "historical-admin-settlement-entry");
+  }
+
   const failed = results.filter(result => result.ok === false);
   const skipped = results.filter(result => result.skipped);
   const summary = results.reduce((acc, result) => {
@@ -5142,8 +5241,8 @@ async function buildWriteHydrationParityReport(baseState) {
       },
       {
         action: "settlement",
-        status: "canonical-first-historical-admin",
-        reason: "Legacy admin historical settlement write touches closed month snapshots outside current/open report scope."
+        status: "canonical-first-historical-admin-report-covered",
+        reason: "Legacy admin historical settlement write is covered by focused settlement-entry probes because broad monthHistory parity still has known historical shell noise."
       }
     ],
     results
@@ -6356,11 +6455,15 @@ export default async function handler(req, res) {
 
       if (payload?.action === "settlement") {
         const auth = await requireAuthenticatedContext(req, payload, current);
-        const result = applySettlementUpdate(auth.state, payload);
+        applySettlementUpdate(auth.state, payload);
+        const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
+        const result = applySettlementUpdate(canonicalState, payload);
         // Canonical-first settlement slice:
-        // 1. compute the exact post-settlement blob-compatible month snapshot
-        // 2. write canonical settlement status from that exact computed payload
-        // 3. persist blob afterward as the compatibility mirror
+        // 1. authenticate/repair and validate against the blob shell
+        // 2. compute the exact post-settlement month snapshot from the
+        //    canonical group writable constructor
+        // 3. write canonical settlement status from that exact computed payload
+        // 4. persist blob afterward as the compatibility mirror
         if (result.settlement) {
           await updateSeasonMemberSettlementInCanonical(
             payload.groupId,

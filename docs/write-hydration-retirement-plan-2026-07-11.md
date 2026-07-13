@@ -410,6 +410,21 @@ Status:
 - canonical bloc deletion, admin transfer, and profile deletion still happen
   before blob mirror persistence
 
+### Slice 4 follow-up - legacy settlement admin cutover
+
+Status:
+
+- `write-hydration-parity-report` now includes a capped
+  `settlement:historical-admin-settlement-entry` synthetic probe
+- the probe compares the exact historical settlement entry status/settled
+  behavior for the sampled player and month, not the full historical
+  `monthHistory` shell
+- runtime `settlement` now validates against the blob shell first, then
+  computes the post-settlement result from the canonical group writable
+  constructor
+- canonical `season_member_status` settlement state is still written before
+  blob mirror persistence
+
 ### Slice 5 - canonical writable state constructor
 
 Only after the smaller audits:

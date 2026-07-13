@@ -256,8 +256,8 @@ The admin report now includes a `summary` object keyed by action/scope and an
   a synthetic global/current-open report bucket and cut to canonical global
   writable input after clean local parity
 - `repair-display-name`: quarantined admin-only compatibility repair
-- legacy admin `settlement`: historical closed-month write outside current/open
-  scope
+- legacy admin `settlement`: historical closed-month write covered by focused
+  settlement-entry parity and cut to canonical group writable input
 
 July 12 report/current-open expansion:
 
@@ -637,3 +637,30 @@ Interpretation:
   on production-like local data
 - this remains a high-risk global path; do not bundle any future account/auth
   repair changes with `auth-sync` or `repair-display-name`
+
+## Batch 8 - Legacy Settlement Admin Cutover
+
+Batch 8 started on 2026-07-13 after the delete-account global cutover was
+verified on preview.
+
+Implemented:
+
+- added `settlement:historical-admin-settlement-entry` report coverage to
+  `write-hydration-parity-report`
+- report candidates are capped at 12 historical settlement entries per run
+- the probe intentionally compares the exact `{ status, settled }` settlement
+  entry that the admin action mutates, instead of broad `monthHistory`, because
+  broad historical month shell parity still has known non-behavioral drift
+- runtime `settlement` now validates against the blob shell first, then
+  computes the post-settlement result from
+  `buildCanonicalWritableStateForAuthenticatedMutation(...)`
+- canonical `season_member_status` settlement status is still written before
+  blob mirror persistence
+
+Interpretation:
+
+- this removes the legacy admin settlement action from the remaining
+  blob-input bucket without pretending broad closed-month rendering is fully
+  de-keyed from display names
+- future settlement-confirmation work should remain separate from this admin
+  closed-month settlement toggle path
