@@ -968,3 +968,41 @@ Recommended next move:
 - inspect `blob-mirror-retirement-readiness-report` and
   `blob-mirror-dependency-report` on that preview; they should show
   `wiredActions: ["reaction"]` and `enabledActions: ["reaction"]`
+
+## Batch 14 - Preview Reaction Mirror-Skip Soak
+
+Batch 14 started on 2026-07-13 after preview smoke testing confirmed the
+Batch 13 gated code path still behaved normally with
+`BLOB_MIRROR_SKIP_ACTIONS` unset.
+
+Operational change:
+
+- added Vercel env var `BLOB_MIRROR_SKIP_ACTIONS=reaction`
+- scope: Preview only
+- branch scope: `codex/create-group-canonical-first`
+- production remains unchanged
+
+Soak deployment:
+
+- preview:
+  `https://lift-5n3f6rivx-aadhilshahjahan11-1221s-projects.vercel.app`
+- deployment id: `dpl_4pwkpQHX9xtKjTYJkuoB64dYDh1C`
+- Vercel inspect status: Ready
+
+Verification notes:
+
+- Vercel CLI confirmed the branch-scoped Preview environment variable exists
+- direct `curl` calls to admin reports from the local shell were blocked by
+  Vercel preview authentication, so runtime report inspection still needs an
+  authenticated preview session or temporary auth bypass
+- user smoke test should cover sign-in, blocs loading, react/unreact, switching
+  Activity/Today while reaction writes are pending, and reload persistence
+
+If smoke testing is clean:
+
+- keep the preview flag enabled long enough to observe normal usage
+- inspect `blob-mirror-dependency-report` and
+  `blob-mirror-retirement-readiness-report` through an authenticated preview
+  path if possible
+- do not promote this flag to production until the reaction soak has had at
+  least one clean preview pass
