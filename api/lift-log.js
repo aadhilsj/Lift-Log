@@ -49,6 +49,89 @@ const WRITE_HYDRATION_PARITY_ACTIONS = new Set(
     .map(action => action.trim())
     .filter(Boolean)
 );
+const BLOB_MIRROR_DEPENDENCY_AUDIT = {
+  generatedOn: "2026-07-13",
+  writableBoundary: {
+    stillHydratesBlobForPostMutations: true,
+    reason: "The blob remains the compatibility shell and mirror persistence target while canonical input coverage soaks.",
+    forbiddenShortcut: "Do not use fetchReadableCurrentState() as the base for general POST mutations."
+  },
+  trueBlobInputAuthorities: [
+    {
+      action: "auth-sync",
+      reason: "Legacy identity repair must see blob gaps that readable/canonical projections can hide.",
+      retirementCondition: "Replace with an explicit canonical identity repair/backfill path, then prove old email/profile and membership repairs still work."
+    },
+    {
+      action: "repair-display-name",
+      reason: "Quarantined admin compatibility repair for legacy name-keyed state.",
+      retirementCondition: "Remove or replace after historical rendering no longer depends on display-name keyed compatibility shells."
+    }
+  ],
+  canonicalInputMutations: [
+    "settlement",
+    "create-group",
+    "upsert-profile",
+    "join-group",
+    "kick-member",
+    "leave-bloc",
+    "multi-log",
+    "add-log",
+    "update-settings",
+    "season-proration-choice",
+    "sitout-request",
+    "sitout-review",
+    "reaction",
+    "flag",
+    "flag-response",
+    "flag-review",
+    "delete-log",
+    "delete-account"
+  ],
+  readableOrCanonicalOnlyActions: [
+    "invite-context",
+    "settlement-claim-paid",
+    "settlement-confirm-paid",
+    "settlement-dispute-paid"
+  ],
+  disabledLegacyActions: [
+    "auth-send-otp",
+    "auth-verify-otp",
+    "PUT /api/lift-log whole-state save"
+  ],
+  remainingMirrorDependencies: [
+    {
+      field: "blob revision / updated_at",
+      usedBy: "GET /api/lift-log?revision=1 and client polling",
+      retirementCondition: "Expose a canonical revision source and move the client poll away from blob revision semantics."
+    },
+    {
+      field: "blob meta.revision / meta.updatedAt",
+      usedBy: "client state normalization and optimistic local app state",
+      retirementCondition: "Keep as response metadata only or replace with canonical revision metadata before stopping blob writes."
+    },
+    {
+      field: "leftMemberNames",
+      usedBy: "legacy departed-name suppression in compatibility shells",
+      retirementCondition: "Canonical active memberships and explicit legacy retirement rules fully replace display-name suppression."
+    },
+    {
+      field: "joinedMonthByName",
+      usedBy: "legacy historical participation boundaries and proration compatibility",
+      retirementCondition: "Canonical joined_at, joined_month_key, and closed-season joined_for_month cover all target/count behavior."
+    },
+    {
+      field: "memberOrder",
+      usedBy: "historical ordering and profile-less legacy compatibility",
+      retirementCondition: "Current member order comes from canonical bloc_members; historical render order is month-local."
+    }
+  ],
+  nextRetirementBatches: [
+    "Add canonical revision/mirror-dependency instrumentation before disabling any blob writes.",
+    "Stop blob writes only for a small low-risk action family after proving the client no longer needs blob revision for that action.",
+    "Keep auth-sync and repair-display-name out of blob-write retirement until replacement repair paths exist."
+  ]
+};
 
 let storageCleanupInFlight = null;
 let storageCleanupLastRunAt = 0;
@@ -3235,6 +3318,40 @@ async function buildHistoricalShellReconciliationReport(baseState) {
       differingOverrides: groups.reduce((sum, group) => sum + group.differingOverrideKeys.length, 0)
     },
     groups: groupsNeedingReconciliation
+  };
+}
+
+function buildBlobMirrorDependencyReport(baseState) {
+  const state = normalizeState(baseState || {});
+  const groups = Object.values(state.groups || {});
+  const fieldUsage = groups.reduce((acc, group) => {
+    if ((group.leftMemberNames || []).length > 0) acc.groupsWithLeftMemberNames += 1;
+    if (Object.keys(group.joinedMonthByName || {}).length > 0) acc.groupsWithJoinedMonthByName += 1;
+    if ((group.memberOrder || []).length > 0) acc.groupsWithMemberOrder += 1;
+    if ((group.monthHistory || []).length > 0) acc.groupsWithMonthHistory += 1;
+    return acc;
+  }, {
+    groupsWithLeftMemberNames: 0,
+    groupsWithJoinedMonthByName: 0,
+    groupsWithMemberOrder: 0,
+    groupsWithMonthHistory: 0
+  });
+
+  return {
+    ok: true,
+    generatedOn: BLOB_MIRROR_DEPENDENCY_AUDIT.generatedOn,
+    blobRevision: state.meta.revision,
+    blobUpdatedAt: state.meta.updatedAt,
+    groupCount: groups.length,
+    profileCount: Object.keys(state.profiles || {}).length,
+    fieldUsage,
+    writableBoundary: BLOB_MIRROR_DEPENDENCY_AUDIT.writableBoundary,
+    trueBlobInputAuthorities: BLOB_MIRROR_DEPENDENCY_AUDIT.trueBlobInputAuthorities,
+    canonicalInputMutations: BLOB_MIRROR_DEPENDENCY_AUDIT.canonicalInputMutations,
+    readableOrCanonicalOnlyActions: BLOB_MIRROR_DEPENDENCY_AUDIT.readableOrCanonicalOnlyActions,
+    disabledLegacyActions: BLOB_MIRROR_DEPENDENCY_AUDIT.disabledLegacyActions,
+    remainingMirrorDependencies: BLOB_MIRROR_DEPENDENCY_AUDIT.remainingMirrorDependencies,
+    nextRetirementBatches: BLOB_MIRROR_DEPENDENCY_AUDIT.nextRetirementBatches
   };
 }
 
@@ -6442,6 +6559,12 @@ export default async function handler(req, res) {
       if (payload?.action === "historical-shell-reconciliation-report") {
         assertAdminPin(payload);
         const report = await buildHistoricalShellReconciliationReport(await getCurrent());
+        return res.status(200).json(report);
+      }
+
+      if (payload?.action === "blob-mirror-dependency-report") {
+        assertAdminPin(payload);
+        const report = buildBlobMirrorDependencyReport(await getCurrent());
         return res.status(200).json(report);
       }
 

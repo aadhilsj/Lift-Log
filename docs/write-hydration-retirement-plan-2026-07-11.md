@@ -261,6 +261,10 @@ Current role:
 
 - blob snapshot revision and updatedAt bookkeeping
 - not product state
+- `GET /api/lift-log?revision=1` still reads the blob revision for the
+  lightweight polling path
+- client normalized app state still carries `meta.revision` and
+  `meta.updatedAt` for optimistic local state and refresh comparisons
 
 Retirement condition:
 
@@ -424,6 +428,24 @@ Status:
   constructor
 - canonical `season_member_status` settlement state is still written before
   blob mirror persistence
+
+### Slice 4 follow-up - blob mirror dependency audit
+
+Status:
+
+- added admin-only `blob-mirror-dependency-report`
+- the only remaining true blob-input authorities are:
+  - `auth-sync`
+  - `repair-display-name`
+- normal product/admin mutations now compute post-action state from canonical
+  writable constructors after blob-shell validation
+- the blob still remains a compatibility mirror because:
+  - revision polling still reads blob `revision`
+  - client normalized state still carries blob-shaped `meta`
+  - `leftMemberNames`, `joinedMonthByName`, and `memberOrder` still support
+    legacy historical/display-name compatibility
+- next retirement move should be instrumentation for canonical revision /
+  mirror-write skipping, not immediate global blob deletion
 
 ### Slice 5 - canonical writable state constructor
 

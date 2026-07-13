@@ -20,14 +20,16 @@ Reach an App Store-ready backend posture:
 
 The backend is hybrid:
 
-- `fetchWritableCurrentState()` still reads the blob and feeds most POST
-  mutation helpers
+- `fetchWritableCurrentState()` still reads the blob at the writable mutation
+  boundary for validation, compatibility shell construction, and mirror
+  persistence
 - `fetchReadableCurrentState()` reads blob then overlays canonical data for the
   user-facing GET response
-- canonical writes are already first/authoritative for many bounded actions
+- canonical writable constructors now compute the post-action state for normal
+  product mutations
 - blob persistence mirrors the post-action compatibility state
 
-The current blocker is the writable input shape, not write ordering.
+The current blocker is blob mirror retirement, not normal write authority.
 
 ## Why The Old Approach Was Slow
 
@@ -664,3 +666,70 @@ Interpretation:
   de-keyed from display names
 - future settlement-confirmation work should remain separate from this admin
   closed-month settlement toggle path
+
+## Batch 9 - Blob Mirror Dependency Audit
+
+Batch 9 started on 2026-07-13 after the legacy settlement admin cutover was
+verified on preview.
+
+Implemented:
+
+- added admin-only `blob-mirror-dependency-report`
+- the report records the current writable boundary, true blob-input authority
+  actions, canonical-input mutation actions, readable/canonical-only actions,
+  disabled legacy actions, and remaining mirror-dependent fields
+- the report also returns live blob-shell counts for:
+  - groups with `leftMemberNames`
+  - groups with `joinedMonthByName`
+  - groups with `memberOrder`
+  - groups with `monthHistory`
+
+Current authority map:
+
+- true blob-input authorities:
+  - `auth-sync`
+  - `repair-display-name`
+- canonical-input normal/admin mutations:
+  - `settlement`
+  - `create-group`
+  - `upsert-profile`
+  - `join-group`
+  - `kick-member`
+  - `leave-bloc`
+  - `multi-log`
+  - `add-log`
+  - `update-settings`
+  - `season-proration-choice`
+  - `sitout-request`
+  - `sitout-review`
+  - `reaction`
+  - `flag`
+  - `flag-response`
+  - `flag-review`
+  - `delete-log`
+  - `delete-account`
+- readable/canonical-only paths:
+  - `invite-context`
+  - `settlement-claim-paid`
+  - `settlement-confirm-paid`
+  - `settlement-dispute-paid`
+
+Remaining mirror dependencies:
+
+- blob `revision` / `updated_at` powers `GET /api/lift-log?revision=1`
+- client `meta.revision` / `meta.updatedAt` still exists in normalized app
+  state and optimistic local updates
+- `leftMemberNames` still suppresses legacy departed display names
+- `joinedMonthByName` still protects legacy historical participation /
+  proration boundaries
+- `memberOrder` still carries historical ordering and profile-less legacy
+  compatibility
+
+Interpretation:
+
+- normal product writes are no longer blocked on blob input authority
+- do not stop writing the blob globally yet; the client still uses revision
+  semantics and historical compatibility fields still need either canonical
+  replacements or explicit retirement rules
+- the next retirement batch should focus on canonical revision / mirror-write
+  instrumentation before disabling blob persistence for any action family
