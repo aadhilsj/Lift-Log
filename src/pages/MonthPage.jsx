@@ -67,8 +67,8 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
 
   const monthSelector=React.createElement(SelectField,{
     value:selIdx??"",
-    onChange:e=>{ setSelIdx(e.target.value===""?null:Number(e.target.value)); e.currentTarget.blur(); },
-    width:isMobile()?"112px":"120px",
+    onChange:e=>{ setSelIdx(e.target.value===""?null:Number(e.target.value)); },
+    width:isMobile()?"104px":"112px",
     compact:true,
     arrowColor:"#4ECDC4",
     textAlign:"center",
@@ -81,8 +81,8 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
       outline:"none",
       boxShadow:"none",
       textAlign:"center",
-      paddingLeft:18,
-      paddingRight:24
+      paddingLeft:16,
+      paddingRight:22
     },
     options:[
       {value:"",label:"This Month"},
@@ -170,8 +170,8 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
   }
 
   return React.createElement(React.Fragment,null,
-  React.createElement('div',{style:{maxWidth:680,margin:"0 auto",padding:"16px",display:"flex",flexDirection:"column",gap:12,background:"radial-gradient(ellipse 95% 72% at 50% 62%, rgba(78,205,196,.07), rgba(78,205,196,.02) 46%, transparent 76%)",borderRadius:16}},
-    React.createElement('div',{style:{display:"flex",alignItems:"flex-end",justifyContent:"space-between",flexWrap:"wrap",gap:10}},
+  React.createElement('div',{style:{maxWidth:840,margin:"0 auto",padding:"12px 12px 16px",display:"flex",flexDirection:"column",gap:12,background:"radial-gradient(ellipse 95% 72% at 50% 62%, rgba(78,205,196,.07), rgba(78,205,196,.02) 46%, transparent 76%)",borderRadius:16}},
+    React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10}},
       React.createElement('div',null,
         React.createElement('span',{className:"mono",style:{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".12em",display:"block",marginBottom:3}},"Month"),
         React.createElement('div',{style:{fontSize:20,fontWeight:800}},monthLabel)

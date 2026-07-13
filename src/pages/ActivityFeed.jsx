@@ -93,8 +93,7 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
     }),
     React.createElement(Card,{style:{overflow:"hidden"}},
       React.createElement('div',{style:{padding:"12px 15px",borderBottom:"1px solid var(--border)",display:"flex",alignItems:"center",justifyContent:"space-between"}},
-        React.createElement('div',{style:{fontWeight:800,fontSize:15}},"Activity Feed"),
-        React.createElement('span',{className:"mono",style:{fontSize:9,color:"var(--muted)"}},`${feedPosts.length} post${feedPosts.length===1?"":"s"}`)
+        React.createElement('div',{style:{fontWeight:800,fontSize:15}},"Activity Feed")
       ),
       !feedPosts.length
         ? React.createElement('div',{style:{padding:"18px 15px",fontSize:13,color:"var(--muted)"}},"No workouts logged yet.")

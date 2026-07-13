@@ -43,9 +43,9 @@ const Nav = ({page,setPage,user,groupName,canEditGroup,onOpenSettings,onOpenProf
     )
   ),
   React.createElement('div',{className:"desktop-only",style:{background:"var(--s1)",borderBottom:"1px solid var(--border)",padding:"10px 16px 12px",display:"flex",justifyContent:"center"}},
-    React.createElement('button',{type:"button",onClick:onSwitchGroup,style:{display:"inline-flex",alignItems:"center",gap:8,padding:"10px 18px",borderRadius:999,background:"rgba(78,205,196,.12)",border:"1px solid rgba(78,205,196,.2)",color:"#4ECDC4",fontSize:14,fontWeight:700}},
+    React.createElement('button',{type:"button",onClick:onSwitchGroup,style:{display:"inline-flex",alignItems:"center",gap:5,padding:"10px 18px",borderRadius:999,background:"rgba(78,205,196,.12)",border:"1px solid rgba(78,205,196,.2)",color:"#4ECDC4",fontSize:14,fontWeight:700}},
       groupName,
-      React.createElement(AppIcon,{name:"home",size:13,stroke:"#4ECDC4"})
+      React.createElement(AppIcon,{name:"home",size:16,stroke:"#4ECDC4"})
     )
   ),
   React.createElement('div',{className:"mobile-only mobile-nav-shell"},
@@ -53,9 +53,9 @@ const Nav = ({page,setPage,user,groupName,canEditGroup,onOpenSettings,onOpenProf
       React.createElement('div',{style:{display:"flex",alignItems:"center",minWidth:0,flexShrink:0}},
         React.createElement(AnteWordmark,{size:20})
       ),
-      React.createElement('button',{type:"button",onClick:onSwitchGroup,style:{position:"absolute",left:"50%",transform:"translateX(-50%)",padding:0,background:"transparent",color:"#4ECDC4",fontSize:13,fontWeight:500,fontFamily:"'Outfit', sans-serif",lineHeight:1,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:"calc(100% - 132px)",display:"inline-flex",alignItems:"center",gap:4}},
+      React.createElement('button',{type:"button",onClick:onSwitchGroup,style:{position:"absolute",left:"50%",transform:"translateX(-50%)",padding:0,background:"transparent",color:"#4ECDC4",fontSize:13,fontWeight:500,fontFamily:"'Outfit', sans-serif",lineHeight:1,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:"calc(100% - 132px)",display:"inline-flex",alignItems:"center",gap:3}},
         groupName,
-        React.createElement(AppIcon,{name:"home",size:11,stroke:"#4ECDC4"})
+        React.createElement(AppIcon,{name:"home",size:14,stroke:"#4ECDC4"})
       ),
       React.createElement('div',{style:{display:"flex",alignItems:"center",gap:2,flexShrink:0}},
         React.createElement(StreamIconButton,{onOpenStream,unreadCount:streamUnreadCount,size:28}),

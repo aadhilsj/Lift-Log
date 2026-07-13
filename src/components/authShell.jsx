@@ -303,7 +303,7 @@ const GroupHome = ({groups,currentIdentity,currentEmail,onOpenProfile,onOpenGrou
         groups.length>0
           ? React.createElement('div',{style:{display:"flex",gap:7,alignItems:"center",flexWrap:"wrap"}},
               React.createElement('button',{onClick:()=>setShowCreate(true),style:{background:"var(--green)",color:"#000",padding:compactMobile?"7px 10px":"8px 11px",borderRadius:8,fontSize:11,fontWeight:800}},"New Bloc"),
-              React.createElement('button',{onClick:onJoinGroup,style:{background:"rgba(24,136,130,.34)",border:"1px solid rgba(78,205,196,.24)",color:"#FFFFFF",padding:compactMobile?"7px 10px":"8px 11px",borderRadius:8,fontSize:11,fontWeight:800}},"Join")
+              React.createElement('button',{onClick:onJoinGroup,style:{background:"rgba(14,86,82,.45)",border:"1px solid rgba(78,205,196,.2)",color:"#FFFFFF",padding:compactMobile?"7px 10px":"8px 11px",borderRadius:8,fontSize:11,fontWeight:800}},"Join")
             )
           : React.createElement('div',null),
         React.createElement('button',{type:"button",onClick:onOpenProfile,title:currentEmail||"Account",style:{width:32,height:32,display:"inline-flex",alignItems:"center",justifyContent:"center",borderRadius:999,background:"rgba(24,24,31,.62)",border:"1px solid rgba(62,62,82,.55)",color:"rgba(124,136,152,.78)",fontSize:14,lineHeight:1,flexShrink:0}},React.createElement(AppIcon,{name:"profile",size:13}))
