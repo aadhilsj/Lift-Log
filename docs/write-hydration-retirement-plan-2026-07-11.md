@@ -163,6 +163,19 @@ Join-group report amendment, 2026-07-13:
   canonical profile/member/open-season rows, and mirrors blob only after those
   writes succeed
 
+Historical settlement identity amendment, 2026-07-13:
+
+- `read_ante_core_month_history()` now returns historical member
+  `auth_user_id` values from canonical profiles
+- the live Lift Log Supabase RPC was updated and verified after the SQL file
+  change
+- server-composed `monthHistory` now carries a `memberAuthUserIds` sidecar
+- settlement reminder generation now prefers those auth IDs for active-member
+  and current-user checks, falling back to display names only for legacy rows
+  without auth IDs
+- parity reports redact `memberAuthUserIds` because it is read/identity
+  metadata, not blob historical settlement/count compatibility state
+
 ### Quarantined compatibility tools
 
 - `repair-display-name`

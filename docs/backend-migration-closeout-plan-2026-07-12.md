@@ -498,3 +498,38 @@ Interpretation:
 - `join-group` moved in a dedicated cutover batch and should not be bundled
   with `auth-sync` or `upsert-profile`
 - client bootstrap and app-state normalization were untouched
+
+## Batch 4 - Historical Settlement Identity
+
+Batch 4 started on 2026-07-13 after a join/rejoin smoke test showed prior-month
+settlement reminders reappearing for a returning test account.
+
+Finding:
+
+- settlement confirmation rows and claim/confirm/dispute writes are auth-ID
+  backed (`payerAuthUserId` / `receiverAuthUserId`)
+- generated historical reminder pairs still started from display-name keyed
+  month snapshots, then mapped the name to the current active membership
+- that was correct for a true rejoin by the same auth account, but unsafe for a
+  hypothetical different auth account using the same historical display name
+
+Implemented:
+
+- updated `read_ante_core_month_history()` to include each historical member's
+  `auth_user_id` from `ante_core.profiles`
+- applied that RPC update to the live Lift Log Supabase project and verified it
+  returns historical members with auth IDs
+- server-composed month history now carries `memberAuthUserIds`
+- settlement reminder pairs carry `payerAuthUserId` / `receiverAuthUserId`
+  derived from `memberAuthUserIds`
+- reminder visibility and current-user matching now prefer auth IDs and only
+  fall back to display names for true legacy rows without auth IDs
+- parity reports ignore the `memberAuthUserIds` sidecar because it is
+  read/identity metadata, not a historical count/settlement compatibility
+  difference
+
+Focused local regression:
+
+- a current active member with the same display name but the wrong auth ID gets
+  `0` generated settlement reminders
+- the historical auth ID gets the expected reminder

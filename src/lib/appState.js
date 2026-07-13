@@ -596,6 +596,7 @@ function buildSettlementPairsForMonth(month) {
   const excused = month?.excused || {};
   const settings = month?.settings || {};
   const memberTargets = month?.memberTargets || {};
+  const memberAuthUserIds = month?.memberAuthUserIds || {};
   const relevantNames = Object.keys(counts);
   const activeCounts = relevantNames
     .filter(name => !excused?.[name])
@@ -614,6 +615,8 @@ function buildSettlementPairsForMonth(month) {
         monthLabel: month.label || formatMonthLabelFromKey(month.key) || month.key,
         payerDisplayName: loser.name,
         receiverDisplayName: winner.name,
+        payerAuthUserId: memberAuthUserIds?.[loser.name] || null,
+        receiverAuthUserId: memberAuthUserIds?.[winner.name] || null,
         amount: pairAmount,
         currency: settings?.currency || DEFAULT_CURRENCY
       };
@@ -638,6 +641,11 @@ function getHistoricalGroupMemberNames(monthHistory, currentLogs = {}, currentEx
 function buildSettlementReminderCards(group, currentUserId, currentUserName) {
   if (!group?.settlementConfirmationsEnabled) return [];
   const activeMemberNames = new Set(getCurrentGroupMemberNames(group));
+  const activeMemberUserIds = new Set(
+    Object.values(group?.memberships || {})
+      .map(membership => membership?.userId)
+      .filter(Boolean)
+  );
   const membershipByName = Object.fromEntries(
     Object.values(group?.memberships || {})
       .filter(membership => membership?.displayName)
@@ -652,7 +660,13 @@ function buildSettlementReminderCards(group, currentUserId, currentUserName) {
   return [...(group?.monthHistory || [])]
     .sort((a, b) => compareMonthKeys(b.key, a.key))
     .flatMap(month => buildSettlementPairsForMonth(month).map(pair => {
-      if (!activeMemberNames.has(pair.payerDisplayName) || !activeMemberNames.has(pair.receiverDisplayName)) return null;
+      const payerIsActive = pair.payerAuthUserId
+        ? activeMemberUserIds.has(pair.payerAuthUserId)
+        : activeMemberNames.has(pair.payerDisplayName);
+      const receiverIsActive = pair.receiverAuthUserId
+        ? activeMemberUserIds.has(pair.receiverAuthUserId)
+        : activeMemberNames.has(pair.receiverDisplayName);
+      if (!payerIsActive || !receiverIsActive) return null;
       const showMonthLabel = pair.monthKey !== curKey;
       const monthSuffix = showMonthLabel ? ` · ${pair.monthLabel.toUpperCase()}` : "";
       const payerMembership = membershipByName[pair.payerDisplayName] || null;
@@ -662,8 +676,8 @@ function buildSettlementReminderCards(group, currentUserId, currentUserName) {
       if (confirmation?.confirmedAt) return null;
       if (legacySettlement?.status === "settled") return null;
       const pending = !!confirmation?.payerClaimedAt && !confirmation?.confirmedAt;
-      const payerAuthUserId = confirmation?.payerAuthUserId || payerMembership?.userId || null;
-      const receiverAuthUserId = confirmation?.receiverAuthUserId || receiverMembership?.userId || null;
+      const payerAuthUserId = confirmation?.payerAuthUserId || pair.payerAuthUserId || payerMembership?.userId || null;
+      const receiverAuthUserId = confirmation?.receiverAuthUserId || pair.receiverAuthUserId || receiverMembership?.userId || null;
       const isPayer = currentUserId
         ? (payerAuthUserId ? payerAuthUserId === currentUserId : pair.payerDisplayName === currentUserName)
         : pair.payerDisplayName === currentUserName;

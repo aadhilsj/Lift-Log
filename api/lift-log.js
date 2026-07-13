@@ -255,10 +255,12 @@ function redactWriteHydrationVolatileFields(value, inReactions = false) {
   }
   if (!value || typeof value !== "object") return value;
   return Object.fromEntries(
-    Object.entries(value).map(([key, entry]) => [
-      key,
-      volatileKeys.has(key) && entry ? "<volatile>" : redactWriteHydrationVolatileFields(entry, inReactions || key === "reactions")
-    ])
+    Object.entries(value)
+      .filter(([key]) => key !== "memberAuthUserIds")
+      .map(([key, entry]) => [
+        key,
+        volatileKeys.has(key) && entry ? "<volatile>" : redactWriteHydrationVolatileFields(entry, inReactions || key === "reactions")
+      ])
   );
 }
 
@@ -1356,10 +1358,12 @@ function buildCanonicalMonthHistoryForGroup(group, canonicalSeasons) {
 
     const counts = {};
     const excused = {};
+    const memberAuthUserIds = {};
     for (const name of relevantNames) {
       const m = membersByName[name];
       counts[name] = m ? m.workout_count : 0;
       excused[name] = m ? !!m.excused : false;
+      if (m?.auth_user_id) memberAuthUserIds[name] = m.auth_user_id;
     }
 
     const logsByUser = Object.fromEntries(historicalMemberNames.map(name => [name, []]));
@@ -1403,6 +1407,7 @@ function buildCanonicalMonthHistoryForGroup(group, canonicalSeasons) {
       month:        season.monthIndex,
       counts,
       excused,
+      memberAuthUserIds,
       logsByUser,
       settings:     canonicalSettings,
       settlements,
