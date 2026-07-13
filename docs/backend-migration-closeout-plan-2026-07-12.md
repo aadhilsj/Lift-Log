@@ -860,29 +860,22 @@ Implemented:
   ignored
 - normal production/preview behavior is unchanged unless
   `BLOB_MIRROR_SKIP_ACTIONS=reaction` is configured
-- when enabled for `reaction`, the reaction handler:
-  - still authenticates and validates against the writable blob shell
-  - still computes the post-toggle state from the canonical writable
-    constructor
-  - still writes the workout-log snapshot and reaction row canonically first
-  - skips `persistState(...)` for the blob mirror
-  - bumps `ante_core.revision_clock` so revision polling sees the change
-  - returns a readable canonical-overlaid state to keep the client response
-    contract stable
+- the low-level skip helper exists but the live `reaction` handler remains on
+  the known-good `persistState(...)` path after preview smoke testing exposed
+  reaction flicker when the response path was wired through the skip helper
 - `blob-mirror-dependency-report` and
   `blob-mirror-retirement-readiness-report` now include `mirrorSkipRuntime`
   with allowed/enabled action lists
 
 Important behavior:
 
-- the flag is not enabled in code and should be turned on only for a deliberate
-  preview/prod soak
+- the flag is not enabled in code and should not be enabled for a preview/prod
+  soak until the reaction response/polling flicker is fixed
 - all other actions still persist the blob exactly as before
-- this is the first reversible proving ground for blob-write retirement, not a
-  broad blob removal
+- this is now instrumentation for the first reversible proving ground, not an
+  active blob-write skip
 
 Recommended smoke test:
 
-- with the flag disabled, sign in, load blocs, react and unreact to a workout
-- if enabling the flag later, repeat the same reaction/unreaction flow and
-  confirm another tab/user sees the update through revision polling
+- sign in, load blocs, react and unreact to a workout
+- reaction UI should no longer flicker between old and new state

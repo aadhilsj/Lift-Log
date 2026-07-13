@@ -7226,13 +7226,12 @@ export default async function handler(req, res) {
           //    post-toggle state from the canonical writable constructor
           // 2. ensure the parent canonical workout log exists from that payload
           // 3. apply the exact reaction direction canonically
-          // 4. persist blob afterward as the compatibility mirror, unless the
-          //    disabled-by-default reaction mirror-skip flag is enabled
+          // 4. persist blob afterward as the compatibility mirror
           await syncOpenWorkoutLogSnapshotToCanonical(reactionGroup, payload.owner, reactionLog, { throwOnError: true });
           const isAdding = (reactionLog.reactions?.[emoji] || []).includes(canonicalActor);
           await toggleWorkoutReactionInCanonical(payload.logId, auth.user.id, canonicalActor, emoji, isAdding, { throwOnError: true });
         }
-        const persisted = await persistOrSkipBlobMirror(result.updated, result.reason, "reaction");
+        const persisted = await persistState(result.updated, result.reason);
         return res.status(200).json(persisted);
       }
 
