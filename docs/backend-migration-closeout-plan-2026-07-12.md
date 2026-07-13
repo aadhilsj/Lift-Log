@@ -564,6 +564,10 @@ Implemented:
 - the blob mirror rename now also rewrites `monthHistory[*].memberAuthUserIds`
   and `settlementConfirmations[*].payerDisplayName/receiverDisplayName` when
   the row belongs to the renamed auth user
+- rename collision validation is auth-aware for stale same-user display-name
+  residue: it still rejects another member's display name, but it no longer
+  blocks a rename just because the target name already appears in historical
+  `memberAuthUserIds` for the same auth user
 
 Remaining caveat:
 

@@ -5365,11 +5365,22 @@ function collectProfileRenameOldNames(groups, userId, existingDisplayName) {
   );
 }
 
-function assertProfileRenameDoesNotCollide(groups, oldNames, displayName) {
+function groupDisplayNameBelongsToUser(group, displayName, userId) {
+  if (!group || !displayName || !userId) return false;
+  const activeMatch = Object.values(group.memberships || {}).some(membership =>
+    membership?.userId === userId && membership?.displayName === displayName
+  );
+  if (activeMatch) return true;
+  return (group.monthHistory || []).some(month =>
+    month?.memberAuthUserIds?.[displayName] === userId
+  );
+}
+
+function assertProfileRenameDoesNotCollide(groups, oldNames, displayName, userId = "") {
   for (const [groupId, group] of Object.entries(groups)) {
     const oldName = oldNames.get(groupId);
     if (!oldName || oldName === displayName) continue;
-    if (group.memberOrder.includes(displayName)) {
+    if (group.memberOrder.includes(displayName) && !groupDisplayNameBelongsToUser(group, displayName, userId)) {
       const error = new Error(`That name is already taken in ${group.name || "a Bloc"}`);
       error.status = 409;
       throw error;
@@ -5484,7 +5495,7 @@ function applyUpsertProfile(current, payload) {
 
   if (isRename) {
     // Reject if the new name collides with a different existing member in any bloc.
-    assertProfileRenameDoesNotCollide(groups, oldNames, displayName);
+    assertProfileRenameDoesNotCollide(groups, oldNames, displayName, userId);
 
     nextGroups = Object.fromEntries(
       Object.entries(groups).map(([groupId, group]) => {
