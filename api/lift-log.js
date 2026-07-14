@@ -34,6 +34,7 @@ const WRITE_HYDRATION_PARITY_DEFAULT_ACTIONS = [
   "sitout-request",
   "sitout-review",
   "add-log",
+  "multi-log",
   "reaction",
   "flag",
   "flag-response",
@@ -53,6 +54,7 @@ const WRITE_HYDRATION_PARITY_ACTIONS = new Set(
 const BLOB_MIRROR_SKIP_ALLOWED_ACTIONS = new Set([
   "season-proration-choice",
   "add-log",
+  "multi-log",
   "reaction",
   "flag",
   "flag-response",
@@ -62,6 +64,7 @@ const BLOB_MIRROR_SKIP_ALLOWED_ACTIONS = new Set([
 const BLOB_MIRROR_SKIP_WIRED_ACTIONS = new Set([
   "season-proration-choice",
   "add-log",
+  "multi-log",
   "reaction",
   "flag",
   "flag-response",
@@ -4428,6 +4431,52 @@ async function runWriteHydrationParityProbe(action, payload, auth, actor, writab
   }
 }
 
+async function runWriteHydrationMultiLogParityProbe(payload, auth, actor, writableUpdated) {
+  if (!isWriteHydrationParityEnabled("multi-log")) return;
+  const sourceGroupId = String(payload?.sourceGroupId || "").trim();
+  const checkedGroupIds = [...new Set([
+    sourceGroupId,
+    ...(Array.isArray(payload?.targetGroupIds) ? payload.targetGroupIds.filter(Boolean) : [])
+  ].filter(Boolean))];
+  try {
+    const canonicalCurrent = await buildCanonicalWritableStateForGroup(sourceGroupId, auth.state);
+    const canonicalAuthState = migrateAuthIdentity(rolloverStateIfNeeded(canonicalCurrent), auth.user.id, auth.user.email).state;
+    const canonicalActor = resolveDisplayNameForUser(canonicalAuthState, sourceGroupId, auth.user.id, auth.user.email) || actor;
+    const canonicalUpdated = applyMultiLog(canonicalAuthState, {
+      ...payload,
+      actor: canonicalActor,
+      actorUserId: auth.user.id
+    });
+
+    const writableBlob = buildWriteHydrationComparisonBlob(writableUpdated, "multi-log");
+    const canonicalBlob = buildWriteHydrationComparisonBlob(canonicalUpdated, "multi-log");
+    const mismatches = checkedGroupIds.flatMap(groupId =>
+      collectWriteHydrationCurrentOpenMismatches(
+        writableBlob.groups?.[groupId],
+        canonicalBlob.groups?.[groupId],
+        groupId
+      )
+    );
+
+    if (mismatches.length) {
+      console.warn("[write-hydration-parity] mismatch", JSON.stringify({
+        action: "multi-log",
+        groupId: sourceGroupId,
+        targetGroupIds: checkedGroupIds.filter(groupId => groupId !== sourceGroupId),
+        mismatches,
+        writableGroups: Object.keys(writableBlob.groups || {}).length,
+        canonicalGroups: Object.keys(canonicalBlob.groups || {}).length
+      }));
+    }
+  } catch (err) {
+    console.warn("[write-hydration-parity] probe failed", JSON.stringify({
+      action: "multi-log",
+      groupId: sourceGroupId,
+      message: err?.message || String(err)
+    }));
+  }
+}
+
 async function compareWriteHydrationMutation(action, groupId, writableInput, canonicalInput, payload, applyMutation, options = {}) {
   try {
     const writableUpdated = unwrapMutationState(applyMutation(writableInput, payload));
@@ -7039,7 +7088,7 @@ export default async function handler(req, res) {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actor = resolveDisplayNameForUser(auth.state, payload.sourceGroupId, auth.user.id, auth.user.email);
         const allTargetIds = [...new Set([payload.sourceGroupId, ...(Array.isArray(payload.targetGroupIds) ? payload.targetGroupIds.filter(Boolean) : [])])];
-        applyMultiLog(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        const shadowBlobUpdated = applyMultiLog(auth.state, { ...payload, actor, actorUserId: auth.user.id });
         const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.sourceGroupId);
         const canonicalActor = resolveDisplayNameForUser(canonicalState, payload.sourceGroupId, auth.user.id, auth.user.email) || actor;
         const beforeLogIdsByGroup = Object.fromEntries(
@@ -7078,7 +7127,9 @@ export default async function handler(req, res) {
             await upsertWorkoutLogToCanonical(group, group.lastMonth, canonicalActor, auth.user.id, log, { throwOnError: true });
           }
         }
-        const persisted = await persistState(updated, `multi-log:${canonicalActor || actor || auth.user.id}:${payload.date}:${payload.workoutType}`);
+        const reason = `multi-log:${canonicalActor || actor || auth.user.id}:${payload.date}:${payload.workoutType}`;
+        await runWriteHydrationMultiLogParityProbe(payload, auth, actor, shadowBlobUpdated);
+        const persisted = await persistOrSkipBlobMirror(updated, reason, "multi-log");
         return res.status(200).json(persisted);
       }
 

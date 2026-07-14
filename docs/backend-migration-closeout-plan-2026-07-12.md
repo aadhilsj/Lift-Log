@@ -1270,3 +1270,46 @@ Next smoke focus:
 - delete that test workout
 - reaction/unreaction sanity
 - if possible, one multi-log sanity check to confirm it remains unaffected
+
+## Batch 21 - Wire Multi-Log Mirror-Skip Candidate
+
+Batch 21 started on 2026-07-14 after Batch 20 preview smoke passed.
+
+Problem:
+
+- `multi-log` was already canonical-input and covered by the admin
+  write-hydration report
+- but the runtime parity probe helper was single-group and derived
+  `payload.groupId`, while multi-log uses `sourceGroupId` and can write to
+  several target blocs
+- enabling multi-log in the generic skip gate without a multi-target probe would
+  make future soak failures harder to diagnose
+
+Implemented:
+
+- added `multi-log` to the disabled-by-default `BLOB_MIRROR_SKIP_ACTIONS`
+  allowed/wired sets
+- kept preview/prod env values unchanged, so this commit by itself does not skip
+  blob persistence for multi-log anywhere
+- added `runWriteHydrationMultiLogParityProbe(...)`
+  - builds the canonical writable input from the source bloc
+  - applies the same synthetic multi-log mutation
+  - compares current/open compatibility shape for the source bloc and every
+    target bloc
+  - redacts generated log ids/timestamps through the existing comparison helper
+- changed multi-log final persistence to `persistOrSkipBlobMirror(...)`, which
+  remains behaviorally identical while `multi-log` is absent from the env flag
+
+Still not done:
+
+- add-log and multi-log are wired but not enabled for mirror skip
+- settings, sit-out, lifecycle membership, settlement, auth-sync, and
+  repair-display-name remain outside the current skip scope
+
+Next smoke focus:
+
+- sign in / blocs load
+- add one normal workout
+- multi-log a workout to at least one other bloc if available
+- reaction/unreaction
+- delete the test workout/logs
