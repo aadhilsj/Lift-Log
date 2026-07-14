@@ -1,5 +1,5 @@
 import React from "react";
-const { useState, useRef, useEffect } = React;
+const { useState } = React;
 import {
   DEFAULT_CURRENCY,
   MIN_TARGET,
@@ -33,9 +33,6 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
   const [sel, setSel] = useState(null); // tapped heatmap day { iso, count }
-  const heatScrollRef = useRef(null);
-  // Open the heatmap scrolled to the most recent weeks (data lives on the right).
-  useEffect(() => { const el = heatScrollRef.current; if (el) el.scrollLeft = el.scrollWidth; }, []);
 
   const myGroups = (visibleGroups || []).map(g => {
     const mem = Object.values(g.memberships || {}).find(m => m.userId === currentUserId);
@@ -98,16 +95,24 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
 
   const since = sinceLabel(accountCreatedAt) || sinceLabel(agg.earliestJoined);
 
-  // ── heatmap — trailing 12 months (matching History's window), rows = days of
-  //    week (Sun→Sat), columns = weeks. Month labels sit above the column that
-  //    holds each month's 1st. Cells are tappable (see caption in the header).
-  const HEAT_CELL = 13, HEAT_GAP = 3, HEAT_PITCH = HEAT_CELL + HEAT_GAP, HEAT_WDCOL = 26;
+  // ── heatmap — Monday→Sunday rows, weeks as columns, from the day the member
+  //    joined the app through today (endless / multi-year, scroll right). Month
+  //    labels sit above the column holding each month's 1st. Cells are tappable.
+  const HEAT_CELL = 15, HEAT_GAP = 4, HEAT_PITCH = HEAT_CELL + HEAT_GAP, HEAT_WDCOL = 32;
+  const monIdx = d => (d.getDay() + 6) % 7; // Mon=0 … Sun=6
   const heatCell = c => c <= 0 ? "rgba(255,255,255,.05)" : c === 1 ? "rgba(78,205,196,.3)" : c === 2 ? "rgba(78,205,196,.52)" : c === 3 ? "rgba(78,205,196,.74)" : "#4ECDC4";
   const heat = (() => {
     const today = new Date(); today.setHours(0, 0, 0, 0);
-    const start = new Date(today);
-    start.setMonth(start.getMonth() - 12);
-    start.setDate(start.getDate() - start.getDay()); // align window to a Sunday
+    // Start from the join date (fall back to first workout), never earlier — so
+    // there are no empty weeks before the member existed.
+    const joinTs = Date.parse(accountCreatedAt || "") || agg.earliestJoined || null;
+    const firstIso = Object.keys(agg.logsByDate).sort()[0];
+    const firstTs = firstIso ? Date.parse(`${firstIso}T00:00:00`) : null;
+    let startTs = joinTs;
+    if (firstTs && (startTs === null || firstTs < startTs)) startTs = firstTs;
+    const start = startTs !== null ? new Date(startTs) : new Date(today);
+    start.setHours(0, 0, 0, 0);
+    start.setDate(start.getDate() - monIdx(start)); // align to the Monday of that week
     const weeks = [], monthCols = [];
     const cursor = new Date(start);
     let col = 0;
@@ -122,10 +127,12 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
       weeks.push(week);
       col += 1;
     }
+    // Label the starting month too (its 1st can fall before the window start).
+    if (!monthCols.length || monthCols[0].col > 0) monthCols.unshift({ col: 0, label: FULL_MONTH_NAMES[start.getMonth()].slice(0, 3) });
     return { weeks, monthCols };
   })();
   const selCaption = (() => {
-    if (!sel) return "Last 12 months";
+    if (!sel) return "Tap a day";
     const d = new Date(`${sel.iso}T00:00:00`);
     const lbl = d.toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" });
     return `${lbl} · ${sel.count} ${sel.count === 1 ? "workout" : "workouts"}`;
@@ -205,7 +212,7 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
           )
     ),
 
-    // Heatmap card — GitHub-style grid, trailing 12 months, tap a day for detail
+    // Heatmap card — Mon→Sun grid from join date to today, tap a day for detail
     React.createElement(Card, { style: { padding: "12px 13px" } },
       React.createElement('div', { style: { display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 10, marginBottom: 10 } },
         React.createElement('div', { style: { fontSize: 13, fontWeight: MED } }, "Workout heatmap"),
@@ -213,7 +220,7 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
       ),
       !agg.anyLogs
         ? React.createElement('div', { style: { color: "var(--muted)", fontSize: 13, fontWeight: REG, textAlign: "center", padding: "16px 0" } }, "No workouts logged yet.")
-        : React.createElement('div', { ref: heatScrollRef, style: { overflowX: "auto", WebkitOverflowScrolling: "touch", paddingBottom: 4 } },
+        : React.createElement('div', { style: { overflowX: "auto", WebkitOverflowScrolling: "touch", paddingBottom: 4 } },
             React.createElement('div', { style: { minWidth: "max-content" } },
               // month labels, offset past the weekday column, aligned to each month's column
               React.createElement('div', { style: { display: "flex" } },
@@ -225,7 +232,7 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
               // weekday labels + cell grid
               React.createElement('div', { style: { display: "flex" } },
                 React.createElement('div', { style: { width: HEAT_WDCOL, flexShrink: 0, display: "flex", flexDirection: "column", gap: HEAT_GAP } },
-                  [0,1,2,3,4,5,6].map(r => React.createElement('div', { key: r, style: { height: HEAT_CELL, display: "flex", alignItems: "center", fontSize: 8.5, fontWeight: REG, color: "var(--muted)", lineHeight: 1 } }, r === 1 ? "Mon" : r === 3 ? "Wed" : r === 5 ? "Fri" : ""))
+                  WD_SHORT.map(lbl => React.createElement('div', { key: lbl, style: { height: HEAT_CELL, display: "flex", alignItems: "center", fontSize: 9, fontWeight: REG, color: "var(--muted)", lineHeight: 1 } }, lbl))
                 ),
                 React.createElement('div', { style: { display: "flex", gap: HEAT_GAP } },
                   heat.weeks.map((week, wi) => React.createElement('div', { key: wi, style: { display: "flex", flexDirection: "column", gap: HEAT_GAP } },
