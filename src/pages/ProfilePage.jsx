@@ -1,5 +1,5 @@
 import React from "react";
-const { useState } = React;
+const { useState, useRef, useEffect } = React;
 import {
   DEFAULT_CURRENCY,
   MIN_TARGET,
@@ -32,6 +32,10 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
+  const [sel, setSel] = useState(null); // tapped heatmap day { iso, count }
+  const heatScrollRef = useRef(null);
+  // Open the heatmap scrolled to the most recent weeks (data lives on the right).
+  useEffect(() => { const el = heatScrollRef.current; if (el) el.scrollLeft = el.scrollWidth; }, []);
 
   const myGroups = (visibleGroups || []).map(g => {
     const mem = Object.values(g.memberships || {}).find(m => m.userId === currentUserId);
@@ -84,23 +88,25 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
 
   const since = sinceLabel(accountCreatedAt) || sinceLabel(agg.earliestJoined);
 
-  // ── heatmap (interim — a redesign is pending) ──────────────────────────────
-  const heatCell = c => c <= 0 ? "rgba(255,255,255,.045)" : c === 1 ? "rgba(78,205,196,.3)" : c === 2 ? "rgba(78,205,196,.52)" : c === 3 ? "rgba(78,205,196,.74)" : "#4ECDC4";
+  // ── heatmap — trailing 12 months (matching History's window), rows = days of
+  //    week (Sun→Sat), columns = weeks. Month labels sit above the column that
+  //    holds each month's 1st. Cells are tappable (see caption in the header).
+  const HEAT_CELL = 13, HEAT_GAP = 3, HEAT_PITCH = HEAT_CELL + HEAT_GAP, HEAT_WDCOL = 26;
+  const heatCell = c => c <= 0 ? "rgba(255,255,255,.05)" : c === 1 ? "rgba(78,205,196,.3)" : c === 2 ? "rgba(78,205,196,.52)" : c === 3 ? "rgba(78,205,196,.74)" : "#4ECDC4";
   const heat = (() => {
-    const isoKeys = Object.keys(agg.logsByDate).sort();
-    if (!isoKeys.length) return { weeks: [], monthCols: [] };
-    const start = new Date(`${isoKeys[0]}T00:00:00`);
-    start.setDate(start.getDate() - start.getDay());
     const today = new Date(); today.setHours(0, 0, 0, 0);
+    const start = new Date(today);
+    start.setMonth(start.getMonth() - 12);
+    start.setDate(start.getDate() - start.getDay()); // align window to a Sunday
     const weeks = [], monthCols = [];
     const cursor = new Date(start);
-    let col = 0, lastMonth = -1;
+    let col = 0;
     while (cursor <= today) {
       const week = [];
       for (let d = 0; d < 7; d++) {
         const iso = isoOf(cursor);
         week.push({ iso, count: agg.logsByDate[iso] || 0, future: cursor > today });
-        if (cursor.getDate() <= 7 && cursor.getMonth() !== lastMonth) { monthCols.push({ col, label: FULL_MONTH_NAMES[cursor.getMonth()].slice(0, 3) }); lastMonth = cursor.getMonth(); }
+        if (cursor.getDate() === 1) monthCols.push({ col, label: FULL_MONTH_NAMES[cursor.getMonth()].slice(0, 3) });
         cursor.setDate(cursor.getDate() + 1);
       }
       weeks.push(week);
@@ -108,6 +114,14 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
     }
     return { weeks, monthCols };
   })();
+  const selCaption = (() => {
+    if (!sel) return "Last 12 months";
+    const d = new Date(`${sel.iso}T00:00:00`);
+    const lbl = d.toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" });
+    return `${lbl} · ${sel.count} ${sel.count === 1 ? "workout" : "workouts"}`;
+  })();
+  const WD_SHORT = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+  const dowMax = Math.max(...agg.weekday, 1);
 
   // ── shared card bits ───────────────────────────────────────────────────────
   const statLabel = { display: "block", fontSize: 8.5, fontWeight: MED, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 3, textAlign: "center", width: "100%" };
@@ -181,23 +195,56 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
           )
     ),
 
-    // Heatmap card (interim — redesign pending)
+    // Heatmap card — GitHub-style grid, trailing 12 months, tap a day for detail
     React.createElement(Card, { style: { padding: "12px 13px" } },
-      React.createElement('div', { style: { fontSize: 13, fontWeight: MED, marginBottom: 10 } }, "Workout heatmap"),
+      React.createElement('div', { style: { display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 10, marginBottom: 10 } },
+        React.createElement('div', { style: { fontSize: 13, fontWeight: MED } }, "Workout heatmap"),
+        React.createElement('div', { style: { fontSize: 11, fontWeight: REG, color: sel ? "var(--text)" : "var(--muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 } }, selCaption)
+      ),
       !agg.anyLogs
         ? React.createElement('div', { style: { color: "var(--muted)", fontSize: 13, fontWeight: REG, textAlign: "center", padding: "16px 0" } }, "No workouts logged yet.")
-        : React.createElement('div', { style: { overflowX: "auto", WebkitOverflowScrolling: "touch", paddingBottom: 4 } },
+        : React.createElement('div', { ref: heatScrollRef, style: { overflowX: "auto", WebkitOverflowScrolling: "touch", paddingBottom: 4 } },
             React.createElement('div', { style: { minWidth: "max-content" } },
-              React.createElement('div', { style: { position: "relative", height: 12, marginBottom: 3 } },
-                heat.monthCols.map(mc => React.createElement('span', { key: `${mc.col}-${mc.label}`, style: { position: "absolute", left: mc.col * 14, fontSize: 8.5, fontWeight: REG, color: "var(--muted)" } }, mc.label))
+              // month labels, offset past the weekday column, aligned to each month's column
+              React.createElement('div', { style: { display: "flex" } },
+                React.createElement('div', { style: { width: HEAT_WDCOL, flexShrink: 0 } }),
+                React.createElement('div', { style: { position: "relative", height: 14, width: heat.weeks.length * HEAT_PITCH } },
+                  heat.monthCols.map(mc => React.createElement('span', { key: `${mc.col}-${mc.label}`, style: { position: "absolute", left: mc.col * HEAT_PITCH, fontSize: 9, fontWeight: REG, color: "var(--muted)" } }, mc.label))
+                )
               ),
-              React.createElement('div', { style: { display: "flex", gap: 3 } },
-                heat.weeks.map((week, wi) => React.createElement('div', { key: wi, style: { display: "flex", flexDirection: "column", gap: 3 } },
-                  week.map(cell => React.createElement('div', { key: cell.iso, title: `${cell.iso}: ${cell.count}`, style: { width: 11, height: 11, borderRadius: 2, background: cell.future ? "transparent" : heatCell(cell.count) } }))
-                ))
+              // weekday labels + cell grid
+              React.createElement('div', { style: { display: "flex" } },
+                React.createElement('div', { style: { width: HEAT_WDCOL, flexShrink: 0, display: "flex", flexDirection: "column", gap: HEAT_GAP } },
+                  [0,1,2,3,4,5,6].map(r => React.createElement('div', { key: r, style: { height: HEAT_CELL, display: "flex", alignItems: "center", fontSize: 8.5, fontWeight: REG, color: "var(--muted)", lineHeight: 1 } }, r === 1 ? "Mon" : r === 3 ? "Wed" : r === 5 ? "Fri" : ""))
+                ),
+                React.createElement('div', { style: { display: "flex", gap: HEAT_GAP } },
+                  heat.weeks.map((week, wi) => React.createElement('div', { key: wi, style: { display: "flex", flexDirection: "column", gap: HEAT_GAP } },
+                    week.map(cell => React.createElement('button', { key: cell.iso, type: "button",
+                      onClick: cell.future ? undefined : () => setSel(s => s && s.iso === cell.iso ? null : { iso: cell.iso, count: cell.count }),
+                      style: { width: HEAT_CELL, height: HEAT_CELL, borderRadius: 3, border: "none", padding: 0, cursor: cell.future ? "default" : "pointer", background: cell.future ? "transparent" : heatCell(cell.count), boxShadow: sel && sel.iso === cell.iso ? "0 0 0 1.5px #4ECDC4" : "none" } }))
+                  ))
+                )
               )
             )
           )
+    ),
+
+    // Workouts by day of week — all-time distribution (full weekly shape)
+    React.createElement(Card, { style: { padding: "12px 14px" } },
+      React.createElement('div', { style: { fontSize: 13, fontWeight: MED, marginBottom: 10 } }, "Workouts by day"),
+      React.createElement('div', { style: { display: "flex", flexDirection: "column", gap: 7 } },
+        [1,2,3,4,5,6,0].map((idx, i) => {
+          const count = agg.weekday[idx];
+          const pct = agg.anyLogs ? Math.max(count > 0 ? 3 : 0, Math.round((count / dowMax) * 100)) : 0;
+          return React.createElement('div', { key: idx, style: { display: "flex", alignItems: "center", gap: 10 } },
+            React.createElement('span', { style: { width: 30, fontSize: 11, fontWeight: REG, color: "var(--muted)", flexShrink: 0 } }, WD_SHORT[i]),
+            React.createElement('div', { style: { flex: 1, height: 8, borderRadius: 4, background: "rgba(255,255,255,.05)", overflow: "hidden" } },
+              React.createElement('div', { style: { width: `${pct}%`, height: "100%", borderRadius: 4, background: count === dowMax && count > 0 ? "#4ECDC4" : "rgba(78,205,196,.5)" } })
+            ),
+            React.createElement('span', { style: { width: 22, fontSize: 12, fontWeight: MED, color: "var(--text)", textAlign: "right", flexShrink: 0 } }, count)
+          );
+        })
+      )
     ),
 
     // Second stat row — four cards, single row
