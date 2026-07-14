@@ -1313,3 +1313,45 @@ Next smoke focus:
 - multi-log a workout to at least one other bloc if available
 - reaction/unreaction
 - delete the test workout/logs
+
+## Batch 22 - Preview Soak For Workout Write Mirror Skip
+
+Batch 22 started on 2026-07-14 after Batch 21 preview smoke passed.
+
+Preview env change:
+
+`BLOB_MIRROR_SKIP_ACTIONS=season-proration-choice,reaction,flag,flag-response,flag-review,delete-log,add-log,multi-log`
+
+Scope:
+
+- enables blob mirror skipping for `add-log` and `multi-log` on the
+  `codex/create-group-canonical-first` preview branch only
+- leaves Production unchanged
+- leaves settings, sit-out, lifecycle membership, settlement, auth-sync, and
+  repair-display-name mirrored
+
+Why this is now safe enough for preview:
+
+- add-log and multi-log already compute post-action state from canonical writable
+  input
+- both write the canonical workout rows before the mirror/skip decision
+- Batch 19 made reaction/flag/delete tolerate canonical-only logs
+- Batch 20 added add-log parity probing before final persistence
+- Batch 21 added multi-target multi-log parity probing before final persistence
+- the revision endpoint is backed by the canonical revision clock, so polling can
+  still see changes when blob persistence is skipped
+
+Expected user behavior:
+
+- adding a workout should still feel immediate after the mutation returns
+- multi-log should still add the workout to selected blocs
+- reaction/flag/delete on newly added workouts should continue to work even
+  though those new logs may no longer exist in the blob mirror
+
+Next smoke focus:
+
+- sign in / blocs load
+- add one normal workout and confirm it appears
+- react/unreact to the new workout
+- delete the new workout
+- multi-log to another bloc if available and confirm all selected blocs update
