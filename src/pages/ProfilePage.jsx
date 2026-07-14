@@ -43,28 +43,28 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
   }).filter(Boolean);
 
   const agg = (() => {
-    let workoutsLogged = 0, blocWins = 0, bestMonthEver = 0, earliestJoined = null;
-    const pnlByCurrency = {}, logsByDate = {}, weekday = [0,0,0,0,0,0,0], groupTotals = [];
-    const addDates = logs => logs.forEach(l => {
+    let blocWins = 0, bestMonthEver = 0, earliestJoined = null;
+    const pnlByCurrency = {}, dayTypes = {}, groupTotals = [];
+    // Dedupe personal activity to one entry per (day, workout type) across ALL
+    // the member's Blocs — logging the same session in several Blocs (or the
+    // same day appearing in multiple Blocs) must not inflate a single day.
+    const addDays = logs => logs.forEach(l => {
       const iso = dayIso(l.date);
       if (!iso) return;
-      logsByDate[iso] = (logsByDate[iso] || 0) + 1;
-      const wd = new Date(`${iso}T00:00:00`).getDay();
-      if (wd >= 0 && wd <= 6) weekday[wd] += 1;
+      if (!dayTypes[iso]) dayTypes[iso] = new Set();
+      dayTypes[iso].add(l.type || "Other");
     });
     myGroups.forEach(({ group, myName, currency, joinedAt }) => {
       const jt = Date.parse(joinedAt || "");
       if (Number.isFinite(jt) && (earliestJoined === null || jt < earliestJoined)) earliestJoined = jt;
       const curLogs = getCountedLogs(group.logs?.[myName] || []);
-      workoutsLogged += curLogs.length;
-      addDates(curLogs);
+      addDays(curLogs);
       bestMonthEver = Math.max(bestMonthEver, curLogs.length);
       let groupTotal = curLogs.length, groupNet = 0;
       (group.monthHistory || []).forEach(m => {
         const histLogs = getCountedLogs(m.logsByUser?.[myName] || []);
-        workoutsLogged += histLogs.length;
         groupTotal += histLogs.length;
-        addDates(histLogs);
+        addDays(histLogs);
         bestMonthEver = Math.max(bestMonthEver, Number(m.counts?.[myName] || histLogs.length) || 0);
         const activeCounts = Object.keys(m.counts || {})
           .filter(n => !m.excused?.[n])
@@ -75,6 +75,16 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
       });
       pnlByCurrency[currency] = (pnlByCurrency[currency] || 0) + groupNet;
       groupTotals.push({ name: group.name, total: groupTotal });
+    });
+
+    // Personal workout metrics all derive from the deduped per-day set.
+    const logsByDate = {}, weekday = [0,0,0,0,0,0,0];
+    let workoutsLogged = 0;
+    Object.entries(dayTypes).forEach(([iso, set]) => {
+      const n = set.size;
+      logsByDate[iso] = n;
+      workoutsLogged += n;
+      weekday[new Date(`${iso}T00:00:00`).getDay()] += n;
     });
 
     const topBloc = groupTotals.slice().sort((a, b) => b.total - a.total)[0];
