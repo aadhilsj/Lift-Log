@@ -306,7 +306,7 @@ const GroupHome = ({groups,currentIdentity,currentEmail,onOpenProfile,onOpenGrou
         React.createElement('div',{style:{margin:compactMobile?"2px 0 8px":"8px 0 12px"}},React.createElement(AnteWordmark,{size:compactMobile?38:58})),
         React.createElement('span',{className:"mono",style:{fontSize:10,color:"var(--cyan)",letterSpacing:".2em",textTransform:"uppercase"}},"Your Blocs")
       ),
-      React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(228px,1fr))",gap:compactMobile?7:12,width:"100%",maxWidth:744,marginBottom:compactMobile?18:22}},
+      React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(228px,1fr))",gap:compactMobile?10:15,width:"100%",maxWidth:744,marginBottom:compactMobile?18:22}},
         groups.map((group,index)=>{
           const preview = getGroupMemberPreview(group, currentIdentity);
           const acceptedTypes = getAcceptedWorkoutTypes(group);
