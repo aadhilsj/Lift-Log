@@ -304,7 +304,7 @@ const GroupHome = ({groups,currentIdentity,currentEmail,onOpenProfile,onOpenGrou
         : React.createElement(React.Fragment,null,
       React.createElement('div',{className:"fu",style:{width:"100%",display:"grid",justifyItems:"center",textAlign:"center",marginTop:compactMobile?-30:-22,marginBottom:compactMobile?18:34,maxWidth:560}},
         React.createElement('div',{style:{margin:compactMobile?"2px 0 8px":"8px 0 12px"}},React.createElement(AnteWordmark,{size:compactMobile?38:58})),
-        React.createElement('span',{className:"mono",style:{fontSize:10,color:"var(--cyan)",letterSpacing:".2em",textTransform:"uppercase"}},"Your Blocs")
+        React.createElement('span',{style:{fontFamily:"'Outfit',sans-serif",fontSize:10,fontWeight:800,color:"var(--cyan)",letterSpacing:".12em",textTransform:"uppercase"}},"Your Blocs")
       ),
       React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(228px,1fr))",gap:compactMobile?10:15,width:"100%",maxWidth:744,marginBottom:compactMobile?18:22}},
         groups.map((group,index)=>{
@@ -316,9 +316,9 @@ const GroupHome = ({groups,currentIdentity,currentEmail,onOpenProfile,onOpenGrou
                 React.createElement('div',{style:{fontSize:compactMobile?17:21,fontWeight:900,color:"#f5f7ff",letterSpacing:"-.03em",lineHeight:1.15,minWidth:0}},group.name)
               ),
               React.createElement('div',{style:{display:"flex",flexDirection:"column",alignItems:"flex-end",flexShrink:0,gap:2}},
-                React.createElement('span',{className:"mono",style:{fontSize:compactMobile?11:12,letterSpacing:".04em"}},
-                  React.createElement('span',{style:{color:"#4ECDC4",fontWeight:700}},group.settings.minTarget),
-                  React.createElement('span',{style:{color:"var(--muted)"}}, " / month")
+                React.createElement('span',{style:{fontFamily:"'Outfit',sans-serif",fontSize:compactMobile?11:12,fontWeight:700,letterSpacing:0}},
+                  React.createElement('span',{style:{color:"#4ECDC4",fontWeight:800}},group.settings.minTarget),
+                  React.createElement('span',{style:{color:"var(--muted)",fontWeight:700}}, " / month")
                 )
               )
             ),
@@ -358,7 +358,8 @@ const GroupHome = ({groups,currentIdentity,currentEmail,onOpenProfile,onOpenGrou
           );
         })
       ),
-      React.createElement('div',{style:{display:"flex",gap:10,justifyContent:"center",flexWrap:"wrap",width:"100%",maxWidth:744,marginTop:compactMobile?0:2,marginBottom:compactMobile?28:34}},
+      React.createElement('div',{style:{width:"100%",maxWidth:744,height:1,margin:compactMobile?"2px 0 14px":"6px 0 18px",background:"linear-gradient(90deg,transparent,rgba(78,205,196,.28),rgba(255,255,255,.08),rgba(78,205,196,.28),transparent)"}}),
+      React.createElement('div',{style:{display:"flex",gap:10,justifyContent:"center",flexWrap:"wrap",width:"100%",maxWidth:744,marginTop:0,marginBottom:compactMobile?28:34}},
         React.createElement('button',{onClick:()=>setShowCreate(true),style:{background:"var(--green)",color:"#000",padding:compactMobile?"10px 16px":"11px 18px",borderRadius:10,fontSize:13,fontWeight:800}},"Create Bloc"),
         React.createElement('button',{onClick:onJoinGroup,style:{background:"var(--green)",color:"#000",padding:compactMobile?"10px 16px":"11px 18px",borderRadius:10,fontSize:13,fontWeight:800}},"Join Existing")
       )
