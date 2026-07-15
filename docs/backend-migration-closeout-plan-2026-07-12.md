@@ -1355,3 +1355,41 @@ Next smoke focus:
 - react/unreact to the new workout
 - delete the new workout
 - multi-log to another bloc if available and confirm all selected blocs update
+
+## Batch 23 - Wire Settings Mirror-Skip Candidate
+
+Batch 23 started on 2026-07-15 after Batch 22 preview smoke passed for sign-in,
+blocs loading, add-log, reaction/unreaction, delete-log, and multi-log.
+
+Implemented:
+
+- added `update-settings` to the disabled-by-default
+  `BLOB_MIRROR_SKIP_ACTIONS` allowed/wired sets
+- changed update-settings final persistence to
+  `persistOrSkipBlobMirror(..., "update-settings")`
+- kept all current Preview and Production env values unchanged, so this commit
+  does not skip blob persistence for settings anywhere
+
+Why this is deliberately wiring-only:
+
+- settings had a recent currency regression
+- existing bloc currency is now locked in the settings modal
+- the server also preserves the existing bloc currency even if an old client
+  submits a different `settings.currency`
+- preview should first prove the refactor is behaviorally identical with the
+  flag absent before enabling settings mirror-skip
+
+Still outside settings:
+
+- sit-out request/review remain mirrored because validation still depends on
+  writable blob lifecycle fields
+- lifecycle/global membership actions remain mirrored
+- settlement, auth-sync, and repair-display-name remain mirrored
+
+Next smoke focus:
+
+- sign in / blocs load
+- change a safe bloc setting such as target, accepted workout types, Strava, or
+  distance setting
+- confirm currency is still locked and settlement/result currency display does
+  not regress

@@ -52,6 +52,7 @@ const WRITE_HYDRATION_PARITY_ACTIONS = new Set(
     .filter(Boolean)
 );
 const BLOB_MIRROR_SKIP_ALLOWED_ACTIONS = new Set([
+  "update-settings",
   "season-proration-choice",
   "add-log",
   "multi-log",
@@ -62,6 +63,7 @@ const BLOB_MIRROR_SKIP_ALLOWED_ACTIONS = new Set([
   "delete-log"
 ]);
 const BLOB_MIRROR_SKIP_WIRED_ACTIONS = new Set([
+  "update-settings",
   "season-proration-choice",
   "add-log",
   "multi-log",
@@ -7176,7 +7178,7 @@ export default async function handler(req, res) {
           await syncBlocToCanonical(settingsGroup, auth.user.id, settingsSortOrder, { throwOnError: true });
           await syncSeasonToCanonical(settingsGroup, settingsGroup?.lastMonth, "open", null, { throwOnError: true });
         }
-        const persisted = await persistState(updated, `settings:${payload.groupId}:${canonicalActor || actor || auth.user.id}`);
+        const persisted = await persistOrSkipBlobMirror(updated, `settings:${payload.groupId}:${canonicalActor || actor || auth.user.id}`, "update-settings");
         return res.status(200).json(persisted);
       }
 
