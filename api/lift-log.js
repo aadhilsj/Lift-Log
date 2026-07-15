@@ -365,6 +365,7 @@ function normalizeGroup(group) {
     leftMemberNames: [...leftMemberNames],
     settings: buildNormalizedSettings(group?.settings),
     logs: normalizedLogs,
+    deletedCurrentLogIds: normalizeDeletedCurrentLogIds(group?.deletedCurrentLogIds),
     excused: normalizedExcused,
     seasonOverrides: normalizeSeasonOverrides(group?.seasonOverrides),
     sitOutRequests: normalizeSitOutRequests(group?.sitOutRequests),
@@ -507,6 +508,10 @@ function normalizeLogEntry(log) {
     decisionBy: typeof log?.decisionBy === "string" ? log.decisionBy : null,
     decisionAt: typeof log?.decisionAt === "string" ? log.decisionAt : null
   };
+}
+
+function normalizeDeletedCurrentLogIds(value) {
+  return uniqueNames(Array.isArray(value) ? value.map(id => String(id || "")) : []).slice(-200);
 }
 
 function normalizeReactions(reactions) {
@@ -1096,6 +1101,7 @@ function rolloverGroupIfNeeded(group) {
   return normalizeGroup({
     ...group,
     logs: {},
+    deletedCurrentLogIds: [],
     excused: {},
     monthHistory: [...group.monthHistory, snapshot],
     lastMonth: expectedKey
@@ -2154,7 +2160,8 @@ async function fetchReadableCurrentState() {
         // Skip groups with no canonical open season — they have no canonical
         // current-month state to clear or replace.
         if (!openMonthKey) return [groupId, group];
-        const canonicalLogs = anteCurrentLogs[groupId] || [];
+        const deletedLogIds = new Set(normalizeDeletedCurrentLogIds(group.deletedCurrentLogIds));
+        const canonicalLogs = (anteCurrentLogs[groupId] || []).filter(log => !deletedLogIds.has(String(log?.id || "")));
         // Index canonical logs by ownerDisplayName for O(1) lookup below.
         const byOwner = {};
         for (const log of canonicalLogs) {
@@ -3465,6 +3472,7 @@ function applyDeleteLog(current, payload) {
   const logIndex = ownerLogs.findIndex(log => String(log?.id) === logId);
   if (logIndex === -1) { const e = new Error("Workout not found"); e.status = 404; throw e; }
   const updatedLogs = ownerLogs.filter((_, i) => i !== logIndex);
+  const deletedCurrentLogIds = normalizeDeletedCurrentLogIds([...(group.deletedCurrentLogIds || []), logId]);
   return {
     updated: {
       ...base,
@@ -3472,7 +3480,8 @@ function applyDeleteLog(current, payload) {
         ...base.groups,
         [groupId]: normalizeGroup({
           ...group,
-          logs: { ...group.logs, [actor]: updatedLogs }
+          logs: { ...group.logs, [actor]: updatedLogs },
+          deletedCurrentLogIds
         })
       },
       meta: { revision: base.meta.revision + 1, updatedAt: new Date().toISOString() }
@@ -4725,7 +4734,7 @@ export default async function handler(req, res) {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
         const result = applyDeleteLog(auth.state, { ...payload, actor, actorUserId: auth.user.id });
-        await deleteWorkoutLogFromCanonical(payload.logId, { throwOnError: true });
+        await deleteWorkoutLogFromCanonical(payload.logId);
         const persisted = await persistState(result.updated, result.reason);
         return res.status(200).json(persisted);
       }
