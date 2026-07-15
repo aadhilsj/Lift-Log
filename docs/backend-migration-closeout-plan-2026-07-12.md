@@ -1393,3 +1393,37 @@ Next smoke focus:
   distance setting
 - confirm currency is still locked and settlement/result currency display does
   not regress
+
+## Batch 24 - Preview Soak For Settings Mirror Skip
+
+Batch 24 started on 2026-07-15 after Batch 23 preview smoke passed.
+
+Preview env change:
+
+`BLOB_MIRROR_SKIP_ACTIONS=update-settings,season-proration-choice,reaction,flag,flag-response,flag-review,delete-log,add-log,multi-log`
+
+Scope:
+
+- enables blob mirror skipping for `update-settings` on the
+  `codex/create-group-canonical-first` preview branch only
+- keeps Production unchanged
+- keeps sit-out, lifecycle membership/global actions, settlement, auth-sync, and
+  repair-display-name mirrored
+
+Why this is safe enough for preview:
+
+- settings already validate against the writable shell, then compute from
+  canonical writable input
+- canonical bloc and open-season settings are synced before the mirror/skip
+  decision
+- existing bloc currency remains locked in the UI and preserved server-side
+- revision polling is backed by the canonical revision clock when the blob mirror
+  is skipped
+
+Next smoke focus:
+
+- sign in / blocs load
+- change a safe setting such as target, accepted workout types, Strava, or
+  distance setting
+- confirm currency remains locked
+- confirm settlement/result currency display still follows the bloc currency
