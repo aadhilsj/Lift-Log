@@ -27,6 +27,209 @@ const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 const ENABLE_SETTLEMENT_CONFIRMATIONS = String(process.env.ENABLE_SETTLEMENT_CONFIRMATIONS || "").trim().toLowerCase() === "true";
 const ENABLE_SETTLEMENT_CONFIRMATIONS_PREVIEW = String(process.env.ENABLE_SETTLEMENT_CONFIRMATIONS_PREVIEW || "").trim().toLowerCase() === "true";
 const ENABLE_LOCAL_PREVIEW_AUTH = String(process.env.ENABLE_LOCAL_PREVIEW_AUTH || "").trim().toLowerCase() === "true";
+const WRITE_HYDRATION_PARITY_PREVIEW_BRANCH = "codex/create-group-canonical-first";
+const WRITE_HYDRATION_PARITY_DEFAULT_ACTIONS = [
+  "update-settings",
+  "season-proration-choice",
+  "sitout-request",
+  "sitout-review",
+  "add-log",
+  "multi-log",
+  "reaction",
+  "flag",
+  "flag-response",
+  "flag-review",
+  "delete-log"
+];
+const WRITE_HYDRATION_PARITY_ENV = String(process.env.WRITE_HYDRATION_PARITY_ACTIONS || "").trim();
+const ENABLE_PREVIEW_WRITE_HYDRATION_PARITY = !WRITE_HYDRATION_PARITY_ENV
+  && process.env.VERCEL_ENV === "preview"
+  && process.env.VERCEL_GIT_COMMIT_REF === WRITE_HYDRATION_PARITY_PREVIEW_BRANCH;
+const WRITE_HYDRATION_PARITY_ACTIONS = new Set(
+  (WRITE_HYDRATION_PARITY_ENV || (ENABLE_PREVIEW_WRITE_HYDRATION_PARITY ? WRITE_HYDRATION_PARITY_DEFAULT_ACTIONS.join(",") : ""))
+    .split(",")
+    .map(action => action.trim())
+    .filter(Boolean)
+);
+const BLOB_MIRROR_SKIP_ALLOWED_ACTIONS = new Set([
+  "update-settings",
+  "season-proration-choice",
+  "add-log",
+  "multi-log",
+  "reaction",
+  "flag",
+  "flag-response",
+  "flag-review",
+  "delete-log"
+]);
+const BLOB_MIRROR_SKIP_WIRED_ACTIONS = new Set([
+  "update-settings",
+  "season-proration-choice",
+  "add-log",
+  "multi-log",
+  "reaction",
+  "flag",
+  "flag-response",
+  "flag-review",
+  "delete-log"
+]);
+const BLOB_MIRROR_SKIP_ACTIONS = new Set(
+  String(process.env.BLOB_MIRROR_SKIP_ACTIONS || "")
+    .split(",")
+    .map(action => action.trim())
+    .filter(action => BLOB_MIRROR_SKIP_ALLOWED_ACTIONS.has(action))
+);
+function shouldSkipBlobMirrorForAction(action) {
+  return BLOB_MIRROR_SKIP_ACTIONS.has(action);
+}
+const BLOB_MIRROR_DEPENDENCY_AUDIT = {
+  generatedOn: "2026-07-13",
+  writableBoundary: {
+    stillHydratesBlobForPostMutations: true,
+    reason: "The blob remains the compatibility shell and mirror persistence target while canonical input coverage soaks.",
+    forbiddenShortcut: "Do not use fetchReadableCurrentState() as the base for general POST mutations."
+  },
+  trueBlobInputAuthorities: [
+    {
+      action: "auth-sync",
+      reason: "Legacy identity repair must see blob gaps that readable/canonical projections can hide.",
+      retirementCondition: "Replace with an explicit canonical identity repair/backfill path, then prove old email/profile and membership repairs still work."
+    },
+    {
+      action: "repair-display-name",
+      reason: "Quarantined admin compatibility repair for legacy name-keyed state.",
+      retirementCondition: "Remove or replace after historical rendering no longer depends on display-name keyed compatibility shells."
+    }
+  ],
+  canonicalInputMutations: [
+    "settlement",
+    "create-group",
+    "upsert-profile",
+    "join-group",
+    "kick-member",
+    "leave-bloc",
+    "multi-log",
+    "add-log",
+    "update-settings",
+    "season-proration-choice",
+    "sitout-request",
+    "sitout-review",
+    "reaction",
+    "flag",
+    "flag-response",
+    "flag-review",
+    "delete-log",
+    "delete-account"
+  ],
+  readableOrCanonicalOnlyActions: [
+    "invite-context",
+    "settlement-claim-paid",
+    "settlement-confirm-paid",
+    "settlement-dispute-paid"
+  ],
+  disabledLegacyActions: [
+    "auth-send-otp",
+    "auth-verify-otp",
+    "PUT /api/lift-log whole-state save"
+  ],
+  remainingMirrorDependencies: [
+    {
+      field: "dual-source revision / updated_at",
+      usedBy: "GET /api/lift-log?revision=1 and client polling",
+      retirementCondition: "Keep ante_core.revision_clock as the polling authority before skipping blob writes for any action family."
+    },
+    {
+      field: "blob meta.revision / meta.updatedAt",
+      usedBy: "client state normalization and optimistic local app state",
+      retirementCondition: "Keep as response metadata only or replace with canonical revision metadata before stopping blob writes."
+    },
+    {
+      field: "leftMemberNames",
+      usedBy: "legacy departed-name suppression in compatibility shells",
+      retirementCondition: "Canonical active memberships and explicit legacy retirement rules fully replace display-name suppression."
+    },
+    {
+      field: "joinedMonthByName",
+      usedBy: "legacy historical participation boundaries and proration compatibility",
+      retirementCondition: "Canonical joined_at, joined_month_key, and closed-season joined_for_month cover all target/count behavior."
+    },
+    {
+      field: "memberOrder",
+      usedBy: "historical ordering and profile-less legacy compatibility",
+      retirementCondition: "Current member order comes from canonical bloc_members; historical render order is month-local."
+    }
+  ],
+  nextRetirementBatches: [
+    "Soak a disabled-by-default mirror-skip flag for narrow current/open action families.",
+    "Stop blob writes only for those small action families after proving the canonical revision clock drives polling correctly.",
+    "Keep auth-sync and repair-display-name out of blob-write retirement until replacement repair paths exist."
+  ]
+};
+const BLOB_MIRROR_RETIREMENT_READINESS = {
+  generatedOn: "2026-07-13",
+  revisionEndpoint: {
+    route: "GET /api/lift-log?revision=1",
+    currentSource: "max(lift_log_state.revision, ante_core.revision_clock.revision)",
+    clientPollingDependsOnBlobRevision: false,
+    canSkipBlobWritesWhileBlobRevisionPowersPolling: true,
+    retirementCondition: "Keep bumping ante_core.revision_clock for any action family that skips blob persistence."
+  },
+  mirrorSkipCandidates: [
+    {
+      actionFamilies: [
+        "update-settings",
+        "season-proration-choice",
+        "sitout-request",
+        "sitout-review",
+        "reaction",
+        "flag",
+        "flag-response",
+        "flag-review",
+        "delete-log"
+      ],
+      status: "candidate-after-canonical-revision",
+      reason: "These narrow current/open actions already compute post-action state from canonical writable input and have focused parity probes."
+    },
+    {
+      actionFamilies: [
+        "add-log",
+        "multi-log"
+      ],
+      status: "candidate-after-canonical-revision-and-log-soak",
+      reason: "Workout writes are canonical-input now, but they are high-traffic and directly user-visible, so they should follow the narrower action families."
+    }
+  ],
+  blockedActionFamilies: [
+    {
+      actionFamilies: ["auth-sync"],
+      blocker: "true-blob-input-authority",
+      reason: "Legacy identity repair still needs to see blob gaps and backfill missing auth-linked membership rows."
+    },
+    {
+      actionFamilies: ["repair-display-name"],
+      blocker: "admin-compatibility-repair",
+      reason: "This is a quarantined legacy name-keyed repair path and should not be used as a mirror-retirement proving ground."
+    },
+    {
+      actionFamilies: ["create-group", "join-group", "leave-bloc", "kick-member", "delete-account", "upsert-profile"],
+      blocker: "membership-lifecycle-scope",
+      reason: "These mutate global membership/profile/lifecycle state and should wait until the low-risk current/open families prove the skip path."
+    },
+    {
+      actionFamilies: ["settlement"],
+      blocker: "historical-closed-month-scope",
+      reason: "Legacy settlement toggles touch closed-month compatibility shells, so they should wait until historical shell dependencies are retired or explicitly accepted."
+    }
+  ],
+  requiredBeforeFirstSkip: [
+    "Apply ante-core-revision-clock-rpc.sql to every Supabase environment.",
+    "Confirm GET /api/lift-log?revision=1 reports canonicalRevisionAvailable=true in preview and production.",
+    "Add a disabled-by-default server flag for one narrow action family before skipping blob persistence.",
+    "Keep the full state response contract stable while the client still consumes blob-shaped meta.",
+    "Soak in preview and production with the readiness/dependency reports clean for the selected action family."
+  ],
+  canDisableBlobWritesNow: false
+};
 
 let storageCleanupInFlight = null;
 let storageCleanupLastRunAt = 0;
@@ -95,6 +298,240 @@ function serializeStateForBlob(state) {
   };
 }
 
+function stableStringify(value) {
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(",")}]`;
+  if (value && typeof value === "object") {
+    return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${stableStringify(value[key])}`).join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function valuesDiffer(a, b) {
+  return stableStringify(a) !== stableStringify(b);
+}
+
+function collectWriteHydrationGroupMismatches(writableGroup, readableGroup, groupId) {
+  if (!writableGroup && !readableGroup) return [];
+  if (!writableGroup || !readableGroup) return [`groups.${groupId}`];
+  return uniqueNames([
+    ...Object.keys(writableGroup || {}),
+    ...Object.keys(readableGroup || {})
+  ])
+    .filter(key => valuesDiffer(writableGroup?.[key], readableGroup?.[key]))
+    .map(key => `groups.${groupId}.${key}`);
+}
+
+function findFirstNestedDifference(a, b, path = "") {
+  if (!valuesDiffer(a, b)) return null;
+  if (Array.isArray(a) || Array.isArray(b)) {
+    const aArray = Array.isArray(a) ? a : [];
+    const bArray = Array.isArray(b) ? b : [];
+    const maxLength = Math.max(aArray.length, bArray.length);
+    for (let i = 0; i < maxLength; i += 1) {
+      const childPath = `${path}[${i}]`;
+      const diff = findFirstNestedDifference(aArray[i], bArray[i], childPath);
+      if (diff) return diff;
+    }
+    return { path, writable: a, canonical: b };
+  }
+  if (a && b && typeof a === "object" && typeof b === "object") {
+    const keys = uniqueNames([...Object.keys(a), ...Object.keys(b)]).sort();
+    for (const key of keys) {
+      const childPath = path ? `${path}.${key}` : key;
+      const diff = findFirstNestedDifference(a?.[key], b?.[key], childPath);
+      if (diff) return diff;
+    }
+  }
+  return { path, writable: a ?? null, canonical: b ?? null };
+}
+
+function collectWriteHydrationGroupMismatchDetails(writableGroup, canonicalGroup, groupId, mismatches) {
+  return Object.fromEntries(
+    mismatches.map(mismatch => {
+      const prefix = `groups.${groupId}.`;
+      const key = mismatch.startsWith(prefix) ? mismatch.slice(prefix.length) : "";
+      const detail = key
+        ? findFirstNestedDifference(writableGroup?.[key], canonicalGroup?.[key], mismatch)
+        : findFirstNestedDifference(writableGroup, canonicalGroup, mismatch);
+      return [mismatch, detail];
+    })
+  );
+}
+
+function pickCurrentMonthOnlyMap(monthMap, monthKey) {
+  return Object.fromEntries(
+    Object.entries(monthMap || {}).map(([name, entries]) => [
+      name,
+      entries?.[monthKey] ? { [monthKey]: entries[monthKey] } : {}
+    ])
+  );
+}
+
+function buildCurrentOpenComparisonGroup(group) {
+  if (!group) return null;
+  const monthKey = group.lastMonth || getLeagueMonthKey(group.settings?.timeZone);
+  const seasonOverrides = normalizeSeasonOverrides(group.seasonOverrides);
+  const sitOutRequests = normalizeSitOutRequests(group.sitOutRequests);
+  return {
+    id: group.id,
+    name: group.name,
+    adminName: group.adminName,
+    adminUserId: group.adminUserId || null,
+    inviteCode: group.inviteCode,
+    activeMemberOrder: group.activeMemberOrder || [],
+    memberships: group.memberships || {},
+    joinedMonthByName: group.joinedMonthByName || {},
+    settings: group.settings || {},
+    logs: group.logs || {},
+    excused: pickCurrentMonthOnlyMap(group.excused || {}, monthKey),
+    seasonOverrides: seasonOverrides[monthKey] ? { [monthKey]: seasonOverrides[monthKey] } : {},
+    sitOutRequests: sitOutRequests[monthKey] ? { [monthKey]: sitOutRequests[monthKey] } : {},
+    settlementConfirmationsEnabled: !!group.settlementConfirmationsEnabled,
+    settlementConfirmationsPreviewMode: !!group.settlementConfirmationsPreviewMode,
+    lastMonth: monthKey
+  };
+}
+
+function collectWriteHydrationCurrentOpenMismatches(writableGroup, canonicalGroup, groupId) {
+  return collectWriteHydrationGroupMismatches(
+    buildCurrentOpenComparisonGroup(writableGroup),
+    buildCurrentOpenComparisonGroup(canonicalGroup),
+    groupId
+  );
+}
+
+function isWriteHydrationParityEnabled(action) {
+  return WRITE_HYDRATION_PARITY_ACTIONS.has("*") || WRITE_HYDRATION_PARITY_ACTIONS.has(action);
+}
+
+function isCurrentOpenWriteHydrationAction(action) {
+  return WRITE_HYDRATION_PARITY_DEFAULT_ACTIONS.includes(action)
+    || action === "add-log"
+    || action === "multi-log"
+    || action === "kick-member"
+    || action === "leave-bloc"
+    || action === "create-group";
+}
+
+function assertAdminPin(payload) {
+  const adminPin = process.env.ADMIN_PIN;
+  if (!adminPin) {
+    const error = new Error("ADMIN_PIN is not configured");
+    error.status = 500;
+    throw error;
+  }
+  if (payload?.pin !== adminPin) {
+    const error = new Error("Invalid admin PIN");
+    error.status = 401;
+    throw error;
+  }
+}
+
+function redactWriteHydrationVolatileFields(value, inReactions = false) {
+  const volatileKeys = new Set(["chosenAt", "requestedAt", "decidedAt", "decisionAt"]);
+  if (Array.isArray(value)) {
+    if (inReactions && value.every(entry => typeof entry === "string")) {
+      return [...value].sort((a, b) => a.localeCompare(b));
+    }
+    return value.map(entry => redactWriteHydrationVolatileFields(entry, inReactions));
+  }
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([key]) => key !== "memberAuthUserIds")
+      .map(([key, entry]) => [
+        key,
+        volatileKeys.has(key) && entry ? "<volatile>" : redactWriteHydrationVolatileFields(entry, inReactions || key === "reactions")
+      ])
+  );
+}
+
+function buildWriteHydrationParityBlob(state) {
+  return redactWriteHydrationVolatileFields(serializeStateForBlob(state));
+}
+
+function redactGeneratedWorkoutLogFieldsForComparison(value) {
+  if (Array.isArray(value)) {
+    return value.map(entry => redactGeneratedWorkoutLogFieldsForComparison(entry));
+  }
+  if (!value || typeof value !== "object") return value;
+  const entries = Object.entries(value).map(([key, entry]) => {
+    if (key === "logs" && entry && typeof entry === "object") {
+      return [key, Object.fromEntries(
+        Object.entries(entry).map(([owner, logs]) => [
+          owner,
+          Array.isArray(logs)
+            ? logs.map(log => log && typeof log === "object"
+              ? { ...log, id: log.id ? "<volatile>" : log.id, createdAt: log.createdAt ? "<volatile>" : log.createdAt }
+              : log)
+            : logs
+        ])
+      )];
+    }
+    return [key, redactGeneratedWorkoutLogFieldsForComparison(entry)];
+  });
+  return Object.fromEntries(entries);
+}
+
+function redactJoinGroupFieldsForComparison(value) {
+  if (Array.isArray(value)) return value.map(entry => redactJoinGroupFieldsForComparison(entry));
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(
+    Object.entries(value).map(([key, entry]) => {
+      if (key === "memberships" && entry && typeof entry === "object") {
+        return [key, Object.fromEntries(
+          Object.entries(entry).map(([userId, membership]) => [
+            userId,
+            membership && typeof membership === "object"
+              ? { ...membership, joinedAt: membership.joinedAt ? "<volatile>" : membership.joinedAt }
+              : membership
+          ])
+        )];
+      }
+      return [key, redactJoinGroupFieldsForComparison(entry)];
+    })
+  );
+}
+
+function buildWriteHydrationComparisonBlob(state, action) {
+  const blob = buildWriteHydrationParityBlob(state);
+  if (action === "add-log" || action === "multi-log") {
+    return redactGeneratedWorkoutLogFieldsForComparison(blob);
+  }
+  if (action === "join-group") {
+    return redactJoinGroupFieldsForComparison(blob);
+  }
+  return blob;
+}
+
+function unwrapMutationState(result) {
+  return result?.updated || result?.state || result;
+}
+
+function preferExistingTimestamp(existingTimestamp, canonicalTimestamp) {
+  if (!existingTimestamp) return canonicalTimestamp || null;
+  if (!canonicalTimestamp) return existingTimestamp;
+  const existingTime = Date.parse(existingTimestamp);
+  const canonicalTime = Date.parse(canonicalTimestamp);
+  return Number.isFinite(existingTime) && Number.isFinite(canonicalTime) && existingTime === canonicalTime
+    ? existingTimestamp
+    : canonicalTimestamp;
+}
+
+function preserveBlobCompatibleLogFields(existingLog, canonicalLog) {
+  if (!existingLog) return canonicalLog;
+  const preserved = {
+    ...canonicalLog,
+    createdAt: preferExistingTimestamp(existingLog.createdAt, canonicalLog.createdAt),
+    decisionAt: preferExistingTimestamp(existingLog.decisionAt, canonicalLog.decisionAt),
+    reactions: normalizeReactions(existingLog.reactions)
+  };
+  if (!Object.prototype.hasOwnProperty.call(existingLog, "ownerDisplayName")) {
+    delete preserved.ownerDisplayName;
+  }
+  return preserved;
+}
+
 function normalizeProfiles(profiles) {
   if (!profiles || typeof profiles !== "object") return {};
   return Object.fromEntries(
@@ -112,6 +549,46 @@ function normalizeProfiles(profiles) {
       })
       .filter(Boolean)
   );
+}
+
+function scopeReadableStateForUser(state, userId) {
+  const normalizedUserId = String(userId || "").trim();
+  if (!normalizedUserId) {
+    return {
+      ...state,
+      groups: {},
+      groupOrder: [],
+      defaultGroupId: null,
+      profiles: {}
+    };
+  }
+
+  const allowedGroupIds = new Set(
+    Object.entries(state?.groups || {})
+      .filter(([, group]) =>
+        group?.memberships?.[normalizedUserId] ||
+        group?.adminUserId === normalizedUserId
+      )
+      .map(([groupId]) => groupId)
+  );
+
+  const nextGroupOrder = (state?.groupOrder || []).filter(groupId => allowedGroupIds.has(groupId));
+  const nextGroups = Object.fromEntries(
+    nextGroupOrder
+      .map(groupId => [groupId, state?.groups?.[groupId]])
+      .filter(([, group]) => !!group)
+  );
+
+  const selfProfile = state?.profiles?.[normalizedUserId];
+  const nextProfiles = selfProfile ? { [normalizedUserId]: selfProfile } : {};
+
+  return {
+    ...state,
+    groups: nextGroups,
+    groupOrder: nextGroupOrder,
+    defaultGroupId: deriveDefaultGroupId(nextGroupOrder),
+    profiles: nextProfiles
+  };
 }
 
 function normalizeSettlementConfirmations(rows) {
@@ -148,6 +625,74 @@ function findProfileEntryByEmail(profiles, email) {
   return Object.entries(profiles).find(([, profile]) => profile?.email === email) || null;
 }
 
+function needsLegacyMembershipBackfill(groups, userId, displayName) {
+  return !!displayName && Object.values(groups || {}).some(group =>
+    group.memberOrder?.includes(displayName) && !group.memberships?.[userId]
+  );
+}
+
+function backfillLegacyMembershipForProfile(group, userId, displayName) {
+  if (!group.memberOrder?.includes(displayName) || group.memberships?.[userId]) {
+    return group;
+  }
+  const isAdmin = group.adminName === displayName;
+  return normalizeGroup({
+    ...group,
+    adminUserId: isAdmin ? userId : (group.adminUserId || null),
+    memberships: {
+      ...group.memberships,
+      [userId]: {
+        userId,
+        displayName,
+        role: isAdmin ? "admin" : "member",
+        joinedAt: null
+      }
+    }
+  });
+}
+
+function rekeyAuthReference(value, legacyUserId, nextUserId) {
+  return value === legacyUserId ? nextUserId : value || null;
+}
+
+function rekeySitOutRequestUserIds(sitOutRequests, legacyUserId, nextUserId) {
+  return Object.fromEntries(
+    Object.entries(sitOutRequests || {}).map(([monthKey, requests]) => [
+      monthKey,
+      Object.fromEntries(
+        Object.entries(requests || {}).map(([memberName, request]) => [
+          memberName,
+          {
+            ...request,
+            requestedByUserId: rekeyAuthReference(request?.requestedByUserId, legacyUserId, nextUserId),
+            targetApproverUserId: rekeyAuthReference(request?.targetApproverUserId, legacyUserId, nextUserId),
+            decidedByUserId: rekeyAuthReference(request?.decidedByUserId, legacyUserId, nextUserId)
+          }
+        ])
+      )
+    ])
+  );
+}
+
+function rekeyLegacyAuthIdentityInGroup(group, legacyUserId, nextUserId) {
+  const memberships = { ...(group.memberships || {}) };
+  const legacyMembership = memberships[legacyUserId];
+  if (legacyMembership) {
+    delete memberships[legacyUserId];
+    memberships[nextUserId] = {
+      ...legacyMembership,
+      userId: nextUserId
+    };
+  }
+
+  return normalizeGroup({
+    ...group,
+    adminUserId: group.adminUserId === legacyUserId ? nextUserId : group.adminUserId,
+    memberships,
+    sitOutRequests: rekeySitOutRequestUserIds(group.sitOutRequests, legacyUserId, nextUserId)
+  });
+}
+
 function migrateAuthIdentity(base, nextUserId, email) {
   const normalizedEmail = String(email || "").trim().toLowerCase();
   const normalizedUserId = String(nextUserId || "").trim();
@@ -158,31 +703,14 @@ function migrateAuthIdentity(base, nextUserId, email) {
     // Profile found — ensure the userId is wired into group memberships so the
     // primary lookup works (legacy groups have empty memberships objects).
     const displayName = directProfile.displayName || "";
-    const needsMembership = displayName && Object.values(base.groups || {}).some(group =>
-      group.memberOrder?.includes(displayName) && !group.memberships?.[normalizedUserId]
-    );
+    const needsMembership = needsLegacyMembershipBackfill(base.groups, normalizedUserId, displayName);
     if (!needsMembership) return { state: base, profile: directProfile, changed: false };
 
     const nextGroups = Object.fromEntries(
-      Object.entries(base.groups || {}).map(([groupId, group]) => {
-        if (!group.memberOrder?.includes(displayName) || group.memberships?.[normalizedUserId]) {
-          return [groupId, group];
-        }
-        const isAdmin = group.adminName === displayName;
-        return [groupId, normalizeGroup({
-          ...group,
-          adminUserId: isAdmin ? normalizedUserId : (group.adminUserId || null),
-          memberships: {
-            ...group.memberships,
-            [normalizedUserId]: {
-              userId: normalizedUserId,
-              displayName,
-              role: isAdmin ? "admin" : "member",
-              joinedAt: null
-            }
-          }
-        })];
-      })
+      Object.entries(base.groups || {}).map(([groupId, group]) => [
+        groupId,
+        backfillLegacyMembershipForProfile(group, normalizedUserId, displayName)
+      ])
     );
     return {
       state: {
@@ -212,41 +740,10 @@ function migrateAuthIdentity(base, nextUserId, email) {
   };
 
   const nextGroups = Object.fromEntries(
-    Object.entries(base.groups || {}).map(([groupId, group]) => {
-      const memberships = { ...(group.memberships || {}) };
-      const legacyMembership = memberships[legacyUserId];
-      if (legacyMembership) {
-        delete memberships[legacyUserId];
-        memberships[normalizedUserId] = {
-          ...legacyMembership,
-          userId: normalizedUserId
-        };
-      }
-
-      const nextSitOutRequests = Object.fromEntries(
-        Object.entries(group.sitOutRequests || {}).map(([monthKey, requests]) => [
-          monthKey,
-          Object.fromEntries(
-            Object.entries(requests || {}).map(([memberName, request]) => [
-              memberName,
-              {
-                ...request,
-                requestedByUserId: request?.requestedByUserId === legacyUserId ? normalizedUserId : request?.requestedByUserId || null,
-                targetApproverUserId: request?.targetApproverUserId === legacyUserId ? normalizedUserId : request?.targetApproverUserId || null,
-                decidedByUserId: request?.decidedByUserId === legacyUserId ? normalizedUserId : request?.decidedByUserId || null
-              }
-            ])
-          )
-        ])
-      );
-
-      return [groupId, normalizeGroup({
-        ...group,
-        adminUserId: group.adminUserId === legacyUserId ? normalizedUserId : group.adminUserId,
-        memberships,
-        sitOutRequests: nextSitOutRequests
-      })];
-    })
+    Object.entries(base.groups || {}).map(([groupId, group]) => [
+      groupId,
+      rekeyLegacyAuthIdentityInGroup(group, legacyUserId, normalizedUserId)
+    ])
   );
 
   return {
@@ -309,13 +806,111 @@ function getCurrentMemberNamesForMonth(group, monthKey) {
   });
 }
 
-function appendLegacyLeftMemberName(leftMemberNames, authUserId, displayName) {
+function isCurrentGroupMember(group, displayName, authUserId = "") {
+  const safeDisplayName = String(displayName || "").trim();
+  const safeUserId = String(authUserId || "").trim();
+  if (safeUserId) {
+    const membership = group?.memberships?.[safeUserId];
+    if (membership?.displayName) return membership.displayName === safeDisplayName;
+  }
+  if (!safeDisplayName) return false;
+  const activeNames = Array.isArray(group?.activeMemberOrder) && group.activeMemberOrder.length
+    ? group.activeMemberOrder
+    : (Array.isArray(group?.memberOrder) ? group.memberOrder : []);
+  return activeNames.includes(safeDisplayName);
+}
+
+function isGroupDisplayNameForActor(group, displayName, actorUserId = "", actorDisplayName = "") {
+  const safeDisplayName = String(displayName || "").trim();
+  const safeUserId = String(actorUserId || "").trim();
+  const safeActorName = String(actorDisplayName || "").trim();
+  if (safeUserId) {
+    const membership = group?.memberships?.[safeUserId];
+    if (membership?.displayName) return membership.displayName === safeDisplayName;
+  }
+  return !!safeDisplayName && safeDisplayName === safeActorName;
+}
+
+function resolveMembershipDisplayNameByUserId(group, userId, fallbackDisplayName = "") {
+  const safeUserId = String(userId || "").trim();
+  const safeFallback = String(fallbackDisplayName || "").trim();
+  if (!safeUserId) return safeFallback;
+  return Object.values(group?.memberships || {})
+    .find(membership => membership?.userId === safeUserId)
+    ?.displayName || safeFallback;
+}
+
+function isGroupAdminActor(group, actorUserId = "", actorDisplayName = "") {
+  const safeUserId = String(actorUserId || "").trim();
+  const safeDisplayName = String(actorDisplayName || "").trim();
+  return group?.adminUserId
+    ? group.adminUserId === safeUserId
+    : !!group?.adminName && group.adminName === safeDisplayName;
+}
+
+function canReviewSitOutRequest(group, request, memberName, actorUserId = "", actorDisplayName = "") {
+  const safeUserId = String(actorUserId || "").trim();
+  const safeDisplayName = String(actorDisplayName || "").trim();
+  if (isGroupAdminActor(group, safeUserId, safeDisplayName)) return true;
+  if (request?.targetApproverUserId && request.targetApproverUserId === safeUserId) return true;
+  if (request?.targetApproverName && request.targetApproverName === safeDisplayName) return true;
+  const deputy = getDeputyAdmin(group);
+  return memberName === group?.adminName && !!deputy?.userId && deputy.userId === safeUserId;
+}
+
+function updateLegacyLeftMemberNamesForDeparture(leftMemberNames, authUserId, displayName) {
   const safeDisplayName = String(displayName || "").trim();
   if (!safeDisplayName) return uniqueNames(Array.isArray(leftMemberNames) ? leftMemberNames : []);
   if (String(authUserId || "").trim()) {
-    return uniqueNames(Array.isArray(leftMemberNames) ? leftMemberNames : []);
+    return (Array.isArray(leftMemberNames) ? leftMemberNames : [])
+      .filter(name => name !== safeDisplayName);
   }
   return uniqueNames([...(Array.isArray(leftMemberNames) ? leftMemberNames : []), safeDisplayName]);
+}
+
+function resolveAdminAfterMemberDeparture(group, nextMemberships, departingUserId) {
+  if (group.adminUserId !== departingUserId) {
+    return {
+      adminUserId: group.adminUserId,
+      adminName: group.adminName
+    };
+  }
+  const remaining = Object.values(nextMemberships).sort((a, b) => {
+    const aTime = Date.parse(a.joinedAt || "") || 0;
+    const bTime = Date.parse(b.joinedAt || "") || 0;
+    return aTime - bTime;
+  });
+  const newAdmin = remaining[0];
+  return {
+    adminUserId: newAdmin.userId,
+    adminName: newAdmin.displayName
+  };
+}
+
+function resolveDeletedAccountDisplayName(profile, groups, userId) {
+  if (profile?.displayName) return profile.displayName;
+  for (const group of Object.values(groups || {})) {
+    const membership = group.memberships?.[userId];
+    if (membership?.displayName) return membership.displayName;
+  }
+  return "";
+}
+
+function removeMemberSitOutRequests(sitOutRequests, displayName) {
+  const nextSitOutRequests = {};
+  for (const [monthKey, monthRequests] of Object.entries(sitOutRequests || {})) {
+    const filtered = { ...monthRequests };
+    delete filtered[displayName];
+    if (Object.keys(filtered).length > 0) nextSitOutRequests[monthKey] = filtered;
+  }
+  return nextSitOutRequests;
+}
+
+function removeLegacyLeftMemberName(leftMemberNames, displayName) {
+  const safeDisplayName = String(displayName || "").trim();
+  if (!safeDisplayName) return uniqueNames(Array.isArray(leftMemberNames) ? leftMemberNames : []);
+  return (Array.isArray(leftMemberNames) ? leftMemberNames : [])
+    .filter(name => name !== safeDisplayName);
 }
 
 function normalizeGroup(group) {
@@ -365,7 +960,6 @@ function normalizeGroup(group) {
     leftMemberNames: [...leftMemberNames],
     settings: buildNormalizedSettings(group?.settings),
     logs: normalizedLogs,
-    deletedCurrentLogIds: normalizeDeletedCurrentLogIds(group?.deletedCurrentLogIds),
     excused: normalizedExcused,
     seasonOverrides: normalizeSeasonOverrides(group?.seasonOverrides),
     sitOutRequests: normalizeSitOutRequests(group?.sitOutRequests),
@@ -394,6 +988,26 @@ function normalizeSeasonOverrides(seasonOverrides) {
         }];
       })
       .filter(Boolean)
+  );
+}
+
+function mergeSeasonOverridesPreservingMetadata(blobOverrides, canonicalOverrides) {
+  const normalizedBlob = normalizeSeasonOverrides(blobOverrides);
+  const normalizedCanonical = normalizeSeasonOverrides(canonicalOverrides);
+  return Object.fromEntries(
+    uniqueNames([...Object.keys(normalizedBlob), ...Object.keys(normalizedCanonical)])
+      .map(monthKey => {
+        const blobOverride = normalizedBlob[monthKey] || {};
+        const canonicalOverride = normalizedCanonical[monthKey] || null;
+        if (!canonicalOverride) return [monthKey, blobOverride];
+        return [monthKey, {
+          ...blobOverride,
+          ...canonicalOverride,
+          chosenAt: canonicalOverride.chosenAt || blobOverride.chosenAt || null,
+          chosenBy: canonicalOverride.chosenBy || blobOverride.chosenBy || null,
+          chosenByUserId: canonicalOverride.chosenByUserId || blobOverride.chosenByUserId || null
+        }];
+      })
   );
 }
 
@@ -508,10 +1122,6 @@ function normalizeLogEntry(log) {
     decisionBy: typeof log?.decisionBy === "string" ? log.decisionBy : null,
     decisionAt: typeof log?.decisionAt === "string" ? log.decisionAt : null
   };
-}
-
-function normalizeDeletedCurrentLogIds(value) {
-  return uniqueNames(Array.isArray(value) ? value.map(id => String(id || "")) : []).slice(-200);
 }
 
 function normalizeReactions(reactions) {
@@ -870,6 +1480,123 @@ function getMemberTargetsForMonth(group, relevantNames, monthKey, settingsOverri
   );
 }
 
+function buildCanonicalMonthHistoryForGroup(group, canonicalSeasons) {
+  if (!Array.isArray(canonicalSeasons) || canonicalSeasons.length === 0) {
+    return Array.isArray(group?.monthHistory) ? group.monthHistory : [];
+  }
+
+  const blobMonthsByKey = Object.fromEntries(
+    (group.monthHistory || []).map(m => [m.key, m])
+  );
+  const canonicalMonths = {};
+
+  for (const season of canonicalSeasons) {
+    const monthKey = season.monthKey;
+    if (!monthKey) continue;
+
+    const blobMonth = blobMonthsByKey[monthKey];
+    const membersByName = {};
+    for (const m of season.members || []) {
+      if (m?.display_name) membersByName[m.display_name] = m;
+    }
+
+    const blobCoverage = uniqueNames([
+      ...Object.keys(blobMonth?.counts || {}).filter(name => Number(blobMonth?.counts?.[name] || 0) > 0),
+      ...Object.keys(blobMonth?.logsByUser || {}).filter(name => ((blobMonth?.logsByUser || {})[name] || []).length > 0),
+      ...Object.keys(blobMonth?.excused || {}).filter(name => !!blobMonth?.excused?.[name])
+    ]).length;
+    const canonicalCoverage = uniqueNames([
+      ...Object.keys(membersByName),
+      ...(season.logs || []).map(log => log?.owner_display_name).filter(Boolean)
+    ]).length;
+    if (canonicalCoverage < blobCoverage) continue;
+
+    const relevantNames = Object.keys(membersByName).filter(
+      name => membersByName[name]?.joined_for_month !== false
+    );
+    const relevantNameSet = new Set(relevantNames);
+    const historicalMemberNames = uniqueNames([
+      ...relevantNames,
+      ...(season.logs || [])
+        .map(log => log?.owner_display_name)
+        .filter(name => name && relevantNameSet.has(name))
+    ]);
+
+    const canonicalSettings = buildNormalizedSettings({
+      minTarget:            season.minTarget,
+      fineAmount:           season.fineAmount,
+      feeModel:             season.feeModel,
+      escalationStepAmount: season.escalationStepAmount,
+      currency:             season.currency,
+      minRunDistance:       season.minRunDistance,
+      distanceUnit:         season.distanceUnit,
+      stravaEnabled:        season.stravaEnabled,
+      timeZone:             season.timeZone,
+      acceptedWorkoutTypes: season.acceptedWorkoutTypes
+    });
+    const counts = {};
+    const excused = {};
+    const memberAuthUserIds = {};
+    for (const name of relevantNames) {
+      const m = membersByName[name];
+      counts[name] = m ? m.workout_count : 0;
+      excused[name] = m ? !!m.excused : false;
+      if (m?.auth_user_id) memberAuthUserIds[name] = m.auth_user_id;
+    }
+
+    const logsByUser = Object.fromEntries(historicalMemberNames.map(name => [name, []]));
+    for (const log of season.logs || []) {
+      const owner = log.owner_display_name;
+      if (!logsByUser[owner]) continue;
+      logsByUser[owner].push(normalizeLogEntry({
+        id:           log.id,
+        type:         log.workout_type,
+        date:         log.workout_date,
+        note:         log.note,
+        photoUrl:     "",
+        createdAt:    log.created_at,
+        verifiedVia:  log.verified_via,
+        flagStatus:   log.flag_status   || null,
+        flagReason:   log.flag_reason   || "",
+        flagResponse: log.flag_response || "",
+        flaggedBy:    log.flagged_by    || null,
+        decisionBy:   log.decision_by   || null,
+        decisionAt:   log.decision_at   || null,
+        reactions:    log.reactions     || {}
+      }));
+    }
+
+    const settlements = {};
+    for (const name of relevantNames) {
+      const m = membersByName[name];
+      if (m?.settlement_status) {
+        settlements[name] = {
+          status:    m.settlement_status,
+          settledAt: m.settlement_settled_at || null,
+          updatedAt: m.settlement_updated_at || null
+        };
+      }
+    }
+
+    canonicalMonths[monthKey] = {
+      key:          monthKey,
+      label:        season.label,
+      year:         season.year,
+      month:        season.monthIndex,
+      counts,
+      excused,
+      memberAuthUserIds,
+      logsByUser,
+      settings:     canonicalSettings,
+      settlements,
+      memberTargets: getMemberTargetsForMonth(group, relevantNames, monthKey, canonicalSettings)
+    };
+  }
+
+  return Object.values({ ...blobMonthsByKey, ...canonicalMonths })
+    .sort((a, b) => compareMonthKeys(a.key, b.key));
+}
+
 function getMonthKeyFromISO(isoDate) {
   const [year, month] = String(isoDate || "").split("-").map(Number);
   if (!Number.isFinite(year) || !Number.isFinite(month)) return null;
@@ -1101,7 +1828,6 @@ function rolloverGroupIfNeeded(group) {
   return normalizeGroup({
     ...group,
     logs: {},
-    deletedCurrentLogIds: [],
     excused: {},
     monthHistory: [...group.monthHistory, snapshot],
     lastMonth: expectedKey
@@ -1392,8 +2118,9 @@ async function seedOpenSeasonMemberStatusInCanonical(group, monthKey, displayNam
   );
 }
 
-async function updateSeasonMemberSettlementInCanonical(legacyGroupKey, monthKey, displayName, status, settledAt) {
+async function updateSeasonMemberSettlementInCanonical(legacyGroupKey, monthKey, displayName, status, settledAt, options = {}) {
   if (!legacyGroupKey || !monthKey || !displayName || !status) return;
+  const { throwOnError = false } = options;
   try {
     await supabaseFetch("/rest/v1/rpc/update_ante_core_season_member_settlement", {
       method: "POST",
@@ -1407,6 +2134,7 @@ async function updateSeasonMemberSettlementInCanonical(legacyGroupKey, monthKey,
       })
     });
   } catch (err) {
+    if (throwOnError) throw err;
     console.error("Canonical settlement sync failed:", err?.message || err);
   }
 }
@@ -1494,37 +2222,40 @@ async function ensureSettlementConfirmationPrereqs(state, groupId, monthKey, pay
   if (!participants?.payerMembership?.userId || !participants?.receiverMembership?.userId) return participants || null;
 
   const groupSortOrder = Array.isArray(state?.groupOrder) ? state.groupOrder.indexOf(groupId) : -1;
-  await syncBlocToCanonical(group, group.adminUserId || null, groupSortOrder >= 0 ? groupSortOrder : null);
+  await syncBlocToCanonical(group, group.adminUserId || null, groupSortOrder >= 0 ? groupSortOrder : null, { throwOnError: true });
 
   const payerProfile = state?.profiles?.[participants.payerMembership.userId] || null;
   const receiverProfile = state?.profiles?.[participants.receiverMembership.userId] || null;
 
   if (payerProfile?.email && payerProfile?.displayName) {
-    await syncProfileToCanonical(participants.payerMembership.userId, payerProfile.email, payerProfile.displayName);
+    await syncProfileToCanonical(participants.payerMembership.userId, payerProfile.email, payerProfile.displayName, { throwOnError: true });
   }
   if (receiverProfile?.email && receiverProfile?.displayName) {
-    await syncProfileToCanonical(participants.receiverMembership.userId, receiverProfile.email, receiverProfile.displayName);
+    await syncProfileToCanonical(participants.receiverMembership.userId, receiverProfile.email, receiverProfile.displayName, { throwOnError: true });
   }
 
   await syncBlocMemberToCanonical(
     group,
     participants.payerMembership.userId,
-    group.adminUserId === participants.payerMembership.userId ? "admin" : "member"
+    group.adminUserId === participants.payerMembership.userId ? "admin" : "member",
+    { throwOnError: true }
   );
   await syncBlocMemberToCanonical(
     group,
     participants.receiverMembership.userId,
-    group.adminUserId === participants.receiverMembership.userId ? "admin" : "member"
+    group.adminUserId === participants.receiverMembership.userId ? "admin" : "member",
+    { throwOnError: true }
   );
 
   const closedMonth = (group.monthHistory || []).find(month => month?.key === monthKey) || null;
-  await syncSeasonToCanonical(group, monthKey, closedMonth ? "closed" : "open", closedMonth?.closedAt || null);
+  await syncSeasonToCanonical(group, monthKey, closedMonth ? "closed" : "open", closedMonth?.closedAt || null, { throwOnError: true });
 
   return participants;
 }
 
-async function upsertSeasonMemberExcusedInCanonical(legacyGroupKey, monthKey, displayName, authUserId) {
+async function upsertSeasonMemberExcusedInCanonical(legacyGroupKey, monthKey, displayName, authUserId, options = {}) {
   if (!legacyGroupKey || !monthKey || !displayName) return;
+  const { throwOnError = false } = options;
   try {
     await supabaseFetch("/rest/v1/rpc/upsert_ante_core_season_member_excused", {
       method: "POST",
@@ -1537,12 +2268,14 @@ async function upsertSeasonMemberExcusedInCanonical(legacyGroupKey, monthKey, di
       })
     });
   } catch (err) {
+    if (throwOnError) throw err;
     console.error("Canonical excused sync failed:", err?.message || err);
   }
 }
 
-async function upsertSeasonOverrideInCanonical(legacyGroupKey, monthKey, prorated, proratedMas, chosenAt, chosenBy, chosenByUserId) {
+async function upsertSeasonOverrideInCanonical(legacyGroupKey, monthKey, prorated, proratedMas, chosenAt, chosenBy, chosenByUserId, options = {}) {
   if (!legacyGroupKey || !monthKey) return;
+  const { throwOnError = false } = options;
   try {
     await supabaseFetch("/rest/v1/rpc/upsert_ante_core_season_override", {
       method: "POST",
@@ -1558,13 +2291,15 @@ async function upsertSeasonOverrideInCanonical(legacyGroupKey, monthKey, prorate
       })
     });
   } catch (err) {
+    if (throwOnError) throw err;
     console.error("Canonical season override sync failed:", err?.message || err);
   }
 }
 
-async function upsertSitOutRequestInCanonical(legacyGroupKey, monthKey, memberName, request) {
+async function upsertSitOutRequestInCanonical(legacyGroupKey, monthKey, memberName, request, options = {}) {
   // memberName is passed explicitly from the blob map key — do not rely on request.memberName.
   if (!legacyGroupKey || !monthKey || !memberName) return;
+  const { throwOnError = false } = options;
   try {
     await supabaseFetch("/rest/v1/rpc/upsert_ante_core_sit_out_request", {
       method: "POST",
@@ -1588,6 +2323,7 @@ async function upsertSitOutRequestInCanonical(legacyGroupKey, monthKey, memberNa
       })
     });
   } catch (err) {
+    if (throwOnError) throw err;
     console.error("Canonical sit-out request sync failed:", err?.message || err);
   }
 }
@@ -1647,6 +2383,19 @@ async function upsertWorkoutLogToCanonical(group, monthKey, ownerDisplayName, ow
   }
 }
 
+async function syncOpenWorkoutLogSnapshotToCanonical(group, ownerDisplayName, log, options = {}) {
+  if (!group || !log) return;
+  await syncSeasonToCanonical(group, group.lastMonth, "open", null, options);
+  await upsertWorkoutLogToCanonical(
+    group,
+    group.lastMonth,
+    ownerDisplayName,
+    findAuthUserIdForDisplayName(group, ownerDisplayName),
+    log,
+    options
+  );
+}
+
 async function deleteWorkoutLogFromCanonical(logId, options = {}) {
   const { throwOnError = false } = options;
   if (!logId) return;
@@ -1682,6 +2431,98 @@ async function fetchBlobRevision() {
   } catch {
     return null;
   }
+}
+
+function isMissingCanonicalRevisionRpcError(error) {
+  const message = String(error?.message || error || "");
+  return error?.status === 404
+    || message.includes("PGRST202")
+    || message.includes("Could not find the function")
+    || message.includes("read_ante_core_revision")
+    || message.includes("bump_ante_core_revision");
+}
+
+function normalizeRevisionRecord(payload) {
+  const source = Array.isArray(payload) ? payload[0] : payload;
+  const revision = Number(source?.revision);
+  return {
+    revision: Number.isFinite(revision) ? revision : null,
+    updatedAt: source?.updated_at || source?.updatedAt || null,
+    lastReason: source?.last_reason || source?.lastReason || null
+  };
+}
+
+async function fetchCanonicalRevision() {
+  try {
+    const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_revision", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({})
+    });
+    return { available: true, ...normalizeRevisionRecord(await response.json()) };
+  } catch (err) {
+    if (isMissingCanonicalRevisionRpcError(err)) {
+      return { available: false, revision: null, updatedAt: null, lastReason: null };
+    }
+    throw err;
+  }
+}
+
+async function bumpCanonicalRevision(reason, floorRevision = null) {
+  try {
+    const response = await supabaseFetch("/rest/v1/rpc/bump_ante_core_revision", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({
+        p_reason: reason || null,
+        p_floor_revision: Number.isFinite(Number(floorRevision)) ? Number(floorRevision) : null
+      })
+    });
+    return { available: true, ...normalizeRevisionRecord(await response.json()) };
+  } catch (err) {
+    if (isMissingCanonicalRevisionRpcError(err)) {
+      return { available: false, revision: null, updatedAt: null, lastReason: null };
+    }
+    console.warn("Canonical revision bump skipped:", err?.message || err);
+    return { available: false, revision: null, updatedAt: null, lastReason: null };
+  }
+}
+
+async function fetchRevisionStamp() {
+  const [blobRevision, canonicalRevisionResult] = await Promise.allSettled([
+    fetchBlobRevision(),
+    fetchCanonicalRevision()
+  ]);
+  const resolvedBlobRevision = blobRevision.status === "fulfilled" ? blobRevision.value : null;
+  const canonicalRevision = canonicalRevisionResult.status === "fulfilled"
+    ? canonicalRevisionResult.value
+    : { available: false, revision: null, updatedAt: null, lastReason: null };
+  const effectiveRevision = Math.max(
+    Number.isFinite(Number(resolvedBlobRevision)) ? Number(resolvedBlobRevision) : 0,
+    Number.isFinite(Number(canonicalRevision.revision)) ? Number(canonicalRevision.revision) : 0
+  );
+  return {
+    revision: effectiveRevision,
+    blobRevision: Number.isFinite(Number(resolvedBlobRevision)) ? Number(resolvedBlobRevision) : null,
+    canonicalRevision: canonicalRevision.revision,
+    canonicalRevisionAvailable: canonicalRevision.available,
+    canonicalUpdatedAt: canonicalRevision.updatedAt,
+    canonicalLastReason: canonicalRevision.lastReason
+  };
+}
+
+function applyEffectiveRevision(state, revisionStamp) {
+  const normalized = normalizeState(state || {});
+  const effectiveRevision = Number(revisionStamp?.revision);
+  if (!Number.isFinite(effectiveRevision) || effectiveRevision <= normalized.meta.revision) return normalized;
+  return normalizeState({
+    ...normalized,
+    meta: {
+      ...normalized.meta,
+      revision: effectiveRevision,
+      updatedAt: revisionStamp?.canonicalUpdatedAt || normalized.meta.updatedAt || new Date().toISOString()
+    }
+  });
 }
 
 async function fetchAnteBlocs() {
@@ -2055,10 +2896,7 @@ async function fetchReadableCurrentState() {
         if (!overrides) return [groupId, group];
         return [groupId, {
           ...group,
-          seasonOverrides: normalizeSeasonOverrides({
-            ...(group.seasonOverrides || {}),
-            ...overrides
-          })
+          seasonOverrides: mergeSeasonOverridesPreservingMetadata(group.seasonOverrides, overrides)
         }];
       })
     );
@@ -2160,8 +2998,7 @@ async function fetchReadableCurrentState() {
         // Skip groups with no canonical open season — they have no canonical
         // current-month state to clear or replace.
         if (!openMonthKey) return [groupId, group];
-        const deletedLogIds = new Set(normalizeDeletedCurrentLogIds(group.deletedCurrentLogIds));
-        const canonicalLogs = (anteCurrentLogs[groupId] || []).filter(log => !deletedLogIds.has(String(log?.id || "")));
+        const canonicalLogs = anteCurrentLogs[groupId] || [];
         // Index canonical logs by ownerDisplayName for O(1) lookup below.
         const byOwner = {};
         for (const log of canonicalLogs) {
@@ -2289,153 +3126,7 @@ async function fetchReadableCurrentState() {
       Object.entries(state.groups || {}).map(([groupId, group]) => {
         const canonicalSeasons = anteMonthHistory[groupId];
         if (!canonicalSeasons || canonicalSeasons.length === 0) return [groupId, group];
-
-        // Index blob monthHistory by month_key. Used both for completeness
-        // guards below and for the final merge.
-        const blobMonthsByKey = Object.fromEntries(
-          (group.monthHistory || []).map(m => [m.key, m])
-        );
-
-        // Build a canonical replacement for each closed season. Missing blob
-        // counterparts are now allowed — canonical history can invent closed
-        // months that were absent from the blob shell.
-        const canonicalMonths = {};
-        for (const season of canonicalSeasons) {
-          const monthKey = season.monthKey;
-          if (!monthKey) continue;
-
-          const blobMonth = blobMonthsByKey[monthKey];
-
-          // Index members from canonical season_member_status.
-          const membersByName = {};
-          for (const m of season.members) {
-            if (m?.display_name) membersByName[m.display_name] = m;
-          }
-
-          // Completeness guard: canonical must cover at least as many members as
-          // blob already has historical data for. Canonical coverage uses the
-          // union of canonical season-member rows plus canonical log owners.
-          // If canonical covers fewer members than blob, the importer backfill
-          // is partial — preserve blob month unchanged.
-          const blobCoverage = uniqueNames([
-            ...Object.keys(blobMonth?.counts || {}),
-            ...Object.keys(blobMonth?.logsByUser || {}).filter(name => ((blobMonth?.logsByUser || {})[name] || []).length > 0),
-            ...Object.keys(blobMonth?.excused || {}).filter(name => !!blobMonth?.excused?.[name]),
-            ...Object.keys(blobMonth?.settlements || {}),
-            ...Object.keys(blobMonth?.memberTargets || {})
-          ]).length;
-          const canonicalCoverage = uniqueNames([
-            ...Object.keys(membersByName),
-            ...season.logs.map(log => log?.owner_display_name).filter(Boolean)
-          ]).length;
-          if (canonicalCoverage < blobCoverage) continue;
-
-          const historicalMemberNames = uniqueNames([
-            ...Object.keys(blobMonth?.counts || {}),
-            ...Object.keys(blobMonth?.logsByUser || {}),
-            ...Object.keys(blobMonth?.settlements || {}),
-            ...Object.keys(blobMonth?.memberTargets || {}),
-            ...Object.keys(membersByName),
-            ...season.logs.map(log => log?.owner_display_name).filter(Boolean)
-          ]);
-
-          // Reconstruct settings from canonical season snapshot fields so that
-          // historical months reflect the settings that were active at that time,
-          // not the current group settings.
-          const canonicalSettings = buildNormalizedSettings({
-            minTarget:            season.minTarget,
-            fineAmount:           season.fineAmount,
-            feeModel:             season.feeModel,
-            escalationStepAmount: season.escalationStepAmount,
-            currency:             season.currency,
-            minRunDistance:       season.minRunDistance,
-            distanceUnit:         season.distanceUnit,
-            stravaEnabled:        season.stravaEnabled,
-            timeZone:             season.timeZone,
-            acceptedWorkoutTypes: season.acceptedWorkoutTypes
-          });
-
-          // Members relevant for this month: historically visible member shell,
-          // filtered by canonical joined_for_month when present.
-          const relevantNames = historicalMemberNames.filter(
-            name => membersByName[name]?.joined_for_month !== false
-          );
-
-          // counts and excused from canonical season_member_status rows.
-          const counts  = {};
-          const excused = {};
-          for (const name of relevantNames) {
-            const m = membersByName[name];
-            counts[name]  = m ? m.workout_count : 0;
-            excused[name] = m ? !!m.excused : false;
-          }
-
-          // logsByUser from canonical workout_logs. Photo URLs are omitted to
-          // match buildMonthLogsSnapshot which sets photoUrl: "" for all history.
-          const logsByUser = Object.fromEntries(historicalMemberNames.map(name => [name, []]));
-          for (const log of season.logs) {
-            const owner = log.owner_display_name;
-            if (!logsByUser[owner]) continue;
-            logsByUser[owner].push(normalizeLogEntry({
-              id:           log.id,
-              type:         log.workout_type,
-              date:         log.workout_date,
-              note:         log.note,
-              photoUrl:     "",
-              createdAt:    log.created_at,
-              verifiedVia:  log.verified_via,
-              flagStatus:   log.flag_status   || null,
-              flagReason:   log.flag_reason   || "",
-              flagResponse: log.flag_response || "",
-              flaggedBy:    log.flagged_by    || null,
-              decisionBy:   log.decision_by   || null,
-              decisionAt:   log.decision_at   || null,
-              reactions:    log.reactions     || {}
-            }));
-          }
-
-          // settlements from canonical settlement_status columns. Only members
-          // with a non-null settlement_status are included — matching the blob
-          // shape where only losers (outstanding/settled) appear in settlements.
-          const settlements = {};
-          for (const name of relevantNames) {
-            const m = membersByName[name];
-            if (m?.settlement_status) {
-              settlements[name] = {
-                status:    m.settlement_status,
-                settledAt: m.settlement_settled_at || null,
-                updatedAt: m.settlement_updated_at || null
-              };
-            }
-          }
-
-          // memberTargets derived from canonical settings + group context
-          // (joinedMonthByName, memberships, seasonOverrides are already canonical
-          // from prior overlays or preserved blob values).
-          const memberTargets = getMemberTargetsForMonth(group, relevantNames, monthKey, canonicalSettings);
-
-          canonicalMonths[monthKey] = {
-            key:          monthKey,
-            label:        season.label,
-            year:         season.year,
-            month:        season.monthIndex,
-            counts,
-            excused,
-            logsByUser,
-            settings:     canonicalSettings,
-            settlements,
-            memberTargets
-          };
-        }
-
-        // Merge: blob months are the base; canonical replaces only the months
-        // it passed the completeness guard for. Blob months with no canonical
-        // replacement are carried through unchanged, and canonical-only months
-        // are now allowed to appear. Sort ascending by month_key.
-        const mergedMonthHistory = Object.values({ ...blobMonthsByKey, ...canonicalMonths })
-          .sort((a, b) => compareMonthKeys(a.key, b.key));
-
-        return [groupId, { ...group, monthHistory: mergedMonthHistory }];
+        return [groupId, { ...group, monthHistory: buildCanonicalMonthHistoryForGroup(group, canonicalSeasons) }];
       })
     );
     state = { ...state, groups: overlaidGroups };
@@ -2463,7 +3154,12 @@ async function fetchReadableCurrentState() {
         ...group,
         settlementConfirmationsEnabled: true,
         settlementConfirmationsPreviewMode: ENABLE_SETTLEMENT_CONFIRMATIONS_PREVIEW,
-        settlementConfirmations: normalizeSettlementConfirmations(anteSettlementConfirmations?.[groupId] || [])
+        // If the canonical fetch fails transiently (null), preserve the prior
+        // readable slice instead of collapsing reminders to [] for one paint.
+        // A successful canonical empty array still clears correctly.
+        settlementConfirmations: anteSettlementConfirmations
+          ? normalizeSettlementConfirmations(anteSettlementConfirmations[groupId] || [])
+          : normalizeSettlementConfirmations(group?.settlementConfirmations || [])
       }])
     );
     state = { ...state, groups: overlaidGroups };
@@ -2489,9 +3185,413 @@ async function fetchReadableCurrentState() {
     )
   };
 
-  return {
+  const readableState = {
     ...state,
     defaultGroupId: deriveDefaultGroupId(state.groupOrder)
+  };
+  return applyEffectiveRevision(readableState, await fetchRevisionStamp());
+}
+
+async function buildCanonicalWritableStateForGroup(groupId, baseStateOverride = null) {
+  const safeGroupId = String(groupId || "").trim();
+  if (!safeGroupId) return fetchWritableCurrentState();
+
+  const [
+    anteProfiles,
+    anteBlocs,
+    anteSeasonOverrides,
+    anteBlocMembers,
+    anteCurrentLogs,
+    anteExcusedSitouts,
+    anteMonthHistory
+  ] = await Promise.all([
+    fetchAnteProfiles(),
+    fetchAnteBlocs(),
+    fetchAnteSeasonOverrides(),
+    fetchAnteBlocMembers(),
+    fetchAnteCurrentLogs(),
+    fetchAnteCurrentExcusedAndSitouts(),
+    fetchAnteMonthHistory()
+  ]);
+  const baseState = baseStateOverride
+    ? normalizeState(baseStateOverride)
+    : await fetchCurrentStateFromSupabase();
+
+  const baseGroup = baseState.groups?.[safeGroupId] || null;
+  const bloc = anteBlocs?.[safeGroupId] || null;
+  if (!baseGroup || !bloc) return baseState;
+
+  const canonicalMemberRows = anteBlocMembers?.[safeGroupId] || [];
+  const canonicalOrderedMembers = [...canonicalMemberRows]
+    .filter(row => row?.auth_user_id && row?.display_name)
+    .sort((a, b) => {
+      const aSort = Number.isInteger(a.sort_order) ? a.sort_order : Number.MAX_SAFE_INTEGER;
+      const bSort = Number.isInteger(b.sort_order) ? b.sort_order : Number.MAX_SAFE_INTEGER;
+      if (aSort !== bSort) return aSort - bSort;
+      return String(a.display_name).localeCompare(String(b.display_name));
+    });
+  const canonicalMemberOrder = uniqueNames(canonicalOrderedMembers.map(row => row.display_name));
+  const canonicalRowsByUserId = new Map(canonicalOrderedMembers.map(row => [row.auth_user_id, row]));
+  const baseMembershipEntries = Object.entries(baseGroup.memberships || {});
+  const coveredBaseMembershipEntries = baseMembershipEntries
+    .filter(([userId]) => canonicalRowsByUserId.has(userId))
+    .map(([userId, existingMembership]) => {
+      const row = canonicalRowsByUserId.get(userId);
+      return [userId, {
+        ...existingMembership,
+        userId,
+        displayName: row.display_name,
+        role: row.role === "admin" ? "admin" : "member",
+        joinedAt: preferExistingTimestamp(existingMembership?.joinedAt, row.joined_at)
+      }];
+    });
+  const coveredBaseUserIds = new Set(coveredBaseMembershipEntries.map(([userId]) => userId));
+  const newCanonicalMembershipEntries = canonicalOrderedMembers
+    .filter(row => !coveredBaseUserIds.has(row.auth_user_id))
+    .map(row => [
+      row.auth_user_id,
+      {
+        userId: row.auth_user_id,
+        displayName: row.display_name,
+        role: row.role === "admin" ? "admin" : "member",
+        joinedAt: row.joined_at || null
+      }
+    ]);
+  const canonicalMemberships = Object.fromEntries([
+    ...coveredBaseMembershipEntries,
+    ...newCanonicalMembershipEntries
+  ]);
+  const canonicalAdminRow =
+    canonicalOrderedMembers.find(row => row.role === "admin") ||
+    canonicalOrderedMembers.find(row => row.auth_user_id === baseGroup.adminUserId) ||
+    null;
+
+  const settings = buildNormalizedSettings({
+    ...baseGroup.settings,
+    timeZone:             bloc.time_zone              ?? baseGroup.settings?.timeZone,
+    currency:             bloc.currency               ?? baseGroup.settings?.currency,
+    minTarget:            bloc.min_target             ?? baseGroup.settings?.minTarget,
+    fineAmount:           bloc.fine_amount            ?? baseGroup.settings?.fineAmount,
+    feeModel:             bloc.fee_model              ?? baseGroup.settings?.feeModel,
+    escalationStepAmount: bloc.escalation_step_amount ?? baseGroup.settings?.escalationStepAmount,
+    minRunDistance:       bloc.min_run_distance       ?? baseGroup.settings?.minRunDistance,
+    distanceUnit:         bloc.distance_unit          ?? baseGroup.settings?.distanceUnit,
+    stravaEnabled:        bloc.strava_enabled         ?? baseGroup.settings?.stravaEnabled,
+    acceptedWorkoutTypes: bloc.accepted_workout_types ?? baseGroup.settings?.acceptedWorkoutTypes
+  });
+
+  const canonicalJoinedMonthByName = pruneJoinedMonthByNameForRead(
+    { ...baseGroup, memberships: canonicalMemberships, settings },
+    {
+      ...(baseGroup.joinedMonthByName || {}),
+      ...Object.fromEntries(
+        canonicalOrderedMembers
+          .filter(row => row.joined_month_key)
+          .map(row => [row.display_name, row.joined_month_key])
+      )
+    },
+    settings
+  );
+
+  const openMonthKey = anteExcusedSitouts?.openSeasonMonthKeys?.[safeGroupId] || baseGroup.lastMonth;
+  const canonicalLogsByOwner = {};
+  for (const log of anteCurrentLogs?.[safeGroupId] || []) {
+    const owner = log.ownerDisplayName;
+    if (!owner) continue;
+    if (!canonicalLogsByOwner[owner]) canonicalLogsByOwner[owner] = [];
+    canonicalLogsByOwner[owner].push(normalizeLogEntry(log));
+  }
+  const currentLogOwners = uniqueNames([
+    ...Object.keys(baseGroup.logs || {}),
+    ...canonicalMemberOrder,
+    ...Object.keys(canonicalLogsByOwner)
+  ]);
+  const canonicalLogs = Object.fromEntries(
+    currentLogOwners.map(name => {
+      const canonicalOwnerLogs = canonicalLogsByOwner[name] || [];
+      const canonicalById = new Map(canonicalOwnerLogs.map(log => [String(log?.id || ""), log]));
+      const baseOwnerLogs = Array.isArray(baseGroup.logs?.[name]) ? baseGroup.logs[name] : [];
+      const usedIds = new Set();
+      const orderedLogs = baseOwnerLogs
+        .map(existingLog => {
+          const logId = String(existingLog?.id || "");
+          const canonicalLog = canonicalById.get(logId);
+          if (!canonicalLog) return null;
+          usedIds.add(logId);
+          return preserveBlobCompatibleLogFields(existingLog, canonicalLog);
+        })
+        .filter(Boolean);
+      for (const canonicalLog of canonicalOwnerLogs) {
+        const logId = String(canonicalLog?.id || "");
+        if (!usedIds.has(logId)) orderedLogs.push(canonicalLog);
+      }
+      return [name, orderedLogs];
+    })
+  );
+
+  const historicalExcused = { ...(baseGroup.excused || {}) };
+  const currentExcusedRows = anteExcusedSitouts?.excused?.[safeGroupId] || [];
+  const canonicalExcusedByName = {};
+  for (const row of currentExcusedRows) {
+    if (!row.displayName || !row.monthKey || !row.excused) continue;
+    if (!canonicalExcusedByName[row.displayName]) canonicalExcusedByName[row.displayName] = {};
+    canonicalExcusedByName[row.displayName][row.monthKey] = true;
+  }
+  const canonicalExcused = Object.fromEntries(
+    uniqueNames([...Object.keys(historicalExcused), ...canonicalMemberOrder]).map(name => {
+      const prior = { ...(historicalExcused[name] || {}) };
+      if (openMonthKey) delete prior[openMonthKey];
+      return [name, { ...prior, ...(canonicalExcusedByName[name] || {}) }];
+    })
+  );
+
+  const historicalSitouts = { ...(baseGroup.sitOutRequests || {}) };
+  if (openMonthKey) delete historicalSitouts[openMonthKey];
+  const canonicalSitoutRows = anteExcusedSitouts?.sitOutRequests?.[safeGroupId] || [];
+  const currentSitoutRequests = {};
+  for (const row of canonicalSitoutRows) {
+    if (!row.displayName) continue;
+    currentSitoutRequests[row.displayName] = {
+      memberName: row.displayName,
+      monthKey: openMonthKey || row.monthKey,
+      status: row.status || "pending",
+      reason: row.reason || "",
+      exceptional: !!row.exceptional,
+      requestedAt: row.requestedAt || null,
+      requestedBy: row.requestedBy || row.displayName,
+      requestedByUserId: row.requestedByUserId || null,
+      targetApproverName: row.targetApproverName || null,
+      targetApproverUserId: row.targetApproverUserId || null,
+      decidedAt: row.decidedAt || null,
+      decidedBy: row.decidedBy || null,
+      decidedByUserId: row.decidedByUserId || null,
+      autoApproved: !!row.autoApproved
+    };
+  }
+  const canonicalSitOutRequests = {
+    ...historicalSitouts,
+    ...(openMonthKey && Object.keys(currentSitoutRequests).length > 0
+      ? { [openMonthKey]: currentSitoutRequests }
+      : {})
+  };
+
+  const canonicalSeasonOverrides = mergeSeasonOverridesPreservingMetadata(
+    baseGroup.seasonOverrides,
+    anteSeasonOverrides?.[safeGroupId] || {}
+  );
+  const canonicalHistoryGroup = {
+    ...baseGroup,
+    memberships: canonicalMemberships,
+    joinedMonthByName: canonicalJoinedMonthByName,
+    settings,
+    seasonOverrides: canonicalSeasonOverrides
+  };
+  const canonicalMonthHistory = buildCanonicalMonthHistoryForGroup(
+    canonicalHistoryGroup,
+    anteMonthHistory?.[safeGroupId]
+  );
+
+  const canonicalGroup = normalizeGroup({
+    ...baseGroup,
+    id: safeGroupId,
+    name: bloc.name || baseGroup.name,
+    inviteCode: bloc.invite_code || baseGroup.inviteCode,
+    createdAt: preferExistingTimestamp(baseGroup.createdAt, bloc.created_at),
+    adminName: canonicalAdminRow?.display_name || baseGroup.adminName,
+    adminUserId: canonicalAdminRow?.auth_user_id || baseGroup.adminUserId,
+    memberOrder: canonicalMemberOrder,
+    memberships: canonicalMemberships,
+    joinedMonthByName: canonicalJoinedMonthByName,
+    settings,
+    logs: canonicalLogs,
+    excused: canonicalExcused,
+    sitOutRequests: canonicalSitOutRequests,
+    seasonOverrides: canonicalSeasonOverrides,
+    monthHistory: canonicalMonthHistory,
+    lastMonth: openMonthKey || baseGroup.lastMonth
+  });
+
+  return {
+    ...baseState,
+    groups: {
+      ...(baseState.groups || {}),
+      [safeGroupId]: canonicalGroup
+    },
+    profiles: anteProfiles
+      ? { ...(baseState.profiles || {}), ...anteProfiles }
+      : baseState.profiles
+  };
+}
+
+async function buildCanonicalWritableStateForAllGroups(baseStateOverride = null) {
+  const baseState = baseStateOverride
+    ? normalizeState(baseStateOverride)
+    : await fetchCurrentStateFromSupabase();
+  const groupIds = Array.isArray(baseState.groupOrder) && baseState.groupOrder.length
+    ? baseState.groupOrder
+    : Object.keys(baseState.groups || {});
+  let state = baseState;
+  for (const groupId of groupIds) {
+    state = await buildCanonicalWritableStateForGroup(groupId, state);
+  }
+  return state;
+}
+
+async function buildHistoricalShellReconciliationReport(baseState) {
+  const canonicalState = await buildCanonicalWritableStateForAllGroups(baseState);
+  const writableBlob = buildWriteHydrationComparisonBlob(baseState, "historical-shell");
+  const canonicalBlob = buildWriteHydrationComparisonBlob(canonicalState, "historical-shell");
+  const groupIds = uniqueNames([
+    ...(Array.isArray(baseState.groupOrder) ? baseState.groupOrder : []),
+    ...Object.keys(baseState.groups || {}),
+    ...Object.keys(canonicalState.groups || {})
+  ]);
+  const groups = groupIds.map(groupId => {
+    const writableGroup = writableBlob.groups?.[groupId] || null;
+    const canonicalGroup = canonicalBlob.groups?.[groupId] || null;
+    const writableMonthsByKey = Object.fromEntries((writableGroup?.monthHistory || []).map(month => [month.key, month]));
+    const canonicalMonthsByKey = Object.fromEntries((canonicalGroup?.monthHistory || []).map(month => [month.key, month]));
+    const monthKeys = uniqueNames([...Object.keys(writableMonthsByKey), ...Object.keys(canonicalMonthsByKey)]).sort(compareMonthKeys);
+    const missingBlobMonthKeys = monthKeys.filter(monthKey => !writableMonthsByKey[monthKey] && canonicalMonthsByKey[monthKey]);
+    const missingCanonicalMonthKeys = monthKeys.filter(monthKey => writableMonthsByKey[monthKey] && !canonicalMonthsByKey[monthKey]);
+    const differingMonthKeys = monthKeys.filter(monthKey =>
+      writableMonthsByKey[monthKey] &&
+      canonicalMonthsByKey[monthKey] &&
+      valuesDiffer(writableMonthsByKey[monthKey], canonicalMonthsByKey[monthKey])
+    );
+    const writableOverrides = normalizeSeasonOverrides(writableGroup?.seasonOverrides);
+    const canonicalOverrides = normalizeSeasonOverrides(canonicalGroup?.seasonOverrides);
+    const overrideMonthKeys = uniqueNames([...Object.keys(writableOverrides), ...Object.keys(canonicalOverrides)]).sort(compareMonthKeys);
+    const missingBlobOverrideKeys = overrideMonthKeys.filter(monthKey => !writableOverrides[monthKey] && canonicalOverrides[monthKey]);
+    const missingCanonicalOverrideKeys = overrideMonthKeys.filter(monthKey => writableOverrides[monthKey] && !canonicalOverrides[monthKey]);
+    const differingOverrideKeys = overrideMonthKeys.filter(monthKey =>
+      writableOverrides[monthKey] &&
+      canonicalOverrides[monthKey] &&
+      valuesDiffer(writableOverrides[monthKey], canonicalOverrides[monthKey])
+    );
+    return {
+      groupId,
+      name: canonicalGroup?.name || writableGroup?.name || "",
+      blobMonthCount: Object.keys(writableMonthsByKey).length,
+      canonicalMonthCount: Object.keys(canonicalMonthsByKey).length,
+      missingBlobMonthKeys,
+      missingCanonicalMonthKeys,
+      differingMonthKeys,
+      blobSeasonOverrideCount: Object.keys(writableOverrides).length,
+      canonicalSeasonOverrideCount: Object.keys(canonicalOverrides).length,
+      missingBlobOverrideKeys,
+      missingCanonicalOverrideKeys,
+      differingOverrideKeys,
+      needsReconciliation:
+        missingBlobMonthKeys.length > 0 ||
+        missingCanonicalMonthKeys.length > 0 ||
+        differingMonthKeys.length > 0 ||
+        missingBlobOverrideKeys.length > 0 ||
+        missingCanonicalOverrideKeys.length > 0 ||
+        differingOverrideKeys.length > 0
+    };
+  });
+  const groupsNeedingReconciliation = groups.filter(group => group.needsReconciliation);
+  return {
+    ok: groupsNeedingReconciliation.length === 0,
+    checked: groups.length,
+    needsReconciliation: groupsNeedingReconciliation.length,
+    totals: {
+      missingBlobMonths: groups.reduce((sum, group) => sum + group.missingBlobMonthKeys.length, 0),
+      missingCanonicalMonths: groups.reduce((sum, group) => sum + group.missingCanonicalMonthKeys.length, 0),
+      differingMonths: groups.reduce((sum, group) => sum + group.differingMonthKeys.length, 0),
+      missingBlobOverrides: groups.reduce((sum, group) => sum + group.missingBlobOverrideKeys.length, 0),
+      missingCanonicalOverrides: groups.reduce((sum, group) => sum + group.missingCanonicalOverrideKeys.length, 0),
+      differingOverrides: groups.reduce((sum, group) => sum + group.differingOverrideKeys.length, 0)
+    },
+    groups: groupsNeedingReconciliation
+  };
+}
+
+function buildBlobMirrorDependencyReport(baseState) {
+  const state = normalizeState(baseState || {});
+  const groups = Object.values(state.groups || {});
+  const fieldUsage = groups.reduce((acc, group) => {
+    if ((group.leftMemberNames || []).length > 0) acc.groupsWithLeftMemberNames += 1;
+    if (Object.keys(group.joinedMonthByName || {}).length > 0) acc.groupsWithJoinedMonthByName += 1;
+    if ((group.memberOrder || []).length > 0) acc.groupsWithMemberOrder += 1;
+    if ((group.monthHistory || []).length > 0) acc.groupsWithMonthHistory += 1;
+    return acc;
+  }, {
+    groupsWithLeftMemberNames: 0,
+    groupsWithJoinedMonthByName: 0,
+    groupsWithMemberOrder: 0,
+    groupsWithMonthHistory: 0
+  });
+
+  return {
+    ok: true,
+    generatedOn: BLOB_MIRROR_DEPENDENCY_AUDIT.generatedOn,
+    blobRevision: state.meta.revision,
+    blobUpdatedAt: state.meta.updatedAt,
+    groupCount: groups.length,
+    profileCount: Object.keys(state.profiles || {}).length,
+    fieldUsage,
+    writableBoundary: BLOB_MIRROR_DEPENDENCY_AUDIT.writableBoundary,
+    trueBlobInputAuthorities: BLOB_MIRROR_DEPENDENCY_AUDIT.trueBlobInputAuthorities,
+    canonicalInputMutations: BLOB_MIRROR_DEPENDENCY_AUDIT.canonicalInputMutations,
+    readableOrCanonicalOnlyActions: BLOB_MIRROR_DEPENDENCY_AUDIT.readableOrCanonicalOnlyActions,
+    disabledLegacyActions: BLOB_MIRROR_DEPENDENCY_AUDIT.disabledLegacyActions,
+    mirrorSkipRuntime: {
+      allowedActions: [...BLOB_MIRROR_SKIP_ALLOWED_ACTIONS],
+      wiredActions: [...BLOB_MIRROR_SKIP_WIRED_ACTIONS],
+      enabledActions: [...BLOB_MIRROR_SKIP_ACTIONS],
+      enabled: BLOB_MIRROR_SKIP_ACTIONS.size > 0
+    },
+    remainingMirrorDependencies: BLOB_MIRROR_DEPENDENCY_AUDIT.remainingMirrorDependencies,
+    nextRetirementBatches: BLOB_MIRROR_DEPENDENCY_AUDIT.nextRetirementBatches
+  };
+}
+
+async function buildBlobMirrorRetirementReadinessReport(baseState) {
+  const dependencyReport = buildBlobMirrorDependencyReport(baseState);
+  const revisionStamp = await fetchRevisionStamp();
+  const unresolvedCompatibilityFields = dependencyReport.remainingMirrorDependencies
+    .filter(entry => ["leftMemberNames", "joinedMonthByName", "memberOrder"].includes(entry.field))
+    .map(entry => entry.field);
+
+  return {
+    ok: true,
+    generatedOn: BLOB_MIRROR_RETIREMENT_READINESS.generatedOn,
+    canDisableBlobWritesNow: BLOB_MIRROR_RETIREMENT_READINESS.canDisableBlobWritesNow,
+    blobMirror: {
+      revision: dependencyReport.blobRevision,
+      updatedAt: dependencyReport.blobUpdatedAt,
+      groupCount: dependencyReport.groupCount,
+      profileCount: dependencyReport.profileCount,
+      fieldUsage: dependencyReport.fieldUsage
+    },
+    canonicalRevision: {
+      available: revisionStamp.canonicalRevisionAvailable,
+      source: revisionStamp.canonicalRevisionAvailable ? "ante_core.revision_clock" : null,
+      revision: revisionStamp.canonicalRevision,
+      updatedAt: revisionStamp.canonicalUpdatedAt,
+      lastReason: revisionStamp.canonicalLastReason,
+      blocker: revisionStamp.canonicalRevisionAvailable
+        ? null
+        : "ante-core-revision-clock-rpc.sql has not been applied in this environment."
+    },
+    revisionEndpoint: BLOB_MIRROR_RETIREMENT_READINESS.revisionEndpoint,
+    revisionEndpointStamp: {
+      revision: revisionStamp.revision,
+      blobRevision: revisionStamp.blobRevision,
+      canonicalRevision: revisionStamp.canonicalRevision,
+      canonicalRevisionAvailable: revisionStamp.canonicalRevisionAvailable
+    },
+    mirrorSkipRuntime: dependencyReport.mirrorSkipRuntime,
+    mirrorSkipCandidates: BLOB_MIRROR_RETIREMENT_READINESS.mirrorSkipCandidates,
+    blockedActionFamilies: BLOB_MIRROR_RETIREMENT_READINESS.blockedActionFamilies,
+    unresolvedCompatibilityFields,
+    trueBlobInputAuthorities: dependencyReport.trueBlobInputAuthorities.map(entry => entry.action),
+    requiredBeforeFirstSkip: BLOB_MIRROR_RETIREMENT_READINESS.requiredBeforeFirstSkip,
+    nextSafeMove: revisionStamp.canonicalRevisionAvailable
+      ? "Enable BLOB_MIRROR_SKIP_ACTIONS=season-proration-choice,reaction,flag,flag-response,flag-review,delete-log in preview for a narrow mirror-skip soak, then inspect dependency/readiness reports and smoke behavior."
+      : "Apply the canonical revision clock RPC before disabling blob writes for any action family."
   };
 }
 
@@ -2507,27 +3607,23 @@ async function persistState(nextState, reason) {
   // Extract rollover metadata before persistStateToSupabase — normalizeState
   // strips _rollovers from the blob write, so we must read it here first.
   const rollovers = Array.isArray(nextState._rollovers) ? nextState._rollovers : [];
+  const safeState = normalizeState(nextState);
 
-  const persisted = await persistStateToSupabase(nextState, reason);
-
-  // Best-effort canonical season rollover syncs. Failures are logged but never
-  // propagated — the blob rollover already succeeded at this point.
+  // Canonical-first rollover sync:
+  // 1. use the exact post-rollover in-memory state to close/open seasons
+  // 2. write the closed-month member snapshots canonically
+  // 3. persist the blob only after canonical rollover writes succeed
   for (const { groupId, closedMonthKey, newMonthKey, closedAt } of rollovers) {
-    const group = persisted.groups?.[groupId];
+    const group = safeState.groups?.[groupId];
     if (!group) continue;
     // Close the old season first so season_member_status writes can resolve the
     // canonical season row deterministically.
-    try {
-      await syncSeasonToCanonical(group, closedMonthKey, "closed", closedAt);
-    } catch (err) {
-      console.error(`Season rollover canonical sync failed (close ${groupId}/${closedMonthKey}):`, err?.message || err);
-    }
+    await syncSeasonToCanonical(group, closedMonthKey, "closed", closedAt, { throwOnError: true });
     // Open the new season.
-    syncSeasonToCanonical(group, newMonthKey, "open")
-      .catch(err => console.error(`Season rollover canonical sync failed (open ${groupId}/${newMonthKey}):`, err?.message || err));
+    await syncSeasonToCanonical(group, newMonthKey, "open", null, { throwOnError: true });
     // Write one season_member_status row per relevant member for the closed month.
     // The closed-month snapshot was appended to monthHistory by rolloverGroupIfNeeded,
-    // so it is present in persisted state at this point.
+    // so it is already present in the exact post-rollover state at this point.
     const closedSnapshot = group.monthHistory?.find(m => m.key === closedMonthKey);
     if (closedSnapshot) {
       // Build a displayName → authUserId reverse map from group.memberships.
@@ -2542,14 +3638,41 @@ async function persistState(nextState, reason) {
           memberName,
           memberAuthUserId,
           closedSnapshot.counts[memberName] ?? 0,
-          closedSnapshot.excused[memberName] ?? false
+          closedSnapshot.excused[memberName] ?? false,
+          { throwOnError: true }
         );
       }
     }
     console.log(`Season rollover canonical sync fired: ${groupId} ${closedMonthKey} → ${newMonthKey}`);
   }
 
-  return persisted;
+  const persisted = await persistStateToSupabase(safeState, reason);
+  const canonicalRevision = await bumpCanonicalRevision(reason, persisted?.meta?.revision ?? safeState.meta.revision);
+  return applyEffectiveRevision(persisted, {
+    revision: Math.max(
+      Number(persisted?.meta?.revision ?? safeState.meta.revision) || 0,
+      Number(canonicalRevision?.revision) || 0
+    ),
+    canonicalUpdatedAt: canonicalRevision?.updatedAt || null
+  });
+}
+
+async function persistOrSkipBlobMirror(nextState, reason, action) {
+  if (!shouldSkipBlobMirrorForAction(action)) {
+    return persistState(nextState, reason);
+  }
+
+  const safeState = normalizeState(nextState);
+  const canonicalRevision = await bumpCanonicalRevision(reason, safeState.meta.revision);
+  const readable = await fetchReadableCurrentState();
+  return applyEffectiveRevision(readable, {
+    revision: Math.max(
+      Number(readable?.meta?.revision) || 0,
+      Number(safeState.meta.revision) || 0,
+      Number(canonicalRevision?.revision) || 0
+    ),
+    canonicalUpdatedAt: canonicalRevision?.updatedAt || null
+  });
 }
 
 async function fetchCurrentStateFromSupabase() {
@@ -2890,6 +4013,24 @@ function resolveDisplayNameForUser(state, groupId, userId, email) {
   return "";
 }
 
+async function buildCanonicalWritableStateForAuthenticatedMutation(auth, groupId) {
+  const canonicalCurrent = await buildCanonicalWritableStateForGroup(groupId, auth.state);
+  return migrateAuthIdentity(
+    rolloverStateIfNeeded(canonicalCurrent),
+    auth.user.id,
+    auth.user.email
+  ).state;
+}
+
+async function buildCanonicalWritableStateForAuthenticatedGlobalMutation(auth) {
+  const canonicalCurrent = await buildCanonicalWritableStateForAllGroups(auth.state);
+  return migrateAuthIdentity(
+    rolloverStateIfNeeded(canonicalCurrent),
+    auth.user.id,
+    auth.user.email
+  ).state;
+}
+
 function applyAuthSync(current, user) {
   const migrated = migrateAuthIdentity(rolloverStateIfNeeded(current), user.id, user.email);
   const profile = migrated.state.profiles?.[user.id] || null;
@@ -3014,7 +4155,7 @@ function applySettlementUpdate(current, payload) {
 
   monthHistory[monthIndex] = { ...month, settlements };
 
-  return {
+  const updated = {
     ...base,
     groups: {
       ...base.groups,
@@ -3024,6 +4165,12 @@ function applySettlementUpdate(current, payload) {
       revision: base.meta.revision + 1,
       updatedAt: new Date().toISOString()
     }
+  };
+
+  return {
+    updated,
+    settlement: settlements[payload.player],
+    reason: `settlement:${payload.groupId}:${payload.monthKey}:${payload.player}`
   };
 }
 
@@ -3035,9 +4182,7 @@ function assertGroupAdmin(state, groupId, user, actorDisplayName) {
     throw error;
   }
 
-  const isAdmin = group.adminUserId
-    ? group.adminUserId === user.id
-    : group.adminName === actorDisplayName;
+  const isAdmin = isGroupAdminActor(group, user.id, actorDisplayName);
   if (!isAdmin) {
     const error = new Error("Only the admin can rebuild the projection");
     error.status = 403;
@@ -3079,21 +4224,22 @@ function applyCreateGroup(current, payload) {
   }
 
   const base = rolloverStateIfNeeded(current);
-  const id = generateGroupId(groupName);
+  const now = payload?.createdAt || new Date().toISOString();
+  const id = String(payload?.createdGroupId || "").trim() || generateGroupId(groupName);
   const group = normalizeGroup({
     id,
     name: groupName,
     adminName: creatorName,
     adminUserId: actorUserId || null,
-    inviteCode: generateInviteCode(),
-    createdAt: new Date().toISOString(),
+    inviteCode: String(payload?.inviteCode || "").trim().toUpperCase() || generateInviteCode(),
+    createdAt: now,
     memberOrder: uniqueNames([creatorName, ...extraMembers]),
     memberships: actorUserId ? {
       [actorUserId]: {
         userId: actorUserId,
         displayName: creatorName,
         role: "admin",
-        joinedAt: new Date().toISOString()
+        joinedAt: now
       }
     } : {},
     joinedMonthByName: {},
@@ -3114,7 +4260,7 @@ function applyCreateGroup(current, payload) {
       groupOrder: [...base.groupOrder, id],
       meta: {
         revision: base.meta.revision + 1,
-        updatedAt: new Date().toISOString()
+        updatedAt: now
       }
     },
     createdGroupId: id
@@ -3123,6 +4269,7 @@ function applyCreateGroup(current, payload) {
 
 function applyMultiLog(current, payload) {
   const actor = String(payload?.actor || "").trim();
+  const actorUserId = String(payload?.actorUserId || "").trim();
   const sourceGroupId = String(payload?.sourceGroupId || "").trim();
   const workoutType = normalizeWorkoutType(payload?.workoutType);
   const date = String(payload?.date || "").trim();
@@ -3157,7 +4304,7 @@ function applyMultiLog(current, payload) {
   for (const groupId of allTargetIds) {
     const group = updatedGroups[groupId];
     if (!group) continue;
-    if (!group.memberOrder.includes(actor)) continue;
+    if (!isCurrentGroupMember(group, actor, actorUserId)) continue;
     const accepted = group.settings?.acceptedWorkoutTypes || WORKOUT_TYPES;
     if (!accepted.includes(workoutType)) continue;
 
@@ -3209,9 +4356,7 @@ function applyUpdateSettings(current, payload) {
     error.status = 404;
     throw error;
   }
-  const actorIsAdmin = group.adminUserId
-    ? group.adminUserId === actorUserId
-    : group.adminName && group.adminName === actor;
+  const actorIsAdmin = isGroupAdminActor(group, actorUserId, actor);
   if (!actorIsAdmin) {
     const error = new Error("Only the Bloc admin can update settings");
     error.status = 403;
@@ -3219,7 +4364,8 @@ function applyUpdateSettings(current, payload) {
   }
   const nextSettings = buildNormalizedSettings({
     ...group.settings,
-    ...payload?.settings
+    ...payload?.settings,
+    currency: group.settings?.currency || DEFAULT_CURRENCY
   });
   if (nextSettings.feeModel === "escalating" && nextSettings.escalationStepAmount === null) {
     const error = new Error("Set a step amount to continue.");
@@ -3244,6 +4390,1378 @@ function applyUpdateSettings(current, payload) {
   };
 }
 
+async function runWriteHydrationParityProbe(action, payload, auth, actor, writableUpdated, applyMutation) {
+  if (!isWriteHydrationParityEnabled(action)) return;
+  const groupId = String(payload?.groupId || "").trim();
+  try {
+    const canonicalCurrent = await buildCanonicalWritableStateForGroup(groupId, auth.state);
+    const canonicalAuthState = migrateAuthIdentity(rolloverStateIfNeeded(canonicalCurrent), auth.user.id, auth.user.email).state;
+    const canonicalActor = resolveDisplayNameForUser(canonicalAuthState, groupId, auth.user.id, auth.user.email) || actor;
+    const canonicalMutationResult = applyMutation(canonicalAuthState, {
+      ...payload,
+      actor: canonicalActor,
+      actorUserId: auth.user.id
+    });
+    const canonicalUpdated = unwrapMutationState(canonicalMutationResult);
+
+    const writableBlob = buildWriteHydrationComparisonBlob(writableUpdated, action);
+    const canonicalBlob = buildWriteHydrationComparisonBlob(canonicalUpdated, action);
+    const mismatchCollector = isCurrentOpenWriteHydrationAction(action)
+      ? collectWriteHydrationCurrentOpenMismatches
+      : collectWriteHydrationGroupMismatches;
+    const mismatches = mismatchCollector(
+      writableBlob.groups?.[groupId],
+      canonicalBlob.groups?.[groupId],
+      groupId
+    );
+
+    if (mismatches.length) {
+      console.warn("[write-hydration-parity] mismatch", JSON.stringify({
+        action,
+        groupId,
+        mismatches,
+        writableGroups: Object.keys(writableBlob.groups || {}).length,
+        canonicalGroups: Object.keys(canonicalBlob.groups || {}).length
+      }));
+    }
+  } catch (err) {
+    console.warn("[write-hydration-parity] probe failed", JSON.stringify({
+      action,
+      groupId,
+      message: err?.message || String(err)
+    }));
+  }
+}
+
+async function runWriteHydrationMultiLogParityProbe(payload, auth, actor, writableUpdated) {
+  if (!isWriteHydrationParityEnabled("multi-log")) return;
+  const sourceGroupId = String(payload?.sourceGroupId || "").trim();
+  const checkedGroupIds = [...new Set([
+    sourceGroupId,
+    ...(Array.isArray(payload?.targetGroupIds) ? payload.targetGroupIds.filter(Boolean) : [])
+  ].filter(Boolean))];
+  try {
+    const canonicalCurrent = await buildCanonicalWritableStateForGroup(sourceGroupId, auth.state);
+    const canonicalAuthState = migrateAuthIdentity(rolloverStateIfNeeded(canonicalCurrent), auth.user.id, auth.user.email).state;
+    const canonicalActor = resolveDisplayNameForUser(canonicalAuthState, sourceGroupId, auth.user.id, auth.user.email) || actor;
+    const canonicalUpdated = applyMultiLog(canonicalAuthState, {
+      ...payload,
+      actor: canonicalActor,
+      actorUserId: auth.user.id
+    });
+
+    const writableBlob = buildWriteHydrationComparisonBlob(writableUpdated, "multi-log");
+    const canonicalBlob = buildWriteHydrationComparisonBlob(canonicalUpdated, "multi-log");
+    const mismatches = checkedGroupIds.flatMap(groupId =>
+      collectWriteHydrationCurrentOpenMismatches(
+        writableBlob.groups?.[groupId],
+        canonicalBlob.groups?.[groupId],
+        groupId
+      )
+    );
+
+    if (mismatches.length) {
+      console.warn("[write-hydration-parity] mismatch", JSON.stringify({
+        action: "multi-log",
+        groupId: sourceGroupId,
+        targetGroupIds: checkedGroupIds.filter(groupId => groupId !== sourceGroupId),
+        mismatches,
+        writableGroups: Object.keys(writableBlob.groups || {}).length,
+        canonicalGroups: Object.keys(canonicalBlob.groups || {}).length
+      }));
+    }
+  } catch (err) {
+    console.warn("[write-hydration-parity] probe failed", JSON.stringify({
+      action: "multi-log",
+      groupId: sourceGroupId,
+      message: err?.message || String(err)
+    }));
+  }
+}
+
+async function compareWriteHydrationMutation(action, groupId, writableInput, canonicalInput, payload, applyMutation, options = {}) {
+  try {
+    const writableUpdated = unwrapMutationState(applyMutation(writableInput, payload));
+    const canonicalUpdated = unwrapMutationState(applyMutation(canonicalInput, payload));
+    const writableBlob = buildWriteHydrationComparisonBlob(writableUpdated, action);
+    const canonicalBlob = buildWriteHydrationComparisonBlob(canonicalUpdated, action);
+    const mismatchCollector = options.scope === "current-open"
+      ? collectWriteHydrationCurrentOpenMismatches
+      : collectWriteHydrationGroupMismatches;
+    const mismatches = mismatchCollector(writableBlob.groups?.[groupId], canonicalBlob.groups?.[groupId], groupId);
+    return {
+      action,
+      groupId,
+      ...(options.scope ? { scope: options.scope } : {}),
+      ok: mismatches.length === 0,
+      mismatches,
+      ...(mismatches.length
+        ? {
+            details: collectWriteHydrationGroupMismatchDetails(
+              writableBlob.groups?.[groupId],
+              canonicalBlob.groups?.[groupId],
+              groupId,
+              mismatches
+            )
+          }
+        : {})
+    };
+  } catch (err) {
+    return {
+      action,
+      groupId,
+      ok: false,
+      error: err?.message || String(err)
+    };
+  }
+}
+
+async function compareWriteHydrationAction(action, baseState, groupId, payload, applyMutation, options = {}) {
+  try {
+    const canonicalBase = await buildCanonicalWritableStateForGroup(groupId, baseState);
+    return compareWriteHydrationMutation(action, groupId, baseState, canonicalBase, payload, applyMutation, options);
+  } catch (err) {
+    return {
+      action,
+      groupId,
+      ...(options.scope ? { scope: options.scope } : {}),
+      ok: false,
+      error: err?.message || String(err)
+    };
+  }
+}
+
+function collectActiveAuthMembers(group) {
+  return Object.values(group?.memberships || {})
+    .filter(member => member?.userId && member?.displayName && isCurrentGroupMember(group, member.displayName, member.userId));
+}
+
+function findFirstCurrentLogCandidate(group, options = {}) {
+  const {
+    ownerName = null,
+    excludeOwnerName = null,
+    requireNonStrava = false,
+    requireUnflagged = false
+  } = options;
+  for (const [owner, logs] of Object.entries(group?.logs || {})) {
+    if (ownerName && owner !== ownerName) continue;
+    if (excludeOwnerName && owner === excludeOwnerName) continue;
+    for (const log of logs || []) {
+      if (!log?.id) continue;
+      if (requireNonStrava && log.verifiedVia === "strava") continue;
+      if (requireUnflagged && log.flagStatus) continue;
+      return { owner, log };
+    }
+  }
+  return null;
+}
+
+function findSitOutRequestCandidate(groupId, group) {
+  const members = collectActiveAuthMembers(group);
+  for (const member of members) {
+    try {
+      applySitOutRequest({ version: 2, groups: { [groupId]: group }, groupOrder: [groupId], profiles: {}, meta: { revision: 0, updatedAt: null } }, {
+        groupId,
+        actor: member.displayName,
+        actorUserId: member.userId,
+        reason: "Parity probe",
+        exceptional: false
+      });
+      return member;
+    } catch (_) {
+      // Try another member; current data may make this action ineligible.
+    }
+  }
+  return null;
+}
+
+function findSitOutReviewCandidate(group) {
+  const requests = normalizeSitOutRequests(group?.sitOutRequests);
+  for (const [monthKey, monthRequests] of Object.entries(requests || {})) {
+    for (const [memberName, request] of Object.entries(monthRequests || {})) {
+      if (request?.status !== "pending") continue;
+      const reviewer = collectActiveAuthMembers(group).find(member =>
+        canReviewSitOutRequest(group, request, memberName, member.userId, member.displayName)
+      );
+      if (reviewer) return { monthKey, memberName, reviewer };
+    }
+  }
+  return null;
+}
+
+function findSyntheticSitOutReviewCandidate(group) {
+  const members = collectActiveAuthMembers(group);
+  const admin = members.find(member => isGroupAdminActor(group, member.userId, member.displayName));
+  if (!admin) return null;
+  const requester = members.find(member => !isGroupAdminActor(group, member.userId, member.displayName));
+  if (!requester) return null;
+  const monthKey = group?.lastMonth || getLeagueMonthKey(group?.settings?.timeZone);
+  return { monthKey, requester, reviewer: admin };
+}
+
+function withSyntheticPendingSitOutReviewRequest(state, groupId, candidate) {
+  const group = state?.groups?.[groupId];
+  if (!group || !candidate?.monthKey || !candidate?.requester?.displayName) return state;
+  const requests = normalizeSitOutRequests(group.sitOutRequests);
+  const memberName = candidate.requester.displayName;
+  const pendingRequest = {
+    memberName,
+    monthKey: candidate.monthKey,
+    status: "pending",
+    reason: "Parity probe",
+    exceptional: true,
+    requestedAt: "2026-07-12T00:00:00.000Z",
+    requestedBy: memberName,
+    requestedByUserId: candidate.requester.userId || null,
+    targetApproverName: candidate.reviewer.displayName || null,
+    targetApproverUserId: candidate.reviewer.userId || null,
+    decidedAt: null,
+    decidedBy: null,
+    decidedByUserId: null,
+    autoApproved: false
+  };
+  return {
+    ...state,
+    groups: {
+      ...(state.groups || {}),
+      [groupId]: normalizeGroup({
+        ...group,
+        sitOutRequests: {
+          ...requests,
+          [candidate.monthKey]: {
+            ...(requests[candidate.monthKey] || {}),
+            [memberName]: pendingRequest
+          }
+        }
+      })
+    }
+  };
+}
+
+function buildProbeDateForGroup(group, preferredDay = 15) {
+  const monthKey = group?.lastMonth || getLeagueMonthKey(group?.settings?.timeZone);
+  const [year, zeroBasedMonth] = String(monthKey || "").split("-").map(Number);
+  if (!Number.isFinite(year) || !Number.isFinite(zeroBasedMonth)) {
+    return new Date().toISOString().slice(0, 10);
+  }
+  const month = zeroBasedMonth + 1;
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const day = Math.min(Math.max(1, preferredDay), daysInMonth);
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+function chooseProbeWorkoutType(group) {
+  const accepted = Array.isArray(group?.settings?.acceptedWorkoutTypes) && group.settings.acceptedWorkoutTypes.length
+    ? group.settings.acceptedWorkoutTypes
+    : WORKOUT_TYPES;
+  return accepted.includes("Gym") ? "Gym" : accepted[0];
+}
+
+function findCurrentLogWriteCandidate(group) {
+  const actor = collectActiveAuthMembers(group)[0] || null;
+  if (!actor) return null;
+  return {
+    actor,
+    date: buildProbeDateForGroup(group, 16),
+    workoutType: chooseProbeWorkoutType(group)
+  };
+}
+
+function findMultiLogCandidate(baseState, sourceGroupId, sourceGroup, actor) {
+  if (!actor?.userId || !actor?.displayName) return null;
+  const targetGroupIds = (baseState.groupOrder || Object.keys(baseState.groups || {}))
+    .filter(groupId => groupId !== sourceGroupId)
+    .filter(groupId => {
+      const group = baseState.groups?.[groupId];
+      if (!group) return false;
+      if (!isCurrentGroupMember(group, actor.displayName, actor.userId)) return false;
+      const accepted = Array.isArray(group.settings?.acceptedWorkoutTypes) && group.settings.acceptedWorkoutTypes.length
+        ? group.settings.acceptedWorkoutTypes
+        : WORKOUT_TYPES;
+      return accepted.includes(chooseProbeWorkoutType(sourceGroup));
+    });
+  if (!targetGroupIds.length) return null;
+  return {
+    actor,
+    targetGroupIds,
+    date: buildProbeDateForGroup(sourceGroup, 17),
+    workoutType: chooseProbeWorkoutType(sourceGroup)
+  };
+}
+
+function findKickMemberCandidate(group) {
+  const activeMembers = collectActiveAuthMembers(group);
+  const admin = activeMembers.find(member => isGroupAdminActor(group, member.userId, member.displayName));
+  if (!admin) return null;
+  const target = activeMembers.find(member =>
+    member.userId !== admin.userId && !isGroupAdminActor(group, member.userId, member.displayName)
+  );
+  return target ? { admin, target } : null;
+}
+
+function findLeaveBlocCandidate(group) {
+  const activeMembers = collectActiveAuthMembers(group);
+  if (!activeMembers.length) return null;
+  return activeMembers.find(member => !isGroupAdminActor(group, member.userId, member.displayName)) || activeMembers[0];
+}
+
+function collectJoinGroupCandidates(state) {
+  const profiles = Object.entries(state.profiles || {})
+    .map(([userId, profile]) => ({
+      userId,
+      email: String(profile?.email || "").trim().toLowerCase(),
+      displayName: String(profile?.displayName || "").trim()
+    }))
+    .filter(profile => profile.userId && profile.email && profile.displayName);
+  const groupIds = Array.isArray(state.groupOrder) && state.groupOrder.length
+    ? state.groupOrder
+    : Object.keys(state.groups || {});
+  const candidates = [];
+  for (const groupId of groupIds) {
+    const group = state.groups?.[groupId];
+    if (!group) continue;
+    const currentMemberCount = Array.isArray(group.activeMemberOrder) && group.activeMemberOrder.length
+      ? group.activeMemberOrder.length
+      : (Object.keys(group.memberships || {}).length || group.memberOrder?.length || 0);
+    if (currentMemberCount >= 20) continue;
+    const candidate = profiles.find(profile =>
+      !group.memberships?.[profile.userId] &&
+      !group.memberOrder?.includes(profile.displayName)
+    );
+    if (!candidate) continue;
+    candidates.push({
+      groupId,
+      inviteCode: group.inviteCode,
+      userId: candidate.userId,
+      email: candidate.email,
+      displayName: candidate.displayName
+    });
+  }
+  return candidates;
+}
+
+async function compareWriteHydrationMultiLog(baseState, sourceGroupId, payload) {
+  try {
+    const canonicalBase = await buildCanonicalWritableStateForGroup(sourceGroupId, baseState);
+    const writableUpdated = applyMultiLog(baseState, payload);
+    const canonicalUpdated = applyMultiLog(canonicalBase, payload);
+    const writableBlob = buildWriteHydrationComparisonBlob(writableUpdated, "multi-log");
+    const canonicalBlob = buildWriteHydrationComparisonBlob(canonicalUpdated, "multi-log");
+    const checkedGroupIds = [...new Set([sourceGroupId, ...(payload.targetGroupIds || [])])];
+    const mismatches = checkedGroupIds.flatMap(groupId =>
+      collectWriteHydrationGroupMismatches(
+        writableBlob.groups?.[groupId],
+        canonicalBlob.groups?.[groupId],
+        groupId
+      )
+    );
+    return {
+      action: "multi-log",
+      groupId: sourceGroupId,
+      ok: mismatches.length === 0,
+      targetGroupIds: payload.targetGroupIds || [],
+      mismatches
+    };
+  } catch (err) {
+    return {
+      action: "multi-log",
+      groupId: sourceGroupId,
+      ok: false,
+      error: err?.message || String(err)
+    };
+  }
+}
+
+async function compareWriteHydrationMultiLogCurrentOpen(baseState, sourceGroupId, payload) {
+  try {
+    const canonicalBase = await buildCanonicalWritableStateForGroup(sourceGroupId, baseState);
+    const writableUpdated = applyMultiLog(baseState, payload);
+    const canonicalUpdated = applyMultiLog(canonicalBase, payload);
+    const writableBlob = buildWriteHydrationComparisonBlob(writableUpdated, "multi-log");
+    const canonicalBlob = buildWriteHydrationComparisonBlob(canonicalUpdated, "multi-log");
+    const checkedGroupIds = [...new Set([sourceGroupId, ...(payload.targetGroupIds || [])])];
+    const mismatches = checkedGroupIds.flatMap(groupId =>
+      collectWriteHydrationCurrentOpenMismatches(
+        writableBlob.groups?.[groupId],
+        canonicalBlob.groups?.[groupId],
+        groupId
+      )
+    );
+    return {
+      action: "multi-log",
+      groupId: sourceGroupId,
+      scope: "current-open",
+      ok: mismatches.length === 0,
+      targetGroupIds: payload.targetGroupIds || [],
+      mismatches
+    };
+  } catch (err) {
+    return {
+      action: "multi-log",
+      groupId: sourceGroupId,
+      scope: "current-open",
+      ok: false,
+      error: err?.message || String(err)
+    };
+  }
+}
+
+function collectProfileRenameCandidates(state) {
+  return Object.entries(state.profiles || {})
+    .map(([userId, profile]) => {
+      const email = String(profile?.email || "").trim().toLowerCase();
+      const displayName = String(profile?.displayName || "").trim();
+      if (!userId || !email || !displayName) return null;
+      const oldNames = collectProfileRenameOldNames(state.groups || {}, userId, displayName);
+      if (oldNames.size === 0) return null;
+      return { userId, email, displayName, groupIds: [...oldNames.keys()] };
+    })
+    .filter(Boolean);
+}
+
+function collectCreateGroupCandidates(state) {
+  return Object.entries(state.profiles || {})
+    .map(([userId, profile]) => {
+      const email = String(profile?.email || "").trim().toLowerCase();
+      const displayName = String(profile?.displayName || "").trim();
+      if (!userId || !email || !displayName) return null;
+      return { userId, email, displayName };
+    })
+    .filter(Boolean);
+}
+
+function collectDeleteAccountCandidates(state) {
+  return Object.entries(state.profiles || {})
+    .map(([userId, profile]) => {
+      const email = String(profile?.email || "").trim().toLowerCase();
+      const displayName = String(profile?.displayName || "").trim();
+      if (!userId || (!email && !displayName)) return null;
+      const groupIds = Object.entries(state.groups || {})
+        .filter(([, group]) => group?.memberships?.[userId])
+        .map(([groupId]) => groupId);
+      return { userId, email, displayName, groupIds };
+    })
+    .filter(Boolean);
+}
+
+function collectSettlementUpdateCandidates(state) {
+  const groupIds = Array.isArray(state.groupOrder) && state.groupOrder.length
+    ? state.groupOrder
+    : Object.keys(state.groups || {});
+  const candidates = [];
+  for (const groupId of groupIds) {
+    const group = state.groups?.[groupId];
+    if (!group) continue;
+    const monthHistory = normalizeMonthHistory(group.monthHistory, group.memberOrder, group.joinedMonthByName, group.settings);
+    for (const month of monthHistory) {
+      const settlements = month?.settlements || buildDefaultSettlements(month, group.memberOrder, month?.settings || group.settings);
+      for (const [player, settlement] of Object.entries(settlements || {})) {
+        if (!player) continue;
+        candidates.push({
+          groupId,
+          monthKey: month.key,
+          player,
+          settled: settlement?.status !== "settled"
+        });
+      }
+    }
+  }
+  return candidates;
+}
+
+function comparableSettlementEntry(entry) {
+  if (!entry) return null;
+  return {
+    status: entry.status || "outstanding",
+    settled: !!entry.settledAt
+  };
+}
+
+function collectDeleteAccountTouchedGroupIds(writableInput, canonicalInput, userId) {
+  const writableProfile = writableInput.profiles?.[userId] || null;
+  const canonicalProfile = canonicalInput.profiles?.[userId] || null;
+  const displayNames = uniqueNames([
+    resolveDeletedAccountDisplayName(writableProfile, writableInput.groups, userId),
+    resolveDeletedAccountDisplayName(canonicalProfile, canonicalInput.groups, userId)
+  ].filter(Boolean));
+  const groupIds = uniqueNames([
+    ...Object.keys(writableInput.groups || {}),
+    ...Object.keys(canonicalInput.groups || {})
+  ]);
+  return groupIds.filter(groupId => {
+    const writableGroup = writableInput.groups?.[groupId] || null;
+    const canonicalGroup = canonicalInput.groups?.[groupId] || null;
+    if (writableGroup?.memberships?.[userId] || canonicalGroup?.memberships?.[userId]) return true;
+    return displayNames.some(displayName =>
+      writableGroup?.logs?.[displayName] ||
+      canonicalGroup?.logs?.[displayName]
+    );
+  });
+}
+
+function buildSyntheticCreateGroupPayload(candidate) {
+  const suffix = String(candidate.userId || "").slice(0, 8)
+    || String(candidate.displayName || "user").toLowerCase().replace(/[^a-z0-9]+/g, "").slice(0, 8)
+    || "user";
+  const groupName = `Parity Create ${suffix}`;
+  const createdGroupId = `parity-create-${suffix}`.toLowerCase().replace(/[^a-z0-9-]+/g, "-");
+  return {
+    groupName,
+    creatorName: candidate.displayName,
+    actorUserId: candidate.userId,
+    createdGroupId,
+    inviteCode: `P${suffix}`.replace(/[^A-Z0-9]/gi, "").slice(0, 8).toUpperCase().padEnd(6, "X"),
+    createdAt: "2026-07-13T00:00:00.000Z",
+    minTarget: DEFAULT_MIN_TARGET,
+    fineAmount: DEFAULT_FINE_AMOUNT,
+    feeModel: "flat",
+    escalationStepAmount: null,
+    currency: DEFAULT_CURRENCY,
+    groupTimeZone: DEFAULT_GROUP_TIME_ZONE,
+    acceptedWorkoutTypes: [...WORKOUT_TYPES],
+    minRunDistance: DEFAULT_MIN_RUN_DISTANCE,
+    distanceUnit: DEFAULT_DISTANCE_UNIT,
+    stravaEnabled: DEFAULT_STRAVA_ENABLED,
+    extraMembers: ""
+  };
+}
+
+function buildSyntheticProfileRenameDisplayName(state, currentDisplayName, userId) {
+  const base = `${currentDisplayName} Rename Probe`.trim();
+  const usedNames = new Set(
+    Object.values(state.groups || {})
+      .flatMap(group => Array.isArray(group?.memberOrder) ? group.memberOrder : [])
+      .filter(Boolean)
+  );
+  if (!usedNames.has(base)) return base;
+  return `${base} ${String(userId || "").slice(0, 8) || "user"}`;
+}
+
+function compareCreateGroupResult(writableUpdated, canonicalUpdated, createdGroupId) {
+  const writableBlob = buildWriteHydrationComparisonBlob(writableUpdated, "create-group");
+  const canonicalBlob = buildWriteHydrationComparisonBlob(canonicalUpdated, "create-group");
+  const mismatches = collectWriteHydrationCurrentOpenMismatches(
+    writableBlob.groups?.[createdGroupId],
+    canonicalBlob.groups?.[createdGroupId],
+    createdGroupId
+  );
+  return {
+    action: "create-group",
+    scope: "current-open",
+    groupId: createdGroupId,
+    ok: mismatches.length === 0,
+    mismatches,
+    ...(mismatches.length
+      ? {
+          details: collectWriteHydrationGroupMismatchDetails(
+            writableBlob.groups?.[createdGroupId],
+            canonicalBlob.groups?.[createdGroupId],
+            createdGroupId,
+            mismatches
+          )
+        }
+      : {})
+  };
+}
+
+async function compareWriteHydrationCreateGroup(baseState, canonicalBase, candidate) {
+  const payload = buildSyntheticCreateGroupPayload(candidate);
+  try {
+    const writableUpdated = applyCreateGroup(baseState, payload);
+    const canonicalUpdated = applyCreateGroup(canonicalBase, payload);
+    return compareCreateGroupResult(writableUpdated.state, canonicalUpdated.state, payload.createdGroupId);
+  } catch (err) {
+    return {
+      action: "create-group",
+      scope: "current-open",
+      groupId: payload.createdGroupId,
+      ok: false,
+      error: err?.message || String(err)
+    };
+  }
+}
+
+async function compareWriteHydrationDeleteAccount(baseState, canonicalBase, candidate) {
+  const payload = { userId: candidate.userId };
+  try {
+    const writableUpdated = applyDeleteAccount(baseState, payload);
+    const canonicalUpdated = applyDeleteAccount(canonicalBase, payload);
+    const writableBlob = buildWriteHydrationComparisonBlob(writableUpdated, "delete-account");
+    const canonicalBlob = buildWriteHydrationComparisonBlob(canonicalUpdated, "delete-account");
+    const touchedGroupIds = collectDeleteAccountTouchedGroupIds(baseState, canonicalBase, candidate.userId);
+    const profileMismatches = valuesDiffer(
+      writableBlob.profiles?.[candidate.userId] || null,
+      canonicalBlob.profiles?.[candidate.userId] || null
+    )
+      ? [`profiles.${candidate.userId}`]
+      : [];
+    const orderMismatches = valuesDiffer(writableBlob.groupOrder || [], canonicalBlob.groupOrder || [])
+      ? ["groupOrder"]
+      : [];
+    const groupMismatches = touchedGroupIds.flatMap(groupId =>
+      collectWriteHydrationCurrentOpenMismatches(
+        writableBlob.groups?.[groupId],
+        canonicalBlob.groups?.[groupId],
+        groupId
+      )
+    );
+    const mismatches = [...profileMismatches, ...orderMismatches, ...groupMismatches];
+    return {
+      action: "delete-account",
+      scope: "global-account-current-open",
+      userId: candidate.userId,
+      groupIds: touchedGroupIds,
+      ok: mismatches.length === 0,
+      mismatches,
+      ...(mismatches.length
+        ? {
+            details: Object.fromEntries(
+              mismatches.map(mismatch => {
+                if (mismatch === "groupOrder") {
+                  return [mismatch, findFirstNestedDifference(writableBlob.groupOrder, canonicalBlob.groupOrder, mismatch)];
+                }
+                if (mismatch === `profiles.${candidate.userId}`) {
+                  return [mismatch, findFirstNestedDifference(
+                    writableBlob.profiles?.[candidate.userId] || null,
+                    canonicalBlob.profiles?.[candidate.userId] || null,
+                    mismatch
+                  )];
+                }
+                const groupId = mismatch.match(/^groups\.([^.]+)\./)?.[1] || "";
+                return [mismatch, collectWriteHydrationGroupMismatchDetails(
+                  writableBlob.groups?.[groupId],
+                  canonicalBlob.groups?.[groupId],
+                  groupId,
+                  [mismatch]
+                )[mismatch]];
+              })
+            )
+          }
+        : {})
+    };
+  } catch (err) {
+    return {
+      action: "delete-account",
+      scope: "global-account-current-open",
+      userId: candidate.userId,
+      groupIds: candidate.groupIds || [],
+      ok: false,
+      error: err?.message || String(err)
+    };
+  }
+}
+
+async function compareWriteHydrationSettlement(baseState, candidate) {
+  const payload = {
+    groupId: candidate.groupId,
+    monthKey: candidate.monthKey,
+    player: candidate.player,
+    settled: candidate.settled,
+    pin: process.env.ADMIN_PIN || ""
+  };
+  try {
+    const canonicalBase = await buildCanonicalWritableStateForGroup(candidate.groupId, baseState);
+    const writableResult = applySettlementUpdate(baseState, payload);
+    const canonicalResult = applySettlementUpdate(canonicalBase, payload);
+    const writableMonth = writableResult.updated.groups?.[candidate.groupId]?.monthHistory
+      ?.find(month => month?.key === candidate.monthKey) || null;
+    const canonicalMonth = canonicalResult.updated.groups?.[candidate.groupId]?.monthHistory
+      ?.find(month => month?.key === candidate.monthKey) || null;
+    const writableEntry = comparableSettlementEntry(writableMonth?.settlements?.[candidate.player]);
+    const canonicalEntry = comparableSettlementEntry(canonicalMonth?.settlements?.[candidate.player]);
+    const mismatches = valuesDiffer(writableEntry, canonicalEntry)
+      ? [`groups.${candidate.groupId}.monthHistory.${candidate.monthKey}.settlements.${candidate.player}`]
+      : [];
+    return {
+      action: "settlement",
+      scope: "historical-admin-settlement-entry",
+      groupId: candidate.groupId,
+      monthKey: candidate.monthKey,
+      player: candidate.player,
+      ok: mismatches.length === 0,
+      mismatches,
+      ...(mismatches.length
+        ? {
+            details: {
+              [mismatches[0]]: {
+                path: `groups.${candidate.groupId}.monthHistory.${candidate.monthKey}.settlements.${candidate.player}`,
+                writable: writableEntry,
+                canonical: canonicalEntry
+              }
+            }
+          }
+        : {})
+    };
+  } catch (err) {
+    return {
+      action: "settlement",
+      scope: "historical-admin-settlement-entry",
+      groupId: candidate.groupId,
+      monthKey: candidate.monthKey,
+      player: candidate.player,
+      ok: false,
+      error: err?.message || String(err)
+    };
+  }
+}
+
+function collectProfileRenameTouchedGroupIds(writableInput, canonicalInput, userId, existingDisplayName) {
+  return uniqueNames([
+    ...collectProfileRenameOldNames(writableInput.groups || {}, userId, existingDisplayName).keys(),
+    ...collectProfileRenameOldNames(canonicalInput.groups || {}, userId, existingDisplayName).keys()
+  ]);
+}
+
+function compareProfileEntryMismatch(writableProfile, canonicalProfile, userId) {
+  const comparableWritable = writableProfile ? { ...writableProfile, createdAt: "<ignored>" } : writableProfile;
+  const comparableCanonical = canonicalProfile ? { ...canonicalProfile, createdAt: "<ignored>" } : canonicalProfile;
+  return valuesDiffer(comparableWritable, comparableCanonical) ? [`profiles.${userId}`] : [];
+}
+
+function summarizeReportMismatchField(mismatch) {
+  if (mismatch.startsWith("profiles.")) return "profiles.*";
+  return mismatch.replace(/^groups\.[^.]+\./, "");
+}
+
+async function compareWriteHydrationProfileRename(baseState, canonicalBase, candidate, options = {}) {
+  const payload = {
+    userId: candidate.userId,
+    email: candidate.email,
+    displayName: buildSyntheticProfileRenameDisplayName(baseState, candidate.displayName, candidate.userId)
+  };
+  try {
+    const writableUpdated = applyUpsertProfile(baseState, payload);
+    const canonicalUpdated = applyUpsertProfile(canonicalBase, payload);
+    const writableBlob = buildWriteHydrationComparisonBlob(writableUpdated, "upsert-profile");
+    const canonicalBlob = buildWriteHydrationComparisonBlob(canonicalUpdated, "upsert-profile");
+    const touchedGroupIds = collectProfileRenameTouchedGroupIds(baseState, canonicalBase, candidate.userId, candidate.displayName);
+    const profileMismatches = compareProfileEntryMismatch(
+      writableBlob.profiles?.[candidate.userId],
+      canonicalBlob.profiles?.[candidate.userId],
+      candidate.userId
+    );
+    const groupMismatchCollector = options.scope === "current-open"
+      ? collectWriteHydrationCurrentOpenMismatches
+      : collectWriteHydrationGroupMismatches;
+    const groupMismatches = touchedGroupIds.flatMap(groupId =>
+      groupMismatchCollector(
+        writableBlob.groups?.[groupId],
+        canonicalBlob.groups?.[groupId],
+        groupId
+      )
+    );
+    const mismatches = [...profileMismatches, ...groupMismatches];
+    return {
+      action: "upsert-profile",
+      scope: options.scope || "identity-rename",
+      userId: candidate.userId,
+      groupIds: touchedGroupIds,
+      ok: mismatches.length === 0,
+      mismatches,
+      ...(mismatches.length
+        ? {
+            details: Object.fromEntries(
+              mismatches.map(mismatch => {
+                if (mismatch === `profiles.${candidate.userId}`) {
+                  return [mismatch, findFirstNestedDifference(
+                    writableBlob.profiles?.[candidate.userId],
+                    canonicalBlob.profiles?.[candidate.userId],
+                    mismatch
+                  )];
+                }
+                const groupId = mismatch.match(/^groups\.([^.]+)\./)?.[1] || "";
+                return [mismatch, collectWriteHydrationGroupMismatchDetails(
+                  writableBlob.groups?.[groupId],
+                  canonicalBlob.groups?.[groupId],
+                  groupId,
+                  [mismatch]
+                )[mismatch]];
+              })
+            )
+          }
+        : {})
+    };
+  } catch (err) {
+    return {
+      action: "upsert-profile",
+      scope: options.scope || "identity-rename",
+      userId: candidate.userId,
+      groupIds: candidate.groupIds || [],
+      ok: false,
+      error: err?.message || String(err)
+    };
+  }
+}
+
+async function compareWriteHydrationJoinGroup(baseState, canonicalBase, candidate) {
+  const payload = {
+    groupId: candidate.groupId,
+    inviteCode: candidate.inviteCode,
+    userId: candidate.userId
+  };
+  try {
+    const writableUpdated = unwrapMutationState(applyJoinGroup(baseState, payload));
+    const canonicalUpdated = unwrapMutationState(applyJoinGroup(canonicalBase, payload));
+    const writableBlob = buildWriteHydrationComparisonBlob(writableUpdated.state || writableUpdated, "join-group");
+    const canonicalBlob = buildWriteHydrationComparisonBlob(canonicalUpdated.state || canonicalUpdated, "join-group");
+    const mismatches = collectWriteHydrationCurrentOpenMismatches(
+      writableBlob.groups?.[candidate.groupId],
+      canonicalBlob.groups?.[candidate.groupId],
+      candidate.groupId
+    );
+    return {
+      action: "join-group",
+      scope: "current-open",
+      groupId: candidate.groupId,
+      userId: candidate.userId,
+      ok: mismatches.length === 0,
+      mismatches,
+      ...(mismatches.length
+        ? {
+            details: collectWriteHydrationGroupMismatchDetails(
+              writableBlob.groups?.[candidate.groupId],
+              canonicalBlob.groups?.[candidate.groupId],
+              candidate.groupId,
+              mismatches
+            )
+          }
+        : {})
+    };
+  } catch (err) {
+    return {
+      action: "join-group",
+      scope: "current-open",
+      groupId: candidate.groupId,
+      userId: candidate.userId,
+      ok: false,
+      error: err?.message || String(err)
+    };
+  }
+}
+
+async function buildWriteHydrationParityReport(baseState) {
+  const results = [];
+  const addSkipped = (action, groupId, reason, scope = null) => results.push({
+    action,
+    groupId,
+    ...(scope ? { scope } : {}),
+    ok: null,
+    skipped: true,
+    reason
+  });
+
+  const groupIds = Array.isArray(baseState.groupOrder) && baseState.groupOrder.length
+    ? baseState.groupOrder
+    : Object.keys(baseState.groups || {});
+  for (const groupId of groupIds) {
+    const group = baseState.groups?.[groupId];
+    if (!group) continue;
+    const activeMembers = collectActiveAuthMembers(group);
+    const admin = activeMembers.find(member => isGroupAdminActor(group, member.userId, member.displayName));
+
+    if (admin) {
+      results.push(await compareWriteHydrationAction("update-settings", baseState, groupId, {
+        groupId,
+        groupName: group.name,
+        settings: group.settings || {},
+        actor: admin.displayName,
+        actorUserId: admin.userId
+      }, applyUpdateSettings));
+      results.push(await compareWriteHydrationAction("season-proration-choice", baseState, groupId, {
+        groupId,
+        choice: "keep",
+        actor: admin.displayName,
+        actorUserId: admin.userId
+      }, applySeasonProrationChoice));
+
+      const kickCandidate = findKickMemberCandidate(group);
+      if (kickCandidate) {
+        const kickPayload = {
+          groupId,
+          targetUserId: kickCandidate.target.userId,
+          targetDisplayName: kickCandidate.target.displayName,
+          actorDisplayName: kickCandidate.admin.displayName,
+          actorUserId: kickCandidate.admin.userId
+        };
+        results.push(await compareWriteHydrationAction("kick-member", baseState, groupId, kickPayload, applyKickMember));
+        results.push(await compareWriteHydrationAction("kick-member", baseState, groupId, kickPayload, applyKickMember, { scope: "current-open" }));
+      } else {
+        addSkipped("kick-member", groupId, "no active non-admin target candidate");
+        addSkipped("kick-member", groupId, "no active non-admin target candidate", "current-open");
+      }
+    } else {
+      addSkipped("update-settings", groupId, "no active admin candidate");
+      addSkipped("season-proration-choice", groupId, "no active admin candidate");
+      addSkipped("kick-member", groupId, "no active admin candidate");
+      addSkipped("kick-member", groupId, "no active admin candidate", "current-open");
+    }
+
+    const actor = activeMembers[0];
+    if (!actor) {
+      addSkipped("reaction", groupId, "no active member candidate");
+      addSkipped("delete-log", groupId, "no active member candidate");
+      addSkipped("sitout-request", groupId, "no active member candidate");
+      addSkipped("add-log", groupId, "no active member candidate");
+      addSkipped("multi-log", groupId, "no active member candidate");
+      addSkipped("leave-bloc", groupId, "no active member candidate");
+      addSkipped("leave-bloc", groupId, "no active member candidate", "current-open");
+      continue;
+    }
+
+    const addLogCandidate = findCurrentLogWriteCandidate(group);
+    if (addLogCandidate) {
+      const addLogPayload = {
+        groupId,
+        date: addLogCandidate.date,
+        workoutType: addLogCandidate.workoutType,
+        note: "Parity probe",
+        photoUrl: "https://example.com/parity-probe.jpg",
+        actor: addLogCandidate.actor.displayName,
+        actorUserId: addLogCandidate.actor.userId
+      };
+      results.push(await compareWriteHydrationAction("add-log", baseState, groupId, addLogPayload, applyAddLog));
+      results.push(await compareWriteHydrationAction("add-log", baseState, groupId, addLogPayload, applyAddLog, { scope: "current-open" }));
+    } else {
+      addSkipped("add-log", groupId, "no current log writer candidate");
+      addSkipped("add-log", groupId, "no current log writer candidate", "current-open");
+    }
+
+    const multiLogCandidate = findMultiLogCandidate(baseState, groupId, group, actor);
+    if (multiLogCandidate) {
+      const multiLogPayload = {
+        sourceGroupId: groupId,
+        targetGroupIds: multiLogCandidate.targetGroupIds,
+        date: multiLogCandidate.date,
+        workoutType: multiLogCandidate.workoutType,
+        note: "Parity probe",
+        photoUrl: "https://example.com/parity-probe.jpg",
+        actor: multiLogCandidate.actor.displayName,
+        actorUserId: multiLogCandidate.actor.userId
+      };
+      results.push(await compareWriteHydrationMultiLog(baseState, groupId, multiLogPayload));
+      results.push(await compareWriteHydrationMultiLogCurrentOpen(baseState, groupId, multiLogPayload));
+    } else {
+      addSkipped("multi-log", groupId, "no shared-member target bloc candidate");
+      addSkipped("multi-log", groupId, "no shared-member target bloc candidate", "current-open");
+    }
+
+    const leaveCandidate = findLeaveBlocCandidate(group);
+    if (leaveCandidate) {
+      const leavePayload = {
+        groupId,
+        userId: leaveCandidate.userId
+      };
+      results.push(await compareWriteHydrationAction("leave-bloc", baseState, groupId, leavePayload, applyLeaveBloc));
+      results.push(await compareWriteHydrationAction("leave-bloc", baseState, groupId, leavePayload, applyLeaveBloc, { scope: "current-open" }));
+    } else {
+      addSkipped("leave-bloc", groupId, "no active leave candidate");
+      addSkipped("leave-bloc", groupId, "no active leave candidate", "current-open");
+    }
+
+    const anyLog = findFirstCurrentLogCandidate(group);
+    if (anyLog) {
+      results.push(await compareWriteHydrationAction("reaction", baseState, groupId, {
+        groupId,
+        owner: anyLog.owner,
+        logId: anyLog.log.id,
+        emoji: "👍",
+        actor: actor.displayName,
+        actorUserId: actor.userId
+      }, applyToggleReaction));
+    } else {
+      addSkipped("reaction", groupId, "no current workout log candidate");
+    }
+
+    const ownLog = findFirstCurrentLogCandidate(group, { ownerName: actor.displayName });
+    if (ownLog) {
+      results.push(await compareWriteHydrationAction("delete-log", baseState, groupId, {
+        groupId,
+        owner: actor.displayName,
+        logId: ownLog.log.id,
+        actor: actor.displayName,
+        actorUserId: actor.userId
+      }, applyDeleteLog));
+    } else {
+      addSkipped("delete-log", groupId, "no current log owned by sampled member");
+    }
+
+    const flagActor = activeMembers.find(member => findFirstCurrentLogCandidate(group, {
+      excludeOwnerName: member.displayName,
+      requireNonStrava: true,
+      requireUnflagged: true
+    }));
+    const flagCandidate = flagActor
+      ? findFirstCurrentLogCandidate(group, {
+          excludeOwnerName: flagActor.displayName,
+          requireNonStrava: true,
+          requireUnflagged: true
+        })
+      : null;
+    if (flagActor && flagCandidate) {
+      try {
+        const canonicalBase = await buildCanonicalWritableStateForGroup(groupId, baseState);
+        const flagPayload = {
+          groupId,
+          owner: flagCandidate.owner,
+          logId: flagCandidate.log.id,
+          reason: "Parity probe",
+          actor: flagActor.displayName,
+          actorUserId: flagActor.userId
+        };
+        results.push(await compareWriteHydrationMutation("flag", groupId, baseState, canonicalBase, flagPayload, applyFlagLog));
+
+        const writableFlagged = unwrapMutationState(applyFlagLog(baseState, flagPayload));
+        const canonicalFlagged = unwrapMutationState(applyFlagLog(canonicalBase, flagPayload));
+        const ownerMember = activeMembers.find(member => member.displayName === flagCandidate.owner);
+        if (ownerMember) {
+          results.push(await compareWriteHydrationMutation("flag-response", groupId, writableFlagged, canonicalFlagged, {
+            groupId,
+            owner: flagCandidate.owner,
+            logId: flagCandidate.log.id,
+            response: "Parity response",
+            actor: ownerMember.displayName,
+            actorUserId: ownerMember.userId
+          }, applyRespondToFlag));
+        } else {
+          addSkipped("flag-response", groupId, "flag owner has no active auth membership candidate");
+        }
+        if (admin) {
+          results.push(await compareWriteHydrationMutation("flag-review", groupId, writableFlagged, canonicalFlagged, {
+            groupId,
+            owner: flagCandidate.owner,
+            logId: flagCandidate.log.id,
+            decision: "reject",
+            actor: admin.displayName,
+            actorUserId: admin.userId
+          }, applyReviewFlag));
+        } else {
+          addSkipped("flag-review", groupId, "no active admin candidate");
+        }
+      } catch (err) {
+        const error = err?.message || String(err);
+        results.push({ action: "flag", groupId, ok: false, error });
+        results.push({ action: "flag-response", groupId, ok: false, error });
+        results.push({ action: "flag-review", groupId, ok: false, error });
+      }
+    } else {
+      addSkipped("flag", groupId, "no safe non-Strava cross-member log candidate");
+      addSkipped("flag-response", groupId, "no safe non-Strava cross-member log candidate");
+      addSkipped("flag-review", groupId, "no safe non-Strava cross-member log candidate");
+    }
+
+    const sitOutActor = findSitOutRequestCandidate(groupId, group);
+    if (sitOutActor) {
+      results.push(await compareWriteHydrationAction("sitout-request", baseState, groupId, {
+        groupId,
+        reason: "Parity probe",
+        exceptional: false,
+        actor: sitOutActor.displayName,
+        actorUserId: sitOutActor.userId
+      }, applySitOutRequest));
+    } else {
+      addSkipped("sitout-request", groupId, "no eligible current sit-out requester");
+    }
+
+    const reviewCandidate = findSitOutReviewCandidate(group);
+    if (reviewCandidate) {
+      results.push(await compareWriteHydrationAction("sitout-review", baseState, groupId, {
+        groupId,
+        monthKey: reviewCandidate.monthKey,
+        memberName: reviewCandidate.memberName,
+        decision: "decline",
+        actor: reviewCandidate.reviewer.displayName,
+        actorUserId: reviewCandidate.reviewer.userId
+      }, applySitOutReview));
+    } else {
+      const syntheticCandidate = findSyntheticSitOutReviewCandidate(group);
+      if (syntheticCandidate) {
+        try {
+          const canonicalBase = await buildCanonicalWritableStateForGroup(groupId, baseState);
+          const writableSynthetic = withSyntheticPendingSitOutReviewRequest(baseState, groupId, syntheticCandidate);
+          const canonicalSynthetic = withSyntheticPendingSitOutReviewRequest(canonicalBase, groupId, syntheticCandidate);
+          results.push(await compareWriteHydrationMutation("sitout-review", groupId, writableSynthetic, canonicalSynthetic, {
+            groupId,
+            monthKey: syntheticCandidate.monthKey,
+            memberName: syntheticCandidate.requester.displayName,
+            decision: "decline",
+            actor: syntheticCandidate.reviewer.displayName,
+            actorUserId: syntheticCandidate.reviewer.userId
+          }, applySitOutReview));
+        } catch (err) {
+          results.push({
+            action: "sitout-review",
+            groupId,
+            ok: false,
+            error: err?.message || String(err)
+          });
+        }
+      } else {
+        addSkipped("sitout-review", groupId, "no pending or synthetic sit-out review candidate");
+      }
+    }
+  }
+
+  const createGroupCandidates = collectCreateGroupCandidates(baseState);
+  if (createGroupCandidates.length > 0) {
+    try {
+      const canonicalGlobalBase = await buildCanonicalWritableStateForAllGroups(baseState);
+      for (const candidate of createGroupCandidates.slice(0, 12)) {
+        results.push(await compareWriteHydrationCreateGroup(baseState, canonicalGlobalBase, candidate));
+      }
+      if (createGroupCandidates.length > 12) {
+        addSkipped("create-group", null, `${createGroupCandidates.length - 12} additional create candidates omitted`, "current-open");
+      }
+    } catch (err) {
+      results.push({
+        action: "create-group",
+        scope: "current-open",
+        groupId: null,
+        ok: false,
+        error: err?.message || String(err)
+      });
+    }
+  } else {
+    addSkipped("create-group", null, "no profile candidate", "current-open");
+  }
+
+  const profileRenameCandidates = collectProfileRenameCandidates(baseState);
+  if (profileRenameCandidates.length > 0) {
+    try {
+      const canonicalGlobalBase = await buildCanonicalWritableStateForAllGroups(baseState);
+      for (const candidate of profileRenameCandidates.slice(0, 12)) {
+        results.push(await compareWriteHydrationProfileRename(baseState, canonicalGlobalBase, candidate));
+        results.push(await compareWriteHydrationProfileRename(baseState, canonicalGlobalBase, candidate, { scope: "current-open" }));
+      }
+      if (profileRenameCandidates.length > 12) {
+        addSkipped("upsert-profile", null, `${profileRenameCandidates.length - 12} additional identity rename candidates omitted`, "identity-rename");
+        addSkipped("upsert-profile", null, `${profileRenameCandidates.length - 12} additional current/open rename candidates omitted`, "current-open");
+      }
+    } catch (err) {
+      results.push({
+        action: "upsert-profile",
+        scope: "identity-rename",
+        groupId: null,
+        ok: false,
+        error: err?.message || String(err)
+      });
+      results.push({
+        action: "upsert-profile",
+        scope: "current-open",
+        groupId: null,
+        ok: false,
+        error: err?.message || String(err)
+      });
+    }
+  } else {
+    addSkipped("upsert-profile", null, "no profile rename candidate", "identity-rename");
+    addSkipped("upsert-profile", null, "no profile rename candidate", "current-open");
+  }
+
+  const joinGroupCandidates = collectJoinGroupCandidates(baseState);
+  if (joinGroupCandidates.length > 0) {
+    try {
+      const canonicalGlobalBase = await buildCanonicalWritableStateForAllGroups(baseState);
+      for (const candidate of joinGroupCandidates.slice(0, 12)) {
+        results.push(await compareWriteHydrationJoinGroup(baseState, canonicalGlobalBase, candidate));
+      }
+      if (joinGroupCandidates.length > 12) {
+        addSkipped("join-group", null, `${joinGroupCandidates.length - 12} additional join candidates omitted`, "current-open");
+      }
+    } catch (err) {
+      results.push({
+        action: "join-group",
+        scope: "current-open",
+        groupId: null,
+        ok: false,
+        error: err?.message || String(err)
+      });
+    }
+  } else {
+    addSkipped("join-group", null, "no safe cross-bloc profile candidate", "current-open");
+  }
+
+  const deleteAccountCandidates = collectDeleteAccountCandidates(baseState);
+  if (deleteAccountCandidates.length > 0) {
+    try {
+      const canonicalGlobalBase = await buildCanonicalWritableStateForAllGroups(baseState);
+      for (const candidate of deleteAccountCandidates.slice(0, 12)) {
+        results.push(await compareWriteHydrationDeleteAccount(baseState, canonicalGlobalBase, candidate));
+      }
+      if (deleteAccountCandidates.length > 12) {
+        addSkipped("delete-account", null, `${deleteAccountCandidates.length - 12} additional account deletion candidates omitted`, "global-account-current-open");
+      }
+    } catch (err) {
+      results.push({
+        action: "delete-account",
+        scope: "global-account-current-open",
+        groupId: null,
+        ok: false,
+        error: err?.message || String(err)
+      });
+    }
+  } else {
+    addSkipped("delete-account", null, "no profile candidate", "global-account-current-open");
+  }
+
+  const settlementCandidates = collectSettlementUpdateCandidates(baseState);
+  if (settlementCandidates.length > 0) {
+    for (const candidate of settlementCandidates.slice(0, 12)) {
+      results.push(await compareWriteHydrationSettlement(baseState, candidate));
+    }
+    if (settlementCandidates.length > 12) {
+      addSkipped("settlement", null, `${settlementCandidates.length - 12} additional settlement candidates omitted`, "historical-admin-settlement-entry");
+    }
+  } else {
+    addSkipped("settlement", null, "no historical settlement candidate", "historical-admin-settlement-entry");
+  }
+
+  const failed = results.filter(result => result.ok === false);
+  const skipped = results.filter(result => result.skipped);
+  const summary = results.reduce((acc, result) => {
+    const key = result.scope ? `${result.action}:${result.scope}` : result.action;
+    const entry = acc[key] || { checked: 0, skipped: 0, failed: 0 };
+    if (result.skipped) entry.skipped += 1;
+    else {
+      entry.checked += 1;
+      if (result.ok === false) entry.failed += 1;
+    }
+    acc[key] = entry;
+    return acc;
+  }, {});
+  const mismatchSummary = failed.reduce((acc, result) => {
+    for (const mismatch of result.mismatches || []) {
+      const field = summarizeReportMismatchField(mismatch);
+      const entry = acc[field] || { count: 0, examplePath: null };
+      entry.count += 1;
+      if (!entry.examplePath) {
+        entry.examplePath = result.details?.[mismatch]?.path?.replace(/^groups\.[^.]+\./, "") || field;
+      }
+      acc[field] = entry;
+    }
+    return acc;
+  }, {});
+  return {
+    ok: failed.length === 0,
+    checked: results.length - skipped.length,
+    skipped: skipped.length,
+    failed: failed.length,
+    summary,
+    mismatchSummary,
+    excludedActions: [
+      {
+        action: "auth-sync",
+        status: "blob-writable-by-design",
+        reason: "Legacy identity repair can expose blob gaps that readable or canonical projections intentionally hide."
+      },
+      {
+        action: "upsert-profile",
+        status: "canonical-first-global-identity-report-covered",
+        reason: "Global profile/name-key rewrite writes canonical first; identity-rename report coverage compares synthetic rename behavior without changing runtime."
+      },
+      {
+        action: "delete-account",
+        status: "canonical-first-global-account-report-covered",
+        reason: "Global destructive account scope is covered by synthetic current/open report probes; runtime validates against the blob shell, then computes from canonical global input."
+      },
+      {
+        action: "repair-display-name",
+        status: "quarantined-admin-repair",
+        reason: "Admin-only compatibility repair for legacy name-keyed data; not a normal product rename flow."
+      },
+      {
+        action: "settlement",
+        status: "canonical-first-historical-admin-report-covered",
+        reason: "Legacy admin historical settlement write is covered by focused settlement-entry probes because broad monthHistory parity still has known historical shell noise."
+      }
+    ],
+    results
+  };
+}
+
+function applyAddLog(current, payload) {
+  const actor = String(payload?.actor || "").trim();
+  const actorUserId = String(payload?.actorUserId || "").trim();
+  const groupId = String(payload?.groupId || "").trim();
+  const date = String(payload?.date || "").trim();
+  const note = typeof payload?.note === "string" ? payload.note : "";
+  const photoUrl = typeof payload?.photoUrl === "string" ? payload.photoUrl : "";
+  const workoutType = normalizeLoggedWorkoutType(String(payload?.workoutType || "").trim(), date);
+  if (!actor || !groupId || !date || !workoutType) {
+    const error = new Error("groupId, actor, date, and workoutType are required");
+    error.status = 400;
+    throw error;
+  }
+
+  const base = rolloverStateIfNeeded(current);
+  const group = base.groups?.[groupId];
+  if (!group) {
+    const error = new Error("Bloc not found");
+    error.status = 404;
+    throw error;
+  }
+  if (!isCurrentGroupMember(group, actor, actorUserId)) {
+    const error = new Error("Not a member");
+    error.status = 403;
+    throw error;
+  }
+
+  const accepted = group.settings?.acceptedWorkoutTypes || WORKOUT_TYPES;
+  if (!accepted.includes(workoutType)) {
+    const error = new Error("Workout type is not accepted in this Bloc");
+    error.status = 400;
+    throw error;
+  }
+
+  const log = normalizeLogEntry({
+    id: String(Date.now()),
+    date,
+    type: workoutType,
+    note,
+    photoUrl,
+    createdAt: new Date().toISOString(),
+    verifiedVia: "photo",
+    reactions: {},
+    flagStatus: null,
+    flagReason: "",
+    flagResponse: "",
+    flaggedBy: null,
+    decisionBy: null,
+    decisionAt: null
+  });
+
+  const targetMonthKey = getMonthKeyFromISO(date);
+  if (targetMonthKey !== group.lastMonth) {
+    const error = new Error("You can't log to a closed month.");
+    error.status = 400;
+    throw error;
+  }
+
+  const nextGroup = normalizeGroup({
+    ...group,
+    logs: {
+      ...group.logs,
+      [actor]: [...(group.logs?.[actor] || []), log]
+    }
+  });
+
+  return {
+    updated: {
+      ...base,
+      groups: {
+        ...base.groups,
+        [groupId]: nextGroup
+      },
+      meta: {
+        revision: base.meta.revision + 1,
+        updatedAt: new Date().toISOString()
+      }
+    },
+    log,
+    monthKey: targetMonthKey,
+    reason: `add-log:${groupId}:${actor}:${log.id}`
+  };
+}
+
 function applySeasonProrationChoice(current, payload) {
   const actor = String(payload?.actor || "").trim();
   const actorUserId = String(payload?.actorUserId || "").trim();
@@ -3256,7 +5774,7 @@ function applySeasonProrationChoice(current, payload) {
     error.status = 404;
     throw error;
   }
-  const actorIsAdmin = group.adminUserId ? group.adminUserId === actorUserId : group.adminName === actor;
+  const actorIsAdmin = isGroupAdminActor(group, actorUserId, actor);
   if (!actorIsAdmin) {
     const error = new Error("Only the Bloc admin can choose the first-month target");
     error.status = 403;
@@ -3301,6 +5819,11 @@ function applySitOutRequest(current, payload) {
     error.status = 404;
     throw error;
   }
+  if (!isCurrentGroupMember(group, actor, actorUserId)) {
+    const error = new Error("Only Bloc members can request a sit-out");
+    error.status = 403;
+    throw error;
+  }
   const month = getCurrentMonthSummary(group.settings?.timeZone);
   const existingRequests = normalizeSitOutRequests(group.sitOutRequests);
   if (group.excused?.[actor]?.[month.monthKey]) {
@@ -3315,7 +5838,7 @@ function applySitOutRequest(current, payload) {
     throw error;
   }
   const deputy = getDeputyAdmin(group);
-  const actorIsAdmin = group.adminUserId ? group.adminUserId === actorUserId : group.adminName === actor;
+  const actorIsAdmin = isGroupAdminActor(group, actorUserId, actor);
   const targetApprover = actorIsAdmin ? deputy : (group.adminUserId ? group.memberships?.[group.adminUserId] : null);
   const shouldAutoApprove = month.day <= 5 && !exceptional && !actorIsAdmin && recentCount < 1;
   const nextExcused = { ...(group.excused || {}) };
@@ -3380,10 +5903,7 @@ function applySitOutReview(current, payload) {
     error.status = 404;
     throw error;
   }
-  const actorIsAdmin = group.adminUserId ? group.adminUserId === actorUserId : group.adminName === actor;
-  const deputy = getDeputyAdmin(group);
-  const canReview = actorIsAdmin || (request.targetApproverUserId && request.targetApproverUserId === actorUserId) || (request.targetApproverName && request.targetApproverName === actor) || (memberName === group.adminName && deputy?.userId === actorUserId);
-  if (!canReview) {
+  if (!canReviewSitOutRequest(group, request, memberName, actorUserId, actor)) {
     const error = new Error("You can't review this sit-out request");
     error.status = 403;
     throw error;
@@ -3419,6 +5939,7 @@ function applySitOutReview(current, payload) {
 
 function updateGroupLog(current, payload, updater, reasonPrefix) {
   const actor = String(payload?.actor || "").trim();
+  const actorUserId = String(payload?.actorUserId || "").trim();
   const groupId = String(payload?.groupId || "").trim();
   const owner = String(payload?.owner || "").trim();
   const logId = String(payload?.logId || "").trim();
@@ -3436,7 +5957,7 @@ function updateGroupLog(current, payload, updater, reasonPrefix) {
     error.status = 404;
     throw error;
   }
-  const updatedLog = updater({ group, actor, owner, log: ownerLogs[logIndex] });
+  const updatedLog = updater({ group, actor, actorUserId, owner, log: ownerLogs[logIndex] });
   ownerLogs[logIndex] = normalizeLogEntry(updatedLog);
   return {
     updated: {
@@ -3462,17 +5983,17 @@ function updateGroupLog(current, payload, updater, reasonPrefix) {
 
 function applyDeleteLog(current, payload) {
   const actor = String(payload?.actor || "").trim();
+  const actorUserId = String(payload?.actorUserId || "").trim();
   const groupId = String(payload?.groupId || "").trim();
   const logId = String(payload?.logId || "").trim();
   const base = rolloverStateIfNeeded(current);
   const group = base.groups[groupId];
   if (!group) { const e = new Error("Bloc not found"); e.status = 404; throw e; }
-  if (!group.memberOrder.includes(actor)) { const e = new Error("Not a member"); e.status = 403; throw e; }
+  if (!isCurrentGroupMember(group, actor, actorUserId)) { const e = new Error("Not a member"); e.status = 403; throw e; }
   const ownerLogs = group.logs?.[actor] || [];
   const logIndex = ownerLogs.findIndex(log => String(log?.id) === logId);
   if (logIndex === -1) { const e = new Error("Workout not found"); e.status = 404; throw e; }
   const updatedLogs = ownerLogs.filter((_, i) => i !== logIndex);
-  const deletedCurrentLogIds = normalizeDeletedCurrentLogIds([...(group.deletedCurrentLogIds || []), logId]);
   return {
     updated: {
       ...base,
@@ -3480,8 +6001,7 @@ function applyDeleteLog(current, payload) {
         ...base.groups,
         [groupId]: normalizeGroup({
           ...group,
-          logs: { ...group.logs, [actor]: updatedLogs },
-          deletedCurrentLogIds
+          logs: { ...group.logs, [actor]: updatedLogs }
         })
       },
       meta: { revision: base.meta.revision + 1, updatedAt: new Date().toISOString() }
@@ -3497,7 +6017,12 @@ function applyToggleReaction(current, payload) {
     error.status = 400;
     throw error;
   }
-  return updateGroupLog(current, payload, ({ actor, log }) => {
+  return updateGroupLog(current, payload, ({ group, actor, actorUserId, log }) => {
+    if (!isCurrentGroupMember(group, actor, actorUserId)) {
+      const error = new Error("Only Bloc members can react to workouts");
+      error.status = 403;
+      throw error;
+    }
     const reactions = normalizeReactions(log.reactions);
     const currentUsers = reactions[emoji] || [];
     reactions[emoji] = currentUsers.includes(actor)
@@ -3510,13 +6035,13 @@ function applyToggleReaction(current, payload) {
 
 function applyFlagLog(current, payload) {
   const reason = typeof payload?.reason === "string" ? payload.reason.slice(0, 280) : "";
-  return updateGroupLog(current, payload, ({ group, actor, owner, log }) => {
-    if (owner === actor) {
+  return updateGroupLog(current, payload, ({ group, actor, actorUserId, owner, log }) => {
+    if (isGroupDisplayNameForActor(group, owner, actorUserId, actor)) {
       const error = new Error("You cannot flag your own workout");
       error.status = 400;
       throw error;
     }
-    if (!group.memberOrder.includes(actor)) {
+    if (!isCurrentGroupMember(group, actor, actorUserId)) {
       const error = new Error("Only Bloc members can flag workouts");
       error.status = 403;
       throw error;
@@ -3544,8 +6069,8 @@ function applyFlagLog(current, payload) {
 
 function applyRespondToFlag(current, payload) {
   const response = typeof payload?.response === "string" ? payload.response.slice(0, 280) : "";
-  return updateGroupLog(current, payload, ({ actor, owner, log }) => {
-    if (owner !== actor) {
+  return updateGroupLog(current, payload, ({ group, actor, actorUserId, owner, log }) => {
+    if (!isGroupDisplayNameForActor(group, owner, actorUserId, actor)) {
       const error = new Error("Only the workout owner can respond to a flag");
       error.status = 403;
       throw error;
@@ -3568,7 +6093,7 @@ function applyReviewFlag(current, payload) {
   }
   return updateGroupLog(current, payload, ({ group, actor, log }) => {
     const actorUserId = String(payload?.actorUserId || "").trim();
-    const actorIsAdmin = group.adminUserId ? group.adminUserId === actorUserId : group.adminName === actor;
+    const actorIsAdmin = isGroupAdminActor(group, actorUserId, actor);
     if (!actorIsAdmin) {
       const error = new Error("Only the Bloc admin can review flagged workouts");
       error.status = 403;
@@ -3586,6 +6111,125 @@ function applyReviewFlag(current, payload) {
       decisionAt: new Date().toISOString()
     };
   }, "flag-review");
+}
+
+function resolveProfileRenameOldName(group, userId, existingDisplayName) {
+  const fromMembership = group.memberships?.[userId]?.displayName || null;
+  if (fromMembership) return fromMembership;
+  return existingDisplayName && group.memberOrder?.includes(existingDisplayName)
+    ? existingDisplayName
+    : null;
+}
+
+function collectProfileRenameOldNames(groups, userId, existingDisplayName) {
+  return new Map(
+    Object.entries(groups)
+      .map(([groupId, group]) => [groupId, resolveProfileRenameOldName(group, userId, existingDisplayName)])
+      .filter(([, name]) => name !== null)
+  );
+}
+
+function groupDisplayNameBelongsToUser(group, displayName, userId) {
+  if (!group || !displayName || !userId) return false;
+  const activeMatch = Object.values(group.memberships || {}).some(membership =>
+    membership?.userId === userId && membership?.displayName === displayName
+  );
+  if (activeMatch) return true;
+  return (group.monthHistory || []).some(month =>
+    month?.memberAuthUserIds?.[displayName] === userId
+  );
+}
+
+function assertProfileRenameDoesNotCollide(groups, oldNames, displayName, userId = "") {
+  for (const [groupId, group] of Object.entries(groups)) {
+    const oldName = oldNames.get(groupId);
+    if (!oldName || oldName === displayName) continue;
+    const conflictingActiveMembership = Object.values(group.memberships || {}).find(membership =>
+      membership?.displayName === displayName && membership?.userId !== userId
+    );
+    if (conflictingActiveMembership || (group.memberOrder.includes(displayName) && !groupDisplayNameBelongsToUser(group, displayName, userId) && Object.keys(group.memberships || {}).length === 0)) {
+      const error = new Error(`That name is already taken in ${group.name || "a Bloc"}`);
+      error.status = 409;
+      throw error;
+    }
+  }
+}
+
+function renameGroupDisplayNameSurfaces(group, userId, oldName, displayName, options = {}) {
+  const { createMissingMembership = true } = options;
+  const nextMemberOrder = group.memberOrder.map(n => n === oldName ? displayName : n);
+
+  const shouldRewriteMembership = !!group.memberships?.[userId] || createMissingMembership;
+  const nextMemberships = shouldRewriteMembership
+    ? {
+        ...group.memberships,
+        [userId]: { ...group.memberships[userId], displayName }
+      }
+    : group.memberships;
+
+  const nextAdminName = group.adminName === oldName ? displayName : group.adminName;
+
+  const nextMonthHistory = (Array.isArray(group.monthHistory) ? group.monthHistory : []).map(month => ({
+    ...month,
+    counts:      renameKey(month.counts      || {}, oldName, displayName),
+    excused:     renameKey(month.excused     || {}, oldName, displayName),
+    logsByUser:  renameKey(month.logsByUser  || {}, oldName, displayName),
+    settlements: renameKey(month.settlements || {}, oldName, displayName),
+    ...(month.memberTargets ? { memberTargets: renameKey(month.memberTargets, oldName, displayName) } : {}),
+    ...(month.memberAuthUserIds ? { memberAuthUserIds: renameKey(month.memberAuthUserIds, oldName, displayName) } : {})
+  }));
+
+  const nextSitOutRequests = Object.fromEntries(
+    Object.entries(group.sitOutRequests || {}).map(([monthKey, requests]) => [
+      monthKey,
+      renameKey(requests || {}, oldName, displayName)
+    ])
+  );
+  const nextSettlementConfirmations = (group.settlementConfirmations || []).map(row => ({
+    ...row,
+    payerDisplayName: row?.payerAuthUserId === userId || row?.payerDisplayName === oldName
+      ? displayName
+      : row?.payerDisplayName,
+    receiverDisplayName: row?.receiverAuthUserId === userId || row?.receiverDisplayName === oldName
+      ? displayName
+      : row?.receiverDisplayName
+  }));
+
+  return normalizeGroup({
+    ...group,
+    memberOrder:       nextMemberOrder,
+    memberships:       nextMemberships,
+    adminName:         nextAdminName,
+    logs:              renameKey(group.logs              || {}, oldName, displayName),
+    excused:           renameKey(group.excused           || {}, oldName, displayName),
+    joinedMonthByName: renameKey(group.joinedMonthByName || {}, oldName, displayName),
+    sitOutRequests:    nextSitOutRequests,
+    settlementConfirmations: nextSettlementConfirmations,
+    monthHistory:      nextMonthHistory
+  });
+}
+
+function renameLegacyLeftMemberName(leftMemberNames, oldName, newName) {
+  return uniqueNames(
+    (Array.isArray(leftMemberNames) ? leftMemberNames : []).map(name =>
+      name === oldName ? newName : name
+    )
+  );
+}
+
+function shouldRecordJoinedMonthForJoin(group, displayName, joinMonthKey) {
+  const isNewToMemberOrder = !group.memberOrder.includes(displayName);
+  return isNewToMemberOrder || !hasParticipationBeforeMonth(group, displayName, joinMonthKey);
+}
+
+function resolveKickTarget(group, targetUserId, targetDisplayName) {
+  const targetMembership = targetUserId
+    ? group.memberships?.[targetUserId]
+    : Object.values(group.memberships || {}).find(membership => membership?.displayName === targetDisplayName);
+  return {
+    membership: targetMembership,
+    displayName: targetMembership?.displayName || targetDisplayName
+  };
 }
 
 function applyUpsertProfile(current, payload) {
@@ -3611,78 +6255,20 @@ function applyUpsertProfile(current, payload) {
   // login. Note: if existing.displayName has already been changed to the new
   // name in a prior partial update, neither source can recover the old name;
   // those cases require a separate one-time repair.
-  const resolveOldName = (group) => {
-    const fromMembership = group.memberships?.[userId]?.displayName || null;
-    if (fromMembership) return fromMembership;
-    const fromProfile = (existing.displayName && group.memberOrder?.includes(existing.displayName))
-      ? existing.displayName
-      : null;
-    return fromProfile;
-  };
-
-  const oldNames = new Map(
-    Object.entries(groups)
-      .map(([groupId, group]) => [groupId, resolveOldName(group)])
-      .filter(([, name]) => name !== null)
-  );
-
+  const oldNames = collectProfileRenameOldNames(groups, userId, existing.displayName);
   const isRename = [...oldNames.values()].some(oldName => oldName !== displayName);
 
   let nextGroups = groups;
 
   if (isRename) {
     // Reject if the new name collides with a different existing member in any bloc.
-    for (const [groupId, group] of Object.entries(groups)) {
-      const oldName = oldNames.get(groupId);
-      if (!oldName || oldName === displayName) continue;
-      if (group.memberOrder.includes(displayName)) {
-        const error = new Error(`That name is already taken in ${group.name || "a Bloc"}`);
-        error.status = 409;
-        throw error;
-      }
-    }
+    assertProfileRenameDoesNotCollide(groups, oldNames, displayName, userId);
 
     nextGroups = Object.fromEntries(
       Object.entries(groups).map(([groupId, group]) => {
         const oldName = oldNames.get(groupId);
         if (!oldName || oldName === displayName) return [groupId, group];
-
-        const nextMemberOrder = group.memberOrder.map(n => n === oldName ? displayName : n);
-
-        const nextMemberships = {
-          ...group.memberships,
-          [userId]: { ...group.memberships[userId], displayName }
-        };
-
-        const nextAdminName = group.adminName === oldName ? displayName : group.adminName;
-
-        const nextMonthHistory = (Array.isArray(group.monthHistory) ? group.monthHistory : []).map(month => ({
-          ...month,
-          counts:      renameKey(month.counts      || {}, oldName, displayName),
-          excused:     renameKey(month.excused     || {}, oldName, displayName),
-          logsByUser:  renameKey(month.logsByUser  || {}, oldName, displayName),
-          settlements: renameKey(month.settlements || {}, oldName, displayName),
-          ...(month.memberTargets ? { memberTargets: renameKey(month.memberTargets, oldName, displayName) } : {})
-        }));
-
-        const nextSitOutRequests = Object.fromEntries(
-          Object.entries(group.sitOutRequests || {}).map(([monthKey, requests]) => [
-            monthKey,
-            renameKey(requests || {}, oldName, displayName)
-          ])
-        );
-
-        return [groupId, normalizeGroup({
-          ...group,
-          memberOrder:       nextMemberOrder,
-          memberships:       nextMemberships,
-          adminName:         nextAdminName,
-          logs:              renameKey(group.logs              || {}, oldName, displayName),
-          excused:           renameKey(group.excused           || {}, oldName, displayName),
-          joinedMonthByName: renameKey(group.joinedMonthByName || {}, oldName, displayName),
-          sitOutRequests:    nextSitOutRequests,
-          monthHistory:      nextMonthHistory
-        })];
+        return [groupId, renameGroupDisplayNameSurfaces(group, userId, oldName, displayName)];
       })
     );
   }
@@ -3707,6 +6293,9 @@ function applyUpsertProfile(current, payload) {
 }
 
 function applyRepairDisplayName(current, payload) {
+  // This is an admin-only compatibility repair for already-broken legacy
+  // display-name state inside one bloc. It is intentionally not treated as a
+  // normal product rename flow or as proof that display names are cosmetic.
   const adminPin = process.env.ADMIN_PIN;
   if (!adminPin) {
     const error = new Error("ADMIN_PIN is not configured");
@@ -3747,46 +6336,9 @@ function applyRepairDisplayName(current, payload) {
     throw error;
   }
 
-  const nextMemberOrder = group.memberOrder.map(n => n === oldName ? newName : n);
-
-  const nextMemberships = group.memberships?.[userId]
-    ? { ...group.memberships, [userId]: { ...group.memberships[userId], displayName: newName } }
-    : group.memberships;
-
-  const nextAdminName = group.adminName === oldName ? newName : group.adminName;
-
-  const nextMonthHistory = (Array.isArray(group.monthHistory) ? group.monthHistory : []).map(month => ({
-    ...month,
-    counts:      renameKey(month.counts      || {}, oldName, newName),
-    excused:     renameKey(month.excused     || {}, oldName, newName),
-    logsByUser:  renameKey(month.logsByUser  || {}, oldName, newName),
-    settlements: renameKey(month.settlements || {}, oldName, newName),
-    ...(month.memberTargets ? { memberTargets: renameKey(month.memberTargets, oldName, newName) } : {})
-  }));
-
-  const nextSitOutRequests = Object.fromEntries(
-    Object.entries(group.sitOutRequests || {}).map(([monthKey, requests]) => [
-      monthKey,
-      renameKey(requests || {}, oldName, newName)
-    ])
-  );
-  const nextLeftMemberNames = uniqueNames(
-    (Array.isArray(group.leftMemberNames) ? group.leftMemberNames : []).map(name =>
-      name === oldName ? newName : name
-    )
-  );
-
   const nextGroup = normalizeGroup({
-    ...group,
-    memberOrder:       nextMemberOrder,
-    memberships:       nextMemberships,
-    adminName:         nextAdminName,
-    logs:              renameKey(group.logs              || {}, oldName, newName),
-    excused:           renameKey(group.excused           || {}, oldName, newName),
-    joinedMonthByName: renameKey(group.joinedMonthByName || {}, oldName, newName),
-    leftMemberNames:   nextLeftMemberNames,
-    sitOutRequests:    nextSitOutRequests,
-    monthHistory:      nextMonthHistory
+    ...renameGroupDisplayNameSurfaces(group, userId, oldName, newName, { createMissingMembership: false }),
+    leftMemberNames: renameLegacyLeftMemberName(group.leftMemberNames, oldName, newName)
   });
 
   // Optionally update the profile display name (used when the profile itself
@@ -3846,13 +6398,11 @@ function applyJoinGroup(current, payload) {
   // that were pre-seeded into memberOrder but had not actually participated yet.
   // Preserve joinedMonthByName only for true legacy relinks that already have
   // participation history before this month.
-  const isNewToMemberOrder = !group.memberOrder.includes(profile.displayName);
   const joinMonthKey = getLeagueMonthKey(group.settings?.timeZone);
-  const shouldRecordJoinMonth = isNewToMemberOrder || !hasParticipationBeforeMonth(group, profile.displayName, joinMonthKey);
+  const shouldRecordJoinMonth = shouldRecordJoinedMonthForJoin(group, profile.displayName, joinMonthKey);
   // If this member was previously kicked or left, remove them from leftMemberNames
   // so normalizeGroup doesn't immediately filter them back out.
-  const nextLeftMemberNames = (Array.isArray(group.leftMemberNames) ? group.leftMemberNames : [])
-    .filter(n => n !== profile.displayName);
+  const nextLeftMemberNames = removeLegacyLeftMemberName(group.leftMemberNames, profile.displayName);
   const nextGroup = normalizeGroup({
     ...group,
     memberOrder: uniqueNames([...group.memberOrder, profile.displayName]),
@@ -3900,20 +6450,15 @@ function applyKickMember(current, payload) {
   }
   // Support legacy groups where adminUserId may not be set
   const actorDisplayName = String(payload?.actorDisplayName || "").trim();
-  const actorResolvedName = Object.values(group.memberships||{}).find(m=>m.userId===actorUserId)?.displayName || actorDisplayName;
-  const actorIsAdmin = group.adminUserId
-    ? group.adminUserId === actorUserId
-    : group.adminName === actorResolvedName;
+  const actorResolvedName = resolveMembershipDisplayNameByUserId(group, actorUserId, actorDisplayName);
+  const actorIsAdmin = isGroupAdminActor(group, actorUserId, actorResolvedName);
   if (!actorIsAdmin) {
     const error = new Error("Only the admin can remove members");
     error.status = 403;
     throw error;
   }
   // Resolve target by userId or displayName fallback
-  const targetMembership = targetUserId
-    ? group.memberships?.[targetUserId]
-    : Object.values(group.memberships||{}).find(m=>m.displayName===targetDisplayName);
-  const resolvedDisplayName = targetMembership?.displayName || targetDisplayName;
+  const { membership: targetMembership, displayName: resolvedDisplayName } = resolveKickTarget(group, targetUserId, targetDisplayName);
   if (!resolvedDisplayName || !group.memberOrder.includes(resolvedDisplayName)) {
     const error = new Error("Member not found in this Bloc");
     error.status = 404;
@@ -3928,7 +6473,7 @@ function applyKickMember(current, payload) {
   if (targetUserId) delete nextMemberships[targetUserId];
   else if (targetMembership?.userId) delete nextMemberships[targetMembership.userId];
   const nextMemberOrder = group.memberOrder.filter(n => n !== resolvedDisplayName);
-  const nextLeftMemberNames = appendLegacyLeftMemberName(
+  const nextLeftMemberNames = updateLegacyLeftMemberNamesForDeparture(
     group.leftMemberNames,
     targetMembership?.userId || targetUserId,
     resolvedDisplayName
@@ -3964,7 +6509,6 @@ function applyLeaveBloc(current, payload) {
     error.status = 404;
     throw error;
   }
-  const isAdmin = group.adminUserId === userId;
   const displayName = membership.displayName;
   const nextMemberships = { ...(group.memberships || {}) };
   delete nextMemberships[userId];
@@ -3981,28 +6525,16 @@ function applyLeaveBloc(current, payload) {
     };
   }
 
-  let nextAdminUserId = group.adminUserId;
-  let nextAdminName = group.adminName;
-  if (isAdmin) {
-    // Transfer to longest-standing member (earliest joinedAt)
-    const remaining = Object.values(nextMemberships).sort((a, b) => {
-      const aTime = Date.parse(a.joinedAt || "") || 0;
-      const bTime = Date.parse(b.joinedAt || "") || 0;
-      return aTime - bTime;
-    });
-    const newAdmin = remaining[0];
-    nextAdminUserId = newAdmin.userId;
-    nextAdminName = newAdmin.displayName;
-  }
+  const nextAdmin = resolveAdminAfterMemberDeparture(group, nextMemberships, userId);
 
   const nextLogs = scrubDepartedMemberFromCurrentLogs(group.logs, displayName);
   const nextGroup = normalizeGroup({
     ...group,
-    adminUserId: nextAdminUserId,
-    adminName: nextAdminName,
+    adminUserId: nextAdmin.adminUserId,
+    adminName: nextAdmin.adminName,
     memberOrder: nextMemberOrder,
     memberships: nextMemberships,
-    leftMemberNames: group.leftMemberNames,
+    leftMemberNames: removeLegacyLeftMemberName(group.leftMemberNames, displayName),
     logs: nextLogs
   });
   return {
@@ -4022,14 +6554,7 @@ function applyDeleteAccount(current, payload) {
 
   const base = rolloverStateIfNeeded(current);
   const profile = base.profiles?.[userId];
-  // Resolve the user's display name from profile or any membership
-  let displayName = profile?.displayName || "";
-  if (!displayName) {
-    for (const group of Object.values(base.groups || {})) {
-      const m = group.memberships?.[userId];
-      if (m?.displayName) { displayName = m.displayName; break; }
-    }
-  }
+  const displayName = resolveDeletedAccountDisplayName(profile, base.groups, userId);
 
   // Verify user exists
   if (!profile && !displayName) {
@@ -4071,38 +6596,20 @@ function applyDeleteAccount(current, payload) {
       continue;
     }
 
-    // Transfer admin if needed
-    let nextAdminUserId = group.adminUserId;
-    let nextAdminName = group.adminName;
-    if (group.adminUserId === userId) {
-      const remaining = Object.values(nextMemberships).sort((a, b) => {
-        const aTime = Date.parse(a.joinedAt || "") || 0;
-        const bTime = Date.parse(b.joinedAt || "") || 0;
-        return aTime - bTime;
-      });
-      const newAdmin = remaining[0];
-      nextAdminUserId = newAdmin.userId;
-      nextAdminName = newAdmin.displayName;
-    }
+    const nextAdmin = resolveAdminAfterMemberDeparture(group, nextMemberships, userId);
 
     // Remove member from memberOrder
     const nextMemberOrder = group.memberOrder.filter(n => n !== dn);
 
-    // Remove sit-out requests by this user
-    const nextSitOutRequests = {};
-    for (const [monthKey, monthRequests] of Object.entries(group.sitOutRequests || {})) {
-      const filtered = { ...monthRequests };
-      delete filtered[dn];
-      if (Object.keys(filtered).length > 0) nextSitOutRequests[monthKey] = filtered;
-    }
+    const nextSitOutRequests = removeMemberSitOutRequests(group.sitOutRequests, dn);
 
     nextGroups[groupId] = normalizeGroup({
       ...group,
-      adminUserId: nextAdminUserId,
-      adminName: nextAdminName,
+      adminUserId: nextAdmin.adminUserId,
+      adminName: nextAdmin.adminName,
       memberOrder: nextMemberOrder,
       memberships: nextMemberships,
-      leftMemberNames: group.leftMemberNames,
+      leftMemberNames: removeLegacyLeftMemberName(group.leftMemberNames, dn),
       logs: scrubbedLogs,
       sitOutRequests: nextSitOutRequests
     });
@@ -4183,32 +6690,19 @@ export default async function handler(req, res) {
       if (url.searchParams.get("config") === "auth") {
         return res.status(200).json(getClientAuthConfig());
       }
-      await fetchAuthenticatedUser(readBearerToken(req));
+      const authUser = await fetchAuthenticatedUser(readBearerToken(req));
+      if (url.searchParams.get("revision") === "1") {
+        const revisionStamp = await fetchRevisionStamp();
+        return res.status(200).json(revisionStamp);
+      }
       const current = await fetchReadableCurrentState();
-      return res.status(200).json(current);
+      return res.status(200).json(scopeReadableStateForUser(current, authUser.id));
     }
 
     if (req.method === "PUT") {
-      const payload = await readJson(req);
-      const current = await fetchWritableCurrentState();
-      const auth = await requireAuthenticatedContext(req, payload, current);
-      const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
-      // Snapshot the actor's existing log IDs before the merge so we can
-      // identify any newly added logs afterwards and upsert them canonically.
-      const beforeLogIds = new Set(
-        (auth.state.groups?.[payload.groupId]?.logs?.[actor] || []).map(l => String(l?.id))
-      );
-      const merged = mergeState(auth.state, { ...payload, actor });
-      const persisted = await persistState(merged, `player-update:${payload.groupId}:${actor || auth.user.id}`);
-      // Best-effort canonical upsert for each log that is new in this save.
-      const group = persisted.groups?.[payload.groupId];
-      if (group) {
-        const newLogs = (group.logs?.[actor] || []).filter(l => !beforeLogIds.has(String(l?.id)));
-        for (const log of newLogs) {
-          await upsertWorkoutLogToCanonical(group, group.lastMonth, actor, auth.user.id, log);
-        }
-      }
-      return res.status(200).json(persisted);
+      return res.status(410).json({
+        error: "Legacy whole-state save is retired. Use explicit log mutation actions."
+      });
     }
 
     if (req.method === "POST") {
@@ -4226,10 +6720,20 @@ export default async function handler(req, res) {
         });
       }
 
-      const current = await fetchWritableCurrentState();
+      let current = null;
+      const getCurrent = async () => {
+        if (!current) current = await fetchWritableCurrentState();
+        return current;
+      };
+      let readableCurrent = null;
+      const getReadableCurrent = async () => {
+        if (!readableCurrent) readableCurrent = await fetchReadableCurrentState();
+        return readableCurrent;
+      };
 
       if (payload?.action === "auth-sync") {
         const authUser = await fetchAuthenticatedUser(readBearerToken(req, payload));
+        const current = await getCurrent();
         const synced = applyAuthSync(current, authUser);
         if (synced.changed) {
           await persistState(synced.state, `auth-sync:${authUser.id}`);
@@ -4239,43 +6743,33 @@ export default async function handler(req, res) {
         // (including settlement reminders) during app bootstrap until the next
         // background refresh lands.
         const state = await fetchReadableCurrentState();
-        // Dual-write profile to canonical if the blob profile was updated and
-        // already has a display name. New users with no display name yet will
-        // trigger canonical sync when they complete upsert-profile instead.
+        // Dual-write repaired auth identity to canonical if auth-sync changed
+        // the writable blob state. These writes stay best-effort so bootstrap
+        // remains a compatibility repair path instead of a canonical hard gate.
+        // New users with no display name yet will trigger canonical sync when
+        // they complete upsert-profile instead.
         const canonicalDisplayName = state.profiles?.[authUser.id]?.displayName || "";
         if (synced.changed && canonicalDisplayName) {
           await syncProfileToCanonical(authUser.id, authUser.email, canonicalDisplayName);
+          for (const group of Object.values(synced.state.groups || {})) {
+            const membership = group?.memberships?.[authUser.id];
+            if (!membership?.displayName) continue;
+            await syncBlocMemberToCanonical(group, authUser.id, membership.role || "member");
+          }
         }
         return res.status(200).json({ ok: true, state, session: synced.session });
       }
 
-      if (payload?.action === "settlement") {
-        const auth = await requireAuthenticatedContext(req, payload, current);
-        const updated = applySettlementUpdate(auth.state, payload);
-        const persisted = await persistState(updated, `settlement:${payload.groupId}:${payload.monthKey}:${payload.player}`);
-        // Best-effort canonical settlement sync. Derive the values from the
-        // persisted blob monthHistory entry so canonical exactly mirrors what
-        // was successfully written to the blob.
-        const persistedSettlement = persisted.groups?.[payload.groupId]?.monthHistory
-          ?.find(m => m.key === payload.monthKey)
-          ?.settlements?.[payload.player];
-        if (persistedSettlement) {
-          updateSeasonMemberSettlementInCanonical(
-            payload.groupId,
-            payload.monthKey,
-            payload.player,
-            persistedSettlement.status,
-            persistedSettlement.settledAt || null
-          ).catch(err => console.error("Canonical settlement sync failed:", err?.message || err));
-        }
-        return res.status(200).json(persisted);
+      if (payload?.action === "invite-context") {
+        const readable = await getReadableCurrent();
+        return res.status(200).json(await getInviteContextCanonicalFirst(readable, payload));
       }
 
       if (payload?.action === "settlement-claim-paid") {
         if (!ENABLE_SETTLEMENT_CONFIRMATIONS) {
           return res.status(404).json({ error: "Settlement confirmations are disabled" });
         }
-        const auth = await requireAuthenticatedContext(req, payload, current);
+        const auth = await requireAuthenticatedContext(req, payload, await getReadableCurrent());
         const actorDisplayName = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
         const group = auth.state.groups?.[payload.groupId];
         if (!group) return res.status(404).json({ error: "Bloc not found" });
@@ -4310,7 +6804,7 @@ export default async function handler(req, res) {
         if (!ENABLE_SETTLEMENT_CONFIRMATIONS) {
           return res.status(404).json({ error: "Settlement confirmations are disabled" });
         }
-        const auth = await requireAuthenticatedContext(req, payload, current);
+        const auth = await requireAuthenticatedContext(req, payload, await getReadableCurrent());
         const actorDisplayName = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
         const group = auth.state.groups?.[payload.groupId];
         if (!group) return res.status(404).json({ error: "Bloc not found" });
@@ -4341,7 +6835,7 @@ export default async function handler(req, res) {
         if (!ENABLE_SETTLEMENT_CONFIRMATIONS) {
           return res.status(404).json({ error: "Settlement confirmations are disabled" });
         }
-        const auth = await requireAuthenticatedContext(req, payload, current);
+        const auth = await requireAuthenticatedContext(req, payload, await getReadableCurrent());
         const actorDisplayName = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
         const group = auth.state.groups?.[payload.groupId];
         if (!group) return res.status(404).json({ error: "Bloc not found" });
@@ -4368,16 +6862,86 @@ export default async function handler(req, res) {
         return res.status(200).json(readable);
       }
 
+      if (payload?.action === "write-hydration-parity-report") {
+        assertAdminPin(payload);
+        const report = await buildWriteHydrationParityReport(await getCurrent());
+        return res.status(200).json(report);
+      }
+
+      if (payload?.action === "historical-shell-reconciliation-report") {
+        assertAdminPin(payload);
+        const report = await buildHistoricalShellReconciliationReport(await getCurrent());
+        return res.status(200).json(report);
+      }
+
+      if (payload?.action === "blob-mirror-dependency-report") {
+        assertAdminPin(payload);
+        const report = buildBlobMirrorDependencyReport(await getCurrent());
+        return res.status(200).json(report);
+      }
+
+      if (payload?.action === "blob-mirror-retirement-readiness-report") {
+        assertAdminPin(payload);
+        const report = await buildBlobMirrorRetirementReadinessReport(await getCurrent());
+        return res.status(200).json(report);
+      }
+
+      // Writable mutation boundary:
+      // actions below this point intentionally hydrate the blob-shaped shell
+      // before validation/repair, even when the final post-action state is now
+      // computed from canonical writable input. Do not replace this with
+      // fetchReadableCurrentState() broadly; readable state is a composed
+      // user-facing projection and can hide legacy blob gaps that these
+      // mutations still need to preserve or repair.
+      current = await getCurrent();
+
+      if (payload?.action === "settlement") {
+        const auth = await requireAuthenticatedContext(req, payload, current);
+        applySettlementUpdate(auth.state, payload);
+        const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
+        const result = applySettlementUpdate(canonicalState, payload);
+        // Canonical-first settlement slice:
+        // 1. authenticate/repair and validate against the blob shell
+        // 2. compute the exact post-settlement month snapshot from the
+        //    canonical group writable constructor
+        // 3. write canonical settlement status from that exact computed payload
+        // 4. persist blob afterward as the compatibility mirror
+        if (result.settlement) {
+          await updateSeasonMemberSettlementInCanonical(
+            payload.groupId,
+            payload.monthKey,
+            payload.player,
+            result.settlement.status,
+            result.settlement.settledAt || null,
+            { throwOnError: true }
+          );
+        }
+        const persisted = await persistState(result.updated, result.reason);
+        return res.status(200).json(persisted);
+      }
+
       if (payload?.action === "create-group") {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const creatorName = auth.profile?.displayName || String(payload?.creatorName || "").trim();
-        const created = applyCreateGroup(auth.state, { ...payload, actorUserId: auth.user.id, creatorName });
+        const createPayload = {
+          ...payload,
+          actorUserId: auth.user.id,
+          creatorName,
+          createdGroupId: generateGroupId(String(payload?.groupName || "group")),
+          inviteCode: generateInviteCode(),
+          createdAt: new Date().toISOString()
+        };
+        applyCreateGroup(auth.state, createPayload);
+        const canonicalState = await buildCanonicalWritableStateForAuthenticatedGlobalMutation(auth);
+        const created = applyCreateGroup(canonicalState, createPayload);
         const newGroup = created.state.groups?.[created.createdGroupId];
         const newGroupSortOrder = (created.state.groupOrder || []).indexOf(created.createdGroupId);
-        // Canonical-first write slice for create-group:
-        // 1. compute the exact post-create group in memory
-        // 2. write canonical state from that exact payload
-        // 3. mirror blob only after the canonical writes succeed
+        // Canonical writable-input cutover for create-group:
+        // 1. authenticate/repair and validate against the blob shell
+        // 2. compute the post-create result from the canonical global
+        //    writable view using the same generated id/invite/timestamps
+        // 3. write canonical state from that exact payload
+        // 4. mirror blob only after the canonical writes succeed
         if (newGroup) {
           await syncProfileToCanonical(auth.user.id, auth.user.email, creatorName, { throwOnError: true });
           await syncBlocToCanonical(newGroup, auth.user.id, newGroupSortOrder >= 0 ? newGroupSortOrder : null, { throwOnError: true });
@@ -4391,19 +6955,44 @@ export default async function handler(req, res) {
 
       if (payload?.action === "upsert-profile") {
         const auth = await requireAuthenticatedContext(req, payload, current);
-        const updated = applyUpsertProfile(auth.state, { ...payload, userId: auth.user.id, email: auth.user.email });
-        // Canonical-first write slice for upsert-profile:
-        // 1. compute the exact post-update state in memory
-        // 2. sync canonical profile first
-        // 3. sync canonical bloc-member display-name snapshots for every active
-        //    auth-linked membership in that computed state
+        const requestedDisplayName = String(payload?.displayName || "").trim();
+        const shellOldNames = collectProfileRenameOldNames(
+          auth.state.groups || {},
+          auth.user.id,
+          auth.state.profiles?.[auth.user.id]?.displayName
+        );
+        applyUpsertProfile(auth.state, { ...payload, userId: auth.user.id, email: auth.user.email });
+        const canonicalState = await buildCanonicalWritableStateForAuthenticatedGlobalMutation(auth);
+        const canonicalOldNames = collectProfileRenameOldNames(
+          canonicalState.groups || {},
+          auth.user.id,
+          canonicalState.profiles?.[auth.user.id]?.displayName
+        );
+        const displayNameRepairs = new Map([...shellOldNames, ...canonicalOldNames]
+          .filter(([, oldName]) => oldName && oldName !== requestedDisplayName));
+        const updated = applyUpsertProfile(canonicalState, { ...payload, userId: auth.user.id, email: auth.user.email });
+        // Canonical writable-input cutover for upsert-profile:
+        // 1. authenticate/repair and validate against the blob shell
+        // 2. compute the current/open profile rename from the canonical global
+        //    writable view
+        // 3. sync canonical profile, auth-scoped display-name snapshots, and
+        //    active bloc-member display-name snapshots
         // 4. mirror blob only after canonical writes succeed
         await syncProfileToCanonical(
           auth.user.id,
           auth.user.email,
-          String(payload?.displayName || "").trim(),
+          requestedDisplayName,
           { throwOnError: true }
         );
+        for (const [groupId, oldName] of displayNameRepairs) {
+          await repairDisplayNameSnapshotsInCanonical(
+            groupId,
+            auth.user.id,
+            oldName,
+            requestedDisplayName,
+            { throwOnError: true }
+          );
+        }
         for (const [, group] of Object.entries(updated.groups || {})) {
           if (!group.memberships?.[auth.user.id]) continue;
           const memberRole = group.memberships[auth.user.id].role || "member";
@@ -4418,19 +7007,22 @@ export default async function handler(req, res) {
         const canonicalBloc = !payload?.groupId && payload?.inviteCode
           ? await fetchCanonicalBlocByInviteCode(payload.inviteCode)
           : null;
-        const joined = applyJoinGroup(auth.state, {
+        const joinPayload = {
           ...payload,
           userId: auth.user.id,
           ...(canonicalBloc?.legacy_group_key ? { groupId: canonicalBloc.legacy_group_key } : {})
-        });
+        };
+        applyJoinGroup(auth.state, joinPayload);
+        const canonicalState = await buildCanonicalWritableStateForAuthenticatedGlobalMutation(auth);
+        const joined = applyJoinGroup(canonicalState, joinPayload);
         const joinedGroup = joined.state.groups?.[joined.joinedGroupId];
         const joinedDisplayName = joinedGroup?.memberships?.[auth.user.id]?.displayName || auth.profile?.displayName || null;
         const joinedGroupSortOrder = (joined.state.groupOrder || []).indexOf(joined.joinedGroupId);
-        // Canonical-first write slice for join-group:
-        // 1. compute the exact post-join group in memory using the existing
-        //    blob-compatible lifecycle semantics
-        // 2. write canonical profile/member/open-season state from that exact payload
-        // 3. mirror blob only after the canonical writes succeed
+        // Canonical writable-input cutover for join-group:
+        // 1. authenticate/repair and validate against the blob shell
+        // 2. compute the post-join result from the canonical global writable view
+        // 3. write canonical profile/member/open-season state from that payload
+        // 4. mirror blob only after the canonical writes succeed
         if (joinedGroup) {
           await syncProfileToCanonical(auth.user.id, auth.user.email, joinedDisplayName, { throwOnError: true });
           await syncBlocToCanonical(joinedGroup, joinedGroup.adminUserId || null, joinedGroupSortOrder >= 0 ? joinedGroupSortOrder : null, { throwOnError: true });
@@ -4442,16 +7034,16 @@ export default async function handler(req, res) {
         return res.status(200).json({ state: persisted, joinedGroupId: joined.joinedGroupId });
       }
 
-      if (payload?.action === "invite-context") {
-        return res.status(200).json(await getInviteContextCanonicalFirst(current, payload));
-      }
-
       if (payload?.action === "kick-member") {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actorDisplayName = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
-        const updated = applyKickMember(auth.state, { ...payload, actorUserId: auth.user.id, actorDisplayName });
-        // Canonical-first write slice for kick-member:
-        // 1. compute the exact post-kick blob-compatible state in memory
+        applyKickMember(auth.state, { ...payload, actorUserId: auth.user.id, actorDisplayName });
+        const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
+        const canonicalActorDisplayName = resolveDisplayNameForUser(canonicalState, payload.groupId, auth.user.id, auth.user.email) || actorDisplayName;
+        const updated = applyKickMember(canonicalState, { ...payload, actorUserId: auth.user.id, actorDisplayName: canonicalActorDisplayName });
+        // Canonical writable-input cutover for kick-member:
+        // 1. authenticate/repair against the blob shell, then compute the
+        //    post-kick current/open state from the canonical writable view
         // 2. remove the canonical active membership first for auth-linked members
         // 3. mirror blob only after the canonical removal succeeds
         // Name-only legacy members still have no canonical membership row, so
@@ -4465,15 +7057,17 @@ export default async function handler(req, res) {
 
       if (payload?.action === "leave-bloc") {
         const auth = await requireAuthenticatedContext(req, payload, current);
-        const updated = applyLeaveBloc(auth.state, { ...payload, userId: auth.user.id });
+        applyLeaveBloc(auth.state, { ...payload, userId: auth.user.id });
+        const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
+        const updated = applyLeaveBloc(canonicalState, { ...payload, userId: auth.user.id });
         const nextGroup = updated.groups?.[payload.groupId] || null;
 
-        // Narrow canonical-first leave slice:
+        // Canonical writable-input cutover for leave-bloc:
+        // - authenticate/repair against the blob shell, then compute the
+        //   current/open departure result from the canonical writable view
         // - if the bloc survives, canonical member removal becomes authoritative
         // - if admin changes, canonical admin transfer must also succeed first
         // - only after those writes succeed do we mirror the blob state
-        // We still defer last-member bloc deletion because canonical bloc-delete
-        // semantics are not part of this bounded patch.
         if (nextGroup) {
           await removeBlocMemberFromCanonical(payload.groupId, auth.user.id, { throwOnError: true });
           const nextAdminUserId = nextGroup.adminUserId || null;
@@ -4496,27 +7090,33 @@ export default async function handler(req, res) {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actor = resolveDisplayNameForUser(auth.state, payload.sourceGroupId, auth.user.id, auth.user.email);
         const allTargetIds = [...new Set([payload.sourceGroupId, ...(Array.isArray(payload.targetGroupIds) ? payload.targetGroupIds.filter(Boolean) : [])])];
+        const shadowBlobUpdated = applyMultiLog(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.sourceGroupId);
+        const canonicalActor = resolveDisplayNameForUser(canonicalState, payload.sourceGroupId, auth.user.id, auth.user.email) || actor;
         const beforeLogIdsByGroup = Object.fromEntries(
           allTargetIds.map(groupId => [
             groupId,
-            new Set((auth.state.groups?.[groupId]?.logs?.[actor] || []).map(log => String(log?.id)))
+            new Set((canonicalState.groups?.[groupId]?.logs?.[canonicalActor] || []).map(log => String(log?.id)))
           ])
         );
-        const updated = applyMultiLog(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        const updated = applyMultiLog(canonicalState, { ...payload, actor: canonicalActor, actorUserId: auth.user.id });
         const pendingLogsByGroup = Object.fromEntries(
           allTargetIds.map(groupId => {
             const group = updated.groups?.[groupId];
             if (!group) return [groupId, []];
             const beforeIds = beforeLogIdsByGroup[groupId] || new Set();
-            const ownerLogs = group.logs?.[actor] || [];
+            const ownerLogs = group.logs?.[canonicalActor] || [];
             return [groupId, ownerLogs.filter(log => !beforeIds.has(String(log?.id)))];
           })
         );
-        // Canonical-first workout logging slice:
-        // 1. compute the exact post-log blob-compatible state in memory
+        // Canonical writable-input cutover for multi-log:
+        // 1. authenticate/repair against the blob shell, then compute the
+        //    post-log state from the source bloc's canonical writable view
         // 2. ensure canonical bloc/open-season rows exist for each target bloc
         // 3. upsert the exact new logs canonically from that in-memory payload
         // 4. persist blob afterward as the compatibility mirror
+        // The target blocs still use their existing blob-shaped shells here;
+        // the current/open parity report covers the mixed-source behavior.
         for (const groupId of allTargetIds) {
           const group = updated.groups?.[groupId];
           if (!group) continue;
@@ -4526,21 +7126,51 @@ export default async function handler(req, res) {
           await syncBlocToCanonical(group, group.adminUserId || null, groupSortOrder >= 0 ? groupSortOrder : null, { throwOnError: true });
           await syncSeasonToCanonical(group, group.lastMonth, "open", null, { throwOnError: true });
           for (const log of newLogs) {
-            await upsertWorkoutLogToCanonical(group, group.lastMonth, actor, auth.user.id, log, { throwOnError: true });
+            await upsertWorkoutLogToCanonical(group, group.lastMonth, canonicalActor, auth.user.id, log, { throwOnError: true });
           }
         }
-        const persisted = await persistState(updated, `multi-log:${actor || auth.user.id}:${payload.date}:${payload.workoutType}`);
+        const reason = `multi-log:${canonicalActor || actor || auth.user.id}:${payload.date}:${payload.workoutType}`;
+        await runWriteHydrationMultiLogParityProbe(payload, auth, actor, shadowBlobUpdated);
+        const persisted = await persistOrSkipBlobMirror(updated, reason, "multi-log");
+        return res.status(200).json(persisted);
+      }
+
+      if (payload?.action === "add-log") {
+        const auth = await requireAuthenticatedContext(req, payload, current);
+        const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
+        const shadowBlobUpdated = applyAddLog(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
+        const canonicalActor = resolveDisplayNameForUser(canonicalState, payload.groupId, auth.user.id, auth.user.email) || actor;
+        const result = applyAddLog(canonicalState, { ...payload, actor: canonicalActor, actorUserId: auth.user.id });
+        const group = result.updated.groups?.[payload.groupId];
+        const groupSortOrder = (result.updated.groupOrder || []).indexOf(payload.groupId);
+        const targetMonth = (group?.monthHistory || []).find(month => month?.key === result.monthKey) || null;
+        // Canonical writable-input cutover for add-log:
+        // authenticate/repair against the blob shell, compute the new workout
+        // from the canonical writable constructor, then mirror blob afterward.
+        if (group) {
+          await syncBlocToCanonical(group, group.adminUserId || null, groupSortOrder >= 0 ? groupSortOrder : null, { throwOnError: true });
+          await syncSeasonToCanonical(group, result.monthKey, targetMonth ? "closed" : "open", targetMonth?.closedAt || null, { throwOnError: true });
+          await upsertWorkoutLogToCanonical(group, result.monthKey, canonicalActor, auth.user.id, result.log, { throwOnError: true });
+        }
+        await runWriteHydrationParityProbe("add-log", payload, auth, actor, shadowBlobUpdated.updated, applyAddLog);
+        const persisted = await persistOrSkipBlobMirror(result.updated, result.reason, "add-log");
         return res.status(200).json(persisted);
       }
 
       if (payload?.action === "update-settings") {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
-        const updated = applyUpdateSettings(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        const shadowBlobUpdated = applyUpdateSettings(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
+        const canonicalActor = resolveDisplayNameForUser(canonicalState, payload.groupId, auth.user.id, auth.user.email) || actor;
+        const updated = applyUpdateSettings(canonicalState, { ...payload, actor: canonicalActor, actorUserId: auth.user.id });
+        await runWriteHydrationParityProbe("update-settings", payload, auth, actor, shadowBlobUpdated, applyUpdateSettings);
         const settingsGroup = updated.groups?.[payload.groupId];
         const settingsSortOrder = (updated.groupOrder || []).indexOf(payload.groupId);
-        // Third canonical-first write slice:
-        // 1. compute the exact post-settings bloc/season shape in memory
+        // Canonical writable-input cutover for settings:
+        // 1. authenticate/repair against the blob shell, then compute the
+        //    mutation from the canonical writable constructor
         // 2. sync canonical bloc settings/name from that exact payload
         // 3. sync the canonical open-season snapshot from the same payload
         // 4. mirror blob state afterward without changing the response contract
@@ -4548,27 +7178,30 @@ export default async function handler(req, res) {
           await syncBlocToCanonical(settingsGroup, auth.user.id, settingsSortOrder, { throwOnError: true });
           await syncSeasonToCanonical(settingsGroup, settingsGroup?.lastMonth, "open", null, { throwOnError: true });
         }
-        const persisted = await persistState(updated, `settings:${payload.groupId}:${actor || auth.user.id}`);
+        const persisted = await persistOrSkipBlobMirror(updated, `settings:${payload.groupId}:${canonicalActor || actor || auth.user.id}`, "update-settings");
         return res.status(200).json(persisted);
       }
 
       if (payload?.action === "season-proration-choice") {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
-        const updated = applySeasonProrationChoice(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        const shadowBlobUpdated = applySeasonProrationChoice(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
+        const canonicalActor = resolveDisplayNameForUser(canonicalState, payload.groupId, auth.user.id, auth.user.email) || actor;
+        const updated = applySeasonProrationChoice(canonicalState, { ...payload, actor: canonicalActor, actorUserId: auth.user.id });
+        await runWriteHydrationParityProbe("season-proration-choice", payload, auth, actor, shadowBlobUpdated, applySeasonProrationChoice);
         const overrideGroup = updated.groups?.[payload.groupId];
         const overrideMonthKey = overrideGroup?.lastMonth;
         const nextOverride = overrideMonthKey
           ? overrideGroup?.seasonOverrides?.[overrideMonthKey]
           : null;
-        // First canonical-first write slice:
-        // 1. compute the exact blob-shaped override in memory
+        // Canonical writable-input cutover for proration:
+        // 1. authenticate/repair against the blob shell, then compute the
+        //    override from the canonical writable constructor
         // 2. upsert canonical from that exact payload
         // 3. mirror the same result into blob immediately after
-        // This keeps the response shape unchanged while moving the authority
-        // boundary for this narrow action toward canonical.
         if (overrideGroup && overrideMonthKey && nextOverride) {
-          await syncSeasonToCanonical(overrideGroup, overrideMonthKey, "open");
+          await syncSeasonToCanonical(overrideGroup, overrideMonthKey, "open", null, { throwOnError: true });
           await upsertSeasonOverrideInCanonical(
             payload.groupId,
             overrideMonthKey,
@@ -4576,58 +7209,85 @@ export default async function handler(req, res) {
             nextOverride.proratedMas,
             nextOverride.chosenAt,
             nextOverride.chosenBy,
-            nextOverride.chosenByUserId || null
+            nextOverride.chosenByUserId || null,
+            { throwOnError: true }
           );
         }
-        const persisted = await persistState(updated, `season-proration:${payload.groupId}:${payload.choice}`);
+        const persisted = await persistOrSkipBlobMirror(updated, `season-proration:${payload.groupId}:${payload.choice}`, "season-proration-choice");
         return res.status(200).json(persisted);
       }
 
       if (payload?.action === "sitout-request") {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
-        const updated = applySitOutRequest(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        const shadowBlobUpdated = applySitOutRequest(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
+        const canonicalActor = resolveDisplayNameForUser(canonicalState, payload.groupId, auth.user.id, auth.user.email) || actor;
+        const updated = applySitOutRequest(canonicalState, { ...payload, actor: canonicalActor, actorUserId: auth.user.id });
+        await runWriteHydrationParityProbe("sitout-request", payload, auth, actor, shadowBlobUpdated, applySitOutRequest);
         const sitOutGroup = updated.groups?.[payload.groupId];
         const sitOutMonthKey = sitOutGroup?.lastMonth;
         const nextRequest = sitOutMonthKey
-          ? sitOutGroup?.sitOutRequests?.[sitOutMonthKey]?.[actor]
+          ? sitOutGroup?.sitOutRequests?.[sitOutMonthKey]?.[canonicalActor]
           : null;
-        // Second canonical-first write slice:
-        // 1. compute the exact request/excused result in memory
+        // Canonical writable-input cutover for sit-out requests:
+        // 1. authenticate/repair against the blob shell, then compute the
+        //    request/excused result from the canonical writable constructor
         // 2. ensure the open season exists canonically
         // 3. upsert canonical sit-out + excused side-effect from that exact payload
         // 4. mirror the same result into blob immediately after
         if (sitOutGroup && sitOutMonthKey && nextRequest) {
-          await syncSeasonToCanonical(sitOutGroup, sitOutMonthKey, "open");
-          await upsertSitOutRequestInCanonical(payload.groupId, sitOutMonthKey, actor, nextRequest);
+          await syncSeasonToCanonical(sitOutGroup, sitOutMonthKey, "open", null, { throwOnError: true });
+          await upsertSitOutRequestInCanonical(payload.groupId, sitOutMonthKey, canonicalActor, nextRequest, { throwOnError: true });
           if (nextRequest.status === "approved" && nextRequest.autoApproved) {
-            await upsertSeasonMemberExcusedInCanonical(payload.groupId, sitOutMonthKey, actor, auth.user.id);
+            await upsertSeasonMemberExcusedInCanonical(payload.groupId, sitOutMonthKey, canonicalActor, auth.user.id, { throwOnError: true });
           }
         }
-        const persisted = await persistState(updated, `sitout-request:${payload.groupId}:${actor || auth.user.id}`);
+        const persisted = await persistState(updated, `sitout-request:${payload.groupId}:${canonicalActor || actor || auth.user.id}`);
         return res.status(200).json(persisted);
       }
 
       if (payload?.action === "sitout-review") {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
-        const updated = applySitOutReview(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
+        const canonicalActor = resolveDisplayNameForUser(canonicalState, payload.groupId, auth.user.id, auth.user.email) || actor;
+        let updated = null;
+        try {
+          updated = applySitOutReview(canonicalState, { ...payload, actor: canonicalActor, actorUserId: auth.user.id });
+        } catch (err) {
+          if (err?.status !== 404) throw err;
+        }
+        let shadowBlobUpdated = null;
+        try {
+          shadowBlobUpdated = applySitOutReview(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        } catch (err) {
+          // A sit-out request created while request-side blob skipping was
+          // enabled can exist canonically without a blob mirror. Canonical
+          // writable state is the authority for this review path.
+          if (err?.status !== 404 || !updated) throw err;
+        }
+        if (!updated) updated = shadowBlobUpdated;
+        if (shadowBlobUpdated) {
+          await runWriteHydrationParityProbe("sitout-review", payload, auth, actor, shadowBlobUpdated, applySitOutReview);
+        }
         const reviewGroup = updated.groups?.[payload.groupId];
         const reviewedRequest = payload.memberName && payload.monthKey
           ? reviewGroup?.sitOutRequests?.[payload.monthKey]?.[payload.memberName]
           : null;
-        // Same canonical-first pattern as proration/request:
-        // write the reviewed request canonically from the exact in-memory payload,
-        // then mirror blob state after the authoritative write succeeds.
+        // Canonical writable-input cutover for sit-out review:
+        // authenticate/repair against the blob shell, compute the review result
+        // from the canonical writable constructor, then mirror blob afterward.
         if (reviewGroup && payload.monthKey && payload.memberName && reviewedRequest) {
-          await syncSeasonToCanonical(reviewGroup, payload.monthKey, "open");
-          await upsertSitOutRequestInCanonical(payload.groupId, payload.monthKey, payload.memberName, reviewedRequest);
+          await syncSeasonToCanonical(reviewGroup, payload.monthKey, "open", null, { throwOnError: true });
+          await upsertSitOutRequestInCanonical(payload.groupId, payload.monthKey, payload.memberName, reviewedRequest, { throwOnError: true });
           if (reviewedRequest.status === "approved") {
             await upsertSeasonMemberExcusedInCanonical(
               payload.groupId,
               payload.monthKey,
               payload.memberName,
-              reviewedRequest.requestedByUserId || null
+              reviewedRequest.requestedByUserId || null,
+              { throwOnError: true }
             );
           }
         }
@@ -4641,115 +7301,143 @@ export default async function handler(req, res) {
         // Normalize emoji the same way applyToggleReaction does so the blob lookup
         // and the canonical RPC call use the same key.
         const emoji = String(payload?.emoji || "").trim();
-        const result = applyToggleReaction(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
+        const canonicalActor = resolveDisplayNameForUser(canonicalState, payload.groupId, auth.user.id, auth.user.email) || actor;
+        const result = applyToggleReaction(canonicalState, { ...payload, actor: canonicalActor, actorUserId: auth.user.id });
+        let shadowBlobResult = null;
+        try {
+          shadowBlobResult = applyToggleReaction(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        } catch (err) {
+          if (err?.status !== 404) throw err;
+        }
+        if (shadowBlobResult) {
+          await runWriteHydrationParityProbe("reaction", payload, auth, actor, shadowBlobResult.updated, applyToggleReaction);
+        }
         const reactionGroup = result.updated.groups?.[payload.groupId];
         const reactionLog = reactionGroup?.logs?.[payload.owner]
           ?.find(e => String(e?.id) === String(payload.logId));
         if (reactionGroup && reactionLog) {
-          // Canonical-first reaction slice:
-          // 1. compute the exact post-toggle blob-compatible state in memory
+          // Canonical writable-input cutover for reactions:
+          // 1. authenticate/repair against the blob shell, then compute the
+          //    post-toggle state from the canonical writable constructor
           // 2. ensure the parent canonical workout log exists from that payload
           // 3. apply the exact reaction direction canonically
           // 4. persist blob afterward as the compatibility mirror
-          await syncSeasonToCanonical(reactionGroup, reactionGroup.lastMonth, "open", null, { throwOnError: true });
-          await upsertWorkoutLogToCanonical(
-            reactionGroup,
-            reactionGroup.lastMonth,
-            payload.owner,
-            findAuthUserIdForDisplayName(reactionGroup, payload.owner),
-            reactionLog,
-            { throwOnError: true }
-          );
-          const isAdding = (reactionLog.reactions?.[emoji] || []).includes(actor);
-          await toggleWorkoutReactionInCanonical(payload.logId, auth.user.id, actor, emoji, isAdding, { throwOnError: true });
+          await syncOpenWorkoutLogSnapshotToCanonical(reactionGroup, payload.owner, reactionLog, { throwOnError: true });
+          const isAdding = (reactionLog.reactions?.[emoji] || []).includes(canonicalActor);
+          await toggleWorkoutReactionInCanonical(payload.logId, auth.user.id, canonicalActor, emoji, isAdding, { throwOnError: true });
         }
-        const persisted = await persistState(result.updated, result.reason);
+        const persisted = await persistOrSkipBlobMirror(result.updated, result.reason, "reaction");
         return res.status(200).json(persisted);
       }
 
       if (payload?.action === "flag") {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
-        const result = applyFlagLog(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
+        const canonicalActor = resolveDisplayNameForUser(canonicalState, payload.groupId, auth.user.id, auth.user.email) || actor;
+        const result = applyFlagLog(canonicalState, { ...payload, actor: canonicalActor, actorUserId: auth.user.id });
+        let shadowBlobResult = null;
+        try {
+          shadowBlobResult = applyFlagLog(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        } catch (err) {
+          if (err?.status !== 404) throw err;
+        }
+        if (shadowBlobResult) {
+          await runWriteHydrationParityProbe("flag", payload, auth, actor, shadowBlobResult.updated, applyFlagLog);
+        }
         const group = result.updated.groups?.[payload.groupId];
         const log = group?.logs?.[payload.owner]?.find(entry => String(entry?.id) === String(payload.logId));
         if (group && log) {
-          await syncSeasonToCanonical(group, group.lastMonth, "open", null, { throwOnError: true });
-          await upsertWorkoutLogToCanonical(
-            group,
-            group.lastMonth,
-            payload.owner,
-            findAuthUserIdForDisplayName(group, payload.owner),
-            log,
-            { throwOnError: true }
-          );
+          await syncOpenWorkoutLogSnapshotToCanonical(group, payload.owner, log, { throwOnError: true });
         }
-        const persisted = await persistState(result.updated, result.reason);
+        const persisted = await persistOrSkipBlobMirror(result.updated, result.reason, "flag");
         return res.status(200).json(persisted);
       }
 
       if (payload?.action === "flag-response") {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
-        const result = applyRespondToFlag(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
+        const canonicalActor = resolveDisplayNameForUser(canonicalState, payload.groupId, auth.user.id, auth.user.email) || actor;
+        const result = applyRespondToFlag(canonicalState, { ...payload, actor: canonicalActor, actorUserId: auth.user.id });
+        let shadowBlobResult = null;
+        try {
+          shadowBlobResult = applyRespondToFlag(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        } catch (err) {
+          if (err?.status !== 404) throw err;
+        }
+        if (shadowBlobResult) {
+          await runWriteHydrationParityProbe("flag-response", payload, auth, actor, shadowBlobResult.updated, applyRespondToFlag);
+        }
         const group = result.updated.groups?.[payload.groupId];
         const log = group?.logs?.[payload.owner]?.find(entry => String(entry?.id) === String(payload.logId));
         if (group && log) {
-          await syncSeasonToCanonical(group, group.lastMonth, "open", null, { throwOnError: true });
-          await upsertWorkoutLogToCanonical(
-            group,
-            group.lastMonth,
-            payload.owner,
-            findAuthUserIdForDisplayName(group, payload.owner),
-            log,
-            { throwOnError: true }
-          );
+          await syncOpenWorkoutLogSnapshotToCanonical(group, payload.owner, log, { throwOnError: true });
         }
-        const persisted = await persistState(result.updated, result.reason);
+        const persisted = await persistOrSkipBlobMirror(result.updated, result.reason, "flag-response");
         return res.status(200).json(persisted);
       }
 
       if (payload?.action === "flag-review") {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
-        const result = applyReviewFlag(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
+        const canonicalActor = resolveDisplayNameForUser(canonicalState, payload.groupId, auth.user.id, auth.user.email) || actor;
+        const result = applyReviewFlag(canonicalState, { ...payload, actor: canonicalActor, actorUserId: auth.user.id });
+        let shadowBlobResult = null;
+        try {
+          shadowBlobResult = applyReviewFlag(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        } catch (err) {
+          if (err?.status !== 404) throw err;
+        }
+        if (shadowBlobResult) {
+          await runWriteHydrationParityProbe("flag-review", payload, auth, actor, shadowBlobResult.updated, applyReviewFlag);
+        }
         const group = result.updated.groups?.[payload.groupId];
         const log = group?.logs?.[payload.owner]?.find(entry => String(entry?.id) === String(payload.logId));
         if (group && log) {
-          await syncSeasonToCanonical(group, group.lastMonth, "open", null, { throwOnError: true });
-          await upsertWorkoutLogToCanonical(
-            group,
-            group.lastMonth,
-            payload.owner,
-            findAuthUserIdForDisplayName(group, payload.owner),
-            log,
-            { throwOnError: true }
-          );
+          await syncOpenWorkoutLogSnapshotToCanonical(group, payload.owner, log, { throwOnError: true });
         }
-        const persisted = await persistState(result.updated, result.reason);
+        const persisted = await persistOrSkipBlobMirror(result.updated, result.reason, "flag-review");
         return res.status(200).json(persisted);
       }
 
       if (payload?.action === "delete-log") {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
-        const result = applyDeleteLog(auth.state, { ...payload, actor, actorUserId: auth.user.id });
-        await deleteWorkoutLogFromCanonical(payload.logId);
-        const persisted = await persistState(result.updated, result.reason);
+        const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
+        const canonicalActor = resolveDisplayNameForUser(canonicalState, payload.groupId, auth.user.id, auth.user.email) || actor;
+        const result = applyDeleteLog(canonicalState, { ...payload, actor: canonicalActor, actorUserId: auth.user.id });
+        let shadowBlobResult = null;
+        try {
+          shadowBlobResult = applyDeleteLog(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        } catch (err) {
+          if (err?.status !== 404) throw err;
+        }
+        if (shadowBlobResult) {
+          await runWriteHydrationParityProbe("delete-log", payload, auth, actor, shadowBlobResult.updated, applyDeleteLog);
+        }
+        await deleteWorkoutLogFromCanonical(payload.logId, { throwOnError: true });
+        const persisted = await persistOrSkipBlobMirror(result.updated, result.reason, "delete-log");
         return res.status(200).json(persisted);
       }
 
       if (payload?.action === "delete-account") {
         const auth = await requireAuthenticatedContext(req, payload, current);
-        const updated = applyDeleteAccount(auth.state, { ...payload, userId: auth.user.id });
+        applyDeleteAccount(auth.state, { ...payload, userId: auth.user.id });
+        const canonicalState = await buildCanonicalWritableStateForAuthenticatedGlobalMutation(auth);
+        const updated = applyDeleteAccount(canonicalState, { ...payload, userId: auth.user.id });
 
         // Canonical-first account deletion slice:
-        // 1. compute the exact post-delete blob-compatible state in memory
-        // 2. delete canonical blocs first for any sole-member blocs
-        // 3. transfer canonical admin first for any surviving admin-owned blocs
-        // 4. delete the canonical profile so dependent memberships cascade away
-        // 5. persist blob afterward as the compatibility mirror
-        for (const [groupId, group] of Object.entries(auth.state.groups || {})) {
+        // 1. authenticate/repair and validate against the blob shell
+        // 2. compute the exact post-delete blob-compatible state from the
+        //    canonical global writable constructor
+        // 3. delete canonical blocs first for any sole-member blocs
+        // 4. transfer canonical admin first for any surviving admin-owned blocs
+        // 5. delete the canonical profile so dependent memberships cascade away
+        // 6. persist blob afterward as the compatibility mirror
+        for (const [groupId, group] of Object.entries(canonicalState.groups || {})) {
           const survivingGroup = updated.groups?.[groupId];
           if (!group.memberships?.[auth.user.id]) continue;
           if (!survivingGroup) {
@@ -4766,6 +7454,12 @@ export default async function handler(req, res) {
       }
 
       if (payload?.action === "repair-display-name") {
+        // Quarantined compatibility tool:
+        // - repairs one bloc's blob-shaped historical/name-keyed state
+        // - repairs canonical display-name snapshots for that same bloc
+        // - refreshes the active canonical membership row when one still exists
+        // - should not be expanded into a general rename authority-transfer
+        //   path before full display-name de-keying exists
         const updated = applyRepairDisplayName(current, payload);
         const repairedGroup = updated.groups?.[payload.groupId];
         const repairedProfile = updated.profiles?.[payload.userId] || current.profiles?.[payload.userId] || null;
@@ -4784,6 +7478,12 @@ export default async function handler(req, res) {
             payload.userId,
             payload.oldName,
             repairedMembership.displayName,
+            { throwOnError: true }
+          );
+          await syncBlocMemberToCanonical(
+            repairedGroup,
+            payload.userId,
+            repairedMembership.role || "member",
             { throwOnError: true }
           );
         }
