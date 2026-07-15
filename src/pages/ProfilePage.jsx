@@ -50,7 +50,7 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
   }).filter(Boolean);
 
   const agg = (() => {
-    let blocWins = 0, bestMonthEver = 0, earliestJoined = null;
+    let blocWins = 0, bestMonthEver = 0, earliestJoined = null, earliestWorkout = null, targetHitMonths = 0, targetEligibleMonths = 0;
     const pnlByCurrency = {}, dayTypeMax = {}, groupTotals = [];
     myGroups.forEach(({ group, myName, currency, joinedAt }) => {
       const jt = Date.parse(joinedAt || "");
@@ -59,6 +59,8 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
       const groupDayType = {};
       const tally = logs => logs.forEach(l => {
         const iso = dayIso(l.date); if (!iso) return;
+        const ts = Date.parse(`${iso}T00:00:00`);
+        if (Number.isFinite(ts) && (earliestWorkout === null || ts < earliestWorkout)) earliestWorkout = ts;
         const t = l.type || "Other";
         if (!groupDayType[iso]) groupDayType[iso] = {};
         groupDayType[iso][t] = (groupDayType[iso][t] || 0) + 1;
@@ -72,6 +74,14 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
         groupTotal += histLogs.length;
         tally(histLogs);
         bestMonthEver = Math.max(bestMonthEver, Number(m.counts?.[myName] || histLogs.length) || 0);
+        const participated = Object.prototype.hasOwnProperty.call(m.counts || {}, myName) || histLogs.length > 0;
+        const excused = !!m.excused?.[myName];
+        if (participated && !excused) {
+          const target = m.memberTargets?.[myName] || m.settings?.minTarget || MIN_TARGET;
+          const count = Number(m.counts?.[myName] ?? histLogs.length) || 0;
+          targetEligibleMonths += 1;
+          if (count >= target) targetHitMonths += 1;
+        }
         const activeCounts = Object.keys(m.counts || {})
           .filter(n => !m.excused?.[n])
           .map(n => ({ name: n, count: Number(m.counts[n] || 0), target: m.memberTargets?.[n] || m.settings?.minTarget || MIN_TARGET }));
@@ -106,26 +116,16 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
     const bestIdx = anyLogs && wmax > 0 ? weekday.indexOf(wmax) : -1;
     const worstIdx = anyLogs && wmax > wmin ? weekday.indexOf(wmin) : -1;
     const favType = Object.entries(typeMix).sort((a, b) => b[1] - a[1])[0];
-    return { workoutsLogged, blocWins, bestMonthEver, earliestJoined, pnlByCurrency, weekday,
+    return { workoutsLogged, blocWins, bestMonthEver, earliestJoined, earliestWorkout, targetHitMonths, targetEligibleMonths, pnlByCurrency, weekday,
       topBloc: topBloc?.total ? topBloc.name : "—",
       bestDay: bestIdx >= 0 ? WEEKDAYS[bestIdx] : "—", worstDay: worstIdx >= 0 ? WEEKDAYS[worstIdx] : "—",
       bestIdx, worstIdx, typeMix, favType: favType && favType[1] > 0 ? favType[0] : "—",
       logsByDate, anyLogs };
   })();
 
-  const since = sinceLabel(accountCreatedAt) || sinceLabel(agg.earliestJoined);
-  const sinceShort = shortSinceLabel(accountCreatedAt) || shortSinceLabel(agg.earliestJoined);
-
-  // Current active streak: consecutive active days ending today (or yesterday).
-  const streakSet = (() => {
-    const set = new Set();
-    const t = new Date(); t.setHours(0, 0, 0, 0);
-    let anchor = null;
-    if ((agg.logsByDate[isoOf(t)] || 0) > 0) anchor = new Date(t);
-    else { const y = new Date(t); y.setDate(y.getDate() - 1); if ((agg.logsByDate[isoOf(y)] || 0) > 0) anchor = y; }
-    if (anchor) { const c = new Date(anchor); while ((agg.logsByDate[isoOf(c)] || 0) > 0) { set.add(isoOf(c)); c.setDate(c.getDate() - 1); } }
-    return set;
-  })();
+  const profileStartTs = agg.earliestWorkout || agg.earliestJoined || Date.parse(accountCreatedAt || "") || null;
+  const since = sinceLabel(profileStartTs);
+  const sinceShort = shortSinceLabel(profileStartTs);
 
   // ── heatmap — Mon→Sun rows, from the join date through today (multi-year). ──
   const HEAT_CELL = 15, HEAT_GAP = 4, HEAT_PITCH = HEAT_CELL + HEAT_GAP, HEAT_WDCOL = 32;
@@ -133,7 +133,7 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
   const heatCell = c => c <= 0 ? "rgba(255,255,255,.05)" : c === 1 ? "rgba(78,205,196,.24)" : c === 2 ? "rgba(78,205,196,.48)" : c === 3 ? "rgba(78,205,196,.72)" : "#4ECDC4";
   const heat = (() => {
     const today = new Date(); today.setHours(0, 0, 0, 0);
-    const joinTs = Date.parse(accountCreatedAt || "") || agg.earliestJoined || null;
+    const joinTs = profileStartTs;
     const firstIso = Object.keys(agg.logsByDate).sort()[0];
     const firstTs = firstIso ? Date.parse(`${firstIso}T00:00:00`) : null;
     let startTs = joinTs;
@@ -171,19 +171,32 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
   const statLabel = { display: "block", fontSize: 8.5, fontWeight: MED, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 3, textAlign: "center", width: "100%" };
   const statVal = extra => ({ fontSize: 17, fontWeight: MED, lineHeight: 1.06, textAlign: "center", width: "100%", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", ...extra });
   const statSub = { fontSize: 8.5, fontWeight: REG, color: "var(--muted)", marginTop: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", textAlign: "center", width: "100%" };
-  const statCard = (label, valNode, sub) => React.createElement(Card, { key: label, style: { padding: "9px 6px", display: "flex", flexDirection: "column", alignItems: "center" } },
+  const statCard = (label, valNode, sub, options = {}) => React.createElement(Card, { key: label, style: {
+    position: "relative",
+    padding: options.elevated ? "9px 6px 10px" : "9px 6px",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    overflow: "hidden",
+    boxShadow: options.elevated ? "0 12px 24px rgba(0,0,0,.22), 0 2px 10px rgba(78,205,196,.045)" : undefined
+  } },
+    options.elevated ? React.createElement('div', { style: { position: "absolute", left: 9, right: 9, top: 0, height: 1, background: "rgba(115,232,223,.42)" } }) : null,
+    options.icon ? React.createElement('span', { style: { width: 20, height: 20, marginBottom: 5, borderRadius: 999, display: "inline-flex", alignItems: "center", justifyContent: "center", color: "#4ECDC4", background: "rgba(78,205,196,.08)", border: "1px solid rgba(78,205,196,.16)" } }, options.icon) : null,
     React.createElement('span', { style: statLabel }, label),
     valNode,
     sub ? React.createElement('div', { style: statSub }, sub) : null
   );
 
   // ── lifetime take (hero; per-currency, no FX blend, no zero amounts) ────────
-  const money = (net, cur) => `${net > 0 ? "+" : "-"}${fmtCurrency(Math.abs(net), cur)}`;
+  const money = (net, cur) => fmtCurrency(Math.abs(net), cur);
   const moneyColor = net => net > 0 ? "var(--green)" : net < 0 ? "var(--red)" : "var(--text)";
   const pnlNonzero = Object.entries(agg.pnlByCurrency).filter(([, n]) => n !== 0).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]));
   const hasPnl = pnlNonzero.length > 0;
   const [primCur, primNet] = hasPnl ? pnlNonzero[0] : [null, 0];
   const secondaryPnl = pnlNonzero.slice(1);
+  const hitRateLabel = agg.targetEligibleMonths ? `${agg.targetHitMonths}/${agg.targetEligibleMonths}` : "—";
+  const hitRateSub = agg.targetEligibleMonths ? "targets hit" : "closed months";
+  const bottomValStyle = extra => statVal({ fontSize: 13, lineHeight: 1.08, ...extra });
 
   // ── workout mix (all-time, cross-Bloc) ─────────────────────────────────────
   const mixSorted = [...WORKOUT_TYPES].sort((a, b) => (agg.typeMix[b] || 0) - (agg.typeMix[a] || 0) || WORKOUT_TYPES.indexOf(a) - WORKOUT_TYPES.indexOf(b));
@@ -218,9 +231,9 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
 
     // Free tier — three stat cards, single row
     React.createElement('div', { style: { display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 6 } },
-      statCard("Workouts", React.createElement('div', { style: statVal({ color: "#4ECDC4" }) }, agg.workoutsLogged || 0), "logged all-time"),
-      statCard("Blocs", React.createElement('div', { style: statVal({ color: "var(--text)" }) }, myGroups.length), "joined"),
-      statCard("Bloc wins", React.createElement('div', { style: statVal({ color: "var(--text)" }) }, agg.blocWins || 0), "months won")
+      statCard("Workouts", React.createElement('div', { style: statVal({ color: "#4ECDC4" }) }, agg.workoutsLogged || 0), "logged all-time", { elevated: true, icon: React.createElement(WorkoutTypeIcon, { type: "Gym", size: 13 }) }),
+      statCard("Blocs", React.createElement('div', { style: statVal({ color: "var(--text)" }) }, myGroups.length), "joined", { elevated: true, icon: React.createElement(AppIcon, { name: "group", size: 13, stroke: "currentColor" }) }),
+      statCard("Bloc wins", React.createElement('div', { style: statVal({ color: "var(--text)" }) }, agg.blocWins || 0), "months won", { elevated: true, icon: React.createElement(AppIcon, { name: "trophy", size: 13, stroke: "currentColor" }) })
     ),
 
     // ── Premium block (PROFILE_PREMIUM_GATE) — all built & visible now ─────────
@@ -232,19 +245,17 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
 
     // Lifetime take — hero card
     React.createElement(Card, { style: { padding: "14px 15px" } },
-      React.createElement('span', { style: { display: "block", fontSize: 8.5, fontWeight: MED, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 6 } }, "Lifetime take"),
+      React.createElement('span', { style: { display: "block", fontSize: 8.5, fontWeight: MED, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 7 } }, "Lifetime take"),
       hasPnl
-        ? React.createElement(React.Fragment, null,
-            React.createElement('div', { style: { fontSize: 28, fontWeight: MED, color: moneyColor(primNet), lineHeight: 1.05 } }, money(primNet, primCur)),
-            React.createElement('div', { style: { fontSize: 11.5, fontWeight: REG, color: "var(--muted)", marginTop: 4 } }, "Net across every Bloc you've played"),
+        ? React.createElement('div', { style: { fontSize: 15, fontWeight: REG, color: "var(--text)", lineHeight: 1.45 } },
+            primNet > 0
+              ? React.createElement(React.Fragment, null, "Your workout habits have won you ", React.createElement('span', { style: { color: moneyColor(primNet), fontWeight: MED } }, money(primNet, primCur)), " from your Blocmates.")
+              : React.createElement(React.Fragment, null, "Your workout habits have lost you ", React.createElement('span', { style: { color: moneyColor(primNet), fontWeight: MED } }, money(primNet, primCur)), " to your Blocmates."),
             secondaryPnl.length
-              ? React.createElement('div', { style: { fontSize: 11, fontWeight: REG, color: "var(--muted2)", marginTop: 3 } }, secondaryPnl.map(([c, n]) => `${money(n, c)}`).join("   "))
+              ? React.createElement('div', { style: { fontSize: 11, fontWeight: REG, color: "var(--muted2)", marginTop: 5, lineHeight: 1.35 } }, secondaryPnl.map(([c, n]) => `${n > 0 ? "Won" : "Lost"} ${money(n, c)}`).join(" · "))
               : null
           )
-        : React.createElement(React.Fragment, null,
-            React.createElement('div', { style: { fontSize: 28, fontWeight: MED, color: "var(--text)", lineHeight: 1.05 } }, "Even"),
-            React.createElement('div', { style: { fontSize: 11.5, fontWeight: REG, color: "var(--muted)", marginTop: 4 } }, "No money's settled across your Blocs yet")
-          )
+        : React.createElement('div', { style: { fontSize: 15, fontWeight: REG, color: "var(--text)", lineHeight: 1.45 } }, "Dead even with your Blocmates so far.")
     ),
 
     // Heatmap card
@@ -271,13 +282,10 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
                 React.createElement('div', { style: { display: "flex", gap: HEAT_GAP } },
                   heat.weeks.map((week, wi) => React.createElement('div', { key: wi, style: { display: "flex", flexDirection: "column", gap: HEAT_GAP } },
                     week.map(cell => {
-                      const inStreak = streakSet.has(cell.iso);
-                      const shadow = sel && sel.iso === cell.iso
-                        ? "0 0 0 1.5px #4ECDC4"
-                        : inStreak ? "0 0 0 1px rgba(245,166,35,.9), 0 0 5px rgba(245,166,35,.55)" : "none";
+                      const shadow = sel && sel.iso === cell.iso ? "0 0 0 1.5px #4ECDC4" : "none";
                       return React.createElement('button', { key: cell.iso, type: "button",
                         onClick: cell.future ? undefined : () => setSel(s => s && s.iso === cell.iso ? null : { iso: cell.iso, count: cell.count }),
-                        style: { width: HEAT_CELL, height: HEAT_CELL, borderRadius: 3, border: "none", padding: 0, cursor: cell.future ? "default" : "pointer", background: cell.future ? "transparent" : heatCell(cell.count), boxShadow: shadow, position: inStreak ? "relative" : "static", zIndex: inStreak ? 1 : "auto" } });
+                        style: { width: HEAT_CELL, height: HEAT_CELL, borderRadius: 3, border: "none", padding: 0, cursor: cell.future ? "default" : "pointer", background: cell.future ? "transparent" : heatCell(cell.count), boxShadow: shadow } });
                     })
                   ))
                 )
@@ -332,12 +340,13 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
           )
     ),
 
-    // Second stat row — four cards, single row
-    React.createElement('div', { style: { display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 6 } },
-      statCard("Best month", React.createElement('div', { style: statVal({ color: "var(--text)" }) }, agg.bestMonthEver || 0), "workouts"),
-      statCard("Top Bloc", React.createElement('div', { style: statVal({ color: "var(--text)", fontSize: 13 }) }, agg.topBloc), "most logged"),
-      statCard("Best day", React.createElement('div', { style: statVal({ color: "#4ECDC4", fontSize: 13 }) }, agg.bestDay), "most logs"),
-      statCard("Worst day", React.createElement('div', { style: statVal({ color: agg.worstDay === "—" ? "var(--text)" : "rgba(212,74,74,.85)", fontSize: 13 }) }, agg.worstDay), "fewest logs")
+    // Second stat row — fixed type scale, wrapping instead of content scaling
+    React.createElement('div', { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(96px,1fr))", gap: 6 } },
+      statCard("Best month", React.createElement('div', { style: bottomValStyle({ color: "var(--text)" }) }, agg.bestMonthEver || 0), "workouts"),
+      statCard("Top Bloc", React.createElement('div', { style: bottomValStyle({ color: "var(--text)" }) }, agg.topBloc), "most logged"),
+      statCard("Best day", React.createElement('div', { style: bottomValStyle({ color: "#4ECDC4" }) }, agg.bestDay), "most logs"),
+      statCard("Worst day", React.createElement('div', { style: bottomValStyle({ color: agg.worstDay === "—" ? "var(--text)" : "rgba(212,74,74,.85)" }) }, agg.worstDay), "fewest logs"),
+      statCard("Hit rate", React.createElement('div', { style: bottomValStyle({ color: agg.targetEligibleMonths ? "#4ECDC4" : "var(--text)" }) }, hitRateLabel), hitRateSub)
     ),
 
     // Account section
