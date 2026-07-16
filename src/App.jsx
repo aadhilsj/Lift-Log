@@ -143,6 +143,7 @@ const App = () => {
   const justSyncedTimerRef = useRef(null);
   const optimisticMutationRef = useRef(null);
   const blocSwipeRef = useRef({sx:0,sy:0,active:false,mode:null});
+  const profileOverlayRef = useRef(null);
 
   const persistGroupSelection = useCallback((groupId) => {
     try {
@@ -271,6 +272,35 @@ const App = () => {
   useEffect(() => {
     window.scrollTo({top:0,left:0,behavior:"auto"});
   }, [page]);
+
+  useEffect(() => {
+    const el = profileOverlayRef.current;
+    if (!showProfile || !el) return undefined;
+    let startX = 0;
+    let startY = 0;
+    const handleTouchStart = event => {
+      const touch = event.touches?.[0];
+      if (!touch) return;
+      startX = touch.clientX;
+      startY = touch.clientY;
+    };
+    const handleTouchMove = event => {
+      const touch = event.touches?.[0];
+      if (!touch || !event.cancelable) return;
+      const dx = touch.clientX - startX;
+      const dy = touch.clientY - startY;
+      if (Math.abs(dx) >= Math.abs(dy)) return;
+      const atTop = el.scrollTop <= 0;
+      const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 1;
+      if ((dy > 0 && atTop) || (dy < 0 && atBottom)) event.preventDefault();
+    };
+    el.addEventListener("touchstart", handleTouchStart, { passive: true });
+    el.addEventListener("touchmove", handleTouchMove, { passive: false });
+    return () => {
+      el.removeEventListener("touchstart", handleTouchStart);
+      el.removeEventListener("touchmove", handleTouchMove);
+    };
+  }, [showProfile]);
 
   useEffect(() => {
     if (!joinCode) {
@@ -1206,7 +1236,7 @@ const App = () => {
             onJoinGroup:()=>setShowJoinModal(true),
             suppressIntro:suppressSwitcherIntro
           }),
-      showProfile && React.createElement('div',{style:{position:"fixed",inset:0,zIndex:30,overflowY:"auto",WebkitOverflowScrolling:"touch",background:"transparent"}},
+      showProfile && React.createElement('div',{ref:profileOverlayRef,style:{position:"fixed",inset:0,zIndex:30,overflowY:"auto",overflowX:"hidden",WebkitOverflowScrolling:"touch",overscrollBehavior:"contain",background:"transparent"}},
         React.createElement(ProfilePage,{
           visibleGroups,
           currentUserId: effectiveAuthSession?.userId,
