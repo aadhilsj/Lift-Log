@@ -40,6 +40,7 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
   const [deleteError, setDeleteError] = useState("");
   const [sel, setSel] = useState(null); // tapped heatmap day { iso, count }
   const heatScrollRef = useRef(null);
+  const swipeRef = useRef({ sx: 0, sy: 0, active: false });
   // Open the heatmap scrolled to today (data's most relevant end), not the join date.
   useEffect(() => { const el = heatScrollRef.current; if (el) el.scrollLeft = el.scrollWidth; }, []);
 
@@ -221,8 +222,22 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
     { label: "Sign Out", kind: "action", tone: "muted", onClick: onSignOut },
     { label: "Delete Account", kind: "action", tone: "red", onClick: () => { setDeleteError(""); setConfirmDelete(true); } }
   ];
+  const startSwipeBack = e => {
+    const t = e.touches?.[0];
+    if (!t || t.clientX > 48) return;
+    swipeRef.current = { sx: t.clientX, sy: t.clientY, active: true };
+  };
+  const endSwipeBack = e => {
+    const s = swipeRef.current;
+    const t = e.changedTouches?.[0];
+    swipeRef.current = { sx: 0, sy: 0, active: false };
+    if (!s.active || !t) return;
+    const dx = t.clientX - s.sx;
+    const dy = t.clientY - s.sy;
+    if (dx > 70 && Math.abs(dy) < 55 && dx > Math.abs(dy) * 1.35) onBack?.();
+  };
 
-  return React.createElement('div', { style: { maxWidth: 640, margin: "0 auto", padding: "10px 14px 40px", display: "flex", flexDirection: "column", gap: 14 } },
+  return React.createElement('div', { onTouchStart: startSwipeBack, onTouchEnd: endSwipeBack, style: { maxWidth: 640, margin: "0 auto", padding: "10px 14px 40px", display: "flex", flexDirection: "column", gap: 14 } },
     // Header
     React.createElement('div', { style: { position: "relative", display: "flex", alignItems: "center", justifyContent: "center", height: 40, marginBottom: 2 } },
       React.createElement('button', { type: "button", onClick: onBack, "aria-label": "Back", style: { position: "absolute", left: 0, top: "50%", transform: "translateY(-50%)", width: 34, height: 34, display: "inline-flex", alignItems: "center", justifyContent: "center", background: "transparent", border: "none", color: "var(--text)", cursor: "pointer", padding: 0 } },
