@@ -385,7 +385,7 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
     // Workout mix — lifetime, cross-Bloc (History-style bars; favourite highlighted)
     React.createElement(Card, { style: { padding: "12px 13px" } },
       React.createElement('div', { style: { marginBottom: 10, textAlign: "center" } },
-        React.createElement('div', { style: { fontSize: 13, fontWeight: MED } }, "Workout Mix")
+        React.createElement('div', { style: { fontSize: 13, fontWeight: MED } }, "Your Workout Mix")
       ),
       mixTotal === 0
         ? React.createElement('div', { style: { color: "var(--muted)", fontSize: 13, fontWeight: REG, textAlign: "center", padding: "12px 0" } }, "No workouts logged yet.")
