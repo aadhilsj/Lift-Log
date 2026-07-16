@@ -89,7 +89,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
   const selectedMonthName = FULL_MONTH_NAMES[month.month ?? monthKeyParts(month.key)?.monthIndex ?? 0] || MONTH_NAMES[month.month ?? monthKeyParts(month.key)?.monthIndex ?? 0] || "month";
   const perfectLine = `Everyone hit their target this ${selectedMonthName}.`;
   const perfectFooterLine = consistentStreak >= 2
-    ? [`${consistentStreak} consistent months in a row for you.`, "Keep it going."]
+    ? { emphasis: `${consistentStreak} consistent months in a row for you.`, rest: " Keep it going." }
     : ["Keep it going."];
 
   const handleSettlementAction = async ({ key, kind, payerDisplayName, receiverDisplayName, amount }) => {
@@ -362,7 +362,12 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
       renderPerfectRoster(),
       hero.footerLine&&React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:2,fontSize:13,color:"var(--muted)",fontWeight:500,lineHeight:1.32}},
         (Array.isArray(hero.footerLine) ? hero.footerLine : [hero.footerLine]).map((line, index) =>
-          React.createElement('div',{key:line,style:{fontWeight:isStreakLine(line)?800:500,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},line)
+          line && typeof line === "object"
+            ? React.createElement('div',{key:`footer-${index}`,style:{whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},
+                React.createElement('span',{style:{fontWeight:800}},line.emphasis),
+                React.createElement('span',{style:{fontWeight:500}},line.rest)
+              )
+            : React.createElement('div',{key:line,style:{fontWeight:isStreakLine(line)?800:500,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},line)
         )
       )
     ),
