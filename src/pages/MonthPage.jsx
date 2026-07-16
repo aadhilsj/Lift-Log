@@ -268,7 +268,7 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
       ),
       showStandings&&renderCurrentFinancialSnapshot()
     ),
-    viewPlayer&&React.createElement('div',{style:{position:"fixed",inset:0,zIndex:30,overflowY:"auto",WebkitOverflowScrolling:"touch",background:"transparent"}},
+    viewPlayer&&React.createElement('div',{style:{position:"fixed",left:0,right:0,bottom:0,top:"calc(env(safe-area-inset-top) + 44px)",zIndex:30,overflowY:"auto",WebkitOverflowScrolling:"touch",background:"transparent"}},
       React.createElement('div',{style:{maxWidth:740,margin:"0 auto"}},
         React.createElement(PlayerProfileErrorBoundary,{profileName:typeof viewPlayer === "string" ? viewPlayer : viewPlayer?.name,onBack:()=>setViewPlayer(null)},
           React.createElement(PlayerProfile,{name:typeof viewPlayer === "string" ? viewPlayer : viewPlayer?.name,logs,excused,monthHistory,onBack:()=>setViewPlayer(null),groupSettings,initialMonthKey:typeof viewPlayer === "string" ? null : viewPlayer?.monthKey})
