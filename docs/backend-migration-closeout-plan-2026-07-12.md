@@ -1582,3 +1582,33 @@ Next smoke focus:
 
 - leave/delete the orphan bloc created during the failed create-group skip test
 - sign in / blocs load sanity
+
+### Batch 26 follow-up - synthesize writable shells for canonical-only blocs
+
+The first orphan cleanup tolerated the blob-shell `Bloc not found` precheck, but
+preview still failed when leaving the orphan. The remaining gap was one layer
+deeper: `buildCanonicalWritableStateForGroup(...)` returned the base blob state
+unless both a blob group shell and a canonical bloc row existed. That meant a
+canonical-only orphan could render on the read side but still could not be
+rebuilt into writable shape for `applyLeaveBloc(...)`.
+
+Fix:
+
+- `buildCanonicalWritableStateForGroup(...)` now treats the canonical bloc row as
+  sufficient authority for the group shell
+- if the blob group is missing, it synthesizes a minimal normalized shell from
+  canonical bloc settings before overlaying canonical memberships, logs,
+  sit-outs, and history
+- the returned state also includes the group id in `groupOrder`, so non-sole
+  canonical-only blocs remain ordered if they survive the mutation
+
+Decision:
+
+- keep this as compatibility cleanup for the short bad preview window
+- keep `create-group` mirrored until proration/create lifecycle is explicitly
+  canonical-input end to end
+
+Next smoke focus:
+
+- leave/delete the canonical-only orphan bloc
+- sign in / blocs load sanity

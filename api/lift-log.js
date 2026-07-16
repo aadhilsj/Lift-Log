@@ -3229,9 +3229,26 @@ async function buildCanonicalWritableStateForGroup(groupId, baseStateOverride = 
     ? normalizeState(baseStateOverride)
     : await fetchCurrentStateFromSupabase();
 
-  const baseGroup = baseState.groups?.[safeGroupId] || null;
   const bloc = anteBlocs?.[safeGroupId] || null;
-  if (!baseGroup || !bloc) return baseState;
+  if (!bloc) return baseState;
+  const baseGroup = baseState.groups?.[safeGroupId] || normalizeGroup({
+    id: safeGroupId,
+    name: bloc.name || "Untitled Group",
+    inviteCode: bloc.invite_code || generateInviteCode(),
+    createdAt: bloc.created_at || new Date().toISOString(),
+    settings: buildNormalizedSettings({
+      timeZone:             bloc.time_zone,
+      currency:             bloc.currency,
+      minTarget:            bloc.min_target,
+      fineAmount:           bloc.fine_amount,
+      feeModel:             bloc.fee_model,
+      escalationStepAmount: bloc.escalation_step_amount,
+      minRunDistance:       bloc.min_run_distance,
+      distanceUnit:         bloc.distance_unit,
+      stravaEnabled:        bloc.strava_enabled,
+      acceptedWorkoutTypes: bloc.accepted_workout_types
+    })
+  });
 
   const canonicalMemberRows = anteBlocMembers?.[safeGroupId] || [];
   const canonicalOrderedMembers = [...canonicalMemberRows]
@@ -3429,6 +3446,10 @@ async function buildCanonicalWritableStateForGroup(groupId, baseStateOverride = 
       ...(baseState.groups || {}),
       [safeGroupId]: canonicalGroup
     },
+    groupOrder: uniqueNames([
+      ...(Array.isArray(baseState.groupOrder) ? baseState.groupOrder : []),
+      safeGroupId
+    ]),
     profiles: anteProfiles
       ? { ...(baseState.profiles || {}), ...anteProfiles }
       : baseState.profiles
