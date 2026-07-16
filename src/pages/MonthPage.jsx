@@ -253,9 +253,9 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
           )
         : React.createElement('div',{style:{fontSize:18,fontWeight:800,color:"var(--text)"}},"No leader yet"),
       currentUser&&React.createElement('div',{style:{background:"rgba(8,17,17,.24)",border:"1px solid rgba(245,166,35,.13)",borderRadius:8,padding:"9px 12px",display:"grid",gridTemplateColumns:"auto auto",columnGap:14,rowGap:1,alignItems:"baseline",justifyContent:"center",boxShadow:"inset 0 1px 0 rgba(255,255,255,.035)",backdropFilter:"blur(3px)",textAlign:"center"}},
-        React.createElement('div',{style:{fontSize:13,fontWeight:700,color:"var(--text)",textAlign:"right",whiteSpace:"nowrap"}},"Your month so far"),
+        React.createElement('div',{style:{fontSize:13,fontWeight:700,color:"var(--text)",textAlign:"center",whiteSpace:"nowrap",justifySelf:"center"}},"Your month so far"),
         React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontSize:18,fontWeight:800,color:losers.some(l=>l.name===currentUser)?"var(--red)":"#4ECDC4",textAlign:"left",whiteSpace:"nowrap"}},`${counts.find(u=>u.name===currentUser)?.count ?? 0}/${counts.find(u=>u.name===currentUser)?.target ?? MIN_TARGET}`),
-        React.createElement('div',{style:{fontSize:12,color:"var(--muted)",textAlign:"right",whiteSpace:"nowrap"}},counts.find(u=>u.name===currentUser)?.memberDiffLabel || getLeaderboardDiffText(counts.find(u=>u.name===currentUser) || {count:0,target:MIN_TARGET})),
+        React.createElement('div',{style:{fontSize:12,color:"var(--muted)",textAlign:"center",whiteSpace:"nowrap",justifySelf:"center"}},counts.find(u=>u.name===currentUser)?.memberDiffLabel || getLeaderboardDiffText(counts.find(u=>u.name===currentUser) || {count:0,target:MIN_TARGET})),
         React.createElement('div',{style:{fontSize:11,color:"var(--muted)",textAlign:"left",whiteSpace:"nowrap"}},"logged")
       )
     ),
