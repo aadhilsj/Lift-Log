@@ -115,9 +115,10 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
                   React.createElement('div',{style:{height:1,flex:1,background:"rgba(78,205,196,.18)"}})
                 ),
                 React.createElement('div',{style:{
-                  border:`0.5px solid ${post.flagStatus==="flagged"?"rgba(232,69,69,.35)":"#103434"}`,
+                  border:`0.5px solid ${post.flagStatus==="flagged"?"rgba(232,69,69,.35)":"rgba(78,205,196,.16)"}`,
                   borderRadius:10,
-                  background:"#080F0F",
+                  background:"radial-gradient(circle at 14% 0%, rgba(255,255,255,.035), transparent 34%), radial-gradient(circle at 92% 100%, rgba(78,205,196,.042), transparent 40%), linear-gradient(180deg, rgba(11,22,22,.98), rgba(8,16,16,.98))",
+                  boxShadow:"inset 0 1px 0 rgba(255,255,255,.035), 0 5px 13px rgba(0,0,0,.11)",
                   overflow:"hidden"
                 }},
                 hasThumbnail
