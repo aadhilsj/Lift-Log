@@ -1,5 +1,5 @@
 import React from "react";
-const { useState, useEffect, useMemo, useCallback, useRef } = React;
+const { useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef } = React;
 import {
   WORKOUT_TYPES,
   DEFAULT_CURRENCY,
@@ -81,18 +81,23 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
   const [showAllLeaderboard,setShowAllLeaderboard]=useState(false);
   const [viewPlayer,setViewPlayer]=useState(null);
   const sourceScrollYRef = useRef(0);
+  const restoreScrollOnCloseRef = useRef(false);
   useEffect(()=>{ setViewPlayer(null); },[navResetToken]);
-  useEffect(()=>{
+  useLayoutEffect(()=>{
     if(viewPlayer) window.scrollTo({top:0,left:0,behavior:"auto"});
+  },[viewPlayer]);
+  useLayoutEffect(()=>{
+    if(viewPlayer || !restoreScrollOnCloseRef.current) return;
+    restoreScrollOnCloseRef.current = false;
+    window.scrollTo({top:sourceScrollYRef.current || 0,left:0,behavior:"auto"});
   },[viewPlayer]);
   const openPlayerProfile = useCallback(name => {
     sourceScrollYRef.current = window.scrollY || window.pageYOffset || 0;
     setViewPlayer(name);
   },[]);
   const closePlayerProfile = useCallback(() => {
+    restoreScrollOnCloseRef.current = true;
     setViewPlayer(null);
-    const y = sourceScrollYRef.current || 0;
-    window.requestAnimationFrame(() => window.scrollTo({top:y,left:0,behavior:"auto"}));
   },[]);
 
   const currentMonthSnapshot = useMemo(() => ({
