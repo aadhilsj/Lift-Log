@@ -155,16 +155,7 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
       col += 1;
     }
     if (!monthCols.length || monthCols[0].col > 0) monthCols.unshift({ col: 0, key: `${start.getFullYear()}-${String(start.getMonth()+1).padStart(2,"0")}`, label: FULL_MONTH_NAMES[start.getMonth()].slice(0, 3) });
-    const bestWeekIndexes = agg.bestMonth
-      ? weeks.map((week, index) => week.some(cell => cell.iso.startsWith(agg.bestMonth.key)) ? index : -1).filter(index => index >= 0)
-      : [];
-    const bestMarker = bestWeekIndexes.length
-      ? {
-          left: bestWeekIndexes[0] * HEAT_PITCH - 2,
-          width: ((bestWeekIndexes[bestWeekIndexes.length - 1] - bestWeekIndexes[0] + 1) * HEAT_PITCH) - HEAT_GAP + 4
-        }
-      : null;
-    return { weeks, monthCols, yearCols, bestMarker };
+    return { weeks, monthCols, yearCols };
   })();
   const dayDetail = (() => {
     if (!sel) return null;
@@ -334,7 +325,6 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
                   WD_SHORT.map(lbl => React.createElement('div', { key: lbl, style: { height: HEAT_CELL, display: "flex", alignItems: "center", fontSize: 9, fontWeight: REG, color: "var(--muted)", lineHeight: 1 } }, lbl))
                 ),
                 React.createElement('div', { style: { position: "relative", display: "flex", gap: HEAT_GAP } },
-                  heat.bestMarker ? React.createElement('div', { style: { position: "absolute", pointerEvents: "none", left: heat.bestMarker.left, top: -3, width: heat.bestMarker.width, height: (HEAT_CELL * 7) + (HEAT_GAP * 6) + 6, border: "1px solid rgba(88,235,225,.36)", borderRadius: 5, boxShadow: "inset 0 0 0 1px rgba(88,235,225,.06)", zIndex: 1 } }) : null,
                   heat.weeks.map((week, wi) => React.createElement('div', { key: wi, style: { display: "flex", flexDirection: "column", gap: HEAT_GAP } },
                     week.map(cell => {
                       const shadow = sel && sel.iso === cell.iso ? "0 0 0 1.5px #58EBE1" : "none";
