@@ -171,7 +171,7 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
 
   return React.createElement('div',{style:{maxWidth:960,margin:"0 auto",padding:"16px",display:"flex",flexDirection:"column",gap:12}},
     React.createElement('div',{className:"fu",style:{textAlign:"center"}},
-      React.createElement('div',{style:{fontSize:24,fontWeight:800,textAlign:"center"}},"Block History")
+      React.createElement('div',{style:{fontSize:24,fontWeight:800,textAlign:"center"}},"Bloc History")
     ),
     HISTORY_FEATURES.summaryStats&&React.createElement('div',{className:"fu2",style:{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:6}},
       [{label:"Total workouts",val:totalGroupLogs||"—",sub:"logged by the Bloc",gradient:"linear-gradient(135deg,#DFFFFC,#4ECDC4 52%,#1A8E88)"},
@@ -185,7 +185,7 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
       ))
     ),
     HISTORY_FEATURES.trailingWorkoutHistory&&React.createElement(Card,{className:"fu3",style:{padding:"11px 12px"}},
-      React.createElement('div',{style:{fontWeight:800,fontSize:13,marginBottom:10}},"Last 12 Months"),
+      React.createElement('div',{style:{fontWeight:800,fontSize:13,marginBottom:10,textAlign:"center"}},"Last 12 Months"),
       trailingMonthlyAvg.every(m=>m.total===0)
         ? React.createElement('div',{style:{color:"var(--muted)",fontSize:13,textAlign:"center",padding:"20px 0"}},"Data will appear here as the month progresses.")
         : React.createElement('div',{style:{overflowX:"auto",paddingBottom:4}},
@@ -203,7 +203,7 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
           )
     ),
     HISTORY_FEATURES.workoutMix&&React.createElement(Card,{className:"fu4",style:{padding:"11px 12px"}},
-      React.createElement('div',{style:{fontWeight:800,fontSize:13,marginBottom:10}},"Workout Type Distribution"),
+      React.createElement('div',{style:{fontWeight:800,fontSize:13,marginBottom:10,textAlign:"center"}},"Workout Type Distribution"),
       totalGroupLogs===0
         ? React.createElement('div',{style:{color:"var(--muted)",fontSize:13,textAlign:"center",padding:"12px 0"}},"No workouts logged yet.")
         : React.createElement('div',{style:{display:"flex",gap:6,alignItems:"stretch"}},
@@ -226,9 +226,9 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
           )
     ),
     HISTORY_FEATURES.allTimeLeaderboard&&React.createElement(Card,{className:"fu5",style:{overflow:"hidden"}},
-      React.createElement('div',{style:{padding:"11px 15px",borderBottom:"1px solid var(--border)",display:"flex",alignItems:"center",justifyContent:"space-between"}},
-        React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontWeight:800,fontSize:13}},"All-Time Leaderboard"),
-        React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontSize:8,color:"var(--muted)",fontWeight:700,letterSpacing:".04em",textTransform:"uppercase"}},"Swipe →")
+      React.createElement('div',{style:{position:"relative",padding:"11px 15px",borderBottom:"1px solid var(--border)",display:"flex",alignItems:"center",justifyContent:"center"}},
+        React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontWeight:800,fontSize:13,textAlign:"center"}},"All-Time Leaderboard"),
+        React.createElement('div',{style:{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",fontFamily:"'Outfit', sans-serif",fontSize:6.5,color:"var(--muted)",fontWeight:700,letterSpacing:".035em",textTransform:"uppercase"}},"Swipe →")
       ),
       React.createElement('div',{style:{position:"relative"}},
         React.createElement('div',{style:{position:"absolute",top:0,right:0,bottom:0,width:28,pointerEvents:"none",background:"linear-gradient(to right, rgba(8,15,15,0), #080F0F)",zIndex:1}}),

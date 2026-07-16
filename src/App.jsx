@@ -926,7 +926,6 @@ const App = () => {
         setSuppressSwitcherIntro(true);
         resetBlocSwipe();
         persistGroupSelection(null);
-        window.setTimeout(() => setSuppressSwitcherIntro(false), 260);
       }, 105);
     } else {
       setBlocDragX(0);
@@ -1203,7 +1202,7 @@ const App = () => {
             onJoinGroup:()=>setShowJoinModal(true),
             suppressIntro:suppressSwitcherIntro
           }),
-      showProfile && React.createElement('div',{style:{position:"fixed",inset:0,zIndex:30,overflowY:"auto",WebkitOverflowScrolling:"touch",background:"var(--bg-gradient)",backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)"}},
+      showProfile && React.createElement('div',{style:{position:"fixed",inset:0,zIndex:30,overflowY:"auto",WebkitOverflowScrolling:"touch",background:"transparent"}},
         React.createElement(ProfilePage,{
           visibleGroups,
           currentUserId: effectiveAuthSession?.userId,
