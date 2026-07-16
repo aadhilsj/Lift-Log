@@ -820,6 +820,17 @@ function isCurrentGroupMember(group, displayName, authUserId = "") {
   return activeNames.includes(safeDisplayName);
 }
 
+function resolveDeleteLogOwner(group, actorDisplayName, requestedOwner, logId) {
+  const safeActor = String(actorDisplayName || "").trim();
+  const safeRequestedOwner = String(requestedOwner || "").trim();
+  const safeLogId = String(logId || "").trim();
+  if (!group || !safeLogId) return null;
+  if ((group.logs?.[safeActor] || []).some(log => String(log?.id) === safeLogId)) return safeActor;
+  if (safeRequestedOwner && (group.logs?.[safeRequestedOwner] || []).some(log => String(log?.id) === safeLogId)) return safeRequestedOwner;
+
+  return null;
+}
+
 function isGroupDisplayNameForActor(group, displayName, actorUserId = "", actorDisplayName = "") {
   const safeDisplayName = String(displayName || "").trim();
   const safeUserId = String(actorUserId || "").trim();
@@ -5986,11 +5997,14 @@ function applyDeleteLog(current, payload) {
   const actorUserId = String(payload?.actorUserId || "").trim();
   const groupId = String(payload?.groupId || "").trim();
   const logId = String(payload?.logId || "").trim();
+  const requestedOwner = String(payload?.owner || "").trim();
   const base = rolloverStateIfNeeded(current);
   const group = base.groups[groupId];
   if (!group) { const e = new Error("Bloc not found"); e.status = 404; throw e; }
   if (!isCurrentGroupMember(group, actor, actorUserId)) { const e = new Error("Not a member"); e.status = 403; throw e; }
-  const ownerLogs = group.logs?.[actor] || [];
+  const owner = resolveDeleteLogOwner(group, actor, requestedOwner, logId);
+  if (!owner) { const e = new Error("Workout not found"); e.status = 404; throw e; }
+  const ownerLogs = group.logs?.[owner] || [];
   const logIndex = ownerLogs.findIndex(log => String(log?.id) === logId);
   if (logIndex === -1) { const e = new Error("Workout not found"); e.status = 404; throw e; }
   const updatedLogs = ownerLogs.filter((_, i) => i !== logIndex);
@@ -6001,7 +6015,7 @@ function applyDeleteLog(current, payload) {
         ...base.groups,
         [groupId]: normalizeGroup({
           ...group,
-          logs: { ...group.logs, [actor]: updatedLogs }
+          logs: { ...group.logs, [owner]: updatedLogs }
         })
       },
       meta: { revision: base.meta.revision + 1, updatedAt: new Date().toISOString() }
