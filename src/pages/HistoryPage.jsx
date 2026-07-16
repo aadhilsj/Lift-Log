@@ -1,5 +1,5 @@
 import React from "react";
-const { useState, useEffect, useMemo, useCallback } = React;
+const { useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef } = React;
 import {
   WORKOUT_TYPES,
   DEFAULT_CURRENCY,
@@ -80,7 +80,11 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
   const currency = groupSettings?.currency || DEFAULT_CURRENCY;
   const [showAllLeaderboard,setShowAllLeaderboard]=useState(false);
   const [viewPlayer,setViewPlayer]=useState(null);
+  const profileLayerRef = useRef(null);
   useEffect(()=>{ setViewPlayer(null); },[navResetToken]);
+  useLayoutEffect(()=>{
+    if(viewPlayer) profileLayerRef.current?.scrollTo?.({top:0,left:0,behavior:"auto"});
+  },[viewPlayer]);
   const openPlayerProfile = useCallback(name => {
     setViewPlayer(name);
   },[]);
@@ -321,8 +325,8 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
   );
 
   if(viewPlayer) return React.createElement(React.Fragment,null,
-    historyContent,
-    React.createElement('div',{style:{position:"fixed",inset:0,zIndex:60,overflowY:"auto",overflowX:"hidden",WebkitOverflowScrolling:"touch",overscrollBehavior:"contain",background:"transparent"}},
+    React.createElement('div',{"aria-hidden":true,style:{pointerEvents:"none"}},historyContent),
+    React.createElement('div',{ref:profileLayerRef,style:{position:"fixed",inset:0,zIndex:60,overflowY:"auto",overflowX:"hidden",WebkitOverflowScrolling:"touch",overscrollBehavior:"contain",background:"var(--bg-gradient)",backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)"}},
       React.createElement(PlayerProfileErrorBoundary,{profileName:viewPlayer,onBack:closePlayerProfile},
         React.createElement(PlayerProfile,{name:viewPlayer,logs,excused,monthHistory,onBack:closePlayerProfile,groupSettings})
       )

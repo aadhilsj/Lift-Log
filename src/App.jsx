@@ -1232,7 +1232,7 @@ const App = () => {
             creating: creatingGroup,
             autoOpenCreate: queuedCreate,
             onAutoOpenHandled:()=>setQueuedCreate(false),
-            onOpenGroup:groupId=>{ setSuppressSwitcherIntro(false); persistGroupSelection(groupId); setPage("today"); },
+            onOpenGroup:groupId=>{ window.scrollTo({top:0,left:0,behavior:"auto"}); setSuppressSwitcherIntro(false); persistGroupSelection(groupId); setPage("today"); },
             onCreateGroup:handleCreateGroup,
             onJoinGroup:()=>setShowJoinModal(true),
             suppressIntro:suppressSwitcherIntro

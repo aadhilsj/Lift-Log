@@ -1,5 +1,5 @@
 import React from "react";
-const { useState, useEffect, useMemo, useCallback } = React;
+const { useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef } = React;
 import {
   NAMES,
   MIN_TARGET,
@@ -61,7 +61,11 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
   const [settlementCardBusy,setSettlementCardBusy]=useState(null);
   const [settlementConfirmPromptCard,setSettlementConfirmPromptCard]=useState(null);
   const [settlementDisputePromptCard,setSettlementDisputePromptCard]=useState(null);
+  const profileLayerRef = useRef(null);
   useEffect(()=>{ setViewPlayer(null); },[navResetToken]);
+  useLayoutEffect(()=>{
+    if(viewPlayer) profileLayerRef.current?.scrollTo?.({top:0,left:0,behavior:"auto"});
+  },[viewPlayer]);
   const openPlayerProfile = useCallback(name => {
     setViewPlayer(name);
   },[]);
@@ -1060,8 +1064,8 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
   );
 
   if(viewPlayer) return React.createElement(React.Fragment,null,
-    todayContent,
-    React.createElement('div',{style:{position:"fixed",inset:0,zIndex:60,overflowY:"auto",overflowX:"hidden",WebkitOverflowScrolling:"touch",overscrollBehavior:"contain",background:"transparent"}},
+    React.createElement('div',{"aria-hidden":true,style:{pointerEvents:"none"}},todayContent),
+    React.createElement('div',{ref:profileLayerRef,style:{position:"fixed",inset:0,zIndex:60,overflowY:"auto",overflowX:"hidden",WebkitOverflowScrolling:"touch",overscrollBehavior:"contain",background:"var(--bg-gradient)",backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)"}},
       React.createElement(PlayerProfileErrorBoundary,{profileName:viewPlayer,onBack:closePlayerProfile},
         React.createElement(PlayerProfile,{name:viewPlayer,logs,excused,monthHistory,onBack:closePlayerProfile,groupSettings,onDeleteLog:viewPlayer===user?async(log)=>{ await onLogMutation({action:"delete-log",groupId:currentGroupId,actor:user,owner:viewPlayer,logId:log.id}); }:undefined})
       )
