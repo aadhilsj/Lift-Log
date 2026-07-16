@@ -242,11 +242,11 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
     ),
     React.createElement(Card,{style:{padding:"18px 18px 16px",background:"linear-gradient(135deg, rgba(245,166,35,.16), rgba(245,210,105,.08) 48%, rgba(8,15,15,.92))",border:"1px solid rgba(245,166,35,.28)",display:"flex",flexDirection:"column",gap:14,fontFamily:"'Outfit', sans-serif"}},
       React.createElement('div',{style:{position:"relative",display:"flex",alignItems:"center",justifyContent:"flex-end",gap:10,minHeight:16}},
-        React.createElement('span',{style:{position:"absolute",left:"50%",transform:"translateX(-50%)",fontFamily:"'Outfit', sans-serif",fontSize:11,fontWeight:800,color:"#F5A623",textTransform:"uppercase",letterSpacing:".08em",whiteSpace:"nowrap"}},"Month in progress"),
+        React.createElement('span',{style:{marginRight:"auto",fontFamily:"'Outfit', sans-serif",fontSize:11,fontWeight:800,color:"#F5A623",textTransform:"uppercase",letterSpacing:".08em",whiteSpace:"nowrap"}},"Month in progress"),
         React.createElement('span',{style:{fontFamily:"'Outfit', sans-serif",fontSize:9.5,fontWeight:500,color:"var(--muted)",whiteSpace:"nowrap",textAlign:"right"}},`${getDaysLeft()} days remaining`)
       ),
       hasActivity&&winners.length>0
-        ? React.createElement('div',{style:{width:"100%",display:"flex",alignItems:"center",justifyContent:"center",gap:10}},
+        ? React.createElement('div',{style:{display:"flex",alignItems:"center",gap:10}},
             React.createElement('span',{style:{display:"inline-flex",color:"#F5A623",flexShrink:0}},React.createElement(TrophyIcon,{size:18,color:"#F5A623"})),
             React.createElement('div',{style:{minWidth:0,display:"flex",alignItems:"center",justifyContent:"center",gap:8}},
               React.createElement('div',{style:{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minWidth:0}},
