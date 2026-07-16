@@ -1,5 +1,5 @@
 import React from "react";
-const { useState, useEffect, useMemo, useCallback, useRef } = React;
+const { useState, useEffect, useMemo, useCallback } = React;
 import {
   NAMES,
   MIN_TARGET,
@@ -51,7 +51,7 @@ import { PlayerProfile } from "../pages/PlayerProfile.jsx";
 
 const FULL_MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
-const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthHistory,saving,onSave,onMultiLog,onLogMutation,clockTick,onViewLastMonth,onSitOutRequest,onSettlementClaimPaid,onSettlementConfirmPaid,onSettlementDisputePaid,onSwitchGroup,navResetToken,showLog,setShowLog}) => {
+const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthHistory,saving,onSave,onMultiLog,onLogMutation,clockTick,onViewLastMonth,onSitOutRequest,onSettlementClaimPaid,onSettlementConfirmPaid,onSettlementDisputePaid,navResetToken,showLog,setShowLog}) => {
   const [showExcuse,setShowExcuse]=useState(false);
   const [sitOutSubmitting,setSitOutSubmitting]=useState(false);
   const [sitOutError,setSitOutError]=useState("");
@@ -61,9 +61,6 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
   const [settlementCardBusy,setSettlementCardBusy]=useState(null);
   const [settlementConfirmPromptCard,setSettlementConfirmPromptCard]=useState(null);
   const [settlementDisputePromptCard,setSettlementDisputePromptCard]=useState(null);
-  const [dragX,setDragX]=useState(0);
-  const [dragging,setDragging]=useState(false);
-  const swipeRef=useRef({sx:0,sy:0,active:false,mode:null});
   useEffect(()=>{ setViewPlayer(null); },[navResetToken]);
   useEffect(()=>{
     if(viewPlayer) window.scrollTo({top:0,left:0,behavior:"auto"});
@@ -71,36 +68,6 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
   const currentGroup = groups.find(group => group.id === currentGroupId) || null;
   const closeMeta = currentGroup ? getGroupCloseMeta(currentGroup, new Date(clockTick)) : null;
   const closePillClass = `close-pill${closeMeta?.tone === "urgent" ? " urgent" : closeMeta?.tone === "critical" ? " critical" : ""}`;
-  const startSwitchSwipe=e=>{
-    if(viewPlayer||showLog||showExcuse||settlementConfirmPromptCard||settlementDisputePromptCard) return;
-    const t=e.touches?.[0];
-    if(!t||t.clientX>48) return;
-    swipeRef.current={sx:t.clientX,sy:t.clientY,active:true,mode:null};
-  };
-  const moveSwitchSwipe=e=>{
-    const s=swipeRef.current,t=e.touches?.[0];
-    if(!s.active||!t) return;
-    const dx=t.clientX-s.sx,dy=t.clientY-s.sy;
-    if(!s.mode&&(Math.abs(dx)>8||Math.abs(dy)>8)){
-      s.mode=dx>0&&Math.abs(dx)>Math.abs(dy)*1.2?"back":"scroll";
-      setDragging(s.mode==="back");
-    }
-    if(s.mode==="back") setDragX(Math.max(0,Math.min(dx,window.innerWidth||420)));
-  };
-  const endSwitchSwipe=e=>{
-    const s=swipeRef.current,t=e.changedTouches?.[0];
-    swipeRef.current={sx:0,sy:0,active:false,mode:null};
-    if(!s.active||!t) return;
-    const dx=t.clientX-s.sx,dy=t.clientY-s.sy,screenWidth=window.innerWidth||420;
-    const shouldClose=s.mode==="back"&&dx>screenWidth/2&&Math.abs(dy)<90&&dx>Math.abs(dy)*1.15;
-    setDragging(false);
-    if(shouldClose){
-      setDragX(screenWidth);
-      window.setTimeout(()=>onSwitchGroup?.(),115);
-    }else{
-      setDragX(0);
-    }
-  };
   const groupSettings = currentGroup?.settings || buildNormalizedSettings({});
   const monthSummary = currentGroup ? getCurrentMonthSummary(currentGroup) : null;
   const currentSitOutRequest = currentGroup ? getCurrentSitOutRequest(currentGroup, user, curKey) : null;
@@ -1073,8 +1040,8 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
     )
   );
 
-  return React.createElement('div',{onTouchStart:startSwitchSwipe,onTouchMove:moveSwitchSwipe,onTouchEnd:endSwitchSwipe,onTouchCancel:()=>{swipeRef.current={sx:0,sy:0,active:false,mode:null};setDragging(false);setDragX(0);},style:{position:"relative",minHeight:"calc(100vh - 44px)",background:"var(--bg)",transform:dragX?`translateX(${dragX}px)`:"translateX(0)",transition:dragging?"none":"transform .14s ease",boxShadow:dragX?"-18px 0 34px rgba(0,0,0,.28)":"none",willChange:"transform",touchAction:"pan-y"}},
-    viewPlayer&&React.createElement('div',{style:{position:"absolute",inset:0,zIndex:30,overflowY:"auto",WebkitOverflowScrolling:"touch",background:"transparent"}},
+  return React.createElement('div',{style:{position:"relative",minHeight:"calc(100vh - 44px)",background:"transparent"}},
+    viewPlayer&&React.createElement('div',{style:{position:"absolute",inset:0,zIndex:30,overflowY:"auto",WebkitOverflowScrolling:"touch",background:"var(--bg-gradient)",backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)"}},
       React.createElement(PlayerProfileErrorBoundary,{profileName:viewPlayer,onBack:()=>setViewPlayer(null)},
         React.createElement(PlayerProfile,{name:viewPlayer,logs,excused,monthHistory,onBack:()=>setViewPlayer(null),groupSettings,onDeleteLog:viewPlayer===user?async(log)=>{ await onLogMutation({action:"delete-log",groupId:currentGroupId,actor:user,logId:log.id}); }:undefined})
       )

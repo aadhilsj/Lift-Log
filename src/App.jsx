@@ -136,9 +136,12 @@ const App = () => {
   const [authHydrating,setAuthHydrating]=useState(false);
   const [localPreviewAuthEnabled,setLocalPreviewAuthEnabled]=useState(false);
   const [devImpersonationUserId,setDevImpersonationUserId]=useState(()=>{try{return localStorage.getItem(LOCAL_DEV_IMPERSONATION_KEY)||"";}catch{return ""; }});
+  const [blocDragX,setBlocDragX]=useState(0);
+  const [blocDragging,setBlocDragging]=useState(false);
   const latestRevisionRef = useRef(getRevision(cached));
   const justSyncedTimerRef = useRef(null);
   const optimisticMutationRef = useRef(null);
+  const blocSwipeRef = useRef({sx:0,sy:0,active:false,mode:null});
 
   const persistGroupSelection = useCallback((groupId) => {
     try {
@@ -878,7 +881,53 @@ const App = () => {
     setShowProfileModal(false);
     return { ok: true };
   };
-  const handleSwitchGroup=()=>persistGroupSelection(null);
+  const resetBlocSwipe = useCallback(() => {
+    blocSwipeRef.current = {sx:0,sy:0,active:false,mode:null};
+    setBlocDragging(false);
+    setBlocDragX(0);
+  },[]);
+  const handleSwitchGroup=()=>{
+    resetBlocSwipe();
+    persistGroupSelection(null);
+  };
+  const startBlocSwitchSwipe = useCallback((e) => {
+    if (page !== "today" || showTodayLog || showSettings || showProfileModal || showStream || showJoinModal || authStep || prorationGroup) return;
+    const t = e.touches?.[0];
+    if (!t || t.clientX > 48) return;
+    blocSwipeRef.current = {sx:t.clientX, sy:t.clientY, active:true, mode:null};
+  },[authStep, page, prorationGroup, showJoinModal, showProfileModal, showSettings, showStream, showTodayLog]);
+  const moveBlocSwitchSwipe = useCallback((e) => {
+    const s = blocSwipeRef.current;
+    const t = e.touches?.[0];
+    if (!s.active || !t) return;
+    const dx = t.clientX - s.sx;
+    const dy = t.clientY - s.sy;
+    if (!s.mode && (Math.abs(dx) > 8 || Math.abs(dy) > 8)) {
+      s.mode = dx > 0 && Math.abs(dx) > Math.abs(dy) * 1.2 ? "back" : "scroll";
+      setBlocDragging(s.mode === "back");
+    }
+    if (s.mode === "back") setBlocDragX(Math.max(0, Math.min(dx, window.innerWidth || 420)));
+  },[]);
+  const endBlocSwitchSwipe = useCallback((e) => {
+    const s = blocSwipeRef.current;
+    const t = e.changedTouches?.[0];
+    blocSwipeRef.current = {sx:0,sy:0,active:false,mode:null};
+    if (!s.active || !t) return;
+    const dx = t.clientX - s.sx;
+    const dy = t.clientY - s.sy;
+    const screenWidth = window.innerWidth || 420;
+    const shouldClose = s.mode === "back" && dx > screenWidth / 2 && Math.abs(dy) < 90 && dx > Math.abs(dy) * 1.15;
+    setBlocDragging(false);
+    if (shouldClose) {
+      setBlocDragX(screenWidth);
+      window.setTimeout(() => {
+        resetBlocSwipe();
+        persistGroupSelection(null);
+      }, 105);
+    } else {
+      setBlocDragX(0);
+    }
+  },[persistGroupSelection, resetBlocSwipe]);
   const handleStreamSeasonClosedTap = useCallback((groupId) => {
     if (!groupId) return;
     persistGroupSelection(groupId);
@@ -1177,6 +1226,42 @@ const App = () => {
     members: Object.values(currentGroup.memberships || {}).map(m => ({ id: m.userId, name: m.displayName }))
   });
 
+  const activeBlocSurface = React.createElement('div',{
+    onTouchStart:startBlocSwitchSwipe,
+    onTouchMove:moveBlocSwitchSwipe,
+    onTouchEnd:endBlocSwitchSwipe,
+    onTouchCancel:resetBlocSwipe,
+    style:{
+      position:"relative",
+      zIndex:1,
+      minHeight:"100vh",
+      background:"var(--bg-gradient)",
+      backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)",
+      transform:blocDragX?`translateX(${blocDragX}px)`:"translateX(0)",
+      transition:blocDragging?"none":"transform .14s ease",
+      boxShadow:blocDragX?"-18px 0 34px rgba(0,0,0,.28)":"none",
+      willChange:"transform",
+      touchAction:"pan-y"
+    }
+  },
+    React.createElement(Nav,{page,setPage:handleNavSelect,user:currentUser,groupName:currentGroup.name,canEditGroup:isGroupAdmin,onOpenSettings:()=>setShowSettings(true),onOpenProfile:()=>{setProfileError("");setShowProfileModal(true);},onOpenStream:()=>{markStreamRead(currentGroup.id);setShowStream(true);},streamUnreadCount,onSwitchUser:handleSwitchUser,onSwitchGroup:handleSwitchGroup,onOpenLog:()=>{setPage("today");setShowTodayLog(true);},syncing,lastSyncedAt,syncError,onRefresh:refreshNow,showJustSynced,activityAlertCount}),
+    localDevMode && React.createElement(LocalDevImpersonationBar,{options:devImpersonationOptions,value:effectiveAuthSession?.devImpersonationActive?effectiveAuthSession.userId:"",onChange:handleSelectDevImpersonation}),
+    React.createElement('div',{style:{paddingBottom:isMobileView?"calc(86px + env(safe-area-inset-bottom))":0}},
+      page==="today"  &&React.createElement(TodayPageErrorBoundary,{resetKey:`${selectedGroupId}:${navResetToken}:${currentUser}`},
+        React.createElement(TodayPage,  {user:currentUser,currentUserId:effectiveAuthSession?.userId,currentGroupId:selectedGroupId,groups,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,saving,onSave:handleSave,onMultiLog:handleMultiLog,onLogMutation:handleLogMutation,clockTick,onViewLastMonth:()=>{setMonthInitialIdx(0);setPage("month");},onSitOutRequest:handleSitOutRequest,onSettlementClaimPaid:handleSettlementClaimPaid,onSettlementConfirmPaid:handleSettlementConfirmPaid,onSettlementDisputePaid:handleSettlementDisputePaid,navResetToken,showLog:showTodayLog,setShowLog:setShowTodayLog})
+      ),
+      page==="activity"&&React.createElement(ActivityPage,{group:currentGroup,currentUser,onLogMutation:handleLogMutation,clockTick}),
+      page==="month"  &&React.createElement(MonthPage,  {key:`${selectedGroupId}:${navResetToken}:${monthInitialIdx ?? "current"}`,group:currentGroup,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,groupSettings:currentGroup.settings,currentUser,currentUserId:effectiveAuthSession?.userId,initialSelIdx:monthInitialIdx,onStartNextMonth:()=>{setMonthInitialIdx(null);setPage("today");},onOpenToday:()=>setPage("today"),onSettlementClaimPaid:handleSettlementClaimPaid,onSettlementConfirmPaid:handleSettlementConfirmPaid,navResetToken}),
+      page==="history"&&React.createElement(HistoryPage,{group:currentGroup,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,groupSettings:currentGroup.settings,navResetToken,currentUser})
+    ),
+    showInstallBanner && React.createElement(InstallBanner,{
+      installReady:Boolean(installPrompt),
+      onInstall:installApp,
+      onDismiss:dismissInstall,
+      showIosHint
+    })
+  );
+
   return React.createElement(React.Fragment,null,
     showJoinModal && !authStep && React.createElement(JoinGroupModal,{inviteContext,joinCode,setJoinCode,onClose:()=>setShowJoinModal(false),onJoin:handleJoinGroup,joining:joiningGroup,error:inviteError,signedIn:true}),
     showProfileModal && React.createElement(ProfileModal,{email:authSession?.email,onSignOut:handleSwitchUser,onClose:()=>setShowProfileModal(false),showDisplayName:true,currentDisplayName:currentUser,onSaveDisplayName:handleSaveProfileFromModal,saving:profileSaving,saveError:profileError,onLeaveBloc:handleLeaveBloc,onDeleteAccount:handleDeleteAccount}),
@@ -1206,22 +1291,7 @@ const App = () => {
         onJoinGroup:()=>{}
       })
     ),
-    React.createElement(Nav,{page,setPage:handleNavSelect,user:currentUser,groupName:currentGroup.name,canEditGroup:isGroupAdmin,onOpenSettings:()=>setShowSettings(true),onOpenProfile:()=>{setProfileError("");setShowProfileModal(true);},onOpenStream:()=>{markStreamRead(currentGroup.id);setShowStream(true);},streamUnreadCount,onSwitchUser:handleSwitchUser,onSwitchGroup:handleSwitchGroup,onOpenLog:()=>{setPage("today");setShowTodayLog(true);},syncing,lastSyncedAt,syncError,onRefresh:refreshNow,showJustSynced,activityAlertCount}),
-    localDevMode && React.createElement(LocalDevImpersonationBar,{options:devImpersonationOptions,value:effectiveAuthSession?.devImpersonationActive?effectiveAuthSession.userId:"",onChange:handleSelectDevImpersonation}),
-    React.createElement('div',{style:{paddingBottom:isMobileView?"calc(86px + env(safe-area-inset-bottom))":0}},
-      page==="today"  &&React.createElement(TodayPageErrorBoundary,{resetKey:`${selectedGroupId}:${navResetToken}:${currentUser}`},
-        React.createElement(TodayPage,  {user:currentUser,currentUserId:effectiveAuthSession?.userId,currentGroupId:selectedGroupId,groups,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,saving,onSave:handleSave,onMultiLog:handleMultiLog,onLogMutation:handleLogMutation,clockTick,onViewLastMonth:()=>{setMonthInitialIdx(0);setPage("month");},onSitOutRequest:handleSitOutRequest,onSettlementClaimPaid:handleSettlementClaimPaid,onSettlementConfirmPaid:handleSettlementConfirmPaid,onSettlementDisputePaid:handleSettlementDisputePaid,onSwitchGroup:handleSwitchGroup,navResetToken,showLog:showTodayLog,setShowLog:setShowTodayLog})
-      ),
-      page==="activity"&&React.createElement(ActivityPage,{group:currentGroup,currentUser,onLogMutation:handleLogMutation,clockTick}),
-      page==="month"  &&React.createElement(MonthPage,  {key:`${selectedGroupId}:${navResetToken}:${monthInitialIdx ?? "current"}`,group:currentGroup,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,groupSettings:currentGroup.settings,currentUser,currentUserId:effectiveAuthSession?.userId,initialSelIdx:monthInitialIdx,onStartNextMonth:()=>{setMonthInitialIdx(null);setPage("today");},onOpenToday:()=>setPage("today"),onSettlementClaimPaid:handleSettlementClaimPaid,onSettlementConfirmPaid:handleSettlementConfirmPaid,navResetToken}),
-      page==="history"&&React.createElement(HistoryPage,{group:currentGroup,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,groupSettings:currentGroup.settings,navResetToken,currentUser})
-    ),
-    showInstallBanner && React.createElement(InstallBanner,{
-      installReady:Boolean(installPrompt),
-      onInstall:installApp,
-      onDismiss:dismissInstall,
-      showIosHint
-    })
+    activeBlocSurface
   );
 };
 

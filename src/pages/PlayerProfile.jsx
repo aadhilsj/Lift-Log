@@ -140,11 +140,13 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,groupSettings,onDe
     {label:"Net P&L",val:hasHistory?(netPL===0?fmtCurrency(0,currency):`${netPL>0?"+":"-"}${fmtCurrency(Math.abs(netPL),currency)}`):"—",sub:hasHistory?"won minus lost":"end of month",color:hasHistory?(netPL>0?"var(--green)":netPL<0?"var(--red)":"var(--muted)"):"var(--muted)"},
   ];
   const startSwipeBack=e=>{
+    e.stopPropagation();
     const t=e.touches?.[0];
     if(!t||t.clientX>48) return;
     swipeRef.current={sx:t.clientX,sy:t.clientY,active:true,mode:null};
   };
   const moveSwipeBack=e=>{
+    e.stopPropagation();
     const s=swipeRef.current,t=e.touches?.[0];
     if(!s.active||!t) return;
     const dx=t.clientX-s.sx,dy=t.clientY-s.sy;
@@ -155,6 +157,7 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,groupSettings,onDe
     if(s.mode==="back") setDragX(Math.max(0,Math.min(dx,window.innerWidth||420)));
   };
   const endSwipeBack=e=>{
+    e.stopPropagation();
     const s=swipeRef.current,t=e.changedTouches?.[0];
     swipeRef.current={sx:0,sy:0,active:false,mode:null};
     if(!s.active||!t) return;
@@ -169,7 +172,7 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,groupSettings,onDe
     }
   };
 
-  return React.createElement('div',{onTouchStart:startSwipeBack,onTouchMove:moveSwipeBack,onTouchEnd:endSwipeBack,onTouchCancel:()=>{swipeRef.current={sx:0,sy:0,active:false,mode:null};setDragging(false);setDragX(0);},style:{minHeight:"100vh",background:"var(--bg)",transform:dragX?`translateX(${dragX}px)`:"translateX(0)",transition:dragging?"none":"transform .14s ease",boxShadow:dragX?"-18px 0 34px rgba(0,0,0,.28)":"none",willChange:"transform",touchAction:"pan-y"}},
+  return React.createElement('div',{onTouchStart:startSwipeBack,onTouchMove:moveSwipeBack,onTouchEnd:endSwipeBack,onTouchCancel:e=>{e.stopPropagation();swipeRef.current={sx:0,sy:0,active:false,mode:null};setDragging(false);setDragX(0);},style:{minHeight:"100vh",background:"var(--bg)",transform:dragX?`translateX(${dragX}px)`:"translateX(0)",transition:dragging?"none":"transform .14s ease",boxShadow:dragX?"-18px 0 34px rgba(0,0,0,.28)":"none",willChange:"transform",touchAction:"pan-y"}},
     deleteTarget && React.createElement(DeleteModal,{log:deleteTarget,onClose:()=>setDeleteTarget(null),onConfirm:async()=>{ const log = deleteTarget; setDeleteTarget(null); await onDeleteLog(log); }}),
     React.createElement('div',{style:{maxWidth:740,margin:"0 auto",padding:"16px",display:"flex",flexDirection:"column",gap:12}},
     // Header row
