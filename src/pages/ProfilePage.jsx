@@ -25,12 +25,6 @@ const sinceLabel = ts => {
   if (!d || Number.isNaN(d.getTime())) return null;
   return `${FULL_MONTH_NAMES[d.getMonth()]} '${String(d.getFullYear()).slice(2)}`;
 };
-const shortSinceLabel = ts => {
-  const d = ts ? new Date(ts) : null;
-  if (!d || Number.isNaN(d.getTime())) return null;
-  return `${FULL_MONTH_NAMES[d.getMonth()].slice(0,3)} '${String(d.getFullYear()).slice(2)}`;
-};
-
 // Brand font system: inherited sans-serif, two weights only — 400 and 500.
 const REG = 400, MED = 500;
 
@@ -114,7 +108,6 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
     const wmax = Math.max(...weekday), wmin = Math.min(...weekday);
     const bestIdx = anyLogs && wmax > 0 ? weekday.indexOf(wmax) : -1;
     const worstIdx = anyLogs && wmax > wmin ? weekday.indexOf(wmin) : -1;
-    const favType = Object.entries(typeMix).sort((a, b) => b[1] - a[1])[0];
     const bestMonthEntry = Object.entries(monthTotals).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0];
     const bestMonth = bestMonthEntry ? {
       key: bestMonthEntry[0],
@@ -122,13 +115,11 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
       label: FULL_MONTH_NAMES[Number(bestMonthEntry[0].slice(5, 7)) - 1]
     } : null;
     return { workoutsLogged, blocWins, earliestJoined, earliestWorkout, targetHitMonths, targetEligibleMonths, bestMonth, pnlByCurrency, weekday,
-      bestIdx, worstIdx, typeMix, favType: favType && favType[1] > 0 ? favType[0] : "—",
-      logsByDate, anyLogs };
+      bestIdx, worstIdx, typeMix, logsByDate, anyLogs };
   })();
 
   const profileStartTs = agg.earliestWorkout || agg.earliestJoined || Date.parse(accountCreatedAt || "") || null;
   const since = sinceLabel(profileStartTs);
-  const sinceShort = shortSinceLabel(profileStartTs);
 
   // ── heatmap — Mon→Sun rows, from the join date through today (multi-year). ──
   const HEAT_CELL = 16, HEAT_GAP = 4, HEAT_PITCH = HEAT_CELL + HEAT_GAP, HEAT_WDCOL = 32;
@@ -164,14 +155,7 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
       col += 1;
     }
     if (!monthCols.length || monthCols[0].col > 0) monthCols.unshift({ col: 0, key: `${start.getFullYear()}-${String(start.getMonth()+1).padStart(2,"0")}`, label: FULL_MONTH_NAMES[start.getMonth()].slice(0, 3) });
-    const bestIdx = agg.bestMonth ? monthCols.findIndex(mc => mc.key === agg.bestMonth.key) : -1;
-    const bestMarker = bestIdx >= 0
-      ? {
-          left: monthCols[bestIdx].col * HEAT_PITCH - 2,
-          width: Math.max(HEAT_PITCH, (((monthCols[bestIdx + 1]?.col || weeks.length) - monthCols[bestIdx].col) * HEAT_PITCH) - HEAT_GAP + 4)
-        }
-      : null;
-    return { weeks, monthCols, yearCols, bestMarker };
+    return { weeks, monthCols, yearCols };
   })();
   const dayDetail = (() => {
     if (!sel) return null;
@@ -179,8 +163,8 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
     const lbl = d.toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" });
     return `${lbl} · ${sel.count} ${sel.count === 1 ? "workout" : "workouts"}`;
   })();
-  const heatCaption = agg.anyLogs
-    ? `${agg.workoutsLogged} since ${sinceShort || "you joined"}${agg.bestMonth ? ` · Best month: ${agg.bestMonth.label}, ${agg.bestMonth.count} ${agg.bestMonth.count === 1 ? "workout" : "workouts"}` : ""}`
+  const heatCaption = agg.bestMonth
+    ? `Best month: ${agg.bestMonth.label}, ${agg.bestMonth.count} ${agg.bestMonth.count === 1 ? "workout" : "workouts"}`
     : "";
   const dowMax = Math.max(...agg.weekday, 1);
   const hitRatePct = agg.targetEligibleMonths ? Math.round((agg.targetHitMonths / agg.targetEligibleMonths) * 100) : 0;
@@ -297,13 +281,13 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
       hasPnl
         ? React.createElement('div', { style: { fontSize: 14, fontWeight: REG, color: "var(--text)", lineHeight: 1.25, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", textAlign: "center" } },
             primNet > 0
-              ? React.createElement(React.Fragment, null, "Won ", React.createElement('span', { style: { color: moneyColor(primNet), fontWeight: MED } }, money(primNet, primCur)), " all-time.")
-              : React.createElement(React.Fragment, null, "Down ", React.createElement('span', { style: { color: moneyColor(primNet), fontWeight: MED } }, money(primNet, primCur)), " all-time."),
+              ? React.createElement(React.Fragment, null, "Won ", React.createElement('span', { style: { color: moneyColor(primNet), fontWeight: MED } }, money(primNet, primCur)), " all-time from your Blocmates.")
+              : React.createElement(React.Fragment, null, "Lost ", React.createElement('span', { style: { color: moneyColor(primNet), fontWeight: MED } }, money(primNet, primCur)), " all-time to your Blocmates."),
             secondaryPnl.length
               ? React.createElement('div', { style: { fontSize: 11, fontWeight: REG, color: "var(--muted2)", marginTop: 5, lineHeight: 1.35 } }, secondaryPnl.map(([c, n]) => `${n > 0 ? "Won" : "Lost"} ${money(n, c)}`).join(" · "))
               : null
           )
-        : React.createElement('div', { style: { fontSize: 14, fontWeight: REG, color: "var(--text)", lineHeight: 1.25, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", textAlign: "center" } }, "Even all-time.")
+        : React.createElement('div', { style: { fontSize: 14, fontWeight: REG, color: "var(--text)", lineHeight: 1.25, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", textAlign: "center" } }, "Dead even all-time with your Blocmates.")
     ),
 
     // ── Premium block (PROFILE_PREMIUM_GATE) — all built & visible now ─────────
@@ -341,10 +325,14 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
                   WD_SHORT.map(lbl => React.createElement('div', { key: lbl, style: { height: HEAT_CELL, display: "flex", alignItems: "center", fontSize: 9, fontWeight: REG, color: "var(--muted)", lineHeight: 1 } }, lbl))
                 ),
                 React.createElement('div', { style: { position: "relative", display: "flex", gap: HEAT_GAP } },
-                  heat.bestMarker ? React.createElement('div', { style: { position: "absolute", pointerEvents: "none", left: heat.bestMarker.left, top: -3, width: heat.bestMarker.width, height: (HEAT_CELL * 7) + (HEAT_GAP * 6) + 6, border: "1px solid rgba(88,235,225,.35)", borderRadius: 5, boxShadow: "inset 0 0 0 1px rgba(88,235,225,.06)" } }) : null,
                   heat.weeks.map((week, wi) => React.createElement('div', { key: wi, style: { display: "flex", flexDirection: "column", gap: HEAT_GAP } },
                     week.map(cell => {
-                      const shadow = sel && sel.iso === cell.iso ? "0 0 0 1.5px #58EBE1" : "none";
+                      const isBestMonth = agg.bestMonth && cell.iso.startsWith(agg.bestMonth.key);
+                      const shadow = sel && sel.iso === cell.iso
+                        ? "0 0 0 1.5px #58EBE1"
+                        : isBestMonth && !cell.future
+                          ? "0 0 0 1px rgba(88,235,225,.45)"
+                          : "none";
                       return React.createElement('button', { key: cell.iso, type: "button",
                         onClick: cell.future ? undefined : () => setSel(s => s && s.iso === cell.iso ? null : { iso: cell.iso, count: cell.count }),
                         style: { width: HEAT_CELL, height: HEAT_CELL, borderRadius: 3, border: "none", padding: 0, cursor: cell.future ? "default" : "pointer", background: cell.future ? "transparent" : heatCell(cell.count), boxShadow: shadow } });
@@ -357,16 +345,16 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
     ),
 
     // Hit rate — premium visual
-    React.createElement(Card, { style: { padding: "12px 14px" } },
-      React.createElement('div', { style: { display: "flex", alignItems: "center", justifyContent: "center", gap: 14 } },
-        React.createElement('div', { style: { position: "relative", width: 54, height: 54, flexShrink: 0 } },
-          React.createElement('svg', { width: 54, height: 54, viewBox: "0 0 44 44", style: { transform: "rotate(-90deg)" } },
+    React.createElement(Card, { style: { padding: "9px 12px" } },
+      React.createElement('div', { style: { display: "flex", alignItems: "center", justifyContent: "center", gap: 10 } },
+        React.createElement('div', { style: { position: "relative", width: 46, height: 46, flexShrink: 0 } },
+          React.createElement('svg', { width: 46, height: 46, viewBox: "0 0 44 44", style: { transform: "rotate(-90deg)" } },
             React.createElement('circle', { cx: 22, cy: 22, r: 18, fill: "none", stroke: "rgba(255,255,255,.07)", strokeWidth: 4 }),
             React.createElement('circle', { cx: 22, cy: 22, r: 18, fill: "none", stroke: "#58EBE1", strokeWidth: 4, strokeLinecap: "round", strokeDasharray: hitRateStroke, strokeDashoffset: hitRateStroke * (1 - (hitRatePct / 100)) })
           ),
-          React.createElement('div', { style: { position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: MED, color: "var(--text)" } }, `${hitRatePct}%`)
+          React.createElement('div', { style: { position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: MED, color: "var(--text)" } }, `${hitRatePct}%`)
         ),
-        React.createElement('div', { style: { minWidth: 0, fontSize: 13, fontWeight: REG, color: "var(--text)", lineHeight: 1.35 } }, `Hit target in ${hitRatePct}% of your months.`)
+        React.createElement('div', { style: { minWidth: 0, fontSize: 12, fontWeight: REG, color: "var(--text)", lineHeight: 1.3 } }, `Hit target in ${hitRatePct}% of your Blocs.`)
       )
     ),
 
@@ -391,9 +379,8 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
 
     // Workout mix — lifetime, cross-Bloc (History-style bars; favourite highlighted)
     React.createElement(Card, { style: { padding: "12px 13px" } },
-      React.createElement('div', { style: { display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 10, marginBottom: 10 } },
-        React.createElement('div', { style: { fontSize: 13, fontWeight: MED } }, "Workout Mix"),
-        agg.favType !== "—" ? React.createElement('div', { style: { fontSize: 11, fontWeight: REG, color: "var(--muted)" } }, `Most: ${agg.favType}`) : null
+      React.createElement('div', { style: { marginBottom: 10, textAlign: "center" } },
+        React.createElement('div', { style: { fontSize: 13, fontWeight: MED } }, "Workout Mix")
       ),
       mixTotal === 0
         ? React.createElement('div', { style: { color: "var(--muted)", fontSize: 13, fontWeight: REG, textAlign: "center", padding: "12px 0" } }, "No workouts logged yet.")
