@@ -1,12 +1,12 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
-      --bg-primary:#050808;
-      --bg-gradient:linear-gradient(170deg, #07100F 0%, #060C0C 30%, #050909 60%, #050808 100%);
-      --bg-radial-hint:radial-gradient(ellipse at 60% -10%, rgba(78,205,196,0.08) 0%, transparent 60%);
-      --card-bg:#080F0F;
-      --card-bg-alt:#161720;
-      --card-border:#0D1F1E;
-      --card-border-strong:#122424;
+      --bg-primary:#070C0C;
+      --bg-gradient:linear-gradient(170deg, #0A1514 0%, #081110 30%, #070D0D 60%, #070C0C 100%);
+      --bg-radial-hint:radial-gradient(ellipse at 60% -10%, rgba(78,205,196,0.105) 0%, transparent 60%);
+      --card-bg:#0A1212;
+      --card-bg-alt:#191B24;
+      --card-border:#12302E;
+      --card-border-strong:#173332;
       --card-border-width:0.5px;
       --card-radius:14px;
       --text:#f5f7fb;
@@ -26,7 +26,7 @@
       --gold:#f5c842;
       --track-green:#5ABF5A;
       --track-orange:#D47843;
-      --bg:var(--bg-primary); --s1:var(--card-bg); --s2:var(--card-bg-alt); --s3:#1d1f2a;
+      --bg:var(--bg-primary); --s1:var(--card-bg); --s2:var(--card-bg-alt); --s3:#222431;
       --border:var(--card-border); --border2:var(--card-border-strong);
       --muted:var(--text-muted); --muted2:var(--text-faint);
       --green:var(--cyan); --green-bg:#0b1d20; --green-dim:var(--cyan-dim);
