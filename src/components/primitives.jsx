@@ -323,11 +323,11 @@ const AnteWordmark = ({size=56,stacked=false,subtle=false}) => React.createEleme
     alignItems:"baseline"
   }
 },
-  React.createElement(React.Fragment,null,"ANT",React.createElement('span',{style:{color:"var(--cyan)"}},"É"))
+  React.createElement(React.Fragment,null,"FIR",React.createElement('span',{style:{color:"var(--cyan)"}},"O"))
 );
 
 
-const Spinner = ({label="Loading Antè..."}) => React.createElement('div',{style:{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minHeight:"100vh",gap:16}},
+const Spinner = ({label="Loading Firo..."}) => React.createElement('div',{style:{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minHeight:"100vh",gap:16}},
   React.createElement('div',{className:"spinner"}),
   React.createElement('div',{style:{color:"var(--muted)",fontSize:13,fontFamily:"'JetBrains Mono',monospace"}},label)
 );
@@ -408,11 +408,11 @@ const InstallBanner = ({installReady,onInstall,onDismiss,showIosHint}) => (
       React.createElement('div',{style:{display:"flex",alignItems:"center",gap:12}},
         React.createElement('div',{style:{width:isMobile()?36:42,height:isMobile()?36:42,borderRadius:12,background:"linear-gradient(135deg,#101820,#1fce65)",display:"flex",alignItems:"center",justifyContent:"center",color:"#08110f",flexShrink:0}},React.createElement(AppIcon,{name:"today",size:isMobile()?18:20,stroke:"#08110f"})),
         React.createElement('div',null,
-          React.createElement('div',{style:{fontWeight:800,fontSize:15}},"Install Antè"),
+          React.createElement('div',{style:{fontWeight:800,fontSize:15}},"Install Firo"),
           React.createElement('div',{style:{fontSize:12,color:"var(--muted)",marginTop:3,lineHeight:1.45}},
             installReady
-              ? "Add Antè to your home screen for a full-screen app experience and faster reloads."
-              : "On iPhone, tap Share and choose Add to Home Screen to install Antè."
+              ? "Add Firo to your home screen for a full-screen app experience and faster reloads."
+              : "On iPhone, tap Share and choose Add to Home Screen to install Firo."
           )
         )
       ),

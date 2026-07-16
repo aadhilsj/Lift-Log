@@ -250,17 +250,18 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
     if (!s.active || !t) return;
     const dx = t.clientX - s.sx;
     const dy = t.clientY - s.sy;
-    const shouldClose = s.mode === "back" && dx > 70 && Math.abs(dy) < 70 && dx > Math.abs(dy) * 1.25;
+    const screenWidth = window.innerWidth || 420;
+    const shouldClose = s.mode === "back" && dx > screenWidth / 2 && Math.abs(dy) < 90 && dx > Math.abs(dy) * 1.15;
     setDragging(false);
     if (shouldClose) {
-      setDragX(window.innerWidth || 420);
-      window.setTimeout(() => onBack?.(), 150);
+      setDragX(screenWidth);
+      window.setTimeout(() => onBack?.(), 115);
     } else {
       setDragX(0);
     }
   };
 
-  return React.createElement('div', { onTouchStart: startSwipeBack, onTouchMove: moveSwipeBack, onTouchEnd: endSwipeBack, onTouchCancel: () => { swipeRef.current = { sx: 0, sy: 0, active: false, mode: null }; setDragging(false); setDragX(0); }, style: { minHeight: "100vh", maxWidth: 640, margin: "0 auto", padding: "10px 14px 40px", display: "flex", flexDirection: "column", gap: 14, background: "var(--bg)", transform: dragX ? `translateX(${dragX}px)` : "translateX(0)", transition: dragging ? "none" : "transform .18s ease", boxShadow: dragX ? "-18px 0 34px rgba(0,0,0,.28)" : "none", willChange: "transform", touchAction: "pan-y" } },
+  return React.createElement('div', { onTouchStart: startSwipeBack, onTouchMove: moveSwipeBack, onTouchEnd: endSwipeBack, onTouchCancel: () => { swipeRef.current = { sx: 0, sy: 0, active: false, mode: null }; setDragging(false); setDragX(0); }, style: { minHeight: "100vh", maxWidth: 640, margin: "0 auto", padding: "10px 14px 40px", display: "flex", flexDirection: "column", gap: 14, background: "var(--bg)", transform: dragX ? `translateX(${dragX}px)` : "translateX(0)", transition: dragging ? "none" : "transform .14s ease", boxShadow: dragX ? "-18px 0 34px rgba(0,0,0,.28)" : "none", willChange: "transform", touchAction: "pan-y" } },
     // Header
     React.createElement('div', { style: { position: "relative", display: "flex", alignItems: "center", justifyContent: "center", height: 40, marginBottom: 2 } },
       React.createElement('button', { type: "button", onClick: onBack, "aria-label": "Back", style: { position: "absolute", left: 0, top: "50%", transform: "translateY(-50%)", width: 34, height: 34, display: "inline-flex", alignItems: "center", justifyContent: "center", background: "transparent", border: "none", color: "var(--text)", cursor: "pointer", padding: 0 } },
@@ -276,7 +277,7 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
           React.createElement('span', { style: { fontSize: 20, fontWeight: MED, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, displayName || "—"),
           React.createElement(AppIcon, { name: "edit", size: 14, stroke: "var(--muted)" })
         ),
-        since ? React.createElement('div', { style: { fontSize: 12.5, fontWeight: REG, color: "var(--muted)", marginTop: 2 } }, `Ante-ing since ${since}`) : null
+        since ? React.createElement('div', { style: { fontSize: 12.5, fontWeight: REG, color: "var(--muted)", marginTop: 2 } }, `Firo since ${since}`) : null
       )
     ),
 

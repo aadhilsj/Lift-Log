@@ -73,7 +73,7 @@ export function seedIfEmpty(blocId, { currentUserId, members = [] } = {}) {
       { title: "Biggest turnaround", name: me?.name || "Member" },
       { title: "Furthest behind", name: others[2]?.name || other2?.name || "Member" }
     ] } }),
-    sys(60 * 31, "positive", "NEW MONTH", "July is here. Raise your ante.", "", {}),
+    sys(60 * 31, "positive", "NEW MONTH", "July is here. Raise your Firo.", "", {}),
     sys(60 * 30, "neutral", "NEW MEMBER", "Deyhan joined the Bloc.", "", {}),
     runMsg,
     sys(60 * 5, "positive", "TARGET HIT", "Aadhil hit target — 21 days early.", "First to target this month.", { "🔥": [currentUserId] }),

@@ -1,4 +1,4 @@
-const CACHE_NAME = "ante-v51";
+const CACHE_NAME = "firo-v51";
 // Vite build note: JS/CSS ship as content-hashed files under /assets/ and are
 // cached at runtime by the generic same-origin fetch handler below (they are
 // immutable, so cache-first is correct for them). The precache list only

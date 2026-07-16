@@ -1078,7 +1078,7 @@ const App = () => {
     }
   },[groups, persistGroupSelection, persistSession]);
 
-  if(loading || !authReady || authHydrating) return React.createElement(Spinner,{label:"Opening Antè..."});
+  if(loading || !authReady || authHydrating) return React.createElement(Spinner,{label:"Opening Firo..."});
   if(localPreviewAuthEnabled && !authSession?.userId) {
     return React.createElement(IdentitySetup,{
       members: localPreviewMembers,

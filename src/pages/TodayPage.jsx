@@ -877,7 +877,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
   const mobileView = React.createElement('div',{className:"mobile-only",style:{padding:"12px 14px 0",display:"flex",flexDirection:"column",gap:12}},
     React.createElement('div',{style:{display:"grid",gap:10}},
       React.createElement('div',{style:{minWidth:0,flex:1}},
-        React.createElement('div',{className:"mono",style:{fontSize:9,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".12em"}},`${todayHeaderMonthName} · Day ${DAY_OF_MON}/${DAYS_IN_MON}`),
+        React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontSize:9,fontWeight:700,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".12em"}},`${todayHeaderMonthName} · Day ${DAY_OF_MON}/${DAYS_IN_MON}`),
       ),
     ),
     lastMonthBanner,
@@ -951,7 +951,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
   const desktopView = React.createElement('div',{className:"desktop-only",style:{maxWidth:1060,margin:"0 auto",padding:"20px 16px 0",display:"flex",flexDirection:"column",gap:14}},
     React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10}},
       React.createElement('div',null,
-        React.createElement('span',{className:"mono",style:{fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".14em",display:"block"}},`${todayHeaderMonthName} ${CUR_YEAR} · Day ${DAY_OF_MON}/${DAYS_IN_MON}`)
+        React.createElement('span',{style:{fontFamily:"'Outfit', sans-serif",fontSize:10,fontWeight:700,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".14em",display:"block"}},`${todayHeaderMonthName} ${CUR_YEAR} · Day ${DAY_OF_MON}/${DAYS_IN_MON}`)
       ),
       isExcused
         ? React.createElement('div',{style:{display:"flex",alignItems:"center",gap:10,background:"var(--amber-dim)",border:"1px solid #f0a50030",borderRadius:10,padding:"10px 16px"}},
@@ -1040,13 +1040,14 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
     )
   );
 
-  if(viewPlayer) return React.createElement('div',{style:{maxWidth:1060,margin:"0 auto"}},
-    React.createElement(PlayerProfileErrorBoundary,{profileName:viewPlayer,onBack:()=>setViewPlayer(null)},
-      React.createElement(PlayerProfile,{name:viewPlayer,logs,excused,monthHistory,onBack:()=>setViewPlayer(null),groupSettings,onDeleteLog:viewPlayer===user?async(log)=>{ await onLogMutation({action:"delete-log",groupId:currentGroupId,actor:user,logId:log.id}); }:undefined})
-    )
-  );
-
   return React.createElement(React.Fragment,null,
+    viewPlayer&&React.createElement('div',{style:{position:"fixed",inset:0,zIndex:30,overflowY:"auto",WebkitOverflowScrolling:"touch",background:"transparent"}},
+      React.createElement('div',{style:{maxWidth:1060,margin:"0 auto"}},
+        React.createElement(PlayerProfileErrorBoundary,{profileName:viewPlayer,onBack:()=>setViewPlayer(null)},
+          React.createElement(PlayerProfile,{name:viewPlayer,logs,excused,monthHistory,onBack:()=>setViewPlayer(null),groupSettings,onDeleteLog:viewPlayer===user?async(log)=>{ await onLogMutation({action:"delete-log",groupId:currentGroupId,actor:user,logId:log.id}); }:undefined})
+        )
+      )
+    ),
     showLog&&React.createElement(LogModal,{user,currentGroupId,groups,onConfirm:doLog,onClose:()=>setShowLog(false)}),
     deleteTarget && React.createElement(DeleteModal,{log:deleteTarget,onClose:()=>setDeleteTarget(null),onConfirm:async()=>{ const logId = deleteTarget.id; setDeleteTarget(null); await onLogMutation({action:"delete-log",groupId:currentGroupId,actor:user,logId}); }}),
     showExcuse && sitOutMode && React.createElement(SitOutModal,{mode:sitOutMode,monthName:monthSummary ? MONTH_NAMES[monthSummary.month] : MONTH_NAMES[CUR_MONTH],onClose:()=>{setShowExcuse(false);setSitOutError("");},onSubmit:submitSitOut,submitting:sitOutSubmitting,error:sitOutError}),

@@ -1,12 +1,12 @@
 import React from "react";
 const { useState, useEffect, useMemo, useCallback, useRef } = React;
-import { AppIcon, AnteWordmark } from "../components/primitives.jsx";
+import { AppIcon, Avatar, AnteWordmark } from "../components/primitives.jsx";
 
 const StreamIconButton = ({ onOpenStream, unreadCount = 0, size }) => {
   const hasUnread = unreadCount > 0;
   return React.createElement('button', {
     onClick: onOpenStream, className: "icon-btn", title: "Bloc Stream",
-    style: { position: "relative", ...(size ? { width: size, height: size, display: "inline-flex", alignItems: "center", justifyContent: "center" } : {}) }
+    style: { position: "relative", boxShadow: "0 8px 18px rgba(0,0,0,.22), inset 0 1px 0 rgba(255,255,255,.06)", borderColor: "rgba(78,205,196,.13)", ...(size ? { width: size, height: size, display: "inline-flex", alignItems: "center", justifyContent: "center" } : {}) }
   },
     React.createElement(AppIcon, { name: "message-circle", size: size ? 18 : 14, stroke: "rgba(124,136,152,.78)" }),
     hasUnread && React.createElement('span', {
@@ -35,10 +35,10 @@ const Nav = ({page,setPage,user,groupName,canEditGroup,onOpenSettings,onOpenProf
     ),
     React.createElement('div',{style:{display:"flex",alignItems:"center",gap:8}},
       React.createElement(StreamIconButton,{onOpenStream,unreadCount:streamUnreadCount}),
-      React.createElement('button',{onClick:onOpenSettings,className:"icon-btn",title:"Bloc settings"},React.createElement(AppIcon,{name:"settings",size:14})),
-      React.createElement('button',{onClick:onOpenProfile,className:"icon-btn",title:"Account",
-        onMouseEnter:e=>e.currentTarget.style.borderColor="var(--border2)",onMouseLeave:e=>e.currentTarget.style.borderColor="var(--border)"},
-        React.createElement(AppIcon,{name:"profile",size:14})
+      React.createElement('button',{onClick:onOpenSettings,className:"icon-btn",title:"Bloc settings",style:{boxShadow:"0 8px 18px rgba(0,0,0,.22), inset 0 1px 0 rgba(255,255,255,.06)",borderColor:"rgba(78,205,196,.13)"}},React.createElement(AppIcon,{name:"settings",size:14})),
+      React.createElement('button',{onClick:onOpenProfile,title:"Account",
+        style:{width:32,height:32,display:"inline-flex",alignItems:"center",justifyContent:"center",background:"transparent",border:"none",padding:0,cursor:"pointer",touchAction:"manipulation"}},
+        React.createElement(Avatar,{name:user||"?",size:28})
       )
     )
   ),
@@ -59,8 +59,8 @@ const Nav = ({page,setPage,user,groupName,canEditGroup,onOpenSettings,onOpenProf
       ),
       React.createElement('div',{style:{display:"flex",alignItems:"center",gap:4,flexShrink:0}},
         React.createElement(StreamIconButton,{onOpenStream,unreadCount:streamUnreadCount,size:28}),
-        React.createElement('button',{onClick:onOpenSettings,className:"icon-btn",title:"Bloc settings",style:{width:28,height:28,display:"inline-flex",alignItems:"center",justifyContent:"center"}},React.createElement(AppIcon,{name:"settings",size:18})),
-        React.createElement('button',{onClick:onOpenProfile,className:"icon-btn",title:"Account",style:{width:28,height:28,display:"inline-flex",alignItems:"center",justifyContent:"center"}},React.createElement(AppIcon,{name:"profile",size:18}))
+        React.createElement('button',{onClick:onOpenSettings,className:"icon-btn",title:"Bloc settings",style:{width:28,height:28,display:"inline-flex",alignItems:"center",justifyContent:"center",boxShadow:"0 8px 18px rgba(0,0,0,.22), inset 0 1px 0 rgba(255,255,255,.06)",borderColor:"rgba(78,205,196,.13)"}},React.createElement(AppIcon,{name:"settings",size:18})),
+        React.createElement('button',{onClick:onOpenProfile,title:"Account",style:{width:32,height:32,display:"inline-flex",alignItems:"center",justifyContent:"center",background:"transparent",border:"none",padding:0,cursor:"pointer",touchAction:"manipulation"}},React.createElement(Avatar,{name:user||"?",size:28}))
       )
     )
   ),

@@ -1,7 +1,7 @@
 {
-  "name": "Antè",
-  "short_name": "Antè",
-  "description": "Track workouts, monthly targets, standings, and history with Antè.",
+  "name": "Firo",
+  "short_name": "Firo",
+  "description": "Track workouts, monthly targets, standings, and history with Firo.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

@@ -74,7 +74,7 @@ const PreviewLanding = ({inviteContext,onCreate,onJoin,onSignIn}) => {
       React.createElement('span',{style:{color:"#4ECDC4"}},"Bloc"),
       " that keeps you showing up."
     ),
-    React.createElement('div',{style:{color:"#2A5555",fontSize:13,lineHeight:1.5,maxWidth:540,margin:"0 auto"}},"See how Antè works")
+    React.createElement('div',{style:{color:"#2A5555",fontSize:13,lineHeight:1.5,maxWidth:540,margin:"0 auto"}},"See how Firo works")
   );
 
   const previewHeader = React.createElement('div',{
@@ -218,7 +218,7 @@ const JoinGroupModal = ({inviteContext,joinCode,setJoinCode,onClose,onJoin,joini
 const AuthFlowModal = ({step,email,setEmail,code,setCode,displayName,setDisplayName,onClose,onSendOtp,onVerifyOtp,onSaveProfile,sending,verifying,savingProfile,error,devCode}) => React.createElement('div',{className:"overlay center-mobile",onClick:()=>{}},
   React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{maxWidth:420}},
     React.createElement('div',{style:{fontWeight:800,fontSize:20,marginBottom:6}},
-      step==="name" ? "Set your Antè name" : "Continue with email"
+      step==="name" ? "Set your Firo name" : "Continue with email"
     ),
     React.createElement('div',{style:{color:"var(--muted)",fontSize:13,lineHeight:1.6,marginBottom:18}},
       step==="email" ? "Use a one-time code to create your account or sign back in."

@@ -81,7 +81,7 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
       setSelIdx(e.target.value===""?null:Number(e.target.value));
       requestAnimationFrame(()=>selectEl.blur());
     },
-    width:isMobile()?"132px":"144px",
+    width:isMobile()?"129px":"141px",
     compact:true,
     arrowColor:"#4ECDC4",
     textAlign:"center",
@@ -94,20 +94,14 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
       outline:"none",
       boxShadow:"none",
       textAlign:"center",
-      paddingLeft:14,
-      paddingRight:20
+      paddingLeft:12,
+      paddingRight:18
     },
     options:[
       {value:"",label:"This Month"},
       ...histReversed.map((m,i)=>({value:String(i),label:expandMonthLabel(m.label)}))
     ]
   });
-
-  if(viewPlayer) return React.createElement('div',{style:{maxWidth:740,margin:"0 auto"}},
-    React.createElement(PlayerProfileErrorBoundary,{profileName:typeof viewPlayer === "string" ? viewPlayer : viewPlayer?.name,onBack:()=>setViewPlayer(null)},
-      React.createElement(PlayerProfile,{name:typeof viewPlayer === "string" ? viewPlayer : viewPlayer?.name,logs,excused,monthHistory,onBack:()=>setViewPlayer(null),groupSettings,initialMonthKey:typeof viewPlayer === "string" ? null : viewPlayer?.monthKey})
-    )
-  );
 
   const renderStandings=()=>React.createElement(Card,{style:{overflow:"hidden"}},
     React.createElement('div',{style:{padding:"11px 15px",borderBottom:"1px solid var(--border)",fontWeight:800,fontSize:14}},isCurrent?"Full Standings":"Final Standings"),
@@ -262,8 +256,7 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
           React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontSize:18,fontWeight:800,color:losers.some(l=>l.name===currentUser)?"var(--red)":"#4ECDC4"}},`${counts.find(u=>u.name===currentUser)?.count ?? 0}/${counts.find(u=>u.name===currentUser)?.target ?? MIN_TARGET}`),
           React.createElement('div',{style:{fontSize:11,color:"var(--muted)"}},"logged")
         )
-      ),
-      React.createElement('button',{type:"button",onClick:onOpenToday,style:{alignSelf:"flex-start",background:"transparent",border:"none",padding:0,color:"var(--text)",fontSize:13,fontWeight:800,cursor:"pointer"}},"See Leaderboard")
+      )
     ),
     React.createElement('div',{style:{height:1,width:"100%",background:"linear-gradient(90deg, transparent, rgba(78,205,196,.2), rgba(255,255,255,.12), rgba(78,205,196,.2), transparent)",margin:"1px 0"}}),
     lastMonthCard,
@@ -274,6 +267,13 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
         React.createElement('span',{style:{color:"var(--muted)",fontSize:14,lineHeight:1}},showStandings?"↑":"↓")
       ),
       showStandings&&renderCurrentFinancialSnapshot()
+    ),
+    viewPlayer&&React.createElement('div',{style:{position:"fixed",inset:0,zIndex:30,overflowY:"auto",WebkitOverflowScrolling:"touch",background:"transparent"}},
+      React.createElement('div',{style:{maxWidth:740,margin:"0 auto"}},
+        React.createElement(PlayerProfileErrorBoundary,{profileName:typeof viewPlayer === "string" ? viewPlayer : viewPlayer?.name,onBack:()=>setViewPlayer(null)},
+          React.createElement(PlayerProfile,{name:typeof viewPlayer === "string" ? viewPlayer : viewPlayer?.name,logs,excused,monthHistory,onBack:()=>setViewPlayer(null),groupSettings,initialMonthKey:typeof viewPlayer === "string" ? null : viewPlayer?.monthKey})
+        )
+      )
     )
     )
   );
