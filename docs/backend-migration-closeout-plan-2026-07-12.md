@@ -1530,3 +1530,34 @@ Next smoke focus:
 - create a temporary bloc
 - leave/delete that temporary bloc
 - add/delete or react/unreact sanity if convenient
+
+### Batch 26 follow-up - keep create-group mirrored
+
+Preview smoke exposed a real create-group dependency:
+
+- creating a bloc mid-month worked far enough to show the proration modal
+- both `prorate` and `keep full target` then stayed stuck on saving
+- root cause: `create-group` mirror-skip leaves the new bloc canonical-only, but
+  `season-proration-choice` still validates first against `auth.state`, the
+  writable blob shell
+- because the new bloc is absent from the blob shell, the proration choice fails
+  before the canonical write path can run
+
+Preview env was corrected to remove `create-group` while keeping the already
+smoked `leave-bloc` skip:
+
+`BLOB_MIRROR_SKIP_ACTIONS=leave-bloc,update-settings,season-proration-choice,reaction,flag,flag-response,flag-review,delete-log,add-log,multi-log`
+
+Decision:
+
+- keep `create-group` mirrored until the first-month proration follow-up is
+  canonical-input too, or until create can persist a minimal compatibility shell
+  before the proration choice
+- do not enable `join-group` yet; it has similar immediate follow-up/lifecycle
+  risk around compatibility shell state
+
+Next smoke focus:
+
+- create a mid-month temporary bloc
+- choose either proration option and confirm the modal closes
+- leave/delete the temporary bloc
