@@ -1561,3 +1561,24 @@ Next smoke focus:
 - create a mid-month temporary bloc
 - choose either proration option and confirm the modal closes
 - leave/delete the temporary bloc
+
+### Batch 26 follow-up - allow leaving canonical-only orphan blocs
+
+The bad `create-group` mirror-skip preview could leave a new bloc in canonical
+state but absent from the writable blob shell. After reload, the readable app
+could show that bloc, but `leave-bloc` failed with `Bloc not found` because it
+still prechecked `applyLeaveBloc(auth.state, ...)` against the blob shell.
+
+Fix:
+
+- `leave-bloc` still authenticates through the normal context
+- a blob-shell `404` from the precheck is now tolerated
+- the canonical writable state must still contain the bloc and active
+  membership; otherwise the canonical `applyLeaveBloc(...)` still fails
+- this lets users clean up canonical-only orphan blocs created during the bad
+  preview window without weakening canonical validation
+
+Next smoke focus:
+
+- leave/delete the orphan bloc created during the failed create-group skip test
+- sign in / blocs load sanity

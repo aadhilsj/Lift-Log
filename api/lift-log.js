@@ -7070,7 +7070,11 @@ export default async function handler(req, res) {
 
       if (payload?.action === "leave-bloc") {
         const auth = await requireAuthenticatedContext(req, payload, current);
-        applyLeaveBloc(auth.state, { ...payload, userId: auth.user.id });
+        try {
+          applyLeaveBloc(auth.state, { ...payload, userId: auth.user.id });
+        } catch (err) {
+          if (err?.status !== 404) throw err;
+        }
         const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
         const updated = applyLeaveBloc(canonicalState, { ...payload, userId: auth.user.id });
         const nextGroup = updated.groups?.[payload.groupId] || null;
