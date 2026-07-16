@@ -248,7 +248,7 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
               React.createElement('div',{style:{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center",justifyContent:"flex-start",marginBottom:2}},
                 winners.map(w=>React.createElement('div',{key:w.name,style:{display:"flex",alignItems:"center",gap:5,justifyContent:"center"}},React.createElement(Avatar,{name:w.name,size:18}),React.createElement('span',{style:{fontSize:winners.length>1?12:14,fontWeight:700,color:"var(--text)",lineHeight:1.05,maxWidth:104,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},w.name),React.createElement('span',{style:{fontFamily:"'Outfit', sans-serif",fontSize:7.5,fontWeight:500,color:"rgba(245,166,35,.7)",textTransform:"uppercase",letterSpacing:".045em",whiteSpace:"nowrap",paddingTop:1,marginLeft:4}},"current leader")))
               ),
-              React.createElement('span',{style:{fontFamily:"'Outfit', sans-serif",fontSize:11,fontWeight:500,color:"var(--muted)",letterSpacing:0,textAlign:"center",minWidth:104}},workoutsLabel(winners[0].count))
+              React.createElement('span',{style:{fontFamily:"'Outfit', sans-serif",fontSize:11,fontWeight:500,color:"var(--muted)",letterSpacing:0,textAlign:"center",minWidth:104,marginLeft:23}},workoutsLabel(winners[0].count))
             )
           )
         : React.createElement('div',{style:{fontSize:18,fontWeight:800,color:"var(--text)"}},"No leader yet"),
