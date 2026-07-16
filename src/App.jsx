@@ -1198,7 +1198,7 @@ const App = () => {
             onCreateGroup:handleCreateGroup,
             onJoinGroup:()=>setShowJoinModal(true)
           }),
-      showProfile && React.createElement('div',{style:{position:"fixed",inset:0,zIndex:30,overflowY:"auto",WebkitOverflowScrolling:"touch",background:"transparent"}},
+      showProfile && React.createElement('div',{style:{position:"fixed",inset:0,zIndex:30,overflowY:"auto",WebkitOverflowScrolling:"touch",background:"var(--bg-gradient)",backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)"}},
         React.createElement(ProfilePage,{
           visibleGroups,
           currentUserId: effectiveAuthSession?.userId,
