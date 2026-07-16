@@ -81,7 +81,7 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
       setSelIdx(e.target.value===""?null:Number(e.target.value));
       requestAnimationFrame(()=>selectEl.blur());
     },
-    width:isMobile()?"112px":"124px",
+    width:isMobile()?"107px":"119px",
     compact:true,
     arrowColor:"#4ECDC4",
     textAlign:"center",
@@ -91,7 +91,7 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
       color:"var(--text)",
       fontFamily:"'Outfit', sans-serif",
       fontWeight:700,
-      fontSize:12,
+      fontSize:9,
       outline:"none",
       boxShadow:"none",
       textAlign:"center",
@@ -162,8 +162,8 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
   // ── Closed month → settlement screen ───────────────────────────────────────
   if (!isCurrent && selMonth && currentUser) {
     return React.createElement('div',{style:{position:"relative",maxWidth:840,margin:"0 auto",padding:"12px 12px 16px",display:"flex",flexDirection:"column",gap:12,background:"radial-gradient(ellipse 95% 72% at 50% 62%, rgba(78,205,196,.075), rgba(78,205,196,.025) 46%, transparent 76%)",borderRadius:16}},
-      React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10}},
-      React.createElement('div',{style:{textAlign:"center"}},
+      React.createElement('div',{style:{position:"relative",display:"flex",alignItems:"center",justifyContent:"flex-end",minHeight:38,gap:10}},
+      React.createElement('div',{style:{position:"absolute",left:"50%",top:"50%",transform:"translate(-50%,-50%)",textAlign:"center",pointerEvents:"none",whiteSpace:"nowrap"}},
         React.createElement('div',{style:{fontSize:19,fontWeight:800}},monthLabel)
       ),
         monthSelector
