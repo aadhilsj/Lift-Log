@@ -246,7 +246,7 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
         React.createElement('span',{style:{fontFamily:"'Outfit', sans-serif",fontSize:9.5,fontWeight:500,color:"var(--muted)",whiteSpace:"nowrap",textAlign:"right"}},`${getDaysLeft()} days remaining`)
       ),
       hasActivity&&winners.length>0
-        ? React.createElement('div',{style:{display:"flex",alignItems:"center",gap:10}},
+        ? React.createElement('div',{style:{width:"100%",display:"flex",alignItems:"center",justifyContent:"center",gap:10}},
             React.createElement('span',{style:{display:"inline-flex",color:"#F5A623",flexShrink:0}},React.createElement(TrophyIcon,{size:18,color:"#F5A623"})),
             React.createElement('div',{style:{minWidth:0,display:"flex",alignItems:"center",justifyContent:"center",gap:8}},
               React.createElement('div',{style:{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minWidth:0}},
