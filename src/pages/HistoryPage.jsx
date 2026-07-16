@@ -260,8 +260,8 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
       React.createElement('div',{style:{position:"relative"}},
         React.createElement('div',{style:{position:"absolute",top:0,right:0,bottom:0,width:28,pointerEvents:"none",background:"linear-gradient(to right, rgba(8,15,15,0), #080F0F)",zIndex:1}}),
         React.createElement('div',{style:{overflowX:"auto",WebkitOverflowScrolling:"touch"}},
-        React.createElement('div',{style:{minWidth:559,padding:"7px"}},
-          React.createElement('div',{style:{display:"grid",gridTemplateColumns:"21px 26px 1fr 48px 42px 50px 38px 60px 60px",padding:"6px 8px",borderBottom:"1px solid rgba(255,255,255,.055)",gap:5,fontFamily:"'Outfit', sans-serif",fontSize:8,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".055em",fontWeight:800}},
+        React.createElement('div',{style:{minWidth:520,padding:"7px"}},
+          React.createElement('div',{style:{display:"grid",gridTemplateColumns:"21px 24px 120px 44px 38px 46px 34px 56px 56px",padding:"6px 8px",borderBottom:"1px solid rgba(255,255,255,.055)",gap:5,fontFamily:"'Outfit', sans-serif",fontSize:8,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".055em",fontWeight:800}},
             ["#","","Name","Total","AVG","Months","Wins",null,null].map((h,i)=>React.createElement('div',{key:i,style:{textAlign:i>2?"right":"left",display:"flex",alignItems:"center",justifyContent:i>2?"flex-end":"flex-start",gap:3}},
               i===7||i===8
                 ? React.createElement(React.Fragment,null,React.createElement(AppIcon,{name:"money-bag",size:10,stroke:"rgba(214,226,224,.72)"}),React.createElement('span',null,i===7?"Won":"Lost"))
@@ -273,7 +273,7 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
             const isMe = u.name === currentUser;
             const rankGlow = i === 0 ? "rgba(245,166,35,.075)" : i === 1 ? "rgba(214,226,224,.055)" : i === 2 ? "rgba(78,205,196,.045)" : "rgba(255,255,255,.02)";
             return React.createElement('div',{key:u.name,
-            style:{display:"grid",gridTemplateColumns:"21px 26px 1fr 48px 42px 50px 38px 60px 60px",padding:"8px 8px",gap:5,alignItems:"center",background:`radial-gradient(circle at 8% 0%, ${rankGlow}, transparent 42%), radial-gradient(circle at 92% 0%, rgba(78,205,196,.045), transparent 38%), linear-gradient(180deg, rgba(18,31,31,.82), rgba(8,15,15,.62))`,border:`0.5px solid ${isMe?"rgba(78,205,196,.24)":"rgba(255,255,255,.065)"}`,borderRadius:9,boxShadow:`inset 0 1px 0 rgba(255,255,255,.055), 0 8px 18px rgba(0,0,0,.16)${isMe?", 0 0 0 1px rgba(78,205,196,.035)":""}`,textAlign:"left",fontFamily:"'Outfit', sans-serif"}},
+            style:{display:"grid",gridTemplateColumns:"21px 24px 120px 44px 38px 46px 34px 56px 56px",padding:"8px 8px",gap:5,alignItems:"center",background:`radial-gradient(circle at 8% 0%, ${rankGlow}, transparent 42%), radial-gradient(circle at 92% 0%, rgba(78,205,196,.045), transparent 38%), linear-gradient(180deg, rgba(18,31,31,.82), rgba(8,15,15,.62))`,border:`0.5px solid ${isMe?"rgba(78,205,196,.24)":"rgba(255,255,255,.065)"}`,borderRadius:9,boxShadow:`inset 0 1px 0 rgba(255,255,255,.055), 0 8px 18px rgba(0,0,0,.16)${isMe?", 0 0 0 1px rgba(78,205,196,.035)":""}`,textAlign:"left",fontFamily:"'Outfit', sans-serif"}},
             React.createElement('div',{style:{fontSize:10,fontWeight:700,color:"var(--muted)",textAlign:"center"}},`#${i+1}`),
             React.createElement(Avatar,{name:u.name,size:21}),
             React.createElement('div',{style:{fontWeight:700,fontSize:12.5,display:"flex",alignItems:"baseline",gap:5,flexWrap:"nowrap",color:"var(--text)",minWidth:0,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},
@@ -291,7 +291,7 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
             React.createElement('span',{style:{fontSize:10,fontWeight:700,textAlign:"right",color:hasClosedHistory&&u.moneyLost>0?"var(--red)":"var(--muted)"}},hasClosedHistory&&u.moneyLost>0?`-${fmtCurrency(u.moneyLost, currency)}`:"—")
           )})
         ),
-        sortedAll.length>5&&React.createElement('button',{type:"button",onClick:()=>setShowAllLeaderboard(v=>!v),style:{width:"100%",minWidth:559,margin:"5px 7px 7px",padding:"8px",background:"transparent",border:"1px solid var(--border)",borderRadius:8,color:"var(--text)",fontSize:11,fontWeight:800,textAlign:"center"}},
+        sortedAll.length>5&&React.createElement('button',{type:"button",onClick:()=>setShowAllLeaderboard(v=>!v),style:{width:"100%",minWidth:520,margin:"5px 7px 7px",padding:"8px",background:"transparent",border:"1px solid var(--border)",borderRadius:8,color:"var(--text)",fontSize:11,fontWeight:800,textAlign:"center"}},
           showAllLeaderboard?"Show Less":`Show ${sortedAll.length-5} More`
         )
       ))
