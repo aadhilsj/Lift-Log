@@ -63,6 +63,34 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
   const [settlementDisputePromptCard,setSettlementDisputePromptCard]=useState(null);
   const profileLayerRef = useRef(null);
   useEffect(()=>{ setViewPlayer(null); },[navResetToken]);
+  useEffect(() => {
+    const el = profileLayerRef.current;
+    if (!viewPlayer || !el) return undefined;
+    let startX = 0;
+    let startY = 0;
+    const handleTouchStart = event => {
+      const touch = event.touches?.[0];
+      if (!touch) return;
+      startX = touch.clientX;
+      startY = touch.clientY;
+    };
+    const handleTouchMove = event => {
+      const touch = event.touches?.[0];
+      if (!touch || !event.cancelable) return;
+      const dx = touch.clientX - startX;
+      const dy = touch.clientY - startY;
+      if (Math.abs(dx) >= Math.abs(dy)) return;
+      const atTop = el.scrollTop <= 0;
+      const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 1;
+      if ((dy > 0 && atTop) || (dy < 0 && atBottom)) event.preventDefault();
+    };
+    el.addEventListener("touchstart", handleTouchStart, { passive: true });
+    el.addEventListener("touchmove", handleTouchMove, { passive: false });
+    return () => {
+      el.removeEventListener("touchstart", handleTouchStart);
+      el.removeEventListener("touchmove", handleTouchMove);
+    };
+  },[viewPlayer]);
   useLayoutEffect(()=>{
     if(viewPlayer) profileLayerRef.current?.scrollTo?.({top:0,left:0,behavior:"auto"});
   },[viewPlayer]);
@@ -1065,7 +1093,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
 
   if(viewPlayer) return React.createElement(React.Fragment,null,
     React.createElement('div',{"aria-hidden":true,style:{pointerEvents:"none"}},todayContent),
-    React.createElement('div',{ref:profileLayerRef,style:{position:"fixed",inset:0,zIndex:60,overflowY:"auto",overflowX:"hidden",WebkitOverflowScrolling:"touch",overscrollBehavior:"contain",background:"var(--bg-gradient)",backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)"}},
+    React.createElement('div',{ref:profileLayerRef,style:{position:"fixed",inset:0,zIndex:60,height:"100dvh",maxHeight:"100dvh",overflowY:"auto",overflowX:"hidden",WebkitOverflowScrolling:"touch",overscrollBehavior:"contain",background:"var(--bg-gradient)",backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)"}},
       React.createElement(PlayerProfileErrorBoundary,{profileName:viewPlayer,onBack:closePlayerProfile},
         React.createElement(PlayerProfile,{name:viewPlayer,logs,excused,monthHistory,onBack:closePlayerProfile,groupSettings,onDeleteLog:viewPlayer===user?async(log)=>{ await onLogMutation({action:"delete-log",groupId:currentGroupId,actor:user,owner:viewPlayer,logId:log.id}); }:undefined})
       )
