@@ -87,7 +87,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
   })();
   const streakLine = consistentStreak >= 2 ? `${consistentStreak} consistent months in a row. Keep it going.` : "Build on it next month.";
   const selectedMonthName = FULL_MONTH_NAMES[month.month ?? monthKeyParts(month.key)?.monthIndex ?? 0] || MONTH_NAMES[month.month ?? monthKeyParts(month.key)?.monthIndex ?? 0] || "month";
-  const perfectLine = `Everyone hit their target this ${selectedMonthName}.`;
+  const perfectLine = `Everyone hit the target this ${selectedMonthName}.`;
   const perfectFooterLine = consistentStreak >= 2
     ? { emphasis: `${consistentStreak} consistent months in a row for you.`, rest: " Keep it going." }
     : ["Keep it going."];
@@ -209,7 +209,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
     if (hero.tone === "perfect") {
       return React.createElement('div',{style:{fontSize:13,color:"var(--muted)",fontWeight:500,lineHeight:1.35}},
         React.createElement('span',{style:{fontWeight:800}},"Everyone"),
-        ` hit their target this ${selectedMonthName}.`
+        ` hit the target this ${selectedMonthName}.`
       );
     }
     return React.createElement('div',{style:{fontSize:hero.tone==="neutral"||hero.tone==="missed"?12:13,color:"var(--muted)",fontWeight:500,lineHeight:1.35,whiteSpace:hero.tone==="neutral"||hero.tone==="missed"?"nowrap":"normal",overflow:"hidden",textOverflow:"ellipsis"}},hero.line);
