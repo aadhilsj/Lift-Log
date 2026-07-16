@@ -1095,7 +1095,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
 
   if(viewPlayer) return React.createElement(React.Fragment,null,
     React.createElement('div',{"aria-hidden":true,style:{pointerEvents:"none"}},todayContent),
-    React.createElement('div',{ref:profileLayerRef,style:{position:"fixed",inset:0,zIndex:160,height:"100dvh",maxHeight:"100dvh",overflowY:"auto",overflowX:"hidden",WebkitOverflowScrolling:"touch",overscrollBehavior:"contain",background:profileRevealActive?"transparent":"var(--bg-gradient)",backgroundImage:profileRevealActive?"none":"var(--bg-radial-hint), var(--bg-gradient)"}},
+    React.createElement('div',{ref:profileLayerRef,className:"in-bloc-profile-layer",style:{background:profileRevealActive?"transparent":"var(--bg-gradient)",backgroundImage:profileRevealActive?"none":"var(--bg-radial-hint), var(--bg-gradient)"}},
       React.createElement(PlayerProfileErrorBoundary,{profileName:viewPlayer,onBack:closePlayerProfile},
         React.createElement(PlayerProfile,{name:viewPlayer,logs,excused,monthHistory,onBack:closePlayerProfile,onSwipeRevealChange:setProfileRevealActive,groupSettings,onDeleteLog:viewPlayer===user?async(log)=>{ await onLogMutation({action:"delete-log",groupId:currentGroupId,actor:user,owner:viewPlayer,logId:log.id}); }:undefined})
       )
