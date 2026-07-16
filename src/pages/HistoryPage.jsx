@@ -205,13 +205,13 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
        {label:"Most wins",val:hasClosedHistory&&mostWins?.wins>0?mostWins.name:"—",sub:hasClosedHistory&&mostWins?.wins>0?`${mostWins.wins} win${mostWins.wins>1?"s":""}`:"no closed months yet",gradient:"linear-gradient(135deg,#FFE7A3,#F5A623 45%,#C47A18)"},
        {label:"Most consistent",val:hasClosedHistory&&mostConsistent?.avg!=="—"?mostConsistent.name:"—",sub:hasClosedHistory&&mostConsistent?.avg!=="—"?`${mostConsistent.avg} avg/mo`:"no closed months yet",gradient:"linear-gradient(135deg,#FFFFFF,#DDE7EE 52%,#94B7C7)"},
        {label:`Most ${currencyShortLabel(currency)} lost`,val:hasClosedHistory&&biggestLoser?.moneyLost>0?biggestLoser.name:"—",sub:hasClosedHistory&&biggestLoser?.moneyLost>0?`-${fmtCurrency(biggestLoser.moneyLost, currency)} total`:"no losses yet",gradient:"linear-gradient(135deg,#F7C8C0,#E95F45 52%,#A93A3A)"}
-      ].map(x=>React.createElement(Card,{key:x.label,style:{padding:"8px 9px"}},
+      ].map(x=>React.createElement(Card,{key:x.label,style:{padding:"8px 9px",background:"radial-gradient(circle at 50% 0%, rgba(255,255,255,.026), transparent 38%), linear-gradient(180deg, rgba(11,20,20,.98), rgba(8,14,14,.98))",borderColor:"rgba(78,205,196,.13)",boxShadow:"inset 0 1px 0 rgba(255,255,255,.035), 0 6px 14px rgba(0,0,0,.10)"}},
         React.createElement('span',{style:{display:"block",fontFamily:"'Outfit', sans-serif",fontSize:8,fontWeight:700,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".06em",marginBottom:3,textAlign:"center",width:"100%"}},x.label),
         React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontSize:15,fontWeight:800,color:x.color,lineHeight:1.06,textAlign:"center",width:"100%",...(x.gradient?gradientText(x.gradient):{})}},x.val),
         React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontSize:8.5,fontWeight:600,color:"var(--muted)",marginTop:4,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",textAlign:"center",width:"100%"}},x.sub)
       ))
     ),
-    HISTORY_FEATURES.trailingWorkoutHistory&&React.createElement(Card,{className:"fu3",style:{padding:"11px 12px",background:"radial-gradient(circle at 12% 0%, rgba(255,255,255,.045), transparent 34%), radial-gradient(circle at 88% 100%, rgba(78,205,196,.075), transparent 42%), linear-gradient(180deg, rgba(12,22,22,.98), rgba(8,15,15,.98))",boxShadow:"inset 0 1px 0 rgba(255,255,255,.045), 0 10px 24px rgba(0,0,0,.16)"}},
+    HISTORY_FEATURES.trailingWorkoutHistory&&React.createElement(Card,{className:"fu3",style:{padding:"11px 12px",background:"radial-gradient(circle at 12% 0%, rgba(255,255,255,.032), transparent 34%), radial-gradient(circle at 88% 100%, rgba(78,205,196,.052), transparent 42%), linear-gradient(180deg, rgba(12,22,22,.98), rgba(8,15,15,.98))",boxShadow:"inset 0 1px 0 rgba(255,255,255,.035), 0 7px 16px rgba(0,0,0,.12)"}},
       React.createElement('div',{style:{fontWeight:800,fontSize:13,marginBottom:10,textAlign:"center"}},"Last 12 Months"),
       trailingMonthlyAvg.every(m=>m.total===0)
         ? React.createElement('div',{style:{color:"var(--muted)",fontSize:13,textAlign:"center",padding:"20px 0"}},"Data will appear here as the month progresses.")
@@ -229,7 +229,7 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
             )
           )
     ),
-    HISTORY_FEATURES.workoutMix&&React.createElement(Card,{className:"fu4",style:{padding:"11px 12px",background:"radial-gradient(circle at 88% 0%, rgba(255,255,255,.04), transparent 34%), radial-gradient(circle at 16% 100%, rgba(78,205,196,.07), transparent 42%), linear-gradient(180deg, rgba(12,22,22,.98), rgba(8,15,15,.98))",boxShadow:"inset 0 1px 0 rgba(255,255,255,.045), 0 10px 24px rgba(0,0,0,.16)"}},
+    HISTORY_FEATURES.workoutMix&&React.createElement(Card,{className:"fu4",style:{padding:"11px 12px",background:"radial-gradient(circle at 88% 0%, rgba(255,255,255,.03), transparent 34%), radial-gradient(circle at 16% 100%, rgba(78,205,196,.05), transparent 42%), linear-gradient(180deg, rgba(12,22,22,.98), rgba(8,15,15,.98))",boxShadow:"inset 0 1px 0 rgba(255,255,255,.035), 0 7px 16px rgba(0,0,0,.12)"}},
       React.createElement('div',{style:{fontWeight:800,fontSize:13,marginBottom:10,textAlign:"center"}},"Workout Type Distribution"),
       totalGroupLogs===0
         ? React.createElement('div',{style:{color:"var(--muted)",fontSize:13,textAlign:"center",padding:"12px 0"}},"No workouts logged yet.")
