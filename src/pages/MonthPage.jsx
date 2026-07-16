@@ -217,18 +217,16 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
       React.createElement('div', { style: { fontSize: 9.5, color: "var(--muted)", whiteSpace: "nowrap" } }, label)
     );
     return React.createElement('div', { style: { border: "1px solid rgba(78,205,196,.16)", borderRadius: 10, background: "linear-gradient(135deg, rgba(78,205,196,.075), rgba(8,15,15,.58) 48%, rgba(78,205,196,.035))", boxShadow: "inset 0 1px 0 rgba(255,255,255,.035), 0 10px 28px rgba(78,205,196,.045)", padding: "12px 15px", display: "flex", flexDirection: "column", gap: 10 } },
-      React.createElement('div', { style: { fontFamily: "'Outfit', sans-serif", fontSize: 8.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".1em", color: "var(--muted)", textAlign: "center" } }, "This time last month"),
-      React.createElement('div', { style: { display: "flex", alignItems: "center", gap: 20 } },
-        React.createElement('div', { style: { display: "flex", alignItems: "flex-end", gap: 16, flexShrink: 0 } },
-          bar("This month", thisCount, "#4ECDC4", "var(--text)"),
-          bar("Last month", priorCount, "rgba(124,150,145,.5)", "var(--muted)")
-        ),
-        React.createElement('div', { style: { flex: 1, minWidth: 0, fontSize: 11, fontWeight: 700, color: takeawayColor, lineHeight: 1.3, display: "flex", alignItems: "center", alignSelf: "stretch" } }, takeaway)
+      React.createElement('div', { style: { fontFamily: "'Outfit', sans-serif", fontSize: 8.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".1em", color: "var(--muted)", textAlign: "center" } }, "This Month v Last Month"),
+      React.createElement('div', { style: { display: "grid", gridTemplateColumns: "52px minmax(0,1fr) 52px", alignItems: "center", gap: 12 } },
+        React.createElement('div', { style: { justifySelf: "start" } }, bar("This month", thisCount, "#4ECDC4", "var(--text)")),
+        React.createElement('div', { style: { minWidth: 0, fontSize: 11, fontWeight: 700, color: takeawayColor, lineHeight: 1.3, textAlign: "center", justifySelf: "stretch" } }, takeaway),
+        React.createElement('div', { style: { justifySelf: "end" } }, bar("Last month", priorCount, "rgba(124,150,145,.5)", "var(--muted)"))
       )
     );
   })();
 
-  return React.createElement('div',{style:{position:"relative",minHeight:"calc(100vh - 136px)",padding:"0 0 28px",background:"radial-gradient(ellipse 95% 72% at 50% 62%, rgba(78,205,196,.075), rgba(78,205,196,.025) 46%, transparent 76%)"}},
+  return React.createElement('div',{style:{position:"relative",minHeight:"calc(100vh - 136px)",padding:"0 0 28px",background:"radial-gradient(ellipse 95% 72% at 50% 62%, rgba(78,205,196,.055), rgba(78,205,196,.018) 46%, transparent 76%)"}},
   React.createElement('div',{style:{maxWidth:840,margin:"0 auto",padding:"12px 12px 16px",display:"flex",flexDirection:"column",gap:12,background:"transparent",borderRadius:16}},
     React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10}},
       React.createElement('div',{style:{textAlign:"center"}},
@@ -248,7 +246,7 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
               React.createElement('div',{style:{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center",justifyContent:"flex-start",marginBottom:2}},
                 winners.map(w=>React.createElement('div',{key:w.name,style:{display:"flex",alignItems:"center",gap:5,justifyContent:"center"}},React.createElement(Avatar,{name:w.name,size:18}),React.createElement('span',{style:{fontSize:winners.length>1?12:14,fontWeight:700,color:"var(--text)",lineHeight:1.05,maxWidth:104,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},w.name),React.createElement('span',{style:{fontFamily:"'Outfit', sans-serif",fontSize:7.5,fontWeight:500,color:"rgba(245,166,35,.7)",textTransform:"uppercase",letterSpacing:".045em",whiteSpace:"nowrap",paddingTop:1,marginLeft:4}},"current leader")))
               ),
-              React.createElement('span',{style:{fontFamily:"'Outfit', sans-serif",fontSize:11,fontWeight:500,color:"var(--muted)",letterSpacing:0,textAlign:"center",minWidth:104,marginLeft:23}},workoutsLabel(winners[0].count))
+              React.createElement('span',{style:{fontFamily:"'Outfit', sans-serif",fontSize:11,fontWeight:500,color:"var(--muted)",letterSpacing:0,textAlign:"center",display:"inline-block",width:`${Math.min(104,Math.max(34,String(winners[0]?.name||"").length*(winners.length>1?6.8:7.4)))}px`,marginLeft:23}},workoutsLabel(winners[0].count))
             )
           )
         : React.createElement('div',{style:{fontSize:18,fontWeight:800,color:"var(--text)"}},"No leader yet"),
