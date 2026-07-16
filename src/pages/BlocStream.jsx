@@ -876,7 +876,7 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], stre
           React.createElement('input', {
             ref: inputRef, value: draft, onChange: onDraftChange,
             onKeyDown: e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } },
-            placeholder: "Message the Bloc",
+            placeholder: "Message your Bloc",
             style: { flex: 1, minWidth: 0, background: C.inputBg, border: `1px solid ${C.inputBorder}`, borderRadius: 20, padding: "10px 14px", color: "var(--text)", fontSize: 14.5, fontFamily: "'Outfit', sans-serif", outline: "none" }
           }),
           React.createElement('button', {
