@@ -138,6 +138,7 @@ const App = () => {
   const [devImpersonationUserId,setDevImpersonationUserId]=useState(()=>{try{return localStorage.getItem(LOCAL_DEV_IMPERSONATION_KEY)||"";}catch{return ""; }});
   const [blocDragX,setBlocDragX]=useState(0);
   const [blocDragging,setBlocDragging]=useState(false);
+  const [suppressSwitcherIntro,setSuppressSwitcherIntro]=useState(false);
   const latestRevisionRef = useRef(getRevision(cached));
   const justSyncedTimerRef = useRef(null);
   const optimisticMutationRef = useRef(null);
@@ -887,6 +888,7 @@ const App = () => {
     setBlocDragX(0);
   },[]);
   const handleSwitchGroup=()=>{
+    setSuppressSwitcherIntro(false);
     resetBlocSwipe();
     persistGroupSelection(null);
   };
@@ -921,8 +923,10 @@ const App = () => {
     if (shouldClose) {
       setBlocDragX(screenWidth);
       window.setTimeout(() => {
+        setSuppressSwitcherIntro(true);
         resetBlocSwipe();
         persistGroupSelection(null);
+        window.setTimeout(() => setSuppressSwitcherIntro(false), 260);
       }, 105);
     } else {
       setBlocDragX(0);
@@ -1127,7 +1131,7 @@ const App = () => {
     }
   },[groups, persistGroupSelection, persistSession]);
 
-  if(loading || !authReady || authHydrating) return React.createElement(Spinner,{label:"Opening Firo..."});
+  if(loading || !authReady || authHydrating) return React.createElement(Spinner,{label:"Opening Fero..."});
   if(localPreviewAuthEnabled && !authSession?.userId) {
     return React.createElement(IdentitySetup,{
       members: localPreviewMembers,
@@ -1194,9 +1198,10 @@ const App = () => {
             creating: creatingGroup,
             autoOpenCreate: queuedCreate,
             onAutoOpenHandled:()=>setQueuedCreate(false),
-            onOpenGroup:groupId=>{ persistGroupSelection(groupId); setPage("today"); },
+            onOpenGroup:groupId=>{ setSuppressSwitcherIntro(false); persistGroupSelection(groupId); setPage("today"); },
             onCreateGroup:handleCreateGroup,
-            onJoinGroup:()=>setShowJoinModal(true)
+            onJoinGroup:()=>setShowJoinModal(true),
+            suppressIntro:suppressSwitcherIntro
           }),
       showProfile && React.createElement('div',{style:{position:"fixed",inset:0,zIndex:30,overflowY:"auto",WebkitOverflowScrolling:"touch",background:"var(--bg-gradient)",backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)"}},
         React.createElement(ProfilePage,{
@@ -1237,10 +1242,10 @@ const App = () => {
       minHeight:"100vh",
       background:"var(--bg-gradient)",
       backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)",
-      transform:blocDragX?`translateX(${blocDragX}px)`:"translateX(0)",
+      transform:blocDragX?`translateX(${blocDragX}px)`:"none",
       transition:blocDragging?"none":"transform .14s ease",
       boxShadow:blocDragX?"-18px 0 34px rgba(0,0,0,.28)":"none",
-      willChange:"transform",
+      willChange:blocDragging||blocDragX?"transform":"auto",
       touchAction:"pan-y"
     }
   },
@@ -1288,7 +1293,8 @@ const App = () => {
         onAutoOpenHandled:()=>{},
         onOpenGroup:()=>{},
         onCreateGroup:()=>{},
-        onJoinGroup:()=>{}
+        onJoinGroup:()=>{},
+        suppressIntro:true
       })
     ),
     activeBlocSurface

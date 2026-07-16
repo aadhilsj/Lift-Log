@@ -171,7 +171,7 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
 
   return React.createElement('div',{style:{maxWidth:960,margin:"0 auto",padding:"16px",display:"flex",flexDirection:"column",gap:12}},
     React.createElement('div',{className:"fu",style:{textAlign:"center"}},
-      React.createElement('div',{style:{fontSize:24,fontWeight:800,textAlign:"center"}},"History")
+      React.createElement('div',{style:{fontSize:24,fontWeight:800,textAlign:"center"}},"Block History")
     ),
     HISTORY_FEATURES.summaryStats&&React.createElement('div',{className:"fu2",style:{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:6}},
       [{label:"Total workouts",val:totalGroupLogs||"—",sub:"logged by the Bloc",gradient:"linear-gradient(135deg,#DFFFFC,#4ECDC4 52%,#1A8E88)"},
@@ -185,7 +185,7 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
       ))
     ),
     HISTORY_FEATURES.trailingWorkoutHistory&&React.createElement(Card,{className:"fu3",style:{padding:"11px 12px"}},
-      React.createElement('div',{style:{fontWeight:800,fontSize:13,marginBottom:10}},"12-Month Workout History"),
+      React.createElement('div',{style:{fontWeight:800,fontSize:13,marginBottom:10}},"Last 12 Months"),
       trailingMonthlyAvg.every(m=>m.total===0)
         ? React.createElement('div',{style:{color:"var(--muted)",fontSize:13,textAlign:"center",padding:"20px 0"}},"Data will appear here as the month progresses.")
         : React.createElement('div',{style:{overflowX:"auto",paddingBottom:4}},
@@ -227,44 +227,44 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
     ),
     HISTORY_FEATURES.allTimeLeaderboard&&React.createElement(Card,{className:"fu5",style:{overflow:"hidden"}},
       React.createElement('div',{style:{padding:"11px 15px",borderBottom:"1px solid var(--border)",display:"flex",alignItems:"center",justifyContent:"space-between"}},
-        React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontWeight:800,fontSize:14}},"All-Time Leaderboard"),
-        React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontSize:9,color:"var(--muted)",fontWeight:700,letterSpacing:".04em",textTransform:"uppercase"}},"Swipe →")
+        React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontWeight:800,fontSize:13}},"All-Time Leaderboard"),
+        React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontSize:8,color:"var(--muted)",fontWeight:700,letterSpacing:".04em",textTransform:"uppercase"}},"Swipe →")
       ),
       React.createElement('div',{style:{position:"relative"}},
-        React.createElement('div',{style:{position:"absolute",top:0,right:0,bottom:0,width:34,pointerEvents:"none",background:"linear-gradient(to right, rgba(8,15,15,0), #080F0F)",zIndex:1}}),
+        React.createElement('div',{style:{position:"absolute",top:0,right:0,bottom:0,width:28,pointerEvents:"none",background:"linear-gradient(to right, rgba(8,15,15,0), #080F0F)",zIndex:1}}),
         React.createElement('div',{style:{overflowX:"auto",WebkitOverflowScrolling:"touch"}},
-        React.createElement('div',{style:{minWidth:632,padding:"8px"}},
-          React.createElement('div',{style:{display:"grid",gridTemplateColumns:"24px 30px 1fr 58px 52px 58px 46px 68px 68px 16px",padding:"7px 10px",borderBottom:"1px solid rgba(255,255,255,.055)",gap:6,fontFamily:"'Outfit', sans-serif",fontSize:9,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".06em",fontWeight:800}},
+        React.createElement('div',{style:{minWidth:574,padding:"7px"}},
+          React.createElement('div',{style:{display:"grid",gridTemplateColumns:"21px 26px 1fr 48px 42px 50px 38px 60px 60px 10px",padding:"6px 8px",borderBottom:"1px solid rgba(255,255,255,.055)",gap:5,fontFamily:"'Outfit', sans-serif",fontSize:8,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".055em",fontWeight:800}},
             ["#","","Name","Total","AVG","Months","Wins",null,null,""].map((h,i)=>React.createElement('div',{key:i,style:{textAlign:i>2?"right":"left",display:"flex",alignItems:"center",justifyContent:i>2?"flex-end":"flex-start",gap:3}},
               i===7||i===8
                 ? React.createElement(React.Fragment,null,React.createElement(AppIcon,{name:"money-bag",size:10,stroke:"rgba(214,226,224,.72)"}),React.createElement('span',null,i===7?"Won":"Lost"))
                 : h
             ))
           ),
-          React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:6,marginTop:6}},
+          React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:5,marginTop:5}},
           visibleLeaderboard.map((u,i)=>React.createElement('div',{key:u.name,
-            style:{display:"grid",gridTemplateColumns:"24px 30px 1fr 58px 52px 58px 46px 68px 68px 16px",padding:"9px 10px",gap:6,alignItems:"center",background:u.name===currentUser?"rgba(78,205,196,.055)":"rgba(255,255,255,.018)",border:`0.5px solid ${u.name===currentUser?"rgba(78,205,196,.22)":"rgba(255,255,255,.055)"}`,borderRadius:9,boxShadow:"inset 0 1px 0 rgba(255,255,255,0.045)",textAlign:"left",fontFamily:"'Outfit', sans-serif"}},
-            React.createElement('div',{style:{fontSize:11,fontWeight:700,color:"var(--muted)",textAlign:"center"}},`#${i+1}`),
-            React.createElement(Avatar,{name:u.name,size:24}),
-            React.createElement('div',{style:{fontWeight:600,fontSize:14,display:"flex",alignItems:"baseline",gap:6,flexWrap:"wrap",color:"var(--text)"}},u.name,u.name===currentUser&&React.createElement('span',{className:"mono",style:{fontSize:8,color:"#3d5e59"}},"you")),
-            React.createElement('span',{style:{fontSize:14,fontWeight:700,textAlign:"right",color:"var(--text)"}},u.total||"—"),
-            React.createElement('span',{style:{fontSize:11,fontWeight:700,color:"var(--muted)",textAlign:"right"}},u.avg),
-            React.createElement('span',{style:{fontSize:11,fontWeight:700,color:"var(--muted)",textAlign:"right"}},u.activeMonths||"—"),
-            React.createElement('span',{style:{fontSize:11,fontWeight:700,textAlign:"right",color:hasClosedHistory&&u.wins>0?"var(--gold)":"var(--muted)",display:"inline-flex",alignItems:"center",justifyContent:"flex-end",gap:4}},
+            style:{display:"grid",gridTemplateColumns:"21px 26px 1fr 48px 42px 50px 38px 60px 60px 10px",padding:"7px 8px",gap:5,alignItems:"center",background:u.name===currentUser?"rgba(78,205,196,.05)":"rgba(255,255,255,.016)",border:`0.5px solid ${u.name===currentUser?"rgba(78,205,196,.2)":"rgba(255,255,255,.05)"}`,borderRadius:8,boxShadow:"inset 0 1px 0 rgba(255,255,255,0.035)",textAlign:"left",fontFamily:"'Outfit', sans-serif"}},
+            React.createElement('div',{style:{fontSize:10,fontWeight:700,color:"var(--muted)",textAlign:"center"}},`#${i+1}`),
+            React.createElement(Avatar,{name:u.name,size:21}),
+            React.createElement('div',{style:{fontWeight:600,fontSize:12.5,display:"flex",alignItems:"baseline",gap:5,flexWrap:"wrap",color:"var(--text)",minWidth:0,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},u.name,u.name===currentUser&&React.createElement('span',{className:"mono",style:{fontSize:7.5,color:"#3d5e59"}},"you")),
+            React.createElement('span',{style:{fontSize:12,fontWeight:700,textAlign:"right",color:"var(--text)"}},u.total||"—"),
+            React.createElement('span',{style:{fontSize:10,fontWeight:700,color:"var(--muted)",textAlign:"right"}},u.avg),
+            React.createElement('span',{style:{fontSize:10,fontWeight:700,color:"var(--muted)",textAlign:"right"}},u.activeMonths||"—"),
+            React.createElement('span',{style:{fontSize:10,fontWeight:700,textAlign:"right",color:hasClosedHistory&&u.wins>0?"var(--gold)":"var(--muted)",display:"inline-flex",alignItems:"center",justifyContent:"flex-end",gap:4}},
               hasClosedHistory&&u.wins>0 ? u.wins : "—"
             ),
-            React.createElement('span',{style:{fontSize:11,fontWeight:700,textAlign:"right",color:hasClosedHistory&&u.moneyWon>0?"var(--green)":"var(--muted)"}},hasClosedHistory&&u.moneyWon>0?`+${fmtCurrency(u.moneyWon, currency)}`:"—"),
-            React.createElement('span',{style:{fontSize:11,fontWeight:700,textAlign:"right",color:hasClosedHistory&&u.moneyLost>0?"var(--red)":"var(--muted)"}},hasClosedHistory&&u.moneyLost>0?`-${fmtCurrency(u.moneyLost, currency)}`:"—"),
+            React.createElement('span',{style:{fontSize:10,fontWeight:700,textAlign:"right",color:hasClosedHistory&&u.moneyWon>0?"var(--green)":"var(--muted)"}},hasClosedHistory&&u.moneyWon>0?`+${fmtCurrency(u.moneyWon, currency)}`:"—"),
+            React.createElement('span',{style:{fontSize:10,fontWeight:700,textAlign:"right",color:hasClosedHistory&&u.moneyLost>0?"var(--red)":"var(--muted)"}},hasClosedHistory&&u.moneyLost>0?`-${fmtCurrency(u.moneyLost, currency)}`:"—"),
             React.createElement('span',null)
           )))
         ),
-        sortedAll.length>5&&React.createElement('button',{type:"button",onClick:()=>setShowAllLeaderboard(v=>!v),style:{width:"100%",minWidth:632,margin:"6px 8px 8px",padding:"10px",background:"transparent",border:"1px solid var(--border)",borderRadius:8,color:"var(--text)",fontSize:12,fontWeight:800,textAlign:"center"}},
+        sortedAll.length>5&&React.createElement('button',{type:"button",onClick:()=>setShowAllLeaderboard(v=>!v),style:{width:"100%",minWidth:574,margin:"5px 7px 7px",padding:"8px",background:"transparent",border:"1px solid var(--border)",borderRadius:8,color:"var(--text)",fontSize:11,fontWeight:800,textAlign:"center"}},
           showAllLeaderboard?"Show Less":`Show ${sortedAll.length-5} More`
         )
       ))
     ),
     HISTORY_FEATURES.blocLegacy&&React.createElement(Card,{className:"fu6",style:{overflow:"hidden"}},
-      React.createElement('div',{style:{padding:"11px 15px",borderBottom:"1px solid var(--border)",fontWeight:800,fontSize:14}},"Bloc Legacy"),
+      React.createElement('div',{style:{padding:"11px 15px",borderBottom:"1px solid var(--border)",fontWeight:800,fontSize:14}},"Legacy"),
       React.createElement('div',{style:{display:"flex",flexDirection:"column"}},
         legacyRows.map((row,i)=>React.createElement('div',{key:row[0],style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,padding:"10px 15px",borderBottom:i<legacyRows.length-1?"1px solid rgba(255,255,255,.055)":"none"}},
           React.createElement('span',{style:{fontSize:12,color:"var(--muted)",fontWeight:700}},row[0]),

@@ -277,7 +277,7 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
           React.createElement('span', { style: { fontSize: 20, fontWeight: MED, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, displayName || "—"),
           React.createElement(AppIcon, { name: "edit", size: 14, stroke: "var(--muted)" })
         ),
-        since ? React.createElement('div', { style: { fontSize: 12.5, fontWeight: REG, color: "var(--muted)", marginTop: 2 } }, `Firo since ${since}`) : null
+        since ? React.createElement('div', { style: { fontSize: 12.5, fontWeight: REG, color: "var(--muted)", marginTop: 2 } }, `Fero since ${since}`) : null
       )
     ),
 

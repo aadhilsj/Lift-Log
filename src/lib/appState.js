@@ -1,6 +1,6 @@
 
 const LEGACY_GROUP_ID = "legacy-group";
-const DEFAULT_GROUP_NAME = "Firo OG";
+const DEFAULT_GROUP_NAME = "Fero OG";
 const DEFAULT_NAMES = ["Aadhil","Isira","Rahul","Kisal","Rishane","Deyhan","Aysha","Nishara","Abhishek"];
 const WORKOUT_TYPES = ["Gym","Run","Sports","Pilates","Other"];
 const DEFAULT_MIN_TARGET = 12;

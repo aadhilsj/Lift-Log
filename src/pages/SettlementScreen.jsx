@@ -336,10 +336,10 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
   );
 
   const shareText = outcome === "missed"
-    ? `Taking the L this month — ${userCount}/${mas} workouts. Owe ${fmtCurrency(userOwes, currency)}. Back next month. #Firo`
+    ? `Taking the L this month — ${userCount}/${mas} workouts. Owe ${fmtCurrency(userOwes, currency)}. Back next month. #Fero`
     : userIsWinner
-      ? `Won ${month.label} with ${workoutsLabel(userCount)}. #Firo`
-      : `Hit target — ${workoutsLabel(userCount)} in ${month.label}. #Firo`;
+      ? `Won ${month.label} with ${workoutsLabel(userCount)}. #Fero`
+      : `Hit target — ${workoutsLabel(userCount)} in ${month.label}. #Fero`;
 
   const handleShare = () => {
     if (outcome === "missed") {
