@@ -895,7 +895,7 @@ const App = () => {
   const startBlocSwitchSwipe = useCallback((e) => {
     if (page !== "today" || showTodayLog || showSettings || showProfileModal || showStream || showJoinModal || authStep || prorationGroup) return;
     const t = e.touches?.[0];
-    if (!t || t.clientX > 48) return;
+    if (!t || t.clientX > 64) return;
     blocSwipeRef.current = {sx:t.clientX, sy:t.clientY, active:true, mode:null};
   },[authStep, page, prorationGroup, showJoinModal, showProfileModal, showSettings, showStream, showTodayLog]);
   const moveBlocSwitchSwipe = useCallback((e) => {
@@ -904,8 +904,8 @@ const App = () => {
     if (!s.active || !t) return;
     const dx = t.clientX - s.sx;
     const dy = t.clientY - s.sy;
-    if (!s.mode && (Math.abs(dx) > 8 || Math.abs(dy) > 8)) {
-      s.mode = dx > 0 && Math.abs(dx) > Math.abs(dy) * 1.2 ? "back" : "scroll";
+    if (!s.mode && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) {
+      s.mode = dx > 0 && Math.abs(dx) > Math.abs(dy) * 1.05 ? "back" : "scroll";
       setBlocDragging(s.mode === "back");
     }
     if (s.mode === "back") setBlocDragX(Math.max(0, Math.min(dx, window.innerWidth || 420)));
@@ -918,7 +918,7 @@ const App = () => {
     const dx = t.clientX - s.sx;
     const dy = t.clientY - s.sy;
     const screenWidth = window.innerWidth || 420;
-    const shouldClose = s.mode === "back" && dx > screenWidth / 2 && Math.abs(dy) < 90 && dx > Math.abs(dy) * 1.15;
+    const shouldClose = s.mode === "back" && dx > screenWidth * 0.42 && Math.abs(dy) < 100 && dx > Math.abs(dy) * 1.05;
     setBlocDragging(false);
     if (shouldClose) {
       setBlocDragX(screenWidth);
@@ -926,7 +926,7 @@ const App = () => {
         setSuppressSwitcherIntro(true);
         resetBlocSwipe();
         persistGroupSelection(null);
-      }, 105);
+      }, 95);
     } else {
       setBlocDragX(0);
     }
@@ -1191,8 +1191,9 @@ const App = () => {
       showProfileModal && React.createElement(ProfileModal,{email:authSession?.email,onSignOut:handleSwitchUser,onClose:()=>{setProfileError("");setShowProfileModal(false);},currentDisplayName:profile?.displayName||"",onSaveDisplayName:handleSaveProfileFromModal,saving:profileSaving,saveError:profileError,onDeleteAccount:handleDeleteAccount}),
       React.createElement(GroupHome,{
             groups: visibleGroups,
-            currentIdentity: effectiveProfile?.displayName || effectiveAuthSession?.email?.split("@")[0] || "",
-            currentEmail: effectiveAuthSession?.email,
+            currentIdentity: profile?.displayName || authSession?.email?.split("@")[0] || effectiveProfile?.displayName || effectiveAuthSession?.email?.split("@")[0] || "",
+            currentEmail: authSession?.email || effectiveAuthSession?.email,
+            currentUserId: authSession?.userId || effectiveAuthSession?.userId || "",
             onOpenProfile:()=>setShowProfile(true),
             creating: creatingGroup,
             autoOpenCreate: queuedCreate,
@@ -1242,7 +1243,7 @@ const App = () => {
       background:"var(--bg-gradient)",
       backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)",
       transform:blocDragX?`translateX(${blocDragX}px)`:"none",
-      transition:blocDragging?"none":"transform .14s ease",
+      transition:blocDragging?"none":"transform .12s ease",
       boxShadow:blocDragX?"-18px 0 34px rgba(0,0,0,.28)":"none",
       willChange:blocDragging||blocDragX?"transform":"auto",
       touchAction:"pan-y"
@@ -1284,8 +1285,9 @@ const App = () => {
     page==="today"&&React.createElement('div',{style:{position:"fixed",inset:0,zIndex:0,pointerEvents:"none"}},
       React.createElement(GroupHome,{
         groups: visibleGroups,
-        currentIdentity: profile?.displayName || authSession?.email?.split("@")[0] || "",
-        currentEmail: authSession?.email,
+        currentIdentity: profile?.displayName || authSession?.email?.split("@")[0] || effectiveProfile?.displayName || effectiveAuthSession?.email?.split("@")[0] || "",
+        currentEmail: authSession?.email || effectiveAuthSession?.email,
+        currentUserId: authSession?.userId || effectiveAuthSession?.userId || "",
         onOpenProfile:()=>{},
         creating: creatingGroup,
         autoOpenCreate: false,
