@@ -93,8 +93,8 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
       onConfirm:()=>{ onRespond(responseTarget.owner, responseTarget.id, responseText.trim()); setResponseTarget(null); setResponseText(""); }
     }),
     React.createElement(Card,{style:{overflow:"hidden"}},
-      React.createElement('div',{style:{padding:"12px 15px",borderBottom:"1px solid var(--border)",display:"flex",alignItems:"center",justifyContent:"space-between"}},
-        React.createElement('div',{style:{fontWeight:800,fontSize:15}},"Activity Feed")
+      React.createElement('div',{style:{padding:"12px 15px",borderBottom:"1px solid var(--border)",display:"flex",alignItems:"center",justifyContent:"center"}},
+        React.createElement('div',{style:{fontWeight:800,fontSize:15,textAlign:"center"}},"Activity Feed")
       ),
       !feedPosts.length
         ? React.createElement('div',{style:{padding:"18px 15px",fontSize:13,color:"var(--muted)"}},"No workouts logged yet.")
@@ -111,7 +111,8 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
               const compactRelativeTime = showRelativeTime ? formatCompactRelativeTime(post.createdAt) : "";
               return React.createElement(React.Fragment,{key:`${post.owner}-${post.id}`},
                 showDateHeader && React.createElement('div',{style:{display:"flex",alignItems:"center",gap:10,padding:"6px 2px 2px"}},
-                  React.createElement('span',{className:"mono",style:{fontSize:10,color:"#4ECDC4",letterSpacing:".08em",textTransform:"uppercase",whiteSpace:"nowrap"}},formatShortDate(displayDate)),
+                  React.createElement('div',{style:{height:1,flex:1,background:"rgba(78,205,196,.18)"}}),
+                  React.createElement('span',{className:"mono",style:{fontSize:10,color:"#4ECDC4",letterSpacing:".08em",textTransform:"uppercase",whiteSpace:"nowrap",textAlign:"center"}},formatShortDate(displayDate)),
                   React.createElement('div',{style:{height:1,flex:1,background:"rgba(78,205,196,.18)"}})
                 ),
                 React.createElement('div',{style:{

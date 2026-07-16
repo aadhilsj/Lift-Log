@@ -81,7 +81,7 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
       setSelIdx(e.target.value===""?null:Number(e.target.value));
       requestAnimationFrame(()=>selectEl.blur());
     },
-    width:isMobile()?"126px":"138px",
+    width:isMobile()?"112px":"124px",
     compact:true,
     arrowColor:"#4ECDC4",
     textAlign:"center",
@@ -91,11 +91,12 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
       color:"var(--text)",
       fontFamily:"'Outfit', sans-serif",
       fontWeight:700,
+      fontSize:12,
       outline:"none",
       boxShadow:"none",
       textAlign:"center",
-      paddingLeft:12,
-      paddingRight:18
+      paddingLeft:10,
+      paddingRight:16
     },
     options:[
       {value:"",label:"This Month"},
@@ -228,16 +229,16 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
 
   return React.createElement('div',{style:{position:"relative",minHeight:"calc(100vh - 136px)",padding:"0 0 28px",background:"radial-gradient(ellipse 95% 72% at 50% 62%, rgba(78,205,196,.055), rgba(78,205,196,.018) 46%, transparent 76%)"}},
   React.createElement('div',{style:{maxWidth:840,margin:"0 auto",padding:"12px 12px 16px",display:"flex",flexDirection:"column",gap:12,background:"transparent",borderRadius:16}},
-    React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10}},
-      React.createElement('div',{style:{textAlign:"center"}},
+    React.createElement('div',{style:{position:"relative",display:"flex",alignItems:"center",justifyContent:"flex-end",minHeight:38,gap:10}},
+      React.createElement('div',{style:{position:"absolute",left:"50%",top:"50%",transform:"translate(-50%,-50%)",textAlign:"center",pointerEvents:"none",whiteSpace:"nowrap"}},
         React.createElement('div',{style:{fontSize:19,fontWeight:800}},monthLabel)
       ),
       monthSelector
     ),
     React.createElement(Card,{style:{padding:"18px 18px 16px",background:"linear-gradient(135deg, rgba(245,166,35,.16), rgba(245,210,105,.08) 48%, rgba(8,15,15,.92))",border:"1px solid rgba(245,166,35,.28)",display:"flex",flexDirection:"column",gap:14,fontFamily:"'Outfit', sans-serif"}},
-      React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,flexWrap:"wrap"}},
-        React.createElement('span',{style:{fontFamily:"'Outfit', sans-serif",fontSize:11,fontWeight:800,color:"#F5A623",textTransform:"uppercase",letterSpacing:".08em"}},"Month in progress"),
-        React.createElement('span',{style:{fontFamily:"'Outfit', sans-serif",fontSize:11,fontWeight:700,color:"var(--muted)"}},`${getDaysLeft()} days remaining`)
+      React.createElement('div',{style:{position:"relative",display:"flex",alignItems:"center",justifyContent:"flex-end",gap:10,minHeight:16}},
+        React.createElement('span',{style:{position:"absolute",left:"50%",transform:"translateX(-50%)",fontFamily:"'Outfit', sans-serif",fontSize:11,fontWeight:800,color:"#F5A623",textTransform:"uppercase",letterSpacing:".08em",whiteSpace:"nowrap"}},"Month in progress"),
+        React.createElement('span',{style:{fontFamily:"'Outfit', sans-serif",fontSize:9.5,fontWeight:500,color:"var(--muted)",whiteSpace:"nowrap",textAlign:"right"}},`${getDaysLeft()} days remaining`)
       ),
       hasActivity&&winners.length>0
         ? React.createElement('div',{style:{display:"flex",alignItems:"center",gap:10}},
