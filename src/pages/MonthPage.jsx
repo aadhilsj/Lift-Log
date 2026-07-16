@@ -81,7 +81,7 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
       setSelIdx(e.target.value===""?null:Number(e.target.value));
       requestAnimationFrame(()=>selectEl.blur());
     },
-    width:isMobile()?"107px":"119px",
+    width:isMobile()?"102px":"114px",
     compact:true,
     arrowColor:"#4ECDC4",
     textAlign:"center",
@@ -91,7 +91,7 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
       color:"var(--text)",
       fontFamily:"'Outfit', sans-serif",
       fontWeight:700,
-      fontSize:9,
+      fontSize:11,
       outline:"none",
       boxShadow:"none",
       textAlign:"center",
