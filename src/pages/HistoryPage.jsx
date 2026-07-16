@@ -1,5 +1,5 @@
 import React from "react";
-const { useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef } = React;
+const { useState, useEffect, useMemo, useCallback } = React;
 import {
   WORKOUT_TYPES,
   DEFAULT_CURRENCY,
@@ -80,23 +80,11 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
   const currency = groupSettings?.currency || DEFAULT_CURRENCY;
   const [showAllLeaderboard,setShowAllLeaderboard]=useState(false);
   const [viewPlayer,setViewPlayer]=useState(null);
-  const sourceScrollYRef = useRef(0);
-  const restoreScrollOnCloseRef = useRef(false);
   useEffect(()=>{ setViewPlayer(null); },[navResetToken]);
-  useLayoutEffect(()=>{
-    if(viewPlayer) window.scrollTo({top:0,left:0,behavior:"auto"});
-  },[viewPlayer]);
-  useLayoutEffect(()=>{
-    if(viewPlayer || !restoreScrollOnCloseRef.current) return;
-    restoreScrollOnCloseRef.current = false;
-    window.scrollTo({top:sourceScrollYRef.current || 0,left:0,behavior:"auto"});
-  },[viewPlayer]);
   const openPlayerProfile = useCallback(name => {
-    sourceScrollYRef.current = window.scrollY || window.pageYOffset || 0;
     setViewPlayer(name);
   },[]);
   const closePlayerProfile = useCallback(() => {
-    restoreScrollOnCloseRef.current = true;
     setViewPlayer(null);
   },[]);
 
@@ -332,11 +320,9 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
     )
   );
 
-  if(viewPlayer) return React.createElement('div',{style:{position:"relative",minHeight:"100dvh",background:"var(--bg-gradient)",backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)"}},
-    React.createElement('div',{"aria-hidden":true,style:{position:"fixed",inset:0,zIndex:0,overflow:"hidden",pointerEvents:"none"}},
-      React.createElement('div',{style:{transform:`translateY(-${sourceScrollYRef.current || 0}px)`}},historyContent)
-    ),
-    React.createElement('div',{style:{position:"relative",zIndex:1}},
+  if(viewPlayer) return React.createElement(React.Fragment,null,
+    historyContent,
+    React.createElement('div',{style:{position:"fixed",inset:0,zIndex:60,overflowY:"auto",overflowX:"hidden",WebkitOverflowScrolling:"touch",overscrollBehavior:"contain",background:"transparent"}},
       React.createElement(PlayerProfileErrorBoundary,{profileName:viewPlayer,onBack:closePlayerProfile},
         React.createElement(PlayerProfile,{name:viewPlayer,logs,excused,monthHistory,onBack:closePlayerProfile,groupSettings})
       )
