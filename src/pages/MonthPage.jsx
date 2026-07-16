@@ -223,7 +223,7 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
     );
   })();
 
-  return React.createElement('div',{style:{minHeight:"calc(100vh - 136px)",padding:"0 0 28px",background:"radial-gradient(ellipse 125% 44% at 50% 0%, rgba(78,205,196,.09), rgba(78,205,196,.035) 42%, rgba(78,205,196,.014) 68%, transparent 100%), linear-gradient(180deg, rgba(78,205,196,.018) 0%, rgba(78,205,196,.012) 42%, rgba(78,205,196,.006) 72%, transparent 100%)"}},
+  return React.createElement('div',{style:{position:"relative",minHeight:"calc(100vh - 136px)",padding:"0 0 28px",background:"radial-gradient(ellipse 125% 44% at 50% 0%, rgba(78,205,196,.09), rgba(78,205,196,.035) 42%, rgba(78,205,196,.014) 68%, transparent 100%), linear-gradient(180deg, rgba(78,205,196,.018) 0%, rgba(78,205,196,.012) 42%, rgba(78,205,196,.006) 72%, transparent 100%)"}},
   React.createElement('div',{style:{maxWidth:840,margin:"0 auto",padding:"12px 12px 16px",display:"flex",flexDirection:"column",gap:12,background:"transparent",borderRadius:16}},
     React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10}},
       React.createElement('div',{style:{textAlign:"center"}},
@@ -268,11 +268,9 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
       ),
       showStandings&&renderCurrentFinancialSnapshot()
     ),
-    viewPlayer&&React.createElement('div',{style:{position:"fixed",left:0,right:0,bottom:0,top:"calc(env(safe-area-inset-top) + 44px)",zIndex:30,overflowY:"auto",WebkitOverflowScrolling:"touch",background:"transparent"}},
-      React.createElement('div',{style:{maxWidth:740,margin:"0 auto"}},
-        React.createElement(PlayerProfileErrorBoundary,{profileName:typeof viewPlayer === "string" ? viewPlayer : viewPlayer?.name,onBack:()=>setViewPlayer(null)},
-          React.createElement(PlayerProfile,{name:typeof viewPlayer === "string" ? viewPlayer : viewPlayer?.name,logs,excused,monthHistory,onBack:()=>setViewPlayer(null),groupSettings,initialMonthKey:typeof viewPlayer === "string" ? null : viewPlayer?.monthKey})
-        )
+    viewPlayer&&React.createElement('div',{style:{position:"absolute",inset:0,zIndex:30,overflowY:"auto",WebkitOverflowScrolling:"touch",background:"transparent"}},
+      React.createElement(PlayerProfileErrorBoundary,{profileName:typeof viewPlayer === "string" ? viewPlayer : viewPlayer?.name,onBack:()=>setViewPlayer(null)},
+        React.createElement(PlayerProfile,{name:typeof viewPlayer === "string" ? viewPlayer : viewPlayer?.name,logs,excused,monthHistory,onBack:()=>setViewPlayer(null),groupSettings,initialMonthKey:typeof viewPlayer === "string" ? null : viewPlayer?.monthKey})
       )
     )
     )

@@ -1073,12 +1073,10 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
     )
   );
 
-  return React.createElement('div',{onTouchStart:startSwitchSwipe,onTouchMove:moveSwitchSwipe,onTouchEnd:endSwitchSwipe,onTouchCancel:()=>{swipeRef.current={sx:0,sy:0,active:false,mode:null};setDragging(false);setDragX(0);},style:{minHeight:"calc(100vh - 44px)",background:"var(--bg)",transform:dragX?`translateX(${dragX}px)`:"translateX(0)",transition:dragging?"none":"transform .14s ease",boxShadow:dragX?"-18px 0 34px rgba(0,0,0,.28)":"none",willChange:"transform",touchAction:"pan-y"}},
-    viewPlayer&&React.createElement('div',{style:{position:"fixed",left:0,right:0,bottom:0,top:"calc(env(safe-area-inset-top) + 44px)",zIndex:30,overflowY:"auto",WebkitOverflowScrolling:"touch",background:"transparent"}},
-      React.createElement('div',{style:{maxWidth:1060,margin:"0 auto"}},
-        React.createElement(PlayerProfileErrorBoundary,{profileName:viewPlayer,onBack:()=>setViewPlayer(null)},
-          React.createElement(PlayerProfile,{name:viewPlayer,logs,excused,monthHistory,onBack:()=>setViewPlayer(null),groupSettings,onDeleteLog:viewPlayer===user?async(log)=>{ await onLogMutation({action:"delete-log",groupId:currentGroupId,actor:user,logId:log.id}); }:undefined})
-        )
+  return React.createElement('div',{onTouchStart:startSwitchSwipe,onTouchMove:moveSwitchSwipe,onTouchEnd:endSwitchSwipe,onTouchCancel:()=>{swipeRef.current={sx:0,sy:0,active:false,mode:null};setDragging(false);setDragX(0);},style:{position:"relative",minHeight:"calc(100vh - 44px)",background:"var(--bg)",transform:dragX?`translateX(${dragX}px)`:"translateX(0)",transition:dragging?"none":"transform .14s ease",boxShadow:dragX?"-18px 0 34px rgba(0,0,0,.28)":"none",willChange:"transform",touchAction:"pan-y"}},
+    viewPlayer&&React.createElement('div',{style:{position:"absolute",inset:0,zIndex:30,overflowY:"auto",WebkitOverflowScrolling:"touch",background:"transparent"}},
+      React.createElement(PlayerProfileErrorBoundary,{profileName:viewPlayer,onBack:()=>setViewPlayer(null)},
+        React.createElement(PlayerProfile,{name:viewPlayer,logs,excused,monthHistory,onBack:()=>setViewPlayer(null),groupSettings,onDeleteLog:viewPlayer===user?async(log)=>{ await onLogMutation({action:"delete-log",groupId:currentGroupId,actor:user,logId:log.id}); }:undefined})
       )
     ),
     showLog&&React.createElement(LogModal,{user,currentGroupId,groups,onConfirm:doLog,onClose:()=>setShowLog(false)}),
