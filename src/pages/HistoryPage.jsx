@@ -205,11 +205,7 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
     return React.createElement('span',{style:{display:"inline-flex",alignItems:"center",justifyContent:"center",minWidth:20,fontSize:8.5,fontWeight:800,color,lineHeight:1}},label);
   };
 
-  if(viewPlayer) return React.createElement(PlayerProfileErrorBoundary,{profileName:viewPlayer,onBack:()=>setViewPlayer(null)},
-    React.createElement(PlayerProfile,{name:viewPlayer,logs,excused,monthHistory,onBack:()=>setViewPlayer(null),groupSettings})
-  );
-
-  return React.createElement('div',{style:{maxWidth:960,margin:"0 auto",padding:"16px",display:"flex",flexDirection:"column",gap:12}},
+  const historyContent = React.createElement('div',{style:{maxWidth:960,margin:"0 auto",padding:"16px",display:"flex",flexDirection:"column",gap:12}},
     React.createElement('div',{className:"fu",style:{textAlign:"center"}},
       React.createElement('div',{style:{fontSize:24,fontWeight:800,textAlign:"center"}},"Bloc History")
     ),
@@ -320,6 +316,17 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
       )
     )
   );
+
+  if(viewPlayer) return React.createElement('div',{style:{position:"relative",minHeight:"100dvh",background:"var(--bg-gradient)",backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)"}},
+    React.createElement('div',{"aria-hidden":true,style:{position:"fixed",inset:0,zIndex:0,overflow:"hidden",pointerEvents:"none"}},historyContent),
+    React.createElement('div',{style:{position:"relative",zIndex:1}},
+      React.createElement(PlayerProfileErrorBoundary,{profileName:viewPlayer,onBack:()=>setViewPlayer(null)},
+        React.createElement(PlayerProfile,{name:viewPlayer,logs,excused,monthHistory,onBack:()=>setViewPlayer(null),groupSettings})
+      )
+    )
+  );
+
+  return historyContent;
 };
 
 // ─── ROOT ─────────────────────────────────────────────────────────────────────
