@@ -1658,3 +1658,52 @@ Next smoke focus:
 - create a mid-month temporary bloc
 - choose either proration option and confirm the modal closes
 - leave/delete that temporary bloc
+
+## Batch 28 - Re-Soak Create-Group Mirror Skip
+
+Batch 28 started on 2026-07-16 after Batch 27 preview smoke passed for
+mid-month create, first-month proration choice, and leave/delete.
+
+Preview env change:
+
+`BLOB_MIRROR_SKIP_ACTIONS=create-group,leave-bloc,update-settings,season-proration-choice,reaction,flag,flag-response,flag-review,delete-log,add-log,multi-log`
+
+Scope:
+
+- enables blob mirror skipping for `create-group` again on the
+  `codex/create-group-canonical-first` preview branch only
+- keeps Production unchanged
+- keeps `join-group`, `upsert-profile`, `kick-member`, and `delete-account`
+  wired but not enabled
+- keeps sit-out request/review, legacy admin settlement, `auth-sync`, and
+  `repair-display-name` mirrored
+
+Why this is now safe enough to re-soak:
+
+- Batch 26 exposed that create-skip could create a canonical-only new bloc
+- Batch 26 follow-ups taught the writable builder and leave path how to handle
+  canonical-only bloc shells
+- Batch 27 taught first-month proration choice to continue through canonical
+  writable state when the blob shadow shell is missing
+
+Expected user behavior:
+
+- creating a bloc should still add it immediately and make the creator admin
+- the mid-month proration modal should still save and close
+- leaving a temporary/sole-member bloc should remove it from the bloc list
+- existing workout/settings skip behavior should remain unchanged
+
+Next smoke focus:
+
+- sign in / blocs load
+- create a mid-month temporary bloc
+- choose either proration option and confirm the modal closes
+- leave/delete that temporary bloc
+- add/delete or react/unreact sanity if convenient
+
+Remaining estimate after Batch 28:
+
+- minimum 2 backend batches if this create-group soak is clean and the remaining
+  lifecycle/global actions can be grouped
+- realistic 3 backend batches if join-group and kick/delete/account deletion
+  need separate preview soaks
