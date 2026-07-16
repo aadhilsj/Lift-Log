@@ -1452,3 +1452,49 @@ Smoke focus:
 - open the affected test account profile and check June P&L
 - compare with History all-time row and June Results
 - sign in / blocs load sanity
+
+## Batch 25 - Wire Lifecycle/Global Mirror-Skip Candidates
+
+Batch 25 started on 2026-07-16 after the Batch 24 profile P&L follow-up smoke
+passed.
+
+Implemented:
+
+- added these disabled-by-default actions to the mirror-skip allowed/wired sets:
+  - `create-group`
+  - `upsert-profile`
+  - `join-group`
+  - `kick-member`
+  - `leave-bloc`
+  - `delete-account`
+- changed each final persistence call to `persistOrSkipBlobMirror(...)`
+- kept all current Preview and Production env values unchanged, so this commit
+  does not skip blob persistence for these lifecycle/global actions anywhere
+
+Important guard:
+
+- `kick-member` only uses the skip action when `targetUserId` is present
+- legacy name-only kicks still mirror the blob even if `kick-member` is enabled
+  later, because there is no canonical membership row to remove
+
+Why this is deliberately wiring-only:
+
+- lifecycle/global actions affect membership, admin transfer, profile identity,
+  and account deletion
+- these paths already write canonical state before the final persistence step,
+  but they need a preview smoke pass with the flag absent before any skip soak
+
+Still outside mirror-skip:
+
+- sit-out request/review remain mirrored because validation still depends on
+  writable blob lifecycle fields
+- legacy admin settlement remains mirrored
+- `auth-sync` and `repair-display-name` remain true legacy repair paths
+
+Next smoke focus:
+
+- sign in / blocs load
+- create a temporary bloc
+- join a test bloc if convenient
+- leave/delete the temporary bloc if convenient
+- profile rename sanity only if convenient

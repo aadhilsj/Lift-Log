@@ -52,6 +52,11 @@ const WRITE_HYDRATION_PARITY_ACTIONS = new Set(
     .filter(Boolean)
 );
 const BLOB_MIRROR_SKIP_ALLOWED_ACTIONS = new Set([
+  "create-group",
+  "upsert-profile",
+  "join-group",
+  "kick-member",
+  "leave-bloc",
   "update-settings",
   "season-proration-choice",
   "add-log",
@@ -60,9 +65,15 @@ const BLOB_MIRROR_SKIP_ALLOWED_ACTIONS = new Set([
   "flag",
   "flag-response",
   "flag-review",
-  "delete-log"
+  "delete-log",
+  "delete-account"
 ]);
 const BLOB_MIRROR_SKIP_WIRED_ACTIONS = new Set([
+  "create-group",
+  "upsert-profile",
+  "join-group",
+  "kick-member",
+  "leave-bloc",
   "update-settings",
   "season-proration-choice",
   "add-log",
@@ -71,7 +82,8 @@ const BLOB_MIRROR_SKIP_WIRED_ACTIONS = new Set([
   "flag",
   "flag-response",
   "flag-review",
-  "delete-log"
+  "delete-log",
+  "delete-account"
 ]);
 const BLOB_MIRROR_SKIP_ACTIONS = new Set(
   String(process.env.BLOB_MIRROR_SKIP_ACTIONS || "")
@@ -6949,7 +6961,7 @@ export default async function handler(req, res) {
           await syncBlocMemberToCanonical(newGroup, auth.user.id, "admin", { throwOnError: true });
           await seedOpenSeasonMemberStatusInCanonical(newGroup, newGroup?.lastMonth, creatorName, auth.user.id, { throwOnError: true });
         }
-        const persisted = await persistState(created.state, `create-group:${created.createdGroupId}`);
+        const persisted = await persistOrSkipBlobMirror(created.state, `create-group:${created.createdGroupId}`, "create-group");
         return res.status(200).json({ state: persisted, createdGroupId: created.createdGroupId });
       }
 
@@ -6998,7 +7010,7 @@ export default async function handler(req, res) {
           const memberRole = group.memberships[auth.user.id].role || "member";
           await syncBlocMemberToCanonical(group, auth.user.id, memberRole, { throwOnError: true });
         }
-        const persisted = await persistState(updated, `profile:${auth.user.id}`);
+        const persisted = await persistOrSkipBlobMirror(updated, `profile:${auth.user.id}`, "upsert-profile");
         return res.status(200).json(persisted);
       }
 
@@ -7030,7 +7042,7 @@ export default async function handler(req, res) {
           await syncSeasonToCanonical(joinedGroup, joinedGroup?.lastMonth, "open", null, { throwOnError: true });
           await seedOpenSeasonMemberStatusInCanonical(joinedGroup, joinedGroup?.lastMonth, joinedDisplayName, auth.user.id, { throwOnError: true });
         }
-        const persisted = await persistState(joined.state, `join-group:${joined.joinedGroupId}:${auth.user.id}`);
+        const persisted = await persistOrSkipBlobMirror(joined.state, `join-group:${joined.joinedGroupId}:${auth.user.id}`, "join-group");
         return res.status(200).json({ state: persisted, joinedGroupId: joined.joinedGroupId });
       }
 
@@ -7051,7 +7063,8 @@ export default async function handler(req, res) {
         if (payload.targetUserId) {
           await removeBlocMemberFromCanonical(payload.groupId, payload.targetUserId, { throwOnError: true });
         }
-        const persisted = await persistState(updated, `kick-member:${payload.groupId}:${payload.targetUserId}`);
+        const kickMirrorAction = payload.targetUserId ? "kick-member" : "kick-member-legacy-name";
+        const persisted = await persistOrSkipBlobMirror(updated, `kick-member:${payload.groupId}:${payload.targetUserId}`, kickMirrorAction);
         return res.status(200).json({ ok: true, state: persisted });
       }
 
@@ -7074,7 +7087,7 @@ export default async function handler(req, res) {
           if (nextAdminUserId && nextAdminUserId !== auth.user.id) {
             await updateBlocAdminInCanonical(payload.groupId, nextAdminUserId, { throwOnError: true });
           }
-          const persisted = await persistState(updated, `leave-bloc:${payload.groupId}:${auth.user.id}`);
+          const persisted = await persistOrSkipBlobMirror(updated, `leave-bloc:${payload.groupId}:${auth.user.id}`, "leave-bloc");
           return res.status(200).json({ ok: true, state: persisted, leftGroupId: payload.groupId });
         }
 
@@ -7082,7 +7095,7 @@ export default async function handler(req, res) {
         // delete the canonical bloc first so all dependent ante_core rows cascade
         // away together, then mirror the blob-side bloc removal.
         await deleteBlocFromCanonical(payload.groupId, { throwOnError: true });
-        const persisted = await persistState(updated, `leave-bloc:${payload.groupId}:${auth.user.id}`);
+        const persisted = await persistOrSkipBlobMirror(updated, `leave-bloc:${payload.groupId}:${auth.user.id}`, "leave-bloc");
         return res.status(200).json({ ok: true, state: persisted, leftGroupId: payload.groupId });
       }
 
@@ -7449,7 +7462,7 @@ export default async function handler(req, res) {
           await updateBlocAdminInCanonical(groupId, survivingGroup.adminUserId, { throwOnError: true });
         }
         await deleteProfileFromCanonical(auth.user.id, { throwOnError: true });
-        const persisted = await persistState(updated, `delete-account:${auth.user.id}`);
+        const persisted = await persistOrSkipBlobMirror(updated, `delete-account:${auth.user.id}`, "delete-account");
         return res.status(200).json({ ok: true, state: persisted });
       }
 
