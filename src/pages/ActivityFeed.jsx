@@ -93,8 +93,8 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
       onConfirm:()=>{ onRespond(responseTarget.owner, responseTarget.id, responseText.trim()); setResponseTarget(null); setResponseText(""); }
     }),
     React.createElement(Card,{style:{overflow:"hidden"}},
-      React.createElement('div',{style:{padding:"12px 15px",borderBottom:"1px solid var(--border)",display:"flex",alignItems:"center",justifyContent:"center"}},
-        React.createElement('div',{style:{fontWeight:800,fontSize:15,textAlign:"center"}},"Activity Feed")
+      React.createElement('div',{style:{padding:"12px 15px",borderBottom:"1px solid var(--border)",display:"flex",alignItems:"center",justifyContent:"space-between"}},
+        React.createElement('div',{style:{fontWeight:800,fontSize:15,textAlign:"left"}},"Activity Feed")
       ),
       !feedPosts.length
         ? React.createElement('div',{style:{padding:"18px 15px",fontSize:13,color:"var(--muted)"}},"No workouts logged yet.")
