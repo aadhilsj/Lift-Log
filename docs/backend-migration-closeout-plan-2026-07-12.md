@@ -1707,3 +1707,34 @@ Remaining estimate after Batch 28:
   lifecycle/global actions can be grouped
 - realistic 3 backend batches if join-group and kick/delete/account deletion
   need separate preview soaks
+
+### Batch 28 follow-up - tolerate canonical-only workout shadow misses
+
+Preview smoke after re-enabling `create-group` mirror skip exposed another
+create-follow-up dependency:
+
+- creating a new mid-month bloc succeeded
+- first-month proration succeeded
+- individual `add-log` then failed with the browser message "Workout couldn't
+  be saved"
+- root cause: `add-log` already computes the actual mutation from canonical
+  writable state, but still built a shadow blob mutation first for parity
+  probing
+- a brand-new create-skipped bloc has no blob shell, so that shadow call threw
+  `Bloc not found` before the canonical workout write could run
+
+Fix:
+
+- `add-log` now tolerates only a `404` from the shadow blob mutation and
+  continues through canonical writable state
+- `multi-log` gets the same narrow guard for canonical-only source blocs
+- non-404 validation failures still fail normally
+- parity probes are skipped only when no shadow blob result exists
+
+Next smoke focus:
+
+- sign in / blocs load
+- create a mid-month temporary bloc
+- choose a proration option
+- add an individual workout in that new bloc
+- leave/delete the temporary bloc

@@ -7128,7 +7128,12 @@ export default async function handler(req, res) {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actor = resolveDisplayNameForUser(auth.state, payload.sourceGroupId, auth.user.id, auth.user.email);
         const allTargetIds = [...new Set([payload.sourceGroupId, ...(Array.isArray(payload.targetGroupIds) ? payload.targetGroupIds.filter(Boolean) : [])])];
-        const shadowBlobUpdated = applyMultiLog(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        let shadowBlobUpdated = null;
+        try {
+          shadowBlobUpdated = applyMultiLog(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        } catch (err) {
+          if (err?.status !== 404) throw err;
+        }
         const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.sourceGroupId);
         const canonicalActor = resolveDisplayNameForUser(canonicalState, payload.sourceGroupId, auth.user.id, auth.user.email) || actor;
         const beforeLogIdsByGroup = Object.fromEntries(
@@ -7168,7 +7173,9 @@ export default async function handler(req, res) {
           }
         }
         const reason = `multi-log:${canonicalActor || actor || auth.user.id}:${payload.date}:${payload.workoutType}`;
-        await runWriteHydrationMultiLogParityProbe(payload, auth, actor, shadowBlobUpdated);
+        if (shadowBlobUpdated) {
+          await runWriteHydrationMultiLogParityProbe(payload, auth, actor, shadowBlobUpdated);
+        }
         const persisted = await persistOrSkipBlobMirror(updated, reason, "multi-log");
         return res.status(200).json(persisted);
       }
@@ -7176,7 +7183,12 @@ export default async function handler(req, res) {
       if (payload?.action === "add-log") {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
-        const shadowBlobUpdated = applyAddLog(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        let shadowBlobUpdated = null;
+        try {
+          shadowBlobUpdated = applyAddLog(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        } catch (err) {
+          if (err?.status !== 404) throw err;
+        }
         const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
         const canonicalActor = resolveDisplayNameForUser(canonicalState, payload.groupId, auth.user.id, auth.user.email) || actor;
         const result = applyAddLog(canonicalState, { ...payload, actor: canonicalActor, actorUserId: auth.user.id });
@@ -7191,7 +7203,9 @@ export default async function handler(req, res) {
           await syncSeasonToCanonical(group, result.monthKey, targetMonth ? "closed" : "open", targetMonth?.closedAt || null, { throwOnError: true });
           await upsertWorkoutLogToCanonical(group, result.monthKey, canonicalActor, auth.user.id, result.log, { throwOnError: true });
         }
-        await runWriteHydrationParityProbe("add-log", payload, auth, actor, shadowBlobUpdated.updated, applyAddLog);
+        if (shadowBlobUpdated) {
+          await runWriteHydrationParityProbe("add-log", payload, auth, actor, shadowBlobUpdated.updated, applyAddLog);
+        }
         const persisted = await persistOrSkipBlobMirror(result.updated, result.reason, "add-log");
         return res.status(200).json(persisted);
       }
