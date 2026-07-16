@@ -39,8 +39,10 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
   const [sel, setSel] = useState(null); // tapped heatmap day { iso, count }
+  const [dragX, setDragX] = useState(0);
+  const [dragging, setDragging] = useState(false);
   const heatScrollRef = useRef(null);
-  const swipeRef = useRef({ sx: 0, sy: 0, active: false });
+  const swipeRef = useRef({ sx: 0, sy: 0, active: false, mode: null });
   // Open the heatmap scrolled to today (data's most relevant end), not the join date.
   useEffect(() => { const el = heatScrollRef.current; if (el) el.scrollLeft = el.scrollWidth; }, []);
 
@@ -225,19 +227,40 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
   const startSwipeBack = e => {
     const t = e.touches?.[0];
     if (!t || t.clientX > 48) return;
-    swipeRef.current = { sx: t.clientX, sy: t.clientY, active: true };
+    swipeRef.current = { sx: t.clientX, sy: t.clientY, active: true, mode: null };
+  };
+  const moveSwipeBack = e => {
+    const s = swipeRef.current;
+    const t = e.touches?.[0];
+    if (!s.active || !t) return;
+    const dx = t.clientX - s.sx;
+    const dy = t.clientY - s.sy;
+    if (!s.mode && (Math.abs(dx) > 8 || Math.abs(dy) > 8)) {
+      s.mode = dx > 0 && Math.abs(dx) > Math.abs(dy) * 1.2 ? "back" : "scroll";
+      setDragging(s.mode === "back");
+    }
+    if (s.mode === "back") {
+      setDragX(Math.max(0, Math.min(dx, window.innerWidth || 420)));
+    }
   };
   const endSwipeBack = e => {
     const s = swipeRef.current;
     const t = e.changedTouches?.[0];
-    swipeRef.current = { sx: 0, sy: 0, active: false };
+    swipeRef.current = { sx: 0, sy: 0, active: false, mode: null };
     if (!s.active || !t) return;
     const dx = t.clientX - s.sx;
     const dy = t.clientY - s.sy;
-    if (dx > 70 && Math.abs(dy) < 55 && dx > Math.abs(dy) * 1.35) onBack?.();
+    const shouldClose = s.mode === "back" && dx > 70 && Math.abs(dy) < 70 && dx > Math.abs(dy) * 1.25;
+    setDragging(false);
+    if (shouldClose) {
+      setDragX(window.innerWidth || 420);
+      window.setTimeout(() => onBack?.(), 150);
+    } else {
+      setDragX(0);
+    }
   };
 
-  return React.createElement('div', { onTouchStart: startSwipeBack, onTouchEnd: endSwipeBack, style: { maxWidth: 640, margin: "0 auto", padding: "10px 14px 40px", display: "flex", flexDirection: "column", gap: 14 } },
+  return React.createElement('div', { onTouchStart: startSwipeBack, onTouchMove: moveSwipeBack, onTouchEnd: endSwipeBack, onTouchCancel: () => { swipeRef.current = { sx: 0, sy: 0, active: false, mode: null }; setDragging(false); setDragX(0); }, style: { minHeight: "100vh", maxWidth: 640, margin: "0 auto", padding: "10px 14px 40px", display: "flex", flexDirection: "column", gap: 14, background: "var(--bg)", transform: dragX ? `translateX(${dragX}px)` : "translateX(0)", transition: dragging ? "none" : "transform .18s ease", boxShadow: dragX ? "-18px 0 34px rgba(0,0,0,.28)" : "none", willChange: "transform", touchAction: "pan-y" } },
     // Header
     React.createElement('div', { style: { position: "relative", display: "flex", alignItems: "center", justifyContent: "center", height: 40, marginBottom: 2 } },
       React.createElement('button', { type: "button", onClick: onBack, "aria-label": "Back", style: { position: "absolute", left: 0, top: "50%", transform: "translateY(-50%)", width: 34, height: 34, display: "inline-flex", alignItems: "center", justifyContent: "center", background: "transparent", border: "none", color: "var(--text)", cursor: "pointer", padding: 0 } },

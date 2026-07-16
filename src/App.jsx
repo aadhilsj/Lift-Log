@@ -1137,19 +1137,7 @@ const App = () => {
     return React.createElement(React.Fragment,null,
       showJoinModal && !authStep && React.createElement(JoinGroupModal,{inviteContext,joinCode,setJoinCode,onClose:()=>setShowJoinModal(false),onJoin:handleJoinGroup,joining:joiningGroup,error:inviteError,signedIn:true}),
       showProfileModal && React.createElement(ProfileModal,{email:authSession?.email,onSignOut:handleSwitchUser,onClose:()=>{setProfileError("");setShowProfileModal(false);},currentDisplayName:profile?.displayName||"",onSaveDisplayName:handleSaveProfileFromModal,saving:profileSaving,saveError:profileError,onDeleteAccount:handleDeleteAccount}),
-      showProfile
-        ? React.createElement(ProfilePage,{
-            visibleGroups,
-            currentUserId: effectiveAuthSession?.userId,
-            displayName: effectiveProfile?.displayName || profile?.displayName || "",
-            email: authSession?.email,
-            accountCreatedAt: profile?.createdAt,
-            onBack:()=>setShowProfile(false),
-            onEditName:()=>setShowProfileModal(true),
-            onSignOut:handleSwitchUser,
-            onDeleteAccount:handleDeleteAccount
-          })
-        : React.createElement(GroupHome,{
+      React.createElement(GroupHome,{
             groups: visibleGroups,
             currentIdentity: effectiveProfile?.displayName || effectiveAuthSession?.email?.split("@")[0] || "",
             currentEmail: effectiveAuthSession?.email,
@@ -1160,7 +1148,20 @@ const App = () => {
             onOpenGroup:groupId=>{ persistGroupSelection(groupId); setPage("today"); },
             onCreateGroup:handleCreateGroup,
             onJoinGroup:()=>setShowJoinModal(true)
-          })
+          }),
+      showProfile && React.createElement('div',{style:{position:"fixed",inset:0,zIndex:30,overflowY:"auto",WebkitOverflowScrolling:"touch",background:"transparent"}},
+        React.createElement(ProfilePage,{
+          visibleGroups,
+          currentUserId: effectiveAuthSession?.userId,
+          displayName: effectiveProfile?.displayName || profile?.displayName || "",
+          email: authSession?.email,
+          accountCreatedAt: profile?.createdAt,
+          onBack:()=>setShowProfile(false),
+          onEditName:()=>setShowProfileModal(true),
+          onSignOut:handleSwitchUser,
+          onDeleteAccount:handleDeleteAccount
+        })
+      )
     );
   }
   if(!currentUser || !getMembershipForUser(currentGroup, effectiveAuthSession, effectiveProfile)) {
