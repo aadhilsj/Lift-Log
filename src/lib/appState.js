@@ -1055,6 +1055,10 @@ function normalizeLogEntry(log) {
   };
 }
 
+function normalizeDeletedCurrentLogIds(value) {
+  return uniqueNames(Array.isArray(value) ? value.map(id => String(id || "")) : []).slice(-200);
+}
+
 function normalizeAcceptedWorkoutTypes(types) {
   if (!Array.isArray(types) || !types.length) return [...WORKOUT_TYPES];
   const normalized = uniqueNames(types.map(normalizeWorkoutType)).filter(type => WORKOUT_TYPES.includes(type));
@@ -1299,6 +1303,7 @@ function normalizeGroupState(group) {
     leftMemberNames: [...leftMemberNames],
     settings: buildNormalizedSettings(group?.settings),
     logs: normalizedLogs,
+    deletedCurrentLogIds: normalizeDeletedCurrentLogIds(group?.deletedCurrentLogIds),
     excused,
     seasonOverrides: normalizeSeasonOverrides(group?.seasonOverrides),
     sitOutRequests: pruneSitOutRequestsForRead(group?.sitOutRequests, group?.lastMonth || curKey),
