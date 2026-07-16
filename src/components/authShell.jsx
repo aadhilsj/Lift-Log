@@ -290,7 +290,7 @@ const GroupHome = ({groups,currentIdentity,currentEmail,onOpenProfile,onOpenGrou
     React.createElement('div',{style:{minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-start",padding:compactMobile?"calc(env(safe-area-inset-top) + 16px) 16px 28px":"32px 18px",background:"transparent"}},
       React.createElement('div',{style:{width:"100%",maxWidth:744,display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,marginBottom:compactMobile?10:12}},
         React.createElement('div',null),
-        React.createElement('button',{type:"button",onClick:onOpenProfile,title:currentEmail||"Account",style:{width:32,height:32,display:"inline-flex",alignItems:"center",justifyContent:"center",borderRadius:999,background:"rgba(24,24,31,.62)",border:"1px solid rgba(62,62,82,.55)",color:"rgba(124,136,152,.78)",fontSize:14,lineHeight:1,flexShrink:0}},React.createElement(AppIcon,{name:"profile",size:13}))
+        React.createElement('button',{type:"button",onClick:onOpenProfile,title:currentEmail||"Account",style:{width:34,height:34,display:"inline-flex",alignItems:"center",justifyContent:"center",borderRadius:999,background:"rgba(24,24,31,.62)",border:"1px solid rgba(62,62,82,.55)",boxShadow:"0 10px 24px rgba(0,0,0,.22), inset 0 1px 0 rgba(255,255,255,.08)",fontSize:14,lineHeight:1,flexShrink:0,padding:0,overflow:"hidden"}},React.createElement(Avatar,{name:currentIdentity||currentEmail||"?",size:28}))
       ),
       groups.length===0
         ? React.createElement('div',{className:"fu",style:{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",textAlign:"center",paddingTop:compactMobile?60:100,paddingBottom:40}},
