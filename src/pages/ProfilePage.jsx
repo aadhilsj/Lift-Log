@@ -153,16 +153,14 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
     const lbl = d.toLocaleDateString([], { weekday: "short", day: "numeric", month: "short" });
     return `${lbl} · ${sel.count} ${sel.count === 1 ? "workout" : "workouts"}`;
   })();
-  const heatTotalCaption = agg.anyLogs ? `${agg.workoutsLogged} since ${sinceShort || "you joined"}` : "";
   const dowMax = Math.max(...agg.weekday, 1);
 
   // ── shared card bits ───────────────────────────────────────────────────────
   const statLabel = { display: "block", fontSize: 8.5, fontWeight: MED, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".06em", textAlign: "left", minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" };
-  const statVal = extra => ({ fontSize: 16, fontWeight: MED, lineHeight: 1.06, textAlign: "center", width: "100%", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", ...extra });
-  const statSub = { fontSize: 8.5, fontWeight: REG, color: "var(--muted)", marginTop: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", textAlign: "center", width: "100%" };
+  const statVal = extra => ({ fontSize: 15.5, fontWeight: MED, lineHeight: 1.02, textAlign: "center", width: "100%", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", ...extra });
   const statCard = (label, valNode, sub, options = {}) => React.createElement(Card, { key: label, style: {
     position: "relative",
-    padding: options.elevated ? "8px 7px 9px" : "9px 6px",
+    padding: options.elevated ? "7px 7px 8px" : "9px 6px",
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
@@ -170,12 +168,11 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
     boxShadow: options.elevated ? "0 12px 24px rgba(0,0,0,.26), 0 2px 10px rgba(78,205,196,.07)" : undefined
   } },
     options.elevated ? React.createElement('div', { style: { position: "absolute", left: 9, right: 9, top: 0, height: 1, background: "rgba(115,232,223,.42)" } }) : null,
-    React.createElement('div', { style: { display: "flex", alignItems: "center", justifyContent: "center", gap: 5, width: "100%", marginBottom: 5, minWidth: 0 } },
-      options.icon ? React.createElement('span', { style: { width: 16, height: 16, borderRadius: 999, display: "inline-flex", alignItems: "center", justifyContent: "center", color: "#58EBE1", background: "rgba(88,235,225,.08)", border: "1px solid rgba(88,235,225,.16)", flexShrink: 0 } }, options.icon) : null,
+    React.createElement('div', { style: { display: "flex", alignItems: "center", justifyContent: "center", gap: 4, width: "100%", marginBottom: 4, minWidth: 0 } },
+      options.icon ? React.createElement('span', { style: { width: 15, height: 15, borderRadius: 999, display: "inline-flex", alignItems: "center", justifyContent: "center", color: "#58EBE1", background: "rgba(88,235,225,.08)", border: "1px solid rgba(88,235,225,.16)", flexShrink: 0 } }, options.icon) : null,
       React.createElement('span', { style: statLabel }, label)
     ),
-    valNode,
-    sub ? React.createElement('div', { style: statSub }, sub) : null
+    valNode
   );
 
   // ── lifetime take (hero; per-currency, no FX blend, no zero amounts) ────────
@@ -219,24 +216,24 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
 
     // Free tier — three stat cards, single row
     React.createElement('div', { style: { display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 6 } },
-      statCard("Workouts", React.createElement('div', { style: statVal({ color: "#4ECDC4" }) }, agg.workoutsLogged || 0), "logged all-time", { elevated: true, icon: React.createElement(WorkoutTypeIcon, { type: "Gym", size: 13 }) }),
-      statCard("Blocs", React.createElement('div', { style: statVal({ color: "var(--text)" }) }, myGroups.length), "joined", { elevated: true, icon: React.createElement(AppIcon, { name: "group", size: 13, stroke: "currentColor" }) }),
-      statCard("Bloc wins", React.createElement('div', { style: statVal({ color: "var(--text)" }) }, agg.blocWins || 0), "months won", { elevated: true, icon: React.createElement(AppIcon, { name: "trophy", size: 13, stroke: "currentColor" }) })
+      statCard("Workouts", React.createElement('div', { style: statVal({ color: "#4ECDC4" }) }, agg.workoutsLogged || 0), null, { elevated: true, icon: React.createElement(WorkoutTypeIcon, { type: "Gym", size: 12 }) }),
+      statCard("Groups", React.createElement('div', { style: statVal({ color: "var(--text)" }) }, myGroups.length), null, { elevated: true, icon: React.createElement(AppIcon, { name: "group", size: 12, stroke: "currentColor" }) }),
+      statCard("Wins", React.createElement('div', { style: statVal({ color: "var(--text)" }) }, agg.blocWins || 0), null, { elevated: true, icon: React.createElement(AppIcon, { name: "trophy", size: 12, stroke: "currentColor" }) })
     ),
 
     // Lifetime balance — free card
     React.createElement(Card, { style: { padding: "14px 15px" } },
-      React.createElement('span', { style: { display: "block", fontSize: 8.5, fontWeight: MED, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 7 } }, "Bloc balance"),
+      React.createElement('span', { style: { display: "block", fontSize: 8.5, fontWeight: MED, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 7 } }, "Balance"),
       hasPnl
         ? React.createElement('div', { style: { fontSize: 14, fontWeight: REG, color: "var(--text)", lineHeight: 1.35, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } },
             primNet > 0
-              ? React.createElement(React.Fragment, null, "Won ", React.createElement('span', { style: { color: moneyColor(primNet), fontWeight: MED } }, money(primNet, primCur)), " across your Blocs.")
-              : React.createElement(React.Fragment, null, "Down ", React.createElement('span', { style: { color: moneyColor(primNet), fontWeight: MED } }, money(primNet, primCur)), " across your Blocs."),
+              ? React.createElement(React.Fragment, null, "Won ", React.createElement('span', { style: { color: moneyColor(primNet), fontWeight: MED } }, money(primNet, primCur)), " all-time.")
+              : React.createElement(React.Fragment, null, "Down ", React.createElement('span', { style: { color: moneyColor(primNet), fontWeight: MED } }, money(primNet, primCur)), " all-time."),
             secondaryPnl.length
               ? React.createElement('div', { style: { fontSize: 11, fontWeight: REG, color: "var(--muted2)", marginTop: 5, lineHeight: 1.35 } }, secondaryPnl.map(([c, n]) => `${n > 0 ? "Won" : "Lost"} ${money(n, c)}`).join(" · "))
               : null
           )
-        : React.createElement('div', { style: { fontSize: 14, fontWeight: REG, color: "var(--text)", lineHeight: 1.35, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, "Even across your Blocs so far.")
+        : React.createElement('div', { style: { fontSize: 14, fontWeight: REG, color: "var(--text)", lineHeight: 1.35, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, "Even all-time.")
     ),
 
     // ── Premium block (PROFILE_PREMIUM_GATE) — all built & visible now ─────────
@@ -249,10 +246,9 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
     // Heatmap card
     React.createElement(Card, { style: { padding: "12px 13px" } },
       React.createElement('div', { style: { display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 10, marginBottom: dayDetail ? 6 : 10 } },
-        React.createElement('div', { style: { fontSize: 14, fontWeight: MED } }, "Workout Heat Map"),
-        React.createElement('div', { style: { fontSize: 11, fontWeight: REG, color: "var(--muted)", whiteSpace: "nowrap" } }, heatTotalCaption)
+        React.createElement('div', { style: { fontSize: 14, fontWeight: MED } }, "Workout Heat Map")
       ),
-      dayDetail ? React.createElement('div', { style: { fontSize: 14, fontWeight: MED, color: "var(--text)", marginBottom: 9 } }, dayDetail) : null,
+      dayDetail ? React.createElement('div', { style: { fontSize: 11.5, fontWeight: REG, color: "var(--text)", marginBottom: 9 } }, dayDetail) : null,
       !agg.anyLogs
         ? React.createElement('div', { style: { color: "var(--muted)", fontSize: 13, fontWeight: REG, textAlign: "center", padding: "16px 0" } }, "No workouts logged yet.")
         : React.createElement('div', { ref: heatScrollRef, style: { overflowX: "auto", WebkitOverflowScrolling: "touch", paddingBottom: 4 } },
