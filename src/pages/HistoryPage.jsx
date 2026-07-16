@@ -99,18 +99,21 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
     [fullHistory, logs, excused]
   );
 
+  const isActualParticipant = (month, name) =>
+    getHistoricalMemberNamesForMonth(month, historicalNames).includes(name) && !month?.excused?.[name];
+
   const allTime=useMemo(()=>historicalNames.map(name=>{
-    const participated=fullHistory.filter(m=>isJoinedForMonth(name, m.key) && !m.excused?.[name]);
+    const participated=fullHistory.filter(m=>isActualParticipant(m, name));
     const activeMonths=participated.length;
     const total=participated.reduce((s,m)=>s+(m.counts[name]||0),0);
-    const closedP=monthHistory.filter(m=>isJoinedForMonth(name, m.key) && !m.excused?.[name]);
+    const closedP=monthHistory.filter(m=>isActualParticipant(m, name));
     const closedTotal=closedP.reduce((s,m)=>s+(m.counts[name]||0),0);
     const avg=closedP.length?(closedTotal/closedP.length).toFixed(1):"—";
     let wins=0,moneyWon=0,moneyLost=0;
     monthHistory.forEach(m=>{
-      if(!isJoinedForMonth(name, m.key)) return;
-      if(m.excused?.[name]) return;
       const monthNames = getHistoricalMemberNamesForMonth(m, historicalNames);
+      if(!monthNames.includes(name)) return;
+      if(m.excused?.[name]) return;
       const ac=monthNames.filter(n=>isJoinedForMonth(n, m.key) && !m.excused?.[n]).map(n=>({name:n,count:m.counts[n]||0,target:m.memberTargets?.[n] || m.settings?.minTarget || MIN_TARGET}));
       const penalties = calcPenalties(ac, m.settings || {});
       const {winners,losers,perWinner}=penalties;
