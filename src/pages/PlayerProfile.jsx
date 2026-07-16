@@ -142,16 +142,16 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,groupSettings,onDe
   const startSwipeBack=e=>{
     e.stopPropagation();
     const t=e.touches?.[0];
-    if(!t||t.clientX>48) return;
-    swipeRef.current={sx:t.clientX,sy:t.clientY,active:true,mode:null};
+    if(!t||t.clientX>72) return;
+    swipeRef.current={sx:t.clientX,sy:t.clientY,st:performance.now(),active:true,mode:null};
   };
   const moveSwipeBack=e=>{
     e.stopPropagation();
     const s=swipeRef.current,t=e.touches?.[0];
     if(!s.active||!t) return;
     const dx=t.clientX-s.sx,dy=t.clientY-s.sy;
-    if(!s.mode&&(Math.abs(dx)>8||Math.abs(dy)>8)){
-      s.mode=dx>0&&Math.abs(dx)>Math.abs(dy)*1.2?"back":"scroll";
+    if(!s.mode&&(Math.abs(dx)>4||Math.abs(dy)>4)){
+      s.mode=dx>0&&Math.abs(dx)>Math.abs(dy)?"back":"scroll";
       setDragging(s.mode==="back");
     }
     if(s.mode==="back") setDragX(Math.max(0,Math.min(dx,window.innerWidth||420)));
@@ -162,17 +162,20 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,groupSettings,onDe
     swipeRef.current={sx:0,sy:0,active:false,mode:null};
     if(!s.active||!t) return;
     const dx=t.clientX-s.sx,dy=t.clientY-s.sy,screenWidth=window.innerWidth||420;
-    const shouldClose=s.mode==="back"&&dx>screenWidth/2&&Math.abs(dy)<90&&dx>Math.abs(dy)*1.15;
+    const elapsed=Math.max(1,performance.now()-(s.st||performance.now()));
+    const fastEdgeFlick=dx>24&&elapsed<260&&dx/elapsed>0.22&&dx>Math.abs(dy);
+    const dominantDrag=dx>screenWidth/2&&Math.abs(dy)<100&&dx>Math.abs(dy);
+    const shouldClose=s.mode==="back"&&(fastEdgeFlick||dominantDrag);
     setDragging(false);
     if(shouldClose){
       setDragX(screenWidth);
-      window.setTimeout(()=>onBack?.(),115);
+      window.setTimeout(()=>onBack?.(),95);
     }else{
       setDragX(0);
     }
   };
 
-  return React.createElement('div',{onTouchStart:startSwipeBack,onTouchMove:moveSwipeBack,onTouchEnd:endSwipeBack,onTouchCancel:e=>{e.stopPropagation();swipeRef.current={sx:0,sy:0,active:false,mode:null};setDragging(false);setDragX(0);},style:{minHeight:"100vh",background:"var(--bg-gradient)",backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)",transform:dragX?`translateX(${dragX}px)`:"translateX(0)",transition:dragging?"none":"transform .14s ease",boxShadow:dragX?"-18px 0 34px rgba(0,0,0,.28)":"none",willChange:"transform",touchAction:"pan-y"}},
+  return React.createElement('div',{onTouchStart:startSwipeBack,onTouchMove:moveSwipeBack,onTouchEnd:endSwipeBack,onTouchCancel:e=>{e.stopPropagation();swipeRef.current={sx:0,sy:0,active:false,mode:null};setDragging(false);setDragX(0);},style:{minHeight:"100vh",background:"var(--bg-gradient)",backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)",transform:dragX?`translateX(${dragX}px)`:"translateX(0)",transition:dragging?"none":"transform .12s ease",boxShadow:dragX?"-18px 0 34px rgba(0,0,0,.28)":"none",willChange:"transform",touchAction:"pan-y"}},
     deleteTarget && React.createElement(DeleteModal,{log:deleteTarget,onClose:()=>setDeleteTarget(null),onConfirm:async()=>{ const log = deleteTarget; setDeleteTarget(null); await onDeleteLog(log); }}),
     React.createElement('div',{style:{maxWidth:740,margin:"0 auto",padding:"16px",display:"flex",flexDirection:"column",gap:12}},
     // Header row

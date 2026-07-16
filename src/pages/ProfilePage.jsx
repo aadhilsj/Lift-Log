@@ -226,8 +226,8 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
   ];
   const startSwipeBack = e => {
     const t = e.touches?.[0];
-    if (!t || t.clientX > 48) return;
-    swipeRef.current = { sx: t.clientX, sy: t.clientY, active: true, mode: null };
+    if (!t || t.clientX > 72) return;
+    swipeRef.current = { sx: t.clientX, sy: t.clientY, st: performance.now(), active: true, mode: null };
   };
   const moveSwipeBack = e => {
     const s = swipeRef.current;
@@ -235,8 +235,8 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
     if (!s.active || !t) return;
     const dx = t.clientX - s.sx;
     const dy = t.clientY - s.sy;
-    if (!s.mode && (Math.abs(dx) > 8 || Math.abs(dy) > 8)) {
-      s.mode = dx > 0 && Math.abs(dx) > Math.abs(dy) * 1.2 ? "back" : "scroll";
+    if (!s.mode && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) {
+      s.mode = dx > 0 && Math.abs(dx) > Math.abs(dy) ? "back" : "scroll";
       setDragging(s.mode === "back");
     }
     if (s.mode === "back") {
@@ -251,17 +251,20 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
     const dx = t.clientX - s.sx;
     const dy = t.clientY - s.sy;
     const screenWidth = window.innerWidth || 420;
-    const shouldClose = s.mode === "back" && dx > screenWidth / 2 && Math.abs(dy) < 90 && dx > Math.abs(dy) * 1.15;
+    const elapsed = Math.max(1, performance.now() - (s.st || performance.now()));
+    const fastEdgeFlick = dx > 24 && elapsed < 260 && dx / elapsed > 0.22 && dx > Math.abs(dy);
+    const dominantDrag = dx > screenWidth / 2 && Math.abs(dy) < 100 && dx > Math.abs(dy);
+    const shouldClose = s.mode === "back" && (fastEdgeFlick || dominantDrag);
     setDragging(false);
     if (shouldClose) {
       setDragX(screenWidth);
-      window.setTimeout(() => onBack?.(), 115);
+      window.setTimeout(() => onBack?.(), 95);
     } else {
       setDragX(0);
     }
   };
 
-  return React.createElement('div', { onTouchStart: startSwipeBack, onTouchMove: moveSwipeBack, onTouchEnd: endSwipeBack, onTouchCancel: () => { swipeRef.current = { sx: 0, sy: 0, active: false, mode: null }; setDragging(false); setDragX(0); }, style: { minHeight: "100vh", width: "100%", maxWidth: 640, margin: "0 auto", padding: "10px 14px 40px", display: "flex", flexDirection: "column", gap: 14, background: "var(--bg-gradient)", backgroundImage: "var(--bg-radial-hint), var(--bg-gradient)", transform: dragX ? `translateX(${dragX}px)` : "translateX(0)", transition: dragging ? "none" : "transform .14s ease", boxShadow: dragX ? "-18px 0 34px rgba(0,0,0,.28)" : "none", willChange: "transform", touchAction: "pan-y" } },
+  return React.createElement('div', { onTouchStart: startSwipeBack, onTouchMove: moveSwipeBack, onTouchEnd: endSwipeBack, onTouchCancel: () => { swipeRef.current = { sx: 0, sy: 0, active: false, mode: null }; setDragging(false); setDragX(0); }, style: { minHeight: "100vh", width: "100%", maxWidth: 640, margin: "0 auto", padding: "10px 14px 40px", display: "flex", flexDirection: "column", gap: 14, background: "var(--bg-gradient)", backgroundImage: "var(--bg-radial-hint), var(--bg-gradient)", transform: dragX ? `translateX(${dragX}px)` : "translateX(0)", transition: dragging ? "none" : "transform .12s ease", boxShadow: dragX ? "-18px 0 34px rgba(0,0,0,.28)" : "none", willChange: "transform", touchAction: "pan-y" } },
     // Header
     React.createElement('div', { style: { position: "relative", display: "flex", alignItems: "center", justifyContent: "center", height: 40, marginBottom: 2 } },
       React.createElement('button', { type: "button", onClick: onBack, "aria-label": "Back", style: { position: "absolute", left: 0, top: "50%", transform: "translateY(-50%)", width: 34, height: 34, display: "inline-flex", alignItems: "center", justifyContent: "center", background: "transparent", border: "none", color: "var(--text)", cursor: "pointer", padding: 0 } },

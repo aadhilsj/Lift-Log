@@ -895,8 +895,8 @@ const App = () => {
   const startBlocSwitchSwipe = useCallback((e) => {
     if (page !== "today" || showTodayLog || showSettings || showProfileModal || showStream || showJoinModal || authStep || prorationGroup) return;
     const t = e.touches?.[0];
-    if (!t || t.clientX > 64) return;
-    blocSwipeRef.current = {sx:t.clientX, sy:t.clientY, active:true, mode:null};
+    if (!t || t.clientX > 72) return;
+    blocSwipeRef.current = {sx:t.clientX, sy:t.clientY, st:performance.now(), active:true, mode:null};
   },[authStep, page, prorationGroup, showJoinModal, showProfileModal, showSettings, showStream, showTodayLog]);
   const moveBlocSwitchSwipe = useCallback((e) => {
     const s = blocSwipeRef.current;
@@ -904,8 +904,8 @@ const App = () => {
     if (!s.active || !t) return;
     const dx = t.clientX - s.sx;
     const dy = t.clientY - s.sy;
-    if (!s.mode && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) {
-      s.mode = dx > 0 && Math.abs(dx) > Math.abs(dy) * 1.05 ? "back" : "scroll";
+    if (!s.mode && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) {
+      s.mode = dx > 0 && Math.abs(dx) > Math.abs(dy) ? "back" : "scroll";
       setBlocDragging(s.mode === "back");
     }
     if (s.mode === "back") setBlocDragX(Math.max(0, Math.min(dx, window.innerWidth || 420)));
@@ -918,7 +918,10 @@ const App = () => {
     const dx = t.clientX - s.sx;
     const dy = t.clientY - s.sy;
     const screenWidth = window.innerWidth || 420;
-    const shouldClose = s.mode === "back" && dx > screenWidth * 0.42 && Math.abs(dy) < 100 && dx > Math.abs(dy) * 1.05;
+    const elapsed = Math.max(1, performance.now() - (s.st || performance.now()));
+    const fastEdgeFlick = dx > 24 && elapsed < 260 && dx / elapsed > 0.22 && dx > Math.abs(dy);
+    const dominantDrag = dx > screenWidth / 2 && Math.abs(dy) < 100 && dx > Math.abs(dy);
+    const shouldClose = s.mode === "back" && (fastEdgeFlick || dominantDrag);
     setBlocDragging(false);
     if (shouldClose) {
       setBlocDragX(screenWidth);
