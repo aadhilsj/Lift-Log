@@ -290,13 +290,13 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
       hasPnl
         ? React.createElement('div', { style: { fontSize: 14, fontWeight: REG, color: "var(--text)", lineHeight: 1.25, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", textAlign: "center" } },
             primNet > 0
-              ? React.createElement(React.Fragment, null, "Won ", React.createElement('span', { style: { color: moneyColor(primNet), fontWeight: MED } }, money(primNet, primCur)), " all-time from your Blocmates.")
-              : React.createElement(React.Fragment, null, "Lost ", React.createElement('span', { style: { color: moneyColor(primNet), fontWeight: MED } }, money(primNet, primCur)), " all-time to your Blocmates."),
+              ? React.createElement(React.Fragment, null, "Won ", React.createElement('span', { style: { color: moneyColor(primNet), fontWeight: MED } }, money(primNet, primCur)), " all-time from your blocmates.")
+              : React.createElement(React.Fragment, null, "Lost ", React.createElement('span', { style: { color: moneyColor(primNet), fontWeight: MED } }, money(primNet, primCur)), " all-time to your blocmates."),
             secondaryPnl.length
               ? React.createElement('div', { style: { fontSize: 11, fontWeight: REG, color: "var(--muted2)", marginTop: 5, lineHeight: 1.35 } }, secondaryPnl.map(([c, n]) => `${n > 0 ? "Won" : "Lost"} ${money(n, c)}`).join(" · "))
               : null
           )
-        : React.createElement('div', { style: { fontSize: 14, fontWeight: REG, color: "var(--text)", lineHeight: 1.25, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", textAlign: "center" } }, "Dead even all-time with your Blocmates.")
+        : React.createElement('div', { style: { fontSize: 14, fontWeight: REG, color: "var(--text)", lineHeight: 1.25, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", textAlign: "center" } }, "Dead even all-time with your blocmates.")
     ),
 
     // ── Premium block (PROFILE_PREMIUM_GATE) — all built & visible now ─────────
@@ -309,7 +309,7 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
     // Heatmap card
     React.createElement(Card, { style: { padding: "12px 13px" } },
       React.createElement('div', { style: { display: "grid", justifyItems: "center", gap: 3, marginBottom: dayDetail ? 6 : 10 } },
-        React.createElement('div', { style: { fontSize: 14, fontWeight: MED, textAlign: "center" } }, "Your Workout Heatmap"),
+        React.createElement('div', { style: { fontSize: 14, fontWeight: MED, textAlign: "center" } }, "Your Heatmap"),
         heatCaption ? React.createElement('div', { style: { fontSize: 10.5, fontWeight: REG, color: "var(--muted)", textAlign: "center", lineHeight: 1.35 } }, heatCaption) : null
       ),
       dayDetail ? React.createElement('div', { style: { fontSize: 11.5, fontWeight: REG, color: "var(--text)", marginBottom: 9, textAlign: "center" } }, dayDetail) : null,
