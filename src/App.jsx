@@ -139,6 +139,7 @@ const App = () => {
   const [blocDragX,setBlocDragX]=useState(0);
   const [blocDragging,setBlocDragging]=useState(false);
   const [suppressSwitcherIntro,setSuppressSwitcherIntro]=useState(false);
+  const [profileRevealActive,setProfileRevealActive]=useState(false);
   const latestRevisionRef = useRef(getRevision(cached));
   const justSyncedTimerRef = useRef(null);
   const optimisticMutationRef = useRef(null);
@@ -1236,14 +1237,15 @@ const App = () => {
             onJoinGroup:()=>setShowJoinModal(true),
             suppressIntro:suppressSwitcherIntro
           }),
-      showProfile && React.createElement('div',{ref:profileOverlayRef,style:{position:"fixed",inset:0,zIndex:30,overflowY:"auto",overflowX:"hidden",WebkitOverflowScrolling:"touch",overscrollBehavior:"contain",background:"transparent"}},
+      showProfile && React.createElement('div',{ref:profileOverlayRef,style:{position:"fixed",inset:0,zIndex:30,overflowY:"auto",overflowX:"hidden",WebkitOverflowScrolling:"touch",overscrollBehavior:"contain",background:profileRevealActive?"transparent":"var(--bg-gradient)",backgroundImage:profileRevealActive?"none":"var(--bg-radial-hint), var(--bg-gradient)"}},
         React.createElement(ProfilePage,{
           visibleGroups,
           currentUserId: effectiveAuthSession?.userId,
           displayName: effectiveProfile?.displayName || profile?.displayName || "",
           email: authSession?.email,
           accountCreatedAt: profile?.createdAt,
-          onBack:()=>setShowProfile(false),
+          onBack:()=>{ setProfileRevealActive(false); setShowProfile(false); },
+          onSwipeRevealChange:setProfileRevealActive,
           onEditName:()=>setShowProfileModal(true),
           onSignOut:handleSwitchUser,
           onDeleteAccount:handleDeleteAccount

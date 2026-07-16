@@ -28,7 +28,7 @@ const sinceLabel = ts => {
 // Brand font system: inherited sans-serif, two weights only — 400 and 500.
 const REG = 400, MED = 500;
 
-const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, accountCreatedAt, onBack, onEditName, onSignOut, onDeleteAccount }) => {
+const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, accountCreatedAt, onBack, onSwipeRevealChange, onEditName, onSignOut, onDeleteAccount }) => {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
@@ -222,6 +222,7 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
     if (!s.mode && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) {
       s.mode = dx > 0 && Math.abs(dx) > Math.abs(dy) ? "back" : "scroll";
       setDragging(s.mode === "back");
+      onSwipeRevealChange?.(s.mode === "back");
     }
     if (s.mode === "back") {
       setDragX(Math.max(0, Math.min(dx, window.innerWidth || 420)));
@@ -244,11 +245,12 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
       setDragX(screenWidth);
       window.setTimeout(() => onBack?.(), 95);
     } else {
+      onSwipeRevealChange?.(false);
       setDragX(0);
     }
   };
 
-  return React.createElement('div', { onTouchStart: startSwipeBack, onTouchMove: moveSwipeBack, onTouchEnd: endSwipeBack, onTouchCancel: () => { swipeRef.current = { sx: 0, sy: 0, active: false, mode: null }; setDragging(false); setDragX(0); }, style: { position: "relative", isolation: "isolate", minHeight: "100dvh", width: "100%", maxWidth: 640, margin: "0 auto", padding: "10px 14px 40px", display: "flex", flexDirection: "column", gap: 14, background: "var(--bg-gradient)", backgroundImage: "var(--bg-radial-hint), var(--bg-gradient)", transform: dragX ? `translateX(${dragX}px)` : "translateX(0)", transition: dragging ? "none" : "transform .12s ease", boxShadow: dragX ? "-18px 0 34px rgba(0,0,0,.28)" : "none", willChange: "transform", touchAction: "pan-y" } },
+  return React.createElement('div', { onTouchStart: startSwipeBack, onTouchMove: moveSwipeBack, onTouchEnd: endSwipeBack, onTouchCancel: () => { swipeRef.current = { sx: 0, sy: 0, active: false, mode: null }; onSwipeRevealChange?.(false); setDragging(false); setDragX(0); }, style: { position: "relative", isolation: "isolate", minHeight: "100dvh", width: "100%", maxWidth: 640, margin: "0 auto", padding: "10px 14px 40px", display: "flex", flexDirection: "column", gap: 14, background: "var(--bg-gradient)", backgroundImage: "var(--bg-radial-hint), var(--bg-gradient)", transform: dragX ? `translateX(${dragX}px)` : "translateX(0)", transition: dragging ? "none" : "transform .12s ease", boxShadow: dragX ? "-18px 0 34px rgba(0,0,0,.28)" : "none", willChange: "transform", touchAction: "pan-y" } },
     React.createElement('div', { "aria-hidden": true, style: { position: "fixed", inset: 0, zIndex: -1, pointerEvents: "none", background: "var(--bg-gradient)", backgroundImage: "var(--bg-radial-hint), var(--bg-gradient)" } }),
     // Header
     React.createElement('div', { style: { position: "relative", display: "flex", alignItems: "center", justifyContent: "center", height: 40, marginBottom: 2 } },
