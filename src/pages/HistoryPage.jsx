@@ -211,7 +211,7 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
         React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontSize:8.5,fontWeight:600,color:"var(--muted)",marginTop:4,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",textAlign:"center",width:"100%"}},x.sub)
       ))
     ),
-    HISTORY_FEATURES.trailingWorkoutHistory&&React.createElement(Card,{className:"fu3",style:{padding:"11px 12px"}},
+    HISTORY_FEATURES.trailingWorkoutHistory&&React.createElement(Card,{className:"fu3",style:{padding:"11px 12px",background:"radial-gradient(circle at 12% 0%, rgba(255,255,255,.045), transparent 34%), radial-gradient(circle at 88% 100%, rgba(78,205,196,.075), transparent 42%), linear-gradient(180deg, rgba(12,22,22,.98), rgba(8,15,15,.98))",boxShadow:"inset 0 1px 0 rgba(255,255,255,.045), 0 10px 24px rgba(0,0,0,.16)"}},
       React.createElement('div',{style:{fontWeight:800,fontSize:13,marginBottom:10,textAlign:"center"}},"Last 12 Months"),
       trailingMonthlyAvg.every(m=>m.total===0)
         ? React.createElement('div',{style:{color:"var(--muted)",fontSize:13,textAlign:"center",padding:"20px 0"}},"Data will appear here as the month progresses.")
@@ -229,7 +229,7 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
             )
           )
     ),
-    HISTORY_FEATURES.workoutMix&&React.createElement(Card,{className:"fu4",style:{padding:"11px 12px"}},
+    HISTORY_FEATURES.workoutMix&&React.createElement(Card,{className:"fu4",style:{padding:"11px 12px",background:"radial-gradient(circle at 88% 0%, rgba(255,255,255,.04), transparent 34%), radial-gradient(circle at 16% 100%, rgba(78,205,196,.07), transparent 42%), linear-gradient(180deg, rgba(12,22,22,.98), rgba(8,15,15,.98))",boxShadow:"inset 0 1px 0 rgba(255,255,255,.045), 0 10px 24px rgba(0,0,0,.16)"}},
       React.createElement('div',{style:{fontWeight:800,fontSize:13,marginBottom:10,textAlign:"center"}},"Workout Type Distribution"),
       totalGroupLogs===0
         ? React.createElement('div',{style:{color:"var(--muted)",fontSize:13,textAlign:"center",padding:"12px 0"}},"No workouts logged yet.")
