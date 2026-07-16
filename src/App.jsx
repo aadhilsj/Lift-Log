@@ -959,7 +959,7 @@ const App = () => {
         setSuppressSwitcherIntro(true);
         resetBlocSwipe();
         persistGroupSelection(null);
-      }, 95);
+      }, 55);
     } else {
       setBlocDragX(0);
     }
@@ -1276,7 +1276,7 @@ const App = () => {
       background:"var(--bg-gradient)",
       backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)",
       transform:blocDragX?`translateX(${blocDragX}px)`:"none",
-      transition:blocDragging?"none":"transform .12s ease",
+      transition:blocDragging?"none":"transform .08s ease-out",
       boxShadow:blocDragX?"-18px 0 34px rgba(0,0,0,.28)":"none",
       willChange:blocDragging||blocDragX?"transform":"auto",
       touchAction:"pan-y"
