@@ -1,5 +1,5 @@
 import React from "react";
-const { useState, useEffect, useMemo, useCallback } = React;
+const { useState, useEffect, useMemo, useCallback, useRef } = React;
 import {
   NAMES,
   MIN_TARGET,
@@ -61,10 +61,20 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
   const [settlementCardBusy,setSettlementCardBusy]=useState(null);
   const [settlementConfirmPromptCard,setSettlementConfirmPromptCard]=useState(null);
   const [settlementDisputePromptCard,setSettlementDisputePromptCard]=useState(null);
+  const sourceScrollYRef = useRef(0);
   useEffect(()=>{ setViewPlayer(null); },[navResetToken]);
   useEffect(()=>{
     if(viewPlayer) window.scrollTo({top:0,left:0,behavior:"auto"});
   },[viewPlayer]);
+  const openPlayerProfile = useCallback(name => {
+    sourceScrollYRef.current = window.scrollY || window.pageYOffset || 0;
+    setViewPlayer(name);
+  },[]);
+  const closePlayerProfile = useCallback(() => {
+    setViewPlayer(null);
+    const y = sourceScrollYRef.current || 0;
+    window.requestAnimationFrame(() => window.scrollTo({top:y,left:0,behavior:"auto"}));
+  },[]);
   const currentGroup = groups.find(group => group.id === currentGroupId) || null;
   const closeMeta = currentGroup ? getGroupCloseMeta(currentGroup, new Date(clockTick)) : null;
   const closePillClass = `close-pill${closeMeta?.tone === "urgent" ? " urgent" : closeMeta?.tone === "critical" ? " critical" : ""}`;
@@ -908,7 +918,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
         const earlyMonthQuiet = !u.isOut && isEarlyMonthNeutralWindow() && u.count === 0;
         const aArr=leaderboardRows.filter(x=>!x.isOut);
         const aIdx=aArr.findIndex(x=>x.name===u.name);
-        return React.createElement('button',{key:u.key || u.name,type:"button",onClick:()=>setViewPlayer(u.name),
+        return React.createElement('button',{key:u.key || u.name,type:"button",onClick:()=>openPlayerProfile(u.name),
           style:{...leaderboardRowBaseStyle,borderColor:isMe&&!u.isOut?"#163d36":"#0D1F1E",background:leaderboardRowBackground(displayStatus),boxShadow:leaderboardRowShadow,opacity:u.isOut?.55:1}},
           React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10}},
             React.createElement('div',{style:{flex:1,minWidth:0,display:"flex",alignItems:"center",alignSelf:"stretch"}},
@@ -996,7 +1006,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
           const earlyMonthQuiet = !u.isOut && isEarlyMonthNeutralWindow() && u.count === 0;
           const aArr=leaderboardRows.filter(x=>!x.isOut);
           const aIdx=aArr.findIndex(x=>x.name===u.name);
-          return React.createElement('button',{key:u.key || u.name,type:"button",onClick:()=>setViewPlayer(u.name),style:{...leaderboardRowBaseStyle,borderColor:isMe&&!u.isOut?"#163d36":"#0D1F1E",background:leaderboardRowBackground(displayStatus),boxShadow:leaderboardRowShadow,opacity:u.isOut?.55:1},
+          return React.createElement('button',{key:u.key || u.name,type:"button",onClick:()=>openPlayerProfile(u.name),style:{...leaderboardRowBaseStyle,borderColor:isMe&&!u.isOut?"#163d36":"#0D1F1E",background:leaderboardRowBackground(displayStatus),boxShadow:leaderboardRowShadow,opacity:u.isOut?.55:1},
             onMouseEnter:e=>e.currentTarget.style.borderColor=isMe&&!u.isOut?"#1c4a43":"#15302c",onMouseLeave:e=>e.currentTarget.style.borderColor=isMe&&!u.isOut?"#163d36":"#0D1F1E"},
             React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}},
               React.createElement('div',{style:{flex:1,minWidth:0,display:"flex",alignItems:"center",alignSelf:"stretch"}},
@@ -1057,10 +1067,12 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
   );
 
   if(viewPlayer) return React.createElement('div',{style:{position:"relative",minHeight:"100dvh",background:"var(--bg-gradient)",backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)"}},
-    React.createElement('div',{"aria-hidden":true,style:{position:"fixed",inset:0,zIndex:0,overflow:"hidden",pointerEvents:"none"}},todayContent),
+    React.createElement('div',{"aria-hidden":true,style:{position:"fixed",inset:0,zIndex:0,overflow:"hidden",pointerEvents:"none"}},
+      React.createElement('div',{style:{transform:`translateY(-${sourceScrollYRef.current || 0}px)`}},todayContent)
+    ),
     React.createElement('div',{style:{position:"relative",zIndex:1,maxWidth:1060,margin:"0 auto"}},
-      React.createElement(PlayerProfileErrorBoundary,{profileName:viewPlayer,onBack:()=>setViewPlayer(null)},
-        React.createElement(PlayerProfile,{name:viewPlayer,logs,excused,monthHistory,onBack:()=>setViewPlayer(null),groupSettings,onDeleteLog:viewPlayer===user?async(log)=>{ await onLogMutation({action:"delete-log",groupId:currentGroupId,actor:user,owner:viewPlayer,logId:log.id}); }:undefined})
+      React.createElement(PlayerProfileErrorBoundary,{profileName:viewPlayer,onBack:closePlayerProfile},
+        React.createElement(PlayerProfile,{name:viewPlayer,logs,excused,monthHistory,onBack:closePlayerProfile,groupSettings,onDeleteLog:viewPlayer===user?async(log)=>{ await onLogMutation({action:"delete-log",groupId:currentGroupId,actor:user,owner:viewPlayer,logId:log.id}); }:undefined})
       )
     )
   );

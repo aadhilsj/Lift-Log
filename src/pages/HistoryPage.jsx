@@ -1,5 +1,5 @@
 import React from "react";
-const { useState, useEffect, useMemo } = React;
+const { useState, useEffect, useMemo, useCallback, useRef } = React;
 import {
   WORKOUT_TYPES,
   DEFAULT_CURRENCY,
@@ -80,10 +80,20 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
   const currency = groupSettings?.currency || DEFAULT_CURRENCY;
   const [showAllLeaderboard,setShowAllLeaderboard]=useState(false);
   const [viewPlayer,setViewPlayer]=useState(null);
+  const sourceScrollYRef = useRef(0);
   useEffect(()=>{ setViewPlayer(null); },[navResetToken]);
   useEffect(()=>{
     if(viewPlayer) window.scrollTo({top:0,left:0,behavior:"auto"});
   },[viewPlayer]);
+  const openPlayerProfile = useCallback(name => {
+    sourceScrollYRef.current = window.scrollY || window.pageYOffset || 0;
+    setViewPlayer(name);
+  },[]);
+  const closePlayerProfile = useCallback(() => {
+    setViewPlayer(null);
+    const y = sourceScrollYRef.current || 0;
+    window.requestAnimationFrame(() => window.scrollTo({top:y,left:0,behavior:"auto"}));
+  },[]);
 
   const currentMonthSnapshot = useMemo(() => ({
     key: curKey,
@@ -281,7 +291,7 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
           visibleLeaderboard.map((u,i)=>{
             const isMe = u.name === currentUser;
             const rankGlow = i === 0 ? "rgba(245,166,35,.075)" : i === 1 ? "rgba(214,226,224,.055)" : i === 2 ? "rgba(78,205,196,.045)" : "rgba(255,255,255,.02)";
-            return React.createElement('button',{key:u.name,type:"button",onClick:()=>setViewPlayer(u.name),
+            return React.createElement('button',{key:u.name,type:"button",onClick:()=>openPlayerProfile(u.name),
             style:{display:"grid",gridTemplateColumns:"21px 24px 120px 44px 38px 46px 34px 56px 56px",width:"100%",padding:"8px 8px",gap:5,alignItems:"center",background:`radial-gradient(circle at 8% 0%, ${rankGlow}, transparent 42%), radial-gradient(circle at 92% 0%, rgba(78,205,196,.045), transparent 38%), linear-gradient(180deg, rgba(18,31,31,.82), rgba(8,15,15,.62))`,border:`0.5px solid ${isMe?"rgba(78,205,196,.24)":"rgba(255,255,255,.065)"}`,borderRadius:9,boxShadow:`inset 0 1px 0 rgba(255,255,255,.055), 0 8px 18px rgba(0,0,0,.16)${isMe?", 0 0 0 1px rgba(78,205,196,.035)":""}`,textAlign:"left",fontFamily:"'Outfit', sans-serif",color:"var(--text)",cursor:"pointer"}},
             React.createElement('div',{style:{fontSize:10,fontWeight:700,color:"var(--muted)",textAlign:"center"}},`#${i+1}`),
             React.createElement(Avatar,{name:u.name,size:21}),
@@ -318,10 +328,12 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
   );
 
   if(viewPlayer) return React.createElement('div',{style:{position:"relative",minHeight:"100dvh",background:"var(--bg-gradient)",backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)"}},
-    React.createElement('div',{"aria-hidden":true,style:{position:"fixed",inset:0,zIndex:0,overflow:"hidden",pointerEvents:"none"}},historyContent),
+    React.createElement('div',{"aria-hidden":true,style:{position:"fixed",inset:0,zIndex:0,overflow:"hidden",pointerEvents:"none"}},
+      React.createElement('div',{style:{transform:`translateY(-${sourceScrollYRef.current || 0}px)`}},historyContent)
+    ),
     React.createElement('div',{style:{position:"relative",zIndex:1}},
-      React.createElement(PlayerProfileErrorBoundary,{profileName:viewPlayer,onBack:()=>setViewPlayer(null)},
-        React.createElement(PlayerProfile,{name:viewPlayer,logs,excused,monthHistory,onBack:()=>setViewPlayer(null),groupSettings})
+      React.createElement(PlayerProfileErrorBoundary,{profileName:viewPlayer,onBack:closePlayerProfile},
+        React.createElement(PlayerProfile,{name:viewPlayer,logs,excused,monthHistory,onBack:closePlayerProfile,groupSettings})
       )
     )
   );
