@@ -1776,3 +1776,62 @@ Next smoke focus:
 - add an individual workout
 - change one safe setting if convenient
 - leave/delete the temporary bloc
+
+## Batch 29 - Preview Soak For Kick-Member Mirror Skip
+
+Batch 29 started on 2026-07-16 after the Batch 28 canonical-only new-bloc audit
+follow-up smoke passed.
+
+Preview env change:
+
+`BLOB_MIRROR_SKIP_ACTIONS=create-group,leave-bloc,kick-member,update-settings,season-proration-choice,reaction,flag,flag-response,flag-review,delete-log,add-log,multi-log`
+
+Scope:
+
+- enables blob mirror skipping for auth-linked `kick-member` actions on the
+  `codex/create-group-canonical-first` preview branch only
+- keeps Production unchanged
+- keeps `join-group`, `upsert-profile`, and `delete-account` wired but not
+  enabled
+- keeps sit-out request/review, legacy admin settlement, `auth-sync`, and
+  `repair-display-name` mirrored
+
+Important guard:
+
+- only kicks with `targetUserId` use the `kick-member` skip action
+- legacy name-only kicks continue to mirror the blob via
+  `kick-member-legacy-name`
+- this avoids treating non-auth-linked legacy member cleanup as canonical
+  authority
+
+Why this is the next enabled action:
+
+- `kick-member` is group-scoped and already computes from
+  `buildCanonicalWritableStateForAuthenticatedMutation(...)`
+- canonical member removal succeeds before the blob mirror/skip decision
+- write-hydration report coverage already includes `kick-member` current/open
+  probes
+
+Deferred:
+
+- `join-group` remains separate because it has invite/profile/lifecycle shell
+  dependencies and should be tested on its own
+- `delete-account` remains separate because its current blob precheck can miss
+  canonical-only groups owned by the account; that needs a small audit/fix
+  before enabling skip
+- `upsert-profile` remains separate because full identity rename parity still
+  has historical shell noise
+
+Next smoke focus:
+
+- sign in / blocs load
+- sanity check create/proration/log/delete or reaction if convenient
+- if possible, kick an auth-linked test member from a disposable/test bloc
+- confirm the kicked member no longer appears after refresh
+
+Remaining estimate after Batch 29:
+
+- minimum 2 backend batches if join-group and delete-account/upsert-profile can
+  be handled cleanly
+- realistic 2-3 backend batches if delete-account needs a dedicated precheck
+  fix before its soak
