@@ -3,7 +3,7 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 import { ActivityFeed } from "../pages/ActivityFeed.jsx";
 
 const ActivityPage = ({group,currentUser,onLogMutation,clockTick}) => {
-  const wrapStyle = {maxWidth:1060,margin:"0 auto",padding:"20px 16px"};
+  const wrapStyle = {width:"100%",maxWidth:"none",margin:"0",padding:"12px 8px 20px",boxSizing:"border-box"};
   const handleReaction = (owner, logId, emoji) => onLogMutation({ action:"reaction", groupId:group.id, actor:currentUser, owner, logId, emoji });
   const handleFlag = async (owner, logId, reason) => {
     const result = await onLogMutation({ action:"flag", groupId:group.id, actor:currentUser, owner, logId, reason });
