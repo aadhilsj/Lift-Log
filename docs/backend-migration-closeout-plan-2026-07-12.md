@@ -1427,3 +1427,28 @@ Next smoke focus:
   distance setting
 - confirm currency remains locked
 - confirm settlement/result currency display still follows the bloc currency
+
+### Batch 24 follow-up - align profile historical P&L with History
+
+Preview smoke after Batch 24 exposed a display-name/leave-rejoin edge case:
+
+- History and Results excluded a renamed/rejoined test account from a closed
+  June settlement month
+- that same account's player profile still showed a closed-month net loss
+- root cause: `PlayerProfile` used the global `NAMES` list plus the old
+  month-key join helper for closed-month P&L, while History already uses
+  month-local historical member names
+
+Fix:
+
+- `PlayerProfile` now uses `getHistoricalGroupMemberNames(...)` and
+  `getHistoricalMemberNamesForMonth(...)` for historical month visibility,
+  participation, and P&L calculations
+- this aligns profile P&L with the History and Results screens without changing
+  backend data or canonical read composition
+
+Smoke focus:
+
+- open the affected test account profile and check June P&L
+- compare with History all-time row and June Results
+- sign in / blocs load sanity

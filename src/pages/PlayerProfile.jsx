@@ -17,6 +17,8 @@ import {
   normalizeSeasonOverrides,
   getCurrentMemberTarget,
   getCurrentMemberTargetInfo,
+  getHistoricalMemberNamesForMonth,
+  getHistoricalGroupMemberNames,
   fmtCurrency,
   getCountedLogs,
   getCountedLogCount,
@@ -34,11 +36,17 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,groupSettings,onDe
   const currency = groupSettings?.currency || DEFAULT_CURRENCY;
   const [selMonthIdx,setSelMonthIdx]=useState(null); // null = current month
   const histReversed=[...monthHistory].reverse();
-  const visibleHistoryMonths=histReversed.filter(m=>isJoinedForMonth(name, m?.key));
+  const historicalNames=useMemo(
+    ()=>getHistoricalGroupMemberNames(monthHistory, logs, excused, NAMES),
+    [monthHistory, logs, excused]
+  );
+  const visibleHistoryMonths=histReversed.filter(m=>getHistoricalMemberNamesForMonth(m, historicalNames).includes(name));
   const isCurMonth=selMonthIdx===null;
   const selHistMonth=isCurMonth?null:visibleHistoryMonths[selMonthIdx];
   const selectedMonthKey = isCurMonth ? curKey : selHistMonth?.key;
-  const isJoinedThisMonth = isJoinedForMonth(name, selectedMonthKey);
+  const isJoinedThisMonth = isCurMonth
+    ? isJoinedForMonth(name, selectedMonthKey)
+    : !!selHistMonth && getHistoricalMemberNamesForMonth(selHistMonth, historicalNames).includes(name);
   const currentTargetInfo = isCurMonth ? getCurrentMemberTargetInfo(name, curKey, MIN_TARGET) : null;
   const currentMonthOverride = isCurMonth ? (normalizeSeasonOverrides(ACTIVE_SEASON_OVERRIDES)?.[curKey] || null) : null;
 
@@ -46,19 +54,20 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,groupSettings,onDe
   const closedStats=useMemo(()=>{
     let wins=0,moneyWon=0,moneyLost=0,closedTotal=0;
     monthHistory.forEach(m=>{
-      if(!isJoinedForMonth(name, m.key)) return;
+      const monthNames = getHistoricalMemberNamesForMonth(m, historicalNames);
+      if(!monthNames.includes(name)) return;
       if(m.excused?.[name]) return;
-      const ac=NAMES.filter(n=>isJoinedForMonth(n, m.key) && !m.excused?.[n]).map(n=>({name:n,count:m.counts[n]||0,target:m.memberTargets?.[n] || m.settings?.minTarget || MIN_TARGET}));
+      const ac=monthNames.filter(n=>isJoinedForMonth(n, m.key) && !m.excused?.[n]).map(n=>({name:n,count:m.counts[n]||0,target:m.memberTargets?.[n] || m.settings?.minTarget || MIN_TARGET}));
       const penalties = calcPenalties(ac, m.settings || {});
       const {winners,losers,perWinner}=penalties;
       closedTotal+=m.counts[name]||0;
       if(winners.find(w=>w.name===name)){wins++;moneyWon+=perWinner;}
       if(losers.find(l=>l.name===name)){moneyLost+=getLoserAmount(penalties, name);}
     });
-    const participated=monthHistory.filter(m=>isJoinedForMonth(name, m.key) && !m.excused?.[name]);
+    const participated=monthHistory.filter(m=>getHistoricalMemberNamesForMonth(m, historicalNames).includes(name) && !m.excused?.[name]);
     const avg=participated.length?(closedTotal/participated.length).toFixed(1):"—";
     return {wins,moneyWon,moneyLost,avg};
-  },[name,monthHistory]);
+  },[name,monthHistory,historicalNames]);
 
   // Selected month data
   const selCount = isCurMonth
