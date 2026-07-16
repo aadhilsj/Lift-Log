@@ -1498,3 +1498,35 @@ Next smoke focus:
 - join a test bloc if convenient
 - leave/delete the temporary bloc if convenient
 - profile rename sanity only if convenient
+
+## Batch 26 - Preview Soak For Create/Leave Mirror Skip
+
+Batch 26 started on 2026-07-16 after Batch 25 preview smoke passed for sign-in,
+blocs loading, create-group, and leave-bloc.
+
+Preview env change:
+
+`BLOB_MIRROR_SKIP_ACTIONS=create-group,leave-bloc,update-settings,season-proration-choice,reaction,flag,flag-response,flag-review,delete-log,add-log,multi-log`
+
+Scope:
+
+- enables blob mirror skipping for `create-group` and `leave-bloc` on the
+  `codex/create-group-canonical-first` preview branch only
+- keeps Production unchanged
+- keeps `join-group`, `upsert-profile`, `kick-member`, and `delete-account`
+  wired but not enabled because they were not part of the last direct smoke
+- keeps sit-out, legacy admin settlement, `auth-sync`, and
+  `repair-display-name` mirrored
+
+Expected user behavior:
+
+- creating a bloc should still add it immediately and make the creator admin
+- leaving a temporary/sole-member bloc should still remove it from the bloc list
+- existing workout/settings skip behavior should remain unchanged
+
+Next smoke focus:
+
+- sign in / blocs load
+- create a temporary bloc
+- leave/delete that temporary bloc
+- add/delete or react/unreact sanity if convenient
