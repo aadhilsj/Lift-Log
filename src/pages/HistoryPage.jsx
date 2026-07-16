@@ -1,5 +1,5 @@
 import React from "react";
-const { useState, useMemo } = React;
+const { useState, useEffect, useMemo } = React;
 import {
   WORKOUT_TYPES,
   DEFAULT_CURRENCY,
@@ -22,7 +22,8 @@ import {
   getCountedLogCount,
   isJoinedForMonth
 } from "../lib/appState.js";
-import { Avatar, WorkoutTypeIcon, Card, AppIcon } from "../components/primitives.jsx";
+import { Avatar, WorkoutTypeIcon, Card, AppIcon, PlayerProfileErrorBoundary } from "../components/primitives.jsx";
+import { PlayerProfile } from "../pages/PlayerProfile.jsx";
 
 const HISTORY_FEATURES = {
   summaryStats: true,
@@ -78,6 +79,8 @@ const buildRankMap = rows => {
 const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToken,currentUser}) => {
   const currency = groupSettings?.currency || DEFAULT_CURRENCY;
   const [showAllLeaderboard,setShowAllLeaderboard]=useState(false);
+  const [viewPlayer,setViewPlayer]=useState(null);
+  useEffect(()=>{ setViewPlayer(null); },[navResetToken]);
 
   const currentMonthSnapshot = useMemo(() => ({
     key: curKey,
@@ -196,7 +199,7 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
     return React.createElement('span',{style:{display:"inline-flex",alignItems:"center",justifyContent:"center",minWidth:20,fontSize:8.5,fontWeight:800,color,lineHeight:1}},label);
   };
 
-  return React.createElement('div',{style:{maxWidth:960,margin:"0 auto",padding:"16px",display:"flex",flexDirection:"column",gap:12}},
+  return React.createElement('div',{style:{position:"relative",maxWidth:960,margin:"0 auto",padding:"16px",display:"flex",flexDirection:"column",gap:12}},
     React.createElement('div',{className:"fu",style:{textAlign:"center"}},
       React.createElement('div',{style:{fontSize:24,fontWeight:800,textAlign:"center"}},"Bloc History")
     ),
@@ -272,8 +275,8 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
           visibleLeaderboard.map((u,i)=>{
             const isMe = u.name === currentUser;
             const rankGlow = i === 0 ? "rgba(245,166,35,.075)" : i === 1 ? "rgba(214,226,224,.055)" : i === 2 ? "rgba(78,205,196,.045)" : "rgba(255,255,255,.02)";
-            return React.createElement('div',{key:u.name,
-            style:{display:"grid",gridTemplateColumns:"21px 24px 120px 44px 38px 46px 34px 56px 56px",padding:"8px 8px",gap:5,alignItems:"center",background:`radial-gradient(circle at 8% 0%, ${rankGlow}, transparent 42%), radial-gradient(circle at 92% 0%, rgba(78,205,196,.045), transparent 38%), linear-gradient(180deg, rgba(18,31,31,.82), rgba(8,15,15,.62))`,border:`0.5px solid ${isMe?"rgba(78,205,196,.24)":"rgba(255,255,255,.065)"}`,borderRadius:9,boxShadow:`inset 0 1px 0 rgba(255,255,255,.055), 0 8px 18px rgba(0,0,0,.16)${isMe?", 0 0 0 1px rgba(78,205,196,.035)":""}`,textAlign:"left",fontFamily:"'Outfit', sans-serif"}},
+            return React.createElement('button',{key:u.name,type:"button",onClick:()=>setViewPlayer(u.name),
+            style:{display:"grid",gridTemplateColumns:"21px 24px 120px 44px 38px 46px 34px 56px 56px",width:"100%",padding:"8px 8px",gap:5,alignItems:"center",background:`radial-gradient(circle at 8% 0%, ${rankGlow}, transparent 42%), radial-gradient(circle at 92% 0%, rgba(78,205,196,.045), transparent 38%), linear-gradient(180deg, rgba(18,31,31,.82), rgba(8,15,15,.62))`,border:`0.5px solid ${isMe?"rgba(78,205,196,.24)":"rgba(255,255,255,.065)"}`,borderRadius:9,boxShadow:`inset 0 1px 0 rgba(255,255,255,.055), 0 8px 18px rgba(0,0,0,.16)${isMe?", 0 0 0 1px rgba(78,205,196,.035)":""}`,textAlign:"left",fontFamily:"'Outfit', sans-serif",color:"var(--text)",cursor:"pointer"}},
             React.createElement('div',{style:{fontSize:10,fontWeight:700,color:"var(--muted)",textAlign:"center"}},`#${i+1}`),
             React.createElement(Avatar,{name:u.name,size:21}),
             React.createElement('div',{style:{fontWeight:700,fontSize:12.5,display:"flex",alignItems:"baseline",gap:5,flexWrap:"nowrap",color:"var(--text)",minWidth:0,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},
@@ -304,6 +307,11 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
           React.createElement('span',{style:{fontSize:12,color:"var(--muted)",fontWeight:700}},row[0]),
           React.createElement('span',{style:{fontSize:12,color:"var(--text)",fontWeight:530,textAlign:"right"}},row[1])
         ))
+      )
+    ),
+    viewPlayer&&React.createElement('div',{style:{position:"fixed",inset:0,zIndex:80,overflowY:"auto",WebkitOverflowScrolling:"touch",background:"var(--bg-gradient)",backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)",overscrollBehavior:"contain"}},
+      React.createElement(PlayerProfileErrorBoundary,{profileName:viewPlayer,onBack:()=>setViewPlayer(null)},
+        React.createElement(PlayerProfile,{name:viewPlayer,logs,excused,monthHistory,onBack:()=>setViewPlayer(null),groupSettings})
       )
     )
   );

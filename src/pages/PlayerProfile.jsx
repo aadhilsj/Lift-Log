@@ -17,6 +17,8 @@ import {
   normalizeSeasonOverrides,
   getCurrentMemberTarget,
   getCurrentMemberTargetInfo,
+  getHistoricalMemberNamesForMonth,
+  getHistoricalGroupMemberNames,
   fmtCurrency,
   getCountedLogs,
   getCountedLogCount,
@@ -38,7 +40,11 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,groupSettings,onDe
   const [selMonthIdx,setSelMonthIdx]=useState(null); // null = current month
   const appliedInitialMonthKeyRef = useRef(null);
   const histReversed=[...monthHistory].reverse();
-  const visibleHistoryMonths=histReversed.filter(m=>isJoinedForMonth(name, m?.key));
+  const historicalNames=useMemo(
+    ()=>getHistoricalGroupMemberNames(monthHistory, logs, excused, NAMES),
+    [monthHistory, logs, excused]
+  );
+  const visibleHistoryMonths=histReversed.filter(m=>getHistoricalMemberNamesForMonth(m, historicalNames).includes(name));
   useEffect(()=>{
     const selectionKey = initialMonthKey ? `${name}:${initialMonthKey}` : "";
     if (!initialMonthKey || appliedInitialMonthKeyRef.current === selectionKey) return;
@@ -51,7 +57,9 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,groupSettings,onDe
   const isCurMonth=selMonthIdx===null;
   const selHistMonth=isCurMonth?null:visibleHistoryMonths[selMonthIdx];
   const selectedMonthKey = isCurMonth ? curKey : selHistMonth?.key;
-  const isJoinedThisMonth = isJoinedForMonth(name, selectedMonthKey);
+  const isJoinedThisMonth = isCurMonth
+    ? isJoinedForMonth(name, selectedMonthKey)
+    : !!selHistMonth && getHistoricalMemberNamesForMonth(selHistMonth, historicalNames).includes(name);
   const currentTargetInfo = isCurMonth ? getCurrentMemberTargetInfo(name, curKey, MIN_TARGET) : null;
   const currentMonthOverride = isCurMonth ? (normalizeSeasonOverrides(ACTIVE_SEASON_OVERRIDES)?.[curKey] || null) : null;
 
@@ -59,19 +67,20 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,groupSettings,onDe
   const closedStats=useMemo(()=>{
     let wins=0,moneyWon=0,moneyLost=0,closedTotal=0;
     monthHistory.forEach(m=>{
-      if(!isJoinedForMonth(name, m.key)) return;
+      const monthNames = getHistoricalMemberNamesForMonth(m, historicalNames);
+      if(!monthNames.includes(name)) return;
       if(m.excused?.[name]) return;
-      const ac=NAMES.filter(n=>isJoinedForMonth(n, m.key) && !m.excused?.[n]).map(n=>({name:n,count:m.counts[n]||0,target:m.memberTargets?.[n] || m.settings?.minTarget || MIN_TARGET}));
+      const ac=monthNames.filter(n=>isJoinedForMonth(n, m.key) && !m.excused?.[n]).map(n=>({name:n,count:m.counts[n]||0,target:m.memberTargets?.[n] || m.settings?.minTarget || MIN_TARGET}));
       const penalties = calcPenalties(ac, m.settings || {});
       const {winners,losers,perWinner}=penalties;
       closedTotal+=m.counts[name]||0;
       if(winners.find(w=>w.name===name)){wins++;moneyWon+=perWinner;}
       if(losers.find(l=>l.name===name)){moneyLost+=getLoserAmount(penalties, name);}
     });
-    const participated=monthHistory.filter(m=>isJoinedForMonth(name, m.key) && !m.excused?.[name]);
+    const participated=monthHistory.filter(m=>getHistoricalMemberNamesForMonth(m, historicalNames).includes(name) && !m.excused?.[name]);
     const avg=participated.length?(closedTotal/participated.length).toFixed(1):"—";
     return {wins,moneyWon,moneyLost,avg};
-  },[name,monthHistory]);
+  },[name,monthHistory,historicalNames]);
 
   // Selected month data
   const selCount = isCurMonth
@@ -175,7 +184,7 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,groupSettings,onDe
     }
   };
 
-  return React.createElement('div',{onTouchStart:startSwipeBack,onTouchMove:moveSwipeBack,onTouchEnd:endSwipeBack,onTouchCancel:e=>{e.stopPropagation();swipeRef.current={sx:0,sy:0,active:false,mode:null};setDragging(false);setDragX(0);},style:{minHeight:"100vh",background:"var(--bg-gradient)",backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)",transform:dragX?`translateX(${dragX}px)`:"translateX(0)",transition:dragging?"none":"transform .12s ease",boxShadow:dragX?"-18px 0 34px rgba(0,0,0,.28)":"none",willChange:"transform",touchAction:"pan-y"}},
+  return React.createElement('div',{onTouchStart:startSwipeBack,onTouchMove:moveSwipeBack,onTouchEnd:endSwipeBack,onTouchCancel:e=>{e.stopPropagation();swipeRef.current={sx:0,sy:0,active:false,mode:null};setDragging(false);setDragX(0);},style:{minHeight:"100dvh",background:"var(--bg-gradient)",backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)",transform:dragX?`translateX(${dragX}px)`:"translateX(0)",transition:dragging?"none":"transform .12s ease",boxShadow:dragX?"-18px 0 34px rgba(0,0,0,.28)":"none",willChange:"transform",touchAction:"pan-y",overscrollBehavior:"contain"}},
     deleteTarget && React.createElement(DeleteModal,{log:deleteTarget,onClose:()=>setDeleteTarget(null),onConfirm:async()=>{ const log = deleteTarget; setDeleteTarget(null); await onDeleteLog(log); }}),
     React.createElement('div',{style:{maxWidth:740,margin:"0 auto",padding:"16px",display:"flex",flexDirection:"column",gap:12}},
     // Header row
