@@ -81,6 +81,9 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
   const [showAllLeaderboard,setShowAllLeaderboard]=useState(false);
   const [viewPlayer,setViewPlayer]=useState(null);
   useEffect(()=>{ setViewPlayer(null); },[navResetToken]);
+  useEffect(()=>{
+    if(viewPlayer) window.scrollTo({top:0,left:0,behavior:"auto"});
+  },[viewPlayer]);
 
   const currentMonthSnapshot = useMemo(() => ({
     key: curKey,
@@ -202,7 +205,11 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
     return React.createElement('span',{style:{display:"inline-flex",alignItems:"center",justifyContent:"center",minWidth:20,fontSize:8.5,fontWeight:800,color,lineHeight:1}},label);
   };
 
-  return React.createElement('div',{style:{position:"relative",maxWidth:960,margin:"0 auto",padding:"16px",display:"flex",flexDirection:"column",gap:12}},
+  if(viewPlayer) return React.createElement(PlayerProfileErrorBoundary,{profileName:viewPlayer,onBack:()=>setViewPlayer(null)},
+    React.createElement(PlayerProfile,{name:viewPlayer,logs,excused,monthHistory,onBack:()=>setViewPlayer(null),groupSettings})
+  );
+
+  return React.createElement('div',{style:{maxWidth:960,margin:"0 auto",padding:"16px",display:"flex",flexDirection:"column",gap:12}},
     React.createElement('div',{className:"fu",style:{textAlign:"center"}},
       React.createElement('div',{style:{fontSize:24,fontWeight:800,textAlign:"center"}},"Bloc History")
     ),
@@ -310,11 +317,6 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
           React.createElement('span',{style:{fontSize:12,color:"var(--muted)",fontWeight:700}},row[0]),
           React.createElement('span',{style:{fontSize:12,color:"var(--text)",fontWeight:530,textAlign:"right"}},row[1])
         ))
-      )
-    ),
-    viewPlayer&&React.createElement('div',{style:{position:"fixed",inset:0,zIndex:80,overflowY:"auto",WebkitOverflowScrolling:"touch",background:"var(--bg-gradient)",backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)",overscrollBehavior:"contain"}},
-      React.createElement(PlayerProfileErrorBoundary,{profileName:viewPlayer,onBack:()=>setViewPlayer(null)},
-        React.createElement(PlayerProfile,{name:viewPlayer,logs,excused,monthHistory,onBack:()=>setViewPlayer(null),groupSettings})
       )
     )
   );
