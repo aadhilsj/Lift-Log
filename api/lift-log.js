@@ -7213,11 +7213,18 @@ export default async function handler(req, res) {
       if (payload?.action === "update-settings") {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
-        const shadowBlobUpdated = applyUpdateSettings(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        let shadowBlobUpdated = null;
+        try {
+          shadowBlobUpdated = applyUpdateSettings(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        } catch (err) {
+          if (err?.status !== 404) throw err;
+        }
         const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
         const canonicalActor = resolveDisplayNameForUser(canonicalState, payload.groupId, auth.user.id, auth.user.email) || actor;
         const updated = applyUpdateSettings(canonicalState, { ...payload, actor: canonicalActor, actorUserId: auth.user.id });
-        await runWriteHydrationParityProbe("update-settings", payload, auth, actor, shadowBlobUpdated, applyUpdateSettings);
+        if (shadowBlobUpdated) {
+          await runWriteHydrationParityProbe("update-settings", payload, auth, actor, shadowBlobUpdated, applyUpdateSettings);
+        }
         const settingsGroup = updated.groups?.[payload.groupId];
         const settingsSortOrder = (updated.groupOrder || []).indexOf(payload.groupId);
         // Canonical writable-input cutover for settings:
@@ -7279,11 +7286,18 @@ export default async function handler(req, res) {
       if (payload?.action === "sitout-request") {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
-        const shadowBlobUpdated = applySitOutRequest(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        let shadowBlobUpdated = null;
+        try {
+          shadowBlobUpdated = applySitOutRequest(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        } catch (err) {
+          if (err?.status !== 404) throw err;
+        }
         const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
         const canonicalActor = resolveDisplayNameForUser(canonicalState, payload.groupId, auth.user.id, auth.user.email) || actor;
         const updated = applySitOutRequest(canonicalState, { ...payload, actor: canonicalActor, actorUserId: auth.user.id });
-        await runWriteHydrationParityProbe("sitout-request", payload, auth, actor, shadowBlobUpdated, applySitOutRequest);
+        if (shadowBlobUpdated) {
+          await runWriteHydrationParityProbe("sitout-request", payload, auth, actor, shadowBlobUpdated, applySitOutRequest);
+        }
         const sitOutGroup = updated.groups?.[payload.groupId];
         const sitOutMonthKey = sitOutGroup?.lastMonth;
         const nextRequest = sitOutMonthKey

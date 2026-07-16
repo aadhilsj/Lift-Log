@@ -1738,3 +1738,41 @@ Next smoke focus:
 - choose a proration option
 - add an individual workout in that new bloc
 - leave/delete the temporary bloc
+
+### Batch 28 follow-up - audit canonical-only new bloc follow-ups
+
+After the workout-shadow fix was verified on preview, the remaining
+create-skipped new-bloc audit found two more shadow-first follow-up paths:
+
+- `update-settings`
+- `sitout-request`
+
+Both paths already compute their authoritative mutation from canonical writable
+state, but both built a blob shadow result first for parity probing. A
+create-skipped new bloc has no blob shell, so those shadow calls would fail with
+`Bloc not found` before canonical state could handle the action.
+
+Fix:
+
+- `update-settings` now tolerates only a `404` from the shadow blob mutation and
+  continues through canonical writable state
+- `sitout-request` gets the same narrow guard
+- non-404 validation failures still fail normally
+- parity probes are skipped only when no shadow blob result exists
+- sit-out actions remain mirrored; this does not enable sit-out mirror skip
+
+Audit result:
+
+- reactions, flag actions, and delete-log already use canonical state first and
+  tolerate missing blob shadows
+- create/proration/add-log/multi-log/settings/sit-out-request now all support
+  canonical-only new blocs
+
+Next smoke focus:
+
+- sign in / blocs load
+- create a mid-month temporary bloc
+- choose a proration option
+- add an individual workout
+- change one safe setting if convenient
+- leave/delete the temporary bloc
