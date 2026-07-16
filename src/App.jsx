@@ -1248,7 +1248,7 @@ const App = () => {
       touchAction:"pan-y"
     }
   },
-    React.createElement(Nav,{page,setPage:handleNavSelect,user:currentUser,groupName:currentGroup.name,canEditGroup:isGroupAdmin,onOpenSettings:()=>setShowSettings(true),onOpenProfile:()=>{setProfileError("");setShowProfileModal(true);},onOpenStream:()=>{markStreamRead(currentGroup.id);setShowStream(true);},streamUnreadCount,onSwitchUser:handleSwitchUser,onSwitchGroup:handleSwitchGroup,onOpenLog:()=>{setPage("today");setShowTodayLog(true);},syncing,lastSyncedAt,syncError,onRefresh:refreshNow,showJustSynced,activityAlertCount}),
+    React.createElement(Nav,{page,setPage:handleNavSelect,user:currentUser,groupName:currentGroup.name,canEditGroup:isGroupAdmin,onOpenSettings:()=>setShowSettings(true),onOpenProfile:()=>{setProfileError("");setShowProfileModal(true);},onOpenStream:()=>{markStreamRead(currentGroup.id);setShowStream(true);},streamUnreadCount,onSwitchUser:handleSwitchUser,onSwitchGroup:handleSwitchGroup,onOpenLog:()=>{setPage("today");setShowTodayLog(true);},syncing,lastSyncedAt,syncError,onRefresh:refreshNow,showJustSynced,activityAlertCount,hideMobileBottomNav:true}),
     localDevMode && React.createElement(LocalDevImpersonationBar,{options:devImpersonationOptions,value:effectiveAuthSession?.devImpersonationActive?effectiveAuthSession.userId:"",onChange:handleSelectDevImpersonation}),
     React.createElement('div',{style:{paddingBottom:isMobileView?"calc(86px + env(safe-area-inset-bottom))":0}},
       page==="today"  &&React.createElement(TodayPageErrorBoundary,{resetKey:`${selectedGroupId}:${navResetToken}:${currentUser}`},
@@ -1284,8 +1284,8 @@ const App = () => {
     page==="today"&&React.createElement('div',{style:{position:"fixed",inset:0,zIndex:0,pointerEvents:"none"}},
       React.createElement(GroupHome,{
         groups: visibleGroups,
-        currentIdentity: effectiveProfile?.displayName || effectiveAuthSession?.email?.split("@")[0] || "",
-        currentEmail: effectiveAuthSession?.email,
+        currentIdentity: profile?.displayName || authSession?.email?.split("@")[0] || "",
+        currentEmail: authSession?.email,
         onOpenProfile:()=>{},
         creating: creatingGroup,
         autoOpenCreate: false,
@@ -1296,7 +1296,8 @@ const App = () => {
         suppressIntro:true
       })
     ),
-    activeBlocSurface
+    activeBlocSurface,
+    React.createElement(Nav,{onlyMobileBottomNav:true,page,setPage:handleNavSelect,user:currentUser,groupName:currentGroup.name,canEditGroup:isGroupAdmin,onOpenSettings:()=>setShowSettings(true),onOpenProfile:()=>{setProfileError("");setShowProfileModal(true);},onOpenStream:()=>{markStreamRead(currentGroup.id);setShowStream(true);},streamUnreadCount,onSwitchUser:handleSwitchUser,onSwitchGroup:handleSwitchGroup,onOpenLog:()=>{setPage("today");setShowTodayLog(true);},syncing,lastSyncedAt,syncError,onRefresh:refreshNow,showJustSynced,activityAlertCount,mobileBottomDragX:blocDragX,mobileBottomDragging:blocDragging})
   );
 };
 

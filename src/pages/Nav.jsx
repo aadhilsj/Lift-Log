@@ -15,8 +15,34 @@ const StreamIconButton = ({ onOpenStream, unreadCount = 0, size }) => {
   );
 };
 
-const Nav = ({page,setPage,user,groupName,canEditGroup,onOpenSettings,onOpenProfile,onOpenStream,streamUnreadCount=0,onSwitchUser,onSwitchGroup,onOpenLog,syncing,lastSyncedAt,syncError,onRefresh,showJustSynced,activityAlertCount=0}) => {
+const Nav = ({page,setPage,user,groupName,canEditGroup,onOpenSettings,onOpenProfile,onOpenStream,streamUnreadCount=0,onSwitchUser,onSwitchGroup,onOpenLog,syncing,lastSyncedAt,syncError,onRefresh,showJustSynced,activityAlertCount=0,hideMobileBottomNav=false,onlyMobileBottomNav=false,mobileBottomDragX=0,mobileBottomDragging=false}) => {
   const navItems = [["today","Today","today"],["activity","Activity","activity"],["month","Month","results"],["history","History","history"]];
+  const mobileBottomNav = React.createElement('div',{className:"mobile-only mobile-bottom-nav",style:{transform:mobileBottomDragX?`translateX(${mobileBottomDragX}px)`:"none",transition:mobileBottomDragging?"none":"transform .14s ease",willChange:mobileBottomDragging||mobileBottomDragX?"transform":"auto"}},
+    React.createElement('div',{className:"mobile-bottom-nav-grid"},
+      [
+        ["today","Today","today"],
+        ["activity","Activity","activity"],
+        ["log","","plus"],
+        ["month","Month","results"],
+        ["history","History","history"]
+      ].map(([id,label,icon])=>
+        id === "log"
+          ? React.createElement('div',{key:id,className:"mobile-plus-tab-wrap"},
+              React.createElement('button',{type:"button",onClick:onOpenLog,className:"mobile-plus-tab",title:"Log workout","aria-label":"Log workout"},
+                React.createElement(AppIcon,{name:icon,size:24,stroke:"#FFFFFF"})
+              )
+            )
+          : React.createElement('button',{key:id,onClick:()=>setPage(id),className:`mobile-tab${page===id?" on":""}`},
+          React.createElement('div',{style:{position:"relative",display:"inline-flex",alignItems:"center",justifyContent:"center"}},
+            React.createElement('span',{style:{fontSize:18,lineHeight:1,display:"inline-flex"}},React.createElement(AppIcon,{name:icon,size:18})),
+            id==="activity" && activityAlertCount>0 && React.createElement('span',{className:"mono",style:{position:"absolute",top:-6,right:-14,minWidth:18,height:18,padding:"0 5px",borderRadius:999,background:"rgba(232,69,69,.18)",border:"1px solid rgba(232,69,69,.28)",fontSize:9,color:"#ff9c9c",display:"inline-flex",alignItems:"center",justifyContent:"center"}},activityAlertCount)
+          ),
+          React.createElement('span',{style:{fontSize:11,fontWeight:700}},label)
+        )
+      )
+    )
+  );
+  if (onlyMobileBottomNav) return mobileBottomNav;
   return React.createElement(React.Fragment,null,
   React.createElement('nav',{className:"desktop-only",style:{background:"var(--s1)",borderBottom:"1px solid var(--border)",padding:"0 16px",display:"flex",alignItems:"center",justifyContent:"space-between",height:52,position:"sticky",top:0,zIndex:100}},
     React.createElement('div',{style:{display:"flex",alignItems:"center",minWidth:0,lineHeight:1}},
@@ -64,31 +90,7 @@ const Nav = ({page,setPage,user,groupName,canEditGroup,onOpenSettings,onOpenProf
       )
     )
   ),
-  React.createElement('div',{className:"mobile-only mobile-bottom-nav"},
-    React.createElement('div',{className:"mobile-bottom-nav-grid"},
-      [
-        ["today","Today","today"],
-        ["activity","Activity","activity"],
-        ["log","","plus"],
-        ["month","Month","results"],
-        ["history","History","history"]
-      ].map(([id,label,icon])=>
-        id === "log"
-          ? React.createElement('div',{key:id,className:"mobile-plus-tab-wrap"},
-              React.createElement('button',{type:"button",onClick:onOpenLog,className:"mobile-plus-tab",title:"Log workout","aria-label":"Log workout"},
-                React.createElement(AppIcon,{name:icon,size:24,stroke:"#FFFFFF"})
-              )
-            )
-          : React.createElement('button',{key:id,onClick:()=>setPage(id),className:`mobile-tab${page===id?" on":""}`},
-          React.createElement('div',{style:{position:"relative",display:"inline-flex",alignItems:"center",justifyContent:"center"}},
-            React.createElement('span',{style:{fontSize:18,lineHeight:1,display:"inline-flex"}},React.createElement(AppIcon,{name:icon,size:18})),
-            id==="activity" && activityAlertCount>0 && React.createElement('span',{className:"mono",style:{position:"absolute",top:-6,right:-14,minWidth:18,height:18,padding:"0 5px",borderRadius:999,background:"rgba(232,69,69,.18)",border:"1px solid rgba(232,69,69,.28)",fontSize:9,color:"#ff9c9c",display:"inline-flex",alignItems:"center",justifyContent:"center"}},activityAlertCount)
-          ),
-          React.createElement('span',{style:{fontSize:11,fontWeight:700}},label)
-        )
-      )
-    )
-  )
+  !hideMobileBottomNav && mobileBottomNav
 );};
 
 
