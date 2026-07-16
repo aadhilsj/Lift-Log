@@ -81,6 +81,7 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
   const [showAllLeaderboard,setShowAllLeaderboard]=useState(false);
   const [viewPlayer,setViewPlayer]=useState(null);
   const profileLayerRef = useRef(null);
+  const [profileRevealActive,setProfileRevealActive]=useState(false);
   useEffect(()=>{ setViewPlayer(null); },[navResetToken]);
   useEffect(() => {
     const el = profileLayerRef.current;
@@ -117,6 +118,7 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
     setViewPlayer(name);
   },[]);
   const closePlayerProfile = useCallback(() => {
+    setProfileRevealActive(false);
     setViewPlayer(null);
   },[]);
 
@@ -354,9 +356,9 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
 
   if(viewPlayer) return React.createElement(React.Fragment,null,
     React.createElement('div',{"aria-hidden":true,style:{pointerEvents:"none"}},historyContent),
-    React.createElement('div',{ref:profileLayerRef,style:{position:"fixed",inset:0,zIndex:60,height:"100dvh",maxHeight:"100dvh",overflowY:"auto",overflowX:"hidden",WebkitOverflowScrolling:"touch",overscrollBehavior:"contain",background:"var(--bg-gradient)",backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)"}},
+    React.createElement('div',{ref:profileLayerRef,style:{position:"fixed",inset:0,zIndex:60,height:"100dvh",maxHeight:"100dvh",overflowY:"auto",overflowX:"hidden",WebkitOverflowScrolling:"touch",overscrollBehavior:"contain",background:profileRevealActive?"transparent":"var(--bg-gradient)",backgroundImage:profileRevealActive?"none":"var(--bg-radial-hint), var(--bg-gradient)"}},
       React.createElement(PlayerProfileErrorBoundary,{profileName:viewPlayer,onBack:closePlayerProfile},
-        React.createElement(PlayerProfile,{name:viewPlayer,logs,excused,monthHistory,onBack:closePlayerProfile,groupSettings})
+        React.createElement(PlayerProfile,{name:viewPlayer,logs,excused,monthHistory,onBack:closePlayerProfile,onSwipeRevealChange:setProfileRevealActive,groupSettings})
       )
     )
   );

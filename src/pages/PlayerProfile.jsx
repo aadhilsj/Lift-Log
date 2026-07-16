@@ -30,7 +30,7 @@ import {
 import { Avatar, WorkoutTypeIcon, Bar, Card, SelectField } from "../components/primitives.jsx";
 import { DeleteModal } from "../modals/modals.jsx";
 
-const PlayerProfile = ({name,logs,excused,monthHistory,onBack,groupSettings,onDeleteLog,initialMonthKey}) => {
+const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChange,groupSettings,onDeleteLog,initialMonthKey}) => {
   const compactMobile = isMobile();
   const [deleteTarget,setDeleteTarget]=useState(null);
   const [dragX,setDragX]=useState(0);
@@ -162,6 +162,7 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,groupSettings,onDe
     if(!s.mode&&(Math.abs(dx)>4||Math.abs(dy)>4)){
       s.mode=dx>0&&Math.abs(dx)>Math.abs(dy)?"back":"scroll";
       setDragging(s.mode==="back");
+      onSwipeRevealChange?.(s.mode==="back");
     }
     if(s.mode==="back") setDragX(Math.max(0,Math.min(dx,window.innerWidth||420)));
   };
@@ -180,11 +181,12 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,groupSettings,onDe
       setDragX(screenWidth);
       window.setTimeout(()=>onBack?.(),45);
     }else{
+      onSwipeRevealChange?.(false);
       setDragX(0);
     }
   };
 
-  return React.createElement('div',{onTouchStart:startSwipeBack,onTouchMove:moveSwipeBack,onTouchEnd:endSwipeBack,onTouchCancel:e=>{e.stopPropagation();swipeRef.current={sx:0,sy:0,active:false,mode:null};setDragging(false);setDragX(0);},style:{minHeight:"100dvh",background:"var(--bg-gradient)",backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)",transform:dragX?`translateX(${dragX}px)`:"translateX(0)",transition:dragging?"none":"transform .08s ease-out",boxShadow:dragX?"-18px 0 34px rgba(0,0,0,.28)":"none",willChange:"transform",touchAction:"pan-y",overscrollBehavior:"contain"}},
+  return React.createElement('div',{onTouchStart:startSwipeBack,onTouchMove:moveSwipeBack,onTouchEnd:endSwipeBack,onTouchCancel:e=>{e.stopPropagation();swipeRef.current={sx:0,sy:0,active:false,mode:null};onSwipeRevealChange?.(false);setDragging(false);setDragX(0);},style:{minHeight:"100dvh",background:"var(--bg-gradient)",backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)",transform:dragX?`translateX(${dragX}px)`:"translateX(0)",transition:dragging?"none":"transform .08s ease-out",boxShadow:dragX?"-18px 0 34px rgba(0,0,0,.28)":"none",willChange:"transform",touchAction:"pan-y",overscrollBehavior:"contain"}},
     deleteTarget && React.createElement(DeleteModal,{log:deleteTarget,onClose:()=>setDeleteTarget(null),onConfirm:async()=>{ const log = deleteTarget; setDeleteTarget(null); await onDeleteLog(log); }}),
     React.createElement('div',{style:{maxWidth:740,margin:"0 auto",padding:"16px",display:"flex",flexDirection:"column",gap:12}},
     // Header row
