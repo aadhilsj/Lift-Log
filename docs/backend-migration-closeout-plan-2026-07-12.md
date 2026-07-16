@@ -1612,3 +1612,49 @@ Next smoke focus:
 
 - leave/delete the canonical-only orphan bloc
 - sign in / blocs load sanity
+
+## Batch 27 - Tolerate Canonical-Only First-Month Proration
+
+Batch 27 started on 2026-07-16 after the canonical-only orphan leave cleanup was
+verified on preview.
+
+Why this batch exists:
+
+- the attempted `create-group` mirror-skip soak exposed a first-month lifecycle
+  dependency
+- when create skips the blob mirror, the new bloc can exist canonically before
+  the first-month proration modal is answered
+- `season-proration-choice` already computes the final mutation from canonical
+  writable state, but it still built a shadow blob result first for parity
+  probing
+- that shadow call threw `Bloc not found` for canonical-only new blocs before
+  the canonical write path could run
+
+Implemented:
+
+- `season-proration-choice` still authenticates through the normal auth context
+- a `404` from the shadow blob proration call is now tolerated
+- non-404 shadow failures still fail normally
+- if no shadow blob result exists, the parity probe is skipped for that request
+  because there is no blob baseline to compare
+- canonical writable state remains the authoritative mutation input
+
+Environment:
+
+- no env changes in this batch
+- `create-group` remains mirrored in preview
+- existing preview mirror-skip scope remains:
+  `leave-bloc,update-settings,season-proration-choice,reaction,flag,flag-response,flag-review,delete-log,add-log,multi-log`
+
+Decision:
+
+- this removes the immediate blocker that made `create-group` skip unsafe
+- do not re-enable `create-group` in the same batch; it should get a separate
+  preview soak after this code path is smoke tested
+
+Next smoke focus:
+
+- sign in / blocs load
+- create a mid-month temporary bloc
+- choose either proration option and confirm the modal closes
+- leave/delete that temporary bloc

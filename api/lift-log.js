@@ -7223,11 +7223,18 @@ export default async function handler(req, res) {
       if (payload?.action === "season-proration-choice") {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
-        const shadowBlobUpdated = applySeasonProrationChoice(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        let shadowBlobUpdated = null;
+        try {
+          shadowBlobUpdated = applySeasonProrationChoice(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        } catch (err) {
+          if (err?.status !== 404) throw err;
+        }
         const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
         const canonicalActor = resolveDisplayNameForUser(canonicalState, payload.groupId, auth.user.id, auth.user.email) || actor;
         const updated = applySeasonProrationChoice(canonicalState, { ...payload, actor: canonicalActor, actorUserId: auth.user.id });
-        await runWriteHydrationParityProbe("season-proration-choice", payload, auth, actor, shadowBlobUpdated, applySeasonProrationChoice);
+        if (shadowBlobUpdated) {
+          await runWriteHydrationParityProbe("season-proration-choice", payload, auth, actor, shadowBlobUpdated, applySeasonProrationChoice);
+        }
         const overrideGroup = updated.groups?.[payload.groupId];
         const overrideMonthKey = overrideGroup?.lastMonth;
         const nextOverride = overrideMonthKey
