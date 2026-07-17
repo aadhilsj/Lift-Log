@@ -13,9 +13,10 @@ Current working setup on `feature/chat` as of 2026-07-16. Do not change this pro
 - The Bloc header and bottom nav must remain visible while viewing an in-Bloc player profile.
 - The profile content must not sit underneath the header or bottom nav.
 - The profile scroll area is `.in-bloc-profile-layer` in `src/styles/app.css`.
-- `.in-bloc-profile-layer` is positioned below the mobile header and above the mobile bottom nav:
+- `.in-bloc-profile-layer` is positioned below the mobile header and extends behind the translucent bottom nav:
   - mobile top: `calc(env(safe-area-inset-top) + 44px)`
-  - mobile bottom: `calc(86px + env(safe-area-inset-bottom))`
+  - mobile bottom: `0`
+  - mobile padding-bottom: `calc(86px + env(safe-area-inset-bottom))`, so profile content still scrolls above the bottom nav
   - z-index: `90`, intentionally below `.mobile-nav-shell` (`100`) and `.mobile-bottom-nav` (`140`)
 
 ## Swipe Behavior
@@ -41,3 +42,4 @@ Current working setup on `feature/chat` as of 2026-07-16. Do not change this pro
 - Making the layer opaque all the time broke slow-swipe reveal.
 - Replacing the source page with the profile caused return flicker and scroll jumps.
 - Letting the profile content start at `top: 0` caused the profile header row to sit underneath the Bloc header.
+- Ending the layer above the bottom nav caused the underlying screen to bleed through the translucent bottom nav.
