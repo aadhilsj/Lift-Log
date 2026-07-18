@@ -31,6 +31,7 @@ import { DeleteModal } from "../modals/modals.jsx";
 
 const PLAYER_PROFILE_PREMIUM_GATE = false; // Built now; flip to true when premium gating is wired.
 const profileMonthLabel = month => month ? `${MONTH_NAMES[month.month]} ${month.year}` : "—";
+const profileMonthOptionLabel = month => month ? `${MONTH_NAMES[month.month]} '${String(month.year).slice(2)}` : "—";
 
 const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChange,groupSettings,onDeleteLog,initialMonthKey}) => {
   const compactMobile = isMobile();
@@ -184,14 +185,14 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
   const monthSelector = React.createElement(SelectField,{
     value:selMonthIdx??"",
     onChange:e=>setSelMonthIdx(e.target.value===""?null:Number(e.target.value)),
-    width:112,
+    width:96,
     compact:true,
     arrowColor:"#4ECDC4",
     textAlign:"center",
-    inputStyle:{fontFamily:"'Outfit',sans-serif",fontSize:10,fontWeight:700,letterSpacing:0,padding:"7px 24px 7px 8px"},
+    inputStyle:{background:"rgba(8,15,15,.48)",border:"1px solid rgba(78,205,196,.18)",color:"var(--text)",fontFamily:"'Outfit',sans-serif",fontSize:10.5,fontWeight:700,letterSpacing:0,padding:"6px 20px 6px 8px",textAlign:"center",boxShadow:"none"},
     options:[
-      {value:"",label:`${MONTH_NAMES[CUR_MONTH]} ${CUR_YEAR}`},
-      ...visibleHistoryMonths.map((m,i)=>({value:i,label:profileMonthLabel(m)}))
+      {value:"",label:"This Month"},
+      ...visibleHistoryMonths.map((m,i)=>({value:i,label:profileMonthOptionLabel(m)}))
     ]
   });
 
@@ -211,7 +212,7 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
 
   const stats=[
     {label:"Workouts",val:selCount||"—",sub:null,color:"var(--text)"},
-    {label:"Monthly Avg",val:closedStats.avg,sub:null,color:"var(--text)"},
+    {label:"Average",val:closedStats.avg,sub:null,color:"var(--text)"},
     {label:"Target",valueNode:needed===0?React.createElement(TargetHitHexIcon,{size:22}):needed,sub:needed===0?"target hit!":`more to go`,subNote:isCurMonth&&currentTargetInfo?.prorationSource==="member"?"joined mid-month":isCurMonth&&currentMonthOverride?.prorated?"prorated":null,color:"#4ECDC4"},
     {label:"Perfect Month",val:perfectMonthStats.count||"—",sub:null,color:"var(--text)"},
     {label:"Months Won",val:hasHistory?(closedStats.wins||"—"):"—",sub:null,color:hasHistory&&closedStats.wins>0?"var(--gold)":"var(--muted)"},
@@ -265,7 +266,7 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
       x.icon,
       x.label
     ),
-    React.createElement('div',{style:{fontFamily:"'Outfit',sans-serif",fontSize:16,fontWeight:800,color:x.color,lineHeight:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",display:"flex",alignItems:"center",justifyContent:"center"}},x.valueNode||x.val),
+    React.createElement('div',{style:{fontFamily:"'Outfit',sans-serif",fontSize:15,fontWeight:800,color:x.color,lineHeight:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",display:"flex",alignItems:"center",justifyContent:"center"}},x.valueNode||x.val),
     x.sub&&React.createElement('div',{style:{fontFamily:"'Outfit',sans-serif",fontSize:x.subSize||10,color:x.subColor||"var(--muted)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",textAlign:"center"}},x.sub),
     x.subNote&&React.createElement('div',{style:{fontFamily:"'Outfit',sans-serif",fontSize:8,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".08em",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},x.subNote)
   );
@@ -301,7 +302,7 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
                 React.createElement('line',{x1:0,y1:36,x2:100,y2:36,stroke:"rgba(78,205,196,.18)",strokeWidth:1,vectorEffect:"non-scaling-stroke"}),
                 React.createElement('line',{x1:0,y1:6,x2:0,y2:36,stroke:"rgba(78,205,196,.18)",strokeWidth:1,vectorEffect:"non-scaling-stroke"}),
                 React.createElement('polyline',{points:sparkPoints,fill:"none",stroke:"#4ECDC4",strokeWidth:2.2,strokeLinecap:"round",strokeLinejoin:"round",vectorEffect:"non-scaling-stroke"}),
-                sparkCoords.map(p=>React.createElement('circle',{key:p.month.key,cx:p.x,cy:p.y,r:p.month.key===sparkDetailKey?2.4:1.8,fill:p.month.key===sparkDetailKey?"#FFFFFF":"#4ECDC4",stroke:"#061111",strokeWidth:1,style:{cursor:"pointer"},onClick:()=>setSparkDetailKey(k=>k===p.month.key?null:p.month.key)}))
+                sparkCoords.map(p=>React.createElement('circle',{key:p.month.key,cx:p.x,cy:p.y,r:p.month.key===sparkDetailKey?3.2:2.7,fill:p.month.key===sparkDetailKey?"#FFFFFF":"#4ECDC4",stroke:"rgba(5,12,12,.95)",strokeWidth:1.2,style:{cursor:"pointer",filter:"drop-shadow(0 1px 3px rgba(78,205,196,.42))"},onClick:()=>setSparkDetailKey(k=>k===p.month.key?null:p.month.key)}))
               ),
               React.createElement('div',{style:{display:"grid",gridTemplateColumns:`repeat(${sparkMonths.length},1fr)`,gap:2,marginTop:3}},
                 sparkMonths.map(m=>React.createElement('span',{key:m.key,style:{fontFamily:"'Outfit',sans-serif",fontSize:8.5,color:"var(--muted)",textAlign:"center"}},MONTH_NAMES[m.month]?.slice(0,3)||"—"))
@@ -319,11 +320,11 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
     deleteTarget && React.createElement(DeleteModal,{log:deleteTarget,onClose:()=>setDeleteTarget(null),onConfirm:async()=>{ const log = deleteTarget; setDeleteTarget(null); await onDeleteLog(log); }}),
     React.createElement('div',{style:{maxWidth:740,margin:"0 auto",padding:"16px",display:"flex",flexDirection:"column",gap:12}},
     // Header row
-	    React.createElement('div',{className:"fu",style:{display:"grid",gridTemplateColumns:"112px minmax(0,1fr) 112px",alignItems:"center",gap:8}},
+		    React.createElement('div',{className:"fu",style:{display:"grid",gridTemplateColumns:"96px minmax(0,1fr) 96px",alignItems:"center",gap:8}},
 	      React.createElement('div',{style:{justifySelf:"start"}},backButton),
 	      React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"center",gap:8,minWidth:0,textAlign:"center"}},
-	        React.createElement(Avatar,{name,size:28}),
-	        React.createElement('div',{style:{minWidth:0,fontFamily:"'Outfit',sans-serif",fontSize:18,fontWeight:800,lineHeight:1.08,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},name)
+		        React.createElement(Avatar,{name,size:24}),
+		        React.createElement('div',{style:{minWidth:0,fontFamily:"'Outfit',sans-serif",fontSize:16,fontWeight:800,lineHeight:1.08,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},name)
 	      ),
 	      React.createElement('div',{style:{justifySelf:"end"}},monthSelector)
 	    ),
