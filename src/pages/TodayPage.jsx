@@ -408,6 +408,14 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
     return `radial-gradient(circle at 10% 0%, rgba(255,255,255,.018), transparent 34%), radial-gradient(circle at 94% 0%, rgba(78,205,196,.018), transparent 40%), linear-gradient(180deg, rgba(255,255,255,.014), rgba(0,0,0,.018)), ${tint}`;
   };
   const leaderboardRowShadow = "inset 0 1px 0 rgba(255,255,255,.045), 0 3px 8px rgba(0,0,0,.055)";
+  const leaderboardRowBorderColor = (status, isMe, isOut) =>
+    status === "locked-in" && !isOut ? "rgba(1,7,7,.95)" : isMe && !isOut ? "#163d36" : "#0D1F1E";
+  const leaderboardRowHoverBorderColor = (status, isMe, isOut) =>
+    status === "locked-in" && !isOut ? "rgba(3,12,12,.98)" : isMe && !isOut ? "#1c4a43" : "#15302c";
+  const leaderboardRowBoxShadow = status =>
+    status === "locked-in"
+      ? "inset 0 1px 0 rgba(255,255,255,.055), inset 0 0 0 1px rgba(0,0,0,.34), 0 4px 10px rgba(0,0,0,.075)"
+      : leaderboardRowShadow;
 
   const competitionStatusBody = isExcused
     ? React.createElement('div',{style:{display:"grid",gap:4}},
@@ -946,7 +954,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
         const aArr=leaderboardRows.filter(x=>!x.isOut);
         const aIdx=aArr.findIndex(x=>x.name===u.name);
         return React.createElement('button',{key:u.key || u.name,type:"button",onClick:()=>openPlayerProfile(u.name),
-          style:{...leaderboardRowBaseStyle,borderColor:isMe&&!u.isOut?"#163d36":"#0D1F1E",background:leaderboardRowBackground(displayStatus),boxShadow:leaderboardRowShadow,opacity:u.isOut?.55:1}},
+          style:{...leaderboardRowBaseStyle,borderColor:leaderboardRowBorderColor(displayStatus,isMe,u.isOut),background:leaderboardRowBackground(displayStatus),boxShadow:leaderboardRowBoxShadow(displayStatus),opacity:u.isOut?.55:1}},
           React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10}},
             React.createElement('div',{style:{flex:1,minWidth:0,display:"flex",alignItems:"center",alignSelf:"stretch"}},
               React.createElement('div',{style:{display:"flex",alignItems:"center",gap:8,width:"100%"}},
@@ -1033,8 +1041,8 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
           const earlyMonthQuiet = !u.isOut && isEarlyMonthNeutralWindow() && u.count === 0;
           const aArr=leaderboardRows.filter(x=>!x.isOut);
           const aIdx=aArr.findIndex(x=>x.name===u.name);
-          return React.createElement('button',{key:u.key || u.name,type:"button",onClick:()=>openPlayerProfile(u.name),style:{...leaderboardRowBaseStyle,borderColor:isMe&&!u.isOut?"#163d36":"#0D1F1E",background:leaderboardRowBackground(displayStatus),boxShadow:leaderboardRowShadow,opacity:u.isOut?.55:1},
-            onMouseEnter:e=>e.currentTarget.style.borderColor=isMe&&!u.isOut?"#1c4a43":"#15302c",onMouseLeave:e=>e.currentTarget.style.borderColor=isMe&&!u.isOut?"#163d36":"#0D1F1E"},
+          return React.createElement('button',{key:u.key || u.name,type:"button",onClick:()=>openPlayerProfile(u.name),style:{...leaderboardRowBaseStyle,borderColor:leaderboardRowBorderColor(displayStatus,isMe,u.isOut),background:leaderboardRowBackground(displayStatus),boxShadow:leaderboardRowBoxShadow(displayStatus),opacity:u.isOut?.55:1},
+            onMouseEnter:e=>e.currentTarget.style.borderColor=leaderboardRowHoverBorderColor(displayStatus,isMe,u.isOut),onMouseLeave:e=>e.currentTarget.style.borderColor=leaderboardRowBorderColor(displayStatus,isMe,u.isOut)},
             React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}},
               React.createElement('div',{style:{flex:1,minWidth:0,display:"flex",alignItems:"center",alignSelf:"stretch"}},
                 React.createElement('div',{style:{display:"flex",alignItems:"center",gap:9,width:"100%"}},
