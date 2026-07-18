@@ -299,13 +299,15 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
                 React.createElement('div',{style:{display:"grid",gridTemplateRows:"repeat(5,1fr)",alignItems:"center",justifyItems:"end",height:122,padding:"0 0 18px",fontFamily:"'Outfit',sans-serif",fontSize:8.5,color:"var(--muted)"}},
                   trendTicks.map(t=>React.createElement('span',{key:t},t))
                 ),
-                React.createElement('div',null,
+                React.createElement('div',{style:{position:"relative"}},
               React.createElement('svg',{width:"100%",height:128,viewBox:"0 0 100 124",preserveAspectRatio:"none",style:{display:"block",overflow:"visible"}},
                 React.createElement('line',{x1:0,y1:112,x2:100,y2:112,stroke:"rgba(78,205,196,.18)",strokeWidth:1,vectorEffect:"non-scaling-stroke"}),
                 React.createElement('line',{x1:0,y1:16,x2:0,y2:112,stroke:"rgba(78,205,196,.18)",strokeWidth:1,vectorEffect:"non-scaling-stroke"}),
-                React.createElement('polyline',{points:sparkPoints,fill:"none",stroke:"#4ECDC4",strokeWidth:2.2,strokeLinecap:"round",strokeLinejoin:"round",vectorEffect:"non-scaling-stroke"}),
-                sparkCoords.map(p=>React.createElement('circle',{key:p.month.key,cx:p.x,cy:p.y,r:p.month.key===sparkDetailKey?2.4:2,fill:p.month.key===sparkDetailKey?"#FFFFFF":"#4ECDC4",stroke:"rgba(5,12,12,.95)",strokeWidth:1,style:{cursor:"pointer",filter:"drop-shadow(0 1px 2px rgba(78,205,196,.36))"},onClick:()=>setSparkDetailKey(k=>k===p.month.key?null:p.month.key)}))
+                React.createElement('polyline',{points:sparkPoints,fill:"none",stroke:"#4ECDC4",strokeWidth:2.2,strokeLinecap:"round",strokeLinejoin:"round",vectorEffect:"non-scaling-stroke"})
               ),
+              sparkCoords.map(p=>React.createElement('button',{key:p.month.key,type:"button",onClick:()=>setSparkDetailKey(k=>k===p.month.key?null:p.month.key),style:{position:"absolute",left:`${p.x}%`,top:`${(p.y/124)*128}px`,width:24,height:24,transform:"translate(-50%,-50%)",border:"none",background:"transparent",padding:0,display:"inline-flex",alignItems:"center",justifyContent:"center",cursor:"pointer",touchAction:"manipulation"}},
+                React.createElement('span',{style:{width:p.month.key===sparkDetailKey?6:5,height:p.month.key===sparkDetailKey?6:5,borderRadius:999,background:p.month.key===sparkDetailKey?"#FFFFFF":"#4ECDC4",border:"1px solid rgba(5,12,12,.95)",boxShadow:"0 1px 3px rgba(78,205,196,.38)",display:"block"}})
+              )),
               React.createElement('div',{style:{display:"grid",gridTemplateColumns:`repeat(${sparkMonths.length},1fr)`,gap:2,marginTop:3}},
                 sparkMonths.map(m=>React.createElement('span',{key:m.key,style:{fontFamily:"'Outfit',sans-serif",fontSize:8.5,color:"var(--muted)",textAlign:"center"}},MONTH_NAMES[m.month]?.slice(0,3)||"—"))
               )
