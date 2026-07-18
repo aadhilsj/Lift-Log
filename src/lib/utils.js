@@ -308,7 +308,7 @@ function groupStatusColor(status) {
 }
 
 function leaderboardRowTint(status) {
-  return status === "locked-in" ? "linear-gradient(90deg, rgba(203,213,225,.10) 0%, rgba(203,213,225,.20) 100%)"
+  return status === "locked-in" ? "linear-gradient(90deg, rgba(19,89,87,.18) 0%, rgba(11,60,58,.26) 56%, rgba(5,30,30,.18) 100%)"
     : status === "cruising" ? "rgba(203,213,225,.08)"
     : status === "starting-soon" ? "rgba(143,174,170,.06)"
     : status === "on-track" ? "rgba(90,191,90,.09)"

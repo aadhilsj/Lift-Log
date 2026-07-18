@@ -118,7 +118,7 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
                 React.createElement('div',{style:{
                   border:`0.5px solid ${post.flagStatus==="flagged"?"rgba(232,69,69,.35)":"rgba(78,205,196,.13)"}`,
                   borderRadius:10,
-                  background:"radial-gradient(circle at 14% 0%, rgba(255,255,255,.027), transparent 34%), radial-gradient(circle at 92% 100%, rgba(78,205,196,.032), transparent 40%), linear-gradient(180deg, rgba(10,20,20,.98), rgba(8,15,15,.98))",
+                  background:"radial-gradient(circle at 14% 0%, rgba(255,255,255,.019), transparent 34%), radial-gradient(circle at 92% 100%, rgba(78,205,196,.024), transparent 40%), linear-gradient(180deg, rgba(7,16,16,.99), rgba(5,12,12,.99))",
                   boxShadow:"inset 0 1px 0 rgba(255,255,255,.028), 0 3px 9px rgba(0,0,0,.09)",
                   overflow:"hidden"
                 }},
