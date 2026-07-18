@@ -257,12 +257,12 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
     }
   };
 
-  const labelStyle = {fontFamily:"'Outfit',sans-serif",fontSize:9,fontWeight:700,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".08em",lineHeight:1.1};
+  const labelStyle = {fontFamily:"'Outfit',sans-serif",fontSize:8.2,fontWeight:700,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".075em",lineHeight:1.08};
   const backButton = React.createElement('button',{onClick:onBack,style:{display:"inline-flex",alignItems:"center",gap:3,background:"transparent",border:"none",color:"#1E4040",padding:"2px 0",borderRadius:0,fontSize:13,fontFamily:"'Outfit',sans-serif",fontWeight:700,lineHeight:1.1}},
     React.createElement(AppIcon,{name:"chevron-left",size:13,stroke:"#1E4040"}),
     "Back"
   );
-  const renderStatCard = x => React.createElement(Card,{key:x.label,style:{padding:"7px 8px",minWidth:0,textAlign:"center",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:x.sub||x.subNote?4:6}},
+  const renderStatCard = x => React.createElement(Card,{key:x.label,style:{padding:"6px 7px",minWidth:0,textAlign:"center",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:x.sub||x.subNote?3:5}},
     React.createElement('span',{style:{...labelStyle,display:"flex",alignItems:"center",justifyContent:"center",gap:4,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",textAlign:"center",width:"100%"}},
       x.icon,
       x.label
