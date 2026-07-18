@@ -41,6 +41,7 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
   const [dragX,setDragX]=useState(0);
   const [dragging,setDragging]=useState(false);
   const swipeRef=useRef({sx:0,sy:0,active:false,mode:null});
+  const workoutTrendRef = useRef(null);
   const currency = groupSettings?.currency || DEFAULT_CURRENCY;
   const [selMonthIdx,setSelMonthIdx]=useState(null); // null = current month
   const appliedInitialMonthKeyRef = useRef(null);
@@ -59,6 +60,16 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
       appliedInitialMonthKeyRef.current = selectionKey;
     }
   }, [name, initialMonthKey, visibleHistoryMonths]);
+  useEffect(()=>{
+    if (!sparkDetailKey) return;
+    const clearTrendDetail = event => {
+      if (workoutTrendRef.current && !workoutTrendRef.current.contains(event.target)) {
+        setSparkDetailKey(null);
+      }
+    };
+    document.addEventListener("pointerdown", clearTrendDetail);
+    return ()=>document.removeEventListener("pointerdown", clearTrendDetail);
+  },[sparkDetailKey]);
   const isCurMonth=selMonthIdx===null;
   const selHistMonth=isCurMonth?null:visibleHistoryMonths[selMonthIdx];
   const selectedMonthKey = isCurMonth ? curKey : selHistMonth?.key;
@@ -291,6 +302,7 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
         React.createElement('div',{style:{fontFamily:"'Outfit',sans-serif",fontSize:18,fontWeight:800,lineHeight:1,color:"var(--text)",marginBottom:7}},bestBlocMonth ? profileMonthLabel(bestBlocMonth) : "—"),
         React.createElement('div',{style:{fontFamily:"'Outfit',sans-serif",fontSize:11,color:"var(--muted)"}},bestBlocMonth ? `${bestBlocMonth.count} workouts` : "No workouts yet")
       ),
+      React.createElement('div',{ref:workoutTrendRef},
       React.createElement(Card,{style:{padding:"14px 12px 13px",textAlign:"center",background:"radial-gradient(circle at 16% 0%, rgba(255,255,255,.032), transparent 34%), radial-gradient(circle at 92% 100%, rgba(78,205,196,.052), transparent 42%), linear-gradient(180deg, rgba(10,19,19,.99), rgba(7,14,14,.99))",boxShadow:"inset 0 1px 0 rgba(255,255,255,.04), 0 8px 18px rgba(0,0,0,.14)"}},
         React.createElement('span',{style:{...labelStyle,fontSize:9,display:"block",textAlign:"center",marginBottom:10}},"Workout Trend: 2026"),
         sparkMonths.length
@@ -316,7 +328,7 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
               selectedSparkMonth&&React.createElement('div',{style:{fontFamily:"'Outfit',sans-serif",fontSize:11,color:"var(--text)",marginTop:7,textAlign:"center"}},`${profileMonthLabel(selectedSparkMonth)} · ${selectedSparkMonth.count} workouts`)
             )
           : React.createElement('div',{style:{fontSize:12,color:"var(--muted)",padding:"9px 0",textAlign:"center"}},"No monthly data yet.")
-      )
+      ))
     )
   );
 
