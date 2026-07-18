@@ -30,6 +30,7 @@ import { Avatar, WorkoutTypeIcon, Bar, Card, SelectField, TargetHitHexIcon, AppI
 import { DeleteModal } from "../modals/modals.jsx";
 
 const PLAYER_PROFILE_PREMIUM_GATE = false; // Built now; flip to true when premium gating is wired.
+const profileMonthLabel = month => month ? `${MONTH_NAMES[month.month]} ${month.year}` : "—";
 
 const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChange,groupSettings,onDeleteLog,initialMonthKey}) => {
   const compactMobile = isMobile();
@@ -178,7 +179,7 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
     const d = Number(String(l?.date || "").split("-")[2]);
     if (Number.isFinite(d)) logsByDay[d]=l;
   });
-  const selLabel=isCurMonth?`${MONTH_NAMES[CUR_MONTH]} '${String(CUR_YEAR).slice(2)}`:selHistMonth?.label;
+  const selLabel=isCurMonth?`${MONTH_NAMES[CUR_MONTH]} ${CUR_YEAR}`:profileMonthLabel(selHistMonth);
 
   const monthSelector = React.createElement(SelectField,{
     value:selMonthIdx??"",
@@ -187,10 +188,10 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
     compact:true,
     arrowColor:"#4ECDC4",
     textAlign:"center",
-    inputStyle:{fontSize:10,padding:"7px 24px 7px 8px"},
+    inputStyle:{fontFamily:"'Outfit',sans-serif",fontSize:10,fontWeight:700,letterSpacing:0,padding:"7px 24px 7px 8px"},
     options:[
-      {value:"",label:`${MONTH_NAMES[CUR_MONTH]} '${String(CUR_YEAR).slice(2)} (Current)`},
-      ...visibleHistoryMonths.map((m,i)=>({value:i,label:m.label}))
+      {value:"",label:`${MONTH_NAMES[CUR_MONTH]} ${CUR_YEAR}`},
+      ...visibleHistoryMonths.map((m,i)=>({value:i,label:profileMonthLabel(m)}))
     ]
   });
 
@@ -254,18 +255,19 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
     }
   };
 
-  const backButton = React.createElement('button',{onClick:onBack,style:{display:"inline-flex",alignItems:"center",gap:3,background:"transparent",border:"none",color:"#1E4040",padding:"2px 0",borderRadius:0,fontSize:13,fontFamily:"inherit",fontWeight:700,lineHeight:1.1}},
+  const labelStyle = {fontFamily:"'Outfit',sans-serif",fontSize:9,fontWeight:700,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".08em",lineHeight:1.1};
+  const backButton = React.createElement('button',{onClick:onBack,style:{display:"inline-flex",alignItems:"center",gap:3,background:"transparent",border:"none",color:"#1E4040",padding:"2px 0",borderRadius:0,fontSize:13,fontFamily:"'Outfit',sans-serif",fontWeight:700,lineHeight:1.1}},
     React.createElement(AppIcon,{name:"chevron-left",size:13,stroke:"#1E4040"}),
     "Back"
   );
-  const renderStatCard = x => React.createElement(Card,{key:x.label,style:{padding:"7px 8px",minWidth:0,textAlign:"center"}},
-    React.createElement('span',{className:"lbl",style:{fontSize:8.5,marginBottom:4,display:"flex",alignItems:"center",justifyContent:"center",gap:4,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",textAlign:"center"}},
+  const renderStatCard = x => React.createElement(Card,{key:x.label,style:{padding:"7px 8px",minWidth:0,textAlign:"center",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:x.sub||x.subNote?4:6}},
+    React.createElement('span',{style:{...labelStyle,display:"flex",alignItems:"center",justifyContent:"center",gap:4,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",textAlign:"center",width:"100%"}},
       x.icon,
       x.label
     ),
-    React.createElement('div',{style:{fontSize:16,fontWeight:800,color:x.color,lineHeight:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",display:"flex",alignItems:"center",justifyContent:"center"}},x.valueNode||x.val),
-    x.sub&&React.createElement('div',{style:{fontSize:x.subSize||10,color:x.subColor||"var(--muted)",marginTop:4,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",textAlign:"center"}},x.sub),
-    x.subNote&&React.createElement('div',{className:"mono",style:{fontSize:8,color:"var(--muted)",marginTop:2,textTransform:"uppercase",letterSpacing:".08em",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},x.subNote)
+    React.createElement('div',{style:{fontFamily:"'Outfit',sans-serif",fontSize:16,fontWeight:800,color:x.color,lineHeight:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",display:"flex",alignItems:"center",justifyContent:"center"}},x.valueNode||x.val),
+    x.sub&&React.createElement('div',{style:{fontFamily:"'Outfit',sans-serif",fontSize:x.subSize||10,color:x.subColor||"var(--muted)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",textAlign:"center"}},x.sub),
+    x.subNote&&React.createElement('div',{style:{fontFamily:"'Outfit',sans-serif",fontSize:8,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".08em",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},x.subNote)
   );
   const sparkCoords = sparkMonths.map((m,i)=>{
     const x = sparkMonths.length === 1 ? 50 : (i/(sparkMonths.length-1))*100;
@@ -277,26 +279,36 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
   const premiumSection = !PLAYER_PROFILE_PREMIUM_GATE && isJoinedThisMonth&&!isExcusedThisMonth && React.createElement(React.Fragment,null,
     React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"center",gap:6,marginTop:2}},
       React.createElement(AppIcon,{name:"sparkles",size:12,stroke:"#EF9F27"}),
-      React.createElement('span',{className:"mono",style:{fontSize:9.5,color:"#EF9F27",letterSpacing:".12em",textTransform:"uppercase",fontWeight:700}},"Premium · This Bloc")
+      React.createElement('span',{style:{fontFamily:"'Outfit',sans-serif",fontSize:9.5,color:"#EF9F27",letterSpacing:".1em",textTransform:"uppercase",fontWeight:700}},"Premium · This Bloc")
     ),
     React.createElement('div',{className:"fu2",style:{display:"grid",gridTemplateColumns:compactMobile?"1fr":"repeat(2,1fr)",gap:8}},
-      React.createElement(Card,{style:{padding:"11px 12px",textAlign:"center"}},
-        React.createElement('span',{className:"lbl",style:{fontSize:9,marginBottom:5,textAlign:"center"}},"Best Month"),
-        React.createElement('div',{style:{fontSize:18,fontWeight:800,lineHeight:1,color:"var(--text)"}},bestBlocMonth?.label || "—"),
-        React.createElement('div',{style:{fontSize:11,color:"var(--muted)",marginTop:4}},bestBlocMonth ? `${bestBlocMonth.count} workouts` : "No workouts yet")
+      React.createElement(Card,{style:{padding:"13px 12px",textAlign:"center"}},
+        React.createElement('span',{style:{...labelStyle,fontSize:9,display:"block",textAlign:"center",marginBottom:8}},"Best Month"),
+        React.createElement('div',{style:{fontFamily:"'Outfit',sans-serif",fontSize:18,fontWeight:800,lineHeight:1,color:"var(--text)",marginBottom:7}},bestBlocMonth ? profileMonthLabel(bestBlocMonth) : "—"),
+        React.createElement('div',{style:{fontFamily:"'Outfit',sans-serif",fontSize:11,color:"var(--muted)"}},bestBlocMonth ? `${bestBlocMonth.count} workouts` : "No workouts yet")
       ),
       React.createElement(Card,{style:{padding:"11px 12px",textAlign:"center"}},
-        React.createElement('span',{className:"lbl",style:{fontSize:9,marginBottom:8,textAlign:"center"}},"Workout Count · This Bloc"),
+        React.createElement('span',{style:{...labelStyle,fontSize:9,display:"block",textAlign:"center",marginBottom:8}},"Workout Count"),
         sparkMonths.length
           ? React.createElement(React.Fragment,null,
-              React.createElement('svg',{width:"100%",height:42,viewBox:"0 0 100 36",preserveAspectRatio:"none",style:{display:"block",overflow:"visible"}},
+              React.createElement('div',{style:{display:"grid",gridTemplateColumns:"24px minmax(0,1fr)",gap:6,alignItems:"stretch"}},
+                React.createElement('div',{style:{display:"flex",flexDirection:"column",justifyContent:"space-between",alignItems:"flex-end",padding:"3px 0 10px",fontFamily:"'Outfit',sans-serif",fontSize:8.5,color:"var(--muted)"}},
+                  React.createElement('span',null,sparkMax),
+                  React.createElement('span',null,"0")
+                ),
+                React.createElement('div',null,
+              React.createElement('svg',{width:"100%",height:46,viewBox:"0 0 100 42",preserveAspectRatio:"none",style:{display:"block",overflow:"visible"}},
+                React.createElement('line',{x1:0,y1:36,x2:100,y2:36,stroke:"rgba(78,205,196,.18)",strokeWidth:1,vectorEffect:"non-scaling-stroke"}),
+                React.createElement('line',{x1:0,y1:6,x2:0,y2:36,stroke:"rgba(78,205,196,.18)",strokeWidth:1,vectorEffect:"non-scaling-stroke"}),
                 React.createElement('polyline',{points:sparkPoints,fill:"none",stroke:"#4ECDC4",strokeWidth:2.2,strokeLinecap:"round",strokeLinejoin:"round",vectorEffect:"non-scaling-stroke"}),
                 sparkCoords.map(p=>React.createElement('circle',{key:p.month.key,cx:p.x,cy:p.y,r:p.month.key===sparkDetailKey?2.4:1.8,fill:p.month.key===sparkDetailKey?"#FFFFFF":"#4ECDC4",stroke:"#061111",strokeWidth:1,style:{cursor:"pointer"},onClick:()=>setSparkDetailKey(k=>k===p.month.key?null:p.month.key)}))
               ),
               React.createElement('div',{style:{display:"grid",gridTemplateColumns:`repeat(${sparkMonths.length},1fr)`,gap:2,marginTop:3}},
-                sparkMonths.map(m=>React.createElement('span',{key:m.key,className:"mono",style:{fontSize:8.5,color:"var(--muted)",textAlign:"center"}},MONTH_NAMES[m.month]?.slice(0,3)||"—"))
+                sparkMonths.map(m=>React.createElement('span',{key:m.key,style:{fontFamily:"'Outfit',sans-serif",fontSize:8.5,color:"var(--muted)",textAlign:"center"}},MONTH_NAMES[m.month]?.slice(0,3)||"—"))
+              )
+                )
               ),
-              selectedSparkMonth&&React.createElement('div',{style:{fontSize:11,color:"var(--text)",marginTop:7,textAlign:"center"}},`${selectedSparkMonth.label} · ${selectedSparkMonth.count} workouts`)
+              selectedSparkMonth&&React.createElement('div',{style:{fontFamily:"'Outfit',sans-serif",fontSize:11,color:"var(--text)",marginTop:7,textAlign:"center"}},`${profileMonthLabel(selectedSparkMonth)} · ${selectedSparkMonth.count} workouts`)
             )
           : React.createElement('div',{style:{fontSize:12,color:"var(--muted)",padding:"9px 0",textAlign:"center"}},"No monthly data yet.")
       )
@@ -307,15 +319,13 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
     deleteTarget && React.createElement(DeleteModal,{log:deleteTarget,onClose:()=>setDeleteTarget(null),onConfirm:async()=>{ const log = deleteTarget; setDeleteTarget(null); await onDeleteLog(log); }}),
     React.createElement('div',{style:{maxWidth:740,margin:"0 auto",padding:"16px",display:"flex",flexDirection:"column",gap:12}},
     // Header row
-	    React.createElement('div',{className:"fu",style:{display:"flex",flexDirection:"column",gap:8}},
-	      React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}},
-	        React.createElement('div',{style:{display:"flex",justifyContent:"flex-start"}},backButton),
-	        monthSelector
+	    React.createElement('div',{className:"fu",style:{display:"grid",gridTemplateColumns:"112px minmax(0,1fr) 112px",alignItems:"center",gap:8}},
+	      React.createElement('div',{style:{justifySelf:"start"}},backButton),
+	      React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"center",gap:8,minWidth:0,textAlign:"center"}},
+	        React.createElement(Avatar,{name,size:28}),
+	        React.createElement('div',{style:{minWidth:0,fontFamily:"'Outfit',sans-serif",fontSize:18,fontWeight:800,lineHeight:1.08,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},name)
 	      ),
-	      React.createElement('div',{style:{display:"flex",alignItems:"center",gap:9,minWidth:0}},
-	        React.createElement(Avatar,{name,size:30}),
-	        React.createElement('div',{style:{minWidth:0,fontSize:19,fontWeight:800,lineHeight:1.08,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},name)
-	      )
+	      React.createElement('div',{style:{justifySelf:"end"}},monthSelector)
 	    ),
 	    // Sit out banner
 	    notJoinedBanner || sitOutBanner,
