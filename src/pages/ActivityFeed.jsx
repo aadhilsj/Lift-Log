@@ -155,7 +155,7 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
                               post.verifiedVia==="strava" && React.createElement('span',{className:"mono",style:{fontSize:9,color:"var(--cyan)",letterSpacing:".05em",textTransform:"uppercase"}},"Strava")
                             )
                           ),
-                          post.note && React.createElement('div',{style:{fontSize:12,lineHeight:1.3,color:"var(--text-soft)",fontStyle:"italic",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},post.note)
+                          post.note && React.createElement('div',{style:{fontSize:12,lineHeight:1.32,color:"var(--text-soft)",fontStyle:"italic",overflow:"hidden",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",whiteSpace:"normal"}},post.note)
                         ),
                         React.createElement('div',{style:{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",paddingTop:6}},
                           reactionEntries.map(([emoji, members])=>{
