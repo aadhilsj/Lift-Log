@@ -312,8 +312,8 @@ function leaderboardRowTint(status) {
     : status === "cruising" ? "rgba(203,213,225,.08)"
     : status === "starting-soon" ? "rgba(143,174,170,.06)"
     : status === "on-track" ? "rgba(90,191,90,.09)"
-    : status === "at-risk" ? "rgba(212,168,67,.10)"
-    : status === "behind" ? "rgba(212,120,67,.08)"
+    : status === "at-risk" ? "rgba(212,168,67,.13)"
+    : status === "behind" ? "rgba(212,120,67,.11)"
     : status === "cooked" ? "rgba(212,74,74,.10)"
     : "transparent";
 }
