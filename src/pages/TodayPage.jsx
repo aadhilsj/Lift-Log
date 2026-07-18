@@ -409,12 +409,12 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
   };
   const leaderboardRowShadow = "inset 0 1px 0 rgba(255,255,255,.045), 0 3px 8px rgba(0,0,0,.055)";
   const leaderboardRowBorderColor = (status, isMe, isOut) =>
-    status === "locked-in" && !isOut ? "rgba(1,7,7,.95)" : isMe && !isOut ? "#163d36" : "#0D1F1E";
+    status === "locked-in" && !isOut ? "rgba(39,74,72,.72)" : isMe && !isOut ? "#163d36" : "#0D1F1E";
   const leaderboardRowHoverBorderColor = (status, isMe, isOut) =>
-    status === "locked-in" && !isOut ? "rgba(3,12,12,.98)" : isMe && !isOut ? "#1c4a43" : "#15302c";
+    status === "locked-in" && !isOut ? "rgba(55,94,91,.82)" : isMe && !isOut ? "#1c4a43" : "#15302c";
   const leaderboardRowBoxShadow = status =>
     status === "locked-in"
-      ? "inset 0 1px 0 rgba(255,255,255,.055), inset 0 0 0 1px rgba(0,0,0,.34), 0 4px 10px rgba(0,0,0,.075)"
+      ? "inset 0 1px 0 rgba(255,255,255,.06), inset 0 0 0 1px rgba(78,205,196,.035), 0 4px 10px rgba(0,0,0,.07)"
       : leaderboardRowShadow;
 
   const competitionStatusBody = isExcused
