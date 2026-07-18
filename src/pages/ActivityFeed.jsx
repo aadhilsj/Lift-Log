@@ -58,7 +58,7 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
       reactionSuppressClickKey.current = reactionKey;
       try { window.getSelection?.()?.removeAllRanges?.(); } catch {}
       setReactionPopover({postId, emoji, names:members});
-    }, 560);
+    }, 420);
   };
   const handleReactionClick = (event, post, emoji, reactionKey) => {
     if (reactionSuppressClickKey.current === reactionKey || reactionLongPressKey.current === reactionKey) {
