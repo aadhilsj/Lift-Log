@@ -55,6 +55,17 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
     document.addEventListener("pointerdown", handlePointerDown);
     return ()=>document.removeEventListener("pointerdown", handlePointerDown);
   },[reactionTarget]);
+  useEffect(()=>{
+    if (!imageTarget) return;
+    const previousOverflow = document.body.style.overflow;
+    const previousTouchAction = document.body.style.touchAction;
+    document.body.style.overflow = "hidden";
+    document.body.style.touchAction = "none";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.body.style.touchAction = previousTouchAction;
+    };
+  },[imageTarget]);
   const clearReactionTimer = () => {
     if (reactionPressTimer.current) {
       clearTimeout(reactionPressTimer.current);
@@ -163,9 +174,9 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
             React.createElement('span',{style:{display:"inline-flex",alignItems:"center",justifyContent:"center",color:"var(--cyan)",width:14}},categoryIcon),
             React.createElement('span',null,imagePost.type)
           ),
-          React.createElement('span',{className:"mono",style:{fontSize:9,color:"var(--muted2)",letterSpacing:"-.01em",flexShrink:0}},formatShortDate(imagePost.date))
+          React.createElement('span',{className:"mono",style:{fontSize:8,color:"var(--muted2)",letterSpacing:"-.01em",flexShrink:0}},formatShortDate(imagePost.date))
         ),
-        React.createElement('img',{src:imagePost.photoUrl,alt:`${imagePost.owner} ${imagePost.type}`,style:{display:"block",width:"100%",maxHeight:compactFeed?"62vh":"68vh",objectFit:"contain",borderRadius:12,background:"#050507",boxShadow:"0 24px 60px rgba(0,0,0,.45)"}}),
+        React.createElement('img',{src:imagePost.photoUrl,alt:`${imagePost.owner} ${imagePost.type}`,onClick:e=>{e.stopPropagation();navigateImage(1);},style:{display:"block",width:"100%",maxHeight:compactFeed?"62vh":"68vh",objectFit:"contain",borderRadius:12,background:"#050507",boxShadow:"0 24px 60px rgba(0,0,0,.45)",cursor:"pointer"}}),
         React.createElement('div',{style:{padding:"0 2px"}},renderReactionRow(imagePost,false,false,true)),
         imagePost.note && React.createElement('div',{style:{fontSize:14,lineHeight:1.45,color:"var(--text-soft)",fontStyle:"italic",whiteSpace:"pre-wrap",padding:"0 2px",overflowY:"auto",maxHeight:"18vh",textAlign:"center"}},imagePost.note)
       )
