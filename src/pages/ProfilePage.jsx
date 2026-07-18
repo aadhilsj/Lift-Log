@@ -260,7 +260,7 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
     ),
 
     // Identity block — horizontal: avatar left, name + since stacked right
-    React.createElement('div', { style: { display: "flex", alignItems: "center", gap: 14, padding: "2px 2px 4px" } },
+    React.createElement('div', { style: { display: "flex", alignItems: "center", justifyContent: "center", gap: 14, padding: "2px 2px 4px", textAlign: "center" } },
       React.createElement(Avatar, { name: displayName || "?", size: 56 }),
       React.createElement('div', { style: { minWidth: 0 } },
         React.createElement('button', { type: "button", onClick: onEditName, style: { display: "inline-flex", alignItems: "center", gap: 6, background: "transparent", border: "none", padding: 0, cursor: "pointer", color: "var(--text)", maxWidth: "100%" } },
@@ -274,7 +274,7 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
     // Free tier — three stat cards, single row
     React.createElement('div', { style: { display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 6 } },
       statCard("Workouts", React.createElement('div', { style: statVal({ color: "#4ECDC4" }) }, agg.workoutsLogged || 0), null, { elevated: true, icon: React.createElement(WorkoutTypeIcon, { type: "Gym", size: 12 }) }),
-      statCard("Groups", React.createElement('div', { style: statVal({ color: "var(--text)" }) }, myGroups.length), null, { elevated: true, icon: React.createElement(AppIcon, { name: "group", size: 12, stroke: "currentColor" }) }),
+      statCard("Blocs", React.createElement('div', { style: statVal({ color: "var(--text)" }) }, myGroups.length), null, { elevated: true, icon: React.createElement(AppIcon, { name: "group", size: 12, stroke: "currentColor" }) }),
       statCard("Wins", React.createElement('div', { style: statVal({ color: "var(--text)" }) }, agg.blocWins || 0), null, { elevated: true, icon: React.createElement(AppIcon, { name: "trophy", size: 12, stroke: "currentColor" }) })
     ),
 
