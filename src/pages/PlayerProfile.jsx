@@ -30,7 +30,8 @@ import { Avatar, WorkoutTypeIcon, Bar, Card, SelectField, TargetHitHexIcon, AppI
 import { DeleteModal } from "../modals/modals.jsx";
 
 const PLAYER_PROFILE_PREMIUM_GATE = false; // Built now; flip to true when premium gating is wired.
-const profileMonthLabel = month => month ? `${MONTH_NAMES[month.month]} ${month.year}` : "—";
+const FULL_MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+const profileMonthLabel = month => month ? `${FULL_MONTH_NAMES[month.month] || MONTH_NAMES[month.month]} ${month.year}` : "—";
 const profileMonthOptionLabel = month => month ? `${MONTH_NAMES[month.month]} '${String(month.year).slice(2)}` : "—";
 
 const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChange,groupSettings,onDeleteLog,initialMonthKey}) => {
@@ -270,9 +271,11 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
     x.sub&&React.createElement('div',{style:{fontFamily:"'Outfit',sans-serif",fontSize:x.subSize||10,color:x.subColor||"var(--muted)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",textAlign:"center"}},x.sub),
     x.subNote&&React.createElement('div',{style:{fontFamily:"'Outfit',sans-serif",fontSize:8,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".08em",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},x.subNote)
   );
+  const TREND_AXIS_MAX = 20;
+  const trendTicks = [20, 15, 10, 5, 0];
   const sparkCoords = sparkMonths.map((m,i)=>{
     const x = sparkMonths.length === 1 ? 50 : (i/(sparkMonths.length-1))*100;
-    const y = 32 - (Number(m.count || 0)/sparkMax)*24;
+    const y = 36 - (Math.min(Number(m.count || 0), TREND_AXIS_MAX)/TREND_AXIS_MAX)*30;
     return { month:m, x, y };
   });
   const sparkPoints = sparkCoords.map(p=>`${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
@@ -289,20 +292,19 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
         React.createElement('div',{style:{fontFamily:"'Outfit',sans-serif",fontSize:11,color:"var(--muted)"}},bestBlocMonth ? `${bestBlocMonth.count} workouts` : "No workouts yet")
       ),
       React.createElement(Card,{style:{padding:"11px 12px",textAlign:"center"}},
-        React.createElement('span',{style:{...labelStyle,fontSize:9,display:"block",textAlign:"center",marginBottom:8}},"Workout Count"),
+        React.createElement('span',{style:{...labelStyle,fontSize:9,display:"block",textAlign:"center",marginBottom:8}},"Workout Trend: 2026"),
         sparkMonths.length
           ? React.createElement(React.Fragment,null,
-              React.createElement('div',{style:{display:"grid",gridTemplateColumns:"24px minmax(0,1fr)",gap:6,alignItems:"stretch"}},
-                React.createElement('div',{style:{display:"flex",flexDirection:"column",justifyContent:"space-between",alignItems:"flex-end",padding:"3px 0 10px",fontFamily:"'Outfit',sans-serif",fontSize:8.5,color:"var(--muted)"}},
-                  React.createElement('span',null,sparkMax),
-                  React.createElement('span',null,"0")
+              React.createElement('div',{style:{display:"grid",gridTemplateColumns:"18px minmax(0,1fr)",gap:7,alignItems:"stretch"}},
+                React.createElement('div',{style:{display:"grid",gridTemplateRows:"repeat(5,1fr)",alignItems:"center",justifyItems:"end",padding:"0 0 12px",fontFamily:"'Outfit',sans-serif",fontSize:8.5,color:"var(--muted)"}},
+                  trendTicks.map(t=>React.createElement('span',{key:t},t))
                 ),
                 React.createElement('div',null,
               React.createElement('svg',{width:"100%",height:46,viewBox:"0 0 100 42",preserveAspectRatio:"none",style:{display:"block",overflow:"visible"}},
                 React.createElement('line',{x1:0,y1:36,x2:100,y2:36,stroke:"rgba(78,205,196,.18)",strokeWidth:1,vectorEffect:"non-scaling-stroke"}),
                 React.createElement('line',{x1:0,y1:6,x2:0,y2:36,stroke:"rgba(78,205,196,.18)",strokeWidth:1,vectorEffect:"non-scaling-stroke"}),
                 React.createElement('polyline',{points:sparkPoints,fill:"none",stroke:"#4ECDC4",strokeWidth:2.2,strokeLinecap:"round",strokeLinejoin:"round",vectorEffect:"non-scaling-stroke"}),
-                sparkCoords.map(p=>React.createElement('circle',{key:p.month.key,cx:p.x,cy:p.y,r:p.month.key===sparkDetailKey?3.2:2.7,fill:p.month.key===sparkDetailKey?"#FFFFFF":"#4ECDC4",stroke:"rgba(5,12,12,.95)",strokeWidth:1.2,style:{cursor:"pointer",filter:"drop-shadow(0 1px 3px rgba(78,205,196,.42))"},onClick:()=>setSparkDetailKey(k=>k===p.month.key?null:p.month.key)}))
+                sparkCoords.map(p=>React.createElement('circle',{key:p.month.key,cx:p.x,cy:p.y,r:p.month.key===sparkDetailKey?2.4:2,fill:p.month.key===sparkDetailKey?"#FFFFFF":"#4ECDC4",stroke:"rgba(5,12,12,.95)",strokeWidth:1,style:{cursor:"pointer",filter:"drop-shadow(0 1px 2px rgba(78,205,196,.36))"},onClick:()=>setSparkDetailKey(k=>k===p.month.key?null:p.month.key)}))
               ),
               React.createElement('div',{style:{display:"grid",gridTemplateColumns:`repeat(${sparkMonths.length},1fr)`,gap:2,marginTop:3}},
                 sparkMonths.map(m=>React.createElement('span',{key:m.key,style:{fontFamily:"'Outfit',sans-serif",fontSize:8.5,color:"var(--muted)",textAlign:"center"}},MONTH_NAMES[m.month]?.slice(0,3)||"—"))
@@ -335,7 +337,7 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
 	      stats.map(renderStatCard)
 	    ),
 	    isJoinedThisMonth&&!isExcusedThisMonth&&React.createElement(Card,{className:"fu3",style:{padding:"16px"}},
-	      React.createElement('div',{style:{fontWeight:800,fontSize:14,marginBottom:14}},`Workout Breakdown — ${selLabel}`),
+		      React.createElement('div',{style:{fontWeight:800,fontSize:14,marginBottom:14}},"Workout Breakdown"),
 	      !hasDetailedLogs
 	        ? React.createElement('div',{style:{color:"var(--muted)",fontSize:13,textAlign:"center",padding:"8px 0"}},"Detailed logs were not saved for this month.")
 	      : selCount===0
