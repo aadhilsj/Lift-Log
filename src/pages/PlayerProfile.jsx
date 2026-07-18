@@ -275,7 +275,7 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
   const trendTicks = [20, 15, 10, 5, 0];
   const sparkCoords = sparkMonths.map((m,i)=>{
     const x = sparkMonths.length === 1 ? 50 : (i/(sparkMonths.length-1))*100;
-    const y = 36 - (Math.min(Number(m.count || 0), TREND_AXIS_MAX)/TREND_AXIS_MAX)*30;
+    const y = 76 - (Math.min(Number(m.count || 0), TREND_AXIS_MAX)/TREND_AXIS_MAX)*64;
     return { month:m, x, y };
   });
   const sparkPoints = sparkCoords.map(p=>`${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
@@ -291,18 +291,18 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
         React.createElement('div',{style:{fontFamily:"'Outfit',sans-serif",fontSize:18,fontWeight:800,lineHeight:1,color:"var(--text)",marginBottom:7}},bestBlocMonth ? profileMonthLabel(bestBlocMonth) : "—"),
         React.createElement('div',{style:{fontFamily:"'Outfit',sans-serif",fontSize:11,color:"var(--muted)"}},bestBlocMonth ? `${bestBlocMonth.count} workouts` : "No workouts yet")
       ),
-      React.createElement(Card,{style:{padding:"11px 12px",textAlign:"center"}},
-        React.createElement('span',{style:{...labelStyle,fontSize:9,display:"block",textAlign:"center",marginBottom:8}},"Workout Trend: 2026"),
+      React.createElement(Card,{style:{padding:"13px 12px 12px",textAlign:"center"}},
+        React.createElement('span',{style:{...labelStyle,fontSize:9,display:"block",textAlign:"center",marginBottom:10}},"Workout Trend: 2026"),
         sparkMonths.length
           ? React.createElement(React.Fragment,null,
-              React.createElement('div',{style:{display:"grid",gridTemplateColumns:"18px minmax(0,1fr)",gap:7,alignItems:"stretch"}},
-                React.createElement('div',{style:{display:"grid",gridTemplateRows:"repeat(5,1fr)",alignItems:"center",justifyItems:"end",padding:"0 0 12px",fontFamily:"'Outfit',sans-serif",fontSize:8.5,color:"var(--muted)"}},
+              React.createElement('div',{style:{display:"grid",gridTemplateColumns:"20px minmax(0,1fr)",gap:8,alignItems:"stretch"}},
+                React.createElement('div',{style:{display:"grid",gridTemplateRows:"repeat(5,1fr)",alignItems:"center",justifyItems:"end",height:82,padding:"0 0 14px",fontFamily:"'Outfit',sans-serif",fontSize:8.5,color:"var(--muted)"}},
                   trendTicks.map(t=>React.createElement('span',{key:t},t))
                 ),
                 React.createElement('div',null,
-              React.createElement('svg',{width:"100%",height:46,viewBox:"0 0 100 42",preserveAspectRatio:"none",style:{display:"block",overflow:"visible"}},
-                React.createElement('line',{x1:0,y1:36,x2:100,y2:36,stroke:"rgba(78,205,196,.18)",strokeWidth:1,vectorEffect:"non-scaling-stroke"}),
-                React.createElement('line',{x1:0,y1:6,x2:0,y2:36,stroke:"rgba(78,205,196,.18)",strokeWidth:1,vectorEffect:"non-scaling-stroke"}),
+              React.createElement('svg',{width:"100%",height:88,viewBox:"0 0 100 84",preserveAspectRatio:"none",style:{display:"block",overflow:"visible"}},
+                React.createElement('line',{x1:0,y1:76,x2:100,y2:76,stroke:"rgba(78,205,196,.18)",strokeWidth:1,vectorEffect:"non-scaling-stroke"}),
+                React.createElement('line',{x1:0,y1:12,x2:0,y2:76,stroke:"rgba(78,205,196,.18)",strokeWidth:1,vectorEffect:"non-scaling-stroke"}),
                 React.createElement('polyline',{points:sparkPoints,fill:"none",stroke:"#4ECDC4",strokeWidth:2.2,strokeLinecap:"round",strokeLinejoin:"round",vectorEffect:"non-scaling-stroke"}),
                 sparkCoords.map(p=>React.createElement('circle',{key:p.month.key,cx:p.x,cy:p.y,r:p.month.key===sparkDetailKey?2.4:2,fill:p.month.key===sparkDetailKey?"#FFFFFF":"#4ECDC4",stroke:"rgba(5,12,12,.95)",strokeWidth:1,style:{cursor:"pointer",filter:"drop-shadow(0 1px 2px rgba(78,205,196,.36))"},onClick:()=>setSparkDetailKey(k=>k===p.month.key?null:p.month.key)}))
               ),
