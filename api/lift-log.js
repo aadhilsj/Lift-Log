@@ -7050,7 +7050,11 @@ export default async function handler(req, res) {
           userId: auth.user.id,
           ...(canonicalBloc?.legacy_group_key ? { groupId: canonicalBloc.legacy_group_key } : {})
         };
-        applyJoinGroup(auth.state, joinPayload);
+        try {
+          applyJoinGroup(auth.state, joinPayload);
+        } catch (err) {
+          if (err?.status !== 404) throw err;
+        }
         const canonicalState = await buildCanonicalWritableStateForAuthenticatedGlobalMutation(auth);
         const joined = applyJoinGroup(canonicalState, joinPayload);
         const joinedGroup = joined.state.groups?.[joined.joinedGroupId];

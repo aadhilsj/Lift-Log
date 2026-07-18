@@ -1881,3 +1881,57 @@ Remaining estimate after Batch 30:
 - minimum 2 backend batches: one for delete-account/upsert-profile decisioning,
   one for join-group/final closeout
 - realistic 2-3 backend batches if join-group needs a dedicated fix/soak
+
+## Batch 31 - Join-Group Canonical-Only Precheck And Preview Soak
+
+Batch 31 started on 2026-07-18 after Batch 30 preview smoke passed for the
+create/proration/log/react/leave chain.
+
+Why this batch exists:
+
+- `create-group` mirror skip means newly created blocs can be canonical-only
+- another account joining one of those blocs should validate and write against
+  canonical state
+- `join-group` already computes the authoritative post-join mutation from
+  `buildCanonicalWritableStateForAuthenticatedGlobalMutation(...)`
+- however, it still ran a blob-shell `applyJoinGroup(auth.state, ...)` precheck
+  before the canonical path
+- for a canonical-only invite/bloc, that precheck can throw `Bloc invite not
+  found` even though canonical state can join it correctly
+
+Implemented:
+
+- `join-group` now tolerates only a `404` from the blob-shell precheck
+- non-404 failures still fail normally
+- the canonical join mutation must still pass before any canonical write or
+  blob mirror/skip decision happens
+- profile setup, full bloc, and invalid invite behavior still remains enforced
+  by the canonical mutation path
+
+Preview env change:
+
+`BLOB_MIRROR_SKIP_ACTIONS=create-group,leave-bloc,kick-member,join-group,update-settings,season-proration-choice,reaction,flag,flag-response,flag-review,delete-log,add-log,multi-log`
+
+Scope:
+
+- enables blob mirror skipping for `join-group` on the
+  `codex/create-group-canonical-first` preview branch only
+- keeps Production unchanged
+- keeps `upsert-profile` and `delete-account` wired but not enabled
+- keeps sit-out request/review, legacy admin settlement, `auth-sync`, and
+  `repair-display-name` mirrored
+
+Next smoke focus:
+
+- sign in / blocs load
+- create a disposable bloc and copy/join its invite with a test account if
+  convenient
+- if joining is inconvenient, run the usual create/proration/log/react/leave
+  sanity smoke
+
+Remaining estimate after Batch 31:
+
+- minimum 1 backend batch if delete-account/upsert-profile remain deliberately
+  mirrored and the final closeout is documentation/audit only
+- realistic 1-2 backend batches if delete-account gets one dedicated preview
+  soak before closeout
