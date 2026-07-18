@@ -51,6 +51,7 @@ const SETTINGS_DEFAULTS = {
   stravaEnabled: DEFAULT_STRAVA_ENABLED
 };
 
+const WORKOUT_NOTE_LIMIT = 140;
 
 const TIME_ZONE_OPTIONS = (() => {
   const supported = typeof Intl.supportedValuesOf === "function"
@@ -644,8 +645,8 @@ const LogModal = ({user,currentGroupId,groups,onConfirm,onClose}) => {
       ),
       photoError && React.createElement('div',{style:{fontSize:12,color:"var(--red)",marginBottom:7}},photoError),
       React.createElement('span',{className:"lbl",style:{marginBottom:6,color:"var(--text)",fontSize:10,fontWeight:500}},needsNote?"Describe your workout":"Add a note (optional)"),
-      React.createElement('textarea',{value:note,onChange:e=>setNote(e.target.value.slice(0,280)),rows:compactMobile?2:3,placeholder:needsNote?"e.g. swim, home workout, martial arts":"e.g. trail run, home workout, yoga",style:{width:"100%",resize:"none",background:"var(--s2)",border:`1px solid ${needsNote&&!note.trim()?"rgba(240,165,0,.28)":"var(--border)"}`,borderRadius:10,padding:compactMobile?"9px 11px":"10px 13px",color:"var(--text)",fontSize:compactMobile?13:14,outline:"none",marginBottom:compactMobile?8:12,boxSizing:"border-box"}}),
-      React.createElement('div',{className:"mono",style:{fontSize:10,color:"var(--muted)",marginTop:compactMobile?-3:-6,marginBottom:compactMobile?8:10,textAlign:"right"}},`${note.length}/280`),
+      React.createElement('textarea',{value:note,onChange:e=>setNote(e.target.value.slice(0,WORKOUT_NOTE_LIMIT)),rows:compactMobile?2:3,placeholder:needsNote?"e.g. swim, home workout, martial arts":"e.g. trail run, home workout, yoga",style:{width:"100%",resize:"none",background:"var(--s2)",border:`1px solid ${needsNote&&!note.trim()?"rgba(240,165,0,.28)":"var(--border)"}`,borderRadius:10,padding:compactMobile?"9px 11px":"10px 13px",color:"var(--text)",fontSize:compactMobile?13:14,outline:"none",marginBottom:compactMobile?8:12,boxSizing:"border-box"}}),
+      React.createElement('div',{className:"mono",style:{fontSize:10,color:"var(--muted)",marginTop:compactMobile?-3:-6,marginBottom:compactMobile?8:10,textAlign:"right"}},`${note.length}/${WORKOUT_NOTE_LIMIT}`),
       wType && eligibleGroups.length > 0 && React.createElement('div',{style:{marginBottom:compactMobile?10:16}},
         React.createElement('span',{className:"lbl",style:{marginBottom:6,color:"var(--text)",fontSize:10,fontWeight:500}},"Also Log To"),
         React.createElement('div',{style:{display:"flex",flexWrap:"wrap",gap:8}},
