@@ -287,7 +287,7 @@ function getGroupMemberPreview(group, userName) {
 
 function groupStatusLabel(status) {
   return status === "on-track" ? "On track"
-    : status === "locked-in" ? "Locked in"
+    : status === "locked-in" ? "Cleared"
     : status === "cruising" ? "Cruising"
     : status === "starting-soon" ? "Starting soon"
     : status === "at-risk" ? "At risk"

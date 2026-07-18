@@ -136,7 +136,7 @@ const StatusBadge = ({status}) => {
     "cooked":["rgba(212,74,74,.14)","#D44A4A","#3B1818"]
   };
   const [bg,fg]=map[status]||map.behind;
-  const labels={"locked-in":"Locked In","cruising":"Cruising","starting-soon":"Early","on-track":"On Track","at-risk":"At Risk","behind":"Behind","cooked":"Cooked"};
+  const labels={"locked-in":"Cleared","cruising":"Cruising","starting-soon":"Early","on-track":"On Track","at-risk":"At Risk","behind":"Behind","cooked":"Cooked"};
   const border = map[status]?.[2] || `${fg}40`;
   return React.createElement('span',{style:{background:bg,color:fg,border:`0.5px solid ${border}`,padding:"1px 7px",borderRadius:999,fontSize:9,fontFamily:"'Outfit',sans-serif",fontWeight:700,letterSpacing:".04em",textTransform:"uppercase",whiteSpace:"nowrap"}},labels[status]);
 };
