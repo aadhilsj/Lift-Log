@@ -306,6 +306,15 @@ const AppIcon = ({name,size=18,stroke="currentColor"}) => {
   if (name==="chevron-right") return React.createElement('svg',common,
     React.createElement('path',{d:"M9 6l6 6-6 6"})
   );
+  if (name==="flame") return React.createElement('svg',common,
+    React.createElement('path',{d:"M12 21c3.4 0 6-2.4 6-5.8 0-2.3-1.1-4.1-3.3-5.7.1 1.6-.5 2.8-1.6 3.7.2-2.9-1-5.2-3.5-7.2.1 2.7-1.1 4.2-2.2 5.5A5.8 5.8 0 0 0 6 15.2C6 18.6 8.6 21 12 21z"}),
+    React.createElement('path',{d:"M12 18c1.3 0 2.3-.9 2.3-2.2 0-.9-.5-1.7-1.5-2.4 0 .8-.3 1.4-.8 1.8.1-1.2-.4-2.2-1.4-3.1.1 1.2-.5 1.9-1 2.5-.3.4-.5.8-.5 1.2 0 1.3 1 2.2 2.9 2.2z"})
+  );
+  if (name==="sparkles") return React.createElement('svg',common,
+    React.createElement('path',{d:"M12 3l1.2 4.1L17 8.5l-3.8 1.4L12 14l-1.2-4.1L7 8.5l3.8-1.4z"}),
+    React.createElement('path',{d:"M5 14l.7 2.2L8 17l-2.3.8L5 20l-.7-2.2L2 17l2.3-.8z"}),
+    React.createElement('path',{d:"M18.5 13l.5 1.6 1.5.6-1.5.6-.5 1.6-.5-1.6-1.5-.6 1.5-.6z"})
+  );
   return React.createElement('svg',common,React.createElement('circle',{cx:"12",cy:"12",r:"8"}));
 };
 

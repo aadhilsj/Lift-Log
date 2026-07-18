@@ -1,5 +1,5 @@
 import React from "react";
-const { useState, useEffect, useMemo, useCallback, useRef } = React;
+const { useState, useEffect, useMemo, useRef } = React;
 import {
   WORKOUT_TYPES,
   DEFAULT_CURRENCY,
@@ -11,7 +11,6 @@ import {
   DAY_OF_MON,
   curKey,
   MONTH_NAMES,
-  fmtISO,
   calcPenalties,
   getLoserAmount,
   normalizeSeasonOverrides,
@@ -27,8 +26,10 @@ import {
 import {
   isMobile
 } from "../lib/utils.js";
-import { Avatar, WorkoutTypeIcon, Bar, Card, SelectField } from "../components/primitives.jsx";
+import { Avatar, WorkoutTypeIcon, Bar, Card, SelectField, TargetHitHexIcon, AppIcon } from "../components/primitives.jsx";
 import { DeleteModal } from "../modals/modals.jsx";
+
+const PLAYER_PROFILE_PREMIUM_GATE = false; // Built now; flip to true when premium gating is wired.
 
 const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChange,groupSettings,onDeleteLog,initialMonthKey}) => {
   const compactMobile = isMobile();
@@ -79,8 +80,70 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
     });
     const participated=monthHistory.filter(m=>getHistoricalMemberNamesForMonth(m, historicalNames).includes(name) && !m.excused?.[name]);
     const avg=participated.length?(closedTotal/participated.length).toFixed(1):"—";
-    return {wins,moneyWon,moneyLost,avg};
-  },[name,monthHistory,historicalNames]);
+	    return {wins,moneyWon,moneyLost,avg};
+	  },[name,monthHistory,historicalNames]);
+
+  const profileMonths = useMemo(()=>{
+    const closed = monthHistory
+      .filter(m=>getHistoricalMemberNamesForMonth(m, historicalNames).includes(name) && !m.excused?.[name])
+      .map(m=>({
+        key:m.key,
+        label:m.label,
+        month:m.month,
+        year:m.year,
+        count:Number(m.counts?.[name] || 0),
+        target:m.memberTargets?.[name] || m.settings?.minTarget || MIN_TARGET,
+        settings:m.settings || {},
+        counts:m.counts || {},
+        memberTargets:m.memberTargets || {},
+        excused:m.excused || {},
+        closed:true
+      }));
+    const current = isJoinedForMonth(name, curKey) && !excused?.[name]?.[curKey]
+      ? [{
+          key:curKey,
+          label:`${MONTH_NAMES[CUR_MONTH]} '${String(CUR_YEAR).slice(2)}`,
+          month:CUR_MONTH,
+          year:CUR_YEAR,
+          count:getCountedLogCount(logs[name] || []),
+          target:getCurrentMemberTarget(name, curKey, MIN_TARGET),
+          settings:groupSettings || {},
+          counts:{[name]:getCountedLogCount(logs[name] || [])},
+          excused:{},
+          closed:false
+        }]
+      : [];
+    return [...closed, ...current].sort((a,b)=>a.key.localeCompare(b.key));
+  },[name,monthHistory,historicalNames,logs,excused,groupSettings]);
+
+  const perfectMonthStats = useMemo(()=>{
+    const perfectMonths = profileMonths.filter(m=>{
+      if (!m.closed) return false;
+      const monthNames = getHistoricalMemberNamesForMonth(m, historicalNames);
+      const activeCounts = monthNames
+        .filter(n=>isJoinedForMonth(n, m.key) && !m.excused?.[n])
+        .map(n=>({name:n,count:Number(m.counts?.[n] || 0),target:m.memberTargets?.[n] || m.settings?.minTarget || MIN_TARGET}));
+      const { losers } = calcPenalties(activeCounts, m.settings || {});
+      return Number(m.count || 0) >= Number(m.target || MIN_TARGET) && !losers.some(l=>l.name===name);
+    });
+    const perfectKeys = new Set(perfectMonths.map(m=>m.key));
+    let activeStreak = 0;
+    const closedMonths = profileMonths.filter(m=>m.closed).sort((a,b)=>b.key.localeCompare(a.key));
+    for (const m of closedMonths) {
+      if (!perfectKeys.has(m.key)) break;
+      activeStreak += 1;
+    }
+    return { count:perfectMonths.length, activeStreak };
+  },[name,profileMonths,historicalNames]);
+
+  const bestBlocMonth = useMemo(()=>{
+    const eligible = profileMonths.filter(m=>Number.isFinite(Number(m.count)));
+    if (!eligible.length) return null;
+    return eligible.reduce((best,m)=>Number(m.count) > Number(best.count) ? m : best, eligible[0]);
+  },[profileMonths]);
+
+  const sparkMonths = profileMonths.slice(-8);
+  const sparkMax = Math.max(1, ...sparkMonths.map(m=>Number(m.count || 0)));
 
   // Selected month data
   const selCount = isCurMonth
@@ -103,6 +166,7 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
   const tBreak={};WORKOUT_TYPES.forEach(t=>tBreak[t]=0);
   visibleSelLogs.forEach(l=>{if(tBreak[l.type]!==undefined)tBreak[l.type]++;});
   const maxT=Math.max(...Object.values(tBreak),1);
+  const workoutBreakdownRows = WORKOUT_TYPES.filter(t=>tBreak[t] > 0);
   const selYear = isCurMonth ? CUR_YEAR : (selHistMonth?.year ?? CUR_YEAR);
   const selMonthNum = isCurMonth ? CUR_MONTH : (selHistMonth?.month ?? CUR_MONTH);
   const selDaysInMonth = new Date(selYear, selMonthNum + 1, 0).getDate();
@@ -144,9 +208,13 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
   const stats=[
     {label:"Workouts",val:selCount||"—",sub:selLabel,color:"var(--text)"},
     {label:"Monthly Avg",val:closedStats.avg,sub:"per closed month",subColor:"#1E4040",subSize:11,color:"var(--text)"},
-    {label:"Need",val:needed===0?"✓":needed,sub:needed===0?"target hit!":`to hit ${selectedTarget}`,subNote:isCurMonth&&currentTargetInfo?.prorationSource==="member"?"joined mid-month":isCurMonth&&currentMonthOverride?.prorated?"prorated":null,color:"#4ECDC4"},
+    {label:"Target",icon:React.createElement(TargetHitHexIcon,{size:11,color:"#4ECDC4"}),val:needed===0?"✓":needed,sub:needed===0?"target hit!":`to hit ${selectedTarget}`,subNote:isCurMonth&&currentTargetInfo?.prorationSource==="member"?"joined mid-month":isCurMonth&&currentMonthOverride?.prorated?"prorated":null,color:"#4ECDC4"},
+    {label:"Perfect Mos",icon:React.createElement(AppIcon,{name:"flame",size:11,stroke:"#4ECDC4"}),valueNode:React.createElement('div',{style:{display:"flex",alignItems:"center",gap:5,minWidth:0}},
+      React.createElement('span',null,perfectMonthStats.count||"—"),
+      perfectMonthStats.activeStreak>=2&&React.createElement('span',{className:"mono",style:{fontSize:8,color:"#4ECDC4",border:"1px solid rgba(78,205,196,.24)",borderRadius:999,padding:"1px 5px",whiteSpace:"nowrap",lineHeight:1.2}},`${perfectMonthStats.activeStreak}mo streak`)
+    ),sub:"lifetime",color:"var(--text)"},
     {label:"Wins",val:hasHistory?(closedStats.wins||"—"):"—",sub:hasHistory?"months won":"end of month",color:hasHistory&&closedStats.wins>0?"var(--gold)":"var(--muted)"},
-    {label:"Net P&L",val:hasHistory?(netPL===0?fmtCurrency(0,currency):`${netPL>0?"+":"-"}${fmtCurrency(Math.abs(netPL),currency)}`):"—",sub:hasHistory?"won minus lost":"end of month",color:hasHistory?(netPL>0?"var(--green)":netPL<0?"var(--red)":"var(--muted)"):"var(--muted)"},
+    {label:"Take",val:hasHistory?(netPL===0?fmtCurrency(0,currency):`${netPL>0?"+":"-"}${fmtCurrency(Math.abs(netPL),currency)}`):"—",sub:hasHistory?"won minus lost":"end of month",color:hasHistory?(netPL>0?"var(--green)":netPL<0?"var(--red)":"var(--muted)"):"var(--muted)"},
   ];
   const startSwipeBack=e=>{
     e.stopPropagation();
@@ -186,95 +254,119 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
     }
   };
 
+  const backButton = React.createElement('button',{onClick:onBack,style:{display:"inline-flex",alignItems:"center",gap:3,background:"transparent",border:"none",color:"#1E4040",padding:"2px 0",borderRadius:0,fontSize:13,fontFamily:"inherit",fontWeight:700,lineHeight:1.1}},
+    React.createElement(AppIcon,{name:"chevron-left",size:13,stroke:"#1E4040"}),
+    "Back"
+  );
+  const renderStatCard = x => React.createElement(Card,{key:x.label,style:{padding:"7px 8px",minWidth:0}},
+    React.createElement('span',{className:"lbl",style:{fontSize:8.5,marginBottom:3,display:"flex",alignItems:"center",gap:4,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},
+      x.icon,
+      x.label
+    ),
+    React.createElement('div',{style:{fontSize:16,fontWeight:800,color:x.color,lineHeight:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis"}},x.valueNode||x.val),
+    React.createElement('div',{style:{fontSize:x.subSize||10,color:x.subColor||"var(--muted)",marginTop:3,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},x.sub),
+    x.subNote&&React.createElement('div',{className:"mono",style:{fontSize:8,color:"var(--muted)",marginTop:2,textTransform:"uppercase",letterSpacing:".08em",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},x.subNote)
+  );
+  const sparkPoints = sparkMonths.map((m,i)=>{
+    const x = sparkMonths.length === 1 ? 50 : (i/(sparkMonths.length-1))*100;
+    const y = 32 - (Number(m.count || 0)/sparkMax)*24;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(" ");
+  const premiumSection = !PLAYER_PROFILE_PREMIUM_GATE && isJoinedThisMonth&&!isExcusedThisMonth && React.createElement(React.Fragment,null,
+    React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"center",gap:6,marginTop:2}},
+      React.createElement(AppIcon,{name:"sparkles",size:12,stroke:"#EF9F27"}),
+      React.createElement('span',{className:"mono",style:{fontSize:9.5,color:"#EF9F27",letterSpacing:".12em",textTransform:"uppercase",fontWeight:700}},"Premium · This Bloc")
+    ),
+    React.createElement('div',{className:"fu2",style:{display:"grid",gridTemplateColumns:compactMobile?"1fr":"repeat(2,1fr)",gap:8}},
+      React.createElement(Card,{style:{padding:"11px 12px"}},
+        React.createElement('span',{className:"lbl",style:{fontSize:9,marginBottom:5}},"Best Month"),
+        React.createElement('div',{style:{fontSize:18,fontWeight:800,lineHeight:1,color:"var(--text)"}},bestBlocMonth?.label || "—"),
+        React.createElement('div',{style:{fontSize:11,color:"var(--muted)",marginTop:4}},bestBlocMonth ? `${bestBlocMonth.count} workouts` : "No workouts yet")
+      ),
+      React.createElement(Card,{style:{padding:"11px 12px"}},
+        React.createElement('span',{className:"lbl",style:{fontSize:9,marginBottom:8}},"Workout Count · This Bloc"),
+        sparkMonths.length
+          ? React.createElement(React.Fragment,null,
+              React.createElement('svg',{width:"100%",height:42,viewBox:"0 0 100 36",preserveAspectRatio:"none",style:{display:"block",overflow:"visible"}},
+                React.createElement('polyline',{points:sparkPoints,fill:"none",stroke:"#4ECDC4",strokeWidth:2.2,strokeLinecap:"round",strokeLinejoin:"round",vectorEffect:"non-scaling-stroke"})
+              ),
+              React.createElement('div',{style:{display:"grid",gridTemplateColumns:`repeat(${sparkMonths.length},1fr)`,gap:2,marginTop:3}},
+                sparkMonths.map(m=>React.createElement('span',{key:m.key,className:"mono",style:{fontSize:8.5,color:"var(--muted)",textAlign:"center"}},MONTH_NAMES[m.month]?.slice(0,3)||"—"))
+              )
+            )
+          : React.createElement('div',{style:{fontSize:12,color:"var(--muted)",padding:"9px 0",textAlign:"center"}},"No monthly data yet.")
+      )
+    )
+  );
+
   return React.createElement('div',{onTouchStart:startSwipeBack,onTouchMove:moveSwipeBack,onTouchEnd:endSwipeBack,onTouchCancel:e=>{e.stopPropagation();swipeRef.current={sx:0,sy:0,active:false,mode:null};onSwipeRevealChange?.(false);setDragging(false);setDragX(0);},style:{minHeight:"100dvh",background:"var(--bg-gradient)",backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)",transform:dragX?`translateX(${dragX}px)`:"translateX(0)",transition:dragging?"none":"transform .08s ease-out",boxShadow:dragX?"-18px 0 34px rgba(0,0,0,.28)":"none",willChange:"transform",touchAction:"pan-y",overscrollBehavior:"contain"}},
     deleteTarget && React.createElement(DeleteModal,{log:deleteTarget,onClose:()=>setDeleteTarget(null),onConfirm:async()=>{ const log = deleteTarget; setDeleteTarget(null); await onDeleteLog(log); }}),
     React.createElement('div',{style:{maxWidth:740,margin:"0 auto",padding:"16px",display:"flex",flexDirection:"column",gap:12}},
     // Header row
-    compactMobile
-      ? React.createElement('div',{className:"fu",style:{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:14}},
-          React.createElement('div',{style:{display:"flex",alignItems:"center",gap:11,minWidth:0,flex:1}},
-            React.createElement(Avatar,{name,size:36}),
-            React.createElement('div',{style:{minWidth:0}},
-              React.createElement('span',{className:"lbl"},"Player Profile"),
-              React.createElement('div',{style:{fontSize:22,fontWeight:800,lineHeight:1.1}},name)
-            )
-          ),
-          React.createElement('div',{style:{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:8,flexShrink:0}},
-            React.createElement('button',{onClick:onBack,style:{background:"var(--s2)",border:"1px solid var(--border)",color:"var(--muted)",padding:"5px 10px",borderRadius:7,fontSize:13,fontFamily:"'JetBrains Mono',monospace",lineHeight:1.1}},"← Back"),
-            monthSelector
-          )
-        )
+	    compactMobile
+	      ? React.createElement('div',{className:"fu",style:{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:14}},
+	          React.createElement('div',{style:{display:"flex",alignItems:"center",gap:11,minWidth:0,flex:1}},
+	            React.createElement(Avatar,{name,size:36}),
+	            React.createElement('div',{style:{minWidth:0}},
+	              React.createElement('div',{style:{fontSize:22,fontWeight:800,lineHeight:1.1}},name)
+	            )
+	          ),
+	          React.createElement('div',{style:{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:8,flexShrink:0}},
+	            backButton,
+	            monthSelector
+	          )
+	        )
       : React.createElement('div',{className:"fu",style:{display:"grid",gridTemplateColumns:"1fr auto 1fr",gridTemplateRows:"auto auto",alignItems:"start",rowGap:10,columnGap:16}},
-          React.createElement('div',{style:{gridColumn:"1 / 2",gridRow:"1 / 2",justifySelf:"start",alignSelf:"center"}},
-            React.createElement('button',{onClick:onBack,style:{background:"var(--s2)",border:"1px solid var(--border)",color:"var(--muted)",padding:"5px 10px",borderRadius:7,fontSize:13,fontFamily:"'JetBrains Mono',monospace",lineHeight:1.1}},"← Back")
-          ),
-          React.createElement('div',{style:{gridColumn:"2 / 3",gridRow:"1 / 2",display:"flex",alignItems:"center",gap:11,minWidth:0,justifySelf:"center",textAlign:"center"}},
-            React.createElement(Avatar,{name,size:36}),
-            React.createElement('div',{style:{minWidth:0}},
-              React.createElement('span',{className:"lbl"},"Player Profile"),
-              React.createElement('div',{style:{fontSize:22,fontWeight:800,lineHeight:1.1}},name)
-            )
-          ),
+	          React.createElement('div',{style:{gridColumn:"1 / 2",gridRow:"1 / 2",justifySelf:"start",alignSelf:"center"}},
+	            backButton
+	          ),
+	          React.createElement('div',{style:{gridColumn:"2 / 3",gridRow:"1 / 2",display:"flex",alignItems:"center",gap:11,minWidth:0,justifySelf:"center",textAlign:"center"}},
+	            React.createElement(Avatar,{name,size:36}),
+	            React.createElement('div',{style:{minWidth:0}},
+	              React.createElement('div',{style:{fontSize:22,fontWeight:800,lineHeight:1.1}},name)
+	            )
+	          ),
           React.createElement('div',{style:{gridColumn:"3 / 4",gridRow:"1 / 2",justifySelf:"end",alignSelf:"center"}},
             monthSelector
           )
         ),
-    // Sit out banner
-    notJoinedBanner || sitOutBanner,
-    // Stats — always show summary cards
-    isJoinedThisMonth&&!isExcusedThisMonth&&React.createElement('div',{className:"fu2",style:{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}},
-      stats.slice(0,3).map(x=>React.createElement(Card,{key:x.label,style:{padding:"7px 9px"}},
-        React.createElement('span',{className:"lbl",style:{fontSize:9,marginBottom:2}},x.label),
-        React.createElement('div',{style:{fontSize:17,fontWeight:800,color:x.color,lineHeight:1}},x.val),
-        React.createElement('div',{style:{fontSize:x.subSize||10,color:x.subColor||"var(--muted)",marginTop:2}},x.sub),
-        x.subNote&&React.createElement('div',{className:"mono",style:{fontSize:8,color:"var(--muted)",marginTop:2,textTransform:"uppercase",letterSpacing:".08em"}},x.subNote)
-      ))
-    ),
-    isJoinedThisMonth&&!isExcusedThisMonth&&React.createElement('div',{className:"fu2",style:{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:8}},
-      stats.slice(3).map(x=>React.createElement(Card,{key:x.label,style:{padding:"7px 9px"}},
-        React.createElement('span',{className:"lbl",style:{fontSize:9,marginBottom:2}},x.label),
-        React.createElement('div',{style:{fontSize:16,fontWeight:800,color:x.color,lineHeight:1}},x.val),
-        React.createElement('div',{style:{fontSize:x.subSize||10,color:x.subColor||"var(--muted)",marginTop:2}},x.sub)
-      ))
-    ),
-    isJoinedThisMonth&&!isExcusedThisMonth&&React.createElement(Card,{className:"fu3",style:{padding:"16px"}},
-      React.createElement('div',{style:{fontWeight:800,fontSize:14,marginBottom:14}},`Workout Breakdown — ${selLabel}`),
-      !hasDetailedLogs
-        ? React.createElement('div',{style:{color:"var(--muted)",fontSize:13,textAlign:"center",padding:"8px 0"}},"Detailed logs were not saved for this month.")
-        : selCount===0
-        ? React.createElement('div',{style:{color:"var(--muted)",fontSize:13,textAlign:"center",padding:"8px 0"}},"No workouts logged yet.")
-        : WORKOUT_TYPES.map(t=>React.createElement('div',{key:t,style:{display:"flex",alignItems:"center",gap:10,marginBottom:9}},
-            React.createElement('span',{style:{width:22,minWidth:22,height:22,display:"inline-flex",alignItems:"center",justifyContent:"center",color:"#dbe8ff"}},React.createElement(WorkoutTypeIcon,{type:t,size:16})),
-            React.createElement('div',{style:{minWidth:40,fontSize:13,fontWeight:600}},t),
-            React.createElement('div',{style:{flex:1}},React.createElement(Bar,{value:tBreak[t],max:maxT,color:tBreak[t]===0?"#0D2828":t==="Gym"?"#4ECDC4":"#1E4040"})),
-            React.createElement('span',{className:"mono",style:{fontSize:13,fontWeight:700,minWidth:18,textAlign:"right",color:tBreak[t]>0?"var(--text)":"var(--muted2)"}},tBreak[t])
-          ))
-    ),
-    isJoinedThisMonth&&!isExcusedThisMonth&&React.createElement(Card,{className:"fu4",style:{padding:16}},
-      React.createElement('div',{style:{fontWeight:800,fontSize:14,marginBottom:12}},`${selLabel} · Log`),
-      React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3,marginBottom:5}},
-        ["S","M","T","W","T","F","S"].map((d,i)=>React.createElement('div',{key:i,className:"mono",style:{textAlign:"center",fontSize:9,color:"var(--muted2)",padding:"1px 0"}},d))
-      ),
-      React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:3}},
-        calDays.map((day,i)=>{
-          if(!day) return React.createElement('div',{key:`e${i}`});
-          const isToday=isCurMonth&&day===DAY_OF_MON,log=logsByDay[day],isFuture=isCurMonth&&day>DAY_OF_MON;
-          const canDelete = !!log && isCurMonth && !!onDeleteLog;
-          return React.createElement('div',{key:day, onClick: canDelete ? ()=>setDeleteTarget(log) : undefined, style:{aspectRatio:"1",display:"flex",alignItems:"center",justifyContent:"center",borderRadius:6,fontSize:log?13:10,fontFamily:log?"inherit":"'JetBrains Mono',monospace",fontWeight:log?700:400,background:log?"#1A2E4A":isToday?"var(--s2)":"transparent",color:log?"#4ECDC4":isFuture?"var(--muted2)":isToday?"var(--text)":"var(--muted)",border:isToday&&!log?"1px solid var(--border2)":"1px solid transparent",cursor:canDelete?"pointer":"default"}},log?React.createElement(WorkoutTypeIcon,{type:log.type,size:18}):day);
-        })
-      ),
-      hasDetailedLogs&&visibleSelLogs.length>0&&React.createElement('div',{style:{marginTop:14,borderTop:"1px solid var(--border)",paddingTop:12}},
-        React.createElement('span',{className:"lbl",style:{marginBottom:8}},"All Logs"),
-        ([...selLogs]).sort((a,b)=>String(b?.date || "").localeCompare(String(a?.date || ""))).map((l,i,arr)=>
-          React.createElement('div',{key:l.id,style:{display:"flex",alignItems:"center",gap:10,paddingBottom:7,marginBottom:7,borderBottom:i<arr.length-1?"1px solid var(--border)":"none"}},
-            React.createElement('span',{style:{width:20,height:20,display:"inline-flex",alignItems:"center",justifyContent:"center",color:"#dbe8ff"}},React.createElement(WorkoutTypeIcon,{type:l.type,size:15})),
-            React.createElement('div',{style:{flex:1,fontWeight:600,fontSize:14}},l.type),
-            React.createElement('span',{className:"mono",style:{fontSize:11,color:"var(--muted)"}},fmtISO(l.date))
-          )
-        )
-      )
-    )
-  ));
+	    // Sit out banner
+	    notJoinedBanner || sitOutBanner,
+	    // Stats — always show summary cards
+	    isJoinedThisMonth&&!isExcusedThisMonth&&React.createElement('div',{className:"fu2",style:{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}},
+	      stats.map(renderStatCard)
+	    ),
+	    isJoinedThisMonth&&!isExcusedThisMonth&&React.createElement(Card,{className:"fu3",style:{padding:"16px"}},
+	      React.createElement('div',{style:{fontWeight:800,fontSize:14,marginBottom:14}},`Workout Breakdown — ${selLabel}`),
+	      !hasDetailedLogs
+	        ? React.createElement('div',{style:{color:"var(--muted)",fontSize:13,textAlign:"center",padding:"8px 0"}},"Detailed logs were not saved for this month.")
+	      : selCount===0
+	        ? React.createElement('div',{style:{color:"var(--muted)",fontSize:13,textAlign:"center",padding:"8px 0"}},"No workouts logged yet.")
+	        : workoutBreakdownRows.map(t=>React.createElement('div',{key:t,style:{display:"flex",alignItems:"center",gap:10,marginBottom:9}},
+	            React.createElement('span',{style:{width:22,minWidth:22,height:22,display:"inline-flex",alignItems:"center",justifyContent:"center",color:"#dbe8ff"}},React.createElement(WorkoutTypeIcon,{type:t,size:16})),
+	            React.createElement('div',{style:{minWidth:40,fontSize:13,fontWeight:600}},t),
+	            React.createElement('div',{style:{flex:1}},React.createElement(Bar,{value:tBreak[t],max:maxT,color:t==="Gym"?"#4ECDC4":"#1E4040"})),
+	            React.createElement('span',{className:"mono",style:{fontSize:13,fontWeight:700,minWidth:18,textAlign:"right",color:tBreak[t]>0?"var(--text)":"var(--muted2)"}},tBreak[t])
+	          ))
+	    ),
+	    isJoinedThisMonth&&!isExcusedThisMonth&&React.createElement(Card,{className:"fu4",style:{padding:"13px 14px"}},
+	      React.createElement('div',{style:{fontWeight:800,fontSize:14,marginBottom:12}},`${selLabel} · Log`),
+	      React.createElement('div',{style:{maxWidth:compactMobile?318:380,margin:"0 auto"}},
+	      React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2,marginBottom:4}},
+	        ["S","M","T","W","T","F","S"].map((d,i)=>React.createElement('div',{key:i,className:"mono",style:{textAlign:"center",fontSize:9,color:"var(--muted2)",padding:"1px 0"}},d))
+	      ),
+	      React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2}},
+	        calDays.map((day,i)=>{
+	          if(!day) return React.createElement('div',{key:`e${i}`});
+	          const isToday=isCurMonth&&day===DAY_OF_MON,log=logsByDay[day],isFuture=isCurMonth&&day>DAY_OF_MON;
+	          const canDelete = !!log && isCurMonth && !!onDeleteLog;
+	          return React.createElement('div',{key:day, onClick: canDelete ? ()=>setDeleteTarget(log) : undefined, style:{aspectRatio:"1",display:"flex",alignItems:"center",justifyContent:"center",borderRadius:5,fontSize:log?11:9,fontFamily:log?"inherit":"'JetBrains Mono',monospace",fontWeight:log?700:400,background:log?"#1A2E4A":isToday?"var(--s2)":"transparent",color:log?"#4ECDC4":isFuture?"var(--muted2)":isToday?"var(--text)":"var(--muted)",border:isToday&&!log?"1px solid var(--border2)":"1px solid transparent",cursor:canDelete?"pointer":"default"}},log?React.createElement(WorkoutTypeIcon,{type:log.type,size:15}):day);
+	        })
+	      )
+	      )
+	    ),
+	    premiumSection
+	  ));
 };
 
 // ─── TODAY PAGE ───────────────────────────────────────────────────────────────
