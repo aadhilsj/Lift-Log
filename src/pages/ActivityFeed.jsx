@@ -230,10 +230,10 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
                       )
                     )
                   ),
-                  reactionTarget===post.id && React.createElement('div',{style:{marginTop:8,padding:"10px 12px",borderRadius:12,background:"var(--s1)",border:"1px solid var(--border)",display:"grid",gap:10}},
-                    React.createElement('div',{style:{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}},
+                  reactionTarget===post.id && React.createElement('div',{style:{marginTop:8,padding:"7px 8px",borderRadius:10,background:"var(--s1)",border:"1px solid var(--border)",display:"grid",gap:6,overflowX:"auto",WebkitOverflowScrolling:"touch"}},
+                    React.createElement('div',{style:{display:"flex",alignItems:"center",gap:5,flexWrap:"nowrap",justifyContent:"center",minWidth:"max-content"}},
                       QUICK_REACTIONS.map(emoji=>
-                        React.createElement('button',{key:emoji,type:"button",onClick:()=>{ onReact(post.owner, post.id, emoji); setReactionTarget(null); },style:{width:36,height:36,borderRadius:999,background:"var(--s2)",border:"1px solid var(--border)",fontSize:20,color:"var(--text)"}},emoji)
+                        React.createElement('button',{key:emoji,type:"button",onClick:()=>{ onReact(post.owner, post.id, emoji); setReactionTarget(null); },style:{width:24,height:24,borderRadius:999,background:"var(--s2)",border:"1px solid var(--border)",fontSize:13,color:"var(--text)",display:"inline-flex",alignItems:"center",justifyContent:"center",padding:0,flex:"0 0 auto"}},emoji)
                       )
                     )
                   )
