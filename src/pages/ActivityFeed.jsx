@@ -89,9 +89,9 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
       )
     )
   );
-  const renderReactionRow = (post, compact=false, suppressFloating=false) => {
+  const renderReactionRow = (post, compact=false, suppressFloating=false, centered=false) => {
     const reactionEntries = Object.entries(post.reactions || {}).sort((a,b)=>b[1].length-a[1].length);
-    return React.createElement('div',{style:{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",paddingTop:compact?0:6,marginLeft:compact?-2:0}},
+    return React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:centered?"center":"flex-start",gap:6,flexWrap:"wrap",paddingTop:compact?0:6,marginLeft:centered?0:(compact?-2:0)}},
       reactionEntries.map(([emoji, members])=>{
         const active = members.includes(currentUser);
         const reactionKey = `${post.id}:${emoji}`;
@@ -156,7 +156,7 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
         "Report"
       ),
       React.createElement('div',{onClick:e=>e.stopPropagation(),onPointerDown:handlePhotoPointerDown,onPointerUp:handlePhotoPointerUp,style:{width:"100%",maxWidth:720,maxHeight:"92vh",display:"flex",flexDirection:"column",gap:10}},
-        React.createElement('div',{style:{display:"flex",alignItems:"center",gap:7,minWidth:0,whiteSpace:"nowrap",padding:"0 2px"}},
+        React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"center",gap:7,minWidth:0,whiteSpace:"nowrap",padding:"0 2px",textAlign:"center"}},
           React.createElement(Avatar,{name:imagePost.owner,size:28}),
           React.createElement('span',{style:{fontWeight:600,fontSize:13,color:"#fff",minWidth:0,overflow:"hidden",textOverflow:"ellipsis",flex:"0 1 auto",maxWidth:compactFeed?118:220}},imagePost.owner),
           React.createElement('span',{style:{display:"inline-flex",alignItems:"center",gap:4,color:"var(--muted)",fontSize:11.5,flexShrink:0}},
@@ -166,8 +166,8 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
           React.createElement('span',{className:"mono",style:{fontSize:9,color:"var(--muted2)",letterSpacing:"-.01em",flexShrink:0}},formatShortDate(imagePost.date))
         ),
         React.createElement('img',{src:imagePost.photoUrl,alt:`${imagePost.owner} ${imagePost.type}`,style:{display:"block",width:"100%",maxHeight:compactFeed?"62vh":"68vh",objectFit:"contain",borderRadius:12,background:"#050507",boxShadow:"0 24px 60px rgba(0,0,0,.45)"}}),
-        React.createElement('div',{style:{padding:"0 2px"}},renderReactionRow(imagePost,false)),
-        imagePost.note && React.createElement('div',{style:{fontSize:14,lineHeight:1.45,color:"var(--text-soft)",fontStyle:"italic",whiteSpace:"pre-wrap",padding:"0 2px",overflowY:"auto",maxHeight:"18vh"}},imagePost.note)
+        React.createElement('div',{style:{padding:"0 2px"}},renderReactionRow(imagePost,false,false,true)),
+        imagePost.note && React.createElement('div',{style:{fontSize:14,lineHeight:1.45,color:"var(--text-soft)",fontStyle:"italic",whiteSpace:"pre-wrap",padding:"0 2px",overflowY:"auto",maxHeight:"18vh",textAlign:"center"}},imagePost.note)
       )
     );
   };
