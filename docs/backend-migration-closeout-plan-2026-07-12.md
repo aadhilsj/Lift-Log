@@ -1935,3 +1935,82 @@ Remaining estimate after Batch 31:
   mirrored and the final closeout is documentation/audit only
 - realistic 1-2 backend batches if delete-account gets one dedicated preview
   soak before closeout
+
+## Batch 32 - Backend Mirror-Skip Closeout Policy
+
+Batch 32 started on 2026-07-18 after Batch 31 preview smoke passed for the
+create/proration/log/delete-log/react/leave chain. Invite join was not manually
+smoked, but the join path is report-covered and now tolerates canonical-only
+blob-shell precheck misses.
+
+Decision:
+
+- do not enable `delete-account` mirror skip
+- do not enable `upsert-profile` mirror skip
+- treat this as intentional closeout, not unfinished normal-write migration
+
+Why `delete-account` stays mirrored:
+
+- it is destructive and global
+- canonical deletion already happens before blob persistence
+- skipping the blob mirror after canonical profile deletion could leave stale
+  blob profile/group shells behind
+- the read side still has compatibility fallback behavior, so stale blob residue
+  could reappear later in edge cases
+- this should wait until account deletion no longer needs blob cleanup, not be
+  used as a proving-ground skip action
+
+Why `upsert-profile` stays mirrored:
+
+- profile rename still touches broad display-name keyed compatibility surfaces
+- current/open rename behavior is canonical-first, but full identity-rename
+  parity still has historical-shell noise
+- rename remains a high-risk identity compatibility path until display-name keyed
+  historical shells are fully retired
+
+Code/report cleanup:
+
+- removed `upsert-profile` and `delete-account` from
+  `BLOB_MIRROR_SKIP_ALLOWED_ACTIONS`
+- removed them from `BLOB_MIRROR_SKIP_WIRED_ACTIONS`
+- updated readiness reporting so those actions are explicitly blocked/retained
+  as mirrored compatibility paths
+- updated the next-safe-move text to reflect the current endpoint: normal
+  canonical product writes can skip the blob; repair/destructive/compatibility
+  paths stay mirrored
+
+Current preview skip scope:
+
+`BLOB_MIRROR_SKIP_ACTIONS=create-group,leave-bloc,kick-member,join-group,update-settings,season-proration-choice,reaction,flag,flag-response,flag-review,delete-log,add-log,multi-log`
+
+Still intentionally mirrored:
+
+- `auth-sync`
+- `repair-display-name`
+- `upsert-profile`
+- `delete-account`
+- `sitout-request`
+- `sitout-review`
+- legacy/admin settlement actions
+
+Backend migration status after this batch:
+
+- normal high-traffic product writes are canonical-authoritative and skip the
+  blob mirror on the preview branch
+- remaining mirrored paths are not ordinary app-write blockers; they are legacy
+  repair, destructive cleanup, or compatibility-shell paths
+- the next real step is to promote/soak the current skip set as product policy,
+  then separately retire compatibility shells when auth/profile/delete cleanup
+  no longer depends on the blob
+
+Next smoke focus:
+
+- sign in / blocs load
+- create/proration/log/delete-log/react/leave sanity
+- no account deletion or profile rename smoke required for this closeout batch
+
+Remaining estimate after Batch 32:
+
+- backend migration batches: 0 normal-write batches left
+- optional future compatibility-retirement work remains for auth/profile/delete
+  cleanup and full blob shell deletion

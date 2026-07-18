@@ -53,7 +53,6 @@ const WRITE_HYDRATION_PARITY_ACTIONS = new Set(
 );
 const BLOB_MIRROR_SKIP_ALLOWED_ACTIONS = new Set([
   "create-group",
-  "upsert-profile",
   "join-group",
   "kick-member",
   "leave-bloc",
@@ -65,12 +64,10 @@ const BLOB_MIRROR_SKIP_ALLOWED_ACTIONS = new Set([
   "flag",
   "flag-response",
   "flag-review",
-  "delete-log",
-  "delete-account"
+  "delete-log"
 ]);
 const BLOB_MIRROR_SKIP_WIRED_ACTIONS = new Set([
   "create-group",
-  "upsert-profile",
   "join-group",
   "kick-member",
   "leave-bloc",
@@ -82,8 +79,7 @@ const BLOB_MIRROR_SKIP_WIRED_ACTIONS = new Set([
   "flag",
   "flag-response",
   "flag-review",
-  "delete-log",
-  "delete-account"
+  "delete-log"
 ]);
 const BLOB_MIRROR_SKIP_ACTIONS = new Set(
   String(process.env.BLOB_MIRROR_SKIP_ACTIONS || "")
@@ -172,9 +168,9 @@ const BLOB_MIRROR_DEPENDENCY_AUDIT = {
     }
   ],
   nextRetirementBatches: [
-    "Soak a disabled-by-default mirror-skip flag for narrow current/open action families.",
-    "Stop blob writes only for those small action families after proving the canonical revision clock drives polling correctly.",
-    "Keep auth-sync and repair-display-name out of blob-write retirement until replacement repair paths exist."
+    "Keep normal current/open product writes on canonical authority with blob mirror skipping enabled by environment.",
+    "Keep auth-sync, repair-display-name, upsert-profile, delete-account, sit-out review/request, and legacy settlement mirrored until their compatibility fallbacks are explicitly retired.",
+    "Retire the blob compatibility shell only after auth/profile repair and destructive account deletion no longer need stale blob cleanup."
   ]
 };
 const BLOB_MIRROR_RETIREMENT_READINESS = {
@@ -200,7 +196,7 @@ const BLOB_MIRROR_RETIREMENT_READINESS = {
         "delete-log"
       ],
       status: "candidate-after-canonical-revision",
-      reason: "These narrow current/open actions already compute post-action state from canonical writable input and have focused parity probes."
+      reason: "These narrow current/open actions compute post-action state from canonical writable input and have focused parity probes."
     },
     {
       actionFamilies: [
@@ -208,7 +204,17 @@ const BLOB_MIRROR_RETIREMENT_READINESS = {
         "multi-log"
       ],
       status: "candidate-after-canonical-revision-and-log-soak",
-      reason: "Workout writes are canonical-input now, but they are high-traffic and directly user-visible, so they should follow the narrower action families."
+      reason: "Workout writes are canonical-input, high-traffic, and now soaked through the preview mirror-skip flag."
+    },
+    {
+      actionFamilies: [
+        "create-group",
+        "join-group",
+        "leave-bloc",
+        "kick-member"
+      ],
+      status: "preview-soak-enabled",
+      reason: "Auth-linked lifecycle writes now compute from canonical writable state and have canonical-only shell guards where needed."
     }
   ],
   blockedActionFamilies: [
@@ -223,14 +229,19 @@ const BLOB_MIRROR_RETIREMENT_READINESS = {
       reason: "This is a quarantined legacy name-keyed repair path and should not be used as a mirror-retirement proving ground."
     },
     {
-      actionFamilies: ["create-group", "join-group", "leave-bloc", "kick-member", "delete-account", "upsert-profile"],
-      blocker: "membership-lifecycle-scope",
-      reason: "These mutate global membership/profile/lifecycle state and should wait until the low-risk current/open families prove the skip path."
+      actionFamilies: ["upsert-profile"],
+      blocker: "identity-rename-historical-shell-scope",
+      reason: "Profile rename still rewrites broad display-name keyed compatibility surfaces; full identity-rename parity has known historical shell noise."
     },
     {
-      actionFamilies: ["settlement"],
+      actionFamilies: ["delete-account"],
+      blocker: "destructive-stale-blob-cleanup-scope",
+      reason: "Skipping the blob mirror after canonical profile deletion can leave stale blob profile/group shells visible to compatibility fallback paths."
+    },
+    {
+      actionFamilies: ["sitout-request", "sitout-review", "settlement"],
       blocker: "historical-closed-month-scope",
-      reason: "Legacy settlement toggles touch closed-month compatibility shells, so they should wait until historical shell dependencies are retired or explicitly accepted."
+      reason: "These remain mirrored until historical/current sit-out and settlement compatibility shells are explicitly retired or accepted."
     }
   ],
   requiredBeforeFirstSkip: [
@@ -3628,7 +3639,7 @@ async function buildBlobMirrorRetirementReadinessReport(baseState) {
     trueBlobInputAuthorities: dependencyReport.trueBlobInputAuthorities.map(entry => entry.action),
     requiredBeforeFirstSkip: BLOB_MIRROR_RETIREMENT_READINESS.requiredBeforeFirstSkip,
     nextSafeMove: revisionStamp.canonicalRevisionAvailable
-      ? "Enable BLOB_MIRROR_SKIP_ACTIONS=season-proration-choice,reaction,flag,flag-response,flag-review,delete-log in preview for a narrow mirror-skip soak, then inspect dependency/readiness reports and smoke behavior."
+      ? "Keep the current preview skip set to normal canonical product writes; leave auth/profile repair, account deletion, sit-out, and settlement compatibility paths mirrored until their fallback dependencies are retired."
       : "Apply the canonical revision clock RPC before disabling blob writes for any action family."
   };
 }
