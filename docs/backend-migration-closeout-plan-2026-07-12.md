@@ -1835,3 +1835,49 @@ Remaining estimate after Batch 29:
   be handled cleanly
 - realistic 2-3 backend batches if delete-account needs a dedicated precheck
   fix before its soak
+
+## Batch 30 - Global Canonical Writable State Includes Canonical-Only Blocs
+
+Batch 30 started on 2026-07-18 after Batch 29 preview smoke passed for the
+create/proration/log/react/leave chain. Auth-linked kick was not manually
+smoked, but risk was accepted because the runtime change only moved the final
+mirror/skip decision and the path already had current/open report coverage.
+
+Why this batch exists:
+
+- `delete-account` is a global action and must see every bloc the account owns
+  or belongs to
+- `buildCanonicalWritableStateForAllGroups(...)` previously iterated blob
+  `groupOrder` / blob `groups` only
+- after `create-group` mirror skip, a user can own a canonical-only bloc with no
+  blob shell
+- a global delete computed from a blob-only group list could miss that
+  canonical-only bloc
+
+Implemented:
+
+- `buildCanonicalWritableStateForAllGroups(...)` now includes canonical
+  `ante_core` bloc ids in addition to blob group ids
+- each group is still rebuilt through
+  `buildCanonicalWritableStateForGroup(...)`, so canonical-only shell synthesis
+  stays centralized
+- no env changes in this batch
+
+Decision:
+
+- keep `delete-account` mirror skip disabled until this code prep is smoke
+  tested
+- keep `join-group` and `upsert-profile` disabled
+- keep Production unchanged
+
+Next smoke focus:
+
+- sign in / blocs load
+- create/proration/log/leave sanity if convenient
+- account deletion does not need to be tested in this prep batch
+
+Remaining estimate after Batch 30:
+
+- minimum 2 backend batches: one for delete-account/upsert-profile decisioning,
+  one for join-group/final closeout
+- realistic 2-3 backend batches if join-group needs a dedicated fix/soak

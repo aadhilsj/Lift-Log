@@ -3460,9 +3460,14 @@ async function buildCanonicalWritableStateForAllGroups(baseStateOverride = null)
   const baseState = baseStateOverride
     ? normalizeState(baseStateOverride)
     : await fetchCurrentStateFromSupabase();
-  const groupIds = Array.isArray(baseState.groupOrder) && baseState.groupOrder.length
+  const anteBlocs = await fetchAnteBlocs();
+  const baseGroupIds = Array.isArray(baseState.groupOrder) && baseState.groupOrder.length
     ? baseState.groupOrder
     : Object.keys(baseState.groups || {});
+  const groupIds = uniqueNames([
+    ...baseGroupIds,
+    ...Object.keys(anteBlocs || {})
+  ]);
   let state = baseState;
   for (const groupId of groupIds) {
     state = await buildCanonicalWritableStateForGroup(groupId, state);
