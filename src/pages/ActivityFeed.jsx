@@ -129,11 +129,12 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
                   React.createElement('div',{style:{height:1,flex:1,background:"rgba(78,205,196,.18)"}})
                 ),
                 React.createElement('div',{style:{
+                  position:"relative",
                   border:`0.75px solid ${post.flagStatus==="flagged"?"rgba(232,69,69,.38)":"rgba(42,82,78,.64)"}`,
                   borderRadius:10,
                   background:"radial-gradient(circle at 14% 0%, rgba(255,255,255,.019), transparent 34%), radial-gradient(circle at 92% 100%, rgba(78,205,196,.024), transparent 40%), linear-gradient(180deg, rgba(7,16,16,.99), rgba(5,12,12,.99))",
                   boxShadow:"inset 0 1px 0 rgba(255,255,255,.028), 0 3px 9px rgba(0,0,0,.09)",
-                  overflow:"hidden"
+                  overflow:"visible"
                 }},
                 hasThumbnail
                 ? React.createElement('div',{style:{padding:"10px 14px 10px"}},
@@ -230,7 +231,7 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
                       )
                     )
                   ),
-                  reactionTarget===post.id && React.createElement('div',{style:{width:"max-content",maxWidth:"calc(100% - 28px)",margin:"8px auto 0",padding:"6px 8px",borderRadius:10,background:"rgba(8,15,15,.82)",boxShadow:"0 10px 22px rgba(0,0,0,.18)",display:"grid",gap:6,overflowX:"auto",WebkitOverflowScrolling:"touch"}},
+                  reactionTarget===post.id && React.createElement('div',{style:{position:"absolute",right:10,bottom:34,zIndex:6,width:"max-content",maxWidth:"calc(100% - 20px)",padding:"6px 8px",borderRadius:999,background:"rgba(8,15,15,.96)",border:"1px solid rgba(78,205,196,.16)",boxShadow:"0 14px 32px rgba(0,0,0,.34), inset 0 1px 0 rgba(255,255,255,.05)",display:"grid",gap:6,overflowX:"auto",WebkitOverflowScrolling:"touch"}},
                     React.createElement('div',{style:{display:"flex",alignItems:"center",gap:5,flexWrap:"nowrap",justifyContent:"center",minWidth:"max-content"}},
                       QUICK_REACTIONS.map(emoji=>
                         React.createElement('button',{key:emoji,type:"button",onClick:()=>{ onReact(post.owner, post.id, emoji); setReactionTarget(null); },style:{width:24,height:24,borderRadius:999,background:"var(--s2)",border:"1px solid var(--border)",fontSize:13,color:"var(--text)",display:"inline-flex",alignItems:"center",justifyContent:"center",padding:0,flex:"0 0 auto"}},emoji)
