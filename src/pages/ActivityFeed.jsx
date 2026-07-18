@@ -27,6 +27,7 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
   const reactionLongPressKey = useRef("");
   const reactionSuppressClickKey = useRef("");
   const reactionPopoverRef = useRef(null);
+  const reactionPickerRef = useRef(null);
   const feedPosts = useMemo(()=>flattenFeedPosts(group),[group]);
   const isAdmin = group?.adminName === currentUser;
   const approvedFlagCount = countApprovedFlagsForActor(group, currentUser);
@@ -42,6 +43,16 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
     document.addEventListener("pointerdown", handlePointerDown);
     return ()=>document.removeEventListener("pointerdown", handlePointerDown);
   },[reactionPopover]);
+  useEffect(()=>{
+    if (!reactionTarget) return;
+    const handlePointerDown = event => {
+      if (reactionPickerRef.current && !reactionPickerRef.current.contains(event.target)) {
+        setReactionTarget(null);
+      }
+    };
+    document.addEventListener("pointerdown", handlePointerDown);
+    return ()=>document.removeEventListener("pointerdown", handlePointerDown);
+  },[reactionTarget]);
   const clearReactionTimer = () => {
     if (reactionPressTimer.current) {
       clearTimeout(reactionPressTimer.current);
@@ -179,7 +190,7 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
                               )
                             );
                           }),
-                          React.createElement('div',{style:{position:"relative",display:"inline-flex"}},
+                          React.createElement('div',{ref:reactionTarget===post.id?reactionPickerRef:null,style:{position:"relative",display:"inline-flex"}},
                             React.createElement('button',{type:"button",onClick:()=>setReactionTarget(reactionTarget===post.id?null:post.id),style:{height:22,padding:"0 7px",borderRadius:999,background:"var(--s1)",border:"1px solid var(--border)",fontSize:10.5,color:"var(--muted)"}},"＋"),
                             renderReactionPicker(post)
                           )
@@ -220,7 +231,7 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
                           )
                         );
                       }),
-                      React.createElement('div',{style:{position:"relative",display:"inline-flex"}},
+                      React.createElement('div',{ref:reactionTarget===post.id?reactionPickerRef:null,style:{position:"relative",display:"inline-flex"}},
                         React.createElement('button',{type:"button",onClick:()=>setReactionTarget(reactionTarget===post.id?null:post.id),style:{height:20,padding:"0 6px",borderRadius:999,background:"var(--s1)",border:"1px solid var(--border)",fontSize:10.5,color:"var(--muted)"}},"＋"),
                         renderReactionPicker(post)
                       )
