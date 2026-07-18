@@ -29,6 +29,7 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
   const reactionPopoverRef = useRef(null);
   const reactionPickerRef = useRef(null);
   const photoSwipeStart = useRef(null);
+  const photoSwipeHandled = useRef(false);
   const feedPosts = useMemo(()=>flattenFeedPosts(group),[group]);
   const photoFeedPosts = useMemo(()=>feedPosts.filter(post=>post.photoUrl),[feedPosts]);
   const isAdmin = group?.adminName === currentUser;
@@ -144,6 +145,7 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
   };
   const handlePhotoPointerDown = event => {
     photoSwipeStart.current = {x:event.clientX,y:event.clientY};
+    photoSwipeHandled.current = false;
   };
   const handlePhotoPointerUp = event => {
     const start = photoSwipeStart.current;
@@ -152,7 +154,18 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
     const dx = event.clientX - start.x;
     const dy = event.clientY - start.y;
     if (Math.abs(dx) < 48 || Math.abs(dx) < Math.abs(dy) * 1.2) return;
+    photoSwipeHandled.current = true;
     navigateImage(dx < 0 ? 1 : -1);
+  };
+  const handlePhotoTap = event => {
+    event.stopPropagation();
+    if (photoSwipeHandled.current) {
+      photoSwipeHandled.current = false;
+      return;
+    }
+    const rect = event.currentTarget.getBoundingClientRect();
+    const tappedLeft = event.clientX - rect.left < rect.width / 2;
+    navigateImage(tappedLeft ? -1 : 1);
   };
   const renderExpandedPhoto = () => {
     if (!imagePost) return null;
@@ -176,7 +189,7 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
           ),
           React.createElement('span',{className:"mono",style:{fontSize:8,color:"var(--muted2)",letterSpacing:"-.01em",flexShrink:0}},formatShortDate(imagePost.date))
         ),
-        React.createElement('img',{src:imagePost.photoUrl,alt:`${imagePost.owner} ${imagePost.type}`,onClick:e=>{e.stopPropagation();navigateImage(1);},style:{display:"block",width:"100%",maxHeight:compactFeed?"62vh":"68vh",objectFit:"contain",borderRadius:12,background:"#050507",boxShadow:"0 24px 60px rgba(0,0,0,.45)",cursor:"pointer"}}),
+        React.createElement('img',{src:imagePost.photoUrl,alt:`${imagePost.owner} ${imagePost.type}`,onClick:handlePhotoTap,style:{display:"block",width:"100%",maxHeight:compactFeed?"62vh":"68vh",objectFit:"contain",borderRadius:12,background:"#050507",boxShadow:"0 24px 60px rgba(0,0,0,.45)",cursor:"pointer"}}),
         React.createElement('div',{style:{padding:"0 2px"}},renderReactionRow(imagePost,false,false,true)),
         imagePost.note && React.createElement('div',{style:{fontSize:14,lineHeight:1.45,color:"var(--text-soft)",fontStyle:"italic",whiteSpace:"pre-wrap",padding:"0 2px",overflowY:"auto",maxHeight:"18vh",textAlign:"center"}},imagePost.note)
       )
