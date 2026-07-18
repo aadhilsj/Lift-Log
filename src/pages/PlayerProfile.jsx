@@ -215,7 +215,7 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
     {label:"Workouts",val:selCount||"—",sub:null,color:"var(--text)"},
     {label:"Average",val:closedStats.avg,sub:null,color:"var(--text)"},
     {label:"Target",valueNode:needed===0?React.createElement(TargetHitHexIcon,{size:22}):needed,sub:needed===0?"target hit!":`more to go`,subNote:isCurMonth&&currentTargetInfo?.prorationSource==="member"?"joined mid-month":isCurMonth&&currentMonthOverride?.prorated?"prorated":null,color:"#4ECDC4"},
-    {label:"Perfect Month",val:perfectMonthStats.count||"—",sub:null,color:"var(--text)"},
+    {label:"Perfect Months",val:perfectMonthStats.count||"—",sub:null,color:"var(--text)"},
     {label:"Months Won",val:hasHistory?(closedStats.wins||"—"):"—",sub:null,color:hasHistory&&closedStats.wins>0?"var(--gold)":"var(--muted)"},
     {label:"Keeping Score",val:hasHistory?(netPL===0?fmtCurrency(0,currency):`${netPL>0?"+":"-"}${fmtCurrency(Math.abs(netPL),currency)}`):"—",sub:null,color:hasHistory?(netPL>0?"var(--green)":netPL<0?"var(--red)":"var(--muted)"):"var(--muted)"},
   ];
@@ -262,7 +262,7 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
     React.createElement(AppIcon,{name:"chevron-left",size:13,stroke:"#1E4040"}),
     "Back"
   );
-  const renderStatCard = x => React.createElement(Card,{key:x.label,style:{padding:"6px 7px",minWidth:0,textAlign:"center",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:x.sub||x.subNote?3:5}},
+  const renderStatCard = x => React.createElement(Card,{key:x.label,style:{padding:"6px 7px",minWidth:0,textAlign:"center",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:x.sub||x.subNote?3:5,background:"radial-gradient(circle at 18% 0%, rgba(255,255,255,.026), transparent 36%), radial-gradient(circle at 86% 100%, rgba(78,205,196,.035), transparent 42%), linear-gradient(180deg, rgba(10,19,19,.985), rgba(7,14,14,.985))",border:"0.5px solid rgba(31,70,66,.72)",boxShadow:"inset 0 1px 0 rgba(255,255,255,.028), 0 4px 10px rgba(0,0,0,.10)"}},
     React.createElement('span',{style:{...labelStyle,display:"flex",alignItems:"center",justifyContent:"center",gap:4,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",textAlign:"center",width:"100%"}},
       x.icon,
       x.label
