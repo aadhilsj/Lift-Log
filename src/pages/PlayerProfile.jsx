@@ -41,7 +41,6 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
   const [dragX,setDragX]=useState(0);
   const [dragging,setDragging]=useState(false);
   const swipeRef=useRef({sx:0,sy:0,active:false,mode:null});
-  const workoutTrendRef = useRef(null);
   const currency = groupSettings?.currency || DEFAULT_CURRENCY;
   const [selMonthIdx,setSelMonthIdx]=useState(null); // null = current month
   const appliedInitialMonthKeyRef = useRef(null);
@@ -63,7 +62,7 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
   useEffect(()=>{
     if (!sparkDetailKey) return;
     const clearTrendDetail = event => {
-      if (workoutTrendRef.current && !workoutTrendRef.current.contains(event.target)) {
+      if (!event.target?.closest?.('[data-workout-trend-dot="true"]')) {
         setSparkDetailKey(null);
       }
     };
@@ -302,7 +301,6 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
         React.createElement('div',{style:{fontFamily:"'Outfit',sans-serif",fontSize:18,fontWeight:800,lineHeight:1,color:"var(--text)",marginBottom:7}},bestBlocMonth ? profileMonthLabel(bestBlocMonth) : "—"),
         React.createElement('div',{style:{fontFamily:"'Outfit',sans-serif",fontSize:11,color:"var(--muted)"}},bestBlocMonth ? `${bestBlocMonth.count} workouts` : "No workouts yet")
       ),
-      React.createElement('div',{ref:workoutTrendRef},
       React.createElement(Card,{style:{padding:"14px 12px 13px",textAlign:"center",background:"radial-gradient(circle at 16% 0%, rgba(255,255,255,.032), transparent 34%), radial-gradient(circle at 92% 100%, rgba(78,205,196,.052), transparent 42%), linear-gradient(180deg, rgba(10,19,19,.99), rgba(7,14,14,.99))",boxShadow:"inset 0 1px 0 rgba(255,255,255,.04), 0 8px 18px rgba(0,0,0,.14)"}},
         React.createElement('span',{style:{...labelStyle,fontSize:9,display:"block",textAlign:"center",marginBottom:10}},"Workout Trend: 2026"),
         sparkMonths.length
@@ -317,8 +315,8 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
                 React.createElement('line',{x1:0,y1:16,x2:0,y2:112,stroke:"rgba(78,205,196,.18)",strokeWidth:1,vectorEffect:"non-scaling-stroke"}),
                 React.createElement('polyline',{points:sparkPoints,fill:"none",stroke:"#4ECDC4",strokeWidth:2.2,strokeLinecap:"round",strokeLinejoin:"round",vectorEffect:"non-scaling-stroke"})
               ),
-              sparkCoords.map(p=>React.createElement('button',{key:p.month.key,type:"button",onClick:()=>setSparkDetailKey(k=>k===p.month.key?null:p.month.key),style:{position:"absolute",left:`${p.x}%`,top:`${(p.y/124)*128}px`,width:24,height:24,transform:"translate(-50%,-50%)",border:"none",background:"transparent",padding:0,display:"inline-flex",alignItems:"center",justifyContent:"center",cursor:"pointer",touchAction:"manipulation"}},
-                React.createElement('span',{style:{width:p.month.key===sparkDetailKey?6:5,height:p.month.key===sparkDetailKey?6:5,borderRadius:999,background:p.month.key===sparkDetailKey?"#FFFFFF":"#4ECDC4",border:"1px solid rgba(5,12,12,.95)",boxShadow:"0 1px 3px rgba(78,205,196,.38)",display:"block"}})
+              sparkCoords.map(p=>React.createElement('button',{key:p.month.key,type:"button","data-workout-trend-dot":"true",onClick:()=>setSparkDetailKey(k=>k===p.month.key?null:p.month.key),style:{position:"absolute",left:`${p.x}%`,top:`${(p.y/124)*128}px`,width:24,height:24,transform:"translate(-50%,-50%)",border:"none",background:"transparent",padding:0,display:"inline-flex",alignItems:"center",justifyContent:"center",cursor:"pointer",touchAction:"manipulation"}},
+                React.createElement('span',{style:{width:p.month.key===sparkDetailKey?6:5,height:p.month.key===sparkDetailKey?6:5,borderRadius:999,background:p.month.key===sparkDetailKey?"#FFFFFF":"rgba(255,255,255,.86)",border:"1px solid rgba(5,12,12,.95)",boxShadow:p.month.key===sparkDetailKey?"0 1px 5px rgba(255,255,255,.36)":"0 1px 3px rgba(255,255,255,.24)",display:"block"}})
               )),
               React.createElement('div',{style:{display:"grid",gridTemplateColumns:`repeat(${sparkMonths.length},1fr)`,gap:2,marginTop:3}},
                 sparkMonths.map(m=>React.createElement('span',{key:m.key,style:{fontFamily:"'Outfit',sans-serif",fontSize:8.5,color:"var(--muted)",textAlign:"center"}},MONTH_NAMES[m.month]?.slice(0,3)||"—"))
@@ -328,7 +326,7 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
               selectedSparkMonth&&React.createElement('div',{style:{fontFamily:"'Outfit',sans-serif",fontSize:11,color:"var(--text)",marginTop:7,textAlign:"center"}},`${profileMonthLabel(selectedSparkMonth)} · ${selectedSparkMonth.count} workouts`)
             )
           : React.createElement('div',{style:{fontSize:12,color:"var(--muted)",padding:"9px 0",textAlign:"center"}},"No monthly data yet.")
-      ))
+      )
     )
   );
 
