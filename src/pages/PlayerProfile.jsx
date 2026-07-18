@@ -174,7 +174,7 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
   const selYear = isCurMonth ? CUR_YEAR : (selHistMonth?.year ?? CUR_YEAR);
   const selMonthNum = isCurMonth ? CUR_MONTH : (selHistMonth?.month ?? CUR_MONTH);
   const selDaysInMonth = new Date(selYear, selMonthNum + 1, 0).getDate();
-  const firstDay=new Date(selYear, selMonthNum, 1).getDay();
+  const firstDay=(new Date(selYear, selMonthNum, 1).getDay()+6)%7;
   const calDays=[...Array(firstDay).fill(null),...Array.from({length:selDaysInMonth},(_,i)=>i+1)];
   const logsByDay={};
   selLogs.forEach(l=>{
@@ -353,7 +353,7 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
 	      React.createElement('div',{style:{fontWeight:800,fontSize:14,marginBottom:12}},`${selLabel} · Log`),
 	      React.createElement('div',{style:{maxWidth:compactMobile?318:380,margin:"0 auto"}},
 	      React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2,marginBottom:4}},
-	        ["S","M","T","W","T","F","S"].map((d,i)=>React.createElement('div',{key:i,className:"mono",style:{textAlign:"center",fontSize:9,color:"var(--muted2)",padding:"1px 0"}},d))
+	        ["M","T","W","T","F","S","S"].map((d,i)=>React.createElement('div',{key:i,className:"mono",style:{textAlign:"center",fontSize:9,color:"var(--muted2)",padding:"1px 0"}},d))
 	      ),
 	      React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2}},
 	        calDays.map((day,i)=>{

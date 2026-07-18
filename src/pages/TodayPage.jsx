@@ -490,13 +490,13 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
         ? "Tied"
         : `${weeklyLeaders.length}-way tie`;
   const renderMonthLogCalendar = ({memberName, title, year, monthIndex, logsByDay}) => {
-    const firstDay = new Date(year, monthIndex, 1).getDay();
+    const firstDay = (new Date(year, monthIndex, 1).getDay() + 6) % 7;
     const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
     const calDays = [...Array(firstDay).fill(null), ...Array.from({length: daysInMonth}, (_, i) => i + 1)];
     return React.createElement(Card,{style:{padding:15}},
       React.createElement('span',{className:"lbl"},title),
       React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(7,minmax(0,1fr))",gap:6,marginTop:8}},
-        ["S","M","T","W","T","F","S"].map((d, i)=>React.createElement('div',{key:`${memberName}-head-${d}-${i}`,className:"mono",style:{fontSize:10,color:"var(--muted)",textAlign:"center"}},d)),
+        ["M","T","W","T","F","S","S"].map((d, i)=>React.createElement('div',{key:`${memberName}-head-${d}-${i}`,className:"mono",style:{fontSize:10,color:"var(--muted)",textAlign:"center"}},d)),
         calDays.map((day,index)=>{
           const log = day ? logsByDay[day] : null;
           const isToday = year === CUR_YEAR && monthIndex === CUR_MONTH && day === DAY_OF_MON;
