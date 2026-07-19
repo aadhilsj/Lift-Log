@@ -159,6 +159,7 @@ const App = () => {
   const justSyncedTimerRef = useRef(null);
   const optimisticMutationRef = useRef(null);
   const logMutationQueueRef = useRef(Promise.resolve());
+  const reactionMutationQueuesRef = useRef({});
   const blocSwipeRef = useRef({sx:0,sy:0,active:false,mode:null});
   const profileOverlayRef = useRef(null);
 
@@ -741,6 +742,45 @@ const App = () => {
   },[applyData, currentUser, refreshNow, selectedGroupId, authSession]);
 
   const handleLogMutation = useCallback(async(payload)=>{
+    if (payload.action === "reaction") {
+      const reactionKey = [
+        payload.groupId || selectedGroupId || "",
+        payload.owner || "",
+        payload.logId || "",
+        payload.emoji || ""
+      ].join(":");
+      const runReactionMutation = async()=>{
+        try {
+          const result = await mutateLogData({ ...payload, actorUserId: authSession?.userId || payload.actorUserId });
+          if(result.ok && result.data){
+            const applied = applyData(result.data, { fromMutation: true });
+            if (applied) {
+              setLastSyncedAt(new Date());
+              setSyncError(false);
+            }
+          } else {
+            setSyncError(true);
+            await refreshNow();
+          }
+          return result;
+        } catch (e) {
+          console.error("Reaction mutation failed", e);
+          setSyncError(true);
+          await refreshNow();
+          return { ok:false, error:"Unable to save reaction" };
+        }
+      };
+      const previous = reactionMutationQueuesRef.current[reactionKey] || Promise.resolve();
+      const queued = previous.then(runReactionMutation, runReactionMutation);
+      const tail = queued.catch(()=>{});
+      reactionMutationQueuesRef.current[reactionKey] = tail;
+      queued.finally(()=>{
+        if (reactionMutationQueuesRef.current[reactionKey] === tail) {
+          delete reactionMutationQueuesRef.current[reactionKey];
+        }
+      });
+      return queued;
+    }
     const runMutation = async()=>{
       // Optimistic update for delete-log: remove the entry immediately.
       if(payload.action === "delete-log" && payload.logId && currentGroup) {
