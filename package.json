@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "test:stream-moments": "node scripts/test-bloc-stream-derived-moments.mjs",
     "dev:api": "node scripts/local-dev-server.mjs"
   },
   "dependencies": {
