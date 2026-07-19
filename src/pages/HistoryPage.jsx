@@ -223,9 +223,7 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
   const legacyRows=[
     ["Started", earliestMonth ? cleanMonthLabel(earliestMonth.label, earliestMonth.key, true) : shortDate(group?.createdAt)],
     ["Months completed", completedMonths ? String(completedMonths) : "No closed months yet"],
-    ["Total workouts logged", totalGroupLogs ? String(totalGroupLogs) : "—"],
     ["Money settled", totalSettled ? fmtCurrency(totalSettled,currency) : "—"],
-    ["Members participated", participantCount ? String(participantCount) : "—"],
     ["Best month", highestMonth?.total ? `${cleanMonthLabel(highestMonth.label, highestMonth.key, true)} - ${highestMonth.total}` : "—"],
     ["Toughest month", toughestMonth?.total>=0 ? `${cleanMonthLabel(toughestMonth.label, toughestMonth.key, true)} - ${toughestMonth.total}` : "—"]
   ];
@@ -344,7 +342,7 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
     ),
     ),
     HISTORY_FEATURES.blocLegacy&&React.createElement(Card,{className:"fu6",style:{overflow:"hidden"}},
-      React.createElement('div',{style:{padding:"11px 15px",borderBottom:"1px solid var(--border)",fontWeight:800,fontSize:14}},"Legacy"),
+      React.createElement('div',{style:{padding:"11px 15px",borderBottom:"1px solid var(--border)",fontWeight:800,fontSize:14}},"Bloc Details"),
       React.createElement('div',{style:{display:"flex",flexDirection:"column"}},
         legacyRows.map((row,i)=>React.createElement('div',{key:row[0],style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,padding:"10px 15px",borderBottom:i<legacyRows.length-1?"1px solid rgba(255,255,255,.055)":"none"}},
           React.createElement('span',{style:{fontSize:12,color:"var(--muted)",fontWeight:700}},row[0]),

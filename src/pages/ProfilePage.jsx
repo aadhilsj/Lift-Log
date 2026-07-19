@@ -280,7 +280,7 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
 
     // Lifetime balance — free card
     React.createElement(Card, { style: { padding: "10px 12px" } },
-      React.createElement('span', { style: { display: "block", fontSize: 8.5, fontWeight: MED, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 5, textAlign: "center" } }, "Keeping Score"),
+      React.createElement('span', { style: { display: "block", fontSize: 8.5, fontWeight: MED, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 5, textAlign: "center" } }, "Accountability Score"),
       hasPnl
         ? React.createElement('div', { style: { fontSize: 14, fontWeight: REG, color: "var(--text)", lineHeight: 1.25, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", textAlign: "center" } },
             primNet > 0
