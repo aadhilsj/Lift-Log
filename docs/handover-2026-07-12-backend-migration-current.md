@@ -1,5 +1,10 @@
 # Backend Migration Handover - 2026-07-12
 
+> Superseded for current merge/App Store planning by
+> `docs/handover-2026-07-19-merge-and-app-store-readiness.md`.
+> Keep this file as historical context for the constructor/parity phase, but
+> start new chats from the July 19 handover.
+
 This is the current source-of-truth handover for backend migration work on:
 
 - branch: `codex/create-group-canonical-first`
