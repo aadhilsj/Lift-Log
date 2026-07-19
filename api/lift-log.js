@@ -2403,6 +2403,19 @@ async function readBlocStreamFromCanonical(legacyGroupKey, authUserId, options =
   return await response.json();
 }
 
+async function readBlocStreamUnreadCountFromCanonical(legacyGroupKey, authUserId) {
+  const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_bloc_stream_unread_count", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({
+      p_legacy_group_key: legacyGroupKey,
+      p_auth_user_id: authUserId
+    })
+  });
+  const value = await response.json();
+  return Number.isFinite(Number(value)) ? Number(value) : 0;
+}
+
 async function sendBlocStreamMessageToCanonical(legacyGroupKey, authorAuthUserId, body, replyTo = null, mentions = []) {
   const response = await supabaseFetch("/rest/v1/rpc/send_ante_core_bloc_message", {
     method: "POST",
@@ -2521,6 +2534,49 @@ function buildTargetHitMoment(beforeGroup, afterGroup, monthKey, displayName, au
     },
     idempotencyKey: `target_hit:${afterGroup.id}:${monthKey}:${authUserId || displayName}`,
     createdAt: log.createdAt || null
+  };
+}
+
+function buildSettingsChangedMoment(beforeGroup, afterGroup, actorUserId, revision) {
+  if (!beforeGroup || !afterGroup) return null;
+  const beforeSettings = beforeGroup.settings || {};
+  const afterSettings = afterGroup.settings || {};
+  const fields = [
+    ["name", beforeGroup.name, afterGroup.name],
+    ["minTarget", beforeSettings.minTarget, afterSettings.minTarget],
+    ["fineAmount", beforeSettings.fineAmount, afterSettings.fineAmount],
+    ["feeModel", beforeSettings.feeModel, afterSettings.feeModel],
+    ["escalationStepAmount", beforeSettings.escalationStepAmount, afterSettings.escalationStepAmount],
+    ["timeZone", beforeSettings.timeZone, afterSettings.timeZone],
+    ["minRunDistance", beforeSettings.minRunDistance, afterSettings.minRunDistance],
+    ["distanceUnit", beforeSettings.distanceUnit, afterSettings.distanceUnit],
+    ["stravaEnabled", beforeSettings.stravaEnabled, afterSettings.stravaEnabled]
+  ];
+  const changes = Object.fromEntries(
+    fields
+      .filter(([, beforeValue, afterValue]) => JSON.stringify(beforeValue ?? null) !== JSON.stringify(afterValue ?? null))
+      .map(([key, beforeValue, afterValue]) => [key, { from: beforeValue ?? null, to: afterValue ?? null }])
+  );
+  const beforeAccepted = beforeSettings.acceptedWorkoutTypes || [];
+  const afterAccepted = afterSettings.acceptedWorkoutTypes || [];
+  if (JSON.stringify(beforeAccepted) !== JSON.stringify(afterAccepted)) {
+    changes.acceptedWorkoutTypes = { from: beforeAccepted, to: afterAccepted };
+  }
+  const keys = Object.keys(changes);
+  if (!keys.length) return null;
+  const body = changes.minTarget
+    ? `Target changed to ${changes.minTarget.to} workouts.`
+    : changes.name
+      ? `Bloc renamed to ${changes.name.to}.`
+      : "Bloc settings changed.";
+  return {
+    systemKind: "settings_changed",
+    body,
+    payload: {
+      actorUserId: actorUserId || null,
+      changes
+    },
+    idempotencyKey: `settings_changed:${afterGroup.id}:${revision || Date.now()}`
   };
 }
 
@@ -6951,6 +7007,12 @@ export default async function handler(req, res) {
         return res.status(200).json({ ok: true, messages: Array.isArray(messages) ? messages : [] });
       }
 
+      if (payload?.action === "stream-unread-count") {
+        const authUser = await fetchAuthenticatedUser(readBearerToken(req, payload));
+        const unreadCount = await readBlocStreamUnreadCountFromCanonical(payload.groupId, authUser.id);
+        return res.status(200).json({ ok: true, unreadCount });
+      }
+
       if (payload?.action === "stream-send") {
         const authUser = await fetchAuthenticatedUser(readBearerToken(req, payload));
         const result = await sendBlocStreamMessageToCanonical(
@@ -7068,6 +7130,22 @@ export default async function handler(req, res) {
           amount: Number(payload?.amount || 0),
           currency: String(payload?.currency || DEFAULT_CURRENCY).trim().toUpperCase() || DEFAULT_CURRENCY
         });
+        await insertBlocSystemMomentInCanonical(
+          payload.groupId,
+          "settlement_paid",
+          `${participants.payerMembership.displayName} marked ${Number(payload?.amount || 0)} ${String(payload?.currency || DEFAULT_CURRENCY).trim().toUpperCase() || DEFAULT_CURRENCY} paid.`,
+          {
+            monthKey: String(payload?.monthKey || "").trim(),
+            payerUserId: participants.payerMembership.userId,
+            receiverUserId: participants.receiverMembership.userId,
+            amount: Number(payload?.amount || 0),
+            currency: String(payload?.currency || DEFAULT_CURRENCY).trim().toUpperCase() || DEFAULT_CURRENCY
+          },
+          `settlement_paid:${payload.groupId}:${String(payload?.monthKey || "").trim()}:${participants.payerMembership.userId}:${participants.receiverMembership.userId}`,
+          null,
+          { throwOnError: true }
+        );
+        await bumpCanonicalRevision(`stream-system:settlement-paid:${payload.groupId}:${String(payload?.monthKey || "").trim()}`, null);
         const readable = await fetchReadableCurrentState();
         return res.status(200).json(readable);
       }
@@ -7099,6 +7177,22 @@ export default async function handler(req, res) {
           payerAuthUserId: participants.payerMembership.userId,
           receiverAuthUserId: participants.receiverMembership.userId
         });
+        await insertBlocSystemMomentInCanonical(
+          payload.groupId,
+          "settlement_confirmed",
+          `${participants.receiverMembership.displayName} confirmed payment.`,
+          {
+            monthKey: String(payload?.monthKey || "").trim(),
+            payerUserId: participants.payerMembership.userId,
+            receiverUserId: participants.receiverMembership.userId,
+            amount: Number(payload?.amount || 0),
+            currency: String(payload?.currency || DEFAULT_CURRENCY).trim().toUpperCase() || DEFAULT_CURRENCY
+          },
+          `settlement_confirmed:${payload.groupId}:${String(payload?.monthKey || "").trim()}:${participants.payerMembership.userId}:${participants.receiverMembership.userId}`,
+          null,
+          { throwOnError: true }
+        );
+        await bumpCanonicalRevision(`stream-system:settlement-confirmed:${payload.groupId}:${String(payload?.monthKey || "").trim()}`, null);
         const readable = await fetchReadableCurrentState();
         return res.status(200).json(readable);
       }
@@ -7546,6 +7640,23 @@ export default async function handler(req, res) {
         if (settingsGroup) {
           await syncBlocToCanonical(settingsGroup, auth.user.id, settingsSortOrder, { throwOnError: true });
           await syncSeasonToCanonical(settingsGroup, settingsGroup?.lastMonth, "open", null, { throwOnError: true });
+          const moment = buildSettingsChangedMoment(
+            canonicalState.groups?.[payload.groupId] || null,
+            settingsGroup,
+            auth.user.id,
+            updated.meta?.revision
+          );
+          if (moment) {
+            await insertBlocSystemMomentInCanonical(
+              settingsGroup.id,
+              moment.systemKind,
+              moment.body,
+              moment.payload,
+              moment.idempotencyKey,
+              null,
+              { throwOnError: true }
+            );
+          }
         }
         const persisted = await persistOrSkipBlobMirror(updated, `settings:${payload.groupId}:${canonicalActor || actor || auth.user.id}`, "update-settings");
         return res.status(200).json(persisted);
@@ -7622,8 +7733,36 @@ export default async function handler(req, res) {
         if (sitOutGroup && sitOutMonthKey && nextRequest) {
           await syncSeasonToCanonical(sitOutGroup, sitOutMonthKey, "open", null, { throwOnError: true });
           await upsertSitOutRequestInCanonical(payload.groupId, sitOutMonthKey, canonicalActor, nextRequest, { throwOnError: true });
+          await insertBlocSystemMomentInCanonical(
+            payload.groupId,
+            "sit_out_requested",
+            `${canonicalActor} requested to sit out this month.`,
+            {
+              memberUserId: auth.user.id,
+              memberDisplayName: canonicalActor,
+              monthKey: sitOutMonthKey,
+              exceptional: !!nextRequest.exceptional
+            },
+            `sit_out_requested:${payload.groupId}:${sitOutMonthKey}:${auth.user.id}`,
+            nextRequest.requestedAt || null,
+            { throwOnError: true }
+          );
           if (nextRequest.status === "approved" && nextRequest.autoApproved) {
             await upsertSeasonMemberExcusedInCanonical(payload.groupId, sitOutMonthKey, canonicalActor, auth.user.id, { throwOnError: true });
+            await insertBlocSystemMomentInCanonical(
+              payload.groupId,
+              "sit_out_approved",
+              `${canonicalActor} is sitting out this month.`,
+              {
+                memberUserId: auth.user.id,
+                memberDisplayName: canonicalActor,
+                monthKey: sitOutMonthKey,
+                reviewerUserId: nextRequest.decidedByUserId || auth.user.id
+              },
+              `sit_out_approved:${payload.groupId}:${sitOutMonthKey}:${auth.user.id}`,
+              nextRequest.decidedAt || null,
+              { throwOnError: true }
+            );
           }
         }
         const persisted = await persistState(updated, `sitout-request:${payload.groupId}:${canonicalActor || actor || auth.user.id}`);
@@ -7670,6 +7809,20 @@ export default async function handler(req, res) {
               payload.monthKey,
               payload.memberName,
               reviewedRequest.requestedByUserId || null,
+              { throwOnError: true }
+            );
+            await insertBlocSystemMomentInCanonical(
+              payload.groupId,
+              "sit_out_approved",
+              `${payload.memberName} is sitting out this month.`,
+              {
+                memberUserId: reviewedRequest.requestedByUserId || null,
+                memberDisplayName: payload.memberName,
+                monthKey: payload.monthKey,
+                reviewerUserId: auth.user.id
+              },
+              `sit_out_approved:${payload.groupId}:${payload.monthKey}:${reviewedRequest.requestedByUserId || payload.memberName}`,
+              reviewedRequest.decidedAt || null,
               { throwOnError: true }
             );
           }

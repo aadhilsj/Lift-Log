@@ -56,6 +56,7 @@ import {
   leaveBlocData,
   multiLogData,
   mutateLogData,
+  getBlocStreamUnreadCountData,
   readCachedData,
   writeCachedData,
   readPersistedAuthSession,
@@ -78,7 +79,6 @@ import { MonthPage } from "./pages/MonthPage.jsx";
 import { HistoryPage } from "./pages/HistoryPage.jsx";
 import { BlocStream } from "./pages/BlocStream.jsx";
 import { ProfilePage } from "./pages/ProfilePage.jsx";
-import { getUnreadCount, markStreamRead } from "./lib/blocStream.js";
 
 const normalizeReactionMembers = (members) => Array.isArray(members)
   ? Array.from(new Set(members.filter(Boolean))).sort()
@@ -153,6 +153,7 @@ const App = () => {
   const [blocDragX,setBlocDragX]=useState(0);
   const [blocDragging,setBlocDragging]=useState(false);
   const [suppressSwitcherIntro,setSuppressSwitcherIntro]=useState(false);
+  const [streamUnreadCount,setStreamUnreadCount]=useState(0);
   const [hiddenLeftGroupIds,setHiddenLeftGroupIds]=useState({});
   const [profileRevealActive,setProfileRevealActive]=useState(false);
   const latestRevisionRef = useRef(getRevision(cached));
@@ -1090,6 +1091,22 @@ const App = () => {
     setNavResetToken(value=>value+1);
     setPage("month");
   },[persistGroupSelection]);
+  const refreshStreamUnreadCount = useCallback(async(groupId = selectedGroupId) => {
+    if (!groupId || !effectiveAuthSession?.userId) {
+      setStreamUnreadCount(0);
+      return;
+    }
+    const result = await getBlocStreamUnreadCountData(groupId);
+    if (result?.ok) setStreamUnreadCount(result.unreadCount);
+  },[effectiveAuthSession?.userId, selectedGroupId]);
+  const handleOpenStream = useCallback(() => {
+    setShowStream(true);
+    setStreamUnreadCount(0);
+  },[]);
+  useEffect(() => {
+    if (showStream) return;
+    refreshStreamUnreadCount();
+  }, [appState?.meta?.revision, refreshStreamUnreadCount, selectedGroupId, showStream]);
   const handleNavSelect = useCallback((nextPage)=>{
     setShowTodayLog(false);
     setMonthInitialIdx(null);
@@ -1410,11 +1427,6 @@ const App = () => {
     });
   }
 
-  const streamUnreadCount = getUnreadCount(currentGroup.id, {
-    currentUserId: effectiveAuthSession?.userId,
-    members: Object.values(currentGroup.memberships || {}).map(m => ({ id: m.userId, name: m.displayName }))
-  });
-
   const activeBlocSurface = React.createElement('div',{
     onTouchStart:startBlocSwitchSwipe,
     onTouchMove:moveBlocSwitchSwipe,
@@ -1433,7 +1445,7 @@ const App = () => {
       touchAction:"pan-y"
     }
   },
-    React.createElement(Nav,{page,setPage:handleNavSelect,user:currentUser,groupName:currentGroup.name,canEditGroup:isGroupAdmin,onOpenSettings:()=>setShowSettings(true),onOpenProfile:()=>{setProfileError("");setShowProfileModal(true);},onOpenStream:()=>{markStreamRead(currentGroup.id);setShowStream(true);},streamUnreadCount,onSwitchUser:handleSwitchUser,onSwitchGroup:handleSwitchGroup,onOpenLog:()=>{setPage("today");setShowTodayLog(true);},syncing,lastSyncedAt,syncError,onRefresh:refreshNow,showJustSynced,activityAlertCount,hideMobileBottomNav:true}),
+    React.createElement(Nav,{page,setPage:handleNavSelect,user:currentUser,groupName:currentGroup.name,canEditGroup:isGroupAdmin,onOpenSettings:()=>setShowSettings(true),onOpenProfile:()=>{setProfileError("");setShowProfileModal(true);},onOpenStream:handleOpenStream,streamUnreadCount,onSwitchUser:handleSwitchUser,onSwitchGroup:handleSwitchGroup,onOpenLog:()=>{setPage("today");setShowTodayLog(true);},syncing,lastSyncedAt,syncError,onRefresh:refreshNow,showJustSynced,activityAlertCount,hideMobileBottomNav:true}),
     localDevMode && React.createElement(LocalDevImpersonationBar,{options:devImpersonationOptions,value:effectiveAuthSession?.devImpersonationActive?effectiveAuthSession.userId:"",onChange:handleSelectDevImpersonation}),
     React.createElement('div',{style:{paddingBottom:isMobileView?"calc(86px + env(safe-area-inset-bottom))":0}},
       page==="today"  &&React.createElement(TodayPageErrorBoundary,{resetKey:`${selectedGroupId}:${navResetToken}:${currentUser}`},
@@ -1455,7 +1467,7 @@ const App = () => {
     showJoinModal && !authStep && React.createElement(JoinGroupModal,{inviteContext,joinCode,setJoinCode,onClose:()=>setShowJoinModal(false),onJoin:handleJoinGroup,joining:joiningGroup,error:inviteError,signedIn:true}),
     showProfileModal && React.createElement(ProfileModal,{email:authSession?.email,onSignOut:handleSwitchUser,onClose:()=>setShowProfileModal(false),showDisplayName:true,currentDisplayName:currentUser,onSaveDisplayName:handleSaveProfileFromModal,saving:profileSaving,saveError:profileError,onLeaveBloc:handleLeaveBloc,onDeleteAccount:handleDeleteAccount}),
     showSettings && React.createElement(GroupSettingsModal,{group:currentGroup,actor:currentUser,actorUserId:authSession?.userId,onSave:isGroupAdmin?handleUpdateGroupSettings:null,onClose:()=>setShowSettings(false),saving:savingSettings,onReviewSitOut:isGroupAdmin?handleSitOutReview:null,onKickMember:isGroupAdmin?handleKickMember:null}),
-    React.createElement(BlocStream,{open:showStream,groupName:currentGroup.name,blocId:currentGroup.id,currentUserId:effectiveAuthSession?.userId,members:Object.values(currentGroup.memberships||{}).map(m=>({id:m.userId,name:m.displayName})),streamBlocs:visibleGroups.map(group=>({id:group.id,name:group.name,members:Object.values(group.memberships||{}).map(m=>({id:m.userId,name:m.displayName}))})),onSeasonClosedTap:handleStreamSeasonClosedTap,onClose:()=>setShowStream(false)}),
+    React.createElement(BlocStream,{open:showStream,groupName:currentGroup.name,blocId:currentGroup.id,currentUserId:effectiveAuthSession?.userId,members:Object.values(currentGroup.memberships||{}).map(m=>({id:m.userId,name:m.displayName})),streamBlocs:visibleGroups.map(group=>({id:group.id,name:group.name,members:Object.values(group.memberships||{}).map(m=>({id:m.userId,name:m.displayName}))})),onSeasonClosedTap:handleStreamSeasonClosedTap,onUnreadCountChange:(groupId,count)=>{if(groupId===currentGroup.id)setStreamUnreadCount(Number(count)||0);},onClose:()=>{setShowStream(false);refreshStreamUnreadCount(currentGroup.id);}}),
     prorationGroup && React.createElement(ProrationChoiceModal,{
       monthName: getCurrentMonthSummary(prorationGroup).monthName,
       fullMas: prorationGroup.settings?.minTarget || MIN_TARGET,
@@ -1468,7 +1480,7 @@ const App = () => {
     }),
     page==="today"&&renderGroupSwitcherSurface({ inert:true, suppressIntro:true }),
     activeBlocSurface,
-    React.createElement(Nav,{onlyMobileBottomNav:true,page,setPage:handleNavSelect,user:currentUser,groupName:currentGroup.name,canEditGroup:isGroupAdmin,onOpenSettings:()=>setShowSettings(true),onOpenProfile:()=>{setProfileError("");setShowProfileModal(true);},onOpenStream:()=>{markStreamRead(currentGroup.id);setShowStream(true);},streamUnreadCount,onSwitchUser:handleSwitchUser,onSwitchGroup:handleSwitchGroup,onOpenLog:()=>{setPage("today");setShowTodayLog(true);},syncing,lastSyncedAt,syncError,onRefresh:refreshNow,showJustSynced,activityAlertCount,mobileBottomDragX:blocDragX,mobileBottomDragging:blocDragging})
+    React.createElement(Nav,{onlyMobileBottomNav:true,page,setPage:handleNavSelect,user:currentUser,groupName:currentGroup.name,canEditGroup:isGroupAdmin,onOpenSettings:()=>setShowSettings(true),onOpenProfile:()=>{setProfileError("");setShowProfileModal(true);},onOpenStream:handleOpenStream,streamUnreadCount,onSwitchUser:handleSwitchUser,onSwitchGroup:handleSwitchGroup,onOpenLog:()=>{setPage("today");setShowTodayLog(true);},syncing,lastSyncedAt,syncError,onRefresh:refreshNow,showJustSynced,activityAlertCount,mobileBottomDragX:blocDragX,mobileBottomDragging:blocDragging})
   );
 };
 

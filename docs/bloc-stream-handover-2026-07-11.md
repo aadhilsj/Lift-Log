@@ -48,7 +48,7 @@ coordinated batch.** Decided with the user. So:
   previews and live builds do not show fake content inside real Blocs.
 - `src/lib/api.js` / `api/lift-log.js` — API-backed Stream actions:
   `stream-list`, `stream-send`, `stream-create-event`, `stream-rsvp`,
-  `stream-reaction`, and `stream-mark-read`.
+  `stream-reaction`, `stream-mark-read`, and `stream-unread-count`.
 - `supabase/ante-core-bloc-stream-schema.sql` — canonical private Stream tables.
 - `supabase/ante-core-bloc-stream-rpcs.sql` — service-role-only Stream RPCs.
 - `src/pages/Nav.jsx` — `StreamIconButton` added left of the gear (desktop +
@@ -85,6 +85,15 @@ coordinated batch.** Decided with the user. So:
   `ante_core.bloc_message_reads`, plus seven service-role-only RPCs. Verified
   on 2026-07-19: all tables exist, all seven RPCs exist, and the read RPC
   returns a JSON array for an active member.
+- **Unread badge (done):** production Supabase migration
+  `add_bloc_stream_unread_count` added
+  `public.read_ante_core_bloc_stream_unread_count(text, text)`. Verified on
+  2026-07-19: function exists and returns an integer for an active member. The
+  nav badge now reads from this backend count and clears after opening Stream.
+- **Direct system moments (partially wired):** real, idempotent moments now
+  emit for member joined, member left, member removed, target hit, settings
+  changed, sit-out requested, sit-out approved, settlement paid, and settlement
+  confirmed.
 - **Stage 6 (NEXT, not started):** event cards. "Suggest an event" opens a
   creation sheet (3 fields: activity, date/time, location) → inserts a
   `message_type='event'` mock row → renders an event card with cyan accent +

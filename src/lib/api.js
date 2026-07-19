@@ -511,6 +511,13 @@ async function listBlocStreamMessagesData(groupId, limit = 100) {
   return { ok:true, messages: Array.isArray(result.body?.messages) ? result.body.messages : [] };
 }
 
+async function getBlocStreamUnreadCountData(groupId) {
+  const result = await postApi("stream-unread-count", { groupId });
+  if (!result.ok) return { ok:false, error: result.error || "Unable to load unread count", unreadCount: 0 };
+  const unreadCount = Number(result.body?.unreadCount || 0);
+  return { ok:true, unreadCount: Number.isFinite(unreadCount) ? Math.max(0, unreadCount) : 0 };
+}
+
 async function sendBlocStreamMessageData(payload) {
   const result = await postApi("stream-send", payload);
   if (!result.ok) return { ok:false, error: result.error || "Unable to send message" };
@@ -606,6 +613,7 @@ export {
   leaveBlocData,
   multiLogData,
   mutateLogData,
+  getBlocStreamUnreadCountData,
   listBlocStreamMessagesData,
   sendBlocStreamMessageData,
   createBlocStreamEventData,

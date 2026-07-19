@@ -616,7 +616,7 @@ const MentionList = ({ items, onPick }) =>
     ))
   );
 
-const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], streamBlocs = [], onSeasonClosedTap, onClose }) => {
+const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], streamBlocs = [], onSeasonClosedTap, onUnreadCountChange, onClose }) => {
   const [mounted, setMounted] = useState(false);
   const [messages, setMessages] = useState([]);
   const [messagesByBloc, setMessagesByBloc] = useState(readStreamMessageCache);
@@ -668,7 +668,9 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], stre
       setMessages(normalizedMessages);
       if (scroll) scrollToBottom();
     }
-    markBlocStreamReadData(requestBlocId).catch(() => {});
+    markBlocStreamReadData(requestBlocId)
+      .then(result => { if (result?.ok) onUnreadCountChange?.(requestBlocId, 0); })
+      .catch(() => {});
   };
 
   const updateActiveMessages = updater => {
