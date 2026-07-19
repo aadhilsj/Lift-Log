@@ -812,8 +812,8 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
       );
     })
   );
-  const statDetailOverlay = statDetail && React.createElement('div',{className:"overlay center-mobile",onClick:()=>setStatDetail(null),style:{padding:"16px 12px calc(104px + env(safe-area-inset-bottom))"}},
-    React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{width:"min(680px, calc(100vw - 28px))",maxHeight:statDetail.kind === "week-mvp" ? "min(66vh, calc(100dvh - 156px))" : "min(80vh, 760px)",overflow:"auto",padding:"18px 16px 16px",display:"grid",gap:14}},
+  const statDetailOverlay = statDetail && React.createElement('div',{className:"overlay center-mobile",onClick:()=>setStatDetail(null),style:{padding:"16px 12px calc(94px + env(safe-area-inset-bottom))"}},
+    React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{width:"min(680px, calc(100vw - 28px))",maxHeight:statDetail.kind === "week-mvp" ? "min(78vh, calc(100dvh - 124px))" : "min(80vh, 760px)",overflow:"auto",padding:"18px 16px 16px",display:"grid",gap:14}},
       React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}},
         React.createElement('div',{style:{fontSize:18,fontWeight:800,color:"var(--text)"}},
           statDetail.kind === "pace"
