@@ -36,6 +36,7 @@ import {
   signOutAuthSession,
   syncAuthSessionData,
   fetchData,
+  fetchRevision,
   addLogData,
   claimSettlementConfirmationData,
   confirmSettlementConfirmationData,
@@ -472,18 +473,28 @@ const App = () => {
     }
 
     refreshNow();
-    // Poll every few seconds so active devices converge faster without going fully realtime.
     const interval = setInterval(()=>{
-      fetchData().then(data=>{
-        if(data){
-          const applied = applyData(data);
-          if (applied) {
-            setLastSyncedAt(new Date());
-            setSyncError(false);
-          }
-        } else {
+      if (document.visibilityState === "hidden") return;
+      fetchRevision().then(revision=>{
+        if (revision === null) {
           setSyncError(true);
+          return;
         }
+        if (revision <= latestRevisionRef.current) {
+          setSyncError(false);
+          return;
+        }
+        return fetchData().then(data=>{
+          if(data){
+            const applied = applyData(data);
+            if (applied) {
+              setLastSyncedAt(new Date());
+              setSyncError(false);
+            }
+          } else {
+            setSyncError(true);
+          }
+        });
       }).catch(()=>setSyncError(true));
     }, SYNC_POLL_INTERVAL_MS);
     const handleVisibility = () => {
