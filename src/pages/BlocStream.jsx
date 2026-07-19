@@ -15,6 +15,7 @@ import {
 // native (App Store) build — on web we can't open the OS emoji picker.
 const QUICK_REACTS = ["❤️", "🔥", "💪", "👏", "😤"];
 const DOUBLE_TAP_EMOJI = "❤️";
+const STREAM_MESSAGE_CACHE_KEY = "ll_bloc_stream_message_cache_v1";
 
 // Bloc Stream — Bloc-scoped messaging, opened as a slide-up modal over the
 // current tab. Text bubbles, system moments, event cards; reactions
@@ -67,6 +68,28 @@ function normalizeStreamMessageForDisplay(msg) {
     tone: msg.tone || meta.tone || "positive",
     sub: msg.sub || (msg.payload?.firstToTarget ? "First to target this month." : "")
   };
+}
+
+function readStreamMessageCache() {
+  try {
+    const raw = localStorage.getItem(STREAM_MESSAGE_CACHE_KEY);
+    if (!raw) return new Map();
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return new Map();
+    return new Map(Object.entries(parsed).map(([blocId, messages]) => [
+      blocId,
+      Array.isArray(messages) ? messages.map(normalizeStreamMessageForDisplay) : []
+    ]));
+  } catch {
+    return new Map();
+  }
+}
+
+function writeStreamMessageCache(cache) {
+  try {
+    const entries = [...cache.entries()].slice(-25);
+    localStorage.setItem(STREAM_MESSAGE_CACHE_KEY, JSON.stringify(Object.fromEntries(entries)));
+  } catch {}
 }
 
 function formatStamp(iso) {
@@ -596,6 +619,7 @@ const MentionList = ({ items, onPick }) =>
 const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], streamBlocs = [], onSeasonClosedTap, onClose }) => {
   const [mounted, setMounted] = useState(false);
   const [messages, setMessages] = useState([]);
+  const [messagesByBloc, setMessagesByBloc] = useState(readStreamMessageCache);
   const [viewedBlocId, setViewedBlocId] = useState(blocId);
   const [draft, setDraft] = useState("");
   const [eventDraft, setEventDraft] = useState(emptyEventDraft);
@@ -605,6 +629,7 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], stre
   const listRef = useRef(null);
   const inputRef = useRef(null);
   const streamStateRef = useRef(new Map());
+  const activeBlocIdRef = useRef(blocId);
 
   const fallbackBlocs = blocId ? [{ id: blocId, name: groupName, members }] : [];
   const availableBlocs = (streamBlocs.length ? streamBlocs : fallbackBlocs).filter(group => group?.id);
@@ -616,6 +641,10 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], stre
 
   const nameFor = id => (activeMembers.find(m => m.id === id)?.name) || "Member";
 
+  useEffect(() => {
+    activeBlocIdRef.current = activeBlocId;
+  }, [activeBlocId]);
+
   const scrollToBottom = () => {
     requestAnimationFrame(() => {
       const el = listRef.current;
@@ -624,16 +653,41 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], stre
   };
 
   const refreshMessages = async ({ scroll = false } = {}) => {
-    if (!activeBlocId) return;
-    const result = await listBlocStreamMessagesData(activeBlocId);
+    const requestBlocId = activeBlocId;
+    if (!requestBlocId) return;
+    const result = await listBlocStreamMessagesData(requestBlocId);
     if (!result.ok) return;
-    setMessages(result.messages.map(normalizeStreamMessageForDisplay));
-    markBlocStreamReadData(activeBlocId).catch(() => {});
-    if (scroll) scrollToBottom();
+    const normalizedMessages = result.messages.map(normalizeStreamMessageForDisplay);
+    setMessagesByBloc(current => {
+      const next = new Map(current);
+      next.set(requestBlocId, normalizedMessages);
+      writeStreamMessageCache(next);
+      return next;
+    });
+    if (activeBlocIdRef.current === requestBlocId) {
+      setMessages(normalizedMessages);
+      if (scroll) scrollToBottom();
+    }
+    markBlocStreamReadData(requestBlocId).catch(() => {});
+  };
+
+  const updateActiveMessages = updater => {
+    setMessages(current => {
+      const nextMessages = updater(current);
+      if (activeBlocId) {
+        setMessagesByBloc(cache => {
+          const nextCache = new Map(cache);
+          nextCache.set(activeBlocId, nextMessages);
+          writeStreamMessageCache(nextCache);
+          return nextCache;
+        });
+      }
+      return nextMessages;
+    });
   };
 
   const updateMessageReaction = (messageId, emoji, isAdding) => {
-    setMessages(current => current.map(msg => {
+    updateActiveMessages(current => current.map(msg => {
       if (msg.id !== messageId) return msg;
       const reactions = { ...(msg.reactions || {}) };
       const currentUsers = Array.isArray(reactions[emoji]) ? reactions[emoji] : [];
@@ -646,7 +700,7 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], stre
   };
 
   const updateEventRsvp = (messageId, status) => {
-    setMessages(current => current.map(msg => {
+    updateActiveMessages(current => current.map(msg => {
       if (msg.id !== messageId || msg.message_type !== "event") return msg;
       const payload = { ...(msg.payload || {}) };
       const rsvp = { ...(payload.rsvp || {}) };
@@ -681,6 +735,7 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], stre
       const id = requestAnimationFrame(() => setMounted(true));
       streamStateRef.current = new Map();
       setViewedBlocId(blocId);
+      setMessages(messagesByBloc.get(blocId) || []);
       setDraft("");
       setEventDraft(emptyEventDraft());
       setShowEventSheet(false);
@@ -691,17 +746,19 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], stre
     setMounted(false);
     streamStateRef.current = new Map();
     setViewedBlocId(blocId);
+    setMessages(messagesByBloc.get(blocId) || []);
     setDraft("");
     setEventDraft(emptyEventDraft());
     setShowEventSheet(false);
     setReplyTarget(null);
     setMention(null);
-  }, [open, blocId]);
+  }, [open, blocId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Runs when the visible stream changes. Deliberately not keyed on the active
   // members array, which can be recreated by parent polling and would yank scroll.
   useEffect(() => {
     if (!open || !activeBlocId) return;
+    setMessages(messagesByBloc.get(activeBlocId) || []);
     refreshMessages({ scroll: true });
   }, [open, activeBlocId]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -749,6 +806,7 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], stre
     if (!nextBlocId || nextBlocId === activeBlocId) return;
     saveCurrentStreamState();
     setViewedBlocId(nextBlocId);
+    setMessages(messagesByBloc.get(nextBlocId) || []);
     restoreStreamState(nextBlocId);
   };
 
@@ -770,7 +828,7 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], stre
       created_at: new Date().toISOString()
     };
     streamStateRef.current.delete(activeBlocId);
-    setMessages(current => [...current, optimistic]);
+    updateActiveMessages(current => [...current, optimistic]);
     setDraft("");
     setReplyTarget(null);
     setMention(null);
@@ -783,7 +841,7 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], stre
       mentions
     });
     if (!result.ok) {
-      setMessages(current => current.filter(msg => msg.id !== tempId));
+      updateActiveMessages(current => current.filter(msg => msg.id !== tempId));
       return;
     }
     refreshMessages({ scroll: true });
@@ -824,7 +882,7 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], stre
       created_at: new Date().toISOString()
     };
     streamStateRef.current.delete(activeBlocId);
-    setMessages(current => [...current, optimistic]);
+    updateActiveMessages(current => [...current, optimistic]);
     setEventDraft(emptyEventDraft());
     setShowEventSheet(false);
     scrollToBottom();
@@ -835,7 +893,7 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], stre
       location
     });
     if (!result.ok) {
-      setMessages(current => current.filter(msg => msg.id !== tempId));
+      updateActiveMessages(current => current.filter(msg => msg.id !== tempId));
       return;
     }
     refreshMessages({ scroll: true });
