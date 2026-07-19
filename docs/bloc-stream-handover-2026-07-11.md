@@ -51,6 +51,9 @@ coordinated batch.** Decided with the user. So:
 - `src/components/primitives.jsx` — added `message-circle` icon to `AppIcon`.
 - `src/App.jsx` — `showStream` state + `<BlocStream>` render; passes
   `blocId / currentUserId / members` (id-keyed).
+- `docs/bloc-stream-system-moments-rulebook-2026-07-19.md` — source of truth
+  for real backend-generated system moment triggers, idempotency keys, payloads,
+  and non-goals.
 
 ## Stages: done vs remaining
 
@@ -68,6 +71,9 @@ coordinated batch.** Decided with the user. So:
   quick-react picker). The UI supports all six trigger types (cooked, 7-day
   inactivity, MAS-early, comeback, season-close settlement, new member), but
   fake seeded examples must remain disabled unless explicitly testing locally.
+- **System moment backend rules (defined):** see
+  `docs/bloc-stream-system-moments-rulebook-2026-07-19.md`. Real moments must
+  be canonical-write-generated, idempotent, and stored as actual stream rows.
 - **Stage 6 (NEXT, not started):** event cards. "Suggest an event" opens a
   creation sheet (3 fields: activity, date/time, location) → inserts a
   `message_type='event'` mock row → renders an event card with cyan accent +
