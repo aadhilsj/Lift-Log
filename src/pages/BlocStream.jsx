@@ -1,7 +1,14 @@
 import React from "react";
 const { useState, useEffect, useRef } = React;
 import { Avatar, AppIcon } from "../components/primitives.jsx";
-import { listMessages, seedIfEmpty, sendMessage, toggleReaction, createEvent, setRsvp } from "../lib/blocStream.js";
+import {
+  createBlocStreamEventData,
+  listBlocStreamMessagesData,
+  markBlocStreamReadData,
+  sendBlocStreamMessageData,
+  setBlocStreamRsvpData,
+  toggleBlocStreamReactionData
+} from "../lib/api.js";
 
 // Long-press / hold reveals these (Instagram-style quick bar). Heart leads and
 // is also the double-tap default. The full emoji keyboard is deferred to the
@@ -29,6 +36,38 @@ const C = {
   chipBg: "#0b1413", chipBorder: "#1b332e", chipOnBg: "rgba(78,205,196,0.14)", chipOnBorder: "rgba(78,205,196,0.4)",
   quote: "rgba(78,205,196,0.06)"
 };
+
+const SYSTEM_KIND_META = {
+  member_joined: { label: "NEW MEMBER", tone: "neutral" },
+  member_left: { label: "LEFT BLOC", tone: "neutral" },
+  member_removed: { label: "REMOVED", tone: "warning" },
+  target_hit: { label: "TARGET HIT", tone: "positive" },
+  first_to_target: { label: "TARGET HIT", tone: "positive" },
+  perfect_bloc_month: { label: "PERFECT BLOC MONTH", tone: "positive", uiKind: "perfect_month" },
+  month_closed: { label: "MONTH CLOSED", tone: "positive" },
+  monthly_awards: { label: "AWARDS", tone: "positive", uiKind: "awards" },
+  inactivity_warning: { label: "INACTIVITY", tone: "warning" },
+  cooked: { label: "COOKED", tone: "warning" },
+  comeback: { label: "COMEBACK", tone: "positive" },
+  final_stretch: { label: "FINAL STRETCH", tone: "warning" },
+  settings_changed: { label: "SETTINGS", tone: "neutral" },
+  sit_out_requested: { label: "SIT OUT", tone: "neutral" },
+  sit_out_approved: { label: "SIT OUT", tone: "neutral" },
+  settlement_paid: { label: "SETTLEMENT", tone: "neutral" },
+  settlement_confirmed: { label: "SETTLEMENT", tone: "positive" }
+};
+
+function normalizeStreamMessageForDisplay(msg) {
+  if (msg?.message_type !== "system") return msg;
+  const meta = SYSTEM_KIND_META[msg.system_kind] || {};
+  return {
+    ...msg,
+    system_kind: meta.uiKind || msg.system_kind,
+    label: msg.label || meta.label || "MOMENT",
+    tone: msg.tone || meta.tone || "positive",
+    sub: msg.sub || (msg.payload?.firstToTarget ? "First to target this month." : "")
+  };
+}
 
 function formatStamp(iso) {
   const d = new Date(iso);
@@ -584,6 +623,38 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], stre
     });
   };
 
+  const refreshMessages = async ({ scroll = false } = {}) => {
+    if (!activeBlocId) return;
+    const result = await listBlocStreamMessagesData(activeBlocId);
+    if (!result.ok) return;
+    setMessages(result.messages.map(normalizeStreamMessageForDisplay));
+    markBlocStreamReadData(activeBlocId).catch(() => {});
+    if (scroll) scrollToBottom();
+  };
+
+  const updateMessageReaction = (messageId, emoji, isAdding) => {
+    setMessages(current => current.map(msg => {
+      if (msg.id !== messageId) return msg;
+      const reactions = { ...(msg.reactions || {}) };
+      const currentUsers = Array.isArray(reactions[emoji]) ? reactions[emoji] : [];
+      const nextUsers = isAdding
+        ? [...new Set([...currentUsers, currentUserId])]
+        : currentUsers.filter(id => id !== currentUserId);
+      if (nextUsers.length) reactions[emoji] = nextUsers; else delete reactions[emoji];
+      return { ...msg, reactions };
+    }));
+  };
+
+  const updateEventRsvp = (messageId, status) => {
+    setMessages(current => current.map(msg => {
+      if (msg.id !== messageId || msg.message_type !== "event") return msg;
+      const payload = { ...(msg.payload || {}) };
+      const rsvp = { ...(payload.rsvp || {}) };
+      if (rsvp[currentUserId] === status) delete rsvp[currentUserId]; else rsvp[currentUserId] = status;
+      return { ...msg, payload: { ...payload, rsvp } };
+    }));
+  };
+
   const saveCurrentStreamState = () => {
     if (!activeBlocId) return;
     const hasDraft = draft.trim().length > 0;
@@ -631,9 +702,7 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], stre
   // members array, which can be recreated by parent polling and would yank scroll.
   useEffect(() => {
     if (!open || !activeBlocId) return;
-    seedIfEmpty(activeBlocId, { currentUserId, members: activeMembers });
-    setMessages(listMessages(activeBlocId));
-    scrollToBottom();
+    refreshMessages({ scroll: true });
   }, [open, activeBlocId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Bulletproof background scroll lock: pin the body in place (iOS Safari
@@ -683,22 +752,55 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], stre
     restoreStreamState(nextBlocId);
   };
 
-  const handleSend = () => {
+  const handleSend = async () => {
+    const body = draft.trim();
+    if (!body) return;
     const mentions = activeMembers.filter(m => m.name && new RegExp("@" + escapeRegex(m.name) + "(?!\\w)").test(draft)).map(m => m.id);
-    const sent = sendMessage(activeBlocId, { authorId: currentUserId, body: draft, replyTo: replyTarget?.id || null, mentions });
-    if (!sent) return;
+    const tempId = `tmp_${Date.now().toString(36)}`;
+    const optimistic = {
+      id: tempId,
+      bloc_id: activeBlocId,
+      author_id: currentUserId,
+      message_type: "text",
+      body,
+      reply_to: replyTarget?.id && !String(replyTarget.id).startsWith("tmp_") ? replyTarget.id : null,
+      mentions,
+      reactions: {},
+      payload: {},
+      created_at: new Date().toISOString()
+    };
     streamStateRef.current.delete(activeBlocId);
-    setMessages(listMessages(activeBlocId));
+    setMessages(current => [...current, optimistic]);
     setDraft("");
     setReplyTarget(null);
     setMention(null);
     scrollToBottom();
     inputRef.current?.focus(); // keep the keyboard open after sending
+    const result = await sendBlocStreamMessageData({
+      groupId: activeBlocId,
+      body,
+      replyTo: optimistic.reply_to,
+      mentions
+    });
+    if (!result.ok) {
+      setMessages(current => current.filter(msg => msg.id !== tempId));
+      return;
+    }
+    refreshMessages({ scroll: true });
   };
 
-  const handleReact = (messageId, emoji) => {
-    toggleReaction(activeBlocId, messageId, emoji, currentUserId);
-    setMessages(listMessages(activeBlocId));
+  const handleReact = async (messageId, emoji) => {
+    const target = messages.find(msg => msg.id === messageId);
+    const users = target?.reactions?.[emoji] || [];
+    const isAdding = !users.includes(currentUserId);
+    updateMessageReaction(messageId, emoji, isAdding);
+    const result = await toggleBlocStreamReactionData({
+      groupId: activeBlocId,
+      messageId,
+      emoji,
+      isAdding
+    });
+    if (!result.ok) refreshMessages();
   };
 
   const handleReply = (msg) => {
@@ -706,19 +808,47 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], stre
     inputRef.current?.focus();
   };
 
-  const handleCreateEvent = ({ activity, when, location }) => {
-    const made = createEvent(activeBlocId, { authorId: currentUserId, activity, when, location });
-    if (!made) return;
+  const handleCreateEvent = async ({ activity, when, location }) => {
+    const trimmedActivity = String(activity || "").trim();
+    if (!trimmedActivity) return;
+    const tempId = `tmp_evt_${Date.now().toString(36)}`;
+    const optimistic = {
+      id: tempId,
+      bloc_id: activeBlocId,
+      author_id: currentUserId,
+      message_type: "event",
+      body: "",
+      system_kind: "",
+      payload: { activity: trimmedActivity, when: String(when || "").trim(), location: String(location || "").trim(), rsvp: {} },
+      reactions: {},
+      created_at: new Date().toISOString()
+    };
     streamStateRef.current.delete(activeBlocId);
-    setMessages(listMessages(activeBlocId));
+    setMessages(current => [...current, optimistic]);
     setEventDraft(emptyEventDraft());
     setShowEventSheet(false);
     scrollToBottom();
+    const result = await createBlocStreamEventData({
+      groupId: activeBlocId,
+      activity: trimmedActivity,
+      when,
+      location
+    });
+    if (!result.ok) {
+      setMessages(current => current.filter(msg => msg.id !== tempId));
+      return;
+    }
+    refreshMessages({ scroll: true });
   };
 
-  const handleRsvp = (messageId, status) => {
-    setRsvp(activeBlocId, messageId, currentUserId, status);
-    setMessages(listMessages(activeBlocId));
+  const handleRsvp = async (messageId, status) => {
+    updateEventRsvp(messageId, status);
+    const result = await setBlocStreamRsvpData({
+      groupId: activeBlocId,
+      messageId,
+      status
+    });
+    if (!result.ok) refreshMessages();
   };
 
   // Detect the "@token" the caret currently sits in and open the mention list.

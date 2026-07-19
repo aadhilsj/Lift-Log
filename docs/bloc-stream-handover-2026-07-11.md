@@ -46,6 +46,11 @@ coordinated batch.** Decided with the user. So:
   `sendMessage`, `toggleReaction`. Sample seed messages/system moments are
   opt-in only via `localStorage.ll_bloc_stream_sample_seeds = "1"` so production
   previews and live builds do not show fake content inside real Blocs.
+- `src/lib/api.js` / `api/lift-log.js` — API-backed Stream actions:
+  `stream-list`, `stream-send`, `stream-create-event`, `stream-rsvp`,
+  `stream-reaction`, and `stream-mark-read`.
+- `supabase/ante-core-bloc-stream-schema.sql` — canonical private Stream tables.
+- `supabase/ante-core-bloc-stream-rpcs.sql` — service-role-only Stream RPCs.
 - `src/pages/Nav.jsx` — `StreamIconButton` added left of the gear (desktop +
   mobile headers), unread-dot prop-driven.
 - `src/components/primitives.jsx` — added `message-circle` icon to `AppIcon`.
@@ -74,6 +79,12 @@ coordinated batch.** Decided with the user. So:
 - **System moment backend rules (defined):** see
   `docs/bloc-stream-system-moments-rulebook-2026-07-19.md`. Real moments must
   be canonical-write-generated, idempotent, and stored as actual stream rows.
+- **Backend persistence (started):** production Supabase project `Lift Log`
+  (`bpvvvqjsfwmmfjvvijkd`) has migration `add_bloc_stream_backend` applied.
+  It created `ante_core.bloc_messages`, `ante_core.bloc_message_reactions`,
+  `ante_core.bloc_message_reads`, plus seven service-role-only RPCs. Verified
+  on 2026-07-19: all tables exist, all seven RPCs exist, and the read RPC
+  returns a JSON array for an active member.
 - **Stage 6 (NEXT, not started):** event cards. "Suggest an event" opens a
   creation sheet (3 fields: activity, date/time, location) → inserts a
   `message_type='event'` mock row → renders an event card with cyan accent +

@@ -2389,6 +2389,141 @@ async function toggleWorkoutReactionInCanonical(logId, reactorAuthUserId, reacto
   }
 }
 
+async function readBlocStreamFromCanonical(legacyGroupKey, authUserId, options = {}) {
+  const { limit = 100 } = options;
+  const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_bloc_stream", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({
+      p_legacy_group_key: legacyGroupKey,
+      p_auth_user_id: authUserId,
+      p_limit: limit
+    })
+  });
+  return await response.json();
+}
+
+async function sendBlocStreamMessageToCanonical(legacyGroupKey, authorAuthUserId, body, replyTo = null, mentions = []) {
+  const response = await supabaseFetch("/rest/v1/rpc/send_ante_core_bloc_message", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({
+      p_legacy_group_key: legacyGroupKey,
+      p_author_auth_user_id: authorAuthUserId,
+      p_body: body,
+      p_reply_to: replyTo || null,
+      p_mentions: Array.isArray(mentions) ? mentions : []
+    })
+  });
+  return await response.json();
+}
+
+async function createBlocStreamEventInCanonical(legacyGroupKey, authorAuthUserId, activity, when, location) {
+  const response = await supabaseFetch("/rest/v1/rpc/create_ante_core_bloc_event", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({
+      p_legacy_group_key: legacyGroupKey,
+      p_author_auth_user_id: authorAuthUserId,
+      p_activity: activity,
+      p_when: when || "",
+      p_location: location || ""
+    })
+  });
+  return await response.json();
+}
+
+async function setBlocStreamEventRsvpInCanonical(legacyGroupKey, authUserId, messageId, status) {
+  await supabaseFetch("/rest/v1/rpc/set_ante_core_bloc_event_rsvp", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({
+      p_legacy_group_key: legacyGroupKey,
+      p_auth_user_id: authUserId,
+      p_message_id: messageId,
+      p_status: status
+    })
+  });
+}
+
+async function toggleBlocStreamReactionInCanonical(legacyGroupKey, authUserId, messageId, emoji, isAdding) {
+  await supabaseFetch("/rest/v1/rpc/toggle_ante_core_bloc_message_reaction", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({
+      p_legacy_group_key: legacyGroupKey,
+      p_auth_user_id: authUserId,
+      p_message_id: messageId,
+      p_emoji: emoji,
+      p_is_adding: typeof isAdding === "boolean" ? isAdding : null
+    })
+  });
+}
+
+async function markBlocStreamReadInCanonical(legacyGroupKey, authUserId) {
+  await supabaseFetch("/rest/v1/rpc/mark_ante_core_bloc_stream_read", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({
+      p_legacy_group_key: legacyGroupKey,
+      p_auth_user_id: authUserId
+    })
+  });
+}
+
+async function insertBlocSystemMomentInCanonical(legacyGroupKey, systemKind, body, payload, idempotencyKey, createdAt = null, options = {}) {
+  const { throwOnError = false } = options;
+  if (!legacyGroupKey || !systemKind || !idempotencyKey) return null;
+  try {
+    const response = await supabaseFetch("/rest/v1/rpc/insert_ante_core_bloc_system_moment", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({
+        p_legacy_group_key: legacyGroupKey,
+        p_system_kind: systemKind,
+        p_body: body || "",
+        p_payload: payload || {},
+        p_idempotency_key: idempotencyKey,
+        p_created_at: createdAt || null
+      })
+    });
+    return await response.json();
+  } catch (err) {
+    if (throwOnError) throw err;
+    console.error("Canonical Bloc Stream system moment insert failed:", err?.message || err);
+    return null;
+  }
+}
+
+function buildTargetHitMoment(beforeGroup, afterGroup, monthKey, displayName, authUserId, log) {
+  if (!beforeGroup || !afterGroup || !monthKey || !displayName || !log?.id) return null;
+  const beforeCount = getCountedLogCount(beforeGroup.logs?.[displayName] || []);
+  const afterCount = getCountedLogCount(afterGroup.logs?.[displayName] || []);
+  const target = getMemberTargetForMonth(afterGroup, displayName, monthKey);
+  if (beforeCount >= target || afterCount < target) return null;
+  const activeMembers = (afterGroup.activeMemberOrder?.length ? afterGroup.activeMemberOrder : afterGroup.memberOrder || [])
+    .filter(name => !afterGroup.excused?.[name]?.[monthKey]);
+  const firstToTarget = !activeMembers.some(name => {
+    if (name === displayName) return false;
+    return getCountedLogCount(afterGroup.logs?.[name] || []) >= getMemberTargetForMonth(afterGroup, name, monthKey);
+  });
+  return {
+    systemKind: "target_hit",
+    body: `${displayName} hit target.`,
+    payload: {
+      memberUserId: authUserId || null,
+      memberDisplayName: displayName,
+      monthKey,
+      count: afterCount,
+      target,
+      logId: String(log.id),
+      firstToTarget
+    },
+    idempotencyKey: `target_hit:${afterGroup.id}:${monthKey}:${authUserId || displayName}`,
+    createdAt: log.createdAt || null
+  };
+}
+
 async function upsertWorkoutLogToCanonical(group, monthKey, ownerDisplayName, ownerAuthUserId, log, options = {}) {
   const { throwOnError = false } = options;
   if (!group || !monthKey || !ownerDisplayName || !log?.id || !log?.date || !log?.type || !log?.createdAt || !log?.verifiedVia) return;
@@ -6808,6 +6943,66 @@ export default async function handler(req, res) {
         return readableCurrent;
       };
 
+      if (payload?.action === "stream-list") {
+        const authUser = await fetchAuthenticatedUser(readBearerToken(req, payload));
+        const messages = await readBlocStreamFromCanonical(payload.groupId, authUser.id, {
+          limit: payload.limit
+        });
+        return res.status(200).json({ ok: true, messages: Array.isArray(messages) ? messages : [] });
+      }
+
+      if (payload?.action === "stream-send") {
+        const authUser = await fetchAuthenticatedUser(readBearerToken(req, payload));
+        const result = await sendBlocStreamMessageToCanonical(
+          payload.groupId,
+          authUser.id,
+          payload.body,
+          payload.replyTo || null,
+          Array.isArray(payload.mentions) ? payload.mentions : []
+        );
+        await bumpCanonicalRevision(`stream-send:${payload.groupId}:${authUser.id}`, null);
+        return res.status(200).json({ ok: true, messageId: result?.id || null });
+      }
+
+      if (payload?.action === "stream-create-event") {
+        const authUser = await fetchAuthenticatedUser(readBearerToken(req, payload));
+        const result = await createBlocStreamEventInCanonical(
+          payload.groupId,
+          authUser.id,
+          payload.activity,
+          payload.when,
+          payload.location
+        );
+        await bumpCanonicalRevision(`stream-event:${payload.groupId}:${authUser.id}`, null);
+        return res.status(200).json({ ok: true, messageId: result?.id || null });
+      }
+
+      if (payload?.action === "stream-rsvp") {
+        const authUser = await fetchAuthenticatedUser(readBearerToken(req, payload));
+        await setBlocStreamEventRsvpInCanonical(payload.groupId, authUser.id, payload.messageId, payload.status);
+        await bumpCanonicalRevision(`stream-rsvp:${payload.groupId}:${payload.messageId}:${authUser.id}`, null);
+        return res.status(200).json({ ok: true });
+      }
+
+      if (payload?.action === "stream-reaction") {
+        const authUser = await fetchAuthenticatedUser(readBearerToken(req, payload));
+        await toggleBlocStreamReactionInCanonical(
+          payload.groupId,
+          authUser.id,
+          payload.messageId,
+          payload.emoji,
+          payload.isAdding
+        );
+        await bumpCanonicalRevision(`stream-reaction:${payload.groupId}:${payload.messageId}:${authUser.id}:${payload.emoji}`, null);
+        return res.status(200).json({ ok: true });
+      }
+
+      if (payload?.action === "stream-mark-read") {
+        const authUser = await fetchAuthenticatedUser(readBearerToken(req, payload));
+        await markBlocStreamReadInCanonical(payload.groupId, authUser.id);
+        return res.status(200).json({ ok: true });
+      }
+
       if (payload?.action === "auth-sync") {
         const authUser = await fetchAuthenticatedUser(readBearerToken(req, payload));
         const current = await getCurrent();
@@ -7110,6 +7305,20 @@ export default async function handler(req, res) {
           await syncBlocMemberToCanonical(joinedGroup, auth.user.id, "member", { throwOnError: true });
           await syncSeasonToCanonical(joinedGroup, joinedGroup?.lastMonth, "open", null, { throwOnError: true });
           await seedOpenSeasonMemberStatusInCanonical(joinedGroup, joinedGroup?.lastMonth, joinedDisplayName, auth.user.id, { throwOnError: true });
+          await insertBlocSystemMomentInCanonical(
+            joinedGroup.id,
+            "member_joined",
+            `${joinedDisplayName} joined the Bloc.`,
+            {
+              memberUserId: auth.user.id,
+              memberDisplayName: joinedDisplayName,
+              joinedAt: joinedGroup.memberships?.[auth.user.id]?.joinedAt || null,
+              joinedMonthKey: joinedGroup.joinedMonthByName?.[joinedDisplayName] || joinedGroup.lastMonth || null
+            },
+            `member_joined:${joinedGroup.id}:${auth.user.id}`,
+            joinedGroup.memberships?.[auth.user.id]?.joinedAt || null,
+            { throwOnError: true }
+          );
         }
         const persisted = await persistOrSkipBlobMirror(joined.state, `join-group:${joined.joinedGroupId}:${auth.user.id}`, "join-group");
         return res.status(200).json({ state: persisted, joinedGroupId: joined.joinedGroupId });
@@ -7131,6 +7340,20 @@ export default async function handler(req, res) {
         // their removal remains blob-only compatibility behavior.
         if (payload.targetUserId) {
           await removeBlocMemberFromCanonical(payload.groupId, payload.targetUserId, { throwOnError: true });
+          await insertBlocSystemMomentInCanonical(
+            payload.groupId,
+            "member_removed",
+            `${payload.targetDisplayName || "Member"} was removed from the Bloc.`,
+            {
+              actorUserId: auth.user.id,
+              targetUserId: payload.targetUserId,
+              targetDisplayName: payload.targetDisplayName || null,
+              removedAt: new Date().toISOString()
+            },
+            `member_removed:${payload.groupId}:${payload.targetUserId}`,
+            null,
+            { throwOnError: true }
+          );
         }
         const kickMirrorAction = payload.targetUserId ? "kick-member" : "kick-member-legacy-name";
         const persisted = await persistOrSkipBlobMirror(updated, `kick-member:${payload.groupId}:${payload.targetUserId}`, kickMirrorAction);
@@ -7155,11 +7378,25 @@ export default async function handler(req, res) {
         // - if admin changes, canonical admin transfer must also succeed first
         // - only after those writes succeed do we mirror the blob state
         if (nextGroup) {
+          const leftDisplayName = canonicalState.groups?.[payload.groupId]?.memberships?.[auth.user.id]?.displayName || auth.profile?.displayName || "";
           await removeBlocMemberFromCanonical(payload.groupId, auth.user.id, { throwOnError: true });
           const nextAdminUserId = nextGroup.adminUserId || null;
           if (nextAdminUserId && nextAdminUserId !== auth.user.id) {
             await updateBlocAdminInCanonical(payload.groupId, nextAdminUserId, { throwOnError: true });
           }
+          await insertBlocSystemMomentInCanonical(
+            payload.groupId,
+            "member_left",
+            `${leftDisplayName || "Member"} left the Bloc.`,
+            {
+              memberUserId: auth.user.id,
+              memberDisplayName: leftDisplayName || null,
+              leftAt: new Date().toISOString()
+            },
+            `member_left:${payload.groupId}:${auth.user.id}`,
+            null,
+            { throwOnError: true }
+          );
           const persisted = await persistOrSkipBlobMirror(updated, `leave-bloc:${payload.groupId}:${auth.user.id}`, "leave-bloc");
           return res.status(200).json({ ok: true, state: persisted, leftGroupId: payload.groupId });
         }
@@ -7209,6 +7446,7 @@ export default async function handler(req, res) {
         // The target blocs still use their existing blob-shaped shells here;
         // the current/open parity report covers the mixed-source behavior.
         for (const groupId of allTargetIds) {
+          const beforeGroup = canonicalState.groups?.[groupId] || null;
           const group = updated.groups?.[groupId];
           if (!group) continue;
           const newLogs = pendingLogsByGroup[groupId] || [];
@@ -7218,6 +7456,18 @@ export default async function handler(req, res) {
           await syncSeasonToCanonical(group, group.lastMonth, "open", null, { throwOnError: true });
           for (const log of newLogs) {
             await upsertWorkoutLogToCanonical(group, group.lastMonth, canonicalActor, auth.user.id, log, { throwOnError: true });
+            const moment = buildTargetHitMoment(beforeGroup, group, group.lastMonth, canonicalActor, auth.user.id, log);
+            if (moment) {
+              await insertBlocSystemMomentInCanonical(
+                group.id,
+                moment.systemKind,
+                moment.body,
+                moment.payload,
+                moment.idempotencyKey,
+                moment.createdAt,
+                { throwOnError: true }
+              );
+            }
           }
         }
         const reason = `multi-log:${canonicalActor || actor || auth.user.id}:${payload.date}:${payload.workoutType}`;
@@ -7250,6 +7500,18 @@ export default async function handler(req, res) {
           await syncBlocToCanonical(group, group.adminUserId || null, groupSortOrder >= 0 ? groupSortOrder : null, { throwOnError: true });
           await syncSeasonToCanonical(group, result.monthKey, targetMonth ? "closed" : "open", targetMonth?.closedAt || null, { throwOnError: true });
           await upsertWorkoutLogToCanonical(group, result.monthKey, canonicalActor, auth.user.id, result.log, { throwOnError: true });
+          const moment = buildTargetHitMoment(canonicalState.groups?.[payload.groupId] || null, group, result.monthKey, canonicalActor, auth.user.id, result.log);
+          if (moment) {
+            await insertBlocSystemMomentInCanonical(
+              group.id,
+              moment.systemKind,
+              moment.body,
+              moment.payload,
+              moment.idempotencyKey,
+              moment.createdAt,
+              { throwOnError: true }
+            );
+          }
         }
         if (shadowBlobUpdated) {
           await runWriteHydrationParityProbe("add-log", payload, auth, actor, shadowBlobUpdated.updated, applyAddLog);

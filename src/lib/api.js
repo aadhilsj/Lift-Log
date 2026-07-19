@@ -505,6 +505,42 @@ async function mutateLogData(payload) {
   return { ok:true, data: normalizeAppState(result.body) };
 }
 
+async function listBlocStreamMessagesData(groupId, limit = 100) {
+  const result = await postApi("stream-list", { groupId, limit });
+  if (!result.ok) return { ok:false, error: result.error || "Unable to load Bloc Stream", messages: [] };
+  return { ok:true, messages: Array.isArray(result.body?.messages) ? result.body.messages : [] };
+}
+
+async function sendBlocStreamMessageData(payload) {
+  const result = await postApi("stream-send", payload);
+  if (!result.ok) return { ok:false, error: result.error || "Unable to send message" };
+  return { ok:true, messageId: result.body?.messageId || null };
+}
+
+async function createBlocStreamEventData(payload) {
+  const result = await postApi("stream-create-event", payload);
+  if (!result.ok) return { ok:false, error: result.error || "Unable to create event" };
+  return { ok:true, messageId: result.body?.messageId || null };
+}
+
+async function setBlocStreamRsvpData(payload) {
+  const result = await postApi("stream-rsvp", payload);
+  if (!result.ok) return { ok:false, error: result.error || "Unable to update RSVP" };
+  return { ok:true };
+}
+
+async function toggleBlocStreamReactionData(payload) {
+  const result = await postApi("stream-reaction", payload);
+  if (!result.ok) return { ok:false, error: result.error || "Unable to update reaction" };
+  return { ok:true };
+}
+
+async function markBlocStreamReadData(groupId) {
+  const result = await postApi("stream-mark-read", { groupId });
+  if (!result.ok) return { ok:false, error: result.error || "Unable to mark stream read" };
+  return { ok:true };
+}
+
 function readCachedData() {
   try {
     const raw = localStorage.getItem(LOCAL_CACHE_KEY);
@@ -570,6 +606,12 @@ export {
   leaveBlocData,
   multiLogData,
   mutateLogData,
+  listBlocStreamMessagesData,
+  sendBlocStreamMessageData,
+  createBlocStreamEventData,
+  setBlocStreamRsvpData,
+  toggleBlocStreamReactionData,
+  markBlocStreamReadData,
   readCachedData,
   writeCachedData,
   getRevision
