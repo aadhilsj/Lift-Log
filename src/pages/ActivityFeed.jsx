@@ -50,7 +50,9 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
     const reactions = { ...(post.reactions || {}) };
     Object.values(activeReactionOverrides).forEach(override => {
       if (override.groupId !== group?.id || override.owner !== post.owner || override.logId !== post.id) return;
-      reactions[override.emoji] = override.members;
+      const members = normalizeReactionMembers(override.members);
+      if (members.length > 0) reactions[override.emoji] = members;
+      else delete reactions[override.emoji];
     });
     return { ...post, reactions };
   }),[activeReactionOverrides, baseFeedPosts, group?.id]);
@@ -182,7 +184,9 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
     )
   );
   const renderReactionRow = (post, compact=false, suppressFloating=false, centered=false) => {
-    const reactionEntries = Object.entries(post.reactions || {}).sort((a,b)=>b[1].length-a[1].length);
+    const reactionEntries = Object.entries(post.reactions || {})
+      .filter(([, members]) => Array.isArray(members) && members.length > 0)
+      .sort((a,b)=>b[1].length-a[1].length);
     return React.createElement('div',{style:{position:centered?"relative":"static",display:"flex",alignItems:"center",justifyContent:centered?"center":"flex-start",gap:6,flexWrap:"wrap",paddingTop:compact?0:6,marginLeft:centered?0:(compact?-2:0)}},
       reactionEntries.map(([emoji, members])=>{
         const active = members.includes(currentUser);
