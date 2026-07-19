@@ -136,23 +136,23 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
           : "If the month ended today, no money would move because nobody has hit target yet."
     ),
     wouldMoveMoney&&winners.length>0&&React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:7}},
-      React.createElement('div',{className:"mono",style:{fontSize:9,color:"#4ECDC4",textTransform:"uppercase",letterSpacing:".12em"}},"Would collect"),
+      React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontSize:9,fontWeight:800,color:"#4ECDC4",textTransform:"uppercase",letterSpacing:".12em"}},"Would collect"),
       winners.map(w=>React.createElement('div',{key:`win-${w.name}`,style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,background:"rgba(78,205,196,.06)",border:"1px solid rgba(78,205,196,.14)",borderRadius:8,padding:"9px 10px"}},
         React.createElement('div',{style:{display:"flex",alignItems:"center",gap:8,minWidth:0}},
           React.createElement(Avatar,{name:w.name,size:24}),
           React.createElement('span',{style:{fontSize:13,fontWeight:800,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},w.name)
         ),
-        React.createElement('span',{className:"mono",style:{fontSize:13,fontWeight:800,color:"#4ECDC4",flexShrink:0}},`+${fmtCurrency(perWinner, resultsCurrency)}`)
+        React.createElement('span',{style:{fontFamily:"'Outfit', sans-serif",fontSize:13,fontWeight:800,color:"#4ECDC4",flexShrink:0}},`+${fmtCurrency(perWinner, resultsCurrency)}`)
       ))
     ),
     wouldMoveMoney&&losers.length>0&&React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:7}},
-      React.createElement('div',{className:"mono",style:{fontSize:9,color:"var(--red)",textTransform:"uppercase",letterSpacing:".12em"}},"Would pay"),
+      React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontSize:9,fontWeight:800,color:"var(--red)",textTransform:"uppercase",letterSpacing:".12em"}},"Would pay"),
       losers.map(l=>React.createElement('div',{key:`lose-${l.name}`,style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,background:"rgba(232,69,69,.055)",border:"1px solid rgba(232,69,69,.14)",borderRadius:8,padding:"9px 10px"}},
         React.createElement('div',{style:{display:"flex",alignItems:"center",gap:8,minWidth:0}},
           React.createElement(Avatar,{name:l.name,size:24}),
           React.createElement('span',{style:{fontSize:13,fontWeight:800,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},l.name)
         ),
-        React.createElement('span',{className:"mono",style:{fontSize:13,fontWeight:800,color:"var(--red)",flexShrink:0}},`-${fmtCurrency(getLoserAmount(penalties, l.name), resultsCurrency)}`)
+        React.createElement('span',{style:{fontFamily:"'Outfit', sans-serif",fontSize:13,fontWeight:800,color:"var(--red)",flexShrink:0}},`-${fmtCurrency(getLoserAmount(penalties, l.name), resultsCurrency)}`)
       ))
     ),
     hasQualifiedWinner&&!wouldMoveMoney&&React.createElement('div',{style:{fontSize:13,fontWeight:800,color:"#4ECDC4"}},"Everyone active would keep their money. No one would pay.")
