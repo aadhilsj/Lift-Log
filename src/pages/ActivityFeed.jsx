@@ -94,7 +94,7 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
     }
     onReact(post.owner, post.id, emoji);
   };
-  const renderReactionPicker = post => reactionTarget===post.id && React.createElement('div',{style:{position:"absolute",left:"calc(100% + 5px)",top:"calc(100% + 5px)",zIndex:8,width:"max-content",maxWidth:"calc(100vw - 48px)",padding:"6px 8px",borderRadius:999,background:"rgba(8,15,15,.96)",border:"1px solid rgba(78,205,196,.16)",boxShadow:"0 14px 32px rgba(0,0,0,.34), inset 0 1px 0 rgba(255,255,255,.05)",display:"grid",gap:6,overflowX:"auto",WebkitOverflowScrolling:"touch"}},
+  const renderReactionPicker = (post, centered=false) => reactionTarget===post.id && React.createElement('div',{style:{position:"absolute",left:centered?"50%":"calc(100% + 5px)",top:centered?"auto":"calc(100% + 5px)",bottom:centered?"calc(100% + 4px)":"auto",transform:centered?"translateX(-50%)":"none",zIndex:8,width:"max-content",maxWidth:"calc(100vw - 48px)",padding:"6px 8px",borderRadius:999,background:"rgba(8,15,15,.96)",border:"1px solid rgba(78,205,196,.16)",boxShadow:"0 14px 32px rgba(0,0,0,.34), inset 0 1px 0 rgba(255,255,255,.05)",display:"grid",gap:6,overflowX:"auto",WebkitOverflowScrolling:"touch"}},
     React.createElement('div',{style:{display:"flex",alignItems:"center",gap:5,flexWrap:"nowrap",justifyContent:"center",minWidth:"max-content"}},
       QUICK_REACTIONS.map(emoji=>
         React.createElement('button',{key:emoji,type:"button",onClick:()=>{ onReact(post.owner, post.id, emoji); setReactionTarget(null); },style:{width:24,height:24,borderRadius:999,background:"var(--s2)",border:"1px solid var(--border)",fontSize:13,color:"var(--text)",display:"inline-flex",alignItems:"center",justifyContent:"center",padding:0,flex:"0 0 auto"}},emoji)
@@ -103,7 +103,7 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
   );
   const renderReactionRow = (post, compact=false, suppressFloating=false, centered=false) => {
     const reactionEntries = Object.entries(post.reactions || {}).sort((a,b)=>b[1].length-a[1].length);
-    return React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:centered?"center":"flex-start",gap:6,flexWrap:"wrap",paddingTop:compact?0:6,marginLeft:centered?0:(compact?-2:0)}},
+    return React.createElement('div',{style:{position:centered?"relative":"static",display:"flex",alignItems:"center",justifyContent:centered?"center":"flex-start",gap:6,flexWrap:"wrap",paddingTop:compact?0:6,marginLeft:centered?0:(compact?-2:0)}},
       reactionEntries.map(([emoji, members])=>{
         const active = members.includes(currentUser);
         const reactionKey = `${post.id}:${emoji}`;
@@ -117,9 +117,9 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
           )
         );
       }),
-      React.createElement('div',{ref:reactionTarget===post.id?reactionPickerRef:null,style:{position:"relative",display:"inline-flex"}},
+      React.createElement('div',{ref:reactionTarget===post.id?reactionPickerRef:null,style:{position:centered?"static":"relative",display:"inline-flex"}},
         React.createElement('button',{type:"button",onClick:()=>setReactionTarget(reactionTarget===post.id?null:post.id),style:{height:compact?20:22,padding:compact?"0 6px":"0 7px",borderRadius:999,background:"var(--s1)",border:"1px solid var(--border)",fontSize:10.5,color:"var(--muted)"}},"＋"),
-        !suppressFloating && renderReactionPicker(post)
+        !suppressFloating && renderReactionPicker(post, centered)
       )
     );
   };
