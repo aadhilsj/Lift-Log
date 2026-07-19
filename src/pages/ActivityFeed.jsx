@@ -72,7 +72,7 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
   useEffect(()=>{
     if (!reactionTarget) return;
     const handlePointerDown = event => {
-      if (reactionPickerRef.current && !reactionPickerRef.current.contains(event.target)) {
+      if (!event.target?.closest?.('[data-reaction-picker-root="true"]')) {
         setReactionTarget(null);
       }
     };
@@ -174,10 +174,17 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
     }
     handleReact(post, emoji);
   };
-  const renderReactionPicker = (post, centered=false) => reactionTarget===post.id && React.createElement('div',{style:{position:"absolute",left:centered?"50%":"calc(100% + 5px)",top:centered?"auto":"calc(100% + 5px)",bottom:centered?"calc(100% + 4px)":"auto",transform:centered?"translateX(-50%)":"none",zIndex:8,width:"max-content",maxWidth:"calc(100vw - 48px)",padding:"6px 8px",borderRadius:999,background:"rgba(8,15,15,.96)",border:"1px solid rgba(78,205,196,.16)",boxShadow:"0 14px 32px rgba(0,0,0,.34), inset 0 1px 0 rgba(255,255,255,.05)",display:"grid",gap:6,overflowX:"auto",WebkitOverflowScrolling:"touch"}},
+  const renderReactionPicker = (post, centered=false) => reactionTarget===post.id && React.createElement('div',{"data-reaction-picker-root":"true",style:{position:"absolute",left:centered?"50%":"calc(100% + 5px)",top:centered?"auto":"calc(100% + 5px)",bottom:centered?"calc(100% + 4px)":"auto",transform:centered?"translateX(-50%)":"none",zIndex:8,width:"max-content",maxWidth:"calc(100vw - 48px)",padding:"6px 8px",borderRadius:999,background:"rgba(8,15,15,.96)",border:"1px solid rgba(78,205,196,.16)",boxShadow:"0 14px 32px rgba(0,0,0,.34), inset 0 1px 0 rgba(255,255,255,.05)",display:"grid",gap:6,overflowX:"auto",WebkitOverflowScrolling:"touch"}},
     React.createElement('div',{style:{display:"flex",alignItems:"center",gap:5,flexWrap:"nowrap",justifyContent:"center",minWidth:"max-content"}},
       QUICK_REACTIONS.map(emoji=>
         React.createElement('button',{key:emoji,type:"button",onClick:()=>{ handleReact(post, emoji); setReactionTarget(null); },style:{width:24,height:24,borderRadius:999,background:"var(--s2)",border:"1px solid var(--border)",fontSize:13,color:"var(--text)",display:"inline-flex",alignItems:"center",justifyContent:"center",padding:0,flex:"0 0 auto"}},emoji)
+      )
+    )
+  );
+  const renderInlineReactionPicker = post => reactionTarget===post.id && React.createElement('div',{"data-reaction-picker-root":"true",ref:reactionPickerRef,style:{marginTop:8,padding:"10px 12px",borderRadius:12,background:"var(--s1)",border:"1px solid var(--border)",display:"grid",gap:10}},
+    React.createElement('div',{style:{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}},
+      QUICK_REACTIONS.map(emoji=>
+        React.createElement('button',{key:emoji,type:"button",onClick:()=>{ handleReact(post, emoji); setReactionTarget(null); },style:{width:40,height:40,borderRadius:999,background:"var(--s2)",border:"1px solid var(--border)",fontSize:22,color:"var(--text)"}},emoji)
       )
     )
   );
@@ -197,9 +204,9 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
           )
         );
       }),
-      React.createElement('div',{ref:reactionTarget===post.id?reactionPickerRef:null,style:{position:centered?"static":"relative",display:"inline-flex"}},
+      React.createElement('div',{"data-reaction-picker-root":"true",style:{position:centered?"static":"relative",display:"inline-flex"}},
         React.createElement('button',{type:"button",onClick:()=>setReactionTarget(reactionTarget===post.id?null:post.id),style:{height:compact?20:22,padding:compact?"0 6px":"0 7px",borderRadius:999,background:"var(--s1)",border:"1px solid var(--border)",fontSize:10.5,color:"var(--muted)"}},"＋"),
-        !suppressFloating && renderReactionPicker(post, centered)
+        !suppressFloating && centered && renderReactionPicker(post, centered)
       )
     );
   };
@@ -405,7 +412,7 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
                       )
                     )
                   ),
-                  null
+                  !imagePost && renderInlineReactionPicker(post)
                 )
               );
             })

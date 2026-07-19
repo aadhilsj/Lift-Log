@@ -141,6 +141,7 @@ const App = () => {
   const [blocDragX,setBlocDragX]=useState(0);
   const [blocDragging,setBlocDragging]=useState(false);
   const [suppressSwitcherIntro,setSuppressSwitcherIntro]=useState(false);
+  const [hiddenLeftGroupIds,setHiddenLeftGroupIds]=useState({});
   const [profileRevealActive,setProfileRevealActive]=useState(false);
   const latestRevisionRef = useRef(getRevision(cached));
   const justSyncedTimerRef = useRef(null);
@@ -804,6 +805,12 @@ const App = () => {
       const result = await createGroupData({ ...payload, actorUserId: authSession?.userId });
       if(result.ok && result.state){
         applyData(result.state);
+        setHiddenLeftGroupIds(current => {
+          if (!current[result.createdGroupId]) return current;
+          const next = { ...current };
+          delete next[result.createdGroupId];
+          return next;
+        });
         persistGroupSelection(result.createdGroupId);
         const createdGroup = result.state.groups?.[result.createdGroupId];
         if (shouldPromptProration(createdGroup, authSession?.userId)) {
@@ -898,11 +905,14 @@ const App = () => {
 
   const handleLeaveBloc = useCallback(async()=>{
     if (!selectedGroupId || !authSession?.userId) return { ok:false };
-    const result = await leaveBlocData({ groupId: selectedGroupId, userId: authSession.userId });
+    const leavingGroupId = selectedGroupId;
+    const result = await leaveBlocData({ groupId: leavingGroupId, userId: authSession.userId });
     if (result.ok && result.state) {
+      setHiddenLeftGroupIds(current => ({ ...current, [leavingGroupId]: true }));
       applyData(result.state);
       resetInviteFlow({ clearUrl:true });
       setShowProfileModal(false);
+      setShowStream(false);
       persistGroupSelection(null);
       setLastSyncedAt(new Date());
       setSyncError(false);
@@ -1026,7 +1036,12 @@ const App = () => {
   const showIosHint = !standalone && !installDismissed && isIos() && isSafari() && !installPrompt;
   const showInstallBanner = !standalone && !installDismissed && (Boolean(installPrompt) || showIosHint);
   const groups = appState.groupOrder.map(groupId => appState.groups[groupId]).filter(Boolean);
-  const visibleGroups = groups.filter(group => Boolean(getMembershipForUser(group, effectiveAuthSession, effectiveProfile)));
+  const visibleGroups = groups.filter(group => {
+    const displayName = String(effectiveProfile?.displayName || "").trim();
+    if (hiddenLeftGroupIds[group.id]) return false;
+    if (displayName && Array.isArray(group.leftMemberNames) && group.leftMemberNames.includes(displayName)) return false;
+    return Boolean(getMembershipForUser(group, effectiveAuthSession, effectiveProfile));
+  });
   const localPreviewMembers = uniqueNames(groups.flatMap(group => getCurrentGroupMemberNames(group)));
   const activityAlertCount = currentGroup && currentUser ? getActivityAlertCount(currentGroup, currentUser) : 0;
   const openAuth = intent => {
@@ -1146,6 +1161,12 @@ const App = () => {
         return;
       }
       applyData(joinResult.state);
+      setHiddenLeftGroupIds(current => {
+        if (!current[joinResult.joinedGroupId]) return current;
+        const next = { ...current };
+        delete next[joinResult.joinedGroupId];
+        return next;
+      });
       resetInviteFlow({ clearUrl:true });
       persistGroupSelection(joinResult.joinedGroupId);
       setPage("today");
@@ -1176,6 +1197,12 @@ const App = () => {
       return;
     }
     applyData(result.state);
+    setHiddenLeftGroupIds(current => {
+      if (!current[result.joinedGroupId]) return current;
+      const next = { ...current };
+      delete next[result.joinedGroupId];
+      return next;
+    });
     resetInviteFlow({ clearUrl:true });
     persistGroupSelection(result.joinedGroupId);
     setPage("today");
