@@ -752,12 +752,9 @@ const App = () => {
       const runReactionMutation = async()=>{
         try {
           const result = await mutateLogData({ ...payload, actorUserId: authSession?.userId || payload.actorUserId });
-          if(result.ok && result.data){
-            const applied = applyData(result.data, { fromMutation: true });
-            if (applied) {
-              setLastSyncedAt(new Date());
-              setSyncError(false);
-            }
+          if(result.ok){
+            setLastSyncedAt(new Date());
+            setSyncError(false);
           } else {
             setSyncError(true);
             await refreshNow();

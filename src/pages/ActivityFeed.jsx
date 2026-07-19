@@ -25,6 +25,10 @@ const reactionsMatch = (a, b) => {
   const right = normalizeReactionMembers(b);
   return left.length === right.length && left.every((member, index) => member === right[index]);
 };
+const reactionSortIndex = emoji => {
+  const index = QUICK_REACTIONS.indexOf(emoji);
+  return index === -1 ? QUICK_REACTIONS.length : index;
+};
 
 const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clockTick,reactionOverrides,setReactionOverrides}) => {
   const [flagTarget,setFlagTarget]=useState(null);
@@ -186,7 +190,7 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
   const renderReactionRow = (post, compact=false, suppressFloating=false, centered=false) => {
     const reactionEntries = Object.entries(post.reactions || {})
       .filter(([, members]) => Array.isArray(members) && members.length > 0)
-      .sort((a,b)=>b[1].length-a[1].length);
+      .sort((a,b)=>(b[1].length-a[1].length) || (reactionSortIndex(a[0])-reactionSortIndex(b[0])));
     return React.createElement('div',{style:{position:centered?"relative":"static",display:"flex",alignItems:"center",justifyContent:centered?"center":"flex-start",gap:6,flexWrap:"wrap",paddingTop:compact?0:6,marginLeft:centered?0:(compact?-2:0)}},
       reactionEntries.map(([emoji, members])=>{
         const active = members.includes(currentUser);
