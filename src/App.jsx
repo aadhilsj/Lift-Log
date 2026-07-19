@@ -992,6 +992,7 @@ const App = () => {
   };
   const startBlocSwitchSwipe = useCallback((e) => {
     if (page !== "today" || showTodayLog || showSettings || showProfileModal || showStream || showJoinModal || authStep || prorationGroup) return;
+    if (e.target?.closest?.(".in-bloc-profile-layer")) return;
     const t = e.touches?.[0];
     if (!t || t.clientX > 72) return;
     blocSwipeRef.current = {sx:t.clientX, sy:t.clientY, st:performance.now(), active:true, mode:null};
