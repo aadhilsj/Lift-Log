@@ -4,7 +4,7 @@ import { ActivityFeed } from "../pages/ActivityFeed.jsx";
 
 const ActivityPage = ({group,currentUser,onLogMutation,clockTick,reactionOverrides,setReactionOverrides}) => {
   const wrapStyle = {width:"100%",maxWidth:"none",margin:"0",padding:"12px 8px 20px",boxSizing:"border-box"};
-  const handleReaction = (owner, logId, emoji) => onLogMutation({ action:"reaction", groupId:group.id, actor:currentUser, owner, logId, emoji });
+  const handleReaction = (owner, logId, emoji, isAdding) => onLogMutation({ action:"reaction", groupId:group.id, actor:currentUser, owner, logId, emoji, isAdding });
   const handleFlag = async (owner, logId, reason) => {
     const result = await onLogMutation({ action:"flag", groupId:group.id, actor:currentUser, owner, logId, reason });
     return result;

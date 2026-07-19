@@ -126,7 +126,7 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
         members: nextMembers
       }
     }));
-    Promise.resolve(onReact(post.owner, post.id, emoji)).then(result => {
+    Promise.resolve(onReact(post.owner, post.id, emoji, nextMembers.includes(currentUser))).then(result => {
       if (result?.ok === false) {
         updateReactionOverrides(current => {
           const next = { ...current };

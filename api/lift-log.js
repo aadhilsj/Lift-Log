@@ -6096,9 +6096,15 @@ function applyToggleReaction(current, payload) {
     }
     const reactions = normalizeReactions(log.reactions);
     const currentUsers = reactions[emoji] || [];
-    reactions[emoji] = currentUsers.includes(actor)
-      ? currentUsers.filter(name => name !== actor)
-      : [...currentUsers, actor];
+    if (typeof payload?.isAdding === "boolean") {
+      reactions[emoji] = payload.isAdding
+        ? (currentUsers.includes(actor) ? currentUsers : [...currentUsers, actor])
+        : currentUsers.filter(name => name !== actor);
+    } else {
+      reactions[emoji] = currentUsers.includes(actor)
+        ? currentUsers.filter(name => name !== actor)
+        : [...currentUsers, actor];
+    }
     if (!reactions[emoji].length) delete reactions[emoji];
     return { ...log, reactions };
   }, "reaction");
@@ -7439,7 +7445,9 @@ export default async function handler(req, res) {
           // 3. apply the exact reaction direction canonically
           // 4. persist blob afterward as the compatibility mirror
           await syncOpenWorkoutLogSnapshotToCanonical(reactionGroup, payload.owner, reactionLog, { throwOnError: true });
-          const isAdding = (reactionLog.reactions?.[emoji] || []).includes(canonicalActor);
+          const isAdding = typeof payload?.isAdding === "boolean"
+            ? payload.isAdding
+            : (reactionLog.reactions?.[emoji] || []).includes(canonicalActor);
           await toggleWorkoutReactionInCanonical(payload.logId, auth.user.id, canonicalActor, emoji, isAdding, { throwOnError: true });
         }
         const persisted = await persistOrSkipBlobMirror(result.updated, result.reason, "reaction");
