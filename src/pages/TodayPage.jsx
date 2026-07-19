@@ -844,7 +844,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
         monthIndex: CUR_MONTH,
         logsByDay: desktopLogsByDay
       }),
-      statDetail.kind === "week-mvp" && React.createElement('div',{style:{display:"grid",gap:12}},
+      statDetail.kind === "week-mvp" && React.createElement('div',{style:{display:"grid",gap:12,paddingBottom:4}},
         React.createElement('div',{style:{display:"grid",gap:8}},
           React.createElement('div',{style:{display:"flex",alignItems:"baseline",gap:6,flexWrap:"wrap"}},
             React.createElement('div',{style:{fontSize:9,color:"#8FAEAA",textTransform:"uppercase",letterSpacing:".12em",fontFamily:"'Outfit',sans-serif",fontWeight:700}},"This week"),
@@ -866,7 +866,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
         ),
         weeklyMvpDisplayHistory.length > 0 && React.createElement('div',{style:{display:"grid",gap:8}},
           React.createElement('div',{style:{fontSize:9,color:"#8FAEAA",textTransform:"uppercase",letterSpacing:".12em",fontFamily:"'Outfit',sans-serif",fontWeight:700,paddingTop:2}},"Earlier this month"),
-          React.createElement(Card,{style:{padding:"10px 12px",background:"#080F0F",border:"0.5px solid #122424",display:"grid",gap:10}},
+          React.createElement(Card,{style:{padding:"10px 12px 12px",background:"#080F0F",border:"0.5px solid #122424",display:"grid",gap:10}},
             weeklyMvpDisplayHistory.map((entry, index) => React.createElement('div',{key:entry.key || entry.label,style:{
               display:"grid",
               gridTemplateColumns:"minmax(0,1fr) auto",
@@ -890,7 +890,13 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
               )
             ))
           )
-        )
+        ),
+        React.createElement('div',{style:{
+          height:1,
+          width:"100%",
+          background:"linear-gradient(90deg, transparent, rgba(78,205,196,.18), transparent)",
+          opacity:.75
+        }})
       ),
       statDetail.kind === "bloc-month" && React.createElement(Card,{style:{padding:0,overflow:"hidden"}},
         blocMonthHistoryRows.length
