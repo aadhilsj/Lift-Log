@@ -106,35 +106,44 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
   const handleReact = useCallback((post, emoji) => {
     if (!currentUser) return;
     const key = getReactionKey(group?.id, post.owner, post.id, emoji);
-    const currentMembers = normalizeReactionMembers(post.reactions?.[emoji]);
-    const nextMembers = currentMembers.includes(currentUser)
-      ? currentMembers.filter(member => member !== currentUser)
-      : [...currentMembers, currentUser].sort();
-    updateReactionOverrides(current => ({
-      ...current,
-      [key]: {
-        groupId: group?.id,
-        owner: post.owner,
-        logId: post.id,
-        emoji,
-        members: nextMembers
-      }
-    }));
-    Promise.resolve(onReact(post.owner, post.id, emoji)).then(result => {
-      if (result?.ok === false) {
-        updateReactionOverrides(current => {
-          const next = { ...current };
-          delete next[key];
-          return next;
-        });
-      }
-    }).catch(() => {
+    let intendedMembers = [];
+    updateReactionOverrides(current => {
+      const currentMembers = normalizeReactionMembers(current?.[key]?.members || post.reactions?.[emoji]);
+      const nextMembers = currentMembers.includes(currentUser)
+        ? currentMembers.filter(member => member !== currentUser)
+        : [...currentMembers, currentUser].sort();
+      intendedMembers = nextMembers;
+      return {
+        ...current,
+        [key]: {
+          groupId: group?.id,
+          owner: post.owner,
+          logId: post.id,
+          emoji,
+          members: nextMembers
+        }
+      };
+    });
+    const rollbackIntent = () => {
       updateReactionOverrides(current => {
+        if (!reactionsMatch(current?.[key]?.members, intendedMembers)) return current;
         const next = { ...current };
         delete next[key];
         return next;
       });
+    };
+    const runServerReaction = () => Promise.resolve(onReact(post.owner, post.id, emoji)).then(result => {
+      if (result?.ok === false) {
+        rollbackIntent();
+      }
+    }).catch(() => {
+      rollbackIntent();
     });
+    if (typeof window !== "undefined" && typeof window.requestAnimationFrame === "function") {
+      window.requestAnimationFrame(runServerReaction);
+    } else {
+      setTimeout(runServerReaction, 0);
+    }
   },[currentUser, group?.id, onReact, updateReactionOverrides]);
   useEffect(()=>{
     if (!imageTarget) return;
