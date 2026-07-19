@@ -57,17 +57,20 @@ Current blob mutations:
 - `kick-member`
   - removes the target from `memberships`
   - removes the target from `memberOrder`
-  - appends the display name to `leftMemberNames`
+  - removes stale suppression for auth-linked members; only profile-less legacy
+    removals still append the display name to `leftMemberNames`
 - `leave-bloc`
   - removes the leaver from `memberships`
   - removes the leaver from `memberOrder`
-  - appends the display name to `leftMemberNames`
+  - removes stale suppression because this path requires an auth-linked
+    membership and active membership is now sourced from explicit memberships
 - `delete-account`
   - removes the user from memberships and group state
-  - does **not** currently append them to `leftMemberNames`
-  - instead relies on direct removal of the active membership + profile
+  - removes stale suppression for surviving blocs after active membership
+    removal
 - `repair-display-name`
-  - does not currently repair `leftMemberNames`
+  - renames matching `leftMemberNames` entries with the rest of the legacy
+    display-name surfaces
 
 ## Canonical Reality Already Available
 
@@ -154,8 +157,8 @@ Desired canonical rule:
 Verdict:
 - current blob path is weaker here than leave/kick because it does not maintain
   an explicit suppression list entry
-- however, profile deletion plus membership deletion has been good enough so far
-  only because the read path still begins from blob state
+- this is now acceptable for auth-linked groups because active membership is
+  sourced from explicit memberships before historical inference
 
 This path should be reconsidered together with the eventual `leftMemberNames`
 replacement.
@@ -169,9 +172,9 @@ Desired canonical rule:
 
 Verdict:
 - current repair path updates many name-keyed surfaces
-- it does not explicitly reconcile `leftMemberNames`
-- this is a secondary correctness gap and should be included in the same
-  lifecycle cleanup program
+- it also reconciles matching `leftMemberNames` entries
+- this should remain a quarantined compatibility repair until the broader
+  lifecycle cleanup program is complete
 
 ## Best Next Implementation Strategy
 
@@ -216,8 +219,8 @@ That means a safe first implementation slice is smaller:
 - only then revisit the broader read-authority transfer
 
 Prep fixes landed locally after this audit:
-- `delete-account` now appends the removed member display name to
-  `leftMemberNames` for surviving blocs
+- `delete-account` now removes stale `leftMemberNames` suppression for surviving
+  blocs after active membership removal
 - `repair-display-name` now renames any matching `leftMemberNames` entry
 
 ## Safest First Slice

@@ -55,6 +55,10 @@ begin
           jsonb_agg(
             jsonb_build_object(
               'display_name',          sms.display_name_snapshot,
+              'auth_user_id',          case
+                                         when p.auth_user_id is null then null
+                                         else p.auth_user_id::text
+                                       end,
               'workout_count',         sms.workout_count,
               'excused',               sms.excused,
               'joined_for_month',      sms.joined_for_month,
@@ -73,6 +77,8 @@ begin
           '[]'::jsonb
         )
         from ante_core.season_member_status sms
+        left join ante_core.profiles p
+          on p.id = sms.profile_id
         where sms.season_id = s.id
       ) as members,
       (

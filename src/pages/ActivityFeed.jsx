@@ -14,13 +14,26 @@ import {
 import { Avatar, WorkoutTypeIcon, Card } from "../components/primitives.jsx";
 import { TextEntryModal, NoticeModal } from "../modals/modals.jsx";
 
-const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clockTick}) => {
+const getReactionKey = (groupId, owner, logId, emoji) => `${groupId || ""}:${owner || ""}:${logId || ""}:${emoji || ""}`;
+
+const normalizeReactionMembers = (members) => Array.isArray(members)
+  ? Array.from(new Set(members.filter(Boolean))).sort()
+  : [];
+
+const reactionsMatch = (a, b) => {
+  const left = normalizeReactionMembers(a);
+  const right = normalizeReactionMembers(b);
+  return left.length === right.length && left.every((member, index) => member === right[index]);
+};
+
+const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clockTick,reactionOverrides,setReactionOverrides}) => {
   const [flagTarget,setFlagTarget]=useState(null);
   const [flagReason,setFlagReason]=useState("");
   const [responseTarget,setResponseTarget]=useState(null);
   const [responseText,setResponseText]=useState("");
   const [reactionTarget,setReactionTarget]=useState(null);
   const [reactionPopover,setReactionPopover]=useState(null);
+  const [localReactionOverrides,setLocalReactionOverrides]=useState({});
   const [imageTarget,setImageTarget]=useState(null);
   const [notice,setNotice]=useState(null);
   const reactionPressTimer = useRef(null);
@@ -30,7 +43,17 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
   const reactionPickerRef = useRef(null);
   const photoSwipeStart = useRef(null);
   const photoSwipeHandled = useRef(false);
-  const feedPosts = useMemo(()=>flattenFeedPosts(group),[group]);
+  const activeReactionOverrides = reactionOverrides || localReactionOverrides;
+  const updateReactionOverrides = setReactionOverrides || setLocalReactionOverrides;
+  const baseFeedPosts = useMemo(()=>flattenFeedPosts(group),[group]);
+  const feedPosts = useMemo(()=>baseFeedPosts.map(post => {
+    const reactions = { ...(post.reactions || {}) };
+    Object.values(activeReactionOverrides).forEach(override => {
+      if (override.groupId !== group?.id || override.owner !== post.owner || override.logId !== post.id) return;
+      reactions[override.emoji] = override.members;
+    });
+    return { ...post, reactions };
+  }),[activeReactionOverrides, baseFeedPosts, group?.id]);
   const photoFeedPosts = useMemo(()=>feedPosts.filter(post=>post.photoUrl),[feedPosts]);
   const isAdmin = group?.adminName === currentUser;
   const approvedFlagCount = countApprovedFlagsForActor(group, currentUser);
@@ -56,6 +79,63 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
     document.addEventListener("pointerdown", handlePointerDown);
     return ()=>document.removeEventListener("pointerdown", handlePointerDown);
   },[reactionTarget]);
+  useEffect(()=>{
+    updateReactionOverrides(current => {
+      let changed = false;
+      const next = {};
+      Object.entries(current).forEach(([key, override]) => {
+        if (override.groupId !== group?.id) {
+          next[key] = override;
+          return;
+        }
+        const post = baseFeedPosts.find(item => item.owner === override.owner && item.id === override.logId);
+        if (!post) {
+          changed = true;
+          return;
+        }
+        const baseMembers = post?.reactions?.[override.emoji] || [];
+        if (reactionsMatch(baseMembers, override.members)) {
+          changed = true;
+          return;
+        }
+        next[key] = override;
+      });
+      return changed ? next : current;
+    });
+  },[baseFeedPosts, group?.id, updateReactionOverrides]);
+  const handleReact = useCallback((post, emoji) => {
+    if (!currentUser) return;
+    const key = getReactionKey(group?.id, post.owner, post.id, emoji);
+    const currentMembers = normalizeReactionMembers(post.reactions?.[emoji]);
+    const nextMembers = currentMembers.includes(currentUser)
+      ? currentMembers.filter(member => member !== currentUser)
+      : [...currentMembers, currentUser].sort();
+    updateReactionOverrides(current => ({
+      ...current,
+      [key]: {
+        groupId: group?.id,
+        owner: post.owner,
+        logId: post.id,
+        emoji,
+        members: nextMembers
+      }
+    }));
+    Promise.resolve(onReact(post.owner, post.id, emoji)).then(result => {
+      if (result?.ok === false) {
+        updateReactionOverrides(current => {
+          const next = { ...current };
+          delete next[key];
+          return next;
+        });
+      }
+    }).catch(() => {
+      updateReactionOverrides(current => {
+        const next = { ...current };
+        delete next[key];
+        return next;
+      });
+    });
+  },[currentUser, group?.id, onReact, updateReactionOverrides]);
   useEffect(()=>{
     if (!imageTarget) return;
     const previousOverflow = document.body.style.overflow;
@@ -92,12 +172,12 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
       reactionLongPressKey.current = "";
       return;
     }
-    onReact(post.owner, post.id, emoji);
+    handleReact(post, emoji);
   };
   const renderReactionPicker = (post, centered=false) => reactionTarget===post.id && React.createElement('div',{style:{position:"absolute",left:centered?"50%":"calc(100% + 5px)",top:centered?"auto":"calc(100% + 5px)",bottom:centered?"calc(100% + 4px)":"auto",transform:centered?"translateX(-50%)":"none",zIndex:8,width:"max-content",maxWidth:"calc(100vw - 48px)",padding:"6px 8px",borderRadius:999,background:"rgba(8,15,15,.96)",border:"1px solid rgba(78,205,196,.16)",boxShadow:"0 14px 32px rgba(0,0,0,.34), inset 0 1px 0 rgba(255,255,255,.05)",display:"grid",gap:6,overflowX:"auto",WebkitOverflowScrolling:"touch"}},
     React.createElement('div',{style:{display:"flex",alignItems:"center",gap:5,flexWrap:"nowrap",justifyContent:"center",minWidth:"max-content"}},
       QUICK_REACTIONS.map(emoji=>
-        React.createElement('button',{key:emoji,type:"button",onClick:()=>{ onReact(post.owner, post.id, emoji); setReactionTarget(null); },style:{width:24,height:24,borderRadius:999,background:"var(--s2)",border:"1px solid var(--border)",fontSize:13,color:"var(--text)",display:"inline-flex",alignItems:"center",justifyContent:"center",padding:0,flex:"0 0 auto"}},emoji)
+        React.createElement('button',{key:emoji,type:"button",onClick:()=>{ handleReact(post, emoji); setReactionTarget(null); },style:{width:24,height:24,borderRadius:999,background:"var(--s2)",border:"1px solid var(--border)",fontSize:13,color:"var(--text)",display:"inline-flex",alignItems:"center",justifyContent:"center",padding:0,flex:"0 0 auto"}},emoji)
       )
     )
   );

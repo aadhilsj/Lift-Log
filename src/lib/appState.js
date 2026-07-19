@@ -123,7 +123,7 @@ const LOCAL_CACHE_KEY = "ll_cached_data_v2";
 const LOCAL_GROUP_KEY = "ll_group_id";
 const LOCAL_PREVIEW_AUTH_KEY = "ll_preview_auth";
 const LOCAL_DEV_IMPERSONATION_KEY = "ll_dev_impersonation_user_id";
-const SYNC_POLL_INTERVAL_MS = 3000;
+const SYNC_POLL_INTERVAL_MS = 6000;
 const getDaysLeft = () => DAYS_IN_MON - DAY_OF_MON + 1;
 
 function refreshActiveTimeContext(timeZone = DEFAULT_GROUP_TIME_ZONE) {
@@ -596,6 +596,7 @@ function buildSettlementPairsForMonth(month) {
   const excused = month?.excused || {};
   const settings = month?.settings || {};
   const memberTargets = month?.memberTargets || {};
+  const memberAuthUserIds = month?.memberAuthUserIds || {};
   const relevantNames = Object.keys(counts);
   const activeCounts = relevantNames
     .filter(name => !excused?.[name])
@@ -616,6 +617,8 @@ function buildSettlementPairsForMonth(month) {
         monthLabel: month.label || formatMonthLabelFromKey(month.key) || month.key,
         payerDisplayName: loser.name,
         receiverDisplayName: winner.name,
+        payerAuthUserId: memberAuthUserIds?.[loser.name] || null,
+        receiverAuthUserId: memberAuthUserIds?.[winner.name] || null,
         amount: pairAmount,
         currency: settings?.currency || DEFAULT_CURRENCY
       };
@@ -640,6 +643,11 @@ function getHistoricalGroupMemberNames(monthHistory, currentLogs = {}, currentEx
 function buildSettlementReminderCards(group, currentUserId, currentUserName) {
   if (!group?.settlementConfirmationsEnabled) return [];
   const activeMemberNames = new Set(getCurrentGroupMemberNames(group));
+  const activeMemberUserIds = new Set(
+    Object.values(group?.memberships || {})
+      .map(membership => membership?.userId)
+      .filter(Boolean)
+  );
   const membershipByName = Object.fromEntries(
     Object.values(group?.memberships || {})
       .filter(membership => membership?.displayName)
@@ -654,7 +662,13 @@ function buildSettlementReminderCards(group, currentUserId, currentUserName) {
   return [...(group?.monthHistory || [])]
     .sort((a, b) => compareMonthKeys(b.key, a.key))
     .flatMap(month => buildSettlementPairsForMonth(month).map(pair => {
-      if (!activeMemberNames.has(pair.payerDisplayName) || !activeMemberNames.has(pair.receiverDisplayName)) return null;
+      const payerIsActive = pair.payerAuthUserId
+        ? activeMemberUserIds.has(pair.payerAuthUserId)
+        : activeMemberNames.has(pair.payerDisplayName);
+      const receiverIsActive = pair.receiverAuthUserId
+        ? activeMemberUserIds.has(pair.receiverAuthUserId)
+        : activeMemberNames.has(pair.receiverDisplayName);
+      if (!payerIsActive || !receiverIsActive) return null;
       const showMonthLabel = pair.monthKey !== curKey;
       const monthSuffix = showMonthLabel ? ` · ${pair.monthLabel.toUpperCase()}` : "";
       const payerMembership = membershipByName[pair.payerDisplayName] || null;
@@ -664,8 +678,8 @@ function buildSettlementReminderCards(group, currentUserId, currentUserName) {
       if (confirmation?.confirmedAt) return null;
       if (legacySettlement?.status === "settled") return null;
       const pending = !!confirmation?.payerClaimedAt && !confirmation?.confirmedAt;
-      const payerAuthUserId = confirmation?.payerAuthUserId || payerMembership?.userId || null;
-      const receiverAuthUserId = confirmation?.receiverAuthUserId || receiverMembership?.userId || null;
+      const payerAuthUserId = confirmation?.payerAuthUserId || pair.payerAuthUserId || payerMembership?.userId || null;
+      const receiverAuthUserId = confirmation?.receiverAuthUserId || pair.receiverAuthUserId || receiverMembership?.userId || null;
       const isPayer = currentUserId
         ? (payerAuthUserId ? payerAuthUserId === currentUserId : pair.payerDisplayName === currentUserName)
         : pair.payerDisplayName === currentUserName;
@@ -733,7 +747,7 @@ function buildSettlementReminderCards(group, currentUserId, currentUserName) {
         payerAuthUserId,
         receiverAuthUserId,
         amount: pair.amount,
-        currency: pair.currency,
+        currency: group?.settings?.currency || pair.currency,
         pending,
         label,
         labelColor,

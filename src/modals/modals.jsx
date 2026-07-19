@@ -66,7 +66,7 @@ const TIME_ZONE_OPTIONS = (() => {
 })();
 
 
-const GroupSettingsFields = ({settings,setSettings,showAdvanced,setShowAdvanced,showValidation=false,compact=false}) => {
+const GroupSettingsFields = ({settings,setSettings,showAdvanced,setShowAdvanced,showValidation=false,compact=false,lockCurrency=false}) => {
   const desktopNumericWidth = compact && !isMobile() ? 54 : 39;
   const fineCurrencyWidth = compact && isMobile() ? 110 : 85;
   const fineAmountWidth = compact && isMobile() ? 95 : 75;
@@ -81,15 +81,17 @@ const GroupSettingsFields = ({settings,setSettings,showAdvanced,setShowAdvanced,
   return React.createElement(React.Fragment,null,
     React.createElement(SettingsField,{title:"Monthly fine amount",description:"What each person who misses the target owes.",compact},
       React.createElement('div',{style:{display:"inline-flex",alignItems:"center",gap:6}},
-        React.createElement(SelectField,{
-          value:settings.currency,
-          onChange:e=>setSettings(current=>({...current,currency:e.target.value})),
-          width:fineCurrencyWidth,
-          textAlign:"center",
-          options:CURRENCY_OPTIONS.map(option=>({value:option.code,label:option.code})),
-          compact,
-          arrowColor:"#4ECDC4"
-        }),
+        lockCurrency
+          ? React.createElement('div',{style:{...inputShellStyle,width:fineCurrencyWidth,fontSize:compact?12:15,padding:compact?"7px 9px":inputShellStyle.padding,borderRadius:compact?8:inputShellStyle.borderRadius,textAlign:"center",color:"var(--muted)",display:"inline-flex",alignItems:"center",justifyContent:"center"}},settings.currency || DEFAULT_CURRENCY)
+          : React.createElement(SelectField,{
+              value:settings.currency,
+              onChange:e=>setSettings(current=>({...current,currency:e.target.value})),
+              width:fineCurrencyWidth,
+              textAlign:"center",
+              options:CURRENCY_OPTIONS.map(option=>({value:option.code,label:option.code})),
+              compact,
+              arrowColor:"#4ECDC4"
+            }),
         React.createElement('input',{type:"number",min:1,value:settings.fineAmount,onChange:e=>setSettings(current=>({...current,fineAmount:e.target.value})),style:{...inputShellStyle,width:fineAmountWidth,fontSize:compact?12:15,padding:compact?"7px 9px":inputShellStyle.padding,borderRadius:compact?8:inputShellStyle.borderRadius,textAlign:"center"}})
       )
     ),
@@ -276,7 +278,7 @@ const GroupSettingsModal = ({group,actor,actorUserId,onSave,onClose,saving,onRev
         ))
       ),
       React.createElement('div',{style:onSave?{}:{pointerEvents:"none",opacity:0.4}},
-        React.createElement(GroupSettingsFields,{settings,setSettings,showAdvanced,setShowAdvanced,showValidation:submitAttempted,compact:true})
+        React.createElement(GroupSettingsFields,{settings,setSettings,showAdvanced,setShowAdvanced,showValidation:submitAttempted,compact:true,lockCurrency:true})
       ),
       onKickMember && React.createElement('div',{style:{marginTop:14,marginBottom:4}},
         React.createElement('div',{style:{fontWeight:700,fontSize:12,color:"var(--text)",marginBottom:8,letterSpacing:".04em"}},`Members (${getCurrentGroupMemberNames(group).length})`),
@@ -619,6 +621,7 @@ const LogModal = ({user,currentGroupId,groups,onConfirm,onClose}) => {
       React.createElement('span',{className:"lbl",style:{marginBottom:6,color:"var(--text)",fontSize:10,fontWeight:500}},"Date"),
       React.createElement('input',{type:"date",value:selDate,min:timeContext.earliestIso,max:timeContext.todayIso,onChange:e=>setSelDate(e.target.value),
         style:{width:"100%",maxWidth:"100%",minWidth:0,display:"block",height:34,background:"var(--s1)",border:`1px solid ${alreadyLogged?"var(--red)":"rgba(13,31,30,.8)"}`,borderRadius:10,padding:"7px 10px",color:"#9BA6B5",fontSize:13,lineHeight:"18px",marginBottom:alreadyLogged?4:(compactMobile?7:10),outline:"none",boxSizing:"border-box",appearance:"none",WebkitAppearance:"none",opacity:0.92}}),
+      React.createElement('div',{style:{fontSize:11,color:"var(--muted)",lineHeight:1.45,marginBottom:compactMobile?7:10}},"Workouts can only be logged for this month's dates."),
       alreadyLogged&&React.createElement('div',{style:{color:"var(--red)",fontSize:compactMobile?11:12,fontFamily:"'JetBrains Mono',monospace",marginBottom:compactMobile?7:10}},"Already logged for this date"),
       React.createElement('span',{className:"lbl",style:{marginBottom:6,color:"var(--text)",fontSize:10,fontWeight:500}},"Workout type"),
       React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(5,minmax(0,1fr))",gap:compactMobile?5:6,marginBottom:compactMobile?8:12}},
@@ -681,7 +684,6 @@ const LogModal = ({user,currentGroupId,groups,onConfirm,onClose}) => {
           ))
         )
       ),
-      !isCurrentMonthSelection && wType && React.createElement('div',{style:{marginBottom:8,fontSize:11,color:"var(--muted)",lineHeight:1.45}},"Cross-Bloc logging is only enabled for the current month right now. Older dates save to this Bloc only."),
       React.createElement('div',{style:{display:"flex",gap:9,position:"sticky",bottom:0,paddingTop:6,background:"linear-gradient(to top, rgba(9,14,14,.98), rgba(9,14,14,.92) 72%, rgba(9,14,14,0))"}},
         React.createElement('button',{onClick:onClose,style:{flex:1,background:"var(--s2)",border:"1px solid var(--border)",color:"var(--muted)",padding:compactMobile?"12px":"14px",borderRadius:10,fontSize:compactMobile?14:15,fontWeight:600}},"Cancel"),
         React.createElement('button',{onClick:()=>canSubmit&&onConfirm({ workoutType:wType, isoDate:selDate, targetGroupIds:isCurrentMonthSelection?selectedGroupIds:[], note:note.trim(), photoUrl }),

@@ -288,24 +288,50 @@ async function fetchData() {
   } catch(e){ console.error("Fetch error:", e); return null; }
 }
 
-async function saveData(data) {
+async function fetchRevision() {
   try {
     const session = await getCurrentAuthSession();
     if (!session?.accessToken) return null;
-    const res = await fetch("./api/lift-log", {
-      method: "PUT",
+    const res = await fetch("./api/lift-log?revision=1", {
       cache: "no-store",
       headers: {
-        "Content-Type":"application/json",
+        "Accept":"application/json",
         "Authorization": `Bearer ${session.accessToken}`
-      },
-      body: JSON.stringify(data)
+      }
     });
-    if(!res.ok){ console.error("Save failed:", res.status, await res.text()); return null; }
-    console.log("Saved OK");
-    return normalizeAppState(await res.json());
-  } catch(e){ console.error("Save error:", e); }
-  return null;
+    if (!res.ok && res.status === 401) {
+      const refreshed = await refreshAuthSession();
+      if (refreshed?.accessToken) {
+        const retryRes = await fetch("./api/lift-log?revision=1", {
+          cache: "no-store",
+          headers: {
+            "Accept":"application/json",
+            "Authorization": `Bearer ${refreshed.accessToken}`
+          }
+        });
+        if (!retryRes.ok) {
+          if (retryRes.status === 401) {
+            await signOutAuthSession().catch(()=>{});
+          }
+          console.error("Revision retry failed:", retryRes.status, await retryRes.text());
+          return null;
+        }
+        const retryBody = await retryRes.json();
+        return Number.isFinite(Number(retryBody?.revision)) ? Number(retryBody.revision) : null;
+      }
+      await signOutAuthSession().catch(()=>{});
+      return null;
+    }
+    if(!res.ok){ console.error("Revision fetch failed:", res.status, await res.text()); return null; }
+    const body = await res.json();
+    return Number.isFinite(Number(body?.revision)) ? Number(body.revision) : null;
+  } catch(e){ console.error("Revision fetch error:", e); return null; }
+}
+
+async function addLogData(payload) {
+  const result = await postApi("add-log", payload);
+  if (!result.ok) return { ok:false, error: result.error || "Unable to save workout" };
+  return { ok:true, data: normalizeAppState(result.body) };
 }
 
 async function claimSettlementConfirmationData(payload) {
@@ -524,7 +550,8 @@ export {
   refreshAuthSession,
   postApi,
   fetchData,
-  saveData,
+  fetchRevision,
+  addLogData,
   claimSettlementConfirmationData,
   confirmSettlementConfirmationData,
   disputeSettlementConfirmationData,

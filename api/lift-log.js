@@ -52,6 +52,10 @@ const WRITE_HYDRATION_PARITY_ACTIONS = new Set(
     .filter(Boolean)
 );
 const BLOB_MIRROR_SKIP_ALLOWED_ACTIONS = new Set([
+  "create-group",
+  "join-group",
+  "kick-member",
+  "leave-bloc",
   "update-settings",
   "season-proration-choice",
   "add-log",
@@ -63,6 +67,10 @@ const BLOB_MIRROR_SKIP_ALLOWED_ACTIONS = new Set([
   "delete-log"
 ]);
 const BLOB_MIRROR_SKIP_WIRED_ACTIONS = new Set([
+  "create-group",
+  "join-group",
+  "kick-member",
+  "leave-bloc",
   "update-settings",
   "season-proration-choice",
   "add-log",
@@ -160,9 +168,9 @@ const BLOB_MIRROR_DEPENDENCY_AUDIT = {
     }
   ],
   nextRetirementBatches: [
-    "Soak a disabled-by-default mirror-skip flag for narrow current/open action families.",
-    "Stop blob writes only for those small action families after proving the canonical revision clock drives polling correctly.",
-    "Keep auth-sync and repair-display-name out of blob-write retirement until replacement repair paths exist."
+    "Keep normal current/open product writes on canonical authority with blob mirror skipping enabled by environment.",
+    "Keep auth-sync, repair-display-name, upsert-profile, delete-account, sit-out review/request, and legacy settlement mirrored until their compatibility fallbacks are explicitly retired.",
+    "Retire the blob compatibility shell only after auth/profile repair and destructive account deletion no longer need stale blob cleanup."
   ]
 };
 const BLOB_MIRROR_RETIREMENT_READINESS = {
@@ -188,7 +196,7 @@ const BLOB_MIRROR_RETIREMENT_READINESS = {
         "delete-log"
       ],
       status: "candidate-after-canonical-revision",
-      reason: "These narrow current/open actions already compute post-action state from canonical writable input and have focused parity probes."
+      reason: "These narrow current/open actions compute post-action state from canonical writable input and have focused parity probes."
     },
     {
       actionFamilies: [
@@ -196,7 +204,17 @@ const BLOB_MIRROR_RETIREMENT_READINESS = {
         "multi-log"
       ],
       status: "candidate-after-canonical-revision-and-log-soak",
-      reason: "Workout writes are canonical-input now, but they are high-traffic and directly user-visible, so they should follow the narrower action families."
+      reason: "Workout writes are canonical-input, high-traffic, and now soaked through the preview mirror-skip flag."
+    },
+    {
+      actionFamilies: [
+        "create-group",
+        "join-group",
+        "leave-bloc",
+        "kick-member"
+      ],
+      status: "preview-soak-enabled",
+      reason: "Auth-linked lifecycle writes now compute from canonical writable state and have canonical-only shell guards where needed."
     }
   ],
   blockedActionFamilies: [
@@ -211,14 +229,19 @@ const BLOB_MIRROR_RETIREMENT_READINESS = {
       reason: "This is a quarantined legacy name-keyed repair path and should not be used as a mirror-retirement proving ground."
     },
     {
-      actionFamilies: ["create-group", "join-group", "leave-bloc", "kick-member", "delete-account", "upsert-profile"],
-      blocker: "membership-lifecycle-scope",
-      reason: "These mutate global membership/profile/lifecycle state and should wait until the low-risk current/open families prove the skip path."
+      actionFamilies: ["upsert-profile"],
+      blocker: "identity-rename-historical-shell-scope",
+      reason: "Profile rename still rewrites broad display-name keyed compatibility surfaces; full identity-rename parity has known historical shell noise."
     },
     {
-      actionFamilies: ["settlement"],
+      actionFamilies: ["delete-account"],
+      blocker: "destructive-stale-blob-cleanup-scope",
+      reason: "Skipping the blob mirror after canonical profile deletion can leave stale blob profile/group shells visible to compatibility fallback paths."
+    },
+    {
+      actionFamilies: ["sitout-request", "sitout-review", "settlement"],
       blocker: "historical-closed-month-scope",
-      reason: "Legacy settlement toggles touch closed-month compatibility shells, so they should wait until historical shell dependencies are retired or explicitly accepted."
+      reason: "These remain mirrored until historical/current sit-out and settlement compatibility shells are explicitly retired or accepted."
     }
   ],
   requiredBeforeFirstSkip: [
@@ -827,7 +850,6 @@ function resolveDeleteLogOwner(group, actorDisplayName, requestedOwner, logId) {
   if (!group || !safeLogId) return null;
   if ((group.logs?.[safeActor] || []).some(log => String(log?.id) === safeLogId)) return safeActor;
   if (safeRequestedOwner && (group.logs?.[safeRequestedOwner] || []).some(log => String(log?.id) === safeLogId)) return safeRequestedOwner;
-
   return null;
 }
 
@@ -3235,9 +3257,26 @@ async function buildCanonicalWritableStateForGroup(groupId, baseStateOverride = 
     ? normalizeState(baseStateOverride)
     : await fetchCurrentStateFromSupabase();
 
-  const baseGroup = baseState.groups?.[safeGroupId] || null;
   const bloc = anteBlocs?.[safeGroupId] || null;
-  if (!baseGroup || !bloc) return baseState;
+  if (!bloc) return baseState;
+  const baseGroup = baseState.groups?.[safeGroupId] || normalizeGroup({
+    id: safeGroupId,
+    name: bloc.name || "Untitled Group",
+    inviteCode: bloc.invite_code || generateInviteCode(),
+    createdAt: bloc.created_at || new Date().toISOString(),
+    settings: buildNormalizedSettings({
+      timeZone:             bloc.time_zone,
+      currency:             bloc.currency,
+      minTarget:            bloc.min_target,
+      fineAmount:           bloc.fine_amount,
+      feeModel:             bloc.fee_model,
+      escalationStepAmount: bloc.escalation_step_amount,
+      minRunDistance:       bloc.min_run_distance,
+      distanceUnit:         bloc.distance_unit,
+      stravaEnabled:        bloc.strava_enabled,
+      acceptedWorkoutTypes: bloc.accepted_workout_types
+    })
+  });
 
   const canonicalMemberRows = anteBlocMembers?.[safeGroupId] || [];
   const canonicalOrderedMembers = [...canonicalMemberRows]
@@ -3435,6 +3474,10 @@ async function buildCanonicalWritableStateForGroup(groupId, baseStateOverride = 
       ...(baseState.groups || {}),
       [safeGroupId]: canonicalGroup
     },
+    groupOrder: uniqueNames([
+      ...(Array.isArray(baseState.groupOrder) ? baseState.groupOrder : []),
+      safeGroupId
+    ]),
     profiles: anteProfiles
       ? { ...(baseState.profiles || {}), ...anteProfiles }
       : baseState.profiles
@@ -3445,9 +3488,14 @@ async function buildCanonicalWritableStateForAllGroups(baseStateOverride = null)
   const baseState = baseStateOverride
     ? normalizeState(baseStateOverride)
     : await fetchCurrentStateFromSupabase();
-  const groupIds = Array.isArray(baseState.groupOrder) && baseState.groupOrder.length
+  const anteBlocs = await fetchAnteBlocs();
+  const baseGroupIds = Array.isArray(baseState.groupOrder) && baseState.groupOrder.length
     ? baseState.groupOrder
     : Object.keys(baseState.groups || {});
+  const groupIds = uniqueNames([
+    ...baseGroupIds,
+    ...Object.keys(anteBlocs || {})
+  ]);
   let state = baseState;
   for (const groupId of groupIds) {
     state = await buildCanonicalWritableStateForGroup(groupId, state);
@@ -3608,7 +3656,7 @@ async function buildBlobMirrorRetirementReadinessReport(baseState) {
     trueBlobInputAuthorities: dependencyReport.trueBlobInputAuthorities.map(entry => entry.action),
     requiredBeforeFirstSkip: BLOB_MIRROR_RETIREMENT_READINESS.requiredBeforeFirstSkip,
     nextSafeMove: revisionStamp.canonicalRevisionAvailable
-      ? "Enable BLOB_MIRROR_SKIP_ACTIONS=season-proration-choice,reaction,flag,flag-response,flag-review,delete-log in preview for a narrow mirror-skip soak, then inspect dependency/readiness reports and smoke behavior."
+      ? "Keep the current preview skip set to normal canonical product writes; leave auth/profile repair, account deletion, sit-out, and settlement compatibility paths mirrored until their fallback dependencies are retired."
       : "Apply the canonical revision clock RPC before disabling blob writes for any action family."
   };
 }
@@ -6029,7 +6077,7 @@ function applyDeleteLog(current, payload) {
       },
       meta: { revision: base.meta.revision + 1, updatedAt: new Date().toISOString() }
     },
-    reason: `delete-log:${groupId}:${actor}:${logId}`
+    reason: `delete-log:${groupId}:${owner}:${logId}`
   };
 }
 
@@ -6972,7 +7020,7 @@ export default async function handler(req, res) {
           await syncBlocMemberToCanonical(newGroup, auth.user.id, "admin", { throwOnError: true });
           await seedOpenSeasonMemberStatusInCanonical(newGroup, newGroup?.lastMonth, creatorName, auth.user.id, { throwOnError: true });
         }
-        const persisted = await persistState(created.state, `create-group:${created.createdGroupId}`);
+        const persisted = await persistOrSkipBlobMirror(created.state, `create-group:${created.createdGroupId}`, "create-group");
         return res.status(200).json({ state: persisted, createdGroupId: created.createdGroupId });
       }
 
@@ -7021,7 +7069,7 @@ export default async function handler(req, res) {
           const memberRole = group.memberships[auth.user.id].role || "member";
           await syncBlocMemberToCanonical(group, auth.user.id, memberRole, { throwOnError: true });
         }
-        const persisted = await persistState(updated, `profile:${auth.user.id}`);
+        const persisted = await persistOrSkipBlobMirror(updated, `profile:${auth.user.id}`, "upsert-profile");
         return res.status(200).json(persisted);
       }
 
@@ -7035,7 +7083,11 @@ export default async function handler(req, res) {
           userId: auth.user.id,
           ...(canonicalBloc?.legacy_group_key ? { groupId: canonicalBloc.legacy_group_key } : {})
         };
-        applyJoinGroup(auth.state, joinPayload);
+        try {
+          applyJoinGroup(auth.state, joinPayload);
+        } catch (err) {
+          if (err?.status !== 404) throw err;
+        }
         const canonicalState = await buildCanonicalWritableStateForAuthenticatedGlobalMutation(auth);
         const joined = applyJoinGroup(canonicalState, joinPayload);
         const joinedGroup = joined.state.groups?.[joined.joinedGroupId];
@@ -7053,7 +7105,7 @@ export default async function handler(req, res) {
           await syncSeasonToCanonical(joinedGroup, joinedGroup?.lastMonth, "open", null, { throwOnError: true });
           await seedOpenSeasonMemberStatusInCanonical(joinedGroup, joinedGroup?.lastMonth, joinedDisplayName, auth.user.id, { throwOnError: true });
         }
-        const persisted = await persistState(joined.state, `join-group:${joined.joinedGroupId}:${auth.user.id}`);
+        const persisted = await persistOrSkipBlobMirror(joined.state, `join-group:${joined.joinedGroupId}:${auth.user.id}`, "join-group");
         return res.status(200).json({ state: persisted, joinedGroupId: joined.joinedGroupId });
       }
 
@@ -7074,13 +7126,18 @@ export default async function handler(req, res) {
         if (payload.targetUserId) {
           await removeBlocMemberFromCanonical(payload.groupId, payload.targetUserId, { throwOnError: true });
         }
-        const persisted = await persistState(updated, `kick-member:${payload.groupId}:${payload.targetUserId}`);
+        const kickMirrorAction = payload.targetUserId ? "kick-member" : "kick-member-legacy-name";
+        const persisted = await persistOrSkipBlobMirror(updated, `kick-member:${payload.groupId}:${payload.targetUserId}`, kickMirrorAction);
         return res.status(200).json({ ok: true, state: persisted });
       }
 
       if (payload?.action === "leave-bloc") {
         const auth = await requireAuthenticatedContext(req, payload, current);
-        applyLeaveBloc(auth.state, { ...payload, userId: auth.user.id });
+        try {
+          applyLeaveBloc(auth.state, { ...payload, userId: auth.user.id });
+        } catch (err) {
+          if (err?.status !== 404) throw err;
+        }
         const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
         const updated = applyLeaveBloc(canonicalState, { ...payload, userId: auth.user.id });
         const nextGroup = updated.groups?.[payload.groupId] || null;
@@ -7097,7 +7154,7 @@ export default async function handler(req, res) {
           if (nextAdminUserId && nextAdminUserId !== auth.user.id) {
             await updateBlocAdminInCanonical(payload.groupId, nextAdminUserId, { throwOnError: true });
           }
-          const persisted = await persistState(updated, `leave-bloc:${payload.groupId}:${auth.user.id}`);
+          const persisted = await persistOrSkipBlobMirror(updated, `leave-bloc:${payload.groupId}:${auth.user.id}`, "leave-bloc");
           return res.status(200).json({ ok: true, state: persisted, leftGroupId: payload.groupId });
         }
 
@@ -7105,7 +7162,7 @@ export default async function handler(req, res) {
         // delete the canonical bloc first so all dependent ante_core rows cascade
         // away together, then mirror the blob-side bloc removal.
         await deleteBlocFromCanonical(payload.groupId, { throwOnError: true });
-        const persisted = await persistState(updated, `leave-bloc:${payload.groupId}:${auth.user.id}`);
+        const persisted = await persistOrSkipBlobMirror(updated, `leave-bloc:${payload.groupId}:${auth.user.id}`, "leave-bloc");
         return res.status(200).json({ ok: true, state: persisted, leftGroupId: payload.groupId });
       }
 
@@ -7113,7 +7170,12 @@ export default async function handler(req, res) {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actor = resolveDisplayNameForUser(auth.state, payload.sourceGroupId, auth.user.id, auth.user.email);
         const allTargetIds = [...new Set([payload.sourceGroupId, ...(Array.isArray(payload.targetGroupIds) ? payload.targetGroupIds.filter(Boolean) : [])])];
-        const shadowBlobUpdated = applyMultiLog(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        let shadowBlobUpdated = null;
+        try {
+          shadowBlobUpdated = applyMultiLog(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        } catch (err) {
+          if (err?.status !== 404) throw err;
+        }
         const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.sourceGroupId);
         const canonicalActor = resolveDisplayNameForUser(canonicalState, payload.sourceGroupId, auth.user.id, auth.user.email) || actor;
         const beforeLogIdsByGroup = Object.fromEntries(
@@ -7153,7 +7215,9 @@ export default async function handler(req, res) {
           }
         }
         const reason = `multi-log:${canonicalActor || actor || auth.user.id}:${payload.date}:${payload.workoutType}`;
-        await runWriteHydrationMultiLogParityProbe(payload, auth, actor, shadowBlobUpdated);
+        if (shadowBlobUpdated) {
+          await runWriteHydrationMultiLogParityProbe(payload, auth, actor, shadowBlobUpdated);
+        }
         const persisted = await persistOrSkipBlobMirror(updated, reason, "multi-log");
         return res.status(200).json(persisted);
       }
@@ -7161,7 +7225,12 @@ export default async function handler(req, res) {
       if (payload?.action === "add-log") {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
-        const shadowBlobUpdated = applyAddLog(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        let shadowBlobUpdated = null;
+        try {
+          shadowBlobUpdated = applyAddLog(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        } catch (err) {
+          if (err?.status !== 404) throw err;
+        }
         const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
         const canonicalActor = resolveDisplayNameForUser(canonicalState, payload.groupId, auth.user.id, auth.user.email) || actor;
         const result = applyAddLog(canonicalState, { ...payload, actor: canonicalActor, actorUserId: auth.user.id });
@@ -7176,7 +7245,9 @@ export default async function handler(req, res) {
           await syncSeasonToCanonical(group, result.monthKey, targetMonth ? "closed" : "open", targetMonth?.closedAt || null, { throwOnError: true });
           await upsertWorkoutLogToCanonical(group, result.monthKey, canonicalActor, auth.user.id, result.log, { throwOnError: true });
         }
-        await runWriteHydrationParityProbe("add-log", payload, auth, actor, shadowBlobUpdated.updated, applyAddLog);
+        if (shadowBlobUpdated) {
+          await runWriteHydrationParityProbe("add-log", payload, auth, actor, shadowBlobUpdated.updated, applyAddLog);
+        }
         const persisted = await persistOrSkipBlobMirror(result.updated, result.reason, "add-log");
         return res.status(200).json(persisted);
       }
@@ -7184,11 +7255,18 @@ export default async function handler(req, res) {
       if (payload?.action === "update-settings") {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
-        const shadowBlobUpdated = applyUpdateSettings(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        let shadowBlobUpdated = null;
+        try {
+          shadowBlobUpdated = applyUpdateSettings(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        } catch (err) {
+          if (err?.status !== 404) throw err;
+        }
         const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
         const canonicalActor = resolveDisplayNameForUser(canonicalState, payload.groupId, auth.user.id, auth.user.email) || actor;
         const updated = applyUpdateSettings(canonicalState, { ...payload, actor: canonicalActor, actorUserId: auth.user.id });
-        await runWriteHydrationParityProbe("update-settings", payload, auth, actor, shadowBlobUpdated, applyUpdateSettings);
+        if (shadowBlobUpdated) {
+          await runWriteHydrationParityProbe("update-settings", payload, auth, actor, shadowBlobUpdated, applyUpdateSettings);
+        }
         const settingsGroup = updated.groups?.[payload.groupId];
         const settingsSortOrder = (updated.groupOrder || []).indexOf(payload.groupId);
         // Canonical writable-input cutover for settings:
@@ -7208,11 +7286,18 @@ export default async function handler(req, res) {
       if (payload?.action === "season-proration-choice") {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
-        const shadowBlobUpdated = applySeasonProrationChoice(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        let shadowBlobUpdated = null;
+        try {
+          shadowBlobUpdated = applySeasonProrationChoice(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        } catch (err) {
+          if (err?.status !== 404) throw err;
+        }
         const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
         const canonicalActor = resolveDisplayNameForUser(canonicalState, payload.groupId, auth.user.id, auth.user.email) || actor;
         const updated = applySeasonProrationChoice(canonicalState, { ...payload, actor: canonicalActor, actorUserId: auth.user.id });
-        await runWriteHydrationParityProbe("season-proration-choice", payload, auth, actor, shadowBlobUpdated, applySeasonProrationChoice);
+        if (shadowBlobUpdated) {
+          await runWriteHydrationParityProbe("season-proration-choice", payload, auth, actor, shadowBlobUpdated, applySeasonProrationChoice);
+        }
         const overrideGroup = updated.groups?.[payload.groupId];
         const overrideMonthKey = overrideGroup?.lastMonth;
         const nextOverride = overrideMonthKey
@@ -7243,11 +7328,18 @@ export default async function handler(req, res) {
       if (payload?.action === "sitout-request") {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
-        const shadowBlobUpdated = applySitOutRequest(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        let shadowBlobUpdated = null;
+        try {
+          shadowBlobUpdated = applySitOutRequest(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        } catch (err) {
+          if (err?.status !== 404) throw err;
+        }
         const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
         const canonicalActor = resolveDisplayNameForUser(canonicalState, payload.groupId, auth.user.id, auth.user.email) || actor;
         const updated = applySitOutRequest(canonicalState, { ...payload, actor: canonicalActor, actorUserId: auth.user.id });
-        await runWriteHydrationParityProbe("sitout-request", payload, auth, actor, shadowBlobUpdated, applySitOutRequest);
+        if (shadowBlobUpdated) {
+          await runWriteHydrationParityProbe("sitout-request", payload, auth, actor, shadowBlobUpdated, applySitOutRequest);
+        }
         const sitOutGroup = updated.groups?.[payload.groupId];
         const sitOutMonthKey = sitOutGroup?.lastMonth;
         const nextRequest = sitOutMonthKey
@@ -7472,7 +7564,7 @@ export default async function handler(req, res) {
           await updateBlocAdminInCanonical(groupId, survivingGroup.adminUserId, { throwOnError: true });
         }
         await deleteProfileFromCanonical(auth.user.id, { throwOnError: true });
-        const persisted = await persistState(updated, `delete-account:${auth.user.id}`);
+        const persisted = await persistOrSkipBlobMirror(updated, `delete-account:${auth.user.id}`, "delete-account");
         return res.status(200).json({ ok: true, state: persisted });
       }
 

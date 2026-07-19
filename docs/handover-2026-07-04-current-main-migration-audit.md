@@ -86,6 +86,8 @@ Verified in `api/lift-log.js`:
   - `settlement-claim-paid`
   - `settlement-confirm-paid`
   - `settlement-dispute-paid`
+- settlement confirmation claim/confirm/dispute now also authenticate against
+  composed readable state instead of hydrating writable blob state first
 
 These should no longer be discussed as merely hypothetical future slices.
 
@@ -236,6 +238,8 @@ It is no longer:
 It is still:
 
 - blob-first mutation hydration
+- auth/profile writable-base residue around `auth-sync`, though repaired
+  profiles and active bloc-member rows are now mirrored best-effort to canonical
 - blob-backed compatibility scaffolding on GET
 - `leftMemberNames`
 - display-name keyed lifecycle and history structures
@@ -660,13 +664,17 @@ the live app baseline.
 
 ## Current Remaining Write Gaps
 
-On current local branch state, the meaningful remaining write-authority gaps
-are now:
+On current local branch state, the remaining write-authority gaps are now
+narrower than the older audit text implied:
 
-- `repair-display-name`: still blob-first with best-effort canonical member
-  sync afterward
-- legacy `settlement` month-history mutation: still blob-first with
-  best-effort canonical settlement mirror
+- `repair-display-name` is now a quarantined compatibility repair that writes
+  canonical display-name snapshots and refreshes the active canonical
+  bloc-member row before blob persist; it is still not full display-name
+  de-keying
+- legacy `settlement` month-history mutation now computes the blob-compatible
+  settlement result, writes the canonical settlement status first for existing
+  canonical season-member rows, then persists blob; it is still not a broader
+  historical settlement redesign
 
 ## Repair-Display-Name Audit Amendment — 2026-07-07
 
@@ -685,14 +693,16 @@ Why:
    - `leftMemberNames`
    - `sitOutRequests`
    - historical month-history snapshots
-3. its canonical side today is only a best-effort
-   `syncBlocMemberToCanonical(...)` for the active membership row afterward
+3. even with the later local tightening, its canonical side is still only a
+   bloc-local snapshot repair, not a full identity-authority transfer
 4. canonical does not currently own the broader historical rename semantics
    that this repair is mutating in blob compatibility state
 
 Recommended stance:
 
 - keep `repair-display-name` as a blob-compatibility repair tool for now
+- accept the later local improvement that it now repairs canonical snapshots
+  before blob persist, but do not confuse that with full rename migration
 - do not spend a bounded authority-transfer slice on it before the broader
   display-name de-keying / lifecycle redesign
 - revisit it only after active-vs-historical identity is separated cleanly
@@ -705,3 +715,73 @@ work. Those slices are already done. The remaining scope is now much narrower
 - `repair-display-name`
 - broader display-name / `leftMemberNames` lifecycle cleanup
 - eventual mutation hydration/read-shell retirement away from blob
+
+## Writable-Input Parity Expansion — 2026-07-12
+
+The admin `write-hydration-parity-report` was expanded locally to cover the
+next candidate writable-input routes without changing runtime behavior:
+
+- `add-log`
+- `multi-log`
+- `kick-member`
+- `leave-bloc`
+
+This is report-only coverage. It does not move any of those routes to
+`buildCanonicalWritableStateForAuthenticatedMutation(...)`.
+
+Follow-up: `add-log` and `multi-log` were then moved to canonical writable input
+using a deliberately narrower current/open report. The full-group report still
+fails on closed historical shell fields, but the logging mutation surfaces were
+clean:
+
+- `add-log` current/open: `ok 7`, `failed 0`, `skipped 0`
+- `multi-log` current/open: `ok 2`, `failed 0`, `skipped 5`
+
+Those two logging routes now authenticate/repair against the blob shell first,
+then compute from the canonical writable constructor before canonical writes and
+blob mirror persist.
+
+Second follow-up: `kick-member` and `leave-bloc` were moved to canonical
+writable input after adding the same current/open report scope:
+
+- `kick-member` current/open: `ok 5`, `failed 0`, `skipped 2`
+- `leave-bloc` current/open: `ok 7`, `failed 0`, `skipped 0`
+
+Those two single-bloc lifecycle exits now authenticate/repair against the blob
+shell first, then compute from the canonical writable constructor before
+canonical writes and blob mirror persist.
+
+The full-group report still does not authorize broader/global cutovers. Most
+full probes are blocked by historical compatibility-shell differences:
+
+- `monthHistory` exists or rolls over differently between writable blob input
+  and the canonical writable constructor
+- some blocs also differ in historical `seasonOverrides`
+
+That means the next backend batch should not be a blind writable-input cutover
+for global identity/account paths. The safer options are:
+
+1. reconcile the historical shell so the canonical writable constructor and
+   writable blob shell agree again, then re-run the full report
+2. add a deliberately scoped current/open comparator if the product decision is
+   that historical `monthHistory` drift is allowed during these current-month
+   mutations
+
+Keep `auth-sync`, `upsert-profile`, and `repair-display-name` out of the
+current/open cutover bucket. They remain identity/global lifecycle paths, not
+low-risk single-bloc current/open writes. `delete-account` is already a
+verified canonical-first global account deletion path, but it also stays out of
+group-scoped current/open parity because it deletes profile and membership
+state across the account.
+
+Third follow-up: the admin `write-hydration-parity-report` now returns two
+additional control fields:
+
+- `summary`: per-action/per-scope checked, skipped, and failed counts
+- `excludedActions`: explicit classification for paths outside group-scoped
+  parity, including `auth-sync`, `upsert-profile`, `delete-account`,
+  `repair-display-name`, and legacy admin `settlement`
+
+This is documentation/report hygiene only, not a runtime write-authority
+change. It prevents future handoffs from treating verified global paths such as
+`delete-account` as unfinished current/open group-local slices.

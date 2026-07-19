@@ -11,6 +11,7 @@ import {
   shouldPromptProration,
   uniqueNames,
   getActivityAlertCount,
+  getMonthKeyFromISO,
   normalizeGroupState,
   buildEmptyAppState,
   normalizeAppState,
@@ -34,7 +35,7 @@ import {
   signOutAuthSession,
   syncAuthSessionData,
   fetchData,
-  saveData,
+  addLogData,
   claimSettlementConfirmationData,
   confirmSettlementConfirmationData,
   disputeSettlementConfirmationData,
@@ -130,6 +131,7 @@ const App = () => {
   const [syncError,setSyncError]=useState(false);
   const [lastSyncedAt,setLastSyncedAt]=useState(null);
   const [showJustSynced,setShowJustSynced]=useState(false);
+  const [reactionOverrides,setReactionOverrides]=useState({});
   const [isMobileView,setIsMobileView]=useState(()=>isMobile());
   const [clockTick,setClockTick]=useState(Date.now());
   const [authReady,setAuthReady]=useState(()=>!!initialPersistedSession?.userId);
@@ -143,6 +145,7 @@ const App = () => {
   const latestRevisionRef = useRef(getRevision(cached));
   const justSyncedTimerRef = useRef(null);
   const optimisticMutationRef = useRef(null);
+  const logMutationQueueRef = useRef(Promise.resolve());
   const blocSwipeRef = useRef({sx:0,sy:0,active:false,mode:null});
   const profileOverlayRef = useRef(null);
 
@@ -557,26 +560,51 @@ const App = () => {
     } catch {}
   },[]);
 
-  const handleSave=useCallback(async(newData)=>{
+  const handleSave=useCallback(async({ workoutType, isoDate, note, photoUrl })=>{
     if(!selectedGroupId || !currentGroup || !currentUser) return;
-    const payload = {
-      actor: currentUser,
-      groupId: selectedGroupId,
-      group: normalizeGroupState({
-        ...currentGroup,
-        logs: newData.logs || currentGroup.logs,
-        excused: newData.excused || currentGroup.excused,
-        monthHistory: newData.monthHistory || currentGroup.monthHistory,
-        lastMonth: newData.lastMonth || curKey
-      })
+    const optimisticLog = {
+      id:`opt-${Date.now()}`,
+      date:isoDate,
+      type:workoutType,
+      note:note||"",
+      photoUrl:photoUrl||"",
+      createdAt:new Date().toISOString(),
+      verifiedVia:"photo",
+      reactions:{},
+      flagStatus:null,
+      flagReason:"",
+      flagResponse:"",
+      flaggedBy:null,
+      decisionBy:null,
+      decisionAt:null
     };
+    const targetMonthKey = getMonthKeyFromISO(isoDate);
+    if (targetMonthKey !== curKey) {
+      window.alert("You can't log to a closed month.");
+      return;
+    }
+    const optimisticGroup = normalizeGroupState({
+      ...currentGroup,
+      logs: {
+        ...currentGroup.logs,
+        [currentUser]: [...(currentGroup.logs?.[currentUser] || []), optimisticLog]
+      }
+    });
     beginOptimisticMutation();
-    applyData(buildOptimisticState(payload), { optimistic:true });
+    applyData(buildOptimisticState({ groupId: selectedGroupId, group: optimisticGroup }), { optimistic:true });
     setSaving(true);
     try{
-      const saved = await saveData(payload);
-      if(saved){
-        const applied = applyData(saved, { fromMutation: true });
+      const saved = await addLogData({
+        groupId: selectedGroupId,
+        actor: currentUser,
+        actorUserId: authSession?.userId,
+        workoutType,
+        date: isoDate,
+        note,
+        photoUrl
+      });
+      if(saved?.ok && saved.data){
+        const applied = applyData(saved.data, { fromMutation: true });
         if (applied) {
           setLastSyncedAt(new Date());
           setSyncError(false);
@@ -595,7 +623,7 @@ const App = () => {
       await refreshNow();
     }
     setSaving(false);
-  },[applyData, beginOptimisticMutation, buildOptimisticState, clearOptimisticMutation, currentGroup, currentUser, refreshNow, selectedGroupId]);
+  },[addLogData, applyData, authSession?.userId, beginOptimisticMutation, buildOptimisticState, clearOptimisticMutation, currentGroup, currentUser, refreshNow, selectedGroupId]);
 
   const handleMultiLog = useCallback(async({ workoutType, isoDate, targetGroupIds, note, photoUrl }) => {
     if(!selectedGroupId || !currentUser) return { ok:false, error:"No Bloc selected" };
@@ -1290,7 +1318,7 @@ const App = () => {
       page==="today"  &&React.createElement(TodayPageErrorBoundary,{resetKey:`${selectedGroupId}:${navResetToken}:${currentUser}`},
         React.createElement(TodayPage,  {user:currentUser,currentUserId:effectiveAuthSession?.userId,currentGroupId:selectedGroupId,groups,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,saving,onSave:handleSave,onMultiLog:handleMultiLog,onLogMutation:handleLogMutation,clockTick,onViewLastMonth:()=>{setMonthInitialIdx(0);setPage("month");},onSitOutRequest:handleSitOutRequest,onSettlementClaimPaid:handleSettlementClaimPaid,onSettlementConfirmPaid:handleSettlementConfirmPaid,onSettlementDisputePaid:handleSettlementDisputePaid,navResetToken,showLog:showTodayLog,setShowLog:setShowTodayLog})
       ),
-      page==="activity"&&React.createElement(ActivityPage,{group:currentGroup,currentUser,onLogMutation:handleLogMutation,clockTick}),
+      page==="activity"&&React.createElement(ActivityPage,{group:currentGroup,currentUser,onLogMutation:handleLogMutation,clockTick,reactionOverrides,setReactionOverrides}),
       page==="month"  &&React.createElement(MonthPage,  {key:`${selectedGroupId}:${navResetToken}:${monthInitialIdx ?? "current"}`,group:currentGroup,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,groupSettings:currentGroup.settings,currentUser,currentUserId:effectiveAuthSession?.userId,initialSelIdx:monthInitialIdx,onStartNextMonth:()=>{setMonthInitialIdx(null);setPage("today");},onOpenToday:()=>setPage("today"),onSettlementClaimPaid:handleSettlementClaimPaid,onSettlementConfirmPaid:handleSettlementConfirmPaid,navResetToken}),
       page==="history"&&React.createElement(HistoryPage,{group:currentGroup,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,groupSettings:currentGroup.settings,navResetToken,currentUser})
     ),
