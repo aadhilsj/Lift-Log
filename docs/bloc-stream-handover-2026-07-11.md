@@ -42,8 +42,10 @@ coordinated batch.** Decided with the user. So:
 
 - `src/pages/BlocStream.jsx` — the modal: header, message list, text bubbles,
   system-moment cards, reaction chips, input bar + `+` action sheet.
-- `src/lib/blocStream.js` — mock data layer: `listMessages`, `seedIfEmpty`,
-  `sendMessage`, `toggleReaction`.
+- `src/lib/blocStream.js` — temporary in-memory data layer: `listMessages`,
+  `sendMessage`, `toggleReaction`. Sample seed messages/system moments are
+  opt-in only via `localStorage.ll_bloc_stream_sample_seeds = "1"` so production
+  previews and live builds do not show fake content inside real Blocs.
 - `src/pages/Nav.jsx` — `StreamIconButton` added left of the gear (desktop +
   mobile headers), unread-dot prop-driven.
 - `src/components/primitives.jsx` — added `message-circle` icon to `AppIcon`.
@@ -63,8 +65,9 @@ coordinated batch.** Decided with the user. So:
   focuses the input; **"Suggest an event" is a placeholder no-op** until Stage 6.
 - **Stage 5 (done):** system moment cards (distinct centered cards, amber=warning
   / cyan=positive tone, eyebrow label, sub-text) + reaction chips (toggle +
-  quick-react picker). Mock seeds all six trigger types (cooked, 7-day
-  inactivity, MAS-early, comeback, season-close settlement, new member).
+  quick-react picker). The UI supports all six trigger types (cooked, 7-day
+  inactivity, MAS-early, comeback, season-close settlement, new member), but
+  fake seeded examples must remain disabled unless explicitly testing locally.
 - **Stage 6 (NEXT, not started):** event cards. "Suggest an event" opens a
   creation sheet (3 fields: activity, date/time, location) → inserts a
   `message_type='event'` mock row → renders an event card with cyan accent +

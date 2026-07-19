@@ -9,12 +9,24 @@
 // anywhere. `message_type` mirrors the eventual schema: 'text' | 'system' | 'event'.
 // Reactions mirror bloc_message_reactions: message_id + user_id + emoji, stored
 // here as { emoji: [userId, ...] } so counts and "did I react" derive cleanly.
+//
+// Sample seeded content is intentionally opt-in. Production previews and live
+// builds should never show fake messages or fake system moments inside real
+// user Blocs.
 
 const store = new Map(); // blocId -> message[]
 const lastRead = new Map(); // blocId -> ms timestamp of last read
 const DEFAULT_UNREAD_LOOKBACK_MS = 30 * 60 * 1000;
 let seq = 0;
 const newId = () => `m_${Date.now().toString(36)}_${seq++}`;
+
+const sampleSeedsEnabled = () => {
+  try {
+    return localStorage.getItem("ll_bloc_stream_sample_seeds") === "1";
+  } catch {
+    return false;
+  }
+};
 
 export function listMessages(blocId) {
   return store.get(blocId) || [];
@@ -43,6 +55,10 @@ export function markStreamRead(blocId) {
 // text and system-moment types so the UI has something to render pre-backend.
 export function seedIfEmpty(blocId, { currentUserId, members = [] } = {}) {
   if (!blocId || store.has(blocId)) return;
+  if (!sampleSeedsEnabled()) {
+    store.set(blocId, []);
+    return;
+  }
   const others = members.filter(m => m.id && m.id !== currentUserId);
   const other = others[0];
   const other2 = others[1] || others[0];

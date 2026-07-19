@@ -1076,7 +1076,7 @@ const App = () => {
         setSuppressSwitcherIntro(true);
         resetBlocSwipe();
         persistGroupSelection(null);
-      }, 55);
+      }, 45);
     } else {
       setBlocDragX(0);
     }
