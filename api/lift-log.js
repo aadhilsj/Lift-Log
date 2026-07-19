@@ -2508,6 +2508,127 @@ async function insertBlocSystemMomentInCanonical(legacyGroupKey, systemKind, bod
   }
 }
 
+async function deleteBlocSystemMomentInCanonical(legacyGroupKey, idempotencyKey, options = {}) {
+  const { throwOnError = false } = options;
+  if (!legacyGroupKey || !idempotencyKey) return 0;
+  try {
+    const response = await supabaseFetch("/rest/v1/rpc/delete_ante_core_bloc_system_moment", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({
+        p_legacy_group_key: legacyGroupKey,
+        p_idempotency_key: idempotencyKey
+      })
+    });
+    const deletedCount = await response.json();
+    return Number.isFinite(Number(deletedCount)) ? Number(deletedCount) : 0;
+  } catch (err) {
+    if (throwOnError) throw err;
+    console.error("Canonical Bloc Stream system moment delete failed:", err?.message || err);
+    return 0;
+  }
+}
+
+function resolveMemberPaceSnapshotForMonth(group, displayName, monthKey) {
+  if (!group || !displayName || !monthKey) return null;
+  if (group.lastMonth !== monthKey) return null;
+  if (group.excused?.[displayName]?.[monthKey]) return { status: "excused" };
+  const summary = getCurrentMonthSummary(group.settings?.timeZone || DEFAULT_GROUP_TIME_ZONE);
+  if (summary.monthKey !== monthKey) return null;
+  const logs = group.logs?.[displayName] || [];
+  const count = getCountedLogCount(logs);
+  const targetInfo = getMemberTargetInfoForMonth(group, displayName, monthKey);
+  const target = Math.max(1, Number(targetInfo?.target || DEFAULT_MIN_TARGET));
+  const activeDays = Math.max(1, Number(targetInfo?.proratedDays || summary.daysInMonth || 30));
+  const joinDay = Math.max(1, Number(targetInfo?.joinDay || 1));
+  const daysActive = Math.max(0, summary.day - joinDay + 1);
+  const expected = Math.floor((target / activeDays) * daysActive);
+  const daysLeft = Math.max(1, summary.daysInMonth - summary.day + 1);
+  const diff = count - expected;
+  let status = "behind";
+  if (count >= target) status = "locked-in";
+  else if (count + daysLeft < target) status = "cooked";
+  else if (diff >= 2) status = "cruising";
+  else if (diff >= 0) status = "on-track";
+  else if (diff >= -2) status = "at-risk";
+  return { status, count, target, expected, daysLeft, diff };
+}
+
+function buildCookedMomentKey(groupId, monthKey, memberUserId) {
+  if (!groupId || !monthKey || !memberUserId) return "";
+  return `cooked:${groupId}:${monthKey}:${memberUserId}`;
+}
+
+function buildWorkoutLogDerivedMoments(beforeGroup, afterGroup, monthKey, displayName, authUserId, log) {
+  if (!beforeGroup || !afterGroup || !monthKey || !displayName || !authUserId || !log?.id) {
+    return { inserts: [], deleteKeys: [] };
+  }
+  const before = resolveMemberPaceSnapshotForMonth(beforeGroup, displayName, monthKey);
+  const after = resolveMemberPaceSnapshotForMonth(afterGroup, displayName, monthKey);
+  if (!before || !after) return { inserts: [], deleteKeys: [] };
+
+  const groupId = afterGroup.id;
+  const cookedKey = buildCookedMomentKey(groupId, monthKey, authUserId);
+  const deleteKeys = before.status === "cooked" && after.status !== "cooked" && cookedKey ? [cookedKey] : [];
+  const inserts = [];
+
+  if (before.status !== "cooked" && after.status === "cooked" && cookedKey) {
+    inserts.push({
+      systemKind: "cooked",
+      body: `${displayName} can't reach target this month.`,
+      payload: {
+        memberUserId: authUserId,
+        memberDisplayName: displayName,
+        monthKey,
+        count: after.count,
+        target: after.target,
+        daysLeft: after.daysLeft
+      },
+      idempotencyKey: cookedKey,
+      createdAt: log.createdAt || null
+    });
+  }
+
+  if (before.status === "behind" && after.status === "on-track") {
+    inserts.push({
+      systemKind: "comeback",
+      body: `${displayName}: Behind -> On Track.`,
+      payload: {
+        memberUserId: authUserId,
+        memberDisplayName: displayName,
+        monthKey,
+        fromStatus: "behind",
+        toStatus: "on-track",
+        beforeDiff: before.diff,
+        afterDiff: after.diff,
+        logId: log.id
+      },
+      idempotencyKey: `comeback:${groupId}:${monthKey}:${authUserId}:behind:on-track`,
+      createdAt: log.createdAt || null
+    });
+  }
+
+  return { inserts, deleteKeys };
+}
+
+async function syncWorkoutLogDerivedStreamMoments(beforeGroup, afterGroup, monthKey, displayName, authUserId, log) {
+  const { inserts, deleteKeys } = buildWorkoutLogDerivedMoments(beforeGroup, afterGroup, monthKey, displayName, authUserId, log);
+  for (const idempotencyKey of deleteKeys) {
+    await deleteBlocSystemMomentInCanonical(afterGroup.id, idempotencyKey, { throwOnError: true });
+  }
+  for (const moment of inserts) {
+    await insertBlocSystemMomentInCanonical(
+      afterGroup.id,
+      moment.systemKind,
+      moment.body,
+      moment.payload,
+      moment.idempotencyKey,
+      moment.createdAt,
+      { throwOnError: true }
+    );
+  }
+}
+
 function buildTargetHitMoment(beforeGroup, afterGroup, monthKey, displayName, authUserId, log) {
   if (!beforeGroup || !afterGroup || !monthKey || !displayName || !log?.id) return null;
   const beforeCount = getCountedLogCount(beforeGroup.logs?.[displayName] || []);
@@ -7562,6 +7683,7 @@ export default async function handler(req, res) {
                 { throwOnError: true }
               );
             }
+            await syncWorkoutLogDerivedStreamMoments(beforeGroup, group, group.lastMonth, canonicalActor, auth.user.id, log);
           }
         }
         const reason = `multi-log:${canonicalActor || actor || auth.user.id}:${payload.date}:${payload.workoutType}`;
@@ -7606,6 +7728,7 @@ export default async function handler(req, res) {
               { throwOnError: true }
             );
           }
+          await syncWorkoutLogDerivedStreamMoments(canonicalState.groups?.[payload.groupId] || null, group, result.monthKey, canonicalActor, auth.user.id, result.log);
         }
         if (shadowBlobUpdated) {
           await runWriteHydrationParityProbe("add-log", payload, auth, actor, shadowBlobUpdated.updated, applyAddLog);

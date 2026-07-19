@@ -94,12 +94,15 @@ coordinated batch.** Decided with the user. So:
   emit for member joined, member left, member removed, target hit, settings
   changed, sit-out requested, sit-out approved, settlement paid, and settlement
   confirmed.
-- **Stage 6 (NEXT, not started):** event cards. "Suggest an event" opens a
-  creation sheet (3 fields: activity, date/time, location) → inserts a
-  `message_type='event'` mock row → renders an event card with cyan accent +
-  RSVP row ("I'm in" / "Pass") with a stacked-avatar count. Wire the placeholder
-  menu item to this. Do NOT build message type 4 (workout-log comments) — spec
-  defers it.
+- **Derived workout-log moments (started):** workout logging now evaluates
+  canonical before/after member pace. It deletes stale `cooked` moments when
+  active-month backfilled logs make a member no longer cooked, and emits
+  `comeback` only for `behind -> on-track`. It does not emit comeback for
+  `at-risk -> on-track` or `cooked -> on-track`.
+- **Stage 6 event cards (done/backend-backed):** "Suggest an event" creates a
+  persisted `message_type='event'` row with activity/date/location and RSVP
+  state. Do NOT build message type 4 (workout-log comments) until its schema and
+  product contract are defined.
 
 ## Design decisions locked with the user (keep these)
 

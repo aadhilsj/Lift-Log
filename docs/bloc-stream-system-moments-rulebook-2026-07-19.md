@@ -395,17 +395,44 @@ Do not emit:
 - For excused/sit-out members.
 - More than once per member per month.
 
+Retraction/backfill correction:
+
+- If a member was marked cooked because they had not logged workouts yet, and
+  later backfills enough workouts in the same active month to become no longer
+  cooked, delete the prior cooked system moment.
+- This is a correction to stale stream state, not a comeback story.
+- The retraction key is the same idempotency key:
+
+```text
+cooked:{bloc_id}:{month_key}:{member_user_id}
+```
+
+- Only apply this automatic deletion while the month is still active/open.
+  Historical month repair should be an admin repair path, not normal product
+  behavior.
+
 ### `comeback`
 
 Trigger:
 
-- A member moves from behind/at-risk/cooked territory back to on-track or target
-  hit after logging.
+- A member moves from `behind` to `on-track` in the active current month after
+  logging.
+- `behind` must use the app's current member pace status rule. As of this note,
+  runtime member pace is:
+  - `on-track`: `count >= expected`
+  - `at-risk`: `count >= expected - 2`
+  - `behind`: anything below `expected - 2`, unless cooked
+- Product shorthand may describe this as being roughly `-4 behind pace`, but
+  the implementation must use the actual shared pace-status helper/threshold in
+  the app.
+- Do not emit comeback for `at-risk -> on-track`; that is too mild.
+- Do not emit comeback for `cooked -> on-track`; that is handled by deleting
+  the stale cooked moment when backfilled logs make the member no longer cooked.
 
 Idempotency key:
 
 ```text
-comeback:{bloc_id}:{month_key}:{member_user_id}:{from_status}:{to_status}
+comeback:{bloc_id}:{month_key}:{member_user_id}:behind:on-track
 ```
 
 Payload:
