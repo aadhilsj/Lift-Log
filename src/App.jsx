@@ -1122,6 +1122,35 @@ const App = () => {
   });
   const localPreviewMembers = uniqueNames(groups.flatMap(group => getCurrentGroupMemberNames(group)));
   const activityAlertCount = currentGroup && currentUser ? getActivityAlertCount(currentGroup, currentUser) : 0;
+  const renderGroupSwitcherSurface = ({ inert=false, suppressIntro=false } = {}) => React.createElement('div',{
+    style:{
+      position:"fixed",
+      inset:0,
+      zIndex:inert?0:1,
+      overflowY:"auto",
+      overflowX:"hidden",
+      WebkitOverflowScrolling:"touch",
+      pointerEvents:inert?"none":"auto",
+      background:"var(--bg-gradient)",
+      backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)",
+      overscrollBehavior:"contain"
+    }
+  },
+    React.createElement(GroupHome,{
+      groups: visibleGroups,
+      currentIdentity: profile?.displayName || authSession?.email?.split("@")[0] || effectiveProfile?.displayName || effectiveAuthSession?.email?.split("@")[0] || "",
+      currentEmail: authSession?.email || effectiveAuthSession?.email,
+      currentUserId: authSession?.userId || effectiveAuthSession?.userId || "",
+      onOpenProfile:inert?()=>{}:()=>setShowProfile(true),
+      creating: inert ? false : creatingGroup,
+      autoOpenCreate: inert ? false : queuedCreate,
+      onAutoOpenHandled: inert ? ()=>{} : ()=>setQueuedCreate(false),
+      onOpenGroup: inert ? ()=>{} : groupId=>{ window.scrollTo({top:0,left:0,behavior:"auto"}); setSuppressSwitcherIntro(false); persistGroupSelection(groupId); setPage("today"); },
+      onCreateGroup: inert ? ()=>{} : handleCreateGroup,
+      onJoinGroup: inert ? ()=>{} : ()=>setShowJoinModal(true),
+      suppressIntro
+    })
+  );
   const openAuth = intent => {
     setShowJoinModal(false);
     setAuthIntent(intent);
@@ -1356,20 +1385,7 @@ const App = () => {
     return React.createElement(React.Fragment,null,
       showJoinModal && !authStep && React.createElement(JoinGroupModal,{inviteContext,joinCode,setJoinCode,onClose:()=>setShowJoinModal(false),onJoin:handleJoinGroup,joining:joiningGroup,error:inviteError,signedIn:true}),
       showProfileModal && React.createElement(ProfileModal,{email:authSession?.email,onSignOut:handleSwitchUser,onClose:()=>{setProfileError("");setShowProfileModal(false);},currentDisplayName:profile?.displayName||"",onSaveDisplayName:handleSaveProfileFromModal,saving:profileSaving,saveError:profileError,onDeleteAccount:handleDeleteAccount}),
-      React.createElement(GroupHome,{
-            groups: visibleGroups,
-            currentIdentity: profile?.displayName || authSession?.email?.split("@")[0] || effectiveProfile?.displayName || effectiveAuthSession?.email?.split("@")[0] || "",
-            currentEmail: authSession?.email || effectiveAuthSession?.email,
-            currentUserId: authSession?.userId || effectiveAuthSession?.userId || "",
-            onOpenProfile:()=>setShowProfile(true),
-            creating: creatingGroup,
-            autoOpenCreate: queuedCreate,
-            onAutoOpenHandled:()=>setQueuedCreate(false),
-            onOpenGroup:groupId=>{ window.scrollTo({top:0,left:0,behavior:"auto"}); setSuppressSwitcherIntro(false); persistGroupSelection(groupId); setPage("today"); },
-            onCreateGroup:handleCreateGroup,
-            onJoinGroup:()=>setShowJoinModal(true),
-            suppressIntro:suppressSwitcherIntro
-          }),
+      renderGroupSwitcherSurface({ suppressIntro:suppressSwitcherIntro }),
       showProfile && React.createElement('div',{ref:profileOverlayRef,style:{position:"fixed",inset:0,zIndex:30,overflowY:"auto",overflowX:"hidden",WebkitOverflowScrolling:"touch",overscrollBehavior:"contain",background:profileRevealActive?"transparent":"var(--bg-gradient)",backgroundImage:profileRevealActive?"none":"var(--bg-radial-hint), var(--bg-gradient)"}},
         React.createElement(ProfilePage,{
           visibleGroups,
@@ -1450,22 +1466,7 @@ const App = () => {
       onProrate:()=>handleSeasonProrationChoice("prorate"),
       savingChoice:prorationSavingChoice
     }),
-    page==="today"&&React.createElement('div',{style:{position:"fixed",inset:0,zIndex:0,pointerEvents:"none"}},
-      React.createElement(GroupHome,{
-        groups: visibleGroups,
-        currentIdentity: profile?.displayName || authSession?.email?.split("@")[0] || effectiveProfile?.displayName || effectiveAuthSession?.email?.split("@")[0] || "",
-        currentEmail: authSession?.email || effectiveAuthSession?.email,
-        currentUserId: authSession?.userId || effectiveAuthSession?.userId || "",
-        onOpenProfile:()=>{},
-        creating: creatingGroup,
-        autoOpenCreate: false,
-        onAutoOpenHandled:()=>{},
-        onOpenGroup:()=>{},
-        onCreateGroup:()=>{},
-        onJoinGroup:()=>{},
-        suppressIntro:true
-      })
-    ),
+    page==="today"&&renderGroupSwitcherSurface({ inert:true, suppressIntro:true }),
     activeBlocSurface,
     React.createElement(Nav,{onlyMobileBottomNav:true,page,setPage:handleNavSelect,user:currentUser,groupName:currentGroup.name,canEditGroup:isGroupAdmin,onOpenSettings:()=>setShowSettings(true),onOpenProfile:()=>{setProfileError("");setShowProfileModal(true);},onOpenStream:()=>{markStreamRead(currentGroup.id);setShowStream(true);},streamUnreadCount,onSwitchUser:handleSwitchUser,onSwitchGroup:handleSwitchGroup,onOpenLog:()=>{setPage("today");setShowTodayLog(true);},syncing,lastSyncedAt,syncError,onRefresh:refreshNow,showJustSynced,activityAlertCount,mobileBottomDragX:blocDragX,mobileBottomDragging:blocDragging})
   );
