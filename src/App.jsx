@@ -19,6 +19,7 @@ import {
   getMembershipForUser,
   syncActiveGroupGlobals,
   getCurrentGroupMemberNames,
+  flattenFeedPosts,
   setActiveSessionUserId
 } from "./lib/appState.js";
 import {
@@ -77,6 +78,16 @@ import { HistoryPage } from "./pages/HistoryPage.jsx";
 import { BlocStream } from "./pages/BlocStream.jsx";
 import { ProfilePage } from "./pages/ProfilePage.jsx";
 import { getUnreadCount, markStreamRead } from "./lib/blocStream.js";
+
+const normalizeReactionMembers = (members) => Array.isArray(members)
+  ? Array.from(new Set(members.filter(Boolean))).sort()
+  : [];
+
+const reactionsMatch = (a, b) => {
+  const left = normalizeReactionMembers(a);
+  const right = normalizeReactionMembers(b);
+  return left.length === right.length && left.every((member, index) => member === right[index]);
+};
 
 const App = () => {
   const cached = readCachedData();
@@ -226,6 +237,32 @@ const App = () => {
 
   setActiveSessionUserId(effectiveAuthSession?.userId || "");
   syncActiveGroupGlobals(currentGroup);
+
+  useEffect(()=>{
+    setReactionOverrides(current => {
+      let changed = false;
+      const next = {};
+      Object.entries(current).forEach(([key, override]) => {
+        const group = appState.groups?.[override.groupId];
+        if (!group) {
+          changed = true;
+          return;
+        }
+        const post = flattenFeedPosts(group).find(item => item.owner === override.owner && item.id === override.logId);
+        if (!post) {
+          changed = true;
+          return;
+        }
+        const baseMembers = post.reactions?.[override.emoji] || [];
+        if (reactionsMatch(baseMembers, override.members)) {
+          changed = true;
+          return;
+        }
+        next[key] = override;
+      });
+      return changed ? next : current;
+    });
+  },[appState]);
 
   const buildOptimisticState = useCallback((incoming) => {
     const nextState = normalizeAppState({
