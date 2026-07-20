@@ -56,7 +56,7 @@ function LogThumb({ log }) {
     return React.createElement('img', {
       src: log.photoUrl,
       alt: `${log.owner || "Member"} ${log.type || "workout"}`,
-      style: { width: "100%", height: "auto", maxHeight: 220, borderRadius: 12, objectFit: "cover", background: "#050507", flexShrink: 0, display: "block", border: "1px solid rgba(255,255,255,.08)" }
+      style: { width: "100%", height: "auto", maxHeight: 190, borderRadius: 12, objectFit: "cover", background: "#050507", flexShrink: 0, display: "block", border: "1px solid rgba(255,255,255,.08)" }
     });
   }
   return React.createElement('div', {
@@ -225,7 +225,7 @@ function LogCommentThread({ open, groupId, log, currentUserId, currentUserName, 
   },
     React.createElement('div', {
       onClick: event => event.stopPropagation(),
-      style: { width: "100%", maxWidth: 640, height: "calc(100dvh - env(safe-area-inset-top) - 54px)", background: "#080F0F", border: "1px solid #163d36", borderBottom: "none", borderRadius: "14px 14px 0 0", display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 -4px 44px rgba(0,0,0,.45)" }
+      style: { width: "100%", maxWidth: 640, height: "calc(100dvh - env(safe-area-inset-top) - 50px)", maxHeight: "calc(100dvh - env(safe-area-inset-top) - 50px)", background: "#080F0F", border: "1px solid #163d36", borderBottom: "none", borderRadius: "14px 14px 0 0", display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 -4px 44px rgba(0,0,0,.45)" }
     },
       React.createElement('div', { style: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "11px 14px", borderBottom: "1px solid rgba(22,61,54,.72)", flexShrink: 0 } },
         React.createElement('div', { style: { fontSize: 14, fontWeight: 800, color: "var(--text)" } }, count === 1 ? "1 comment" : `${count} comments`),
