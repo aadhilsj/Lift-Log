@@ -440,7 +440,7 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
                         ),
                         renderReactionRow(post,false,Boolean(imagePost)),
                       ),
-                      React.createElement('div',{style:{display:"flex",alignItems:"center",gap:7,flexShrink:0,marginTop:2}},
+                      React.createElement('div',{style:{display:"flex",alignItems:"flex-end",gap:7,flexShrink:0,marginTop:2}},
                         renderCommentChip(post,true),
                         React.createElement('button',{type:"button",onClick:()=>setImageTarget({owner:post.owner,id:post.id,post}),style:{display:"block",width:72,height:72,padding:0,borderRadius:8,overflow:"hidden",background:"#050507",border:"1px solid rgba(255,255,255,.08)",flexShrink:0}},
                           React.createElement('img',{src:post.photoUrl,alt:`${post.owner} ${post.type}`,style:{display:"block",width:"100%",height:"100%",objectFit:"cover"}})
