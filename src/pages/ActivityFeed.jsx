@@ -85,6 +85,20 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
     setCommentCounts(current => ({ ...current, [key]: Math.max(0, Number(count || 0)) }));
   },[]);
   useEffect(()=>{
+    setCommentCounts(current => {
+      let changed = false;
+      const next = { ...current };
+      feedPosts.forEach(post => {
+        const key = String(post?.id || "");
+        const count = Number(post?.commentCount);
+        if (!key || !Number.isFinite(count) || Object.prototype.hasOwnProperty.call(next, key)) return;
+        next[key] = Math.max(0, count);
+        changed = true;
+      });
+      return changed ? next : current;
+    });
+  },[feedPosts]);
+  useEffect(()=>{
     if (!group?.id || !feedPosts.length) return undefined;
     const logIds = feedPosts.map(post => String(post.id || "")).filter(Boolean);
     let cancelled = false;
@@ -443,8 +457,7 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
                               React.createElement('span',{style:{display:"inline-flex",alignItems:"center",gap:4,color:"var(--muted)",fontSize:11.5,flexShrink:0}},
                                 React.createElement('span',{style:{display:"inline-flex",alignItems:"center",justifyContent:"center",color:"var(--cyan)",width:14}},categoryIcon),
                                 React.createElement('span',null,post.type)
-                              ),
-                              React.createElement('span',{className:"mono",style:{fontSize:9,color:"var(--muted2)",letterSpacing:"-.01em",flexShrink:0}},formatShortDate(displayDate))
+                              )
                             ),
                             React.createElement('div',{style:{display:"flex",alignItems:"center",gap:5,flexShrink:0,marginLeft:6}},
                               compactRelativeTime && React.createElement('span',{className:"mono",style:{fontSize:8,color:"var(--muted)",opacity:0.58}},compactRelativeTime),
@@ -455,8 +468,11 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
                         ),
                         renderReactionRow(post,false,Boolean(imagePost)),
                       ),
-                      React.createElement('div',{style:{display:"flex",alignItems:"flex-end",gap:7,flexShrink:0,marginTop:2}},
-                        renderCommentChip(post,true),
+                      React.createElement('div',{style:{display:"grid",gridTemplateColumns:"auto 72px",alignItems:"end",gap:7,flexShrink:0,marginTop:2}},
+                        React.createElement('div',{style:{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:5}},
+                          React.createElement('span',{className:"mono",style:{fontSize:9,color:"var(--muted2)",letterSpacing:"-.01em",lineHeight:1}},formatShortDate(displayDate)),
+                          renderCommentChip(post,true)
+                        ),
                         React.createElement('button',{type:"button",onClick:()=>setImageTarget({owner:post.owner,id:post.id,post}),style:{display:"block",width:72,height:72,padding:0,borderRadius:8,overflow:"hidden",background:"#050507",border:"1px solid rgba(255,255,255,.08)",flexShrink:0}},
                           React.createElement('img',{src:post.photoUrl,alt:`${post.owner} ${post.type}`,style:{display:"block",width:"100%",height:"100%",objectFit:"cover"}})
                         )
