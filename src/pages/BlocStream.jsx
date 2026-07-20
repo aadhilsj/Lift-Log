@@ -1,6 +1,7 @@
 import React from "react";
 const { useState, useEffect, useRef } = React;
-import { Avatar, AppIcon } from "../components/primitives.jsx";
+import { Avatar, AppIcon, WorkoutTypeIcon } from "../components/primitives.jsx";
+import { LogCommentThread } from "../components/LogCommentThread.jsx";
 import {
   createBlocStreamEventData,
   listBlocStreamMessagesData,
@@ -133,6 +134,7 @@ const escapeRegex = s => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 function msgSnippet(m) {
   if (!m) return "";
   if (m.message_type === "event") return `📅 ${(m.payload && m.payload.activity) || "Event"}`;
+  if (m.message_type === "log_comment") return m.payload?.latestComment?.body || "Workout comments";
   if (m.message_type === "system") return m.body || m.label || "Moment";
   return m.body || "";
 }
@@ -420,6 +422,38 @@ const SystemCard = ({ msg, onSeasonClosedTap }) => {
   );
 };
 
+const LogCommentCard = ({ msg, onOpen }) => {
+  const payload = msg.payload || {};
+  const latest = payload.latestComment || {};
+  const count = Number.isFinite(Number(payload.commentCount)) ? Math.max(0, Number(payload.commentCount)) : 0;
+  const owner = payload.ownerDisplayName || "Member";
+  const type = payload.workoutType || "Workout";
+  const preview = latest.body
+    ? `${latest.commenterName || "Member"}: "${latest.body}"`
+    : "Open comments";
+  const thumb = payload.photoUrl
+    ? React.createElement('img', { src: payload.photoUrl, alt: `${owner} ${type}`, style: { width: 44, height: 44, borderRadius: 8, objectFit: "cover", background: "#050507", flexShrink: 0 } })
+    : React.createElement('div', { style: { width: 44, height: 44, borderRadius: 8, background: "#0D1F1E", border: "0.5px solid #163d36", display: "flex", alignItems: "center", justifyContent: "center", color: C.accent, flexShrink: 0 } },
+        React.createElement(WorkoutTypeIcon, { type, size: 20 })
+      );
+  return React.createElement('div', { style: { display: "flex", justifyContent: "center", padding: "4px 0" } },
+    React.createElement('button', {
+      type: "button",
+      onClick: () => onOpen?.(msg),
+      style: { width: "94%", maxWidth: 520, display: "flex", alignItems: "center", gap: 10, padding: 10, borderRadius: 12, background: "#06100E", border: "1px solid #163d36", textAlign: "left", cursor: "pointer" }
+    },
+      thumb,
+      React.createElement('div', { style: { minWidth: 0, flex: 1 } },
+        React.createElement('div', { style: { fontSize: 10, color: "#3d5e59", letterSpacing: ".08em", textTransform: "uppercase", fontWeight: 800, marginBottom: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } },
+          `${count} ${count === 1 ? "comment" : "comments"} · ${owner}'s log`
+        ),
+        React.createElement('div', { style: { color: "#fff", fontSize: 13, lineHeight: 1.3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, preview)
+      ),
+      React.createElement(AppIcon, { name: "chevron-right", size: 15, stroke: C.accent })
+    )
+  );
+};
+
 const AvatarStack = ({ ids, nameFor, size, muted, label, onClick }) => {
   if (!ids.length) return null;
   const shown = ids.slice(0, 3);
@@ -624,6 +658,7 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], stre
   const [draft, setDraft] = useState("");
   const [eventDraft, setEventDraft] = useState(emptyEventDraft);
   const [showEventSheet, setShowEventSheet] = useState(false);
+  const [commentTarget, setCommentTarget] = useState(null);
   const [replyTarget, setReplyTarget] = useState(null);
   const [mention, setMention] = useState(null); // { query, start } while typing "@…"
   const listRef = useRef(null);
@@ -741,6 +776,7 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], stre
       setDraft("");
       setEventDraft(emptyEventDraft());
       setShowEventSheet(false);
+      setCommentTarget(null);
       setReplyTarget(null);
       setMention(null);
       return () => cancelAnimationFrame(id);
@@ -752,6 +788,7 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], stre
     setDraft("");
     setEventDraft(emptyEventDraft());
     setShowEventSheet(false);
+    setCommentTarget(null);
     setReplyTarget(null);
     setMention(null);
   }, [open, blocId]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -790,13 +827,14 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], stre
     const onKey = e => {
       if (e.key !== "Escape") return;
       if (showEventSheet) setShowEventSheet(false);
+      else if (commentTarget) setCommentTarget(null);
       else if (mention) setMention(null);
       else if (replyTarget) setReplyTarget(null);
       else onClose();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose, showEventSheet, mention, replyTarget]);
+  }, [open, onClose, showEventSheet, commentTarget, mention, replyTarget]);
 
   if (!open) return null;
 
@@ -936,6 +974,14 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], stre
   const mentionItems = mention
     ? activeMembers.filter(m => m.id !== currentUserId && m.name && m.name.toLowerCase().includes(mention.query)).slice(0, 6)
     : [];
+  const commentPayload = commentTarget?.payload || {};
+  const commentLog = commentTarget ? {
+    id: commentPayload.id || commentPayload.logId,
+    owner: commentPayload.ownerDisplayName || "Member",
+    type: commentPayload.workoutType || "Workout",
+    date: commentPayload.workoutDate || "",
+    photoUrl: commentPayload.photoUrl || ""
+  } : null;
 
   return React.createElement('div', {
     onClick: onClose,
@@ -999,9 +1045,9 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], stre
           : messages.map((msg, i) => {
               const prev = messages[i - 1];
               const next = messages[i + 1];
-              const isText = msg.message_type !== "system" && msg.message_type !== "event";
-              const sameAuthorPrev = isText && prev && prev.message_type !== "system" && prev.message_type !== "event" && prev.author_id === msg.author_id;
-              const sameAuthorNext = isText && next && next.message_type !== "system" && next.message_type !== "event" && next.author_id === msg.author_id;
+              const isText = msg.message_type !== "system" && msg.message_type !== "event" && msg.message_type !== "log_comment";
+              const sameAuthorPrev = isText && prev && prev.message_type !== "system" && prev.message_type !== "event" && prev.message_type !== "log_comment" && prev.author_id === msg.author_id;
+              const sameAuthorNext = isText && next && next.message_type !== "system" && next.message_type !== "event" && next.message_type !== "log_comment" && next.author_id === msg.author_id;
               const firstInGroup = isText && !sameAuthorPrev;
               // A date divider precedes the first message of each new calendar day.
               const showDaySep = i === 0 || (prev && !sameDay(prev.created_at, msg.created_at));
@@ -1019,6 +1065,9 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], stre
               }
               if (msg.message_type === "event") {
                 return wrap(React.createElement(EventCard, { msg, currentUserId, authorName: nameFor(msg.author_id), nameFor, onRsvp: handleRsvp }));
+              }
+              if (msg.message_type === "log_comment") {
+                return wrap(React.createElement(LogCommentCard, { msg, onOpen: setCommentTarget }));
               }
               const isOwn = msg.author_id === currentUserId;
               const replyToMsg = msg.reply_to ? messages.find(x => x.id === msg.reply_to) : null;
@@ -1082,6 +1131,14 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], stre
       onDraftChange: setEventDraft,
       onClose: () => setShowEventSheet(false),
       onCreate: handleCreateEvent
+    }),
+    commentTarget && React.createElement(LogCommentThread, {
+      open: Boolean(commentTarget),
+      groupId: activeBlocId,
+      log: commentLog,
+      currentUserName: nameFor(currentUserId),
+      onClose: () => setCommentTarget(null),
+      onCommentCountChange: () => refreshMessages({ scroll: true })
     })
   );
 };

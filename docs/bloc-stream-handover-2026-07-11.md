@@ -101,8 +101,17 @@ coordinated batch.** Decided with the user. So:
   `at-risk -> on-track` or `cooked -> on-track`.
 - **Stage 6 event cards (done/backend-backed):** "Suggest an event" creates a
   persisted `message_type='event'` row with activity/date/location and RSVP
-  state. Do NOT build message type 4 (workout-log comments) until its schema and
-  product contract are defined.
+  state.
+- **Workout-log comments (started/backend-backed):** one shared comment thread
+  per canonical workout log, opened from Activity feed chips and from Bloc
+  Stream `message_type='log_comment'` cards. Comment rows live in
+  `ante_core.workout_log_comments`; service-role RPCs list comments, count
+  comments, and insert comments. Insert deletes/recreates the one Stream card
+  for that log so the latest comment moves to the bottom of Stream. The table is
+  in the Supabase Realtime publication, but the frontend currently stays on the
+  existing app-server RPC path with short polling while the thread/Activity is
+  open; do not expose private `ante_core` tables directly to the browser without
+  a separate RLS/grant review.
 
 ## Design decisions locked with the user (keep these)
 

@@ -22,7 +22,8 @@
 --     "flagged_by":         text|null,
 --     "decision_by":        text|null,
 --     "decision_at":        text|null, -- ISO 8601 UTC or null
---     "reactions":          jsonb       -- { "<emoji>": ["DisplayName", ...] }
+--     "reactions":          jsonb,      -- { "<emoji>": ["DisplayName", ...] }
+--     "comment_count":      integer
 --   }, ...]
 --
 -- Filters:
@@ -77,6 +78,11 @@ begin
                                   ) r2
                                 ),
                                 '{}'::jsonb
+                              ),
+        'comment_count',      (
+                                select count(*)::integer
+                                from ante_core.workout_log_comments c
+                                where c.workout_log_id = wl.id
                               )
       )
       order by wl.created_at asc

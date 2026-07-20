@@ -1059,6 +1059,7 @@ function normalizeLogEntry(log) {
     photoUrl: shouldKeepLogPhoto(log) ? photoUrl : "",
     createdAt: resolveLogCreatedAt(log),
     verifiedVia: log?.verifiedVia === "strava" ? "strava" : "photo",
+    commentCount: Number.isFinite(Number(log?.commentCount)) ? Math.max(0, Number(log.commentCount)) : 0,
     reactions: normalizeReactions(log?.reactions),
     flagStatus: normalizeFlagStatus(log?.flagStatus),
     flagReason: typeof log?.flagReason === "string" ? log.flagReason.slice(0,280) : "",

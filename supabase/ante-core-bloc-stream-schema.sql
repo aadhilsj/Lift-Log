@@ -6,7 +6,7 @@
 create table if not exists ante_core.bloc_messages (
   id uuid primary key default gen_random_uuid(),
   bloc_id uuid not null references ante_core.blocs(id) on delete cascade,
-  message_type text not null check (message_type in ('text', 'system', 'event')),
+  message_type text not null check (message_type in ('text', 'system', 'event', 'log_comment')),
   author_profile_id uuid references ante_core.profiles(id) on delete set null,
   body text,
   system_kind text,
@@ -53,3 +53,30 @@ create table if not exists ante_core.bloc_message_reads (
 
 create index if not exists ante_core_bloc_message_reads_profile_idx
   on ante_core.bloc_message_reads (profile_id);
+
+create table if not exists ante_core.workout_log_comments (
+  id uuid primary key default gen_random_uuid(),
+  workout_log_id text not null references ante_core.workout_logs(id) on delete cascade,
+  commenter_profile_id uuid references ante_core.profiles(id) on delete set null,
+  commenter_display_name text not null,
+  body text not null,
+  created_at timestamptz not null default now(),
+  constraint ante_core_workout_log_comments_body_check
+    check (nullif(trim(body), '') is not null)
+);
+
+create index if not exists ante_core_workout_log_comments_log_created_idx
+  on ante_core.workout_log_comments (workout_log_id, created_at asc, id asc);
+
+create index if not exists ante_core_workout_log_comments_commenter_idx
+  on ante_core.workout_log_comments (commenter_profile_id);
+
+do $$
+begin
+  begin
+    alter publication supabase_realtime add table ante_core.workout_log_comments;
+  exception
+    when duplicate_object then null;
+    when undefined_object then null;
+  end;
+end $$;

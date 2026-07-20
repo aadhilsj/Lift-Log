@@ -547,6 +547,7 @@ function preserveBlobCompatibleLogFields(existingLog, canonicalLog) {
     ...canonicalLog,
     createdAt: preferExistingTimestamp(existingLog.createdAt, canonicalLog.createdAt),
     decisionAt: preferExistingTimestamp(existingLog.decisionAt, canonicalLog.decisionAt),
+    commentCount: Number.isFinite(Number(canonicalLog.commentCount)) ? Math.max(0, Number(canonicalLog.commentCount)) : Number(existingLog.commentCount || 0),
     reactions: normalizeReactions(existingLog.reactions)
   };
   if (!Object.prototype.hasOwnProperty.call(existingLog, "ownerDisplayName")) {
@@ -1148,6 +1149,7 @@ function normalizeLogEntry(log) {
     photoUrl: shouldKeepLogPhoto(log) ? photoUrl : "",
     createdAt: resolveLogCreatedAt(log),
     verifiedVia: log?.verifiedVia === "strava" ? "strava" : "photo",
+    commentCount: Number.isFinite(Number(log?.commentCount)) ? Math.max(0, Number(log.commentCount)) : 0,
     reactions: normalizeReactions(log?.reactions),
     flagStatus: normalizeFlagStatus(log?.flagStatus),
     flagReason: typeof log?.flagReason === "string" ? log.flagReason.slice(0, 280) : "",
@@ -2484,6 +2486,46 @@ async function markBlocStreamReadInCanonical(legacyGroupKey, authUserId) {
   });
 }
 
+async function readWorkoutLogCommentsFromCanonical(legacyGroupKey, authUserId, logId) {
+  const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_workout_log_comments", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({
+      p_legacy_group_key: legacyGroupKey,
+      p_auth_user_id: authUserId,
+      p_workout_log_id: logId
+    })
+  });
+  return await response.json();
+}
+
+async function readWorkoutLogCommentCountsFromCanonical(legacyGroupKey, authUserId, logIds) {
+  const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_workout_log_comment_counts", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({
+      p_legacy_group_key: legacyGroupKey,
+      p_auth_user_id: authUserId,
+      p_workout_log_ids: Array.isArray(logIds) ? logIds.map(id => String(id || "").trim()).filter(Boolean) : []
+    })
+  });
+  return await response.json();
+}
+
+async function insertWorkoutLogCommentInCanonical(legacyGroupKey, authUserId, logId, body) {
+  const response = await supabaseFetch("/rest/v1/rpc/insert_ante_core_workout_log_comment", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({
+      p_legacy_group_key: legacyGroupKey,
+      p_auth_user_id: authUserId,
+      p_workout_log_id: logId,
+      p_body: body
+    })
+  });
+  return await response.json();
+}
+
 async function insertBlocSystemMomentInCanonical(legacyGroupKey, systemKind, body, payload, idempotencyKey, createdAt = null, options = {}) {
   const { throwOnError = false } = options;
   if (!legacyGroupKey || !systemKind || !idempotencyKey) return null;
@@ -3006,6 +3048,7 @@ async function fetchAnteCurrentLogs() {
         flaggedBy:        row.flagged_by    || null,
         decisionBy:       row.decision_by   || null,
         decisionAt:       row.decision_at   || null,
+        commentCount:     Number.isFinite(Number(row.comment_count)) ? Math.max(0, Number(row.comment_count)) : 0,
         reactions:        row.reactions     || {}
       });
       return acc;
@@ -7189,6 +7232,53 @@ export default async function handler(req, res) {
         const authUser = await fetchAuthenticatedUser(readBearerToken(req, payload));
         await markBlocStreamReadInCanonical(payload.groupId, authUser.id);
         return res.status(200).json({ ok: true });
+      }
+
+      if (payload?.action === "log-comments-list") {
+        const authUser = await fetchAuthenticatedUser(readBearerToken(req, payload));
+        const comments = await readWorkoutLogCommentsFromCanonical(payload.groupId, authUser.id, payload.logId);
+        return res.status(200).json({ ok: true, comments: Array.isArray(comments) ? comments : [] });
+      }
+
+      if (payload?.action === "log-comment-counts") {
+        const authUser = await fetchAuthenticatedUser(readBearerToken(req, payload));
+        const counts = await readWorkoutLogCommentCountsFromCanonical(
+          payload.groupId,
+          authUser.id,
+          Array.isArray(payload.logIds) ? payload.logIds : []
+        );
+        return res.status(200).json({ ok: true, counts: counts && typeof counts === "object" && !Array.isArray(counts) ? counts : {} });
+      }
+
+      if (payload?.action === "log-comment-create") {
+        const auth = await requireAuthenticatedContext(req, payload, await getReadableCurrent());
+        const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
+        const canonicalActor = resolveDisplayNameForUser(canonicalState, payload.groupId, auth.user.id, auth.user.email);
+        const group = canonicalState.groups?.[payload.groupId];
+        const logId = String(payload?.logId || "").trim();
+        let owner = "";
+        let log = null;
+        if (group && logId) {
+          for (const [name, logs] of Object.entries(group.logs || {})) {
+            const match = (Array.isArray(logs) ? logs : []).find(entry => String(entry?.id) === logId);
+            if (match) {
+              owner = name;
+              log = match;
+              break;
+            }
+          }
+        }
+        if (!group || !log || !owner) return res.status(404).json({ error: "Workout not found" });
+        if (!isCurrentGroupMember(group, canonicalActor, auth.user.id)) return res.status(403).json({ error: "Only Bloc members can comment" });
+        await syncOpenWorkoutLogSnapshotToCanonical(group, owner, log, { throwOnError: true });
+        const result = await insertWorkoutLogCommentInCanonical(payload.groupId, auth.user.id, logId, payload.body);
+        await bumpCanonicalRevision(`log-comment:${payload.groupId}:${logId}:${auth.user.id}`, null);
+        return res.status(200).json({
+          ok: true,
+          comment: result?.comment || null,
+          commentCount: Number.isFinite(Number(result?.commentCount)) ? Math.max(0, Number(result.commentCount)) : null,
+          streamMessageId: result?.streamMessageId || null
+        });
       }
 
       if (payload?.action === "auth-sync") {

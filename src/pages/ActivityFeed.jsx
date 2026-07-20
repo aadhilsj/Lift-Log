@@ -5,13 +5,15 @@ import {
   countApprovedFlagsForActor,
   flattenFeedPosts
 } from "../lib/appState.js";
+import { getLogCommentCountsData } from "../lib/api.js";
 import {
   formatShortDate,
   formatCompactRelativeTime,
   isRecentPastTimestamp,
   isMobile
 } from "../lib/utils.js";
-import { Avatar, WorkoutTypeIcon, Card } from "../components/primitives.jsx";
+import { Avatar, AppIcon, WorkoutTypeIcon, Card } from "../components/primitives.jsx";
+import { LogCommentThread } from "../components/LogCommentThread.jsx";
 import { TextEntryModal, NoticeModal } from "../modals/modals.jsx";
 
 const getReactionKey = (groupId, owner, logId, emoji) => `${groupId || ""}:${owner || ""}:${logId || ""}:${emoji || ""}`;
@@ -39,6 +41,8 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
   const [reactionPopover,setReactionPopover]=useState(null);
   const [localReactionOverrides,setLocalReactionOverrides]=useState({});
   const [imageTarget,setImageTarget]=useState(null);
+  const [commentTarget,setCommentTarget]=useState(null);
+  const [commentCounts,setCommentCounts]=useState({});
   const [notice,setNotice]=useState(null);
   const reactionPressTimer = useRef(null);
   const reactionLongPressKey = useRef("");
@@ -65,6 +69,30 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
   const approvedFlagCount = countApprovedFlagsForActor(group, currentUser);
   const cannotFlagMore = approvedFlagCount >= 3;
   const compactFeed = isMobile();
+  const getCommentCount = useCallback(post => {
+    const key = String(post?.id || "");
+    const override = commentCounts[key];
+    if (Number.isFinite(Number(override))) return Math.max(0, Number(override));
+    return Number.isFinite(Number(post?.commentCount)) ? Math.max(0, Number(post.commentCount)) : 0;
+  },[commentCounts]);
+  const updateCommentCount = useCallback((logId, count) => {
+    const key = String(logId || "");
+    if (!key) return;
+    setCommentCounts(current => ({ ...current, [key]: Math.max(0, Number(count || 0)) }));
+  },[]);
+  useEffect(()=>{
+    if (!group?.id || !feedPosts.length) return undefined;
+    const logIds = feedPosts.map(post => String(post.id || "")).filter(Boolean);
+    let cancelled = false;
+    const refreshCounts = async () => {
+      const result = await getLogCommentCountsData(group.id, logIds);
+      if (cancelled || !result?.ok) return;
+      setCommentCounts(current => ({ ...current, ...result.counts }));
+    };
+    refreshCounts();
+    const id = window.setInterval(refreshCounts, 8000);
+    return ()=>{ cancelled = true; window.clearInterval(id); };
+  },[feedPosts, group?.id]);
   useEffect(()=>{
     if (!reactionPopover) return;
     const handlePointerDown = event => {
@@ -191,6 +219,7 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
     const reactionEntries = Object.entries(post.reactions || {})
       .filter(([, members]) => Array.isArray(members) && members.length > 0)
       .sort((a,b)=>(b[1].length-a[1].length) || (reactionSortIndex(a[0])-reactionSortIndex(b[0])));
+    const commentCount = getCommentCount(post);
     return React.createElement('div',{style:{position:centered?"relative":"static",display:"flex",alignItems:"center",justifyContent:centered?"center":"flex-start",gap:6,flexWrap:"wrap",paddingTop:compact?0:6,marginLeft:centered?0:(compact?-2:0)}},
       reactionEntries.map(([emoji, members])=>{
         const active = members.includes(currentUser);
@@ -208,6 +237,14 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
       React.createElement('div',{"data-reaction-picker-root":"true",ref:reactionTarget===post.id?reactionPickerRef:null,style:{position:centered?"static":"relative",display:"inline-flex"}},
         React.createElement('button',{type:"button",onClick:()=>setReactionTarget(reactionTarget===post.id?null:post.id),style:{height:compact?20:22,padding:compact?"0 6px":"0 7px",borderRadius:999,background:"var(--s1)",border:"1px solid var(--border)",fontSize:10.5,color:"var(--muted)"}},"＋"),
         !suppressFloating && renderReactionPicker(post, centered)
+      ),
+      !centered && React.createElement('button',{
+        type:"button",
+        onClick:()=>setCommentTarget(post),
+        style:{height:compact?20:22,padding:compact?"3px 7px":"3px 8px",borderRadius:14,background:"#0D1F1E",border:"0.5px solid #163d36",fontSize:12,color:commentCount>0?"#4ECDC4":"#3d5e59",display:"inline-flex",alignItems:"center",gap:4,lineHeight:1}
+      },
+        React.createElement(AppIcon,{name:"message-circle",size:13,stroke:"currentColor"}),
+        React.createElement('span',{className:"mono",style:{fontSize:9,color:"currentColor"}},commentCount)
       )
     );
   };
@@ -286,6 +323,14 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
 
   return React.createElement(React.Fragment,null,
     renderExpandedPhoto(),
+    commentTarget && React.createElement(LogCommentThread,{
+      open:Boolean(commentTarget),
+      groupId:group?.id,
+      log:commentTarget,
+      currentUserName:currentUser,
+      onClose:()=>setCommentTarget(null),
+      onCommentCountChange:updateCommentCount
+    }),
     notice && React.createElement(NoticeModal,{title:notice.title,body:notice.body,onClose:()=>setNotice(null)}),
     flagTarget && React.createElement(TextEntryModal,{
       title:"Flag this workout?",

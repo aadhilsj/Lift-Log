@@ -548,6 +548,32 @@ async function markBlocStreamReadData(groupId) {
   return { ok:true };
 }
 
+async function listLogCommentsData(groupId, logId) {
+  const result = await postApi("log-comments-list", { groupId, logId });
+  if (!result.ok) return { ok:false, error: result.error || "Unable to load comments", comments: [] };
+  return { ok:true, comments: Array.isArray(result.body?.comments) ? result.body.comments : [] };
+}
+
+async function getLogCommentCountsData(groupId, logIds = []) {
+  const result = await postApi("log-comment-counts", { groupId, logIds });
+  if (!result.ok) return { ok:false, error: result.error || "Unable to load comment counts", counts: {} };
+  const counts = result.body?.counts && typeof result.body.counts === "object" && !Array.isArray(result.body.counts)
+    ? result.body.counts
+    : {};
+  return { ok:true, counts };
+}
+
+async function createLogCommentData(payload) {
+  const result = await postApi("log-comment-create", payload);
+  if (!result.ok) return { ok:false, error: result.error || "Unable to add comment" };
+  return {
+    ok:true,
+    comment: result.body?.comment || null,
+    commentCount: Number.isFinite(Number(result.body?.commentCount)) ? Math.max(0, Number(result.body.commentCount)) : null,
+    streamMessageId: result.body?.streamMessageId || null
+  };
+}
+
 function readCachedData() {
   try {
     const raw = localStorage.getItem(LOCAL_CACHE_KEY);
@@ -620,6 +646,9 @@ export {
   setBlocStreamRsvpData,
   toggleBlocStreamReactionData,
   markBlocStreamReadData,
+  listLogCommentsData,
+  getLogCommentCountsData,
+  createLogCommentData,
   readCachedData,
   writeCachedData,
   getRevision
