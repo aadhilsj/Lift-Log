@@ -69,7 +69,7 @@ const ProfilePhotoCropModal = ({ imageSrc, onCancel, onConfirm }) => {
   useEffect(() => {
     const updateFrame = () => {
       const rect = frameRef.current?.getBoundingClientRect();
-      setFrameSize(Math.max(220, Math.min(320, Math.floor(rect?.width || 280))));
+      setFrameSize(Math.max(180, Math.min(280, Math.floor(rect?.width || 240))));
     };
     updateFrame();
     window.addEventListener("resize", updateFrame);
@@ -80,8 +80,8 @@ const ProfilePhotoCropModal = ({ imageSrc, onCancel, onConfirm }) => {
     const image = new Image();
     image.onload = () => {
       const nextSize = { width:image.naturalWidth, height:image.naturalHeight };
-      const nextFrame = frameRef.current?.getBoundingClientRect()?.width || frameSize || 280;
-      const nextMinScale = Math.max(1, Math.min(320, nextFrame)) / Math.min(nextSize.width, nextSize.height);
+      const nextFrame = frameRef.current?.getBoundingClientRect()?.width || frameSize || 240;
+      const nextMinScale = Math.max(180, Math.min(280, nextFrame)) / Math.min(nextSize.width, nextSize.height);
       setImageSize(nextSize);
       setScale(nextMinScale);
       setOffset({ x:0, y:0 });
@@ -129,8 +129,8 @@ const ProfilePhotoCropModal = ({ imageSrc, onCancel, onConfirm }) => {
     image.src = imageSrc;
   };
 
-  return React.createElement('div', { style:{ position:"fixed", inset:0, zIndex:10000, background:"rgba(0,0,0,.94)", display:"flex", alignItems:"center", justifyContent:"center", padding:"24px 16px calc(24px + env(safe-area-inset-bottom))" } },
-    React.createElement('div', { style:{ width:"100%", maxWidth:390, display:"flex", flexDirection:"column", alignItems:"center", gap:16 } },
+  return React.createElement('div', { style:{ position:"fixed", inset:0, zIndex:10000, background:"rgba(0,0,0,.94)", display:"flex", alignItems:"flex-start", justifyContent:"center", overflowY:"auto", padding:"calc(env(safe-area-inset-top) + 42px) 16px calc(22px + env(safe-area-inset-bottom))", boxSizing:"border-box" } },
+    React.createElement('div', { style:{ width:"100%", maxWidth:390, minHeight:"min-content", display:"flex", flexDirection:"column", alignItems:"center", gap:12 } },
       React.createElement('div', { style:{ color:"#fff", fontSize:15, fontWeight:MED } }, "Edit Profile Photo"),
       React.createElement('div', {
         ref: frameRef,
@@ -138,7 +138,7 @@ const ProfilePhotoCropModal = ({ imageSrc, onCancel, onConfirm }) => {
         onPointerMove: handlePointerMove,
         onPointerUp: handlePointerEnd,
         onPointerCancel: handlePointerEnd,
-        style:{ width:"min(78vw, 320px)", height:"min(78vw, 320px)", maxWidth:320, maxHeight:320, position:"relative", overflow:"hidden", borderRadius:"50%", background:"#050507", touchAction:"none", boxShadow:"0 0 0 999px rgba(0,0,0,.38), 0 0 0 1.5px rgba(255,255,255,.74)" }
+        style:{ width:"min(66vw, 280px)", height:"min(66vw, 280px)", minWidth:180, minHeight:180, maxWidth:280, maxHeight:280, position:"relative", overflow:"hidden", borderRadius:"50%", background:"#050507", touchAction:"none", boxShadow:"0 0 0 999px rgba(0,0,0,.38), 0 0 0 1.5px rgba(255,255,255,.74)" }
       },
         ready && React.createElement('img', {
           src:imageSrc,
@@ -157,8 +157,14 @@ const ProfilePhotoCropModal = ({ imageSrc, onCancel, onConfirm }) => {
           }
         })
       ),
-      React.createElement('input', { type:"range", min:minScale, max:maxScale, step:(maxScale-minScale)/120 || .01, value:scale, onChange:handleScale, style:{ width:"min(78vw, 320px)", accentColor:"#4ECDC4" } }),
-      React.createElement('div', { style:{ display:"flex", gap:10, width:"min(78vw, 320px)" } },
+      React.createElement('div', { style:{ width:"min(78vw, 320px)", display:"grid", gap:7 } },
+        React.createElement('div', { style:{ display:"flex", alignItems:"center", justifyContent:"space-between", color:"rgba(255,255,255,.42)", fontSize:11 } },
+          React.createElement('span', null, "Drag to move"),
+          React.createElement('span', null, "Zoom")
+        ),
+        React.createElement('input', { type:"range", min:minScale, max:maxScale, step:(maxScale-minScale)/120 || .01, value:scale, onChange:handleScale, style:{ width:"100%", accentColor:"#4ECDC4" } })
+      ),
+      React.createElement('div', { style:{ display:"flex", gap:10, width:"min(78vw, 320px)", paddingTop:2 } },
         React.createElement('button', { type:"button", onClick:onCancel, style:{ flex:1, height:42, borderRadius:999, background:"#0D1F1E", border:"1px solid #163d36", color:"var(--muted)", fontSize:13, fontWeight:MED } }, "Cancel"),
         React.createElement('button', { type:"button", onClick:handleConfirm, style:{ flex:1, height:42, borderRadius:999, background:"#4ECDC4", border:"1px solid #4ECDC4", color:"#04110e", fontSize:13, fontWeight:MED } }, "Done")
       )
