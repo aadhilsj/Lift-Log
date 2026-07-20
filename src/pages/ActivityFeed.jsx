@@ -457,10 +457,10 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
                               React.createElement('span',{style:{display:"inline-flex",alignItems:"center",gap:4,color:"var(--muted)",fontSize:11.5,flexShrink:0}},
                                 React.createElement('span',{style:{display:"inline-flex",alignItems:"center",justifyContent:"center",color:"var(--cyan)",width:14}},categoryIcon),
                                 React.createElement('span',null,post.type)
-                              )
+                              ),
+                              React.createElement('span',{className:"mono",style:{fontSize:9,color:"var(--muted2)",letterSpacing:"-.01em",flexShrink:0}},formatShortDate(displayDate))
                             ),
                             React.createElement('div',{style:{display:"flex",alignItems:"center",gap:5,flexShrink:0,marginLeft:6}},
-                              compactRelativeTime && React.createElement('span',{className:"mono",style:{fontSize:8,color:"var(--muted)",opacity:0.58}},compactRelativeTime),
                               post.verifiedVia==="strava" && React.createElement('span',{className:"mono",style:{fontSize:9,color:"var(--cyan)",letterSpacing:".05em",textTransform:"uppercase"}},"Strava")
                             )
                           ),
@@ -470,7 +470,7 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
                       ),
                       React.createElement('div',{style:{display:"grid",gridTemplateColumns:"auto 72px",alignItems:"end",gap:7,flexShrink:0,marginTop:2}},
                         React.createElement('div',{style:{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:5}},
-                          React.createElement('span',{className:"mono",style:{fontSize:9,color:"var(--muted2)",letterSpacing:"-.01em",lineHeight:1}},formatShortDate(displayDate)),
+                          compactRelativeTime && React.createElement('span',{className:"mono",style:{fontSize:8,color:"var(--muted)",opacity:0.58,lineHeight:1}},compactRelativeTime),
                           renderCommentChip(post,true)
                         ),
                         React.createElement('button',{type:"button",onClick:()=>setImageTarget({owner:post.owner,id:post.id,post}),style:{display:"block",width:72,height:72,padding:0,borderRadius:8,overflow:"hidden",background:"#050507",border:"1px solid rgba(255,255,255,.08)",flexShrink:0}},
