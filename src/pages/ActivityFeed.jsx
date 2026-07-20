@@ -366,7 +366,8 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
       currentUserId,
       currentUserName:currentUser,
       onClose:()=>setCommentTarget(null),
-      onCommentCountChange:updateCommentCount
+      onCommentCountChange:updateCommentCount,
+      bottomInset:96
     }),
     notice && React.createElement(NoticeModal,{title:notice.title,body:notice.body,onClose:()=>setNotice(null)}),
     flagTarget && React.createElement(TextEntryModal,{

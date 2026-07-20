@@ -53,11 +53,15 @@ const inputStyle = {
 
 function LogThumb({ log }) {
   if (log?.photoUrl) {
-    return React.createElement('img', {
-      src: log.photoUrl,
-      alt: `${log.owner || "Member"} ${log.type || "workout"}`,
-      style: { width: "100%", height: "auto", maxHeight: 150, borderRadius: 12, objectFit: "contain", background: "#050507", flexShrink: 0, display: "block", border: "1px solid rgba(255,255,255,.08)" }
-    });
+    return React.createElement('div', {
+      style: { width: "100%", aspectRatio: "1 / 1", maxHeight: 178, borderRadius: 12, overflow: "hidden", background: "rgba(13,31,30,.72)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid rgba(255,255,255,.08)" }
+    },
+      React.createElement('img', {
+        src: log.photoUrl,
+        alt: `${log.owner || "Member"} ${log.type || "workout"}`,
+        style: { width: "100%", height: "100%", objectFit: "contain", display: "block" }
+      })
+    );
   }
   return React.createElement('div', {
     style: { height: 116, borderRadius: 12, background: "#0D1F1E", border: "0.5px solid #163d36", display: "flex", alignItems: "center", justifyContent: "center", color: "#4ECDC4", flexShrink: 0 }
@@ -85,7 +89,7 @@ function LogHeader({ log }) {
   );
 }
 
-function LogCommentThread({ open, groupId, log, currentUserId, currentUserName, onClose, onCommentCountChange }) {
+function LogCommentThread({ open, groupId, log, currentUserId, currentUserName, onClose, onCommentCountChange, bottomInset = 0 }) {
   const [comments, setComments] = useState([]);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
@@ -263,13 +267,18 @@ function LogCommentThread({ open, groupId, log, currentUserId, currentUserName, 
 
   if (!open) return null;
 
+  const modalBottomInset = Math.max(0, Number(bottomInset) || 0);
+  const sheetHeight = modalBottomInset
+    ? `calc(100dvh - env(safe-area-inset-top) - 50px - ${modalBottomInset}px)`
+    : "calc(100dvh - env(safe-area-inset-top) - 50px)";
+
   return React.createElement('div', {
     onClick: () => reactionTarget ? setReactionTarget(null) : onClose(),
-    style: { position: "fixed", inset: 0, zIndex: 12000, display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: "calc(env(safe-area-inset-top) + 50px)", boxSizing: "border-box", background: "rgba(0,0,0,.72)" }
+    style: { position: "fixed", inset: 0, zIndex: 12000, display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: "calc(env(safe-area-inset-top) + 50px)", paddingBottom: modalBottomInset ? `calc(${modalBottomInset}px + env(safe-area-inset-bottom))` : 0, boxSizing: "border-box", background: "rgba(0,0,0,.72)" }
   },
     React.createElement('div', {
       onClick: event => event.stopPropagation(),
-      style: { width: "100%", maxWidth: 640, height: "calc(100dvh - env(safe-area-inset-top) - 50px)", maxHeight: "calc(100dvh - env(safe-area-inset-top) - 50px)", background: "#080F0F", border: "1px solid #163d36", borderBottom: "none", borderRadius: "14px 14px 0 0", display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 -4px 44px rgba(0,0,0,.45)" }
+      style: { width: "100%", maxWidth: 640, height: sheetHeight, maxHeight: sheetHeight, background: "#080F0F", border: "1px solid #163d36", borderBottom: "none", borderRadius: "14px 14px 0 0", display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 -4px 44px rgba(0,0,0,.45)" }
     },
       React.createElement('div', { style: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "11px 14px", borderBottom: "1px solid rgba(22,61,54,.72)", flexShrink: 0 } },
         React.createElement('div', { style: { fontSize: 14, fontWeight: 800, color: "var(--text)" } }, count === 1 ? "1 comment" : `${count} comments`),
