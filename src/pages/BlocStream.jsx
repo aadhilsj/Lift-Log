@@ -1137,6 +1137,7 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], stre
       open: Boolean(commentTarget),
       groupId: activeBlocId,
       log: commentLog,
+      currentUserId,
       currentUserName: nameFor(currentUserId),
       onClose: () => setCommentTarget(null),
       onCommentCountChange: () => refreshMessages({ scroll: true })

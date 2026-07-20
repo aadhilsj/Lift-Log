@@ -576,6 +576,22 @@ function normalizeProfiles(profiles) {
   );
 }
 
+function mergeCanonicalProfiles(baseProfiles, canonicalProfiles, { filterToBase = false } = {}) {
+  const base = normalizeProfiles(baseProfiles);
+  const canonical = normalizeProfiles(canonicalProfiles);
+  const next = { ...base };
+  Object.entries(canonical).forEach(([userId, profile]) => {
+    if (filterToBase && !Object.prototype.hasOwnProperty.call(base, userId)) return;
+    const existing = base[userId] || {};
+    next[userId] = {
+      ...existing,
+      ...profile,
+      profilePhotoUrl: profile.profilePhotoUrl || existing.profilePhotoUrl || ""
+    };
+  });
+  return next;
+}
+
 function scopeReadableStateForUser(state, userId) {
   const normalizedUserId = String(userId || "").trim();
   if (!normalizedUserId) {
@@ -3560,12 +3576,9 @@ async function fetchReadableCurrentState() {
     // may still be present in ante_core.profiles until canonical deletion is
     // implemented. Filtering here prevents stale canonical rows from
     // resurrecting a deleted user in the returned state.
-    const blobProfileKeys = new Set(Object.keys(state.profiles || {}));
-    const filtered = Object.fromEntries(
-      Object.entries(anteProfiles).filter(([userId]) => blobProfileKeys.has(userId))
-    );
-    if (Object.keys(filtered).length > 0) {
-      state = { ...state, profiles: { ...(state.profiles || {}), ...filtered } };
+    const mergedProfiles = mergeCanonicalProfiles(state.profiles || {}, anteProfiles, { filterToBase: true });
+    if (Object.keys(mergedProfiles).length > 0) {
+      state = { ...state, profiles: mergedProfiles };
     }
   }
   const anteSettlementConfirmations = await anteSettlementConfirmationsPromise;
@@ -3860,7 +3873,7 @@ async function buildCanonicalWritableStateForGroup(groupId, baseStateOverride = 
       safeGroupId
     ]),
     profiles: anteProfiles
-      ? { ...(baseState.profiles || {}), ...anteProfiles }
+      ? mergeCanonicalProfiles(baseState.profiles || {}, anteProfiles)
       : baseState.profiles
   };
 }

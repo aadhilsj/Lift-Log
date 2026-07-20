@@ -235,7 +235,7 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
       }
     },
       React.createElement(AppIcon,{name:"message-circle",size:compact?10:11,stroke:"currentColor"}),
-      React.createElement('span',{className:"mono",style:{fontSize:8,color:"currentColor"}},commentCount)
+      commentCount > 0 && React.createElement('span',{className:"mono",style:{fontSize:8,color:"currentColor"}},commentCount)
     );
   };
   const renderReactionPicker = (post, centered=false) => reactionTarget===post.id && React.createElement('div',{"data-reaction-picker-root":"true",style:{position:"absolute",left:centered?"50%":"calc(100% + 5px)",top:centered?"auto":"calc(100% + 5px)",bottom:centered?"calc(100% + 4px)":"auto",transform:centered?"translateX(-50%)":"none",zIndex:8,width:"max-content",maxWidth:"calc(100vw - 48px)",padding:"6px 8px",borderRadius:999,background:"rgba(8,15,15,.96)",border:"1px solid rgba(78,205,196,.16)",boxShadow:"0 14px 32px rgba(0,0,0,.34), inset 0 1px 0 rgba(255,255,255,.05)",display:"grid",gap:6,overflowX:"auto",WebkitOverflowScrolling:"touch"}},
