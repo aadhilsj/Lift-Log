@@ -214,10 +214,11 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
   };
   const renderCommentChip = (post, compact=false) => {
     const commentCount = getCommentCount(post);
+    const hasComments = commentCount > 0;
     return React.createElement('button',{
       type:"button",
       onClick:()=>setCommentTarget(post),
-      style:{
+      style:hasComments?{
         height:compact?18:20,
         minWidth:compact?30:34,
         padding:compact?"2px 5px":"2px 6px",
@@ -225,17 +226,30 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
         background:"#0D1F1E",
         border:"0.5px solid #163d36",
         fontSize:11,
-        color:commentCount>0?"#4ECDC4":"#3d5e59",
+        color:"#4ECDC4",
         display:"inline-flex",
         alignItems:"center",
         justifyContent:"center",
         gap:3,
         lineHeight:1,
         flexShrink:0
+      }:{
+        height:compact?20:22,
+        padding:compact?"0 6px":"0 7px",
+        borderRadius:999,
+        background:"var(--s1)",
+        border:"1px solid var(--border)",
+        fontSize:10.5,
+        color:"var(--muted)",
+        display:"inline-flex",
+        alignItems:"center",
+        justifyContent:"center",
+        lineHeight:1,
+        flexShrink:0
       }
     },
       React.createElement(AppIcon,{name:"message-circle",size:compact?10:11,stroke:"currentColor"}),
-      commentCount > 0 && React.createElement('span',{className:"mono",style:{fontSize:8,color:"currentColor"}},commentCount)
+      hasComments && React.createElement('span',{className:"mono",style:{fontSize:8,color:"currentColor"}},commentCount)
     );
   };
   const renderReactionPicker = (post, centered=false) => reactionTarget===post.id && React.createElement('div',{"data-reaction-picker-root":"true",style:{position:"absolute",left:centered?"50%":"calc(100% + 5px)",top:centered?"auto":"calc(100% + 5px)",bottom:centered?"calc(100% + 4px)":"auto",transform:centered?"translateX(-50%)":"none",zIndex:8,width:"max-content",maxWidth:"calc(100vw - 48px)",padding:"6px 8px",borderRadius:999,background:"rgba(8,15,15,.96)",border:"1px solid rgba(78,205,196,.16)",boxShadow:"0 14px 32px rgba(0,0,0,.34), inset 0 1px 0 rgba(255,255,255,.05)",display:"grid",gap:6,overflowX:"auto",WebkitOverflowScrolling:"touch"}},
