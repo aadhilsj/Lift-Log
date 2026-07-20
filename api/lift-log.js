@@ -2537,6 +2537,20 @@ async function insertWorkoutLogCommentInCanonical(legacyGroupKey, authUserId, lo
   return await response.json();
 }
 
+async function toggleWorkoutLogCommentReactionInCanonical(legacyGroupKey, authUserId, commentId, emoji, isAdding) {
+  await supabaseFetch("/rest/v1/rpc/toggle_ante_core_workout_log_comment_reaction", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({
+      p_legacy_group_key: legacyGroupKey,
+      p_auth_user_id: authUserId,
+      p_comment_id: commentId,
+      p_emoji: emoji,
+      p_is_adding: typeof isAdding === "boolean" ? isAdding : null
+    })
+  });
+}
+
 async function insertBlocSystemMomentInCanonical(legacyGroupKey, systemKind, body, payload, idempotencyKey, createdAt = null, options = {}) {
   const { throwOnError = false } = options;
   if (!legacyGroupKey || !systemKind || !idempotencyKey) return null;
@@ -7323,6 +7337,22 @@ export default async function handler(req, res) {
           commentCount: Number.isFinite(Number(result?.commentCount)) ? Math.max(0, Number(result.commentCount)) : null,
           streamMessageId: result?.streamMessageId || null
         });
+      }
+
+      if (payload?.action === "log-comment-reaction") {
+        const authUser = await fetchAuthenticatedUser(readBearerToken(req, payload));
+        const commentId = String(payload?.commentId || "").trim();
+        const emoji = String(payload?.emoji || "").trim();
+        if (!commentId || !emoji) return res.status(400).json({ error: "commentId and emoji are required" });
+        await toggleWorkoutLogCommentReactionInCanonical(
+          payload.groupId,
+          authUser.id,
+          commentId,
+          emoji,
+          payload.isAdding
+        );
+        await bumpCanonicalRevision(`log-comment-reaction:${payload.groupId}:${commentId}:${authUser.id}:${emoji}`, null);
+        return res.status(200).json({ ok: true });
       }
 
       if (payload?.action === "auth-sync") {

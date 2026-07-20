@@ -71,10 +71,27 @@ create index if not exists ante_core_workout_log_comments_log_created_idx
 create index if not exists ante_core_workout_log_comments_commenter_idx
   on ante_core.workout_log_comments (commenter_profile_id);
 
+create table if not exists ante_core.workout_log_comment_reactions (
+  comment_id uuid not null references ante_core.workout_log_comments(id) on delete cascade,
+  reactor_profile_id uuid references ante_core.profiles(id) on delete cascade,
+  emoji text not null,
+  created_at timestamptz not null default now(),
+  primary key (comment_id, reactor_profile_id, emoji)
+);
+
+create index if not exists ante_core_workout_log_comment_reactions_profile_idx
+  on ante_core.workout_log_comment_reactions (reactor_profile_id);
+
 do $$
 begin
   begin
     alter publication supabase_realtime add table ante_core.workout_log_comments;
+  exception
+    when duplicate_object then null;
+    when undefined_object then null;
+  end;
+  begin
+    alter publication supabase_realtime add table ante_core.workout_log_comment_reactions;
   exception
     when duplicate_object then null;
     when undefined_object then null;

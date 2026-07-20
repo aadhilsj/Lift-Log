@@ -590,6 +590,12 @@ async function createLogCommentData(payload) {
   };
 }
 
+async function toggleLogCommentReactionData(payload) {
+  const result = await postApi("log-comment-reaction", payload);
+  if (!result.ok) return { ok:false, error: result.error || "Unable to update reaction" };
+  return { ok:true };
+}
+
 function readCachedData() {
   try {
     const raw = localStorage.getItem(LOCAL_CACHE_KEY);
@@ -666,6 +672,7 @@ export {
   listLogCommentsData,
   getLogCommentCountsData,
   createLogCommentData,
+  toggleLogCommentReactionData,
   readCachedData,
   writeCachedData,
   getRevision

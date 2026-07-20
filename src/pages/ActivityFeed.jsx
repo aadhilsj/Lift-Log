@@ -32,7 +32,7 @@ const reactionSortIndex = emoji => {
   return index === -1 ? QUICK_REACTIONS.length : index;
 };
 
-const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clockTick,reactionOverrides,setReactionOverrides}) => {
+const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,onReview,clockTick,reactionOverrides,setReactionOverrides}) => {
   const [flagTarget,setFlagTarget]=useState(null);
   const [flagReason,setFlagReason]=useState("");
   const [responseTarget,setResponseTarget]=useState(null);
@@ -212,6 +212,32 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
     }
     handleReact(post, emoji);
   };
+  const renderCommentChip = (post, compact=false) => {
+    const commentCount = getCommentCount(post);
+    return React.createElement('button',{
+      type:"button",
+      onClick:()=>setCommentTarget(post),
+      style:{
+        height:compact?18:20,
+        minWidth:compact?30:34,
+        padding:compact?"2px 5px":"2px 6px",
+        borderRadius:12,
+        background:"#0D1F1E",
+        border:"0.5px solid #163d36",
+        fontSize:11,
+        color:commentCount>0?"#4ECDC4":"#3d5e59",
+        display:"inline-flex",
+        alignItems:"center",
+        justifyContent:"center",
+        gap:3,
+        lineHeight:1,
+        flexShrink:0
+      }
+    },
+      React.createElement(AppIcon,{name:"message-circle",size:compact?10:11,stroke:"currentColor"}),
+      React.createElement('span',{className:"mono",style:{fontSize:8,color:"currentColor"}},commentCount)
+    );
+  };
   const renderReactionPicker = (post, centered=false) => reactionTarget===post.id && React.createElement('div',{"data-reaction-picker-root":"true",style:{position:"absolute",left:centered?"50%":"calc(100% + 5px)",top:centered?"auto":"calc(100% + 5px)",bottom:centered?"calc(100% + 4px)":"auto",transform:centered?"translateX(-50%)":"none",zIndex:8,width:"max-content",maxWidth:"calc(100vw - 48px)",padding:"6px 8px",borderRadius:999,background:"rgba(8,15,15,.96)",border:"1px solid rgba(78,205,196,.16)",boxShadow:"0 14px 32px rgba(0,0,0,.34), inset 0 1px 0 rgba(255,255,255,.05)",display:"grid",gap:6,overflowX:"auto",WebkitOverflowScrolling:"touch"}},
     React.createElement('div',{style:{display:"flex",alignItems:"center",gap:5,flexWrap:"nowrap",justifyContent:"center",minWidth:"max-content"}},
       QUICK_REACTIONS.map(emoji=>
@@ -223,7 +249,6 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
     const reactionEntries = Object.entries(post.reactions || {})
       .filter(([, members]) => Array.isArray(members) && members.length > 0)
       .sort((a,b)=>(b[1].length-a[1].length) || (reactionSortIndex(a[0])-reactionSortIndex(b[0])));
-    const commentCount = getCommentCount(post);
     return React.createElement('div',{style:{position:centered?"relative":"static",display:"flex",alignItems:"center",justifyContent:centered?"center":"flex-start",gap:6,flexWrap:"wrap",paddingTop:compact?0:6,marginLeft:centered?0:(compact?-2:0)}},
       reactionEntries.map(([emoji, members])=>{
         const active = members.includes(currentUser);
@@ -242,14 +267,7 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
         React.createElement('button',{type:"button",onClick:()=>setReactionTarget(reactionTarget===post.id?null:post.id),style:{height:compact?20:22,padding:compact?"0 6px":"0 7px",borderRadius:999,background:"var(--s1)",border:"1px solid var(--border)",fontSize:10.5,color:"var(--muted)"}},"＋"),
         !suppressFloating && renderReactionPicker(post, centered)
       ),
-      !centered && React.createElement('button',{
-        type:"button",
-        onClick:()=>setCommentTarget(post),
-        style:{height:compact?20:22,padding:compact?"3px 7px":"3px 8px",borderRadius:14,background:"#0D1F1E",border:"0.5px solid #163d36",fontSize:12,color:commentCount>0?"#4ECDC4":"#3d5e59",display:"inline-flex",alignItems:"center",gap:4,lineHeight:1}
-      },
-        React.createElement(AppIcon,{name:"message-circle",size:13,stroke:"currentColor"}),
-        React.createElement('span',{className:"mono",style:{fontSize:9,color:"currentColor"}},commentCount)
-      )
+      !centered && !post.photoUrl && renderCommentChip(post, compact)
     );
   };
   const imagePost = imageTarget
@@ -331,6 +349,7 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
       open:Boolean(commentTarget),
       groupId:group?.id,
       log:commentTarget,
+      currentUserId,
       currentUserName:currentUser,
       onClose:()=>setCommentTarget(null),
       onCommentCountChange:updateCommentCount
@@ -421,8 +440,11 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
                         ),
                         renderReactionRow(post,false,Boolean(imagePost)),
                       ),
-                      React.createElement('button',{type:"button",onClick:()=>setImageTarget({owner:post.owner,id:post.id,post}),style:{display:"block",width:72,height:72,padding:0,borderRadius:8,overflow:"hidden",background:"#050507",border:"1px solid rgba(255,255,255,.08)",flexShrink:0,marginTop:2}},
-                        React.createElement('img',{src:post.photoUrl,alt:`${post.owner} ${post.type}`,style:{display:"block",width:"100%",height:"100%",objectFit:"cover"}})
+                      React.createElement('div',{style:{display:"flex",alignItems:"center",gap:7,flexShrink:0,marginTop:2}},
+                        renderCommentChip(post,true),
+                        React.createElement('button',{type:"button",onClick:()=>setImageTarget({owner:post.owner,id:post.id,post}),style:{display:"block",width:72,height:72,padding:0,borderRadius:8,overflow:"hidden",background:"#050507",border:"1px solid rgba(255,255,255,.08)",flexShrink:0}},
+                          React.createElement('img',{src:post.photoUrl,alt:`${post.owner} ${post.type}`,style:{display:"block",width:"100%",height:"100%",objectFit:"cover"}})
+                        )
                       )
                     ),
                   )
