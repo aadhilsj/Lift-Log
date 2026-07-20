@@ -1024,11 +1024,35 @@ const App = () => {
   const handleUpdateProfilePhoto = useCallback(async (dataUrl) => {
     const result = await uploadProfilePhotoData(dataUrl);
     if (!result?.ok) return result;
-    if (result.data) applyData(result.data);
+    if (result.data) applyData(result.data, { fromMutation:true });
+    const profilePhotoUrl = String(result.profilePhotoUrl || "").trim();
+    if (profilePhotoUrl && effectiveAuthSession?.userId) {
+      setAppState(current => {
+        const normalized = normalizeAppState(current);
+        const userId = effectiveAuthSession.userId;
+        const existing = normalized.profiles?.[userId] || {};
+        const updated = normalizeAppState({
+          ...normalized,
+          profiles: {
+            ...(normalized.profiles || {}),
+            [userId]: {
+              id: userId,
+              email: effectiveAuthSession.email || existing.email || "",
+              displayName: effectiveProfile?.displayName || existing.displayName || "",
+              profilePhotoUrl,
+              createdAt: existing.createdAt || new Date().toISOString()
+            }
+          }
+        });
+        latestRevisionRef.current = Math.max(latestRevisionRef.current, getRevision(updated));
+        writeCachedData(updated);
+        return updated;
+      });
+    }
     setLastSyncedAt(new Date());
     setSyncError(false);
-    return { ok: true, profilePhotoUrl: result.profilePhotoUrl || "" };
-  }, [applyData]);
+    return { ok: true, profilePhotoUrl };
+  }, [applyData, effectiveAuthSession, effectiveProfile]);
   const handleDeleteAccount = async () => {
     const result = await deleteAccountData(authSession?.userId);
     if (!result?.ok) return result;
