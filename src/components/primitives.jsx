@@ -2,7 +2,8 @@ import React from "react";
 const { useState, useEffect, useMemo, useCallback, useRef } = React;
 import {
   WORKOUT_TYPES,
-  avatarColor
+  avatarColor,
+  resolveAvatarPhotoUrl
 } from "../lib/appState.js";
 import {
   isMobile
@@ -11,9 +12,31 @@ import { PlayerProfile } from "../pages/PlayerProfile.jsx";
 import { TodayPage } from "../pages/TodayPage.jsx";
 import { App } from "../App.jsx";
 
-const Avatar = ({name,size=32,muted=false,userId=""}) => (
-  React.createElement('div',{style:{width:size,height:size,borderRadius:"50%",background:muted?"var(--s3)":avatarColor(name, userId),display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Outfit',sans-serif",fontWeight:800,fontSize:size*.38,color:muted?"var(--muted)":"#fff",flexShrink:0}},name[0])
-);
+const Avatar = ({name,size=32,muted=false,userId="",photoUrl=""}) => {
+  const resolvedPhotoUrl = String(photoUrl || resolveAvatarPhotoUrl(name, userId) || "").trim();
+  const label = String(name || "?").trim() || "?";
+  const commonStyle = {
+    width:size,
+    height:size,
+    borderRadius:"50%",
+    background:muted?"var(--s3)":avatarColor(label, userId),
+    display:"flex",
+    alignItems:"center",
+    justifyContent:"center",
+    fontFamily:"'Outfit',sans-serif",
+    fontWeight:800,
+    fontSize:size*.38,
+    color:muted?"var(--muted)":"#fff",
+    flexShrink:0,
+    overflow:"hidden"
+  };
+  if (resolvedPhotoUrl && !muted) {
+    return React.createElement('div',{style:commonStyle},
+      React.createElement('img',{src:resolvedPhotoUrl,alt:"",loading:"lazy",style:{width:"100%",height:"100%",objectFit:"cover",display:"block"}})
+    );
+  }
+  return React.createElement('div',{style:commonStyle},label[0]);
+};
 
 
 const CategoryIcon = ({category,size=22,color="#4ECDC4"}) => {

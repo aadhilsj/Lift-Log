@@ -457,6 +457,22 @@ async function upsertProfileData(payload, sessionOverride = null) {
   return { ok:false, error:"Unable to save profile" };
 }
 
+async function updateProfilePhotoData(profilePhotoUrl) {
+  try {
+    const result = await postApi("update-profile-photo", { profilePhotoUrl });
+    if (!result.ok) return { ok:false, error: result.error || "Unable to save photo" };
+    try {
+      return { ok:true, data: normalizeAppState(result.body), syncError:"" };
+    } catch (error) {
+      console.error("Profile photo sync normalize error:", error);
+      return { ok:true, data: null, syncError: error instanceof Error ? error.message : "Unable to sync account" };
+    }
+  } catch (error) {
+    console.error("Profile photo save error:", error);
+  }
+  return { ok:false, error:"Unable to save photo" };
+}
+
 async function joinGroupData(payload) {
   const result = await postApi("join-group", payload);
   if (!result.ok) return { ok:false, error: result.error || "Unable to join Bloc" };
@@ -633,6 +649,7 @@ export {
   sendOtpData,
   verifyOtpData,
   upsertProfileData,
+  updateProfilePhotoData,
   joinGroupData,
   fetchInviteContextData,
   kickMemberData,

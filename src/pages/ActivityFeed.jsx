@@ -54,6 +54,10 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
   const activeReactionOverrides = reactionOverrides || localReactionOverrides;
   const updateReactionOverrides = setReactionOverrides || setLocalReactionOverrides;
   const baseFeedPosts = useMemo(()=>flattenFeedPosts(group),[group]);
+  const userIdForOwner = useCallback(owner => {
+    const match = Object.values(group?.memberships || {}).find(membership => membership?.displayName === owner);
+    return match?.userId || "";
+  },[group?.memberships]);
   const feedPosts = useMemo(()=>baseFeedPosts.map(post => {
     const reactions = { ...(post.reactions || {}) };
     Object.values(activeReactionOverrides).forEach(override => {
@@ -306,7 +310,7 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
       ),
       React.createElement('div',{onClick:e=>e.stopPropagation(),onPointerDown:handlePhotoPointerDown,onPointerUp:handlePhotoPointerUp,style:{width:"100%",maxWidth:720,maxHeight:"92vh",display:"flex",flexDirection:"column",gap:10}},
         React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"center",gap:7,minWidth:0,whiteSpace:"nowrap",padding:"0 2px",textAlign:"center"}},
-          React.createElement(Avatar,{name:imagePost.owner,size:28}),
+          React.createElement(Avatar,{name:imagePost.owner,userId:userIdForOwner(imagePost.owner),size:28}),
           React.createElement('span',{style:{fontWeight:600,fontSize:13,color:"#fff",minWidth:0,overflow:"hidden",textOverflow:"ellipsis",flex:"0 1 auto",maxWidth:compactFeed?118:220}},imagePost.owner),
           React.createElement('span',{style:{display:"inline-flex",alignItems:"center",gap:4,color:"var(--muted)",fontSize:11.5,flexShrink:0}},
             React.createElement('span',{style:{display:"inline-flex",alignItems:"center",justifyContent:"center",color:"var(--cyan)",width:14}},categoryIcon),
@@ -400,7 +404,7 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
                         React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:7}},
                           React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,minWidth:0,whiteSpace:"nowrap"}},
                             React.createElement('div',{style:{display:"flex",alignItems:"center",gap:7,minWidth:0,flex:1}},
-                              React.createElement(Avatar,{name:post.owner,size:28}),
+                              React.createElement(Avatar,{name:post.owner,userId:userIdForOwner(post.owner),size:28}),
                               React.createElement('span',{style:{fontWeight:600,fontSize:13,color:"#fff",minWidth:0,overflow:"hidden",textOverflow:"ellipsis",flex:"0 1 auto",maxWidth:hasThumbnail?(compactFeed?96:180):(compactFeed?116:220)}},post.owner),
                               React.createElement('span',{style:{display:"inline-flex",alignItems:"center",gap:4,color:"var(--muted)",fontSize:11.5,flexShrink:0}},
                                 React.createElement('span',{style:{display:"inline-flex",alignItems:"center",justifyContent:"center",color:"var(--cyan)",width:14}},categoryIcon),
@@ -425,7 +429,7 @@ const ActivityFeed = ({group,currentUser,onReact,onFlag,onRespond,onReview,clock
                 : React.createElement('div',{style:{padding:"8px 12px",display:"flex",flexDirection:"column",gap:14}},
                     React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,minWidth:0}},
                       React.createElement('div',{style:{display:"flex",alignItems:"center",gap:7,minWidth:0,flex:1}},
-                        React.createElement(Avatar,{name:post.owner,size:22}),
+                        React.createElement(Avatar,{name:post.owner,userId:userIdForOwner(post.owner),size:22}),
                         React.createElement('span',{style:{fontWeight:600,fontSize:13,color:"#fff",minWidth:0,overflow:"hidden",textOverflow:"ellipsis",flex:"0 1 auto",maxWidth:compactFeed?116:220}},post.owner),
                         React.createElement('span',{style:{display:"inline-flex",alignItems:"center",gap:4,color:"var(--muted)",fontSize:11.5,flexShrink:0}},
                           React.createElement('span',{style:{display:"inline-flex",alignItems:"center",justifyContent:"center",color:"var(--cyan)",width:14}},categoryIcon),

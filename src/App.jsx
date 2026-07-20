@@ -18,6 +18,7 @@ import {
   getProfileForSession,
   getMembershipForUser,
   syncActiveGroupGlobals,
+  syncActiveProfileGlobals,
   getCurrentGroupMemberNames,
   flattenFeedPosts,
   setActiveSessionUserId
@@ -50,6 +51,7 @@ import {
   sendOtpData,
   verifyOtpData,
   upsertProfileData,
+  updateProfilePhotoData,
   joinGroupData,
   fetchInviteContextData,
   kickMemberData,
@@ -240,6 +242,7 @@ const App = () => {
 
   setActiveSessionUserId(effectiveAuthSession?.userId || "");
   syncActiveGroupGlobals(currentGroup);
+  syncActiveProfileGlobals(appState.profiles);
 
   useEffect(()=>{
     setReactionOverrides(current => {
@@ -1018,6 +1021,14 @@ const App = () => {
     applyData(result.data);
     setShowProfileModal(false);
   };
+  const handleUpdateProfilePhoto = useCallback(async (profilePhotoUrl) => {
+    const result = await updateProfilePhotoData(profilePhotoUrl);
+    if (!result?.ok) return result;
+    if (result.data) applyData(result.data);
+    setLastSyncedAt(new Date());
+    setSyncError(false);
+    return { ok: true };
+  }, [applyData]);
   const handleDeleteAccount = async () => {
     const result = await deleteAccountData(authSession?.userId);
     if (!result?.ok) return result;
@@ -1408,11 +1419,13 @@ const App = () => {
           visibleGroups,
           currentUserId: effectiveAuthSession?.userId,
           displayName: effectiveProfile?.displayName || profile?.displayName || "",
+          profilePhotoUrl: effectiveProfile?.profilePhotoUrl || profile?.profilePhotoUrl || "",
           email: authSession?.email,
           accountCreatedAt: profile?.createdAt,
           onBack:()=>{ setProfileRevealActive(false); setShowProfile(false); },
           onSwipeRevealChange:setProfileRevealActive,
           onEditName:()=>setShowProfileModal(true),
+          onUpdateProfilePhoto:handleUpdateProfilePhoto,
           onSignOut:handleSwitchUser,
           onDeleteAccount:handleDeleteAccount
         })
@@ -1467,7 +1480,7 @@ const App = () => {
     showJoinModal && !authStep && React.createElement(JoinGroupModal,{inviteContext,joinCode,setJoinCode,onClose:()=>setShowJoinModal(false),onJoin:handleJoinGroup,joining:joiningGroup,error:inviteError,signedIn:true}),
     showProfileModal && React.createElement(ProfileModal,{email:authSession?.email,onSignOut:handleSwitchUser,onClose:()=>setShowProfileModal(false),showDisplayName:true,currentDisplayName:currentUser,onSaveDisplayName:handleSaveProfileFromModal,saving:profileSaving,saveError:profileError,onLeaveBloc:handleLeaveBloc,onDeleteAccount:handleDeleteAccount}),
     showSettings && React.createElement(GroupSettingsModal,{group:currentGroup,actor:currentUser,actorUserId:authSession?.userId,onSave:isGroupAdmin?handleUpdateGroupSettings:null,onClose:()=>setShowSettings(false),saving:savingSettings,onReviewSitOut:isGroupAdmin?handleSitOutReview:null,onKickMember:isGroupAdmin?handleKickMember:null}),
-    React.createElement(BlocStream,{open:showStream,groupName:currentGroup.name,blocId:currentGroup.id,currentUserId:effectiveAuthSession?.userId,members:Object.values(currentGroup.memberships||{}).map(m=>({id:m.userId,name:m.displayName})),streamBlocs:visibleGroups.map(group=>({id:group.id,name:group.name,members:Object.values(group.memberships||{}).map(m=>({id:m.userId,name:m.displayName}))})),onSeasonClosedTap:handleStreamSeasonClosedTap,onUnreadCountChange:(groupId,count)=>{if(groupId===currentGroup.id)setStreamUnreadCount(Number(count)||0);},onClose:()=>{setShowStream(false);refreshStreamUnreadCount(currentGroup.id);}}),
+    React.createElement(BlocStream,{open:showStream,groupName:currentGroup.name,blocId:currentGroup.id,currentUserId:effectiveAuthSession?.userId,members:Object.values(currentGroup.memberships||{}).map(m=>({id:m.userId,name:m.displayName,photoUrl:appState.profiles?.[m.userId]?.profilePhotoUrl||""})),streamBlocs:visibleGroups.map(group=>({id:group.id,name:group.name,members:Object.values(group.memberships||{}).map(m=>({id:m.userId,name:m.displayName,photoUrl:appState.profiles?.[m.userId]?.profilePhotoUrl||""}))})),onSeasonClosedTap:handleStreamSeasonClosedTap,onUnreadCountChange:(groupId,count)=>{if(groupId===currentGroup.id)setStreamUnreadCount(Number(count)||0);},onClose:()=>{setShowStream(false);refreshStreamUnreadCount(currentGroup.id);}}),
     prorationGroup && React.createElement(ProrationChoiceModal,{
       monthName: getCurrentMonthSummary(prorationGroup).monthName,
       fullMas: prorationGroup.settings?.minTarget || MIN_TARGET,

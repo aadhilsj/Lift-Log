@@ -222,6 +222,20 @@ async function uploadPhotoToStorage(dataUrl) {
   return data.publicUrl;
 }
 
+async function uploadProfilePhotoToStorage(dataUrl) {
+  const userId = ACTIVE_SESSION_USER_ID;
+  if (!userId) throw new Error("Not signed in");
+  const blob = await (await fetch(dataUrl)).blob();
+  const path = `${userId}/${Date.now()}.jpg`;
+  const client = await getSupabaseAuthClient();
+  const { error } = await client.storage
+    .from("profile-photos")
+    .upload(path, blob, { contentType: "image/jpeg", upsert: false });
+  if (error) throw error;
+  const { data } = client.storage.from("profile-photos").getPublicUrl(path);
+  return data.publicUrl;
+}
+
 // (flattenFeedPosts moved to appState.js)
 
 function isJoinedForGroupMonth(group, userName, monthKey) {
@@ -436,6 +450,7 @@ export {
   compressImageDataUrl,
   estimateDataUrlBytes,
   uploadPhotoToStorage,
+  uploadProfilePhotoToStorage,
   isJoinedForGroupMonth,
   getGroupOverview,
   getGroupMemberPreview,

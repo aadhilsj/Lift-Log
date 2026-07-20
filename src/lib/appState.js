@@ -68,6 +68,8 @@ const AVATAR_COLORS = [
 ];
 let ACTIVE_SESSION_USER_ID = "";
 let ACTIVE_NAME_TO_USER_ID = {};
+let ACTIVE_PROFILE_PHOTO_BY_USER_ID = {};
+let ACTIVE_PROFILE_PHOTO_BY_NAME = {};
 function hashString(value) {
   const input = String(value || "");
   let hash = 0;
@@ -75,6 +77,10 @@ function hashString(value) {
   return Math.abs(hash);
 }
 const resolveAvatarUserId = name => ACTIVE_NAME_TO_USER_ID?.[name] || "";
+const resolveAvatarPhotoUrl = (name, explicitUserId = "") => {
+  const userId = explicitUserId || resolveAvatarUserId(name);
+  return (userId && ACTIVE_PROFILE_PHOTO_BY_USER_ID?.[userId]) || ACTIVE_PROFILE_PHOTO_BY_NAME?.[name] || "";
+};
 const avatarColor = (name, explicitUserId = "") => {
   const userId = explicitUserId || resolveAvatarUserId(name) || String(name || "");
   if (ACTIVE_SESSION_USER_ID && userId === ACTIVE_SESSION_USER_ID) return "#E8A23A";
@@ -1421,6 +1427,7 @@ function normalizeProfiles(profiles) {
           id,
           email,
           displayName: String(profile?.displayName || "").trim(),
+          profilePhotoUrl: String(profile?.profilePhotoUrl || "").trim(),
           createdAt: profile?.createdAt || null
         }];
       })
@@ -1488,6 +1495,7 @@ function getProfileForSession(appState, session) {
       id: session.userId,
       email: session.email || "",
       displayName: session.previewDisplayName,
+      profilePhotoUrl: "",
       createdAt: new Date().toISOString()
     };
   }
@@ -1539,11 +1547,25 @@ function syncActiveGroupGlobals(group) {
       .filter(membership => membership?.displayName && membership?.userId)
       .map(membership => [membership.displayName, membership.userId])
   );
+  ACTIVE_PROFILE_PHOTO_BY_USER_ID = {};
+  ACTIVE_PROFILE_PHOTO_BY_NAME = {};
   JOINED_MONTH_BY_NAME = group?.joinedMonthByName && typeof group.joinedMonthByName === "object"
     ? { ...group.joinedMonthByName }
     : { ...DEFAULT_JOINED_MONTH_BY_NAME };
   refreshActiveTimeContext(group?.settings?.timeZone || DEFAULT_GROUP_TIME_ZONE);
   MIN_TARGET = getEffectiveTargetForMonth(group, curKey);
+}
+
+function syncActiveProfileGlobals(profiles) {
+  const entries = Object.entries(profiles || {}).filter(([, profile]) => profile?.profilePhotoUrl);
+  ACTIVE_PROFILE_PHOTO_BY_USER_ID = Object.fromEntries(
+    entries.map(([userId, profile]) => [userId, profile.profilePhotoUrl])
+  );
+  ACTIVE_PROFILE_PHOTO_BY_NAME = Object.fromEntries(
+    entries
+      .filter(([, profile]) => profile?.displayName)
+      .map(([, profile]) => [profile.displayName, profile.profilePhotoUrl])
+  );
 }
 
 function getMonthKeyFromISO(iso) {
@@ -1778,8 +1800,11 @@ export {
   AVATAR_COLORS,
   ACTIVE_SESSION_USER_ID,
   ACTIVE_NAME_TO_USER_ID,
+  ACTIVE_PROFILE_PHOTO_BY_USER_ID,
+  ACTIVE_PROFILE_PHOTO_BY_NAME,
   hashString,
   resolveAvatarUserId,
+  resolveAvatarPhotoUrl,
   avatarColor,
   WORKOUT_TYPE_ALIASES,
   CURRENCY_OPTIONS,
@@ -1895,6 +1920,7 @@ export {
   getMembershipForUser,
   getDisplayNameForGroup,
   syncActiveGroupGlobals,
+  syncActiveProfileGlobals,
   getMonthKeyFromISO,
   compareMonthKeys,
   hasActiveParticipationBeforeMonth,

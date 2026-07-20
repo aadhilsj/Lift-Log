@@ -2,7 +2,8 @@
 -- Upserts a single profile from the app server (service_role caller).
 --
 -- Call via: POST /rest/v1/rpc/upsert_ante_core_profile
--- Body:     { "p_auth_user_id": "...", "p_email": "...", "p_display_name": "..." }
+-- Body:     { "p_auth_user_id": "...", "p_email": "...",
+--             "p_display_name": "...", "p_profile_photo_url": "..."|null }
 --
 -- Conflict resolution is on email (always present, always unique).
 -- auth_user_id is filled in if provided, never clobbered once set.
@@ -12,10 +13,13 @@
 --
 -- Access: service_role only. anon, authenticated, and PUBLIC are explicitly denied.
 
+drop function if exists public.upsert_ante_core_profile(text, text, text);
+
 create or replace function public.upsert_ante_core_profile(
   p_auth_user_id text,
   p_email        text,
-  p_display_name text
+  p_display_name text,
+  p_profile_photo_url text default null
 )
 returns void
 language plpgsql
@@ -45,6 +49,7 @@ begin
     auth_user_id,
     email,
     display_name,
+    profile_photo_url,
     created_at,
     updated_at
   )
@@ -52,6 +57,7 @@ begin
     v_auth_user_id,
     lower(trim(p_email)),
     trim(p_display_name),
+    coalesce(p_profile_photo_url, ''),
     now(),
     now()
   )
@@ -62,6 +68,8 @@ begin
       auth_user_id  = coalesce(ante_core.profiles.auth_user_id, excluded.auth_user_id),
       -- Always update display_name to the latest value.
       display_name  = excluded.display_name,
+      -- Photo URL is global to the profile; null means leave the existing URL alone.
+      profile_photo_url = coalesce(p_profile_photo_url, ante_core.profiles.profile_photo_url, ''),
       -- Preserve original created_at; only bump updated_at.
       updated_at    = now();
   -- legacy_user_key is intentionally not touched by this RPC.
@@ -69,7 +77,7 @@ end;
 $$;
 
 -- Harden access: deny all by default, then grant narrowly.
-revoke execute on function public.upsert_ante_core_profile(text, text, text) from public;
-revoke execute on function public.upsert_ante_core_profile(text, text, text) from anon;
-revoke execute on function public.upsert_ante_core_profile(text, text, text) from authenticated;
-grant  execute on function public.upsert_ante_core_profile(text, text, text) to service_role;
+revoke execute on function public.upsert_ante_core_profile(text, text, text, text) from public;
+revoke execute on function public.upsert_ante_core_profile(text, text, text, text) from anon;
+revoke execute on function public.upsert_ante_core_profile(text, text, text, text) from authenticated;
+grant  execute on function public.upsert_ante_core_profile(text, text, text, text) to service_role;

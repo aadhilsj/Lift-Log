@@ -175,7 +175,7 @@ const ReactBar = ({ align, onPick, onClose }) => {
 
 // A small floating list of members (who reacted / who RSVP'd), anchored above
 // the trigger. Reused by reaction chips and the event RSVP counts.
-const RosterPopover = ({ title, ids, nameFor, onClose, align = "left" }) => {
+const RosterPopover = ({ title, ids, nameFor, photoFor, onClose, align = "left" }) => {
   const pos = align === "right" ? { right: 0 } : align === "center" ? { left: "50%", transform: "translateX(-50%)" } : { left: 0 };
   return React.createElement(React.Fragment, null,
     React.createElement('div', { onClick: onClose, onTouchStart: onClose, style: { position: "fixed", inset: 0, zIndex: 40 } }),
@@ -187,7 +187,7 @@ const RosterPopover = ({ title, ids, nameFor, onClose, align = "left" }) => {
         ? React.createElement('div', { style: { fontSize: 12.5, color: "var(--muted2)" } }, "No one yet")
         : React.createElement('div', { style: { display: "flex", flexDirection: "column", gap: 8 } },
             ids.map(id => React.createElement('div', { key: id, style: { display: "flex", alignItems: "center", gap: 8 } },
-              React.createElement(Avatar, { name: nameFor(id), userId: id, size: 22 }),
+              React.createElement(Avatar, { name: nameFor(id), userId: id, photoUrl: photoFor?.(id), size: 22 }),
               React.createElement('span', { style: { fontFamily: "'Outfit', sans-serif", fontSize: 13, color: "var(--text)", whiteSpace: "nowrap" } }, nameFor(id))
             ))
           )
@@ -198,7 +198,7 @@ const RosterPopover = ({ title, ids, nameFor, onClose, align = "left" }) => {
 // One reaction chip: tap toggles your reaction; press-and-hold (or right-click)
 // reveals who reacted, Discord-style. Pointer events + a movement guard keep tap
 // and long-press from fighting; user-select/callout are off so nothing selects.
-const ReactionChip = ({ emoji, users, mine, onToggle, nameFor, align }) => {
+const ReactionChip = ({ emoji, users, mine, onToggle, nameFor, photoFor, align }) => {
   const [who, setWho] = useState(false);
   const p = useRef({ lp: null, moved: false, sup: false, sx: 0, sy: 0 });
   const clear = () => { if (p.current.lp) { clearTimeout(p.current.lp); p.current.lp = null; } };
@@ -211,13 +211,13 @@ const ReactionChip = ({ emoji, users, mine, onToggle, nameFor, align }) => {
       onContextMenu: e => { e.preventDefault(); setWho(true); },
       style: { display: "inline-flex", alignItems: "center", gap: 4, background: mine ? C.chipOnBg : C.chipBg, border: `1px solid ${mine ? C.chipOnBorder : C.chipBorder}`, borderRadius: 16, padding: "1px 7px", fontSize: 12.5, color: "var(--text)", cursor: "pointer", lineHeight: 1.7, userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none", touchAction: "manipulation" }
     }, emoji, React.createElement('span', { style: { fontFamily: "'Outfit', sans-serif", fontSize: 11, color: "var(--muted)", fontWeight: 600 } }, users.length)),
-    who && React.createElement(RosterPopover, { title: `${emoji} · ${users.length}`, ids: users, nameFor, onClose: () => setWho(false), align })
+    who && React.createElement(RosterPopover, { title: `${emoji} · ${users.length}`, ids: users, nameFor, photoFor, onClose: () => setWho(false), align })
   );
 };
 
 // Compact reaction chips row. `showAdd` renders a "+" that opens the react bar
 // (kept for system moments; text bubbles add via double-tap / long-press).
-const ReactionChips = ({ msg, currentUserId, onReact, nameFor, align, showAdd, onAdd }) => {
+const ReactionChips = ({ msg, currentUserId, onReact, nameFor, photoFor, align, showAdd, onAdd }) => {
   const active = Object.entries(msg.reactions || {}).filter(([, u]) => (u || []).length > 0);
   if (!active.length && !showAdd) return null;
   const justify = align === "right" ? "flex-end" : align === "center" ? "center" : "flex-start";
@@ -225,7 +225,7 @@ const ReactionChips = ({ msg, currentUserId, onReact, nameFor, align, showAdd, o
     style: { display: "flex", flexWrap: "wrap", gap: 4, justifyContent: justify, marginTop: 5, paddingLeft: align === "left" ? 36 : 0 }
   },
     active.map(([emoji, users]) => React.createElement(ReactionChip, {
-      key: emoji, emoji, users, mine: users.includes(currentUserId), onToggle: () => onReact(msg.id, emoji), nameFor, align
+      key: emoji, emoji, users, mine: users.includes(currentUserId), onToggle: () => onReact(msg.id, emoji), nameFor, photoFor, align
     })),
     showAdd && React.createElement('button', {
       onClick: onAdd, onMouseDown: e => e.preventDefault(),
@@ -239,7 +239,7 @@ const ReactionChips = ({ msg, currentUserId, onReact, nameFor, align, showAdd, o
 // threshold replies. Tap detection is displacement+time based (not tied to the
 // scroll/swipe mode) so a plain double-tap registers reliably. user-select and
 // the iOS touch-callout are disabled so holding a message never selects text.
-const Reactable = ({ msg, currentUserId, onReact, onReply, nameFor, align = "left", swipeEnabled = false, showAdd = false, children }) => {
+const Reactable = ({ msg, currentUserId, onReact, onReply, nameFor, photoFor, align = "left", swipeEnabled = false, showAdd = false, children }) => {
   const [swipeX, setSwipeX] = useState(0);
   const [showBar, setShowBar] = useState(false);
   const g = useRef({ sx: 0, sy: 0, st: 0, mode: null, lp: null, lastTap: 0, suppress: false, maxDist: 0, swipe: 0, lastTouch: 0 });
@@ -301,7 +301,7 @@ const Reactable = ({ msg, currentUserId, onReact, onReply, nameFor, align = "lef
       style: { transform: swipeX ? `translateX(${swipeX}px)` : "none", transition: g.current.mode === "swipe" ? "none" : "transform .18s ease", touchAction: swipeEnabled ? "pan-y" : "auto", userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none" }
     }, children),
     showBar && React.createElement(ReactBar, { align, onClose: () => setShowBar(false), onPick: emoji => { onReact(msg.id, emoji); setShowBar(false); } }),
-    React.createElement(ReactionChips, { msg, currentUserId, onReact, nameFor, align, showAdd, onAdd: () => setShowBar(true) })
+    React.createElement(ReactionChips, { msg, currentUserId, onReact, nameFor, photoFor, align, showAdd, onAdd: () => setShowBar(true) })
   );
 };
 
@@ -309,7 +309,7 @@ const Reactable = ({ msg, currentUserId, onReact, onReply, nameFor, align = "lef
 // `showName` (received only) on the first of a run, `showAvatar` on the last,
 // and `showTime` only on the last message of a same-minute cluster. Own
 // messages never show a name. The tail corner is only on the first bubble.
-const TextBubble = ({ msg, isOwn, authorName, nameFor, members, replyToMsg, showName, showTime, showAvatar, firstInGroup }) => {
+const TextBubble = ({ msg, isOwn, authorName, authorPhotoUrl, nameFor, members, replyToMsg, showName, showTime, showAvatar, firstInGroup }) => {
   const nameText = !isOwn && showName ? authorName : "";
   const timeText = showTime ? formatStamp(msg.created_at) : "";
   const radius = isOwn
@@ -319,7 +319,7 @@ const TextBubble = ({ msg, isOwn, authorName, nameFor, members, replyToMsg, show
     style: { display: "flex", gap: 8, alignItems: "flex-end", justifyContent: isOwn ? "flex-end" : "flex-start" }
   },
     !isOwn && (showAvatar
-      ? React.createElement('div', { style: { flexShrink: 0 } }, React.createElement(Avatar, { name: authorName, size: 28 }))
+      ? React.createElement('div', { style: { flexShrink: 0 } }, React.createElement(Avatar, { name: authorName, userId: msg.author_id, photoUrl: authorPhotoUrl, size: 28 }))
       : React.createElement('div', { style: { width: 28, flexShrink: 0 } })),
     React.createElement('div', { style: { maxWidth: "76%", display: "flex", flexDirection: "column", alignItems: isOwn ? "flex-end" : "flex-start" } },
       nameText && React.createElement('div', {
@@ -454,7 +454,7 @@ const LogCommentCard = ({ msg, onOpen }) => {
   );
 };
 
-const AvatarStack = ({ ids, nameFor, size, muted, label, onClick }) => {
+const AvatarStack = ({ ids, nameFor, photoFor, size, muted, label, onClick }) => {
   if (!ids.length) return null;
   const shown = ids.slice(0, 3);
   const extra = ids.length - shown.length;
@@ -467,7 +467,7 @@ const AvatarStack = ({ ids, nameFor, size, muted, label, onClick }) => {
     React.createElement('div', { style: { display: "flex", alignItems: "center" } },
       shown.map((id, i) => React.createElement('div', {
         key: id, style: { marginLeft: i === 0 ? 0 : -7, borderRadius: "50%", boxShadow: `0 0 0 2px ${C.evtBg}`, opacity: muted ? 0.55 : 1, filter: muted ? "grayscale(0.6)" : "none" }
-      }, React.createElement(Avatar, { name: nameFor(id), userId: id, size, muted })))
+      }, React.createElement(Avatar, { name: nameFor(id), userId: id, photoUrl: photoFor?.(id), size, muted })))
     ),
     React.createElement('span', {
       style: { fontFamily: "'Outfit', sans-serif", fontSize: 11.5, fontWeight: 600, color: C.meta, marginLeft: 6 }
@@ -475,7 +475,7 @@ const AvatarStack = ({ ids, nameFor, size, muted, label, onClick }) => {
   );
 };
 
-const EventCard = ({ msg, currentUserId, authorName, nameFor, onRsvp }) => {
+const EventCard = ({ msg, currentUserId, authorName, nameFor, photoFor, onRsvp }) => {
   const p = msg.payload || {};
   const rsvp = p.rsvp || {};
   const inIds = Object.keys(rsvp).filter(id => rsvp[id] === "in");
@@ -519,13 +519,13 @@ const EventCard = ({ msg, currentUserId, authorName, nameFor, onRsvp }) => {
       !anyRsvp
         ? React.createElement('span', { style: { fontFamily: "'Outfit', sans-serif", fontSize: 11, fontWeight: 600, color: C.meta } }, "No RSVPs yet")
         : null,
-      React.createElement(AvatarStack, { ids: inIds, nameFor, size: 18, muted: false, label: "in", onClick: () => setRoster(r => r === "in" ? null : "in") }),
-      React.createElement(AvatarStack, { ids: maybeIds, nameFor, size: 18, muted: false, label: "maybe", onClick: () => setRoster(r => r === "maybe" ? null : "maybe") }),
-      React.createElement(AvatarStack, { ids: passIds, nameFor, size: 18, muted: true, label: "pass", onClick: () => setRoster(r => r === "pass" ? null : "pass") }),
+      React.createElement(AvatarStack, { ids: inIds, nameFor, photoFor, size: 18, muted: false, label: "in", onClick: () => setRoster(r => r === "in" ? null : "in") }),
+      React.createElement(AvatarStack, { ids: maybeIds, nameFor, photoFor, size: 18, muted: false, label: "maybe", onClick: () => setRoster(r => r === "maybe" ? null : "maybe") }),
+      React.createElement(AvatarStack, { ids: passIds, nameFor, photoFor, size: 18, muted: true, label: "pass", onClick: () => setRoster(r => r === "pass" ? null : "pass") }),
       roster && React.createElement(RosterPopover, {
         title: roster === "in" ? "Going" : roster === "maybe" ? "Maybe" : "Passed",
         ids: roster === "in" ? inIds : roster === "maybe" ? maybeIds : passIds,
-        nameFor, onClose: () => setRoster(null), align: "left"
+        nameFor, photoFor, onClose: () => setRoster(null), align: "left"
       })
     ),
     // Three RSVP buttons, equal width.
@@ -645,7 +645,7 @@ const MentionList = ({ items, onPick }) =>
       key: m.id, onMouseDown: e => e.preventDefault(), onClick: () => onPick(m),
       style: { display: "flex", alignItems: "center", gap: 10, textAlign: "left", background: "transparent", border: "none", padding: "7px 8px", borderRadius: 8, cursor: "pointer", width: "100%" }
     },
-      React.createElement(Avatar, { name: m.name, userId: m.id, size: 26 }),
+      React.createElement(Avatar, { name: m.name, userId: m.id, photoUrl: m.photoUrl || "", size: 26 }),
       React.createElement('span', { style: { fontFamily: "'Outfit', sans-serif", fontSize: 14, color: "var(--text)", fontWeight: 500 } }, m.name)
     ))
   );
@@ -675,6 +675,7 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], stre
   const canSwitchStreams = availableBlocs.length > 1;
 
   const nameFor = id => (activeMembers.find(m => m.id === id)?.name) || "Member";
+  const photoFor = id => activeMembers.find(m => m.id === id)?.photoUrl || "";
 
   useEffect(() => {
     activeBlocIdRef.current = activeBlocId;
@@ -1064,7 +1065,7 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], stre
                   React.createElement(SystemCard, { msg, onSeasonClosedTap: () => onSeasonClosedTap?.(activeBlocId) })));
               }
               if (msg.message_type === "event") {
-                return wrap(React.createElement(EventCard, { msg, currentUserId, authorName: nameFor(msg.author_id), nameFor, onRsvp: handleRsvp }));
+                return wrap(React.createElement(EventCard, { msg, currentUserId, authorName: nameFor(msg.author_id), nameFor, photoFor, onRsvp: handleRsvp }));
               }
               if (msg.message_type === "log_comment") {
                 return wrap(React.createElement(LogCommentCard, { msg, onOpen: setCommentTarget }));
@@ -1073,8 +1074,8 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], stre
               const replyToMsg = msg.reply_to ? messages.find(x => x.id === msg.reply_to) : null;
               // Time shows on the last message of a same-minute run from this sender.
               const showTime = !(sameAuthorNext && sameMinute(msg.created_at, next.created_at));
-              return wrap(React.createElement(Reactable, { msg, currentUserId, onReact: handleReact, onReply: handleReply, nameFor, align: isOwn ? "right" : "left", swipeEnabled: true },
-                React.createElement(TextBubble, { msg, isOwn, authorName: nameFor(msg.author_id), nameFor, members: activeMembers, replyToMsg, showName: firstInGroup, showTime, showAvatar: !sameAuthorNext, firstInGroup })));
+              return wrap(React.createElement(Reactable, { msg, currentUserId, onReact: handleReact, onReply: handleReply, nameFor, photoFor, align: isOwn ? "right" : "left", swipeEnabled: true },
+                React.createElement(TextBubble, { msg, isOwn, authorName: nameFor(msg.author_id), authorPhotoUrl: photoFor(msg.author_id), nameFor, members: activeMembers, replyToMsg, showName: firstInGroup, showTime, showAvatar: !sameAuthorNext, firstInGroup })));
             })
       ),
       // Input bar

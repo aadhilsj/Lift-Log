@@ -568,6 +568,7 @@ function normalizeProfiles(profiles) {
           id,
           email,
           displayName: String(profile?.displayName || "").trim(),
+          profilePhotoUrl: String(profile?.profilePhotoUrl || "").trim(),
           createdAt: profile?.createdAt || new Date().toISOString()
         }];
       })
@@ -1912,17 +1913,27 @@ function rolloverStateIfNeeded(data, options = {}) {
   };
 }
 
-async function syncProfileToCanonical(userId, email, displayName, options = {}) {
-  const { throwOnError = false } = options;
+async function syncProfileToCanonical(userId, email, displayName, profilePhotoUrlOrOptions = null, options = {}) {
+  const profilePhotoUrl = profilePhotoUrlOrOptions && typeof profilePhotoUrlOrOptions === "object"
+    ? null
+    : profilePhotoUrlOrOptions;
+  const normalizedOptions = profilePhotoUrlOrOptions && typeof profilePhotoUrlOrOptions === "object"
+    ? profilePhotoUrlOrOptions
+    : options;
+  const { throwOnError = false } = normalizedOptions;
   try {
+    const body = {
+      p_auth_user_id: userId,
+      p_email:        email,
+      p_display_name: displayName
+    };
+    if (profilePhotoUrl !== null) {
+      body.p_profile_photo_url = String(profilePhotoUrl || "").trim();
+    }
     await supabaseFetch("/rest/v1/rpc/upsert_ante_core_profile", {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify({
-        p_auth_user_id: userId,
-        p_email:        email,
-        p_display_name: displayName
-      })
+      body: JSON.stringify(body)
     });
   } catch (err) {
     if (throwOnError) throw err;
@@ -2986,6 +2997,7 @@ async function fetchAnteProfiles() {
         id:          row.user_id,
         email:       row.email,
         displayName: row.display_name,
+        profilePhotoUrl: row.profile_photo_url || "",
         createdAt:   row.created_at
       }])
     );
@@ -6714,6 +6726,38 @@ function applyUpsertProfile(current, payload) {
         id: userId,
         email,
         displayName,
+        profilePhotoUrl: existing.profilePhotoUrl || "",
+        createdAt: existing.createdAt || new Date().toISOString()
+      }
+    },
+    meta: {
+      revision: base.meta.revision + 1,
+      updatedAt: new Date().toISOString()
+    }
+  };
+}
+
+function applyUpdateProfilePhoto(current, payload) {
+  const userId = String(payload?.userId || "").trim();
+  const email = String(payload?.email || "").trim().toLowerCase();
+  const displayName = String(payload?.displayName || "").trim();
+  const profilePhotoUrl = String(payload?.profilePhotoUrl || "").trim();
+  if (!userId || !email || !displayName) {
+    const error = new Error("userId, email, and display name are required");
+    error.status = 400;
+    throw error;
+  }
+  const base = rolloverStateIfNeeded(current);
+  const existing = base.profiles?.[userId] || {};
+  return {
+    ...base,
+    profiles: {
+      ...(base.profiles || {}),
+      [userId]: {
+        id: userId,
+        email,
+        displayName,
+        profilePhotoUrl,
         createdAt: existing.createdAt || new Date().toISOString()
       }
     },
@@ -7581,6 +7625,32 @@ export default async function handler(req, res) {
           await syncBlocMemberToCanonical(group, auth.user.id, memberRole, { throwOnError: true });
         }
         const persisted = await persistOrSkipBlobMirror(updated, `profile:${auth.user.id}`, "upsert-profile");
+        return res.status(200).json(persisted);
+      }
+
+      if (payload?.action === "update-profile-photo") {
+        const auth = await requireAuthenticatedContext(req, payload, current);
+        const profilePhotoUrl = String(payload?.profilePhotoUrl || "").trim();
+        const canonicalState = await buildCanonicalWritableStateForAuthenticatedGlobalMutation(auth);
+        const currentProfile = canonicalState.profiles?.[auth.user.id] || auth.state.profiles?.[auth.user.id] || {};
+        const displayName = String(currentProfile.displayName || "").trim();
+        if (!displayName) {
+          return res.status(400).json({ error: "Complete profile setup before adding a photo" });
+        }
+        const updated = applyUpdateProfilePhoto(canonicalState, {
+          userId: auth.user.id,
+          email: auth.user.email,
+          displayName,
+          profilePhotoUrl
+        });
+        await syncProfileToCanonical(
+          auth.user.id,
+          auth.user.email,
+          displayName,
+          profilePhotoUrl,
+          { throwOnError: true }
+        );
+        const persisted = await persistState(updated, `profile-photo:${auth.user.id}`);
         return res.status(200).json(persisted);
       }
 

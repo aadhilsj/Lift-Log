@@ -10,6 +10,7 @@ import {
   fmtCurrency
 } from "../lib/appState.js";
 import { Avatar, Card, AppIcon, WorkoutTypeIcon } from "../components/primitives.jsx";
+import { compressImageFile, uploadProfilePhotoToStorage } from "../lib/utils.js";
 
 // Premium block (everything under the "Premium" divider). Built fully
 // & shown to everyone now. Flip this to add the paywall later without a rebuild —
@@ -28,17 +29,22 @@ const sinceLabel = ts => {
 // Brand font system: inherited sans-serif, two weights only — 400 and 500.
 const REG = 400, MED = 500;
 
-const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, accountCreatedAt, onBack, onSwipeRevealChange, onEditName, onSignOut, onDeleteAccount }) => {
+const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, accountCreatedAt, profilePhotoUrl = "", onBack, onSwipeRevealChange, onEditName, onUpdateProfilePhoto, onSignOut, onDeleteAccount }) => {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const [photoError, setPhotoError] = useState("");
+  const [localProfilePhotoUrl, setLocalProfilePhotoUrl] = useState(profilePhotoUrl || "");
   const [sel, setSel] = useState(null); // tapped heatmap day { iso, count }
   const [dragX, setDragX] = useState(0);
   const [dragging, setDragging] = useState(false);
   const heatScrollRef = useRef(null);
+  const photoInputRef = useRef(null);
   const swipeRef = useRef({ sx: 0, sy: 0, active: false, mode: null });
   // Open the heatmap scrolled to today (data's most relevant end), not the join date.
   useEffect(() => { const el = heatScrollRef.current; if (el) el.scrollLeft = el.scrollWidth; }, []);
+  useEffect(() => { setLocalProfilePhotoUrl(profilePhotoUrl || ""); }, [profilePhotoUrl]);
 
   const myGroups = (visibleGroups || []).map(g => {
     const mem = Object.values(g.memberships || {}).find(m => m.userId === currentUserId);
@@ -208,6 +214,27 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
     { label: "Sign Out", kind: "action", tone: "muted", onClick: onSignOut },
     { label: "Delete Account", kind: "action", tone: "red", onClick: () => { setDeleteError(""); setConfirmDelete(true); } }
   ];
+  const handlePhotoFile = async event => {
+    const file = event.target?.files?.[0];
+    if (event.target) event.target.value = "";
+    if (!file || photoBusy) return;
+    const previousUrl = localProfilePhotoUrl;
+    try {
+      setPhotoBusy(true);
+      setPhotoError("");
+      const preview = await compressImageFile(file, 720, .82);
+      setLocalProfilePhotoUrl(preview);
+      const storageUrl = await uploadProfilePhotoToStorage(preview);
+      const result = await onUpdateProfilePhoto?.(storageUrl);
+      if (result && !result.ok) throw new Error(result.error || "Unable to save photo");
+      setLocalProfilePhotoUrl(storageUrl);
+    } catch (error) {
+      setLocalProfilePhotoUrl(previousUrl);
+      setPhotoError(error instanceof Error ? error.message : "Unable to save photo");
+    } finally {
+      setPhotoBusy(false);
+    }
+  };
   const startSwipeBack = e => {
     const t = e.touches?.[0];
     if (!t || t.clientX > 72) return;
@@ -261,13 +288,22 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
 
     // Identity block — horizontal: avatar left, name + since stacked right
     React.createElement('div', { style: { display: "flex", alignItems: "center", justifyContent: "center", gap: 14, padding: "2px 2px 4px", textAlign: "center" } },
-      React.createElement(Avatar, { name: displayName || "?", size: 56 }),
+      React.createElement('div', { style: { position: "relative", flexShrink: 0 } },
+        React.createElement('input', { ref: photoInputRef, type: "file", accept: "image/*", onChange: handlePhotoFile, style: { display: "none" } }),
+        React.createElement('button', { type: "button", disabled: photoBusy, onClick: () => photoInputRef.current?.click(), "aria-label": "Edit profile photo", style: { position: "relative", display: "inline-flex", width: 56, height: 56, borderRadius: "50%", border: "none", padding: 0, background: "transparent", cursor: photoBusy ? "default" : "pointer", opacity: photoBusy ? .72 : 1 } },
+          React.createElement(Avatar, { name: displayName || "?", userId: currentUserId, photoUrl: localProfilePhotoUrl, size: 56 }),
+          React.createElement('span', { style: { position: "absolute", right: -2, bottom: -2, width: 20, height: 20, borderRadius: 999, display: "inline-flex", alignItems: "center", justifyContent: "center", background: "#0D1F1E", border: "1px solid #163d36", color: "#4ECDC4", boxShadow: "0 8px 18px rgba(0,0,0,.24)" } },
+            React.createElement(AppIcon, { name: "edit", size: 11, stroke: "currentColor" })
+          )
+        )
+      ),
       React.createElement('div', { style: { minWidth: 0 } },
         React.createElement('button', { type: "button", onClick: onEditName, style: { display: "inline-flex", alignItems: "center", gap: 6, background: "transparent", border: "none", padding: 0, cursor: "pointer", color: "var(--text)", maxWidth: "100%" } },
           React.createElement('span', { style: { fontSize: 20, fontWeight: MED, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, displayName || "—"),
           React.createElement(AppIcon, { name: "edit", size: 14, stroke: "var(--muted)" })
         ),
-        since ? React.createElement('div', { style: { fontSize: 11.5, fontWeight: REG, color: "var(--muted)", marginTop: 2 } }, `On Fero since ${since}`) : null
+        since ? React.createElement('div', { style: { fontSize: 11.5, fontWeight: REG, color: "var(--muted)", marginTop: 2 } }, `On Fero since ${since}`) : null,
+        photoError ? React.createElement('div', { style: { fontSize: 10.5, fontWeight: REG, color: "var(--red)", marginTop: 4 } }, photoError) : null
       )
     ),
 

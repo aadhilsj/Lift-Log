@@ -103,6 +103,7 @@ create table if not exists ante_core.profiles (
   legacy_user_key text unique,
   email text not null unique,
   display_name text not null,
+  profile_photo_url text not null default '',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );

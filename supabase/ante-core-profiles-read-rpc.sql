@@ -5,7 +5,8 @@
 -- Call via: POST /rest/v1/rpc/read_ante_core_profiles
 --
 -- Return shape (jsonb array):
---   [{ "user_id": text, "email": text, "display_name": text, "created_at": timestamptz }, ...]
+--   [{ "user_id": text, "email": text, "display_name": text,
+--      "profile_photo_url": text, "created_at": timestamptz }, ...]
 --
 -- user_id is coalesce(auth_user_id::text, legacy_user_key).
 -- Rows where both identity columns are null are excluded (unmappable; should not exist).
@@ -27,6 +28,7 @@ begin
         'user_id',      coalesce(p.auth_user_id::text, p.legacy_user_key),
         'email',        p.email,
         'display_name', p.display_name,
+        'profile_photo_url', coalesce(p.profile_photo_url, ''),
         'created_at',   p.created_at
       )
     ),
