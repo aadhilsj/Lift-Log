@@ -10,7 +10,6 @@ import {
   fmtCurrency
 } from "../lib/appState.js";
 import { Avatar, Card, AppIcon, WorkoutTypeIcon } from "../components/primitives.jsx";
-import { compressImageFile, uploadProfilePhotoToStorage } from "../lib/utils.js";
 
 // Premium block (everything under the "Premium" divider). Built fully
 // & shown to everyone now. Flip this to add the paywall later without a rebuild —
@@ -29,6 +28,144 @@ const sinceLabel = ts => {
 // Brand font system: inherited sans-serif, two weights only — 400 and 500.
 const REG = 400, MED = 500;
 
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+const ProfilePhotoCropModal = ({ imageSrc, onCancel, onConfirm }) => {
+  const frameRef = useRef(null);
+  const stateRef = useRef(null);
+  const dragRef = useRef({ active:false, pointerId:null, x:0, y:0 });
+  const [imageSize, setImageSize] = useState({ width:0, height:0 });
+  const [frameSize, setFrameSize] = useState(0);
+  const [scale, setScale] = useState(1);
+  const [offset, setOffset] = useState({ x:0, y:0 });
+  const [ready, setReady] = useState(false);
+
+  const minScale = imageSize.width && imageSize.height && frameSize
+    ? frameSize / Math.min(imageSize.width, imageSize.height)
+    : 1;
+  const maxScale = Math.max(minScale * 4, minScale + .01);
+
+  const clampOffset = (nextOffset, nextScale = scale) => {
+    if (!imageSize.width || !imageSize.height || !frameSize) return { x:0, y:0 };
+    const scaledWidth = imageSize.width * nextScale;
+    const scaledHeight = imageSize.height * nextScale;
+    const maxX = Math.max(0, (scaledWidth - frameSize) / 2);
+    const maxY = Math.max(0, (scaledHeight - frameSize) / 2);
+    return {
+      x: Math.max(-maxX, Math.min(maxX, nextOffset.x)),
+      y: Math.max(-maxY, Math.min(maxY, nextOffset.y))
+    };
+  };
+
+  stateRef.current = { imageSize, frameSize, scale, offset };
+
+  useEffect(() => {
+    const updateFrame = () => {
+      const rect = frameRef.current?.getBoundingClientRect();
+      setFrameSize(Math.max(220, Math.min(320, Math.floor(rect?.width || 280))));
+    };
+    updateFrame();
+    window.addEventListener("resize", updateFrame);
+    return () => window.removeEventListener("resize", updateFrame);
+  }, []);
+
+  useEffect(() => {
+    const image = new Image();
+    image.onload = () => {
+      const nextSize = { width:image.naturalWidth, height:image.naturalHeight };
+      const nextFrame = frameRef.current?.getBoundingClientRect()?.width || frameSize || 280;
+      const nextMinScale = Math.max(1, Math.min(320, nextFrame)) / Math.min(nextSize.width, nextSize.height);
+      setImageSize(nextSize);
+      setScale(nextMinScale);
+      setOffset({ x:0, y:0 });
+      setReady(true);
+    };
+    image.src = imageSrc;
+  }, [imageSrc]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handlePointerDown = event => {
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    dragRef.current = { active:true, pointerId:event.pointerId, x:event.clientX, y:event.clientY };
+  };
+  const handlePointerMove = event => {
+    const drag = dragRef.current;
+    if (!drag.active || drag.pointerId !== event.pointerId) return;
+    const dx = event.clientX - drag.x;
+    const dy = event.clientY - drag.y;
+    dragRef.current = { ...drag, x:event.clientX, y:event.clientY };
+    setOffset(current => clampOffset({ x: current.x + dx, y: current.y + dy }));
+  };
+  const handlePointerEnd = event => {
+    event.currentTarget.releasePointerCapture?.(event.pointerId);
+    dragRef.current = { active:false, pointerId:null, x:0, y:0 };
+  };
+  const handleScale = event => {
+    const nextScale = Number(event.target.value);
+    setScale(nextScale);
+    setOffset(current => clampOffset(current, nextScale));
+  };
+  const handleConfirm = () => {
+    const { imageSize: size, frameSize: frame, scale: activeScale, offset: activeOffset } = stateRef.current || {};
+    if (!size?.width || !size?.height || !frame) return;
+    const image = new Image();
+    image.onload = () => {
+      const sourceSize = frame / activeScale;
+      const sourceX = (size.width / 2) - (activeOffset.x / activeScale) - (sourceSize / 2);
+      const sourceY = (size.height / 2) - (activeOffset.y / activeScale) - (sourceSize / 2);
+      const canvas = document.createElement("canvas");
+      canvas.width = 720;
+      canvas.height = 720;
+      const context = canvas.getContext("2d");
+      context.drawImage(image, sourceX, sourceY, sourceSize, sourceSize, 0, 0, 720, 720);
+      onConfirm(canvas.toDataURL("image/jpeg", .84));
+    };
+    image.src = imageSrc;
+  };
+
+  return React.createElement('div', { style:{ position:"fixed", inset:0, zIndex:10000, background:"rgba(0,0,0,.94)", display:"flex", alignItems:"center", justifyContent:"center", padding:"24px 16px calc(24px + env(safe-area-inset-bottom))" } },
+    React.createElement('div', { style:{ width:"100%", maxWidth:390, display:"flex", flexDirection:"column", alignItems:"center", gap:16 } },
+      React.createElement('div', { style:{ color:"#fff", fontSize:15, fontWeight:MED } }, "Edit Profile Photo"),
+      React.createElement('div', {
+        ref: frameRef,
+        onPointerDown: handlePointerDown,
+        onPointerMove: handlePointerMove,
+        onPointerUp: handlePointerEnd,
+        onPointerCancel: handlePointerEnd,
+        style:{ width:"min(78vw, 320px)", height:"min(78vw, 320px)", maxWidth:320, maxHeight:320, position:"relative", overflow:"hidden", borderRadius:"50%", background:"#050507", touchAction:"none", boxShadow:"0 0 0 999px rgba(0,0,0,.38), 0 0 0 1.5px rgba(255,255,255,.74)" }
+      },
+        ready && React.createElement('img', {
+          src:imageSrc,
+          alt:"",
+          draggable:false,
+          style:{
+            position:"absolute",
+            left:"50%",
+            top:"50%",
+            width:imageSize.width * scale,
+            height:imageSize.height * scale,
+            transform:`translate(calc(-50% + ${offset.x}px), calc(-50% + ${offset.y}px))`,
+            userSelect:"none",
+            WebkitUserSelect:"none",
+            pointerEvents:"none"
+          }
+        })
+      ),
+      React.createElement('input', { type:"range", min:minScale, max:maxScale, step:(maxScale-minScale)/120 || .01, value:scale, onChange:handleScale, style:{ width:"min(78vw, 320px)", accentColor:"#4ECDC4" } }),
+      React.createElement('div', { style:{ display:"flex", gap:10, width:"min(78vw, 320px)" } },
+        React.createElement('button', { type:"button", onClick:onCancel, style:{ flex:1, height:42, borderRadius:999, background:"#0D1F1E", border:"1px solid #163d36", color:"var(--muted)", fontSize:13, fontWeight:MED } }, "Cancel"),
+        React.createElement('button', { type:"button", onClick:handleConfirm, style:{ flex:1, height:42, borderRadius:999, background:"#4ECDC4", border:"1px solid #4ECDC4", color:"#04110e", fontSize:13, fontWeight:MED } }, "Done")
+      )
+    )
+  );
+};
+
 const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, accountCreatedAt, profilePhotoUrl = "", onBack, onSwipeRevealChange, onEditName, onUpdateProfilePhoto, onSignOut, onDeleteAccount }) => {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -36,6 +173,7 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
   const [photoBusy, setPhotoBusy] = useState(false);
   const [photoError, setPhotoError] = useState("");
   const [localProfilePhotoUrl, setLocalProfilePhotoUrl] = useState(profilePhotoUrl || "");
+  const [cropSource, setCropSource] = useState("");
   const [sel, setSel] = useState(null); // tapped heatmap day { iso, count }
   const [dragX, setDragX] = useState(0);
   const [dragging, setDragging] = useState(false);
@@ -218,16 +356,23 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
     const file = event.target?.files?.[0];
     if (event.target) event.target.value = "";
     if (!file || photoBusy) return;
+    try {
+      setPhotoError("");
+      setCropSource(await readFileAsDataUrl(file));
+    } catch (error) {
+      setPhotoError(error instanceof Error ? error.message : "Unable to load photo");
+    }
+  };
+  const handleCroppedPhoto = async croppedDataUrl => {
     const previousUrl = localProfilePhotoUrl;
     try {
       setPhotoBusy(true);
       setPhotoError("");
-      const preview = await compressImageFile(file, 720, .82);
-      setLocalProfilePhotoUrl(preview);
-      const storageUrl = await uploadProfilePhotoToStorage(preview);
-      const result = await onUpdateProfilePhoto?.(storageUrl);
+      setCropSource("");
+      setLocalProfilePhotoUrl(croppedDataUrl);
+      const result = await onUpdateProfilePhoto?.(croppedDataUrl);
       if (result && !result.ok) throw new Error(result.error || "Unable to save photo");
-      setLocalProfilePhotoUrl(storageUrl);
+      if (result?.profilePhotoUrl) setLocalProfilePhotoUrl(result.profilePhotoUrl);
     } catch (error) {
       setLocalProfilePhotoUrl(previousUrl);
       setPhotoError(error instanceof Error ? error.message : "Unable to save photo");
@@ -278,6 +423,7 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
   };
 
   return React.createElement('div', { onTouchStart: startSwipeBack, onTouchMove: moveSwipeBack, onTouchEnd: endSwipeBack, onTouchCancel: () => { swipeRef.current = { sx: 0, sy: 0, active: false, mode: null }; onSwipeRevealChange?.(false); setDragging(false); setDragX(0); }, style: { position: "relative", isolation: "isolate", minHeight: "100dvh", width: "100%", maxWidth: 640, margin: "0 auto", padding: "10px 14px 40px", display: "flex", flexDirection: "column", gap: 14, background: "var(--bg-gradient)", backgroundImage: "var(--bg-radial-hint), var(--bg-gradient)", transform: dragX ? `translateX(${dragX}px)` : "translateX(0)", transition: dragging ? "none" : "transform .12s ease", boxShadow: dragX ? "-18px 0 34px rgba(0,0,0,.28)" : "none", willChange: "transform", touchAction: "pan-y" } },
+    cropSource ? React.createElement(ProfilePhotoCropModal, { imageSrc:cropSource, onCancel:()=>setCropSource(""), onConfirm:handleCroppedPhoto }) : null,
     React.createElement('div', { "aria-hidden": true, style: { position: "fixed", inset: 0, zIndex: -1, pointerEvents: "none", background: "var(--bg-gradient)", backgroundImage: "var(--bg-radial-hint), var(--bg-gradient)" } }),
     // Header
     React.createElement('div', { style: { position: "relative", display: "flex", alignItems: "center", justifyContent: "center", height: 40, marginBottom: 2 } },

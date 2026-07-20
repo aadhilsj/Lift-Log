@@ -51,7 +51,7 @@ import {
   sendOtpData,
   verifyOtpData,
   upsertProfileData,
-  updateProfilePhotoData,
+  uploadProfilePhotoData,
   joinGroupData,
   fetchInviteContextData,
   kickMemberData,
@@ -1021,13 +1021,13 @@ const App = () => {
     applyData(result.data);
     setShowProfileModal(false);
   };
-  const handleUpdateProfilePhoto = useCallback(async (profilePhotoUrl) => {
-    const result = await updateProfilePhotoData(profilePhotoUrl);
+  const handleUpdateProfilePhoto = useCallback(async (dataUrl) => {
+    const result = await uploadProfilePhotoData(dataUrl);
     if (!result?.ok) return result;
     if (result.data) applyData(result.data);
     setLastSyncedAt(new Date());
     setSyncError(false);
-    return { ok: true };
+    return { ok: true, profilePhotoUrl: result.profilePhotoUrl || "" };
   }, [applyData]);
   const handleDeleteAccount = async () => {
     const result = await deleteAccountData(authSession?.userId);

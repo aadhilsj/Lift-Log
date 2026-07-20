@@ -4340,6 +4340,87 @@ async function supabaseFetch(path, options = {}) {
   return response;
 }
 
+async function supabaseStorageFetch(path, options = {}) {
+  const response = await fetch(`${SUPABASE_URL}${path}`, {
+    ...options,
+    headers: {
+      apikey: SUPABASE_SERVICE_ROLE_KEY,
+      Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+      ...options.headers
+    }
+  });
+  return response;
+}
+
+async function ensureProfilePhotosBucket() {
+  assertSupabaseConfigured();
+  const existing = await supabaseStorageFetch("/storage/v1/bucket/profile-photos", {
+    method: "GET",
+    headers: { Accept: "application/json" }
+  });
+  if (existing.ok) return;
+  if (existing.status !== 404) {
+    const text = await existing.text();
+    const error = new Error(text || "Unable to inspect profile photo bucket");
+    error.status = existing.status;
+    throw error;
+  }
+  const created = await supabaseStorageFetch("/storage/v1/bucket", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({
+      id: "profile-photos",
+      name: "profile-photos",
+      public: true,
+      file_size_limit: 5242880,
+      allowed_mime_types: ["image/jpeg", "image/png", "image/gif", "image/webp"]
+    })
+  });
+  if (!created.ok && created.status !== 409) {
+    const text = await created.text();
+    const error = new Error(text || "Unable to create profile photo bucket");
+    error.status = created.status;
+    throw error;
+  }
+}
+
+function parseImageDataUrl(dataUrl, maxBytes = 3 * 1024 * 1024) {
+  const match = /^data:(image\/(?:jpeg|png|webp));base64,([a-z0-9+/=\s]+)$/i.exec(String(dataUrl || "").trim());
+  if (!match) {
+    const error = new Error("Invalid profile photo image");
+    error.status = 400;
+    throw error;
+  }
+  const buffer = Buffer.from(match[2].replace(/\s+/g, ""), "base64");
+  if (!buffer.length || buffer.length > maxBytes) {
+    const error = new Error("Profile photo is too large");
+    error.status = 413;
+    throw error;
+  }
+  return { mimeType: match[1].toLowerCase(), buffer };
+}
+
+async function uploadProfilePhotoToStorage(authUserId, dataUrl) {
+  const { buffer } = parseImageDataUrl(dataUrl);
+  await ensureProfilePhotosBucket();
+  const path = `${authUserId}/${Date.now()}.jpg`;
+  const response = await supabaseStorageFetch(`/storage/v1/object/profile-photos/${path}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "image/jpeg",
+      "x-upsert": "false"
+    },
+    body: buffer
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    const error = new Error(text || "Unable to upload profile photo");
+    error.status = response.status;
+    throw error;
+  }
+  return `${SUPABASE_URL}/storage/v1/object/public/profile-photos/${path}`;
+}
+
 function assertSupabaseConfigured() {
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
     const error = new Error("SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is missing");
@@ -7682,6 +7763,32 @@ export default async function handler(req, res) {
         );
         const persisted = await persistState(updated, `profile-photo:${auth.user.id}`);
         return res.status(200).json(persisted);
+      }
+
+      if (payload?.action === "upload-profile-photo") {
+        const auth = await requireAuthenticatedContext(req, payload, current);
+        const canonicalState = await buildCanonicalWritableStateForAuthenticatedGlobalMutation(auth);
+        const currentProfile = canonicalState.profiles?.[auth.user.id] || auth.state.profiles?.[auth.user.id] || {};
+        const displayName = String(currentProfile.displayName || "").trim();
+        if (!displayName) {
+          return res.status(400).json({ error: "Complete profile setup before adding a photo" });
+        }
+        const profilePhotoUrl = await uploadProfilePhotoToStorage(auth.user.id, payload?.dataUrl);
+        const updated = applyUpdateProfilePhoto(canonicalState, {
+          userId: auth.user.id,
+          email: auth.user.email,
+          displayName,
+          profilePhotoUrl
+        });
+        await syncProfileToCanonical(
+          auth.user.id,
+          auth.user.email,
+          displayName,
+          profilePhotoUrl,
+          { throwOnError: true }
+        );
+        const persisted = await persistState(updated, `profile-photo:${auth.user.id}`);
+        return res.status(200).json({ state: persisted, profilePhotoUrl });
       }
 
       if (payload?.action === "join-group") {
