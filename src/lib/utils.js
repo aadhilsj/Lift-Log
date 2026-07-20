@@ -13,6 +13,7 @@ import {
   fmtISO,
   toISODate,
   getLeaderboardDisplayStatus,
+  resolvePaceStatus,
   getEffectiveJoinedMonthForMember,
   getMemberTargetForMonth,
   getMemberTargetInfoForMonth,
@@ -288,12 +289,11 @@ function getGroupMemberPreview(group, userName) {
   const daysActive = Math.max(0, context.day - joinDay + 1);
   const expected = Math.floor((minTarget / activeDays) * daysActive);
   const daysLeft = context.daysInMonth - context.day + 1;
-  let status = "behind";
-  if (count + daysLeft < minTarget) status = "cooked";
-  else if (count - expected >= 2) status = "cruising";
-  else if (count >= expected) status = "on-track";
-  else if (count >= expected - 2) status = "at-risk";
-  status = getLeaderboardDisplayStatus(status, count, context.day);
+  const status = getLeaderboardDisplayStatus(
+    resolvePaceStatus({ count, target: minTarget, expected, daysLeft }),
+    count,
+    context.day
+  );
   return { count, status, needed: Math.max(0, minTarget - count) };
 }
 

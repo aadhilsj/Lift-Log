@@ -286,6 +286,19 @@ const GroupHome = ({groups,currentIdentity,currentEmail,currentUserId="",onOpenP
     return React.createElement('span',{className:"mono",style:{display:"inline-flex",alignItems:"center",color:"#1E4040",fontSize:10,letterSpacing:".04em"}},closeMeta.label);
   };
   const statusColor = status => status==="cruising" ? "#CBD5E1" : status==="on-track" ? "#5ABF5A" : status==="at-risk" ? "#D4A843" : status==="behind" ? "#E07A3F" : status==="cooked" ? "#D44A4A" : "#CBD5E1";
+  const statusLabel = status => status === "starting-soon" ? "Month started" : status === "locked-in" ? "Cleared" : String(status || "").replace("-", " ").toUpperCase();
+  const statusTextStyle = status => {
+    const base = {marginTop:3,fontSize:12,fontWeight:800,lineHeight:1.1,whiteSpace:"nowrap"};
+    if (status !== "locked-in") return {...base,color:statusColor(status)};
+    return {
+      ...base,
+      color:"transparent",
+      background:"linear-gradient(90deg,#E2E8F0 0%,#4ECDC4 40%,#F5A623 78%,#E2E8F0 100%)",
+      WebkitBackgroundClip:"text",
+      backgroundClip:"text",
+      textShadow:"0 0 18px rgba(78,205,196,.18)"
+    };
+  };
   return React.createElement(React.Fragment,null,
     React.createElement('div',{style:{minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-start",padding:compactMobile?"calc(env(safe-area-inset-top) + 16px) 16px 28px":"32px 18px",background:"transparent"}},
       React.createElement('div',{style:{width:"100%",maxWidth:744,display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,marginBottom:compactMobile?10:12}},
@@ -339,7 +352,7 @@ const GroupHome = ({groups,currentIdentity,currentEmail,currentUserId="",onOpenP
                 ? React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:compactMobile?5:8,alignItems:"end"}},
                     React.createElement('div',null,
                       React.createElement('div',{style:{fontSize:9,fontWeight:600,color:"var(--muted)",letterSpacing:".08em",textTransform:"uppercase",fontFamily:"'Outfit',sans-serif"}},"Status"),
-                      React.createElement('div',{style:{marginTop:3,fontSize:12,fontWeight:800,color:statusColor(preview.status),lineHeight:1.1,whiteSpace:"nowrap"}},preview.status === "starting-soon" ? "Month started" : String(preview.status || "").replace("-", " ").toUpperCase())
+                      React.createElement('div',{style:statusTextStyle(preview.status)},statusLabel(preview.status))
                     ),
                     React.createElement('div',null,
                       React.createElement('div',{style:{fontSize:compactMobile?14:20,fontWeight:800,color:"#f5f7ff",marginBottom:1}},preview.count),
