@@ -30,7 +30,10 @@ function normalizeComment(comment) {
 const inputStyle = {
   flex: 1,
   minWidth: 0,
+  minHeight: 40,
   maxHeight: 92,
+  boxSizing: "border-box",
+  display: "block",
   background: "#080F0F",
   border: "1px solid #0D1F1E",
   borderRadius: 20,
@@ -40,7 +43,12 @@ const inputStyle = {
   lineHeight: 1.25,
   outline: "none",
   fontFamily: "'Outfit', sans-serif",
-  resize: "none"
+  resize: "none",
+  caretColor: "#4ECDC4",
+  pointerEvents: "auto",
+  touchAction: "manipulation",
+  WebkitUserSelect: "text",
+  userSelect: "text"
 };
 
 function LogThumb({ log }) {
@@ -243,7 +251,7 @@ function LogCommentThread({ open, groupId, log, currentUserId, currentUserName, 
               })
             )
       ),
-      React.createElement('div', { style: { flexShrink: 0, display: "flex", alignItems: "center", gap: 8, padding: "10px 12px calc(10px + env(safe-area-inset-bottom))", borderTop: "1px solid rgba(22,61,54,.72)", background: "rgba(5,9,10,.72)", backdropFilter: "blur(8px)" } },
+      React.createElement('form', { onSubmit: event => { event.preventDefault(); submit(); }, style: { position: "sticky", bottom: 0, zIndex: 4, flexShrink: 0, minHeight: 62, display: "flex", alignItems: "center", gap: 8, padding: "10px 12px max(12px, env(safe-area-inset-bottom))", borderTop: "1px solid rgba(22,61,54,.72)", background: "rgba(5,9,10,.96)", backdropFilter: "blur(8px)", boxSizing: "border-box" } },
         React.createElement('textarea', {
           ref: inputRef,
           value: draft,
@@ -254,9 +262,8 @@ function LogCommentThread({ open, groupId, log, currentUserId, currentUserName, 
           style: inputStyle
         }),
         React.createElement('button', {
-          type: "button",
+          type: "submit",
           disabled: !draft.trim() || sending,
-          onClick: submit,
           onMouseDown: event => event.preventDefault(),
           style: { width: 40, height: 40, borderRadius: 999, background: draft.trim() && !sending ? "#4ECDC4" : "#0D1F1E", border: `1px solid ${draft.trim() && !sending ? "#4ECDC4" : "#163d36"}`, color: draft.trim() && !sending ? "#04110e" : "#3d5e59", display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 0, flexShrink: 0 }
         }, React.createElement(AppIcon, { name: "chevron-right", size: 18, stroke: "currentColor" }))
