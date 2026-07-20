@@ -1,6 +1,6 @@
 import React from "react";
 const { useState, useEffect, useMemo, useCallback, useRef } = React;
-import { AppIcon, AnteWordmark } from "../components/primitives.jsx";
+import { AppIcon, AnteWordmark, Avatar } from "../components/primitives.jsx";
 
 const StreamIconButton = ({ onOpenStream, unreadCount = 0, size }) => {
   const hasUnread = unreadCount > 0;
@@ -15,7 +15,7 @@ const StreamIconButton = ({ onOpenStream, unreadCount = 0, size }) => {
   );
 };
 
-const Nav = ({page,setPage,user,groupName,canEditGroup,onOpenSettings,onOpenProfile,onOpenStream,streamUnreadCount=0,onSwitchUser,onSwitchGroup,onOpenLog,syncing,lastSyncedAt,syncError,onRefresh,showJustSynced,activityAlertCount=0,hideMobileBottomNav=false,onlyMobileBottomNav=false,mobileBottomDragX=0,mobileBottomDragging=false}) => {
+const Nav = ({page,setPage,user,groupName,canEditGroup,onOpenSettings,onOpenProfile,onOpenStream,streamUnreadCount=0,onSwitchUser,onSwitchGroup,onOpenLog,syncing,lastSyncedAt,syncError,onRefresh,showJustSynced,activityAlertCount=0,hideMobileBottomNav=false,onlyMobileBottomNav=false,mobileBottomDragX=0,mobileBottomDragging=false,currentUserId="",profilePhotoUrl=""}) => {
   const navItems = [["today","Today","today"],["activity","Activity","activity"],["month","Month","results"],["history","History","history"]];
   const mobileBottomNav = React.createElement('div',{className:"mobile-only mobile-bottom-nav",style:{transform:mobileBottomDragX?`translateX(${mobileBottomDragX}px)`:"none",transition:mobileBottomDragging?"none":"transform .08s ease-out",willChange:mobileBottomDragging||mobileBottomDragX?"transform":"auto"}},
     React.createElement('div',{className:"mobile-bottom-nav-grid"},
@@ -63,7 +63,9 @@ const Nav = ({page,setPage,user,groupName,canEditGroup,onOpenSettings,onOpenProf
       React.createElement(StreamIconButton,{onOpenStream,unreadCount:streamUnreadCount}),
       React.createElement('button',{onClick:onOpenSettings,className:"icon-btn live-icon-btn",title:"Bloc settings"},React.createElement(AppIcon,{name:"settings",size:14})),
       React.createElement('button',{onClick:onOpenProfile,className:"icon-btn live-icon-btn",title:"Account"},
-        React.createElement(AppIcon,{name:"profile",size:14})
+        profilePhotoUrl
+          ? React.createElement(Avatar,{name:user||"?",userId:currentUserId,photoUrl:profilePhotoUrl,size:22})
+          : React.createElement(AppIcon,{name:"profile",size:14})
       )
     )
   ),
@@ -85,7 +87,11 @@ const Nav = ({page,setPage,user,groupName,canEditGroup,onOpenSettings,onOpenProf
       React.createElement('div',{style:{display:"flex",alignItems:"center",gap:4,flexShrink:0}},
         React.createElement(StreamIconButton,{onOpenStream,unreadCount:streamUnreadCount,size:28}),
         React.createElement('button',{onClick:onOpenSettings,className:"icon-btn live-icon-btn",title:"Bloc settings",style:{width:28,height:28,display:"inline-flex",alignItems:"center",justifyContent:"center"}},React.createElement(AppIcon,{name:"settings",size:18})),
-        React.createElement('button',{onClick:onOpenProfile,className:"icon-btn live-icon-btn",title:"Account",style:{width:28,height:28,display:"inline-flex",alignItems:"center",justifyContent:"center"}},React.createElement(AppIcon,{name:"profile",size:18}))
+        React.createElement('button',{onClick:onOpenProfile,className:"icon-btn live-icon-btn",title:"Account",style:{width:28,height:28,display:"inline-flex",alignItems:"center",justifyContent:"center"}},
+          profilePhotoUrl
+            ? React.createElement(Avatar,{name:user||"?",userId:currentUserId,photoUrl:profilePhotoUrl,size:24})
+            : React.createElement(AppIcon,{name:"profile",size:18})
+        )
       )
     )
   ),
