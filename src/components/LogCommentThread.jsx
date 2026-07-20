@@ -225,6 +225,7 @@ function LogCommentThread({ open, groupId, log, currentUserId, currentUserName, 
     }, 330);
   };
   const renderReactionPicker = () => reactionTarget && React.createElement('div', {
+    "data-comment-reaction-picker": "true",
     style: {
       position: "fixed",
       top: Math.max(96, Math.min((window.innerHeight || 720) - 140, Number(reactionTarget.y || 180) - 48)),
@@ -278,6 +279,9 @@ function LogCommentThread({ open, groupId, log, currentUserId, currentUserName, 
   },
     React.createElement('div', {
       onClick: event => event.stopPropagation(),
+      onPointerDownCapture: event => {
+        if (reactionTarget && !event.target?.closest?.('[data-comment-reaction-picker="true"]')) setReactionTarget(null);
+      },
       style: { width: "100%", maxWidth: 640, height: sheetHeight, maxHeight: sheetHeight, background: "#080F0F", border: "1px solid #163d36", borderBottom: "none", borderRadius: "14px 14px 0 0", display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 -4px 44px rgba(0,0,0,.45)" }
     },
       React.createElement('div', { style: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "11px 14px", borderBottom: "1px solid rgba(22,61,54,.72)", flexShrink: 0 } },
@@ -310,7 +314,7 @@ function LogCommentThread({ open, groupId, log, currentUserId, currentUserName, 
                     }, comment.body),
                     renderCommentReactions(comment)
                   ),
-                  isOwn ? React.createElement('div', { style: { width: 24, flexShrink: 0 } }) : null
+                  null
                 )
               })
             )
