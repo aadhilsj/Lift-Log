@@ -7146,9 +7146,12 @@ function applyLeaveBloc(current, payload) {
   if (Object.keys(nextMemberships).length === 0) {
     const nextGroups = { ...base.groups };
     delete nextGroups[groupId];
+    const nextGroupOrder = (base.groupOrder || []).filter(id => id !== groupId);
     return {
       ...base,
       groups: nextGroups,
+      groupOrder: nextGroupOrder,
+      defaultGroupId: deriveDefaultGroupId(nextGroupOrder),
       meta: { revision: base.meta.revision + 1, updatedAt: new Date().toISOString() }
     };
   }
@@ -7974,16 +7977,18 @@ export default async function handler(req, res) {
             null,
             { throwOnError: true }
           );
-          const persisted = await persistOrSkipBlobMirror(updated, `leave-bloc:${payload.groupId}:${auth.user.id}`, "leave-bloc");
-          return res.status(200).json({ ok: true, state: persisted, leftGroupId: payload.groupId });
+          await persistOrSkipBlobMirror(updated, `leave-bloc:${payload.groupId}:${auth.user.id}`, "leave-bloc");
+          const readable = await fetchReadableCurrentState();
+          return res.status(200).json({ ok: true, state: scopeReadableStateForUser(readable, auth.user.id), leftGroupId: payload.groupId });
         }
 
         // Last-member deletion:
         // delete the canonical bloc first so all dependent ante_core rows cascade
         // away together, then mirror the blob-side bloc removal.
         await deleteBlocFromCanonical(payload.groupId, { throwOnError: true });
-        const persisted = await persistOrSkipBlobMirror(updated, `leave-bloc:${payload.groupId}:${auth.user.id}`, "leave-bloc");
-        return res.status(200).json({ ok: true, state: persisted, leftGroupId: payload.groupId });
+        await persistOrSkipBlobMirror(updated, `leave-bloc:${payload.groupId}:${auth.user.id}`, "leave-bloc");
+        const readable = await fetchReadableCurrentState();
+        return res.status(200).json({ ok: true, state: scopeReadableStateForUser(readable, auth.user.id), leftGroupId: payload.groupId });
       }
 
       if (payload?.action === "multi-log") {
