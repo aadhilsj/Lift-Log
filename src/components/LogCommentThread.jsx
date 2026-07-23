@@ -327,7 +327,11 @@ function LogCommentThread({ open, groupId, log, currentUserId, currentUserName, 
   const layoutHeight = Math.max(visualHeight, Number(viewport.layoutHeight) || visualHeight);
   const topOffset = 50;
   const measuredKeyboardInset = Math.max(0, layoutHeight - visualHeight - Math.max(0, Number(viewport.offsetTop) || 0));
-  const keyboardInset = composerFocused && measuredKeyboardInset > 80 ? measuredKeyboardInset : 0;
+  const estimatedKeyboardInset = Math.round(Math.min(390, Math.max(300, layoutHeight * 0.42)));
+  const likelyMobileViewport = typeof window !== "undefined" && (window.matchMedia?.("(pointer: coarse)")?.matches || window.innerWidth <= 720);
+  const keyboardInset = composerFocused
+    ? Math.max(measuredKeyboardInset > 80 ? measuredKeyboardInset : 0, likelyMobileViewport ? estimatedKeyboardInset : 0)
+    : 0;
   const activeBottomInset = composerFocused ? keyboardInset : modalBottomInset;
   const overlayHeight = layoutHeight;
   const sheetHeight = Math.max(260, layoutHeight - topOffset - activeBottomInset);
