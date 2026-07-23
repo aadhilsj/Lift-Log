@@ -130,8 +130,8 @@ const ProfilePhotoCropModal = ({ imageSrc, onCancel, onConfirm }) => {
   };
 
   const stopCropGesture = event => event.stopPropagation();
-  return React.createElement('div', { onTouchStart:stopCropGesture, onTouchMove:stopCropGesture, onTouchEnd:stopCropGesture, onTouchCancel:stopCropGesture, onPointerDown:stopCropGesture, onPointerMove:stopCropGesture, onPointerUp:stopCropGesture, style:{ position:"fixed", inset:0, zIndex:10000, background:"rgba(0,0,0,.94)", display:"flex", alignItems:"flex-start", justifyContent:"center", overflowY:"auto", padding:"calc(env(safe-area-inset-top) + 42px) 16px calc(22px + env(safe-area-inset-bottom))", boxSizing:"border-box", touchAction:"none", overscrollBehavior:"contain" } },
-    React.createElement('div', { style:{ width:"100%", maxWidth:390, minHeight:"min-content", display:"flex", flexDirection:"column", alignItems:"center", gap:12 } },
+  return React.createElement('div', { onTouchStart:stopCropGesture, onTouchMove:stopCropGesture, onTouchEnd:stopCropGesture, onTouchCancel:stopCropGesture, onPointerDown:stopCropGesture, onPointerMove:stopCropGesture, onPointerUp:stopCropGesture, style:{ position:"fixed", inset:0, zIndex:10000, background:"rgba(0,0,0,.94)", display:"flex", alignItems:"center", justifyContent:"center", overflowY:"auto", padding:"calc(18px + env(safe-area-inset-top)) 16px calc(18px + env(safe-area-inset-bottom))", boxSizing:"border-box", touchAction:"none", overscrollBehavior:"contain" } },
+    React.createElement('div', { style:{ width:"100%", maxWidth:390, minHeight:"min-content", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:12, margin:"auto 0" } },
       React.createElement('div', { style:{ color:"#fff", fontSize:15, fontWeight:MED } }, "Edit Profile Photo"),
       React.createElement('div', {
         ref: frameRef,

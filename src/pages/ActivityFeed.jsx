@@ -468,12 +468,12 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
                         ),
                         renderReactionRow(post,false,Boolean(imagePost)),
                       ),
-                      React.createElement('div',{style:{display:"grid",gridTemplateColumns:"auto 72px",alignItems:"end",gap:7,flexShrink:0,marginTop:2}},
-                        React.createElement('div',{style:{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:5}},
-                          compactRelativeTime && React.createElement('span',{className:"mono",style:{fontSize:8,color:"var(--muted)",opacity:0.58,lineHeight:1}},compactRelativeTime),
+                      React.createElement('div',{style:{display:"grid",gridTemplateColumns:"auto 72px",gridTemplateRows:"18px 1fr",alignItems:"start",columnGap:7,rowGap:2,flexShrink:0,marginTop:2}},
+                        compactRelativeTime && React.createElement('span',{className:"mono",style:{gridColumn:1,gridRow:1,alignSelf:"center",justifySelf:"end",fontSize:8,color:"var(--muted)",opacity:0.58,lineHeight:1}},compactRelativeTime),
+                        React.createElement('div',{style:{gridColumn:1,gridRow:2,alignSelf:"end",justifySelf:"end"}},
                           renderCommentChip(post,true)
                         ),
-                        React.createElement('button',{type:"button",onClick:()=>setImageTarget({owner:post.owner,id:post.id,post}),style:{display:"block",width:72,height:72,padding:0,borderRadius:8,overflow:"hidden",background:"#050507",border:"1px solid rgba(255,255,255,.08)",flexShrink:0}},
+                        React.createElement('button',{type:"button",onClick:()=>setImageTarget({owner:post.owner,id:post.id,post}),style:{gridColumn:2,gridRow:"1 / span 2",display:"block",width:72,height:72,padding:0,borderRadius:8,overflow:"hidden",background:"#050507",border:"1px solid rgba(255,255,255,.08)",flexShrink:0}},
                           React.createElement('img',{src:post.photoUrl,alt:`${post.owner} ${post.type}`,style:{display:"block",width:"100%",height:"100%",objectFit:"cover"}})
                         )
                       )

@@ -477,16 +477,18 @@ async function uploadProfilePhotoData(dataUrl) {
   try {
     const result = await postApi("upload-profile-photo", { dataUrl });
     if (!result.ok) return { ok:false, error: result.error || "Unable to save photo" };
+    const profilePhotoUrl = String(result.body?.profilePhotoUrl || "").trim();
+    if (!profilePhotoUrl) return { ok:false, error: "Profile photo upload did not return a saved URL" };
     try {
       return {
         ok:true,
         data: normalizeAppState(result.body?.state || result.body),
-        profilePhotoUrl: result.body?.profilePhotoUrl || "",
+        profilePhotoUrl,
         syncError:""
       };
     } catch (error) {
       console.error("Profile photo upload normalize error:", error);
-      return { ok:true, data: null, profilePhotoUrl: result.body?.profilePhotoUrl || "", syncError: error instanceof Error ? error.message : "Unable to sync account" };
+      return { ok:true, data: null, profilePhotoUrl, syncError: error instanceof Error ? error.message : "Unable to sync account" };
     }
   } catch (error) {
     console.error("Profile photo upload error:", error);

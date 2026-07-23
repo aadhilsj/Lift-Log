@@ -277,12 +277,15 @@ function LogCommentThread({ open, groupId, log, currentUserId, currentUserName, 
     onClick: () => reactionTarget ? setReactionTarget(null) : onClose(),
     style: { position: "fixed", inset: 0, zIndex: 12000, display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: "calc(env(safe-area-inset-top) + 50px)", paddingBottom: modalBottomInset ? `calc(${modalBottomInset}px + env(safe-area-inset-bottom))` : 0, boxSizing: "border-box", background: "rgba(0,0,0,.72)" }
   },
+    modalBottomInset ? React.createElement('div', {
+      style: { position: "fixed", left: 0, right: 0, bottom: 0, height: `calc(${modalBottomInset}px + env(safe-area-inset-bottom))`, background: "#05090A", borderTop: "1px solid rgba(22,61,54,.72)", pointerEvents: "none" }
+    }) : null,
     React.createElement('div', {
       onClick: event => event.stopPropagation(),
       onPointerDownCapture: event => {
         if (reactionTarget && !event.target?.closest?.('[data-comment-reaction-picker="true"]')) setReactionTarget(null);
       },
-      style: { width: "100%", maxWidth: 640, height: sheetHeight, maxHeight: sheetHeight, background: "#080F0F", border: "1px solid #163d36", borderBottom: "none", borderRadius: "14px 14px 0 0", display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 -4px 44px rgba(0,0,0,.45)" }
+      style: { position: "relative", width: "100%", maxWidth: 640, height: sheetHeight, maxHeight: sheetHeight, background: "#080F0F", border: "1px solid #163d36", borderBottom: "none", borderRadius: "14px 14px 0 0", display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 -4px 44px rgba(0,0,0,.45)" }
     },
       React.createElement('div', { style: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "11px 14px", borderBottom: "1px solid rgba(22,61,54,.72)", flexShrink: 0 } },
         React.createElement('div', { style: { fontSize: 14, fontWeight: 800, color: "var(--text)" } }, count === 1 ? "1 comment" : `${count} comments`),
