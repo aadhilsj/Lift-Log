@@ -9,6 +9,8 @@ import {
 import { QUICK_REACTIONS } from "../lib/appState.js";
 import { formatShortDate } from "../lib/utils.js";
 
+const logCommentThreadCache = new Map();
+
 function normalizeComment(comment) {
   return {
     id: String(comment?.id || ""),
@@ -91,6 +93,7 @@ function LogHeader({ log }) {
 
 function LogCommentThread({ open, groupId, log, currentUserId, currentUserName, onClose, onCommentCountChange, bottomInset = 0 }) {
   const [comments, setComments] = useState([]);
+  const [loaded, setLoaded] = useState(false);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
@@ -99,7 +102,9 @@ function LogCommentThread({ open, groupId, log, currentUserId, currentUserName, 
   const pendingCommentsRef = useRef(new Map());
   const inputRef = useRef(null);
   const logId = String(log?.id || "");
-  const count = comments.length;
+  const cacheKey = groupId && logId ? `${groupId}:${logId}` : "";
+  const knownCommentCount = Number.isFinite(Number(log?.commentCount)) ? Math.max(0, Number(log.commentCount)) : 0;
+  const count = Math.max(comments.length, knownCommentCount);
   const normalizedLog = useMemo(() => ({
     id: logId,
     owner: log?.owner || log?.ownerDisplayName || "Member",
@@ -127,12 +132,18 @@ function LogCommentThread({ open, groupId, log, currentUserId, currentUserName, 
     const nextComments = [...serverComments, ...pendingComments]
       .sort((a, b) => String(a.createdAt || "").localeCompare(String(b.createdAt || "")));
     setComments(nextComments);
+    setLoaded(true);
+    if (cacheKey) logCommentThreadCache.set(cacheKey, nextComments);
     onCommentCountChange?.(logId, Math.max(serverComments.length, nextComments.length));
     setError("");
   };
 
   useEffect(() => {
     if (!open) return undefined;
+    const cached = cacheKey ? logCommentThreadCache.get(cacheKey) : null;
+    setComments(Array.isArray(cached) ? cached : []);
+    setLoaded(Array.isArray(cached));
+    setError("");
     refresh();
     const id = window.setInterval(refresh, 3000);
     requestAnimationFrame(() => inputRef.current?.focus?.());
@@ -160,11 +171,20 @@ function LogCommentThread({ open, groupId, log, currentUserId, currentUserName, 
     setSending(true);
     setDraft("");
     pendingCommentsRef.current.set(temp.id, { comment: temp, until: Date.now() + 10000 });
-    setComments(current => [...current, temp]);
+    setComments(current => {
+      const next = [...current, temp];
+      if (cacheKey) logCommentThreadCache.set(cacheKey, next);
+      return next;
+    });
+    setLoaded(true);
     onCommentCountChange?.(logId, count + 1);
     const result = await createLogCommentData({ groupId, logId, body });
     if (!result.ok) {
-      setComments(current => current.filter(comment => comment.id !== temp.id));
+      setComments(current => {
+        const next = current.filter(comment => comment.id !== temp.id);
+        if (cacheKey) logCommentThreadCache.set(cacheKey, next);
+        return next;
+      });
       onCommentCountChange?.(logId, count);
       setError(result.error || "Unable to add comment");
       setSending(false);
@@ -174,7 +194,11 @@ function LogCommentThread({ open, groupId, log, currentUserId, currentUserName, 
     if (savedComment.id) {
       pendingCommentsRef.current.delete(temp.id);
       pendingCommentsRef.current.set(savedComment.id, { comment: savedComment, until: Date.now() + 10000 });
-      setComments(current => current.map(comment => comment.id === temp.id ? savedComment : comment));
+      setComments(current => {
+        const next = current.map(comment => comment.id === temp.id ? savedComment : comment);
+        if (cacheKey) logCommentThreadCache.set(cacheKey, next);
+        return next;
+      });
     }
     if (Number.isFinite(Number(result.commentCount))) {
       onCommentCountChange?.(logId, Math.max(0, Number(result.commentCount)));
@@ -189,7 +213,8 @@ function LogCommentThread({ open, groupId, log, currentUserId, currentUserName, 
     const isAdding = !comments
       .find(comment => comment.id === normalizedCommentId)
       ?.reactions?.[emoji]?.includes(currentUserId);
-    setComments(current => current.map(comment => {
+    setComments(current => {
+      const next = current.map(comment => {
       if (comment.id !== normalizedCommentId) return comment;
       const reactions = { ...(comment.reactions || {}) };
       const members = Array.isArray(reactions[emoji]) ? reactions[emoji].filter(Boolean) : [];
@@ -198,7 +223,10 @@ function LogCommentThread({ open, groupId, log, currentUserId, currentUserName, 
       else if (withoutMe.length > 0) reactions[emoji] = withoutMe;
       else delete reactions[emoji];
       return { ...comment, reactions };
-    }));
+      });
+      if (cacheKey) logCommentThreadCache.set(cacheKey, next);
+      return next;
+    });
     setReactionTarget(null);
     const result = await toggleLogCommentReactionData({
       groupId,
@@ -294,7 +322,9 @@ function LogCommentThread({ open, groupId, log, currentUserId, currentUserName, 
       React.createElement('div', { style: { flex: 1, minHeight: 0, overflowY: "auto", WebkitOverflowScrolling: "touch" } },
         React.createElement(LogHeader, { log: normalizedLog }),
         error && React.createElement('div', { style: { margin: 14, padding: "9px 11px", borderRadius: 10, background: "rgba(232,69,69,.08)", border: "1px solid rgba(232,69,69,.22)", color: "#ffd7d7", fontSize: 12 } }, error),
-        comments.length === 0
+        comments.length === 0 && !loaded && knownCommentCount > 0
+          ? React.createElement('div', { style: { padding: "22px 14px", color: "var(--muted2)", fontSize: 13, textAlign: "center" } }, "Loading comments...")
+          : comments.length === 0
           ? React.createElement('div', { style: { padding: "22px 14px", color: "var(--muted2)", fontSize: 13, textAlign: "center" } }, "No comments yet")
           : React.createElement('div', { style: { display: "flex", flexDirection: "column", gap: 6, padding: "12px 12px 18px" } },
               comments.map((comment, index) => {
