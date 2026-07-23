@@ -153,7 +153,6 @@ function LogCommentThread({ open, groupId, log, currentUserId, currentUserName, 
     setError("");
     refresh();
     const id = window.setInterval(refresh, 3000);
-    requestAnimationFrame(() => inputRef.current?.focus?.());
     return () => window.clearInterval(id);
   }, [open, groupId, logId]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -328,10 +327,7 @@ function LogCommentThread({ open, groupId, log, currentUserId, currentUserName, 
   const layoutHeight = Math.max(visualHeight, Number(viewport.layoutHeight) || visualHeight);
   const topOffset = 50;
   const measuredKeyboardInset = Math.max(0, layoutHeight - visualHeight - Math.max(0, Number(viewport.offsetTop) || 0));
-  const estimatedKeyboardInset = Math.round(Math.min(380, Math.max(300, layoutHeight * 0.42)));
-  const keyboardInset = composerFocused
-    ? Math.max(measuredKeyboardInset, estimatedKeyboardInset)
-    : 0;
+  const keyboardInset = composerFocused && measuredKeyboardInset > 80 ? measuredKeyboardInset : 0;
   const activeBottomInset = composerFocused ? keyboardInset : modalBottomInset;
   const overlayHeight = layoutHeight;
   const sheetHeight = Math.max(260, layoutHeight - topOffset - activeBottomInset);
@@ -387,7 +383,7 @@ function LogCommentThread({ open, groupId, log, currentUserId, currentUserName, 
               })
             )
       ),
-      React.createElement('form', { onSubmit: event => { event.preventDefault(); submit(); }, style: { position: "sticky", bottom: 0, zIndex: 4, flexShrink: 0, minHeight: 62, display: "flex", alignItems: "center", gap: 8, padding: "10px 12px max(12px, env(safe-area-inset-bottom))", borderTop: "1px solid rgba(22,61,54,.72)", background: "rgba(5,9,10,.96)", backdropFilter: "blur(8px)", boxSizing: "border-box" } },
+      React.createElement('form', { onClick:event=>event.stopPropagation(), onPointerDown:event=>event.stopPropagation(), onTouchStart:event=>event.stopPropagation(), onSubmit: event => { event.preventDefault(); submit(); }, style: { position: "sticky", bottom: 0, zIndex: 4, flexShrink: 0, minHeight: 62, display: "flex", alignItems: "center", gap: 8, padding: "10px 12px max(12px, env(safe-area-inset-bottom))", borderTop: "1px solid rgba(22,61,54,.72)", background: "rgba(5,9,10,.96)", backdropFilter: "blur(8px)", boxSizing: "border-box" } },
         React.createElement('textarea', {
           ref: inputRef,
           value: draft,
