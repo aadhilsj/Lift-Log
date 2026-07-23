@@ -98,6 +98,11 @@ function LogCommentThread({ open, groupId, log, currentUserId, currentUserName, 
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
   const [reactionTarget, setReactionTarget] = useState(null);
+  const [viewport, setViewport] = useState(() => ({
+    height: typeof window !== "undefined" ? Math.floor(window.visualViewport?.height || window.innerHeight || 720) : 720,
+    offsetTop: typeof window !== "undefined" ? Math.floor(window.visualViewport?.offsetTop || 0) : 0,
+    layoutHeight: typeof window !== "undefined" ? Math.floor(window.innerHeight || window.visualViewport?.height || 720) : 720
+  }));
   const reactionTimerRef = useRef(null);
   const pendingCommentsRef = useRef(new Map());
   const inputRef = useRef(null);
@@ -155,6 +160,26 @@ function LogCommentThread({ open, groupId, log, currentUserId, currentUserName, 
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => { document.body.style.overflow = previousOverflow; };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const updateViewport = () => {
+      setViewport({
+        height: Math.floor(window.visualViewport?.height || window.innerHeight || 720),
+        offsetTop: Math.floor(window.visualViewport?.offsetTop || 0),
+        layoutHeight: Math.floor(window.innerHeight || window.visualViewport?.height || 720)
+      });
+    };
+    updateViewport();
+    window.visualViewport?.addEventListener("resize", updateViewport);
+    window.visualViewport?.addEventListener("scroll", updateViewport);
+    window.addEventListener("resize", updateViewport);
+    return () => {
+      window.visualViewport?.removeEventListener("resize", updateViewport);
+      window.visualViewport?.removeEventListener("scroll", updateViewport);
+      window.removeEventListener("resize", updateViewport);
+    };
   }, [open]);
 
   const submit = async () => {
@@ -297,17 +322,19 @@ function LogCommentThread({ open, groupId, log, currentUserId, currentUserName, 
   if (!open) return null;
 
   const modalBottomInset = Math.max(0, Number(bottomInset) || 0);
-  const sheetHeight = modalBottomInset
-    ? `calc(100dvh - env(safe-area-inset-top) - 50px - ${modalBottomInset}px)`
-    : "calc(100dvh - env(safe-area-inset-top) - 50px)";
+  const visualHeight = Math.max(320, Number(viewport.height) || 720);
+  const layoutHeight = Math.max(visualHeight, Number(viewport.layoutHeight) || visualHeight);
+  const keyboardOpen = visualHeight < layoutHeight - 80;
+  const topOffset = 50;
+  const activeBottomInset = keyboardOpen ? 0 : modalBottomInset;
+  const overlayTop = Math.max(0, Number(viewport.offsetTop) || 0);
+  const overlayHeight = visualHeight;
+  const sheetHeight = Math.max(260, visualHeight - topOffset - activeBottomInset);
 
   return React.createElement('div', {
     onClick: () => reactionTarget ? setReactionTarget(null) : onClose(),
-    style: { position: "fixed", inset: 0, zIndex: 12000, display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: "calc(env(safe-area-inset-top) + 50px)", paddingBottom: modalBottomInset ? `calc(${modalBottomInset}px + env(safe-area-inset-bottom))` : 0, boxSizing: "border-box", background: "rgba(0,0,0,.72)" }
+    style: { position: "fixed", left: 0, right: 0, top: overlayTop, height: overlayHeight, zIndex: 12000, display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: topOffset, paddingBottom: activeBottomInset, boxSizing: "border-box", background: "rgba(0,0,0,.72)", overflow: "hidden" }
   },
-    modalBottomInset ? React.createElement('div', {
-      style: { position: "fixed", left: 0, right: 0, bottom: 0, height: `calc(${modalBottomInset}px + env(safe-area-inset-bottom))`, background: "#05090A", borderTop: "1px solid rgba(22,61,54,.72)", pointerEvents: "none" }
-    }) : null,
     React.createElement('div', {
       onClick: event => event.stopPropagation(),
       onPointerDownCapture: event => {
