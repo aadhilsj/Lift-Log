@@ -6,7 +6,7 @@ import {
   listLogCommentsData,
   toggleLogCommentReactionData
 } from "../lib/api.js";
-import { QUICK_REACTIONS } from "../lib/appState.js";
+import { QUICK_REACTIONS, resolveStorageImageUrl } from "../lib/appState.js";
 import { formatShortDate } from "../lib/utils.js";
 
 const logCommentThreadCache = new Map();
@@ -55,11 +55,12 @@ const inputStyle = {
 
 function LogThumb({ log }) {
   if (log?.photoUrl) {
+    const displayPhotoUrl = resolveStorageImageUrl(log.photoUrl);
     return React.createElement('div', {
       style: { width: "100%", aspectRatio: "1 / 1", maxHeight: 178, borderRadius: 12, overflow: "hidden", background: "rgba(13,31,30,.72)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid rgba(255,255,255,.08)" }
     },
       React.createElement('img', {
-        src: log.photoUrl,
+        src: displayPhotoUrl,
         alt: `${log.owner || "Member"} ${log.type || "workout"}`,
         style: { width: "100%", height: "100%", objectFit: "contain", display: "block" }
       })

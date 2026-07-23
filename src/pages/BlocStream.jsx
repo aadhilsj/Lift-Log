@@ -10,6 +10,7 @@ import {
   setBlocStreamRsvpData,
   toggleBlocStreamReactionData
 } from "../lib/api.js";
+import { resolveStorageImageUrl } from "../lib/appState.js";
 
 // Long-press / hold reveals these (Instagram-style quick bar). Heart leads and
 // is also the double-tap default. The full emoji keyboard is deferred to the
@@ -432,7 +433,7 @@ const LogCommentCard = ({ msg, onOpen }) => {
     ? `${latest.commenterName || "Member"}: "${latest.body}"`
     : "Open comments";
   const thumb = payload.photoUrl
-    ? React.createElement('img', { src: payload.photoUrl, alt: `${owner} ${type}`, style: { width: 44, height: 44, borderRadius: 8, objectFit: "cover", background: "#050507", flexShrink: 0 } })
+    ? React.createElement('img', { src: resolveStorageImageUrl(payload.photoUrl), alt: `${owner} ${type}`, loading: "eager", decoding: "async", style: { width: 44, height: 44, borderRadius: 8, objectFit: "cover", background: "#050507", flexShrink: 0 } })
     : React.createElement('div', { style: { width: 44, height: 44, borderRadius: 8, background: "#0D1F1E", border: "0.5px solid #163d36", display: "flex", alignItems: "center", justifyContent: "center", color: C.accent, flexShrink: 0 } },
         React.createElement(WorkoutTypeIcon, { type, size: 20 })
       );

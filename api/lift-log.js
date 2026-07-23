@@ -4421,6 +4421,7 @@ async function uploadProfilePhotoToStorage(authUserId, dataUrl) {
     method: "POST",
     headers: {
       "Content-Type": "image/jpeg",
+      "Cache-Control": "max-age=3600",
       "x-upsert": "false"
     },
     body: buffer
@@ -4432,6 +4433,49 @@ async function uploadProfilePhotoToStorage(authUserId, dataUrl) {
     throw error;
   }
   return `${SUPABASE_URL}/storage/v1/object/public/profile-photos/${path}`;
+}
+
+function parseAllowedStorageImageUrl(value) {
+  const raw = String(value || "").trim();
+  if (!raw || !SUPABASE_URL) return null;
+  try {
+    const target = new URL(raw);
+    const supabase = new URL(SUPABASE_URL);
+    if (target.origin !== supabase.origin) return null;
+    const prefix = "/storage/v1/object/public/";
+    if (!target.pathname.startsWith(prefix)) return null;
+    const bucket = target.pathname.slice(prefix.length).split("/")[0];
+    if (!["workout-photos", "profile-photos"].includes(bucket)) return null;
+    return target;
+  } catch {
+    return null;
+  }
+}
+
+async function proxyStorageImage(req, res, imageUrl) {
+  const target = parseAllowedStorageImageUrl(imageUrl);
+  if (!target) return res.status(400).json({ error: "Unsupported image URL" });
+  const response = await fetch(target.toString(), {
+    headers: {
+      Accept: "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8"
+    }
+  });
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    res.status(response.status);
+    return res.end(text || "Unable to load image");
+  }
+  const contentType = response.headers.get("content-type") || "application/octet-stream";
+  if (!contentType.toLowerCase().startsWith("image/")) {
+    return res.status(415).json({ error: "Unsupported image response" });
+  }
+  const body = Buffer.from(await response.arrayBuffer());
+  res.setHeader("Content-Type", contentType);
+  res.setHeader("Content-Length", String(body.length));
+  res.setHeader("Cache-Control", "public, max-age=3600, stale-while-revalidate=86400");
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.status(200);
+  return res.end(body);
 }
 
 function assertSupabaseConfigured() {
@@ -7276,6 +7320,9 @@ export default async function handler(req, res) {
   try {
     if (req.method === "GET") {
       const url = new URL(req.url || "/", "http://localhost");
+      if (url.searchParams.has("image")) {
+        return proxyStorageImage(req, res, url.searchParams.get("image"));
+      }
       if (url.searchParams.get("config") === "auth") {
         return res.status(200).json(getClientAuthConfig());
       }

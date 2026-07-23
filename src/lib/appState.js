@@ -81,6 +81,19 @@ const resolveAvatarPhotoUrl = (name, explicitUserId = "") => {
   const userId = explicitUserId || resolveAvatarUserId(name);
   return (userId && ACTIVE_PROFILE_PHOTO_BY_USER_ID?.[userId]) || ACTIVE_PROFILE_PHOTO_BY_NAME?.[name] || "";
 };
+const resolveStorageImageUrl = url => {
+  const raw = String(url || "").trim();
+  if (!raw || raw.startsWith("data:") || raw.startsWith("blob:")) return raw;
+  try {
+    const parsed = new URL(raw);
+    const allowedHost = "bpvvvqjsfwmmfjvvijkd.supabase.co";
+    const allowedPath = "/storage/v1/object/public/";
+    if (parsed.hostname === allowedHost && parsed.pathname.startsWith(allowedPath)) {
+      return `/api/lift-log?image=${encodeURIComponent(raw)}`;
+    }
+  } catch {}
+  return raw;
+};
 const avatarColor = (name, explicitUserId = "") => {
   const userId = explicitUserId || resolveAvatarUserId(name) || String(name || "");
   if (ACTIVE_SESSION_USER_ID && userId === ACTIVE_SESSION_USER_ID) return "#E8A23A";
@@ -1805,6 +1818,7 @@ export {
   hashString,
   resolveAvatarUserId,
   resolveAvatarPhotoUrl,
+  resolveStorageImageUrl,
   avatarColor,
   WORKOUT_TYPE_ALIASES,
   CURRENCY_OPTIONS,

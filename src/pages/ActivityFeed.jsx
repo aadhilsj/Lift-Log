@@ -3,7 +3,8 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 import {
   QUICK_REACTIONS,
   countApprovedFlagsForActor,
-  flattenFeedPosts
+  flattenFeedPosts,
+  resolveStorageImageUrl
 } from "../lib/appState.js";
 import { getLogCommentCountsData } from "../lib/api.js";
 import {
@@ -364,7 +365,7 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
           ),
           React.createElement('span',{className:"mono",style:{fontSize:8,color:"var(--muted2)",letterSpacing:"-.01em",flexShrink:0}},formatShortDate(imagePost.date))
         ),
-        React.createElement('img',{src:imagePost.photoUrl,alt:`${imagePost.owner} ${imagePost.type}`,onClick:handlePhotoTap,style:{display:"block",width:"100%",maxHeight:compactFeed?"62vh":"68vh",objectFit:"contain",borderRadius:12,background:"#050507",boxShadow:"0 24px 60px rgba(0,0,0,.45)",cursor:"pointer"}}),
+        React.createElement('img',{src:resolveStorageImageUrl(imagePost.photoUrl),alt:`${imagePost.owner} ${imagePost.type}`,onClick:handlePhotoTap,style:{display:"block",width:"100%",maxHeight:compactFeed?"62vh":"68vh",objectFit:"contain",borderRadius:12,background:"#050507",boxShadow:"0 24px 60px rgba(0,0,0,.45)",cursor:"pointer"}}),
         React.createElement('div',{style:{padding:"0 2px"}},renderReactionRow(imagePost,false,false,true)),
         imagePost.note && React.createElement('div',{style:{fontSize:14,lineHeight:1.45,color:"var(--text-soft)",fontStyle:"italic",whiteSpace:"pre-wrap",padding:"0 2px",overflowY:"auto",maxHeight:"18vh",textAlign:"center"}},imagePost.note)
       )
@@ -474,7 +475,7 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
                           renderCommentChip(post,true)
                         ),
                         React.createElement('button',{type:"button",onClick:()=>setImageTarget({owner:post.owner,id:post.id,post}),style:{gridColumn:2,gridRow:"1 / span 2",display:"block",width:72,height:72,padding:0,borderRadius:8,overflow:"hidden",background:"#050507",border:"1px solid rgba(255,255,255,.08)",flexShrink:0}},
-                          React.createElement('img',{src:post.photoUrl,alt:`${post.owner} ${post.type}`,style:{display:"block",width:"100%",height:"100%",objectFit:"cover"}})
+                          React.createElement('img',{src:resolveStorageImageUrl(post.photoUrl),alt:`${post.owner} ${post.type}`,loading:"eager",decoding:"async",style:{display:"block",width:"100%",height:"100%",objectFit:"cover"}})
                         )
                       )
                     ),
