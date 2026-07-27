@@ -1,16 +1,22 @@
 import assert from "node:assert/strict";
 import { buildWorkoutLogDerivedMoments } from "../api/lift-log.js";
 
-const monthKey = new Intl.DateTimeFormat("en-CA", {
+const parts = new Intl.DateTimeFormat("en-CA", {
   timeZone: "Europe/Oslo",
   year: "numeric",
-  month: "2-digit"
+  month: "2-digit",
+  day: "2-digit"
 }).formatToParts(new Date()).reduce((acc, part) => {
   acc[part.type] = part.value;
   return acc;
 }, {});
 
-const currentMonthKey = `${Number(monthKey.year)}-${Number(monthKey.month) - 1}`;
+const currentYear = Number(parts.year);
+const currentMonth = Number(parts.month) - 1;
+const currentDay = Number(parts.day);
+const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+const daysLeft = Math.max(1, daysInMonth - currentDay + 1);
+const currentMonthKey = `${currentYear}-${currentMonth}`;
 const memberUserId = "00000000-0000-0000-0000-000000000001";
 const displayName = "Test Member";
 
@@ -42,8 +48,32 @@ function derive(before, after, log = { id: "new-log", createdAt: "2026-07-19T12:
   return buildWorkoutLogDerivedMoments(before, after, currentMonthKey, displayName, memberUserId, log);
 }
 
+function statusFor(target, count) {
+  const expected = Math.floor((target / daysInMonth) * currentDay);
+  const diff = count - expected;
+  if (count >= target) return "locked-in";
+  if (count + daysLeft < target) return "cooked";
+  if (diff >= 2) return "cruising";
+  if (diff >= 0) return "on-track";
+  if (diff >= -2) return "at-risk";
+  return "behind";
+}
+
+function findTransition(fromStatus, toStatus) {
+  for (let target = 4; target <= 60; target += 1) {
+    for (let beforeCount = 0; beforeCount < target; beforeCount += 1) {
+      if (statusFor(target, beforeCount) !== fromStatus) continue;
+      for (let afterCount = beforeCount + 1; afterCount <= target; afterCount += 1) {
+        if (statusFor(target, afterCount) === toStatus) return { target, beforeCount, afterCount };
+      }
+    }
+  }
+  throw new Error(`No ${fromStatus} -> ${toStatus} fixture available for ${currentMonthKey}`);
+}
+
 {
-  const result = derive(group({ count: 4 }), group({ count: 7 }));
+  const { target, beforeCount, afterCount } = findTransition("behind", "on-track");
+  const result = derive(group({ target, count: beforeCount }), group({ target, count: afterCount }));
   assert.equal(result.deleteKeys.length, 0);
   assert.equal(result.inserts.length, 1);
   assert.equal(result.inserts[0].systemKind, "comeback");
@@ -51,13 +81,15 @@ function derive(before, after, log = { id: "new-log", createdAt: "2026-07-19T12:
 }
 
 {
-  const result = derive(group({ count: 5 }), group({ count: 7 }));
+  const { target, beforeCount, afterCount } = findTransition("at-risk", "on-track");
+  const result = derive(group({ target, count: beforeCount }), group({ target, count: afterCount }));
   assert.equal(result.deleteKeys.length, 0);
   assert.equal(result.inserts.length, 0);
 }
 
 {
-  const result = derive(group({ target: 25, count: 10 }), group({ target: 25, count: 15 }));
+  const { target, beforeCount, afterCount } = findTransition("cooked", "on-track");
+  const result = derive(group({ target, count: beforeCount }), group({ target, count: afterCount }));
   assert.deepEqual(result.deleteKeys, [`cooked:test-bloc:${currentMonthKey}:${memberUserId}`]);
   assert.equal(result.inserts.length, 0);
 }
