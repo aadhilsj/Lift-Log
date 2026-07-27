@@ -4,7 +4,6 @@ import {
   CUR_MONTH,
   DAY_OF_MON,
   MONTH_NAMES,
-  avatarColor,
   calcPenalties,
   getLoserAmount,
   buildSettlementPairsForMonth,
@@ -13,7 +12,7 @@ import {
   ordinal,
   workoutsLabel
 } from "../lib/appState.js";
-import { TrophyIcon } from "../components/primitives.jsx";
+import { Avatar, TrophyIcon } from "../components/primitives.jsx";
 
 const FULL_MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
@@ -62,7 +61,6 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
     sectionLabel: {fontSize:10, fontWeight:800, textTransform:"uppercase", letterSpacing:".07em", color:"var(--muted)", fontFamily:"'Outfit', sans-serif"}
   };
 
-  const initialsFor = name => name.split(" ").map(part => part[0]).join("").slice(0,2).toUpperCase();
   const monthKeyParts = key => {
     const [year, monthIndex] = String(key || "").split("-").map(Number);
     return Number.isFinite(year) && Number.isFinite(monthIndex) ? { year, monthIndex } : null;
@@ -217,7 +215,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
 
   const renderPerfectRoster = () => isBlocPerfect && React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(132px,1fr))",gap:7}},
     sortedActive.map(member => React.createElement('button',{key:member.name,type:"button",onClick:()=>onViewProfileMonth?.(member.name, month.key),style:{display:"flex",alignItems:"center",gap:7,background:"rgba(5,24,21,.68)",border:"1px solid rgba(78,205,196,.23)",borderRadius:8,padding:"6px 8px",minWidth:0,textAlign:"left",cursor:onViewProfileMonth?"pointer":"default",fontFamily:"'Outfit', sans-serif",color:"var(--text)",boxShadow:"inset 0 1px 0 rgba(255,255,255,.05), 0 6px 14px rgba(0,0,0,.13)",backdropFilter:"blur(3px)"}},
-      React.createElement('div',{style:{width:24,height:24,borderRadius:999,background:avatarColor(member.name),color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:800,flexShrink:0}},initialsFor(member.name)),
+      React.createElement(Avatar,{name:member.name,size:24}),
       React.createElement('div',{style:{minWidth:0,flex:1}},
         React.createElement('div',{style:{fontSize:11,fontWeight:800,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},member.name),
         React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontSize:8.5,fontWeight:600,color:"var(--muted)"}},`${member.count} workout${member.count===1?"":"s"}`)
@@ -321,7 +319,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
       const moneyTint = isWinner && losers.length > 0 ? "rgba(57,168,90,.075)" : isLoser ? "rgba(185,50,50,.08)" : null;
       return React.createElement('div',{key:row.name,style:{display:"flex",alignItems:"center",gap:9,padding:"9px 10px",border:"1px solid rgba(255,255,255,.055)",borderRadius:8,background:moneyTint || (isMe?"rgba(78,205,196,.06)":"rgba(255,255,255,.018)")}},
         React.createElement('div',{className:"mono",style:{fontSize:10,color:"var(--muted)",width:18,textAlign:"right",flexShrink:0}},i+1),
-        React.createElement('div',{style:{width:26,height:26,borderRadius:999,background:avatarColor(row.name),color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,flexShrink:0}},initialsFor(row.name)),
+        React.createElement(Avatar,{name:row.name,size:26}),
         React.createElement('div',{style:{flex:1,minWidth:0}},
           React.createElement('div',{style:{fontSize:13,fontWeight:isMe?900:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},row.name + (isMe ? " (you)" : "")),
           React.createElement('div',{style:{fontSize:10,color:"var(--muted)",marginTop:1}},workoutsLabel(row.count))
