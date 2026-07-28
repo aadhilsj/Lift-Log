@@ -159,18 +159,28 @@ function LogCommentThread({ open, groupId, log, currentUserId, currentUserName, 
     if (!open) return undefined;
     const scrollY = window.scrollY;
     const body = document.body;
+    const root = document.documentElement;
     const previous = {
+      rootOverflow: root.style.overflow,
+      rootOverscrollBehavior: root.style.overscrollBehavior,
       overflow: body.style.overflow,
+      overscrollBehavior: body.style.overscrollBehavior,
       position: body.style.position,
       top: body.style.top,
       width: body.style.width
     };
+    root.style.overflow = "hidden";
+    root.style.overscrollBehavior = "none";
     body.style.overflow = "hidden";
+    body.style.overscrollBehavior = "none";
     body.style.position = "fixed";
     body.style.top = `-${scrollY}px`;
     body.style.width = "100%";
     return () => {
+      root.style.overflow = previous.rootOverflow;
+      root.style.overscrollBehavior = previous.rootOverscrollBehavior;
       body.style.overflow = previous.overflow;
+      body.style.overscrollBehavior = previous.overscrollBehavior;
       body.style.position = previous.position;
       body.style.top = previous.top;
       body.style.width = previous.width;
@@ -339,11 +349,8 @@ function LogCommentThread({ open, groupId, log, currentUserId, currentUserName, 
 
   const visualHeight = Math.max(320, Number(viewport.height) || 720);
   const visualTop = Math.max(0, Number(viewport.offsetTop) || 0);
-  const layoutHeight = Math.max(visualHeight, Number(viewport.layoutHeight) || visualHeight);
-  const keyboardOpen = layoutHeight - visualHeight - visualTop > 80;
-  const activeBottomInset = keyboardOpen ? 0 : Math.max(0, Number(bottomInset) || 0);
   const topOffset = 50;
-  const sheetHeight = Math.max(260, visualHeight - topOffset - activeBottomInset);
+  const sheetHeight = Math.max(260, visualHeight - topOffset);
 
   return React.createElement('div', {
     onClick: event => {
@@ -352,15 +359,16 @@ function LogCommentThread({ open, groupId, log, currentUserId, currentUserName, 
     },
     onPointerDown: event => event.stopPropagation(),
     onTouchStart: event => event.stopPropagation(),
-    style: { position: "fixed", left: 0, right: 0, top: visualTop, height: visualHeight, zIndex: 12000, display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: topOffset, paddingBottom: activeBottomInset, boxSizing: "border-box", background: "rgba(0,0,0,.72)", overflow: "hidden" }
+    style: { position: "fixed", inset: 0, zIndex: 12000, background: "#05090A", overflow: "hidden", overscrollBehavior: "none", touchAction: "none" }
   },
-    React.createElement('div', {
-      onClick: event => event.stopPropagation(),
-      onPointerDownCapture: event => {
-        if (reactionTarget && !event.target?.closest?.('[data-comment-reaction-picker="true"]')) setReactionTarget(null);
+    React.createElement('div', { style: { position: "absolute", left: 0, right: 0, top: visualTop, height: visualHeight, display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: topOffset, boxSizing: "border-box", background: "#05090A", overflow: "hidden", touchAction: "auto" } },
+      React.createElement('div', {
+        onClick: event => event.stopPropagation(),
+        onPointerDownCapture: event => {
+          if (reactionTarget && !event.target?.closest?.('[data-comment-reaction-picker="true"]')) setReactionTarget(null);
+        },
+        style: { position: "relative", width: "100%", maxWidth: 640, height: sheetHeight, maxHeight: sheetHeight, background: "#080F0F", border: "1px solid #163d36", borderBottom: "none", borderRadius: "14px 14px 0 0", display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 -4px 44px rgba(0,0,0,.45)", touchAction: "auto" }
       },
-      style: { position: "relative", width: "100%", maxWidth: 640, height: sheetHeight, maxHeight: sheetHeight, background: "#080F0F", border: "1px solid #163d36", borderBottom: "none", borderRadius: "14px 14px 0 0", display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 -4px 44px rgba(0,0,0,.45)" }
-    },
       React.createElement('div', { style: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "11px 14px", borderBottom: "1px solid rgba(22,61,54,.72)", flexShrink: 0 } },
         React.createElement('div', { style: { fontSize: 14, fontWeight: 800, color: "var(--text)" } }, count === 1 ? "1 comment" : `${count} comments`),
         React.createElement('button', { type: "button", onClick: onClose, style: { width: 30, height: 30, borderRadius: 999, background: "transparent", border: "none", color: "#4ECDC4", display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 0 } }, "✕")
@@ -416,6 +424,7 @@ function LogCommentThread({ open, groupId, log, currentUserId, currentUserName, 
         }, React.createElement(AppIcon, { name: "chevron-right", size: 18, stroke: "currentColor" }))
       ),
       renderReactionPicker()
+      )
     )
   );
 }
