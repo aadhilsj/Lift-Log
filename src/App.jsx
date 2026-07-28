@@ -81,6 +81,7 @@ import { MonthPage } from "./pages/MonthPage.jsx";
 import { HistoryPage } from "./pages/HistoryPage.jsx";
 import { BlocStream } from "./pages/BlocStream.jsx";
 import { ProfilePage } from "./pages/ProfilePage.jsx";
+import { LogCommentThread } from "./components/LogCommentThread.jsx";
 
 const normalizeReactionMembers = (members) => Array.isArray(members)
   ? Array.from(new Set(members.filter(Boolean))).sort()
@@ -136,6 +137,9 @@ const App = () => {
   const [showProfileModal,setShowProfileModal]=useState(false);
   const [showProfile,setShowProfile]=useState(false);
   const [showStream,setShowStream]=useState(false);
+  const [streamFocusBlocId,setStreamFocusBlocId]=useState(null);
+  const [logCommentScreen,setLogCommentScreen]=useState(null);
+  const [logCommentCountOverrides,setLogCommentCountOverrides]=useState({});
   const [monthInitialIdx,setMonthInitialIdx]=useState(null);
   const [profileSaving,setProfileSaving]=useState(false);
   const [profileError,setProfileError]=useState("");
@@ -1167,8 +1171,27 @@ const App = () => {
     if (result?.ok) setStreamUnreadCount(result.unreadCount);
   },[effectiveAuthSession?.userId, selectedGroupId]);
   const handleOpenStream = useCallback(() => {
+    setStreamFocusBlocId(null);
     setShowStream(true);
     setStreamUnreadCount(0);
+  },[]);
+  const handleOpenLogComments = useCallback(({ groupId, log, source }) => {
+    if (!groupId || !log?.id) return;
+    if (source === "stream") {
+      setStreamFocusBlocId(groupId);
+      setShowStream(false);
+    }
+    setLogCommentScreen({ groupId, log, source: source || "activity" });
+  },[]);
+  const handleCloseLogComments = useCallback(() => {
+    const source = logCommentScreen?.source;
+    setLogCommentScreen(null);
+    if (source === "stream") setShowStream(true);
+  },[logCommentScreen?.source]);
+  const handleLogCommentCountChange = useCallback((logId, count) => {
+    const key = String(logId || "");
+    if (!key) return;
+    setLogCommentCountOverrides(current => ({ ...current, [key]: Math.max(0, Number(count || 0)) }));
   },[]);
   useEffect(() => {
     if (showStream) return;
@@ -1496,6 +1519,17 @@ const App = () => {
     });
   }
 
+  if (logCommentScreen) {
+    return React.createElement(LogCommentThread,{
+      groupId:logCommentScreen.groupId,
+      log:logCommentScreen.log,
+      currentUserId:effectiveAuthSession?.userId,
+      currentUserName:currentUser,
+      onClose:handleCloseLogComments,
+      onCommentCountChange:handleLogCommentCountChange
+    });
+  }
+
   const activeBlocSurface = React.createElement('div',{
     onTouchStart:startBlocSwitchSwipe,
     onTouchMove:moveBlocSwitchSwipe,
@@ -1520,7 +1554,7 @@ const App = () => {
       page==="today"  &&React.createElement(TodayPageErrorBoundary,{resetKey:`${selectedGroupId}:${navResetToken}:${currentUser}`},
         React.createElement(TodayPage,  {user:currentUser,currentUserId:effectiveAuthSession?.userId,currentGroupId:selectedGroupId,groups,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,saving,onSave:handleSave,onMultiLog:handleMultiLog,onLogMutation:handleLogMutation,clockTick,onViewLastMonth:()=>{setMonthInitialIdx(0);setPage("month");},onSitOutRequest:handleSitOutRequest,onSettlementClaimPaid:handleSettlementClaimPaid,onSettlementConfirmPaid:handleSettlementConfirmPaid,onSettlementDisputePaid:handleSettlementDisputePaid,navResetToken,showLog:showTodayLog,setShowLog:setShowTodayLog})
       ),
-      page==="activity"&&React.createElement(ActivityPage,{group:currentGroup,currentUser,currentUserId:effectiveAuthSession?.userId,onLogMutation:handleLogMutation,clockTick,reactionOverrides,setReactionOverrides}),
+      page==="activity"&&React.createElement(ActivityPage,{group:currentGroup,currentUser,currentUserId:effectiveAuthSession?.userId,onLogMutation:handleLogMutation,clockTick,reactionOverrides,setReactionOverrides,commentCountOverrides:logCommentCountOverrides,onOpenLogComments:handleOpenLogComments}),
       page==="month"  &&React.createElement(MonthPage,  {key:`${selectedGroupId}:${navResetToken}:${monthInitialIdx ?? "current"}`,group:currentGroup,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,groupSettings:currentGroup.settings,currentUser,currentUserId:effectiveAuthSession?.userId,initialSelIdx:monthInitialIdx,onStartNextMonth:()=>{setMonthInitialIdx(null);setPage("today");},onOpenToday:()=>setPage("today"),onSettlementClaimPaid:handleSettlementClaimPaid,onSettlementConfirmPaid:handleSettlementConfirmPaid,navResetToken}),
       page==="history"&&React.createElement(HistoryPage,{group:currentGroup,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,groupSettings:currentGroup.settings,navResetToken,currentUser})
     ),
@@ -1536,7 +1570,7 @@ const App = () => {
     showJoinModal && !authStep && React.createElement(JoinGroupModal,{inviteContext,joinCode,setJoinCode,onClose:()=>setShowJoinModal(false),onJoin:handleJoinGroup,joining:joiningGroup,error:inviteError,signedIn:true}),
     showProfileModal && React.createElement(ProfileModal,{email:authSession?.email,onSignOut:handleSwitchUser,onClose:()=>setShowProfileModal(false),showDisplayName:true,currentDisplayName:currentUser,onSaveDisplayName:handleSaveProfileFromModal,saving:profileSaving,saveError:profileError,onLeaveBloc:handleLeaveBloc,onDeleteAccount:handleDeleteAccount}),
     showSettings && React.createElement(GroupSettingsModal,{group:currentGroup,actor:currentUser,actorUserId:authSession?.userId,onSave:isGroupAdmin?handleUpdateGroupSettings:null,onClose:()=>setShowSettings(false),saving:savingSettings,onReviewSitOut:isGroupAdmin?handleSitOutReview:null,onKickMember:isGroupAdmin?handleKickMember:null}),
-    React.createElement(BlocStream,{open:showStream,groupName:currentGroup.name,blocId:currentGroup.id,currentUserId:effectiveAuthSession?.userId,members:Object.values(currentGroup.memberships||{}).map(m=>({id:m.userId,name:m.displayName,photoUrl:appState.profiles?.[m.userId]?.profilePhotoUrl||""})),streamBlocs:visibleGroups.map(group=>({id:group.id,name:group.name,members:Object.values(group.memberships||{}).map(m=>({id:m.userId,name:m.displayName,photoUrl:appState.profiles?.[m.userId]?.profilePhotoUrl||""}))})),onSeasonClosedTap:handleStreamSeasonClosedTap,onUnreadCountChange:(groupId,count)=>{if(groupId===currentGroup.id)setStreamUnreadCount(Number(count)||0);},onClose:()=>{setShowStream(false);refreshStreamUnreadCount(currentGroup.id);}}),
+    React.createElement(BlocStream,{open:showStream,groupName:currentGroup.name,blocId:currentGroup.id,initialBlocId:streamFocusBlocId,currentUserId:effectiveAuthSession?.userId,members:Object.values(currentGroup.memberships||{}).map(m=>({id:m.userId,name:m.displayName,photoUrl:appState.profiles?.[m.userId]?.profilePhotoUrl||""})),streamBlocs:visibleGroups.map(group=>({id:group.id,name:group.name,members:Object.values(group.memberships||{}).map(m=>({id:m.userId,name:m.displayName,photoUrl:appState.profiles?.[m.userId]?.profilePhotoUrl||""}))})),onSeasonClosedTap:handleStreamSeasonClosedTap,onUnreadCountChange:(groupId,count)=>{if(groupId===currentGroup.id)setStreamUnreadCount(Number(count)||0);},onOpenLogComments:handleOpenLogComments,onClose:()=>{setShowStream(false);setStreamFocusBlocId(null);refreshStreamUnreadCount(currentGroup.id);}}),
     prorationGroup && React.createElement(ProrationChoiceModal,{
       monthName: getCurrentMonthSummary(prorationGroup).monthName,
       fullMas: prorationGroup.settings?.minTarget || MIN_TARGET,

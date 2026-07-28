@@ -14,7 +14,6 @@ import {
   isMobile
 } from "../lib/utils.js";
 import { Avatar, AppIcon, WorkoutTypeIcon, Card } from "../components/primitives.jsx";
-import { LogCommentThread } from "../components/LogCommentThread.jsx";
 import { TextEntryModal, NoticeModal } from "../modals/modals.jsx";
 
 const getReactionKey = (groupId, owner, logId, emoji) => `${groupId || ""}:${owner || ""}:${logId || ""}:${emoji || ""}`;
@@ -33,7 +32,7 @@ const reactionSortIndex = emoji => {
   return index === -1 ? QUICK_REACTIONS.length : index;
 };
 
-const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,onReview,clockTick,reactionOverrides,setReactionOverrides}) => {
+const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,onReview,clockTick,reactionOverrides,setReactionOverrides,commentCountOverrides = {},onOpenLogComments}) => {
   const [flagTarget,setFlagTarget]=useState(null);
   const [flagReason,setFlagReason]=useState("");
   const [responseTarget,setResponseTarget]=useState(null);
@@ -42,7 +41,6 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
   const [reactionPopover,setReactionPopover]=useState(null);
   const [localReactionOverrides,setLocalReactionOverrides]=useState({});
   const [imageTarget,setImageTarget]=useState(null);
-  const [commentTarget,setCommentTarget]=useState(null);
   const [commentCounts,setCommentCounts]=useState({});
   const [notice,setNotice]=useState(null);
   const reactionPressTimer = useRef(null);
@@ -76,10 +74,12 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
   const compactFeed = isMobile();
   const getCommentCount = useCallback(post => {
     const key = String(post?.id || "");
+    const appOverride = commentCountOverrides[key];
+    if (Number.isFinite(Number(appOverride))) return Math.max(0, Number(appOverride));
     const override = commentCounts[key];
     if (Number.isFinite(Number(override))) return Math.max(0, Number(override));
     return Number.isFinite(Number(post?.commentCount)) ? Math.max(0, Number(post.commentCount)) : 0;
-  },[commentCounts]);
+  },[commentCountOverrides, commentCounts]);
   const updateCommentCount = useCallback((logId, count) => {
     const key = String(logId || "");
     if (!key) return;
@@ -232,7 +232,7 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
     const hasComments = commentCount > 0;
     return React.createElement('button',{
       type:"button",
-      onClick:()=>setCommentTarget(post),
+      onClick:()=>onOpenLogComments?.({ groupId: group?.id, log: post, source: "activity" }),
       style:hasComments?{
         height:compact?18:20,
         minWidth:compact?30:34,
@@ -374,16 +374,6 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
 
   return React.createElement(React.Fragment,null,
     renderExpandedPhoto(),
-    commentTarget && React.createElement(LogCommentThread,{
-      open:Boolean(commentTarget),
-      groupId:group?.id,
-      log:commentTarget,
-      currentUserId,
-      currentUserName:currentUser,
-      onClose:()=>setCommentTarget(null),
-      onCommentCountChange:updateCommentCount,
-      bottomInset:96
-    }),
     notice && React.createElement(NoticeModal,{title:notice.title,body:notice.body,onClose:()=>setNotice(null)}),
     flagTarget && React.createElement(TextEntryModal,{
       title:"Flag this workout?",

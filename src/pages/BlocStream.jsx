@@ -1,7 +1,6 @@
 import React from "react";
 const { useState, useEffect, useRef } = React;
 import { Avatar, AppIcon, WorkoutTypeIcon } from "../components/primitives.jsx";
-import { LogCommentThread } from "../components/LogCommentThread.jsx";
 import {
   createBlocStreamEventData,
   listBlocStreamMessagesData,
@@ -651,7 +650,7 @@ const MentionList = ({ items, onPick }) =>
     ))
   );
 
-const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], streamBlocs = [], onSeasonClosedTap, onUnreadCountChange, onClose }) => {
+const BlocStream = ({ open, groupName, blocId, initialBlocId, currentUserId, members = [], streamBlocs = [], onSeasonClosedTap, onUnreadCountChange, onOpenLogComments, onClose }) => {
   const [mounted, setMounted] = useState(false);
   const [messages, setMessages] = useState([]);
   const [messagesByBloc, setMessagesByBloc] = useState(readStreamMessageCache);
@@ -659,7 +658,6 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], stre
   const [draft, setDraft] = useState("");
   const [eventDraft, setEventDraft] = useState(emptyEventDraft);
   const [showEventSheet, setShowEventSheet] = useState(false);
-  const [commentTarget, setCommentTarget] = useState(null);
   const [replyTarget, setReplyTarget] = useState(null);
   const [mention, setMention] = useState(null); // { query, start } while typing "@…"
   const listRef = useRef(null);
@@ -770,30 +768,29 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], stre
   };
 
   useEffect(() => {
+    const nextBlocId = initialBlocId || blocId;
     if (open) {
       const id = requestAnimationFrame(() => setMounted(true));
       streamStateRef.current = new Map();
-      setViewedBlocId(blocId);
-      setMessages(messagesByBloc.get(blocId) || []);
+      setViewedBlocId(nextBlocId);
+      setMessages(messagesByBloc.get(nextBlocId) || []);
       setDraft("");
       setEventDraft(emptyEventDraft());
       setShowEventSheet(false);
-      setCommentTarget(null);
       setReplyTarget(null);
       setMention(null);
       return () => cancelAnimationFrame(id);
     }
     setMounted(false);
     streamStateRef.current = new Map();
-    setViewedBlocId(blocId);
-    setMessages(messagesByBloc.get(blocId) || []);
+    setViewedBlocId(nextBlocId);
+    setMessages(messagesByBloc.get(nextBlocId) || []);
     setDraft("");
     setEventDraft(emptyEventDraft());
     setShowEventSheet(false);
-    setCommentTarget(null);
     setReplyTarget(null);
     setMention(null);
-  }, [open, blocId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [open, blocId, initialBlocId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Runs when the visible stream changes. Deliberately not keyed on the active
   // members array, which can be recreated by parent polling and would yank scroll.
@@ -829,14 +826,13 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], stre
     const onKey = e => {
       if (e.key !== "Escape") return;
       if (showEventSheet) setShowEventSheet(false);
-      else if (commentTarget) setCommentTarget(null);
       else if (mention) setMention(null);
       else if (replyTarget) setReplyTarget(null);
       else onClose();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose, showEventSheet, commentTarget, mention, replyTarget]);
+  }, [open, onClose, showEventSheet, mention, replyTarget]);
 
   if (!open) return null;
 
@@ -976,14 +972,21 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], stre
   const mentionItems = mention
     ? activeMembers.filter(m => m.id !== currentUserId && m.name && m.name.toLowerCase().includes(mention.query)).slice(0, 6)
     : [];
-  const commentPayload = commentTarget?.payload || {};
-  const commentLog = commentTarget ? {
-    id: commentPayload.id || commentPayload.logId,
-    owner: commentPayload.ownerDisplayName || "Member",
-    type: commentPayload.workoutType || "Workout",
-    date: commentPayload.workoutDate || "",
-    photoUrl: commentPayload.photoUrl || ""
-  } : null;
+  const openLogComments = msg => {
+    const payload = msg?.payload || {};
+    onOpenLogComments?.({
+      groupId: activeBlocId,
+      source: "stream",
+      log: {
+        id: payload.id || payload.logId,
+        owner: payload.ownerDisplayName || "Member",
+        type: payload.workoutType || "Workout",
+        date: payload.workoutDate || "",
+        photoUrl: payload.photoUrl || "",
+        commentCount: payload.commentCount
+      }
+    });
+  };
 
   return React.createElement('div', {
     onClick: onClose,
@@ -1069,7 +1072,7 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], stre
                 return wrap(React.createElement(EventCard, { msg, currentUserId, authorName: nameFor(msg.author_id), nameFor, photoFor, onRsvp: handleRsvp }));
               }
               if (msg.message_type === "log_comment") {
-                return wrap(React.createElement(LogCommentCard, { msg, onOpen: setCommentTarget }));
+                return wrap(React.createElement(LogCommentCard, { msg, onOpen: openLogComments }));
               }
               const isOwn = msg.author_id === currentUserId;
               const replyToMsg = msg.reply_to ? messages.find(x => x.id === msg.reply_to) : null;
@@ -1133,15 +1136,6 @@ const BlocStream = ({ open, groupName, blocId, currentUserId, members = [], stre
       onDraftChange: setEventDraft,
       onClose: () => setShowEventSheet(false),
       onCreate: handleCreateEvent
-    }),
-    commentTarget && React.createElement(LogCommentThread, {
-      open: Boolean(commentTarget),
-      groupId: activeBlocId,
-      log: commentLog,
-      currentUserId,
-      currentUserName: nameFor(currentUserId),
-      onClose: () => setCommentTarget(null),
-      onCommentCountChange: () => refreshMessages({ scroll: true })
     })
   );
 };
