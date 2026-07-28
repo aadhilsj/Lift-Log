@@ -99,7 +99,6 @@ function LogCommentThread({ open, groupId, log, currentUserId, currentUserName, 
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
   const [reactionTarget, setReactionTarget] = useState(null);
-  const [composerFocused, setComposerFocused] = useState(false);
   const [viewport, setViewport] = useState(() => ({
     height: typeof window !== "undefined" ? Math.floor(window.visualViewport?.height || window.innerHeight || 720) : 720,
     offsetTop: typeof window !== "undefined" ? Math.floor(window.visualViewport?.offsetTop || 0) : 0,
@@ -158,9 +157,25 @@ function LogCommentThread({ open, groupId, log, currentUserId, currentUserName, 
 
   useEffect(() => {
     if (!open) return undefined;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => { document.body.style.overflow = previousOverflow; };
+    const scrollY = window.scrollY;
+    const body = document.body;
+    const previous = {
+      overflow: body.style.overflow,
+      position: body.style.position,
+      top: body.style.top,
+      width: body.style.width
+    };
+    body.style.overflow = "hidden";
+    body.style.position = "fixed";
+    body.style.top = `-${scrollY}px`;
+    body.style.width = "100%";
+    return () => {
+      body.style.overflow = previous.overflow;
+      body.style.position = previous.position;
+      body.style.top = previous.top;
+      body.style.width = previous.width;
+      window.scrollTo(0, scrollY);
+    };
   }, [open]);
 
   useEffect(() => {
@@ -322,19 +337,10 @@ function LogCommentThread({ open, groupId, log, currentUserId, currentUserName, 
 
   if (!open) return null;
 
-  const modalBottomInset = Math.max(0, Number(bottomInset) || 0);
   const visualHeight = Math.max(320, Number(viewport.height) || 720);
-  const layoutHeight = Math.max(visualHeight, Number(viewport.layoutHeight) || visualHeight);
+  const visualTop = Math.max(0, Number(viewport.offsetTop) || 0);
   const topOffset = 50;
-  const measuredKeyboardInset = Math.max(0, layoutHeight - visualHeight - Math.max(0, Number(viewport.offsetTop) || 0));
-  const estimatedKeyboardInset = Math.round(Math.min(390, Math.max(300, layoutHeight * 0.42)));
-  const likelyMobileViewport = typeof window !== "undefined" && (window.matchMedia?.("(pointer: coarse)")?.matches || window.innerWidth <= 720);
-  const keyboardInset = composerFocused
-    ? Math.max(measuredKeyboardInset > 80 ? measuredKeyboardInset : 0, likelyMobileViewport ? estimatedKeyboardInset : 0)
-    : 0;
-  const activeBottomInset = composerFocused ? keyboardInset : modalBottomInset;
-  const overlayHeight = layoutHeight;
-  const sheetHeight = Math.max(260, layoutHeight - topOffset - activeBottomInset);
+  const sheetHeight = Math.max(260, visualHeight - topOffset);
 
   return React.createElement('div', {
     onClick: event => {
@@ -343,11 +349,8 @@ function LogCommentThread({ open, groupId, log, currentUserId, currentUserName, 
     },
     onPointerDown: event => event.stopPropagation(),
     onTouchStart: event => event.stopPropagation(),
-    style: { position: "fixed", left: 0, right: 0, top: 0, height: overlayHeight, zIndex: 12000, display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: topOffset, paddingBottom: activeBottomInset, boxSizing: "border-box", background: "rgba(0,0,0,.72)", overflow: "hidden" }
+    style: { position: "fixed", left: 0, right: 0, top: visualTop, height: visualHeight, zIndex: 12000, display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: topOffset, paddingBottom: 0, boxSizing: "border-box", background: "rgba(0,0,0,.72)", overflow: "hidden" }
   },
-    activeBottomInset ? React.createElement('div', {
-      style: { position: "fixed", left: 0, right: 0, bottom: 0, height: activeBottomInset, background: "#05090A", borderTop: "1px solid rgba(22,61,54,.72)", pointerEvents: "none" }
-    }) : null,
     React.createElement('div', {
       onClick: event => event.stopPropagation(),
       onPointerDownCapture: event => {
@@ -397,8 +400,6 @@ function LogCommentThread({ open, groupId, log, currentUserId, currentUserName, 
           ref: inputRef,
           value: draft,
           onChange: event => setDraft(event.target.value),
-          onFocus: () => setComposerFocused(true),
-          onBlur: () => window.setTimeout(() => setComposerFocused(false), 180),
           onKeyDown: event => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); submit(); } },
           placeholder: "Add a comment",
           rows: 1,
