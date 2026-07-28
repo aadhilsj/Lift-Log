@@ -339,8 +339,11 @@ function LogCommentThread({ open, groupId, log, currentUserId, currentUserName, 
 
   const visualHeight = Math.max(320, Number(viewport.height) || 720);
   const visualTop = Math.max(0, Number(viewport.offsetTop) || 0);
+  const layoutHeight = Math.max(visualHeight, Number(viewport.layoutHeight) || visualHeight);
+  const keyboardOpen = layoutHeight - visualHeight - visualTop > 80;
+  const activeBottomInset = keyboardOpen ? 0 : Math.max(0, Number(bottomInset) || 0);
   const topOffset = 50;
-  const sheetHeight = Math.max(260, visualHeight - topOffset);
+  const sheetHeight = Math.max(260, visualHeight - topOffset - activeBottomInset);
 
   return React.createElement('div', {
     onClick: event => {
@@ -349,7 +352,7 @@ function LogCommentThread({ open, groupId, log, currentUserId, currentUserName, 
     },
     onPointerDown: event => event.stopPropagation(),
     onTouchStart: event => event.stopPropagation(),
-    style: { position: "fixed", left: 0, right: 0, top: visualTop, height: visualHeight, zIndex: 12000, display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: topOffset, paddingBottom: 0, boxSizing: "border-box", background: "rgba(0,0,0,.72)", overflow: "hidden" }
+    style: { position: "fixed", left: 0, right: 0, top: visualTop, height: visualHeight, zIndex: 12000, display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: topOffset, paddingBottom: activeBottomInset, boxSizing: "border-box", background: "rgba(0,0,0,.72)", overflow: "hidden" }
   },
     React.createElement('div', {
       onClick: event => event.stopPropagation(),
