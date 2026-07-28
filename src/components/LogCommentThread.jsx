@@ -337,7 +337,11 @@ function LogCommentThread({ open, groupId, log, currentUserId, currentUserName, 
   const sheetHeight = Math.max(260, layoutHeight - topOffset - activeBottomInset);
 
   return React.createElement('div', {
-    onClick: () => reactionTarget ? setReactionTarget(null) : onClose(),
+    onClick: event => {
+      if (event.target !== event.currentTarget) return;
+      if (reactionTarget) setReactionTarget(null);
+      else onClose();
+    },
     style: { position: "fixed", left: 0, right: 0, top: 0, height: overlayHeight, zIndex: 12000, display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: topOffset, paddingBottom: activeBottomInset, boxSizing: "border-box", background: "rgba(0,0,0,.72)", overflow: "hidden" }
   },
     activeBottomInset ? React.createElement('div', {

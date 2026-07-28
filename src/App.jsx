@@ -92,6 +92,35 @@ const reactionsMatch = (a, b) => {
   return left.length === right.length && left.every((member, index) => member === right[index]);
 };
 
+const preserveKnownProfilePhotos = (current, incoming) => {
+  const existingProfiles = current?.profiles || {};
+  const incomingProfiles = incoming?.profiles || {};
+  let changed = false;
+  const mergedProfiles = { ...incomingProfiles };
+  const incomingMemberIds = new Set();
+  Object.values(incoming?.groups || {}).forEach(group => {
+    Object.values(group?.memberships || {}).forEach(membership => {
+      const userId = String(membership?.userId || "").trim();
+      if (userId) incomingMemberIds.add(userId);
+    });
+  });
+  Object.entries(existingProfiles).forEach(([userId, existing]) => {
+    const existingPhoto = String(existing?.profilePhotoUrl || "").trim();
+    if (!existingPhoto) return;
+    const incomingProfile = mergedProfiles[userId];
+    if (!incomingProfile) {
+      if (!incomingMemberIds.has(userId)) return;
+      mergedProfiles[userId] = existing;
+      changed = true;
+      return;
+    }
+    if (String(incomingProfile.profilePhotoUrl || "").trim()) return;
+    mergedProfiles[userId] = { ...incomingProfile, profilePhotoUrl: existingPhoto };
+    changed = true;
+  });
+  return changed ? { ...incoming, profiles: mergedProfiles } : incoming;
+};
+
 const App = () => {
   const cached = readCachedData();
   const initialPersistedSession = readPersistedAuthSession();
@@ -384,8 +413,11 @@ const App = () => {
     }
     if (!optimistic && incomingRevision < latestRevisionRef.current) return false;
     latestRevisionRef.current = Math.max(latestRevisionRef.current, incomingRevision);
-    setAppState(resolved);
-    writeCachedData(resolved);
+    setAppState(current => {
+      const next = preserveKnownProfilePhotos(current, resolved);
+      writeCachedData(next);
+      return next;
+    });
     return true;
   },[]);
 
