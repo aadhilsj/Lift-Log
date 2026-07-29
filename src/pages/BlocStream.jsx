@@ -693,7 +693,7 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, 
   };
   const positionListForUnread = (nextMessages, unreadCount, restoreScrollTop = null) => {
     const count = Math.max(0, Number(unreadCount || 0));
-    if (Number.isFinite(Number(restoreScrollTop))) {
+    if (restoreScrollTop !== null && restoreScrollTop !== undefined && Number.isFinite(Number(restoreScrollTop))) {
       setPendingListAnchor({ type: "restore", scrollTop: Math.max(0, Number(restoreScrollTop)) });
       return;
     }
