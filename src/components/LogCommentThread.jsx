@@ -99,9 +99,12 @@ function LogCommentThread({ groupId, log, currentUserId, currentUserName, onClos
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
   const [reactionTarget, setReactionTarget] = useState(null);
+  const [dragX, setDragX] = useState(0);
+  const [dragging, setDragging] = useState(false);
   const reactionTimerRef = useRef(null);
   const pendingCommentsRef = useRef(new Map());
   const inputRef = useRef(null);
+  const swipeRef = useRef({ sx: 0, sy: 0, st: 0, active: false, mode: null });
   const logId = String(log?.id || "");
   const cacheKey = groupId && logId ? `${groupId}:${logId}` : "";
   const knownCommentCount = Number.isFinite(Number(log?.commentCount)) ? Math.max(0, Number(log.commentCount)) : 0;
@@ -288,11 +291,57 @@ function LogCommentThread({ groupId, log, currentUserId, currentUserName, onClos
   };
 
   if (!logId) return null;
+  const resetSwipe = () => {
+    swipeRef.current = { sx: 0, sy: 0, st: 0, active: false, mode: null };
+    setDragging(false);
+    setDragX(0);
+  };
+  const startSwipeBack = event => {
+    const touch = event.touches?.[0];
+    if (!touch || touch.clientX > 72 || event.target?.closest?.("textarea,input,button")) return;
+    swipeRef.current = { sx: touch.clientX, sy: touch.clientY, st: performance.now(), active: true, mode: null };
+  };
+  const moveSwipeBack = event => {
+    const state = swipeRef.current;
+    const touch = event.touches?.[0];
+    if (!state.active || !touch) return;
+    const dx = touch.clientX - state.sx;
+    const dy = touch.clientY - state.sy;
+    if (!state.mode && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) {
+      state.mode = dx > 0 && Math.abs(dx) > Math.abs(dy) ? "back" : "scroll";
+      setDragging(state.mode === "back");
+    }
+    if (state.mode === "back") setDragX(Math.max(0, Math.min(dx, window.innerWidth || 420)));
+  };
+  const endSwipeBack = event => {
+    const state = swipeRef.current;
+    const touch = event.changedTouches?.[0];
+    swipeRef.current = { sx: 0, sy: 0, st: 0, active: false, mode: null };
+    if (!state.active || !touch) return;
+    const dx = touch.clientX - state.sx;
+    const dy = touch.clientY - state.sy;
+    const screenWidth = window.innerWidth || 420;
+    const elapsed = Math.max(1, performance.now() - (state.st || performance.now()));
+    const fastEdgeFlick = dx > 24 && elapsed < 260 && dx / elapsed > 0.22 && dx > Math.abs(dy);
+    const dominantDrag = dx > screenWidth / 2 && Math.abs(dy) < 100 && dx > Math.abs(dy);
+    const shouldClose = state.mode === "back" && (fastEdgeFlick || dominantDrag);
+    setDragging(false);
+    if (shouldClose) {
+      setDragX(screenWidth);
+      window.setTimeout(() => onClose?.(), 45);
+    } else {
+      setDragX(0);
+    }
+  };
 
   return React.createElement('div', {
     onPointerDownCapture: event => {
       if (reactionTarget && !event.target?.closest?.('[data-comment-reaction-picker="true"]')) setReactionTarget(null);
     },
+    onTouchStart: startSwipeBack,
+    onTouchMove: moveSwipeBack,
+    onTouchEnd: endSwipeBack,
+    onTouchCancel: resetSwipe,
     style: {
       minHeight: "100dvh",
       height: "100dvh",
@@ -302,7 +351,12 @@ function LogCommentThread({ groupId, log, currentUserId, currentUserName, onClos
       overflow: "hidden",
       background: "var(--bg-gradient)",
       backgroundImage: "var(--bg-radial-hint), var(--bg-gradient)",
-      color: "var(--text)"
+      color: "var(--text)",
+      transform: dragX ? `translateX(${dragX}px)` : "none",
+      transition: dragging ? "none" : "transform .08s ease-out",
+      boxShadow: dragX ? "-18px 0 34px rgba(0,0,0,.28)" : "none",
+      willChange: dragging || dragX ? "transform" : "auto",
+      touchAction: "pan-y"
     }
   },
     React.createElement('div', {

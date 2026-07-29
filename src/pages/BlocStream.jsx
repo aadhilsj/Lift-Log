@@ -3,6 +3,7 @@ const { useState, useEffect, useRef } = React;
 import { Avatar, AppIcon, WorkoutTypeIcon } from "../components/primitives.jsx";
 import {
   createBlocStreamEventData,
+  getBlocStreamUnreadCountData,
   listBlocStreamMessagesData,
   markBlocStreamReadData,
   sendBlocStreamMessageData,
@@ -650,7 +651,7 @@ const MentionList = ({ items, onPick }) =>
     ))
   );
 
-const BlocStream = ({ open, groupName, blocId, initialBlocId, currentUserId, members = [], streamBlocs = [], onSeasonClosedTap, onUnreadCountChange, onOpenLogComments, onClose }) => {
+const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, currentUserId, members = [], streamBlocs = [], onSeasonClosedTap, onUnreadCountChange, onOpenLogComments, onClose }) => {
   const [mounted, setMounted] = useState(false);
   const [messages, setMessages] = useState([]);
   const [messagesByBloc, setMessagesByBloc] = useState(readStreamMessageCache);
@@ -660,8 +661,10 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, currentUserId, mem
   const [showEventSheet, setShowEventSheet] = useState(false);
   const [replyTarget, setReplyTarget] = useState(null);
   const [mention, setMention] = useState(null); // { query, start } while typing "@…"
+  const [listPositioned, setListPositioned] = useState(true);
   const listRef = useRef(null);
   const inputRef = useRef(null);
+  const messageNodeRefs = useRef(new Map());
   const streamStateRef = useRef(new Map());
   const activeBlocIdRef = useRef(blocId);
 
@@ -686,12 +689,50 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, currentUserId, mem
       if (el) el.scrollTop = el.scrollHeight;
     });
   };
+  const positionListForUnread = (nextMessages, unreadCount, restoreScrollTop = null) => {
+    const count = Math.max(0, Number(unreadCount || 0));
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const el = listRef.current;
+        if (!el) {
+          setListPositioned(true);
+          return;
+        }
+        if (Number.isFinite(Number(restoreScrollTop))) {
+          el.scrollTop = Math.max(0, Number(restoreScrollTop));
+        } else if (count > 0 && nextMessages.length > 0) {
+          let remainingUnread = count;
+          let targetMessage = nextMessages[0];
+          for (let index = nextMessages.length - 1; index >= 0; index -= 1) {
+            const candidate = nextMessages[index];
+            if (candidate?.author_id === currentUserId) continue;
+            remainingUnread -= 1;
+            targetMessage = candidate;
+            if (remainingUnread <= 0) break;
+          }
+          const targetNode = targetMessage?.id ? messageNodeRefs.current.get(String(targetMessage.id)) : null;
+          if (targetNode) el.scrollTop = Math.max(0, targetNode.offsetTop - 12);
+          else el.scrollTop = 0;
+        } else {
+          el.scrollTop = el.scrollHeight;
+        }
+        setListPositioned(true);
+      });
+    });
+  };
 
-  const refreshMessages = async ({ scroll = false } = {}) => {
+  const refreshMessages = async ({ scroll = false, anchorUnread = false, restoreScrollTop = null } = {}) => {
     const requestBlocId = activeBlocId;
     if (!requestBlocId) return;
-    const result = await listBlocStreamMessagesData(requestBlocId);
-    if (!result.ok) return;
+    if (anchorUnread) setListPositioned(false);
+    const [result, unreadResult] = await Promise.all([
+      listBlocStreamMessagesData(requestBlocId),
+      anchorUnread ? getBlocStreamUnreadCountData(requestBlocId) : Promise.resolve(null)
+    ]);
+    if (!result.ok) {
+      if (anchorUnread && activeBlocIdRef.current === requestBlocId) setListPositioned(true);
+      return;
+    }
     const normalizedMessages = result.messages.map(normalizeStreamMessageForDisplay);
     setMessagesByBloc(current => {
       const next = new Map(current);
@@ -701,7 +742,9 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, currentUserId, mem
     });
     if (activeBlocIdRef.current === requestBlocId) {
       setMessages(normalizedMessages);
-      if (scroll) scrollToBottom();
+      if (anchorUnread) positionListForUnread(normalizedMessages, unreadResult?.ok ? unreadResult.unreadCount : 0, restoreScrollTop);
+      else if (scroll) scrollToBottom();
+      else setListPositioned(true);
     }
     markBlocStreamReadData(requestBlocId)
       .then(result => { if (result?.ok) onUnreadCountChange?.(requestBlocId, 0); })
@@ -772,8 +815,10 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, currentUserId, mem
     if (open) {
       const id = requestAnimationFrame(() => setMounted(true));
       streamStateRef.current = new Map();
+      messageNodeRefs.current.clear();
       setViewedBlocId(nextBlocId);
-      setMessages(messagesByBloc.get(nextBlocId) || []);
+      setMessages([]);
+      setListPositioned(false);
       setDraft("");
       setEventDraft(emptyEventDraft());
       setShowEventSheet(false);
@@ -783,8 +828,10 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, currentUserId, mem
     }
     setMounted(false);
     streamStateRef.current = new Map();
+    messageNodeRefs.current.clear();
     setViewedBlocId(nextBlocId);
-    setMessages(messagesByBloc.get(nextBlocId) || []);
+    setMessages([]);
+    setListPositioned(true);
     setDraft("");
     setEventDraft(emptyEventDraft());
     setShowEventSheet(false);
@@ -796,8 +843,10 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, currentUserId, mem
   // members array, which can be recreated by parent polling and would yank scroll.
   useEffect(() => {
     if (!open || !activeBlocId) return;
-    setMessages(messagesByBloc.get(activeBlocId) || []);
-    refreshMessages({ scroll: true });
+    messageNodeRefs.current.clear();
+    setMessages([]);
+    setListPositioned(false);
+    refreshMessages({ anchorUnread: true, restoreScrollTop: activeBlocId === initialBlocId ? initialScrollTop : null });
   }, [open, activeBlocId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Bulletproof background scroll lock: pin the body in place (iOS Safari
@@ -977,6 +1026,7 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, currentUserId, mem
     onOpenLogComments?.({
       groupId: activeBlocId,
       source: "stream",
+      returnScrollTop: listRef.current?.scrollTop,
       log: {
         id: payload.id || payload.logId,
         owner: payload.ownerDisplayName || "Member",
@@ -1043,7 +1093,7 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, currentUserId, mem
       // Message list
       React.createElement('div', {
         ref: listRef,
-        style: { flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", overscrollBehavior: "contain", padding: "16px 16px 20px", display: "flex", flexDirection: "column", userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none" }
+        style: { flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", overscrollBehavior: "contain", padding: "16px 16px 20px", display: "flex", flexDirection: "column", userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none", opacity: listPositioned ? 1 : 0, transition: listPositioned ? "opacity .08s ease" : "none" }
       },
         messages.length === 0
           ? React.createElement('div', { style: { margin: "auto", color: "var(--muted2)", fontSize: 13 } }, "No messages yet")
@@ -1061,7 +1111,16 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, currentUserId, mem
               const marginTop = i === 0 || showDaySep ? 0 : (firstInGroup || !isText ? 12 : 3);
               const wrap = child => React.createElement(React.Fragment, { key: msg.id },
                 showDaySep && React.createElement(DaySeparator, { label: dayLabel(msg.created_at) }),
-                React.createElement('div', { style: { marginTop } }, child)
+                React.createElement('div', {
+                  ref: node => {
+                    const key = String(msg.id || "");
+                    if (!key) return;
+                    if (node) messageNodeRefs.current.set(key, node);
+                    else messageNodeRefs.current.delete(key);
+                  },
+                  "data-stream-message-id": msg.id,
+                  style: { marginTop }
+                }, child)
               );
 
               if (msg.message_type === "system") {
