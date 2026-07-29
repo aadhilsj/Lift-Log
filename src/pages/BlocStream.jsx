@@ -1,5 +1,5 @@
 import React from "react";
-const { useState, useEffect, useRef } = React;
+const { useState, useEffect, useLayoutEffect, useRef } = React;
 import { Avatar, AppIcon, WorkoutTypeIcon } from "../components/primitives.jsx";
 import {
   createBlocStreamEventData,
@@ -662,6 +662,7 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, 
   const [replyTarget, setReplyTarget] = useState(null);
   const [mention, setMention] = useState(null); // { query, start } while typing "@…"
   const [listPositioned, setListPositioned] = useState(true);
+  const [pendingListAnchor, setPendingListAnchor] = useState(null);
   const listRef = useRef(null);
   const inputRef = useRef(null);
   const messageNodeRefs = useRef(new Map());
@@ -691,34 +692,24 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, 
   };
   const positionListForUnread = (nextMessages, unreadCount, restoreScrollTop = null) => {
     const count = Math.max(0, Number(unreadCount || 0));
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        const el = listRef.current;
-        if (!el) {
-          setListPositioned(true);
-          return;
-        }
-        if (Number.isFinite(Number(restoreScrollTop))) {
-          el.scrollTop = Math.max(0, Number(restoreScrollTop));
-        } else if (count > 0 && nextMessages.length > 0) {
-          let remainingUnread = count;
-          let targetMessage = nextMessages[0];
-          for (let index = nextMessages.length - 1; index >= 0; index -= 1) {
-            const candidate = nextMessages[index];
-            if (candidate?.author_id === currentUserId) continue;
-            remainingUnread -= 1;
-            targetMessage = candidate;
-            if (remainingUnread <= 0) break;
-          }
-          const targetNode = targetMessage?.id ? messageNodeRefs.current.get(String(targetMessage.id)) : null;
-          if (targetNode) el.scrollTop = Math.max(0, targetNode.offsetTop - 12);
-          else el.scrollTop = 0;
-        } else {
-          el.scrollTop = el.scrollHeight;
-        }
-        setListPositioned(true);
-      });
-    });
+    if (Number.isFinite(Number(restoreScrollTop))) {
+      setPendingListAnchor({ type: "restore", scrollTop: Math.max(0, Number(restoreScrollTop)) });
+      return;
+    }
+    if (count > 0 && nextMessages.length > 0) {
+      let remainingUnread = count;
+      let targetMessage = nextMessages[0];
+      for (let index = nextMessages.length - 1; index >= 0; index -= 1) {
+        const candidate = nextMessages[index];
+        if (candidate?.author_id === currentUserId) continue;
+        remainingUnread -= 1;
+        targetMessage = candidate;
+        if (remainingUnread <= 0) break;
+      }
+      setPendingListAnchor({ type: "message", messageId: String(targetMessage?.id || "") });
+      return;
+    }
+    setPendingListAnchor({ type: "bottom" });
   };
 
   const refreshMessages = async ({ scroll = false, anchorUnread = false, restoreScrollTop = null } = {}) => {
@@ -819,6 +810,7 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, 
       setViewedBlocId(nextBlocId);
       setMessages([]);
       setListPositioned(false);
+      setPendingListAnchor(null);
       setDraft("");
       setEventDraft(emptyEventDraft());
       setShowEventSheet(false);
@@ -832,6 +824,7 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, 
     setViewedBlocId(nextBlocId);
     setMessages([]);
     setListPositioned(true);
+    setPendingListAnchor(null);
     setDraft("");
     setEventDraft(emptyEventDraft());
     setShowEventSheet(false);
@@ -846,8 +839,29 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, 
     messageNodeRefs.current.clear();
     setMessages([]);
     setListPositioned(false);
+    setPendingListAnchor(null);
     refreshMessages({ anchorUnread: true, restoreScrollTop: activeBlocId === initialBlocId ? initialScrollTop : null });
   }, [open, activeBlocId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useLayoutEffect(() => {
+    if (!open || listPositioned || !pendingListAnchor) return;
+    const el = listRef.current;
+    if (!el) {
+      setListPositioned(true);
+      setPendingListAnchor(null);
+      return;
+    }
+    if (pendingListAnchor.type === "restore") {
+      el.scrollTop = Math.max(0, Number(pendingListAnchor.scrollTop || 0));
+    } else if (pendingListAnchor.type === "message") {
+      const node = messageNodeRefs.current.get(String(pendingListAnchor.messageId || ""));
+      el.scrollTop = node ? Math.max(0, node.offsetTop - 12) : 0;
+    } else {
+      el.scrollTop = el.scrollHeight;
+    }
+    requestAnimationFrame(() => setListPositioned(true));
+    setPendingListAnchor(null);
+  }, [messages, pendingListAnchor, listPositioned, open]);
 
   // Bulletproof background scroll lock: pin the body in place (iOS Safari
   // leaks touch-scroll through a plain `overflow:hidden`, so fix the body and
