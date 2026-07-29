@@ -651,7 +651,7 @@ const MentionList = ({ items, onPick }) =>
     ))
   );
 
-const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, currentUserId, members = [], streamBlocs = [], onSeasonClosedTap, onUnreadCountChange, onOpenLogComments, onClose }) => {
+const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, initialUnreadCount = 0, currentUserId, members = [], streamBlocs = [], onSeasonClosedTap, onUnreadCountChange, onOpenLogComments, onClose }) => {
   const [mounted, setMounted] = useState(false);
   const [messages, setMessages] = useState([]);
   const [messagesByBloc, setMessagesByBloc] = useState(readStreamMessageCache);
@@ -666,6 +666,7 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, 
   const listRef = useRef(null);
   const inputRef = useRef(null);
   const messageNodeRefs = useRef(new Map());
+  const previousOpenRef = useRef(false);
   const streamStateRef = useRef(new Map());
   const activeBlocIdRef = useRef(blocId);
 
@@ -712,10 +713,10 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, 
     setPendingListAnchor({ type: "bottom" });
   };
 
-  const refreshMessages = async ({ scroll = false, anchorUnread = false, restoreScrollTop = null } = {}) => {
+  const refreshMessages = async ({ scroll = false, anchorUnread = false, restoreScrollTop = null, preserveVisible = false } = {}) => {
     const requestBlocId = activeBlocId;
     if (!requestBlocId) return;
-    if (anchorUnread) setListPositioned(false);
+    if (anchorUnread && !preserveVisible) setListPositioned(false);
     const [result, unreadResult] = await Promise.all([
       listBlocStreamMessagesData(requestBlocId),
       anchorUnread ? getBlocStreamUnreadCountData(requestBlocId) : Promise.resolve(null)
@@ -802,49 +803,82 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, 
   };
 
   useEffect(() => {
+    const wasOpen = previousOpenRef.current;
+    previousOpenRef.current = open;
     const nextBlocId = initialBlocId || blocId;
-    if (open) {
+    if (open && !wasOpen) {
       const id = requestAnimationFrame(() => setMounted(true));
+      const cachedMessages = messagesByBloc.get(nextBlocId) || [];
       streamStateRef.current = new Map();
       messageNodeRefs.current.clear();
       setViewedBlocId(nextBlocId);
-      setMessages([]);
-      setListPositioned(false);
+      setMessages(cachedMessages);
+      setListPositioned(cachedMessages.length === 0 ? false : true);
       setPendingListAnchor(null);
       setDraft("");
       setEventDraft(emptyEventDraft());
       setShowEventSheet(false);
       setReplyTarget(null);
       setMention(null);
+      if (cachedMessages.length > 0) {
+        setListPositioned(false);
+        positionListForUnread(
+          cachedMessages,
+          Number.isFinite(Number(initialUnreadCount)) ? Number(initialUnreadCount) : 0,
+          nextBlocId === initialBlocId ? initialScrollTop : null
+        );
+      }
       return () => cancelAnimationFrame(id);
     }
-    setMounted(false);
-    streamStateRef.current = new Map();
-    messageNodeRefs.current.clear();
-    setViewedBlocId(nextBlocId);
-    setMessages([]);
-    setListPositioned(true);
-    setPendingListAnchor(null);
-    setDraft("");
-    setEventDraft(emptyEventDraft());
-    setShowEventSheet(false);
-    setReplyTarget(null);
-    setMention(null);
-  }, [open, blocId, initialBlocId]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (!open && wasOpen) {
+      setMounted(false);
+      streamStateRef.current = new Map();
+      messageNodeRefs.current.clear();
+      setViewedBlocId(nextBlocId);
+      setMessages([]);
+      setListPositioned(true);
+      setPendingListAnchor(null);
+      setDraft("");
+      setEventDraft(emptyEventDraft());
+      setShowEventSheet(false);
+      setReplyTarget(null);
+      setMention(null);
+    }
+  }, [open, blocId, initialBlocId, initialScrollTop, initialUnreadCount]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Runs when the visible stream changes. Deliberately not keyed on the active
   // members array, which can be recreated by parent polling and would yank scroll.
   useEffect(() => {
     if (!open || !activeBlocId) return;
-    messageNodeRefs.current.clear();
-    setMessages([]);
-    setListPositioned(false);
-    setPendingListAnchor(null);
-    refreshMessages({ anchorUnread: true, restoreScrollTop: activeBlocId === initialBlocId ? initialScrollTop : null });
+    const cachedMessages = messagesByBloc.get(activeBlocId) || [];
+    const hasCachedMessages = cachedMessages.length > 0;
+    const restoreScrollTop = activeBlocId === initialBlocId ? initialScrollTop : null;
+    if (hasCachedMessages) {
+      messageNodeRefs.current.clear();
+      setMessages(cachedMessages);
+      setListPositioned(false);
+      setPendingListAnchor(null);
+      positionListForUnread(
+        cachedMessages,
+        Number.isFinite(Number(initialUnreadCount)) ? Number(initialUnreadCount) : 0,
+        restoreScrollTop
+      );
+    }
+    if (!hasCachedMessages) {
+      messageNodeRefs.current.clear();
+      setMessages([]);
+      setListPositioned(false);
+      setPendingListAnchor(null);
+    }
+    refreshMessages({
+      anchorUnread: true,
+      restoreScrollTop: hasCachedMessages ? null : restoreScrollTop,
+      preserveVisible: hasCachedMessages
+    });
   }, [open, activeBlocId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useLayoutEffect(() => {
-    if (!open || listPositioned || !pendingListAnchor) return;
+    if (!open || !pendingListAnchor) return;
     const el = listRef.current;
     if (!el) {
       setListPositioned(true);
