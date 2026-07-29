@@ -878,24 +878,47 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, 
   }, [open, activeBlocId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useLayoutEffect(() => {
-    if (!open || !pendingListAnchor) return;
+    if (!open || !mounted || !pendingListAnchor) return;
     const el = listRef.current;
     if (!el) {
       setListPositioned(true);
       setPendingListAnchor(null);
       return;
     }
-    if (pendingListAnchor.type === "restore") {
-      el.scrollTop = Math.max(0, Number(pendingListAnchor.scrollTop || 0));
-    } else if (pendingListAnchor.type === "message") {
-      const node = messageNodeRefs.current.get(String(pendingListAnchor.messageId || ""));
-      el.scrollTop = node ? Math.max(0, node.offsetTop - 12) : 0;
-    } else {
-      el.scrollTop = el.scrollHeight;
-    }
-    requestAnimationFrame(() => setListPositioned(true));
-    setPendingListAnchor(null);
-  }, [messages, pendingListAnchor, listPositioned, open]);
+    const anchor = pendingListAnchor;
+    let frame = 0;
+    let cancelled = false;
+    let lastScrollHeight = -1;
+    const applyAnchor = () => {
+      if (cancelled) return;
+      const currentEl = listRef.current;
+      if (!currentEl) {
+        setListPositioned(true);
+        setPendingListAnchor(null);
+        return;
+      }
+      if (anchor.type === "restore") {
+        currentEl.scrollTop = Math.max(0, Number(anchor.scrollTop || 0));
+      } else if (anchor.type === "message") {
+        const node = messageNodeRefs.current.get(String(anchor.messageId || ""));
+        currentEl.scrollTop = node ? Math.max(0, node.offsetTop - 12) : 0;
+      } else {
+        currentEl.scrollTop = currentEl.scrollHeight;
+      }
+      const heightStable = currentEl.scrollHeight === lastScrollHeight;
+      const canScroll = currentEl.scrollHeight > currentEl.clientHeight + 1;
+      lastScrollHeight = currentEl.scrollHeight;
+      frame += 1;
+      if ((heightStable && (canScroll || anchor.type !== "bottom")) || frame >= 12) {
+        setListPositioned(true);
+        setPendingListAnchor(null);
+        return;
+      }
+      requestAnimationFrame(applyAnchor);
+    };
+    requestAnimationFrame(applyAnchor);
+    return () => { cancelled = true; };
+  }, [messages, pendingListAnchor, open, mounted]);
 
   // Bulletproof background scroll lock: pin the body in place (iOS Safari
   // leaks touch-scroll through a plain `overflow:hidden`, so fix the body and
