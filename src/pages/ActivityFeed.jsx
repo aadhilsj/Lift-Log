@@ -32,7 +32,7 @@ const reactionSortIndex = emoji => {
   return index === -1 ? QUICK_REACTIONS.length : index;
 };
 
-const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,onReview,clockTick,reactionOverrides,setReactionOverrides,commentCountOverrides = {},onOpenLogComments}) => {
+const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,onReview,clockTick,reactionOverrides,setReactionOverrides,commentCountOverrides = {},onCommentCountsLoaded,onOpenLogComments}) => {
   const [flagTarget,setFlagTarget]=useState(null);
   const [flagReason,setFlagReason]=useState("");
   const [responseTarget,setResponseTarget]=useState(null);
@@ -107,11 +107,12 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
       const result = await getLogCommentCountsData(group.id, logIds);
       if (cancelled || !result?.ok) return;
       setCommentCounts(current => ({ ...current, ...result.counts }));
+      onCommentCountsLoaded?.(current => ({ ...current, ...result.counts }));
     };
     refreshCounts();
     const id = window.setInterval(refreshCounts, 8000);
     return ()=>{ cancelled = true; window.clearInterval(id); };
-  },[feedPosts, group?.id]);
+  },[feedPosts, group?.id, onCommentCountsLoaded]);
   useEffect(()=>{
     if (!reactionPopover) return;
     const handlePointerDown = event => {

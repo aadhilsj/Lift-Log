@@ -286,7 +286,7 @@ const GroupHome = ({groups,currentIdentity,currentEmail,currentUserId="",onOpenP
     return React.createElement('span',{className:"mono",style:{display:"inline-flex",alignItems:"center",color:"#1E4040",fontSize:10,letterSpacing:".04em"}},closeMeta.label);
   };
   const statusColor = status => status==="cruising" ? "#CBD5E1" : status==="on-track" ? "#5ABF5A" : status==="at-risk" ? "#D4A843" : status==="behind" ? "#E07A3F" : status==="cooked" ? "#D44A4A" : "#CBD5E1";
-  const statusLabel = status => status === "starting-soon" ? "Month started" : status === "locked-in" ? "Cleared" : String(status || "").replace("-", " ").toUpperCase();
+  const statusLabel = status => status === "starting-soon" ? "Month started" : status === "locked-in" ? "CLEARED" : String(status || "").replace("-", " ").toUpperCase();
   const statusTextStyle = status => {
     const base = {marginTop:3,fontSize:12,fontWeight:800,lineHeight:1.1,whiteSpace:"nowrap"};
     if (status !== "locked-in") return {...base,color:statusColor(status)};
