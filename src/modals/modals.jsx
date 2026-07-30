@@ -36,7 +36,7 @@ import {
   isMobile,
   copyToClipboard
 } from "../lib/utils.js";
-import { Avatar, WorkoutTypeIcon, WorkoutCategorySelector, SettingsField, SelectField, inputShellStyle, StepperField, AppIcon } from "../components/primitives.jsx";
+import { Avatar, WorkoutTypeIcon, WorkoutCategorySelector, SettingsField, SelectField, inputShellStyle, StepperField } from "../components/primitives.jsx";
 
 const SETTINGS_DEFAULTS = {
   minTarget: DEFAULT_MIN_TARGET,
@@ -197,15 +197,12 @@ const GroupCreateModal = ({onCreate,onClose,creating,defaultCreatorName="",defau
   const canCreate = groupName.trim() && creatorName.trim() && normalizedSettings.acceptedWorkoutTypes.length > 0 && !creating;
 
   return React.createElement('div',{className:`overlay${compactMobile ? " center-mobile" : ""}`,onClick:onClose},
-    React.createElement('div',{className:"modal setup-create-modal",onClick:e=>e.stopPropagation(),style:{maxWidth:400,padding:"22px 20px 18px",fontFamily:UI_FONT}},
-      React.createElement('div',{style:{width:42,height:42,borderRadius:999,display:"flex",alignItems:"center",justifyContent:"center",background:"#0A1212",border:"0.5px solid rgba(78,205,196,.42)",color:"#4ECDC4",boxShadow:"0 0 18px rgba(78,205,196,.1)",marginBottom:13}},
-        React.createElement(AppIcon,{name:"money-bag",size:22,stroke:"#4ECDC4"})
-      ),
+    React.createElement('div',{className:"modal setup-create-modal",onClick:e=>e.stopPropagation(),style:{maxWidth:400,padding:"24px 20px 18px",fontFamily:UI_FONT,background:"radial-gradient(circle at 50% -18%, rgba(78,205,196,.16), transparent 36%), linear-gradient(180deg, rgba(11,25,24,.98), rgba(7,15,14,.98))",border:"0.5px solid rgba(78,205,196,.22)",boxShadow:"inset 0 1px 0 rgba(255,255,255,.07), 0 22px 54px rgba(0,0,0,.46), 0 0 42px rgba(78,205,196,.08)"}},
       React.createElement('div',{style:{fontFamily:DISPLAY_FONT,fontWeight:800,fontSize:22,letterSpacing:0,lineHeight:1.08,marginBottom:6}},"Create a Bloc"),
-      React.createElement('div',{style:{fontFamily:UI_FONT,color:"var(--muted)",fontSize:13,lineHeight:1.45,marginBottom:17}},"Start with the basics. You can review the rest from Today after the Bloc is live."),
+      React.createElement('div',{style:{fontFamily:UI_FONT,color:"var(--muted)",fontSize:13,lineHeight:1.35,marginBottom:17,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},"Start the Bloc now. Tune the rules after."),
       [
-        ["Bloc name",groupName,setGroupName,"Sunday Runners"],
-        ...(!lockCreatorName ? [["Your name",creatorName,setCreatorName,"Aadhil"]] : [])
+        ["Bloc Name",groupName,setGroupName,"Sunday Runners"],
+        ...(!lockCreatorName ? [["Your Name",creatorName,setCreatorName,"Aadhil"]] : [])
       ].map(([label,value,setter,placeholder])=>
         React.createElement('label',{key:label,style:{display:"block",marginBottom:14}},
           React.createElement('div',{style:setupFieldTitleStyle},label),
@@ -213,7 +210,7 @@ const GroupCreateModal = ({onCreate,onClose,creating,defaultCreatorName="",defau
         )
       ),
       React.createElement('div',{style:{marginBottom:14}},
-        React.createElement('div',{style:setupFieldTitleStyle},"Monthly fine amount"),
+        React.createElement('div',{style:setupFieldTitleStyle},"Monthly Fine Amount"),
         React.createElement('div',{style:setupFieldHelpStyle},"What each person who misses the target owes."),
         React.createElement('div',{style:{display:"grid",gridTemplateColumns:"108px 1fr",gap:8,alignItems:"stretch"}},
           React.createElement(SelectField,{
@@ -228,7 +225,7 @@ const GroupCreateModal = ({onCreate,onClose,creating,defaultCreatorName="",defau
         )
       ),
       React.createElement('div',{style:{marginBottom:14}},
-        React.createElement('div',{style:setupFieldTitleStyle},"Monthly workout target"),
+        React.createElement('div',{style:setupFieldTitleStyle},"Monthly Workout Target"),
         React.createElement('div',{style:setupFieldHelpStyle},"Between 6 and 30 workouts per month."),
         React.createElement(StepperField,{value:settings.minTarget,onChange:value=>setSettings(current=>({...current,minTarget:value})),min:6,max:30})
       ),

@@ -92,11 +92,6 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
   const canSave = isAdmin && groupName.trim() && normalizedSettings.acceptedWorkoutTypes.length > 0 && !saving;
 
   useEffect(()=>{
-    document.body.style.overflow = "hidden";
-    return ()=>{ document.body.style.overflow = ""; };
-  },[]);
-
-  useEffect(()=>{
     setGroupName(group?.name || "");
     setSettings({...SETTINGS_DEFAULTS,...group?.settings});
   },[group?.id]);
@@ -130,31 +125,31 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
   const renderRules = () => {
     if (!isAdmin) {
       return React.createElement('div',null,
-        React.createElement(ReadOnlyField,{title:"Bloc name",value:group.name}),
-        React.createElement(ReadOnlyField,{title:"Monthly fine amount",value:`${group.settings?.currency || DEFAULT_CURRENCY} ${group.settings?.fineAmount || DEFAULT_FINE_AMOUNT}`}),
-        React.createElement(ReadOnlyField,{title:"Fine calculation",value:group.settings?.feeModel === "flat" ? "Flat" : "Escalating",review:pendingSet.has("feeModel")}),
-        React.createElement(ReadOnlyField,{title:"Monthly workout target",value:`${group.settings?.minTarget || DEFAULT_MIN_TARGET} workouts`}),
-        React.createElement(ReadOnlyField,{title:"Workout types that count",review:pendingSet.has("acceptedWorkoutTypes")},
+        React.createElement(ReadOnlyField,{title:"Bloc Name",value:group.name}),
+        React.createElement(ReadOnlyField,{title:"Monthly Fine Amount",value:`${group.settings?.currency || DEFAULT_CURRENCY} ${group.settings?.fineAmount || DEFAULT_FINE_AMOUNT}`}),
+        React.createElement(ReadOnlyField,{title:"Fine Calculation",value:group.settings?.feeModel === "flat" ? "Flat" : "Escalating",review:pendingSet.has("feeModel")}),
+        React.createElement(ReadOnlyField,{title:"Monthly Workout Target",value:`${group.settings?.minTarget || DEFAULT_MIN_TARGET} workouts`}),
+        React.createElement(ReadOnlyField,{title:"Workout Types That Count",review:pendingSet.has("acceptedWorkoutTypes")},
           React.createElement('div',{style:{display:"flex",gap:7,flexWrap:"wrap"}},
             (group.settings?.acceptedWorkoutTypes || WORKOUT_TYPES).map(type=>React.createElement('span',{key:type,style:{fontSize:12,fontWeight:700,color:"#f5f7ff"}},type))
           )
         ),
-        React.createElement(ReadOnlyField,{title:"Time zone",value:group.settings?.timeZone || DEFAULT_GROUP_TIME_ZONE,review:pendingSet.has("timeZone")}),
+        React.createElement(ReadOnlyField,{title:"Time Zone",value:group.settings?.timeZone || DEFAULT_GROUP_TIME_ZONE,review:pendingSet.has("timeZone")}),
         React.createElement('div',{style:{fontSize:12,color:"var(--muted)",lineHeight:1.5,marginTop:14}},"Only the Bloc admin can edit these.")
       );
     }
     return React.createElement('div',null,
-      React.createElement(EditableField,{title:"Bloc name"},
+      React.createElement(EditableField,{title:"Bloc Name"},
         React.createElement('input',{value:groupName,onChange:e=>setGroupName(e.target.value),style:{...inputShellStyle,width:"100%",fontSize:13,padding:"10px 11px",borderRadius:10}})
       ),
-      React.createElement(EditableField,{title:"Monthly fine amount"},
+      React.createElement(EditableField,{title:"Monthly Fine Amount"},
         React.createElement('div',{style:{display:"grid",gridTemplateColumns:"78px 1fr",gap:8,maxWidth:220}},
           React.createElement('div',{style:{...inputShellStyle,padding:"10px 11px",borderRadius:10,fontSize:13,textAlign:"center",color:"var(--muted)",display:"flex",alignItems:"center",justifyContent:"center"}},settings.currency || DEFAULT_CURRENCY),
           React.createElement('input',{type:"number",min:1,value:settings.fineAmount,onChange:e=>setSettings(current=>({...current,fineAmount:e.target.value})),style:{...inputShellStyle,width:"100%",fontSize:13,padding:"10px 11px",borderRadius:10,textAlign:"center"}})
         )
       ),
       React.createElement(ReviewShell,{review:pendingSet.has("feeModel")},
-        React.createElement(EditableField,{title:renderRuleTitle("Fine calculation","feeModel")},
+        React.createElement(EditableField,{title:renderRuleTitle("Fine Calculation","feeModel")},
           React.createElement('div',{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}},
             ["escalating","flat"].map(value => {
               const active = settings.feeModel === value;
@@ -167,22 +162,22 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
               : "Each extra miss raises the fine for everyone who missed."
           ),
           settings.feeModel === "escalating" && React.createElement('div',{style:{marginTop:10}},
-            React.createElement('div',{style:{fontSize:11,fontWeight:800,color:"var(--text)",marginBottom:6}},"Fine increase per miss"),
+            React.createElement('div',{style:{fontSize:11,fontWeight:800,color:"var(--text)",marginBottom:6}},"Fine Increase Per Miss"),
             React.createElement(StepperField,{value:settings.escalationStepAmount,onChange:value=>setSettings(current=>({...current,escalationStepAmount:value})),min:1,compact:true,suffix:settings.currency || DEFAULT_CURRENCY}),
             submitAttempted && escalationStepMissing && React.createElement('div',{style:{fontSize:12,color:"var(--red)",marginTop:7}},"Set a step amount to continue.")
           )
         )
       ),
-      React.createElement(EditableField,{title:"Monthly workout target"},
+      React.createElement(EditableField,{title:"Monthly Workout Target"},
         React.createElement(StepperField,{value:settings.minTarget,onChange:value=>setSettings(current=>({...current,minTarget:value})),min:6,max:30,compact:true})
       ),
       React.createElement(ReviewShell,{review:pendingSet.has("acceptedWorkoutTypes")},
-        React.createElement(EditableField,{title:renderRuleTitle("Workout types that count","acceptedWorkoutTypes")},
+        React.createElement(EditableField,{title:renderRuleTitle("Workout Types That Count","acceptedWorkoutTypes")},
           React.createElement(WorkoutCategorySelector,{selected:settings.acceptedWorkoutTypes,onToggle:toggleType,compact:true})
         )
       ),
       React.createElement(ReviewShell,{review:pendingSet.has("timeZone")},
-        React.createElement(EditableField,{title:renderRuleTitle("Time zone","timeZone")},
+        React.createElement(EditableField,{title:renderRuleTitle("Time Zone","timeZone")},
           React.createElement(SelectField,{value:settings.timeZone,onChange:e=>setSettings(current=>({...current,timeZone:e.target.value})),width:"100%",maxWidth:320,options:TIME_ZONE_OPTIONS.map(option=>({value:option.value,label:`${option.label} · ${option.abbr}`})),compact:true,arrowColor:"#4ECDC4"})
         )
       ),
@@ -211,9 +206,9 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
         const isMe = memberId ? memberId===actorUserId : displayName===actor;
         const kickKey = memberId || displayName;
         const kicking = kickingUserId===kickKey;
-        return React.createElement('div',{key:displayName,style:{display:"flex",alignItems:"center",gap:10,padding:"10px 11px",borderRadius:12,background:"#0D1F1E",border:"0.5px solid #163d36"}},
+        return React.createElement('div',{key:displayName,style:{display:"flex",alignItems:"center",gap:10,padding:"10px 11px",borderRadius:12,background:isAdmin?"#0D1F1E":"rgba(13,31,30,.48)",border:`0.5px solid ${isAdmin?"#163d36":"rgba(22,61,54,.45)"}`,opacity:isAdmin?1:.72}},
           React.createElement(Avatar,{name:displayName,size:30,userId:memberId}),
-          React.createElement('span',{style:{flex:1,fontSize:13,fontWeight:800,color:"var(--text)"}},displayName,isMe&&React.createElement('span',{style:{fontSize:10,color:"var(--muted)",marginLeft:6}},"(you)")),
+          React.createElement('span',{style:{flex:1,fontSize:13,fontWeight:800,color:isAdmin?"var(--text)":"rgba(245,247,255,.72)"}},displayName,isMe&&React.createElement('span',{style:{fontSize:10,color:"var(--muted)",marginLeft:6}},"(you)")),
           isAdmin && !isMe && onKickMember && (confirmKick===kickKey
             ? React.createElement('div',{style:{display:"flex",gap:6}},
                 React.createElement('button',{type:"button",onClick:()=>setConfirmKick(null),style:{padding:"6px 8px",borderRadius:8,background:"var(--s3)",border:"1px solid var(--border)",color:"var(--muted)",fontSize:11,fontWeight:700}},"Cancel"),
@@ -229,14 +224,14 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
   const renderInvite = () => (
     React.createElement('div',{style:{display:"grid",gap:14}},
       React.createElement('div',null,
-        React.createElement('div',{style:fieldTitleStyle},"Invite code"),
+        React.createElement('div',{style:fieldTitleStyle},"Invite Code"),
         React.createElement('div',{style:{display:"grid",gridTemplateColumns:"1fr auto",gap:8}},
           React.createElement('div',{style:{padding:"11px 12px",borderRadius:11,background:"#0D1F1E",border:"0.5px solid #163d36",fontFamily:UI_FONT,fontSize:15,fontWeight:900,color:"#f5f7ff",letterSpacing:".08em"}},group.inviteCode),
           React.createElement('button',{type:"button",className:"setup-press",onClick:e=>copyToClipboard(group.inviteCode,e.currentTarget),style:{padding:"0 12px",borderRadius:11,background:"#0D1F1E",border:"0.5px solid #163d36",fontFamily:UI_FONT,fontSize:11,fontWeight:800,color:"#4ECDC4"}},"Copy")
         )
       ),
       React.createElement('div',null,
-        React.createElement('div',{style:fieldTitleStyle},"Invite link"),
+        React.createElement('div',{style:fieldTitleStyle},"Invite Link"),
         React.createElement('div',{style:{display:"grid",gridTemplateColumns:"1fr auto",gap:8}},
           React.createElement('div',{style:{padding:"11px 12px",borderRadius:11,background:"#0D1F1E",border:"0.5px solid #163d36",fontFamily:UI_FONT,fontSize:11,color:"var(--muted)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},inviteLink),
           React.createElement('button',{type:"button",className:"setup-press",onClick:e=>copyToClipboard(inviteLink,e.currentTarget),style:{padding:"0 12px",borderRadius:11,background:"#0D1F1E",border:"0.5px solid #163d36",fontFamily:UI_FONT,fontSize:11,fontWeight:800,color:"#4ECDC4"}},"Copy")
@@ -248,9 +243,9 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
   const content = tab === "members" ? renderMembers() : tab === "invite" ? renderInvite() : renderRules();
 
   return React.createElement('div',{
-    style:{position:"fixed",inset:0,zIndex:560,background:"var(--bg-gradient)",backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)",overflowY:"auto",WebkitOverflowScrolling:"touch",overscrollBehavior:"contain"}
+    style:{minHeight:"calc(100vh - 64px)",background:"transparent",overflowY:"auto",WebkitOverflowScrolling:"touch",overscrollBehavior:"contain"}
   },
-    React.createElement('div',{style:{maxWidth:520,margin:"0 auto",padding:compactMobile?"calc(env(safe-area-inset-top) + 6px) 16px calc(env(safe-area-inset-bottom) + 28px)":"18px 18px 38px"}},
+    React.createElement('div',{style:{maxWidth:520,margin:"0 auto",padding:compactMobile?"10px 16px calc(env(safe-area-inset-bottom) + 28px)":"18px 18px 38px"}},
       React.createElement('div',{style:{display:"flex",alignItems:"center",gap:8,minHeight:40,marginBottom:7}},
         React.createElement('button',{type:"button",className:"setup-press",onClick:onClose,style:{width:38,height:38,borderRadius:999,display:"inline-flex",alignItems:"center",justifyContent:"center",background:"transparent",color:"#4ECDC4",border:"none",padding:0,flexShrink:0}},React.createElement(AppIcon,{name:"chevron-left",size:25,stroke:"#4ECDC4"})),
         React.createElement('div',{style:{fontFamily:DISPLAY_FONT,fontSize:20,fontWeight:800,letterSpacing:0,lineHeight:1,color:"#f5f7ff"}},"Bloc settings")
