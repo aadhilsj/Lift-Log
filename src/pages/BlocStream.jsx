@@ -699,11 +699,15 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, 
     setStreamDragging(false);
     setStreamDragY(0);
   };
-  const startStreamPull = e => {
+  const closeStream = () => {
+    resetStreamPull();
+    onClose?.();
+  };
+  const startStreamPull = (e, fromHeader = false) => {
     if (showEventSheet || replyTarget || mention || e.target?.closest?.("input,textarea,select,button,[contenteditable='true']")) return;
     const el = listRef.current;
     const t = e.touches?.[0];
-    if (!el || !t || el.scrollTop > 1) return;
+    if (!t || (!fromHeader && (!el || el.scrollTop > 1))) return;
     streamPullRef.current = {sx:t.clientX, sy:t.clientY, st:performance.now(), active:true, mode:null};
   };
   const moveStreamPull = e => {
@@ -712,8 +716,8 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, 
     if (!s.active || !t) return;
     const dx = t.clientX - s.sx;
     const dy = t.clientY - s.sy;
-    if (!s.mode && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) {
-      s.mode = dy > 0 && Math.abs(dy) > 9 && Math.abs(dy) > Math.abs(dx) * 1.15 ? "close" : "scroll";
+    if (!s.mode && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) {
+      s.mode = dy > 0 && Math.abs(dy) > 6 && Math.abs(dy) > Math.abs(dx) * 1.02 ? "close" : "scroll";
       setStreamDragging(s.mode === "close");
     }
     if (s.mode === "close") {
@@ -730,13 +734,13 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, 
     const dy = t.clientY - s.sy;
     const screenHeight = window.innerHeight || 720;
     const elapsed = Math.max(1, performance.now() - (s.st || performance.now()));
-    const fastPull = dy > 34 && elapsed < 300 && dy / elapsed > 0.24 && dy > Math.abs(dx) * 1.08;
-    const dominantPull = dy > screenHeight * 0.24 && dy > Math.abs(dx);
+    const fastPull = dy > 18 && elapsed < 300 && dy / elapsed > 0.16 && dy > Math.abs(dx);
+    const dominantPull = dy > Math.min(70, screenHeight * 0.14) && dy > Math.abs(dx);
     const shouldClose = s.mode === "close" && (fastPull || dominantPull);
     setStreamDragging(false);
     if (shouldClose) {
       setStreamDragY(screenHeight);
-      window.setTimeout(()=>{ resetStreamPull(); onClose?.(); },45);
+      window.setTimeout(closeStream,45);
     } else {
       setStreamDragY(0);
     }
@@ -1161,7 +1165,7 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, 
   };
 
   return React.createElement('div', {
-    onClick: onClose,
+    onClick: closeStream,
     style: {
       position: "fixed", inset: 0, zIndex: 300, display: "flex", flexDirection: "column",
       justifyContent: "flex-end", background: mounted ? "rgba(0,0,0,.5)" : "rgba(0,0,0,0)",
@@ -1181,6 +1185,10 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, 
       // Stream header: title block only. Stream switching lives on the side
       // chevrons so the header stays quiet and the swipe-to-reply gesture is free.
       React.createElement('div', {
+        onTouchStart:e=>startStreamPull(e,true),
+        onTouchMove:moveStreamPull,
+        onTouchEnd:endStreamPull,
+        onTouchCancel:resetStreamPull,
         style: {
           display: "flex", alignItems: "center", justifyContent: "flex-start",
           padding: "15px 48px 13px 18px", borderBottom: "1px solid rgba(78,205,196,0.16)",
@@ -1197,9 +1205,10 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, 
           }, activeGroupName || "")
         ),
         React.createElement('button', {
-          onClick: onClose,
+          onClick: e => { e.stopPropagation(); closeStream(); },
+          onTouchStart: e => e.stopPropagation(),
           "aria-label": "Close Bloc Stream",
-          style: { position: "absolute", top: 13, right: 16, width: 28, height: 28, display: "inline-flex", alignItems: "center", justifyContent: "center", background: "transparent", border: "none", color: C.accent, fontSize: 18, fontWeight: 500, padding: 0, cursor: "pointer", lineHeight: 1 }
+          style: { position: "absolute", top: 13, right: 16, zIndex:6, width: 28, height: 28, display: "inline-flex", alignItems: "center", justifyContent: "center", background: "transparent", border: "none", color: C.accent, fontSize: 18, fontWeight: 500, padding: 0, cursor: "pointer", lineHeight: 1 }
         }, "✕")
       ),
       canSwitchStreams && React.createElement(React.Fragment, null,

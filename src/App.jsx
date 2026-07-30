@@ -1262,8 +1262,8 @@ const App = () => {
     if (!s.active || !t) return;
     const dx = t.clientX - s.sx;
     const dy = t.clientY - s.sy;
-    if (!s.mode && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) {
-      const horizontal = Math.abs(dx) > 9 && Math.abs(dx) > Math.abs(dy) * 1.18;
+    if (!s.mode && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) {
+      const horizontal = Math.abs(dx) > 6 && Math.abs(dx) > Math.abs(dy) * 1.05;
       if (!horizontal) {
         s.mode = "scroll";
         return;
@@ -1293,8 +1293,8 @@ const App = () => {
     const dy = t.clientY - s.sy;
     const screenWidth = window.innerWidth || 420;
     const elapsed = Math.max(1, performance.now() - (s.st || performance.now()));
-    const fastFlick = Math.abs(dx) > 30 && elapsed < 260 && Math.abs(dx) / elapsed > 0.24 && Math.abs(dx) > Math.abs(dy) * 1.08;
-    const dominantDrag = Math.abs(dx) > screenWidth * 0.34 && Math.abs(dy) < 110 && Math.abs(dx) > Math.abs(dy);
+    const fastFlick = Math.abs(dx) > 20 && elapsed < 280 && Math.abs(dx) / elapsed > 0.18 && Math.abs(dx) > Math.abs(dy);
+    const dominantDrag = Math.abs(dx) > screenWidth * 0.24 && Math.abs(dy) < 120 && Math.abs(dx) > Math.abs(dy);
     const shouldMove = s.mode === "page" && s.target && (fastFlick || dominantDrag);
     setPageDragging(false);
     if (shouldMove) {
@@ -1302,7 +1302,6 @@ const App = () => {
       window.setTimeout(() => {
         setPage(s.target);
         setMonthInitialIdx(null);
-        setNavResetToken(value=>value+1);
         resetPageSwipe();
       }, 45);
     } else {
