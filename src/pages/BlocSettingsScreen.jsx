@@ -22,12 +22,16 @@ import {
   Avatar,
   AppIcon,
   WorkoutCategorySelector,
-  SettingsField,
   SelectField,
   StepperField,
   inputShellStyle
 } from "../components/primitives.jsx";
 import { TIME_ZONE_OPTIONS } from "../modals/modals.jsx";
+
+const UI_FONT = "'Outfit', sans-serif";
+const DISPLAY_FONT = "'Raleway', sans-serif";
+const fieldTitleStyle = {fontFamily:UI_FONT,fontSize:13,fontWeight:800,color:"var(--text)",marginBottom:5};
+const fieldHelpStyle = {fontFamily:UI_FONT,fontSize:12,color:"var(--muted)",lineHeight:1.35,marginBottom:7};
 
 const SETTINGS_DEFAULTS = {
   minTarget: DEFAULT_MIN_TARGET,
@@ -42,31 +46,33 @@ const SETTINGS_DEFAULTS = {
   stravaEnabled: DEFAULT_STRAVA_ENABLED
 };
 
-const REVIEW_LABELS = {
-  feeModel: "defaulted — take a look",
-  acceptedWorkoutTypes: "defaulted — take a look",
-  timeZone: "defaulted — take a look"
-};
-
 const ReadOnlyField = ({title,value,review=false,children}) => (
-  React.createElement('div',{style:{padding:"13px 0",borderBottom:"0.5px solid rgba(22,61,54,.55)"}},
+  React.createElement('div',{style:{padding:"12px 0",borderBottom:"0.5px solid rgba(22,61,54,.55)",fontFamily:UI_FONT}},
     React.createElement('div',{style:{display:"flex",alignItems:"center",gap:7,marginBottom:5,flexWrap:"wrap"}},
-      React.createElement('div',{style:{fontSize:11,fontWeight:800,color:"#6B9690",letterSpacing:".1em",textTransform:"uppercase"}},title),
+      React.createElement('div',{style:{fontSize:13,fontWeight:800,color:"var(--text)"}},title),
       review && React.createElement(ReviewTag,null)
     ),
-    children || React.createElement('div',{style:{fontSize:15,fontWeight:700,color:"#f5f7ff",lineHeight:1.35}},value)
+    children || React.createElement('div',{style:{fontSize:14,fontWeight:600,color:"var(--muted)",lineHeight:1.35}},value)
   )
 );
 
 const ReviewTag = () => (
-  React.createElement('span',{style:{display:"inline-flex",alignItems:"center",gap:5,borderRadius:999,padding:"3px 7px",background:"rgba(78,205,196,.08)",border:"0.5px solid rgba(78,205,196,.24)",color:"#4ECDC4",fontSize:9,fontWeight:800,letterSpacing:".06em",textTransform:"uppercase"}},
+  React.createElement('span',{style:{display:"inline-flex",alignItems:"center",gap:5,borderRadius:999,padding:"3px 7px",background:"rgba(78,205,196,.08)",border:"0.5px solid rgba(78,205,196,.24)",color:"#4ECDC4",fontFamily:UI_FONT,fontSize:9,fontWeight:800,letterSpacing:".06em",textTransform:"uppercase"}},
     React.createElement('span',{style:{width:5,height:5,borderRadius:999,background:"#4ECDC4",boxShadow:"0 0 10px rgba(78,205,196,.55)"}}),
     "defaulted"
   )
 );
 
 const ReviewShell = ({children,review=false}) => (
-  React.createElement('div',{style:review?{borderRadius:12,border:"1px solid rgba(78,205,196,.45)",boxShadow:"0 0 0 1px rgba(78,205,196,.06) inset",padding:"10px 10px 0",margin:"0 -10px 10px"}:{}},children)
+  React.createElement('div',{style:review?{borderRadius:12,border:"1px solid rgba(78,205,196,.45)",boxShadow:"0 0 0 1px rgba(78,205,196,.06) inset",padding:"10px 10px 0",margin:"0 -10px 12px"}:{}},children)
+);
+
+const EditableField = ({title,description,children}) => (
+  React.createElement('div',{style:{marginBottom:14,fontFamily:UI_FONT}},
+    React.createElement('div',{style:fieldTitleStyle},title),
+    description && React.createElement('div',{style:fieldHelpStyle},description),
+    children
+  )
 );
 
 const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,saving,onReviewSetup,onReviewSitOut,onKickMember}) => {
@@ -138,21 +144,21 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
       );
     }
     return React.createElement('div',null,
-      React.createElement(SettingsField,{title:"Bloc name",compact:true},
+      React.createElement(EditableField,{title:"Bloc name"},
         React.createElement('input',{value:groupName,onChange:e=>setGroupName(e.target.value),style:{...inputShellStyle,width:"100%",fontSize:13,padding:"10px 11px",borderRadius:10}})
       ),
-      React.createElement(SettingsField,{title:"Monthly fine amount",compact:true},
+      React.createElement(EditableField,{title:"Monthly fine amount"},
         React.createElement('div',{style:{display:"grid",gridTemplateColumns:"78px 1fr",gap:8,maxWidth:220}},
           React.createElement('div',{style:{...inputShellStyle,padding:"10px 11px",borderRadius:10,fontSize:13,textAlign:"center",color:"var(--muted)",display:"flex",alignItems:"center",justifyContent:"center"}},settings.currency || DEFAULT_CURRENCY),
           React.createElement('input',{type:"number",min:1,value:settings.fineAmount,onChange:e=>setSettings(current=>({...current,fineAmount:e.target.value})),style:{...inputShellStyle,width:"100%",fontSize:13,padding:"10px 11px",borderRadius:10,textAlign:"center"}})
         )
       ),
       React.createElement(ReviewShell,{review:pendingSet.has("feeModel")},
-        React.createElement(SettingsField,{title:renderRuleTitle("Fine calculation","feeModel"),compact:true},
+        React.createElement(EditableField,{title:renderRuleTitle("Fine calculation","feeModel")},
           React.createElement('div',{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}},
             ["escalating","flat"].map(value => {
               const active = settings.feeModel === value;
-              return React.createElement('button',{key:value,type:"button",onClick:()=>setSettings(current=>({...current,feeModel:value,escalationStepAmount:value==="flat"?null:(normalizeEscalationStepAmount(current.escalationStepAmount) || DEFAULT_FINE_AMOUNT)})),style:{padding:"10px 12px",borderRadius:10,background:active?"rgba(78,205,196,.1)":"#0D1F1E",border:`0.5px solid ${active?"#4ECDC4":"#163d36"}`,color:active?"#4ECDC4":"var(--muted)",fontSize:12,fontWeight:900,textTransform:"uppercase"}},value === "flat" ? "Flat" : "Escalating");
+              return React.createElement('button',{key:value,type:"button",className:"setup-press",onClick:()=>setSettings(current=>({...current,feeModel:value,escalationStepAmount:value==="flat"?null:(normalizeEscalationStepAmount(current.escalationStepAmount) || DEFAULT_FINE_AMOUNT)})),style:{padding:"10px 12px",borderRadius:10,background:active?"rgba(78,205,196,.1)":"#0D1F1E",border:`0.5px solid ${active?"#4ECDC4":"#163d36"}`,color:active?"#4ECDC4":"var(--muted)",fontFamily:UI_FONT,fontSize:12,fontWeight:900,textTransform:"uppercase"}},value === "flat" ? "Flat" : "Escalating");
             })
           ),
           React.createElement('div',{style:{fontSize:12,color:"var(--muted)",lineHeight:1.4}},
@@ -167,20 +173,20 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
           )
         )
       ),
-      React.createElement(SettingsField,{title:"Monthly workout target",compact:true},
+      React.createElement(EditableField,{title:"Monthly workout target"},
         React.createElement(StepperField,{value:settings.minTarget,onChange:value=>setSettings(current=>({...current,minTarget:value})),min:6,max:30,compact:true})
       ),
       React.createElement(ReviewShell,{review:pendingSet.has("acceptedWorkoutTypes")},
-        React.createElement(SettingsField,{title:renderRuleTitle("Workout types that count","acceptedWorkoutTypes"),compact:true},
+        React.createElement(EditableField,{title:renderRuleTitle("Workout types that count","acceptedWorkoutTypes")},
           React.createElement(WorkoutCategorySelector,{selected:settings.acceptedWorkoutTypes,onToggle:toggleType,compact:true})
         )
       ),
       React.createElement(ReviewShell,{review:pendingSet.has("timeZone")},
-        React.createElement(SettingsField,{title:renderRuleTitle("Time zone","timeZone"),compact:true},
+        React.createElement(EditableField,{title:renderRuleTitle("Time zone","timeZone")},
           React.createElement(SelectField,{value:settings.timeZone,onChange:e=>setSettings(current=>({...current,timeZone:e.target.value})),width:"100%",maxWidth:320,options:TIME_ZONE_OPTIONS.map(option=>({value:option.value,label:`${option.label} · ${option.abbr}`})),compact:true,arrowColor:"#4ECDC4"})
         )
       ),
-      React.createElement('button',{type:"button",disabled:!canSave,onClick:saveRules,style:{width:"100%",minHeight:46,borderRadius:14,background:canSave?"#4ECDC4":"var(--s3)",color:canSave?"#050909":"var(--muted2)",fontSize:14,fontWeight:900,marginTop:10}},saving?"Saving...":"Save rules")
+      React.createElement('button',{type:"button",className:"setup-press",disabled:!canSave,onClick:saveRules,style:{width:"100%",minHeight:46,borderRadius:14,background:canSave?"#4ECDC4":"var(--s3)",color:canSave?"#050909":"var(--muted2)",fontFamily:UI_FONT,fontSize:14,fontWeight:900,marginTop:2}},saving?"Saving...":"Save rules")
     );
   };
 
@@ -223,17 +229,17 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
   const renderInvite = () => (
     React.createElement('div',{style:{display:"grid",gap:14}},
       React.createElement('div',null,
-        React.createElement('div',{className:"lbl",style:{marginBottom:6}},"Invite code"),
+        React.createElement('div',{style:fieldTitleStyle},"Invite code"),
         React.createElement('div',{style:{display:"grid",gridTemplateColumns:"1fr auto",gap:8}},
-          React.createElement('div',{style:{padding:"11px 12px",borderRadius:11,background:"#0D1F1E",border:"0.5px solid #163d36",fontSize:15,fontWeight:900,color:"#f5f7ff",letterSpacing:".12em",fontFamily:"'JetBrains Mono',monospace"}},group.inviteCode),
-          React.createElement('button',{type:"button",onClick:e=>copyToClipboard(group.inviteCode,e.currentTarget),style:{padding:"0 12px",borderRadius:11,background:"#0D1F1E",border:"0.5px solid #163d36",fontSize:11,fontWeight:800,color:"#4ECDC4"}},"Copy")
+          React.createElement('div',{style:{padding:"11px 12px",borderRadius:11,background:"#0D1F1E",border:"0.5px solid #163d36",fontFamily:UI_FONT,fontSize:15,fontWeight:900,color:"#f5f7ff",letterSpacing:".08em"}},group.inviteCode),
+          React.createElement('button',{type:"button",className:"setup-press",onClick:e=>copyToClipboard(group.inviteCode,e.currentTarget),style:{padding:"0 12px",borderRadius:11,background:"#0D1F1E",border:"0.5px solid #163d36",fontFamily:UI_FONT,fontSize:11,fontWeight:800,color:"#4ECDC4"}},"Copy")
         )
       ),
       React.createElement('div',null,
-        React.createElement('div',{className:"lbl",style:{marginBottom:6}},"Invite link"),
+        React.createElement('div',{style:fieldTitleStyle},"Invite link"),
         React.createElement('div',{style:{display:"grid",gridTemplateColumns:"1fr auto",gap:8}},
-          React.createElement('div',{style:{padding:"11px 12px",borderRadius:11,background:"#0D1F1E",border:"0.5px solid #163d36",fontSize:11,color:"var(--muted)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},inviteLink),
-          React.createElement('button',{type:"button",onClick:e=>copyToClipboard(inviteLink,e.currentTarget),style:{padding:"0 12px",borderRadius:11,background:"#0D1F1E",border:"0.5px solid #163d36",fontSize:11,fontWeight:800,color:"#4ECDC4"}},"Copy")
+          React.createElement('div',{style:{padding:"11px 12px",borderRadius:11,background:"#0D1F1E",border:"0.5px solid #163d36",fontFamily:UI_FONT,fontSize:11,color:"var(--muted)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},inviteLink),
+          React.createElement('button',{type:"button",className:"setup-press",onClick:e=>copyToClipboard(inviteLink,e.currentTarget),style:{padding:"0 12px",borderRadius:11,background:"#0D1F1E",border:"0.5px solid #163d36",fontFamily:UI_FONT,fontSize:11,fontWeight:800,color:"#4ECDC4"}},"Copy")
         )
       )
     )
@@ -244,23 +250,19 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
   return React.createElement('div',{
     style:{position:"fixed",inset:0,zIndex:560,background:"var(--bg-gradient)",backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)",overflowY:"auto",WebkitOverflowScrolling:"touch",overscrollBehavior:"contain"}
   },
-    React.createElement('div',{style:{maxWidth:520,margin:"0 auto",padding:compactMobile?"calc(env(safe-area-inset-top) + 10px) 16px calc(env(safe-area-inset-bottom) + 28px)":"28px 18px 38px"}},
-      React.createElement('div',{style:{display:"grid",gridTemplateColumns:"42px 1fr 42px",alignItems:"center",marginBottom:14}},
-        React.createElement('button',{type:"button",onClick:onClose,style:{width:42,height:42,borderRadius:999,display:"inline-flex",alignItems:"center",justifyContent:"center",background:"transparent",color:"#4ECDC4",border:"none",padding:0}},React.createElement(AppIcon,{name:"chevron-left",size:28,stroke:"#4ECDC4"})),
-        React.createElement('div',{style:{textAlign:"center",minWidth:0}},
-          React.createElement('div',{style:{fontSize:18,fontWeight:900,color:"#f5f7ff"}},"Bloc settings"),
-          React.createElement('div',{style:{fontSize:12,color:"var(--muted)",marginTop:2,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},group.name)
-        ),
-        React.createElement('div',null)
+    React.createElement('div',{style:{maxWidth:520,margin:"0 auto",padding:compactMobile?"calc(env(safe-area-inset-top) + 6px) 16px calc(env(safe-area-inset-bottom) + 28px)":"18px 18px 38px"}},
+      React.createElement('div',{style:{display:"flex",alignItems:"center",gap:8,minHeight:40,marginBottom:7}},
+        React.createElement('button',{type:"button",className:"setup-press",onClick:onClose,style:{width:38,height:38,borderRadius:999,display:"inline-flex",alignItems:"center",justifyContent:"center",background:"transparent",color:"#4ECDC4",border:"none",padding:0,flexShrink:0}},React.createElement(AppIcon,{name:"chevron-left",size:25,stroke:"#4ECDC4"})),
+        React.createElement('div',{style:{fontFamily:DISPLAY_FONT,fontSize:20,fontWeight:800,letterSpacing:0,lineHeight:1,color:"#f5f7ff"}},"Bloc settings")
       ),
-      React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:7,marginBottom:15,padding:4,borderRadius:14,background:"#081413",border:"0.5px solid #163d36"}},
+      React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6,marginBottom:12,padding:4,borderRadius:13,background:"#081413",border:"0.5px solid #163d36"}},
         ["rules","members","invite"].map(value => {
           const active = tab === value;
           const label = value.charAt(0).toUpperCase()+value.slice(1);
-          return React.createElement('button',{key:value,type:"button",onClick:()=>setTab(value),style:{minHeight:38,borderRadius:11,background:active?"rgba(78,205,196,.12)":"transparent",color:active?"#4ECDC4":"var(--muted)",fontSize:12,fontWeight:900,textTransform:"uppercase",letterSpacing:".06em"}},label);
+          return React.createElement('button',{key:value,type:"button",className:"setup-press",onClick:()=>setTab(value),style:{minHeight:34,borderRadius:10,background:active?"rgba(78,205,196,.12)":"transparent",color:active?"#4ECDC4":"var(--muted)",fontFamily:UI_FONT,fontSize:11,fontWeight:900,textTransform:"uppercase",letterSpacing:".06em"}},label);
         })
       ),
-      React.createElement('div',{style:{borderRadius:16,background:"rgba(8,15,15,.84)",border:"0.5px solid #163d36",padding:"15px 14px"}},
+      React.createElement('div',{style:{borderRadius:16,background:"rgba(8,15,15,.84)",border:"0.5px solid #163d36",padding:"14px 14px"}},
         content
       )
     )

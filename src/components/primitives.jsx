@@ -551,9 +551,9 @@ const StepperField = ({value,onChange,min=1,max=Infinity,compact=false,suffix=nu
     onChange(String(next));
   };
   const stepper = React.createElement('div',{style:{display:"grid",gridTemplateColumns:`${compact?26:36}px minmax(0,1fr) ${compact?26:36}px`,alignItems:"stretch",width:compact?96:120,borderRadius:compact?8:10,overflow:"hidden",border:"1px solid var(--border)",background:"var(--s2)"}},
-    React.createElement('button',{type:"button",onClick:()=>adjust(-1),style:{background:"transparent",borderRight:"1px solid var(--border)",color:"var(--text)",fontSize:compact?16:20,fontWeight:700}},"−"),
+    React.createElement('button',{type:"button",className:"stepper-btn",onClick:()=>adjust(-1),style:{background:"transparent",borderRight:"1px solid var(--border)",color:"var(--text)",fontSize:compact?16:20,fontWeight:700,transition:"transform .12s ease, background .12s ease, color .12s ease"}},"−"),
     React.createElement('input',{type:"number",min,value:normalizedValue,onChange:e=>onChange(e.target.value),style:{background:"transparent",border:"0",borderRadius:0,padding:compact?"7px 7px":"12px 10px",color:"var(--text)",fontSize:compact?12:15,outline:"none",textAlign:"center",width:"100%"}}),
-    React.createElement('button',{type:"button",onClick:()=>adjust(1),style:{background:"transparent",borderLeft:"1px solid var(--border)",color:"var(--text)",fontSize:compact?16:20,fontWeight:700}},"+")
+    React.createElement('button',{type:"button",className:"stepper-btn",onClick:()=>adjust(1),style:{background:"transparent",borderLeft:"1px solid var(--border)",color:"var(--text)",fontSize:compact?16:20,fontWeight:700,transition:"transform .12s ease, background .12s ease, color .12s ease"}},"+")
   );
   if (!suffix) return stepper;
   return React.createElement('div',{style:{display:"inline-flex",alignItems:"center",gap:7}},

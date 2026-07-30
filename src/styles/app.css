@@ -59,11 +59,12 @@
     }
     button { cursor:pointer; border:none; font-family:inherit; transition:all .15s; -webkit-tap-highlight-color:transparent; }
     input, select, textarea { font-family:inherit; }
-    input:focus, select:focus, textarea:focus { border:0.5px solid #4ECDC4 !important; box-shadow:0 0 0 2px rgba(78,205,196,0.1); }
+    input:focus, select:focus, textarea:focus { border:0.5px solid #4ECDC4 !important; box-shadow:0 0 0 2px rgba(78,205,196,0.14),0 0 18px rgba(78,205,196,0.12); }
     * { scrollbar-width:thin; scrollbar-color:var(--border2) transparent; }
     @keyframes fadeUp  { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
     @keyframes fadeIn  { from{opacity:0} to{opacity:1} }
     @keyframes popIn   { from{opacity:0;transform:scale(.94)} to{opacity:1;transform:scale(1)} }
+    @keyframes setupModalIn { 0%{opacity:0;transform:scale(.92) translateY(8px)} 72%{opacity:1;transform:scale(1.018) translateY(0)} 100%{opacity:1;transform:scale(1) translateY(0)} }
     @keyframes glow    { 0%,100%{box-shadow:0 0 0 0 rgba(31,206,101,.25)} 50%{box-shadow:0 0 22px 5px rgba(31,206,101,.1)} }
     @keyframes spin    { to{transform:rotate(360deg)} }
     .fu  { animation:fadeUp .35s ease both; }
@@ -72,6 +73,10 @@
     .fu4 { animation:fadeUp .35s .18s ease both; }
     .fu5 { animation:fadeUp .35s .24s ease both; }
     .pi  { animation:popIn .22s cubic-bezier(.34,1.4,.64,1) both; }
+    .setup-create-modal { animation:setupModalIn .24s cubic-bezier(.2,1.22,.36,1) both; }
+    .setup-press { transition:transform .12s ease,background .12s ease,border-color .12s ease,box-shadow .12s ease,color .12s ease; }
+    .setup-press:active { transform:scale(.975); }
+    .stepper-btn:active { transform:scale(.92);background:rgba(78,205,196,.12) !important;color:#4ECDC4 !important; }
     .overlay { position:fixed;inset:0;background:rgba(2,3,6,.86);backdrop-filter:blur(18px);z-index:200;display:flex;align-items:center;justify-content:center;padding:16px;animation:fadeIn .18s ease;overscroll-behavior:contain; }
     .modal { background:var(--s1);border:var(--card-border-width) solid var(--border2);border-radius:18px;width:100%;max-width:460px;padding:28px 24px;animation:popIn .22s cubic-bezier(.34,1.4,.64,1);max-height:90vh;overflow-y:auto;overflow-x:hidden;box-sizing:border-box;overscroll-behavior:contain;-webkit-overflow-scrolling:touch; }
     .tab { padding:8px 10px 10px;border-radius:0;font-size:13px;font-weight:700;cursor:pointer;border:0;border-bottom:2px solid transparent;color:#1E4040;background:transparent;letter-spacing:.01em; }

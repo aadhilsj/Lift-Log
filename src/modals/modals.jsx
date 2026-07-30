@@ -36,7 +36,7 @@ import {
   isMobile,
   copyToClipboard
 } from "../lib/utils.js";
-import { Avatar, WorkoutTypeIcon, WorkoutCategorySelector, SettingsField, SelectField, inputShellStyle, StepperField } from "../components/primitives.jsx";
+import { Avatar, WorkoutTypeIcon, WorkoutCategorySelector, SettingsField, SelectField, inputShellStyle, StepperField, AppIcon } from "../components/primitives.jsx";
 
 const SETTINGS_DEFAULTS = {
   minTarget: DEFAULT_MIN_TARGET,
@@ -52,6 +52,10 @@ const SETTINGS_DEFAULTS = {
 };
 
 const WORKOUT_NOTE_LIMIT = 140;
+const UI_FONT = "'Outfit', sans-serif";
+const DISPLAY_FONT = "'Raleway', sans-serif";
+const setupFieldTitleStyle = {fontFamily:UI_FONT,fontSize:13,fontWeight:800,color:"var(--text)",marginBottom:5};
+const setupFieldHelpStyle = {fontFamily:UI_FONT,fontSize:12,color:"var(--muted)",lineHeight:1.35,marginBottom:7};
 
 const TIME_ZONE_OPTIONS = (() => {
   const supported = typeof Intl.supportedValuesOf === "function"
@@ -193,21 +197,24 @@ const GroupCreateModal = ({onCreate,onClose,creating,defaultCreatorName="",defau
   const canCreate = groupName.trim() && creatorName.trim() && normalizedSettings.acceptedWorkoutTypes.length > 0 && !creating;
 
   return React.createElement('div',{className:`overlay${compactMobile ? " center-mobile" : ""}`,onClick:onClose},
-    React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{maxWidth:400}},
-      React.createElement('div',{style:{fontWeight:800,fontSize:20,marginBottom:6}},"Create a Bloc"),
-      React.createElement('div',{style:{color:"var(--muted)",fontSize:13,lineHeight:1.5,marginBottom:18}},"Start with the basics. You can review the rest from Today after the Bloc is live."),
+    React.createElement('div',{className:"modal setup-create-modal",onClick:e=>e.stopPropagation(),style:{maxWidth:400,padding:"22px 20px 18px",fontFamily:UI_FONT}},
+      React.createElement('div',{style:{width:42,height:42,borderRadius:999,display:"flex",alignItems:"center",justifyContent:"center",background:"#0A1212",border:"0.5px solid rgba(78,205,196,.42)",color:"#4ECDC4",boxShadow:"0 0 18px rgba(78,205,196,.1)",marginBottom:13}},
+        React.createElement(AppIcon,{name:"money-bag",size:22,stroke:"#4ECDC4"})
+      ),
+      React.createElement('div',{style:{fontFamily:DISPLAY_FONT,fontWeight:800,fontSize:22,letterSpacing:0,lineHeight:1.08,marginBottom:6}},"Create a Bloc"),
+      React.createElement('div',{style:{fontFamily:UI_FONT,color:"var(--muted)",fontSize:13,lineHeight:1.45,marginBottom:17}},"Start with the basics. You can review the rest from Today after the Bloc is live."),
       [
         ["Bloc name",groupName,setGroupName,"Sunday Runners"],
         ...(!lockCreatorName ? [["Your name",creatorName,setCreatorName,"Aadhil"]] : [])
       ].map(([label,value,setter,placeholder])=>
-        React.createElement('label',{key:label,style:{display:"block",marginBottom:12}},
-          label==="Bloc name"
-            ? React.createElement('div',{style:{fontWeight:800,fontSize:14,color:"var(--text)",marginBottom:7}},label)
-            : React.createElement('span',{className:"lbl"},label),
-          React.createElement('input',{value,onChange:e=>setter(e.target.value),placeholder,style:{width:"100%",background:"var(--s2)",border:"1px solid var(--border)",borderRadius:9,padding:"12px 13px",color:"var(--text)",fontSize:14,outline:"none"}})
+        React.createElement('label',{key:label,style:{display:"block",marginBottom:14}},
+          React.createElement('div',{style:setupFieldTitleStyle},label),
+          React.createElement('input',{value,onChange:e=>setter(e.target.value),placeholder,style:{...inputShellStyle,width:"100%",fontFamily:UI_FONT,fontSize:14,borderRadius:10}})
         )
       ),
-      React.createElement(SettingsField,{title:"Monthly fine amount",description:"What each person who misses the target owes."},
+      React.createElement('div',{style:{marginBottom:14}},
+        React.createElement('div',{style:setupFieldTitleStyle},"Monthly fine amount"),
+        React.createElement('div',{style:setupFieldHelpStyle},"What each person who misses the target owes."),
         React.createElement('div',{style:{display:"grid",gridTemplateColumns:"108px 1fr",gap:8,alignItems:"stretch"}},
           React.createElement(SelectField,{
             value:settings.currency,
@@ -217,16 +224,18 @@ const GroupCreateModal = ({onCreate,onClose,creating,defaultCreatorName="",defau
             options:CURRENCY_OPTIONS.map(option=>({value:option.code,label:option.code})),
             arrowColor:"#4ECDC4"
           }),
-          React.createElement('input',{type:"number",min:1,value:settings.fineAmount,onChange:e=>setSettings(current=>({...current,fineAmount:e.target.value,escalationStepAmount:e.target.value})),style:{...inputShellStyle,width:"100%",fontSize:15,textAlign:"center"}})
+          React.createElement('input',{type:"number",min:1,value:settings.fineAmount,onChange:e=>setSettings(current=>({...current,fineAmount:e.target.value,escalationStepAmount:e.target.value})),style:{...inputShellStyle,width:"100%",fontFamily:UI_FONT,fontSize:15,textAlign:"center"}})
         )
       ),
-      React.createElement(SettingsField,{title:"Monthly workout target",description:"Between 6 and 30 workouts per month."},
+      React.createElement('div',{style:{marginBottom:14}},
+        React.createElement('div',{style:setupFieldTitleStyle},"Monthly workout target"),
+        React.createElement('div',{style:setupFieldHelpStyle},"Between 6 and 30 workouts per month."),
         React.createElement(StepperField,{value:settings.minTarget,onChange:value=>setSettings(current=>({...current,minTarget:value})),min:6,max:30})
       ),
       submitAttempted && escalationStepMissing && React.createElement('div',{style:{fontSize:12,color:"var(--red)",marginTop:-6,marginBottom:10}},"Set a step amount to continue."),
-      React.createElement('div',{style:{display:"flex",gap:9,marginTop:18}},
-        React.createElement('button',{onClick:onClose,style:{flex:1,background:"var(--s2)",border:"1px solid var(--border)",color:"var(--muted)",padding:"14px",borderRadius:10,fontSize:15,fontWeight:600}},"Cancel"),
-        React.createElement('button',{disabled:!canCreate,onClick:()=>{
+      React.createElement('div',{style:{display:"grid",gridTemplateColumns:"0.82fr 1.18fr",gap:9,marginTop:18}},
+        React.createElement('button',{className:"setup-press",onClick:onClose,style:{background:"transparent",border:"1px solid #163d36",color:"var(--muted)",padding:"13px 12px",borderRadius:11,fontFamily:UI_FONT,fontSize:14,fontWeight:700}},"Cancel"),
+        React.createElement('button',{className:"setup-press",disabled:!canCreate,onClick:()=>{
           setSubmitAttempted(true);
           if (!canCreate || escalationStepMissing) return;
           onCreate({
@@ -235,7 +244,7 @@ const GroupCreateModal = ({onCreate,onClose,creating,defaultCreatorName="",defau
           ...normalizedSettings,
           groupTimeZone: normalizedSettings.timeZone
         });
-        },style:{flex:1,background:canCreate?"#4ECDC4":"var(--s3)",color:canCreate?"#050909":"var(--muted2)",padding:"14px",borderRadius:10,fontSize:15,fontWeight:800}},creating?"Creating...":"Create")
+        },style:{background:canCreate?"#4ECDC4":"var(--s3)",color:canCreate?"#050909":"var(--muted2)",padding:"14px 14px",borderRadius:12,fontFamily:UI_FONT,fontSize:15,fontWeight:900,boxShadow:canCreate?"0 12px 26px rgba(78,205,196,.16)":"none"}},creating?"Creating...":"Create")
       )
     )
   );

@@ -199,17 +199,17 @@ const JoinGroupModal = ({inviteContext,joinCode,setJoinCode,onClose,onJoin,joini
     : "Enter a Bloc invite code. You can always ask the admin to share the link instead.";
   return React.createElement('div',{className:"overlay center-mobile",style:{background:"rgba(5,9,9,0.85)"}},
     React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{maxWidth:380}},
-      React.createElement('div',{style:{fontWeight:800,fontSize:20,marginBottom:6}},inviteContext?"Join this Bloc":"Join a Bloc"),
-      React.createElement('div',{style:{color:"var(--muted)",fontSize:13,lineHeight:1.6,marginBottom:18}},helperCopy),
+      React.createElement('div',{style:{fontFamily:"'Raleway', sans-serif",fontWeight:800,fontSize:22,letterSpacing:0,lineHeight:1.08,marginBottom:6}},inviteContext?"Join this Bloc":"Join a Bloc"),
+      React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",color:"var(--muted)",fontSize:13,lineHeight:1.6,marginBottom:16}},helperCopy),
       React.createElement('label',{style:{display:"block",marginBottom:18}},
-        React.createElement('span',{className:"lbl"},"Invite code"),
-        React.createElement('input',{value:joinCode,onChange:e=>setJoinCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,8)),placeholder:"XXXXXXX",style:{width:"100%",background:"var(--s2)",border:"1px solid var(--border)",borderRadius:10,padding:"12px 13px",color:"var(--text)",fontSize:15,outline:"none",textTransform:"uppercase"}})
+        React.createElement('span',{style:{display:"block",fontFamily:"'Outfit', sans-serif",fontSize:13,fontWeight:800,color:"var(--text)",marginBottom:5}},"Invite code"),
+        React.createElement('input',{value:joinCode,onChange:e=>setJoinCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,8)),placeholder:"XXXXXXX",style:{width:"100%",background:"var(--s2)",border:"1px solid var(--border)",borderRadius:10,padding:"12px 13px",color:"var(--text)",fontFamily:"'Outfit', sans-serif",fontSize:15,outline:"none",textTransform:"uppercase"}})
       ),
       isFull && React.createElement('div',{style:{fontSize:12,color:"var(--amber)",marginBottom:14,padding:"9px 11px",borderRadius:9,background:"var(--amber-bg)",border:"1px solid var(--amber-dim)"}},"This Bloc is full. Maximum 20 members allowed."),
       !isFull && error && React.createElement('div',{style:{fontSize:12,color:"var(--red)",marginBottom:14}},error),
       React.createElement('div',{style:{display:"flex",gap:9}},
-        React.createElement('button',{type:"button",onClick:onClose,style:{flex:1,background:"var(--s2)",border:"1px solid var(--border)",color:"var(--muted)",padding:"14px",borderRadius:10,fontSize:15,fontWeight:600}},"Cancel"),
-        React.createElement('button',{type:"button",disabled:!canJoin,onClick:onJoin,style:{flex:1,background:canJoin?"#4ECDC4":"var(--s3)",color:canJoin?"#050909":"var(--muted2)",padding:"14px",borderRadius:10,fontSize:15,fontWeight:800}},joining?"Joining...":"Join Bloc")
+        React.createElement('button',{type:"button",className:"setup-press",onClick:onClose,style:{flex:1,background:"transparent",border:"1px solid var(--border)",color:"var(--muted)",padding:"14px",borderRadius:10,fontSize:15,fontWeight:700}},"Cancel"),
+        React.createElement('button',{type:"button",className:"setup-press",disabled:!canJoin,onClick:onJoin,style:{flex:1,background:canJoin?"#4ECDC4":"var(--s3)",color:canJoin?"#050909":"var(--muted2)",padding:"14px",borderRadius:10,fontSize:15,fontWeight:900}},joining?"Joining...":"Join Bloc")
       )
     )
   );
@@ -304,15 +304,15 @@ const CreatedBlocInviteScreen = ({group,onContinue}) => {
       React.createElement('div',{style:{width:70,height:70,borderRadius:999,margin:"0 auto 18px",display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(78,205,196,.12)",border:"1px solid rgba(78,205,196,.3)",boxShadow:"0 0 34px rgba(78,205,196,.14)"}},
         React.createElement(AppIcon,{name:"sparkles",size:36,stroke:"#4ECDC4"})
       ),
-      React.createElement('h1',{style:{margin:"0 0 8px",fontSize:compactMobile?28:34,lineHeight:1.08,letterSpacing:0}},`${group.name} is live`),
-      React.createElement('div',{style:{fontSize:14,lineHeight:1.55,color:"var(--muted)",maxWidth:340,margin:"0 auto 24px"}},"Get people in now. You can adjust categories and rules once you're inside."),
+      React.createElement('h1',{style:{margin:"0 0 8px",fontFamily:"'Raleway', sans-serif",fontWeight:800,fontSize:compactMobile?28:34,lineHeight:1.08,letterSpacing:0}},`${group.name} is live`),
+      React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontSize:14,lineHeight:1.55,color:"var(--muted)",maxWidth:340,margin:"0 auto 24px"}},"Get people in now. You can adjust categories and rules once you're inside."),
       React.createElement('div',{style:{padding:"15px 16px",borderRadius:16,background:"rgba(8,15,15,.86)",border:"0.5px solid #163d36",marginBottom:12}},
-        React.createElement('div',{className:"lbl",style:{marginBottom:8,textAlign:"center"}},"Invite code"),
-        React.createElement('div',{style:{fontFamily:"'JetBrains Mono',monospace",fontSize:26,fontWeight:900,letterSpacing:".16em",color:"#f5f7ff",marginBottom:12}},group.inviteCode),
-        React.createElement('button',{type:"button",onClick:event=>copyToClipboard(group.inviteCode,event.currentTarget),style:{width:"100%",minHeight:42,borderRadius:12,background:"#0D1F1E",border:"0.5px solid #163d36",color:"#4ECDC4",fontSize:13,fontWeight:800}},"Copy code")
+        React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontSize:13,fontWeight:800,color:"var(--text)",marginBottom:8,textAlign:"center"}},"Invite code"),
+        React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontSize:26,fontWeight:900,letterSpacing:".08em",color:"#f5f7ff",marginBottom:12}},group.inviteCode),
+        React.createElement('button',{type:"button",className:"setup-press",onClick:event=>copyToClipboard(group.inviteCode,event.currentTarget),style:{width:"100%",minHeight:42,borderRadius:12,background:"#0D1F1E",border:"0.5px solid #163d36",color:"#4ECDC4",fontFamily:"'Outfit', sans-serif",fontSize:13,fontWeight:800}},"Copy code")
       ),
-      React.createElement('button',{type:"button",onClick:shareInvite,style:{width:"100%",minHeight:48,borderRadius:14,background:"#4ECDC4",color:"#050909",fontSize:15,fontWeight:900,marginTop:8}},"Share invite link"),
-      React.createElement('button',{type:"button",onClick:onContinue,style:{background:"transparent",border:"none",padding:"16px 8px 0",color:"var(--muted)",fontSize:13,fontWeight:700,textDecoration:"underline",textUnderlineOffset:"3px"}},"Continue to Bloc")
+      React.createElement('button',{type:"button",className:"setup-press",onClick:shareInvite,style:{width:"100%",minHeight:48,borderRadius:14,background:"#4ECDC4",color:"#050909",fontFamily:"'Outfit', sans-serif",fontSize:15,fontWeight:900,marginTop:8}},"Share invite link"),
+      React.createElement('button',{type:"button",className:"setup-press",onClick:onContinue,style:{background:"transparent",border:"none",padding:"16px 8px 0",color:"var(--muted)",fontFamily:"'Outfit', sans-serif",fontSize:13,fontWeight:700,textDecoration:"underline",textUnderlineOffset:"3px"}},"Continue to Bloc")
     )
   );
 };
