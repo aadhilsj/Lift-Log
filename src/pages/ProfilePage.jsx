@@ -10,6 +10,11 @@ import {
   fmtCurrency
 } from "../lib/appState.js";
 import { Avatar, Card, AppIcon, WorkoutTypeIcon } from "../components/primitives.jsx";
+import {
+  cancelSwipeFrame,
+  releaseSwipeBack,
+  releaseSwipeForward
+} from "../lib/swipeRelease.js";
 
 // Premium block (everything under the "Premium" divider). Built fully
 // & shown to everyone now. Flip this to add the paywall later without a rebuild —
@@ -436,10 +441,7 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
   };
   const resetSwipeTransform = () => {
     dragXRef.current = 0;
-    if (frameRef.current) {
-      cancelAnimationFrame(frameRef.current);
-      frameRef.current = null;
-    }
+    cancelSwipeFrame(frameRef);
     applySwipeTransform(0, false);
   };
   const moveSwipeBack = e => {
@@ -452,7 +454,6 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
       s.mode = dx > 0 && Math.abs(dx) > Math.abs(dy) ? "back" : "scroll";
       setDragging(s.mode === "back");
       onSwipeRevealChange?.(s.mode === "back");
-      if (s.mode === "back") requestAnimationFrame(() => applySwipeTransform(dragXRef.current, true));
     }
     if (s.mode === "back") {
       scheduleSwipeTransform(Math.max(0, Math.min(dx, window.innerWidth || 420)), true);
@@ -470,13 +471,25 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
     const fastEdgeFlick = dx > 24 && elapsed < 260 && dx / elapsed > 0.22 && dx > Math.abs(dy);
     const dominantDrag = dx > screenWidth / 2 && Math.abs(dy) < 100 && dx > Math.abs(dy);
     const shouldClose = s.mode === "back" && (fastEdgeFlick || dominantDrag);
-    setDragging(false);
     if (shouldClose) {
-      applySwipeTransform(screenWidth, false);
-      window.setTimeout(() => onBack?.(), 95);
+      releaseSwipeForward({
+        dragRef: dragXRef,
+        frameRef,
+        finalX: screenWidth,
+        transitionMs: 95,
+        setDragging,
+        applyTransform: applySwipeTransform,
+        commit: () => onBack?.()
+      });
     } else {
       onSwipeRevealChange?.(false);
-      applySwipeTransform(0, false);
+      releaseSwipeBack({
+        dragRef: dragXRef,
+        frameRef,
+        transitionMs: 95,
+        setDragging,
+        applyTransform: applySwipeTransform
+      });
     }
   };
 

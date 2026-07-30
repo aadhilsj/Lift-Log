@@ -72,6 +72,12 @@ import {
   isIos,
   isSafari
 } from "./lib/utils.js";
+import {
+  cancelSwipeFrame,
+  clearInlineSwipeStyles,
+  releaseSwipeBack,
+  releaseSwipeForward
+} from "./lib/swipeRelease.js";
 import { Spinner, InstallBanner, TodayPageErrorBoundary } from "./components/primitives.jsx";
 import { PreviewLanding, ProfileModal, JoinGroupModal, AuthFlowModal, IdentitySetup, CreatedBlocInviteScreen, GroupHome, GroupAccessNotice, LocalDevImpersonationBar } from "./components/authShell.jsx";
 import { ProrationChoiceModal } from "./modals/modals.jsx";
@@ -1157,10 +1163,7 @@ const App = () => {
   const resetBlocSwipe = useCallback(() => {
     blocSwipeRef.current = {sx:0,sy:0,active:false,mode:null};
     blocDragXRef.current = 0;
-    if (blocFrameRef.current) {
-      cancelAnimationFrame(blocFrameRef.current);
-      blocFrameRef.current = null;
-    }
+    cancelSwipeFrame(blocFrameRef);
     applyBlocTransforms(0, false);
     setBlocDragging(false);
   },[applyBlocTransforms]);
@@ -1185,7 +1188,6 @@ const App = () => {
     if (!s.mode && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) {
       s.mode = dx > 0 && Math.abs(dx) > Math.abs(dy) ? "back" : "scroll";
       setBlocDragging(s.mode === "back");
-      if (s.mode === "back") requestAnimationFrame(()=>applyBlocTransforms(blocDragXRef.current, true));
     }
     if (s.mode === "back") scheduleBlocTransforms(Math.max(0, Math.min(dx, window.innerWidth || 420)), true);
   },[applyBlocTransforms, scheduleBlocTransforms]);
@@ -1201,18 +1203,30 @@ const App = () => {
     const fastEdgeFlick = dx > 24 && elapsed < 260 && dx / elapsed > 0.22 && dx > Math.abs(dy);
     const dominantDrag = dx > screenWidth / 2 && Math.abs(dy) < 100 && dx > Math.abs(dy);
     const shouldClose = s.mode === "back" && (fastEdgeFlick || dominantDrag);
-    setBlocDragging(false);
     if (shouldClose) {
-      applyBlocTransforms(screenWidth, false);
-      window.setTimeout(() => {
-        setSuppressSwitcherIntro(true);
-        resetBlocSwipe();
-        persistGroupSelection(null);
-      }, 45);
+      releaseSwipeForward({
+        dragRef: blocDragXRef,
+        frameRef: blocFrameRef,
+        finalX: screenWidth,
+        transitionMs: 80,
+        setDragging: setBlocDragging,
+        applyTransform: applyBlocTransforms,
+        commit: () => {
+          setSuppressSwitcherIntro(true);
+          persistGroupSelection(null);
+        },
+        cleanup: () => clearInlineSwipeStyles([blocSurfaceRef.current, blocBottomNavRef.current])
+      });
     } else {
-      applyBlocTransforms(0, false);
+      releaseSwipeBack({
+        dragRef: blocDragXRef,
+        frameRef: blocFrameRef,
+        transitionMs: 80,
+        setDragging: setBlocDragging,
+        applyTransform: applyBlocTransforms
+      });
     }
-  },[applyBlocTransforms, persistGroupSelection, resetBlocSwipe]);
+  },[applyBlocTransforms, persistGroupSelection]);
   const handleStreamSeasonClosedTap = useCallback((groupId) => {
     if (!groupId) return;
     persistGroupSelection(groupId);
@@ -1261,17 +1275,8 @@ const App = () => {
     setShowTodayLog(false);
     setShowSettings(false);
     pageDragXRef.current = 0;
-    if (pageFrameRef.current) {
-      cancelAnimationFrame(pageFrameRef.current);
-      pageFrameRef.current = null;
-    }
-    Object.values(pageLayerRefs.current || {}).forEach(el => {
-      if (!el) return;
-      el.style.transform = "";
-      el.style.transition = "";
-      el.style.boxShadow = "";
-      el.style.willChange = "";
-    });
+    cancelSwipeFrame(pageFrameRef);
+    clearInlineSwipeStyles(Object.values(pageLayerRefs.current || {}));
     setPageDragging(false);
     setPageSwipeTarget(null);
     pageSwipeRef.current = {sx:0,sy:0,active:false,mode:null,target:null};
@@ -1309,10 +1314,7 @@ const App = () => {
   const resetPageSwipe = useCallback(() => {
     pageSwipeRef.current = {sx:0,sy:0,active:false,mode:null,target:null};
     pageDragXRef.current = 0;
-    if (pageFrameRef.current) {
-      cancelAnimationFrame(pageFrameRef.current);
-      pageFrameRef.current = null;
-    }
+    cancelSwipeFrame(pageFrameRef);
     applyPageTransforms(0, false);
     setPageDragging(false);
     setPageSwipeTarget(null);
@@ -1345,7 +1347,6 @@ const App = () => {
       s.target = target;
       setPageSwipeTarget(target);
       setPageDragging(true);
-      requestAnimationFrame(()=>applyPageTransforms(pageDragXRef.current, true));
     }
     if (s.mode === "page") {
       e.preventDefault();
@@ -1365,19 +1366,30 @@ const App = () => {
     const fastFlick = Math.abs(dx) > 14 && elapsed < 300 && Math.abs(dx) / elapsed > 0.13 && Math.abs(dx) > Math.abs(dy) * 0.82;
     const dominantDrag = Math.abs(dx) > screenWidth * 0.16 && Math.abs(dy) < 140 && Math.abs(dx) > Math.abs(dy) * 0.75;
     const shouldMove = s.mode === "page" && s.target && (fastFlick || dominantDrag);
-    setPageDragging(false);
     if (shouldMove) {
-      applyPageTransforms(dx < 0 ? -screenWidth : screenWidth, false);
-      window.setTimeout(() => {
-        pageDragXRef.current = 0;
-        setPage(s.target);
-        resetPageSwipe();
-      }, 45);
+      releaseSwipeForward({
+        dragRef: pageDragXRef,
+        frameRef: pageFrameRef,
+        finalX: dx < 0 ? -screenWidth : screenWidth,
+        transitionMs: 80,
+        setDragging: setPageDragging,
+        applyTransform: applyPageTransforms,
+        commit: () => {
+          setPage(s.target);
+          setPageSwipeTarget(null);
+        }
+      });
     } else {
-      applyPageTransforms(0, false);
-      setPageSwipeTarget(null);
+      releaseSwipeBack({
+        dragRef: pageDragXRef,
+        frameRef: pageFrameRef,
+        transitionMs: 80,
+        setDragging: setPageDragging,
+        applyTransform: applyPageTransforms,
+        cleanup: () => setPageSwipeTarget(null)
+      });
     }
-  },[applyPageTransforms, resetPageSwipe]);
+  },[applyPageTransforms]);
   const dismissInstall = () => {
     setInstallDismissed(true);
     try { localStorage.setItem(INSTALL_DISMISSED_KEY, "1"); } catch {}

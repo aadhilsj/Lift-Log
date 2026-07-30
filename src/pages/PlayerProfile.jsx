@@ -28,6 +28,11 @@ import {
 } from "../lib/utils.js";
 import { Avatar, WorkoutTypeIcon, Bar, Card, SelectField, TargetHitHexIcon, AppIcon } from "../components/primitives.jsx";
 import { DeleteModal } from "../modals/modals.jsx";
+import {
+  cancelSwipeFrame,
+  releaseSwipeBack,
+  releaseSwipeForward
+} from "../lib/swipeRelease.js";
 
 const PLAYER_PROFILE_PREMIUM_GATE = false; // Built now; flip to true when premium gating is wired.
 const FULL_MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
@@ -255,10 +260,7 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
   };
   const resetSwipeTransform=()=>{
     dragXRef.current=0;
-    if(frameRef.current){
-      cancelAnimationFrame(frameRef.current);
-      frameRef.current=null;
-    }
+    cancelSwipeFrame(frameRef);
     applySwipeTransform(0,false);
   };
   const moveSwipeBack=e=>{
@@ -270,7 +272,6 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
       s.mode=dx>0&&Math.abs(dx)>Math.abs(dy)?"back":"scroll";
       setDragging(s.mode==="back");
       onSwipeRevealChange?.(s.mode==="back");
-      if(s.mode==="back") requestAnimationFrame(()=>applySwipeTransform(dragXRef.current,true));
     }
     if(s.mode==="back") scheduleSwipeTransform(Math.max(0,Math.min(dx,window.innerWidth||420)),true);
   };
@@ -284,13 +285,25 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
     const fastEdgeFlick=dx>24&&elapsed<260&&dx/elapsed>0.22&&dx>Math.abs(dy);
     const dominantDrag=dx>screenWidth/2&&Math.abs(dy)<100&&dx>Math.abs(dy);
     const shouldClose=s.mode==="back"&&(fastEdgeFlick||dominantDrag);
-    setDragging(false);
     if(shouldClose){
-      applySwipeTransform(screenWidth,false);
-      window.setTimeout(()=>onBack?.(),45);
+      releaseSwipeForward({
+        dragRef:dragXRef,
+        frameRef,
+        finalX:screenWidth,
+        transitionMs:45,
+        setDragging,
+        applyTransform:applySwipeTransform,
+        commit:()=>onBack?.()
+      });
     }else{
       onSwipeRevealChange?.(false);
-      applySwipeTransform(0,false);
+      releaseSwipeBack({
+        dragRef:dragXRef,
+        frameRef,
+        transitionMs:80,
+        setDragging,
+        applyTransform:applySwipeTransform
+      });
     }
   };
 
