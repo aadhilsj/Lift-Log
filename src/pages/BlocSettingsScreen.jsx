@@ -21,7 +21,7 @@ import { copyToClipboard, isMobile } from "../lib/utils.js";
 import {
   Avatar,
   AppIcon,
-  WorkoutCategorySelector,
+  WorkoutTypeIcon,
   SelectField,
   StepperField,
   inputShellStyle
@@ -187,9 +187,38 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
         React.createElement('div',{style:{fontSize:12,color:"var(--muted)",lineHeight:1.5,marginTop:14}},"Only the Bloc admin can edit these.")
       );
     }
+    const miniWorkoutTypeSelector = React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(5, minmax(42px, 52px))",gap:5,alignItems:"stretch"}},
+      WORKOUT_TYPES.map(type => {
+        const active = normalizedSettings.acceptedWorkoutTypes.includes(type);
+        return React.createElement('button',{
+          key:type,
+          type:"button",
+          className:"setup-press",
+          onClick:()=>toggleType(type),
+          style:{
+            minWidth:0,
+            minHeight:50,
+            borderRadius:9,
+            background:active?"rgba(78,205,196,.09)":"rgba(13,31,30,.58)",
+            border:`0.5px solid ${active?"#4ECDC4":"rgba(22,61,54,.68)"}`,
+            color:active?"#4ECDC4":"var(--muted)",
+            display:"flex",
+            flexDirection:"column",
+            alignItems:"center",
+            justifyContent:"center",
+            gap:3,
+            padding:"6px 2px",
+            fontFamily:UI_FONT
+          }
+        },
+          React.createElement('span',{style:{width:20,height:20,display:"inline-flex",alignItems:"center",justifyContent:"center"}},React.createElement(WorkoutTypeIcon,{type,size:15})),
+          React.createElement('span',{style:{fontSize:8.6,fontWeight:800,lineHeight:1.05,whiteSpace:"nowrap"}},type)
+        );
+      })
+    );
     return React.createElement('div',null,
       React.createElement(EditableField,{title:"Bloc Name"},
-        React.createElement('input',{value:groupName,onChange:e=>setGroupName(e.target.value),style:{...inputShellStyle,width:"100%",fontSize:13,padding:"8px 10px",borderRadius:9,textAlign:"center"}})
+        React.createElement('input',{value:groupName,onChange:e=>setGroupName(e.target.value),style:{...inputShellStyle,width:"min(100%, 250px)",fontSize:12.5,padding:"7px 9px",borderRadius:9,textAlign:"center",display:"block"}})
       ),
       React.createElement(EditableField,{title:"Monthly Fine Amount"},
         React.createElement('div',{style:{display:"grid",gridTemplateColumns:"68px 96px",gap:7,maxWidth:172}},
@@ -222,14 +251,14 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
       ),
       React.createElement(ReviewShell,{review:pendingSet.has("acceptedWorkoutTypes")},
         React.createElement(EditableField,{title:renderRuleTitle("Workout Types That Count","acceptedWorkoutTypes")},
-          React.createElement('div',{style:{maxWidth:430}},
-            React.createElement(WorkoutCategorySelector,{selected:settings.acceptedWorkoutTypes,onToggle:toggleType,compact:true})
+          React.createElement('div',{style:{maxWidth:280}},
+            miniWorkoutTypeSelector
           )
         )
       ),
       React.createElement(ReviewShell,{review:pendingSet.has("timeZone")},
         React.createElement(EditableField,{title:renderRuleTitle("Time Zone","timeZone")},
-          React.createElement(SelectField,{value:settings.timeZone,onChange:e=>setSettings(current=>({...current,timeZone:e.target.value})),width:"100%",maxWidth:238,options:TIME_ZONE_OPTIONS.map(option=>({value:option.value,label:`${option.label} · ${option.abbr}`})),compact:true,arrowColor:"#4ECDC4"})
+          React.createElement(SelectField,{value:settings.timeZone,onChange:e=>setSettings(current=>({...current,timeZone:e.target.value})),width:"100%",maxWidth:196,options:TIME_ZONE_OPTIONS.map(option=>({value:option.value,label:`${option.label} · ${option.abbr}`})),compact:true,arrowColor:"#4ECDC4"})
         )
       ),
       React.createElement('div',{style:{display:"flex",justifyContent:"center",marginTop:2}},
@@ -302,7 +331,7 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
     onTouchCancel:resetSwipe,
     style:{position:"relative",zIndex:2,minHeight:"calc(100vh - 64px)",background:"var(--bg-gradient)",backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)",overflowY:"auto",WebkitOverflowScrolling:"touch",overscrollBehavior:"contain",transform:dragX?`translateX(${dragX}px)`:"translateX(0)",transition:dragging?"none":"transform .08s ease-out",boxShadow:dragX?"-18px 0 34px rgba(0,0,0,.28)":"none",willChange:dragging||dragX?"transform":"auto",touchAction:"pan-y"}
   },
-    React.createElement('div',{style:{maxWidth:560,margin:"0 auto",padding:compactMobile?"8px 16px calc(env(safe-area-inset-bottom) + 22px)":"16px 18px 34px"}},
+    React.createElement('div',{style:{maxWidth:620,margin:"0 auto",padding:compactMobile?"8px 8px calc(env(safe-area-inset-bottom) + 22px)":"16px 14px 34px"}},
       React.createElement('div',{style:{display:"grid",gridTemplateColumns:"38px 1fr 38px",alignItems:"center",minHeight:36,marginBottom:7}},
         React.createElement('button',{type:"button",className:"setup-press",onClick:onClose,style:{width:34,height:34,borderRadius:999,display:"inline-flex",alignItems:"center",justifyContent:"center",background:"transparent",color:"#4ECDC4",border:"none",padding:0,flexShrink:0}},React.createElement(AppIcon,{name:"chevron-left",size:23,stroke:"#4ECDC4"})),
         React.createElement('div',{style:{fontFamily:DISPLAY_FONT,fontSize:19,fontWeight:800,letterSpacing:0,lineHeight:1,color:"#f5f7ff",textAlign:"center"}},"Bloc Settings"),
