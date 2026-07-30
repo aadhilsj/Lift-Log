@@ -222,15 +222,19 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
       ),
       React.createElement(ReviewShell,{review:pendingSet.has("acceptedWorkoutTypes")},
         React.createElement(EditableField,{title:renderRuleTitle("Workout Types That Count","acceptedWorkoutTypes")},
-          React.createElement(WorkoutCategorySelector,{selected:settings.acceptedWorkoutTypes,onToggle:toggleType,compact:true})
+          React.createElement('div',{style:{maxWidth:430}},
+            React.createElement(WorkoutCategorySelector,{selected:settings.acceptedWorkoutTypes,onToggle:toggleType,compact:true})
+          )
         )
       ),
       React.createElement(ReviewShell,{review:pendingSet.has("timeZone")},
         React.createElement(EditableField,{title:renderRuleTitle("Time Zone","timeZone")},
-          React.createElement(SelectField,{value:settings.timeZone,onChange:e=>setSettings(current=>({...current,timeZone:e.target.value})),width:"100%",maxWidth:320,options:TIME_ZONE_OPTIONS.map(option=>({value:option.value,label:`${option.label} · ${option.abbr}`})),compact:true,arrowColor:"#4ECDC4"})
+          React.createElement(SelectField,{value:settings.timeZone,onChange:e=>setSettings(current=>({...current,timeZone:e.target.value})),width:"100%",maxWidth:238,options:TIME_ZONE_OPTIONS.map(option=>({value:option.value,label:`${option.label} · ${option.abbr}`})),compact:true,arrowColor:"#4ECDC4"})
         )
       ),
-      React.createElement('button',{type:"button",className:"setup-press",disabled:!canSave,onClick:saveRules,style:{width:"100%",minHeight:42,borderRadius:12,background:canSave?"#4ECDC4":"var(--s3)",color:canSave?"#050909":"var(--muted2)",fontFamily:UI_FONT,fontSize:13,fontWeight:900,marginTop:0}},saving?"Saving...":"Save Rules")
+      React.createElement('div',{style:{display:"flex",justifyContent:"center",marginTop:2}},
+        React.createElement('button',{type:"button",className:"setup-press",disabled:!canSave,onClick:saveRules,style:{width:"min(100%, 286px)",minHeight:40,borderRadius:12,background:canSave?"#4ECDC4":"var(--s3)",color:canSave?"#050909":"var(--muted2)",fontFamily:UI_FONT,fontSize:13,fontWeight:900,marginTop:0}},saving?"Saving...":"Save Rules")
+      )
     );
   };
 
@@ -311,7 +315,7 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
           return React.createElement('button',{key:value,type:"button",className:"setup-press",onClick:()=>setTab(value),style:{minHeight:31,borderRadius:9,background:active?"rgba(78,205,196,.12)":"transparent",color:active?"#4ECDC4":"var(--muted)",fontFamily:UI_FONT,fontSize:10.5,fontWeight:900,textTransform:"uppercase",letterSpacing:".055em"}},label);
         })
       ),
-      React.createElement('div',{style:{borderRadius:14,background:"rgba(8,15,15,.72)",border:"0.5px solid rgba(22,61,54,.68)",padding:"12px 12px"}},
+      React.createElement('div',{style:{borderRadius:14,background:"rgba(8,15,15,.58)",border:"0.5px solid rgba(22,61,54,.5)",padding:"11px 11px",boxShadow:"inset 0 1px 0 rgba(255,255,255,.025)"}},
         content
       )
     )
