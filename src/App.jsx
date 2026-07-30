@@ -21,7 +21,8 @@ import {
   syncActiveProfileGlobals,
   getCurrentGroupMemberNames,
   flattenFeedPosts,
-  setActiveSessionUserId
+  setActiveSessionUserId,
+  getSetupReviewPendingCount
 } from "./lib/appState.js";
 import {
   setSupabaseAuthClientPromise,
@@ -72,8 +73,8 @@ import {
   isSafari
 } from "./lib/utils.js";
 import { Spinner, InstallBanner, TodayPageErrorBoundary } from "./components/primitives.jsx";
-import { PreviewLanding, ProfileModal, JoinGroupModal, AuthFlowModal, IdentitySetup, GroupHome, GroupAccessNotice, LocalDevImpersonationBar } from "./components/authShell.jsx";
-import { GroupSettingsModal, ProrationChoiceModal } from "./modals/modals.jsx";
+import { PreviewLanding, ProfileModal, JoinGroupModal, AuthFlowModal, IdentitySetup, CreatedBlocInviteScreen, GroupHome, GroupAccessNotice, LocalDevImpersonationBar } from "./components/authShell.jsx";
+import { ProrationChoiceModal } from "./modals/modals.jsx";
 import { Nav } from "./pages/Nav.jsx";
 import { TodayPage } from "./pages/TodayPage.jsx";
 import { ActivityPage } from "./pages/ActivityPage.jsx";
@@ -81,6 +82,7 @@ import { MonthPage } from "./pages/MonthPage.jsx";
 import { HistoryPage } from "./pages/HistoryPage.jsx";
 import { BlocStream } from "./pages/BlocStream.jsx";
 import { ProfilePage } from "./pages/ProfilePage.jsx";
+import { BlocSettingsScreen } from "./pages/BlocSettingsScreen.jsx";
 import { LogCommentThread } from "./components/LogCommentThread.jsx";
 
 const normalizeReactionMembers = (members) => Array.isArray(members)
@@ -134,6 +136,7 @@ const App = () => {
   const [creatingGroup,setCreatingGroup]=useState(false);
   const [savingSettings,setSavingSettings]=useState(false);
   const [showSettings,setShowSettings]=useState(false);
+  const [createdInviteGroupId,setCreatedInviteGroupId]=useState(null);
   const [showProfileModal,setShowProfileModal]=useState(false);
   const [showProfile,setShowProfile]=useState(false);
   const [showStream,setShowStream]=useState(false);
@@ -760,18 +763,18 @@ const App = () => {
     }
   },[applyData, beginOptimisticMutation, buildOptimisticState, clearOptimisticMutation, currentGroup, currentUser, refreshNow, selectedGroupId, authSession]);
 
-  const handleUpdateGroupSettings = useCallback(async(groupName, settings)=>{
+  const handleUpdateGroupSettings = useCallback(async(groupName, settings, options = {})=>{
     if(!selectedGroupId || !currentUser) return { ok:false, error:"No Bloc selected" };
     setSavingSettings(true);
     try {
-      const result = await updateGroupSettingsData(selectedGroupId, currentUser, authSession?.userId, groupName, settings);
+      const result = await updateGroupSettingsData(selectedGroupId, currentUser, authSession?.userId, groupName, settings, options);
       if(result.ok && result.data){
         const applied = applyData(result.data);
         if (applied) {
           setLastSyncedAt(new Date());
           setSyncError(false);
         }
-        setShowSettings(false);
+        if (options.closeAfterSave !== false) setShowSettings(false);
       } else {
         setSyncError(true);
         await refreshNow();
@@ -929,17 +932,36 @@ const App = () => {
           delete next[result.createdGroupId];
           return next;
         });
-        persistGroupSelection(result.createdGroupId);
-        const createdGroup = result.state.groups?.[result.createdGroupId];
-        if (shouldPromptProration(createdGroup, authSession?.userId)) {
-          setPendingProrationGroupId(result.createdGroupId);
-        }
+        setCreatedInviteGroupId(result.createdGroupId);
+        setSuppressSwitcherIntro(true);
       }
       return result;
     } finally {
       setCreatingGroup(false);
     }
-  },[applyData, persistGroupSelection, authSession]);
+  },[applyData]);
+
+  const handleContinueFromCreatedInvite = useCallback(()=>{
+    const createdGroup = appState.groups?.[createdInviteGroupId];
+    if (!createdGroup?.id) {
+      setCreatedInviteGroupId(null);
+      return;
+    }
+    setCreatedInviteGroupId(null);
+    persistGroupSelection(createdGroup.id);
+    setPage("today");
+    if (shouldPromptProration(createdGroup, authSession?.userId)) {
+      setPendingProrationGroupId(createdGroup.id);
+    }
+  },[appState.groups, authSession, createdInviteGroupId, persistGroupSelection]);
+
+  const handleReviewSetupDefaults = useCallback(()=>{
+    if (!currentGroup || getSetupReviewPendingCount(currentGroup) === 0) return;
+    return handleUpdateGroupSettings(currentGroup.name, currentGroup.settings, {
+      setupReview: { pending: {} },
+      closeAfterSave: false
+    });
+  },[currentGroup, handleUpdateGroupSettings]);
 
   const handleSeasonProrationChoice = useCallback(async(choice)=>{
     if (!pendingProrationGroupId || !currentUser) return;
@@ -1490,10 +1512,13 @@ const App = () => {
     });
   }
   if(!selectedGroupId || !currentGroup || !visibleGroups.some(group => group.id === selectedGroupId)) {
+    const createdInviteGroup = createdInviteGroupId ? appState.groups?.[createdInviteGroupId] : null;
     return React.createElement(React.Fragment,null,
       showJoinModal && !authStep && React.createElement(JoinGroupModal,{inviteContext,joinCode,setJoinCode,onClose:()=>setShowJoinModal(false),onJoin:handleJoinGroup,joining:joiningGroup,error:inviteError,signedIn:true}),
       showProfileModal && React.createElement(ProfileModal,{email:authSession?.email,onSignOut:handleSwitchUser,onClose:()=>{setProfileError("");setShowProfileModal(false);},currentDisplayName:profile?.displayName||"",onSaveDisplayName:handleSaveProfileFromModal,saving:profileSaving,saveError:profileError,onDeleteAccount:handleDeleteAccount}),
-      renderGroupSwitcherSurface({ suppressIntro:suppressSwitcherIntro }),
+      createdInviteGroup
+        ? React.createElement(CreatedBlocInviteScreen,{group:createdInviteGroup,onContinue:handleContinueFromCreatedInvite})
+        : renderGroupSwitcherSurface({ suppressIntro:suppressSwitcherIntro }),
       showProfile && React.createElement('div',{ref:profileOverlayRef,style:{position:"fixed",inset:0,zIndex:30,overflowY:"auto",overflowX:"hidden",WebkitOverflowScrolling:"touch",overscrollBehavior:"contain",background:profileRevealActive?"transparent":"var(--bg-gradient)",backgroundImage:profileRevealActive?"none":"var(--bg-radial-hint), var(--bg-gradient)"}},
         React.createElement(ProfilePage,{
           visibleGroups,
@@ -1542,7 +1567,7 @@ const App = () => {
     localDevMode && React.createElement(LocalDevImpersonationBar,{options:devImpersonationOptions,value:effectiveAuthSession?.devImpersonationActive?effectiveAuthSession.userId:"",onChange:handleSelectDevImpersonation}),
     React.createElement('div',{style:{paddingBottom:isMobileView?"calc(108px + env(safe-area-inset-bottom))":0}},
       page==="today"  &&React.createElement(TodayPageErrorBoundary,{resetKey:`${selectedGroupId}:${navResetToken}:${currentUser}`},
-        React.createElement(TodayPage,  {user:currentUser,currentUserId:effectiveAuthSession?.userId,currentGroupId:selectedGroupId,groups,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,saving,onSave:handleSave,onMultiLog:handleMultiLog,onLogMutation:handleLogMutation,clockTick,onViewLastMonth:()=>{setMonthInitialIdx(0);setPage("month");},onSitOutRequest:handleSitOutRequest,onSettlementClaimPaid:handleSettlementClaimPaid,onSettlementConfirmPaid:handleSettlementConfirmPaid,onSettlementDisputePaid:handleSettlementDisputePaid,navResetToken,showLog:showTodayLog,setShowLog:setShowTodayLog})
+        React.createElement(TodayPage,  {user:currentUser,currentUserId:effectiveAuthSession?.userId,currentGroupId:selectedGroupId,groups,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,saving,onSave:handleSave,onMultiLog:handleMultiLog,onLogMutation:handleLogMutation,clockTick,onViewLastMonth:()=>{setMonthInitialIdx(0);setPage("month");},onSitOutRequest:handleSitOutRequest,onSettlementClaimPaid:handleSettlementClaimPaid,onSettlementConfirmPaid:handleSettlementConfirmPaid,onSettlementDisputePaid:handleSettlementDisputePaid,onOpenSetupReview:()=>setShowSettings(true),navResetToken,showLog:showTodayLog,setShowLog:setShowTodayLog})
       ),
       page==="activity"&&React.createElement(ActivityPage,{group:currentGroup,currentUser,currentUserId:effectiveAuthSession?.userId,onLogMutation:handleLogMutation,clockTick,reactionOverrides,setReactionOverrides,commentCountOverrides:logCommentCountOverrides,onCommentCountsLoaded:setLogCommentCountOverrides,onOpenLogComments:handleOpenLogComments}),
       page==="month"  &&React.createElement(MonthPage,  {key:`${selectedGroupId}:${navResetToken}:${monthInitialIdx ?? "current"}`,group:currentGroup,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,groupSettings:currentGroup.settings,currentUser,currentUserId:effectiveAuthSession?.userId,initialSelIdx:monthInitialIdx,onStartNextMonth:()=>{setMonthInitialIdx(null);setPage("today");},onOpenToday:()=>setPage("today"),onSettlementClaimPaid:handleSettlementClaimPaid,onSettlementConfirmPaid:handleSettlementConfirmPaid,navResetToken}),
@@ -1559,7 +1584,7 @@ const App = () => {
   return React.createElement(React.Fragment,null,
     showJoinModal && !authStep && React.createElement(JoinGroupModal,{inviteContext,joinCode,setJoinCode,onClose:()=>setShowJoinModal(false),onJoin:handleJoinGroup,joining:joiningGroup,error:inviteError,signedIn:true}),
     showProfileModal && React.createElement(ProfileModal,{email:authSession?.email,onSignOut:handleSwitchUser,onClose:()=>setShowProfileModal(false),showDisplayName:true,currentDisplayName:currentUser,onSaveDisplayName:handleSaveProfileFromModal,saving:profileSaving,saveError:profileError,onLeaveBloc:handleLeaveBloc,onDeleteAccount:handleDeleteAccount}),
-    showSettings && React.createElement(GroupSettingsModal,{group:currentGroup,actor:currentUser,actorUserId:authSession?.userId,onSave:isGroupAdmin?handleUpdateGroupSettings:null,onClose:()=>setShowSettings(false),saving:savingSettings,onReviewSitOut:isGroupAdmin?handleSitOutReview:null,onKickMember:isGroupAdmin?handleKickMember:null}),
+    showSettings && React.createElement(BlocSettingsScreen,{group:currentGroup,actor:currentUser,actorUserId:authSession?.userId,isAdmin:isGroupAdmin,onSave:handleUpdateGroupSettings,onClose:()=>setShowSettings(false),saving:savingSettings,onReviewSetup:isGroupAdmin?handleReviewSetupDefaults:null,onReviewSitOut:isGroupAdmin?handleSitOutReview:null,onKickMember:isGroupAdmin?handleKickMember:null}),
     React.createElement(BlocStream,{open:showStream,groupName:currentGroup.name,blocId:currentGroup.id,initialBlocId:streamFocusBlocId,initialScrollTop:streamReturnScrollTop,initialUnreadCount:streamUnreadCount,currentUserId:effectiveAuthSession?.userId,members:Object.values(currentGroup.memberships||{}).map(m=>({id:m.userId,name:m.displayName,photoUrl:appState.profiles?.[m.userId]?.profilePhotoUrl||""})),streamBlocs:visibleGroups.map(group=>({id:group.id,name:group.name,members:Object.values(group.memberships||{}).map(m=>({id:m.userId,name:m.displayName,photoUrl:appState.profiles?.[m.userId]?.profilePhotoUrl||""}))})),onSeasonClosedTap:handleStreamSeasonClosedTap,onUnreadCountChange:(groupId,count)=>{if(groupId===currentGroup.id)setStreamUnreadCount(Number(count)||0);},onOpenLogComments:handleOpenLogComments,onClose:()=>{setShowStream(false);setStreamFocusBlocId(null);setStreamReturnScrollTop(null);refreshStreamUnreadCount(currentGroup.id);}}),
     prorationGroup && React.createElement(ProrationChoiceModal,{
       monthName: getCurrentMonthSummary(prorationGroup).monthName,

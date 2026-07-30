@@ -364,8 +364,12 @@ async function disputeSettlementConfirmationData(payload) {
   return { ok:true, data: normalizeAppState(result.body) };
 }
 
-async function updateGroupSettingsData(groupId, actor, actorUserId, groupName, settings) {
-  const result = await postApi("update-settings", { groupId, actor, actorUserId, groupName, settings });
+async function updateGroupSettingsData(groupId, actor, actorUserId, groupName, settings, options = {}) {
+  const payload = { groupId, actor, actorUserId, groupName, settings };
+  if (options && Object.prototype.hasOwnProperty.call(options, "setupReview")) {
+    payload.setupReview = options.setupReview;
+  }
+  const result = await postApi("update-settings", payload);
   if (!result.ok) return { ok:false, error: result.error || "Unable to update settings" };
   return { ok:true, data: normalizeAppState(result.body) };
 }

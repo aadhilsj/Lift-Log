@@ -180,17 +180,22 @@ const GroupCreateModal = ({onCreate,onClose,creating,defaultCreatorName="",defau
   const compactMobile = isMobile();
   const [groupName,setGroupName]=useState("");
   const [creatorName,setCreatorName]=useState(defaultCreatorName);
-  const [showAdvanced,setShowAdvanced]=useState(false);
-  const [settings,setSettings]=useState({...SETTINGS_DEFAULTS,timeZone:defaultTimeZone});
+  const [settings,setSettings]=useState({
+    ...SETTINGS_DEFAULTS,
+    acceptedWorkoutTypes:[...WORKOUT_TYPES],
+    timeZone:defaultTimeZone,
+    feeModel:DEFAULT_FEE_MODEL,
+    escalationStepAmount: DEFAULT_FINE_AMOUNT
+  });
   const [submitAttempted,setSubmitAttempted]=useState(false);
   const normalizedSettings = buildNormalizedSettings(settings);
   const escalationStepMissing = normalizedSettings.feeModel === "escalating" && normalizedSettings.escalationStepAmount === null;
   const canCreate = groupName.trim() && creatorName.trim() && normalizedSettings.acceptedWorkoutTypes.length > 0 && !creating;
 
   return React.createElement('div',{className:`overlay${compactMobile ? " center-mobile" : ""}`,onClick:onClose},
-    React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{maxWidth:440}},
+    React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{maxWidth:400}},
       React.createElement('div',{style:{fontWeight:800,fontSize:20,marginBottom:6}},"Create a Bloc"),
-      React.createElement('div',{style:{color:"var(--muted)",fontSize:13,lineHeight:1.5,marginBottom:18}},"Set the rules up front. Once the Bloc is created, invite people with the code or invite link so they can join as themselves."),
+      React.createElement('div',{style:{color:"var(--muted)",fontSize:13,lineHeight:1.5,marginBottom:18}},"Start with the basics. You can review the rest from Today after the Bloc is live."),
       [
         ["Bloc name",groupName,setGroupName,"Sunday Runners"],
         ...(!lockCreatorName ? [["Your name",creatorName,setCreatorName,"Aadhil"]] : [])
@@ -202,7 +207,23 @@ const GroupCreateModal = ({onCreate,onClose,creating,defaultCreatorName="",defau
           React.createElement('input',{value,onChange:e=>setter(e.target.value),placeholder,style:{width:"100%",background:"var(--s2)",border:"1px solid var(--border)",borderRadius:9,padding:"12px 13px",color:"var(--text)",fontSize:14,outline:"none"}})
         )
       ),
-      React.createElement(GroupSettingsFields,{settings,setSettings,showAdvanced,setShowAdvanced,showValidation:submitAttempted}),
+      React.createElement(SettingsField,{title:"Monthly fine amount",description:"What each person who misses the target owes."},
+        React.createElement('div',{style:{display:"grid",gridTemplateColumns:"108px 1fr",gap:8,alignItems:"stretch"}},
+          React.createElement(SelectField,{
+            value:settings.currency,
+            onChange:e=>setSettings(current=>({...current,currency:e.target.value})),
+            width:"100%",
+            textAlign:"center",
+            options:CURRENCY_OPTIONS.map(option=>({value:option.code,label:option.code})),
+            arrowColor:"#4ECDC4"
+          }),
+          React.createElement('input',{type:"number",min:1,value:settings.fineAmount,onChange:e=>setSettings(current=>({...current,fineAmount:e.target.value,escalationStepAmount:e.target.value})),style:{...inputShellStyle,width:"100%",fontSize:15,textAlign:"center"}})
+        )
+      ),
+      React.createElement(SettingsField,{title:"Monthly workout target",description:"Between 6 and 30 workouts per month."},
+        React.createElement(StepperField,{value:settings.minTarget,onChange:value=>setSettings(current=>({...current,minTarget:value})),min:6,max:30})
+      ),
+      submitAttempted && escalationStepMissing && React.createElement('div',{style:{fontSize:12,color:"var(--red)",marginTop:-6,marginBottom:10}},"Set a step amount to continue."),
       React.createElement('div',{style:{display:"flex",gap:9,marginTop:18}},
         React.createElement('button',{onClick:onClose,style:{flex:1,background:"var(--s2)",border:"1px solid var(--border)",color:"var(--muted)",padding:"14px",borderRadius:10,fontSize:15,fontWeight:600}},"Cancel"),
         React.createElement('button',{disabled:!canCreate,onClick:()=>{

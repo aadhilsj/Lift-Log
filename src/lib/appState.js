@@ -13,6 +13,7 @@ const DEFAULT_CURRENCY = "NOK";
 const DEFAULT_MIN_RUN_DISTANCE = 3;
 const DEFAULT_DISTANCE_UNIT = "km";
 const DEFAULT_STRAVA_ENABLED = true;
+const SETUP_REVIEW_FIELDS = ["feeModel","acceptedWorkoutTypes","timeZone"];
 const UNFLAGGED_IMAGE_RETENTION_MS = 72 * 60 * 60 * 1000;
 const RESOLVED_IMAGE_RETENTION_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_JOINED_MONTH_BY_NAME = { Abhishek: "2026-4" };
@@ -1157,6 +1158,28 @@ function buildNormalizedSettings(settings) {
   };
 }
 
+function normalizeSetupReview(value) {
+  const pending = value?.pending && typeof value.pending === "object" ? value.pending : {};
+  const normalizedPending = {};
+  SETUP_REVIEW_FIELDS.forEach(field => {
+    if (pending[field]) normalizedPending[field] = true;
+  });
+  return { pending: normalizedPending };
+}
+
+function buildDefaultSetupReview() {
+  return { pending: Object.fromEntries(SETUP_REVIEW_FIELDS.map(field => [field, true])) };
+}
+
+function getSetupReviewPendingFields(group) {
+  const setupReview = normalizeSetupReview(group?.setupReview);
+  return SETUP_REVIEW_FIELDS.filter(field => setupReview.pending[field]);
+}
+
+function getSetupReviewPendingCount(group) {
+  return getSetupReviewPendingFields(group).length;
+}
+
 function isCountedLog(log) {
   return normalizeFlagStatus(log?.flagStatus) !== "rejected";
 }
@@ -1336,6 +1359,7 @@ function normalizeGroupState(group) {
     joinedMonthByName: group?.joinedMonthByName && typeof group.joinedMonthByName === "object" ? group.joinedMonthByName : {},
     leftMemberNames: [...leftMemberNames],
     settings: buildNormalizedSettings(group?.settings),
+    setupReview: normalizeSetupReview(group?.setupReview),
     logs: normalizedLogs,
     deletedCurrentLogIds: normalizeDeletedCurrentLogIds(group?.deletedCurrentLogIds),
     excused,
@@ -1786,6 +1810,7 @@ export {
   DEFAULT_MIN_RUN_DISTANCE,
   DEFAULT_DISTANCE_UNIT,
   DEFAULT_STRAVA_ENABLED,
+  SETUP_REVIEW_FIELDS,
   UNFLAGGED_IMAGE_RETENTION_MS,
   RESOLVED_IMAGE_RETENTION_MS,
   DEFAULT_JOINED_MONTH_BY_NAME,
@@ -1909,6 +1934,10 @@ export {
   normalizeTimeZone,
   clampRunDistance,
   buildNormalizedSettings,
+  normalizeSetupReview,
+  buildDefaultSetupReview,
+  getSetupReviewPendingFields,
+  getSetupReviewPendingCount,
   isCountedLog,
   getCountedLogs,
   getCountedLogCount,

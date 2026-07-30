@@ -10,6 +10,7 @@ const DEFAULT_CURRENCY = "NOK";
 const DEFAULT_MIN_RUN_DISTANCE = 3;
 const DEFAULT_DISTANCE_UNIT = "km";
 const DEFAULT_STRAVA_ENABLED = true;
+const SETUP_REVIEW_FIELDS = ["feeModel", "acceptedWorkoutTypes", "timeZone"];
 const UNFLAGGED_IMAGE_RETENTION_MS = 72 * 60 * 60 * 1000;
 const RESOLVED_IMAGE_RETENTION_MS = 24 * 60 * 60 * 1000;
 const STORAGE_CLEANUP_INTERVAL_MS = 15 * 60 * 1000;
@@ -1010,6 +1011,7 @@ function normalizeGroup(group) {
     joinedMonthByName,
     leftMemberNames: [...leftMemberNames],
     settings: buildNormalizedSettings(group?.settings),
+    setupReview: normalizeSetupReview(group?.setupReview),
     logs: normalizedLogs,
     deletedCurrentLogIds: normalizeDeletedCurrentLogIds(group?.deletedCurrentLogIds),
     excused: normalizedExcused,
@@ -1233,6 +1235,19 @@ function buildNormalizedSettings(settings) {
     distanceUnit: normalizeDistanceUnit(settings?.distanceUnit),
     stravaEnabled: settings?.stravaEnabled !== false
   };
+}
+
+function normalizeSetupReview(value) {
+  const pending = value?.pending && typeof value.pending === "object" ? value.pending : {};
+  const normalizedPending = {};
+  SETUP_REVIEW_FIELDS.forEach(field => {
+    if (pending[field]) normalizedPending[field] = true;
+  });
+  return { pending: normalizedPending };
+}
+
+function buildDefaultSetupReview() {
+  return { pending: Object.fromEntries(SETUP_REVIEW_FIELDS.map(field => [field, true])) };
 }
 
 function normalizeCurrency(value) {
@@ -4829,6 +4844,7 @@ function applyCreateGroup(current, payload) {
     } : {},
     joinedMonthByName: {},
     settings,
+    setupReview: buildDefaultSetupReview(),
     logs: {},
     excused: {},
     monthHistory: [],
@@ -4960,7 +4976,8 @@ function applyUpdateSettings(current, payload) {
   const nextGroup = normalizeGroup({
     ...group,
     name: String(payload?.groupName || group.name).trim() || group.name,
-    settings: nextSettings
+    settings: nextSettings,
+    setupReview: payload?.setupReview ? normalizeSetupReview(payload.setupReview) : group.setupReview
   });
   return {
     ...base,

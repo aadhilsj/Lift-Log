@@ -33,7 +33,8 @@ import {
   getCountedLogCount,
   getMonthKeyFromISO,
   isJoinedForMonth,
-  getCurrentGroupMemberNames
+  getCurrentGroupMemberNames,
+  getSetupReviewPendingCount
 } from "../lib/appState.js";
 import {
   getGroupCloseMeta,
@@ -44,13 +45,13 @@ import {
   formatWeekRangeLabel,
   buildLocalWeeklyMvpPreview
 } from "../lib/utils.js";
-import { Avatar, WorkoutTypeIcon, ChevronRightIcon, TargetHitHexIcon, StatusBadge, RankIcon, Bar, Card, PlayerProfileErrorBoundary } from "../components/primitives.jsx";
+import { Avatar, WorkoutTypeIcon, ChevronRightIcon, TargetHitHexIcon, StatusBadge, RankIcon, Bar, Card, AppIcon, PlayerProfileErrorBoundary } from "../components/primitives.jsx";
 import { LogModal, DeleteModal, SitOutModal } from "../modals/modals.jsx";
 import { PlayerProfile } from "../pages/PlayerProfile.jsx";
 
 const FULL_MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
-const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthHistory,saving,onSave,onMultiLog,onLogMutation,clockTick,onViewLastMonth,onSitOutRequest,onSettlementClaimPaid,onSettlementConfirmPaid,onSettlementDisputePaid,navResetToken,showLog,setShowLog}) => {
+const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthHistory,saving,onSave,onMultiLog,onLogMutation,clockTick,onViewLastMonth,onSitOutRequest,onSettlementClaimPaid,onSettlementConfirmPaid,onSettlementDisputePaid,onOpenSetupReview,navResetToken,showLog,setShowLog}) => {
   const [showExcuse,setShowExcuse]=useState(false);
   const [sitOutSubmitting,setSitOutSubmitting]=useState(false);
   const [sitOutError,setSitOutError]=useState("");
@@ -110,6 +111,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
   const recentSitOutCount = currentGroup ? getRecentSitOutCount(currentGroup, user, curKey) : 0;
   const currentMonthOverride = currentGroup ? getSeasonOverrideForMonth(currentGroup, curKey) : null;
   const isGroupAdmin = currentGroup?.adminName === user;
+  const setupReviewCount = isGroupAdmin ? getSetupReviewPendingCount(currentGroup) : 0;
   const { target: myTarget, joinDay: myJoinDay = 1, proratedDays: myProratedDays } = currentGroup
     ? getMemberTargetInfoForMonth(currentGroup, user, curKey)
     : { target: MIN_TARGET };
@@ -909,6 +911,36 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
     )
   );
 
+  const setupReviewBanner = setupReviewCount > 0 && React.createElement('button',{
+    type:"button",
+    onClick:onOpenSetupReview,
+    style:{
+      width:"100%",
+      minHeight:64,
+      display:"grid",
+      gridTemplateColumns:"42px minmax(0,1fr) 22px",
+      alignItems:"center",
+      gap:12,
+      padding:"12px 14px",
+      borderRadius:14,
+      background:"linear-gradient(135deg,rgba(78,205,196,.12),rgba(8,15,15,.94) 46%,rgba(245,166,35,.08))",
+      border:"0.5px solid rgba(78,205,196,.35)",
+      boxShadow:"0 12px 28px rgba(0,0,0,.2), inset 0 1px 0 rgba(255,255,255,.05)",
+      textAlign:"left"
+    }
+  },
+    React.createElement('span',{style:{width:42,height:42,borderRadius:999,display:"inline-flex",alignItems:"center",justifyContent:"center",background:"rgba(78,205,196,.1)",border:"0.5px solid rgba(78,205,196,.28)",color:"#4ECDC4"}},
+      React.createElement(AppIcon,{name:"settings",size:22,stroke:"#4ECDC4"})
+    ),
+    React.createElement('span',{style:{minWidth:0}},
+      React.createElement('span',{style:{display:"block",fontSize:15,fontWeight:900,color:"#f5f7ff",lineHeight:1.1}},"Finish setup"),
+      React.createElement('span',{style:{display:"block",fontSize:12,color:"var(--muted)",marginTop:4}},
+        `${setupReviewCount} thing${setupReviewCount === 1 ? "" : "s"} need review`
+      )
+    ),
+    React.createElement(ChevronRightIcon,null)
+  );
+
   const mobileView = React.createElement('div',{className:"mobile-only",style:{padding:"12px 14px 0",display:"flex",flexDirection:"column",gap:12}},
     React.createElement('div',{style:{display:"grid",gap:10}},
       React.createElement('div',{style:{minWidth:0,flex:1}},
@@ -916,6 +948,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
       ),
     ),
     lastMonthBanner,
+    setupReviewBanner,
 !isExcused&&React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(4,minmax(0,1fr))",gap:6,paddingBottom:2}},
   statCards.map(s=>React.createElement(Card,{key:s.label,onClick:()=>setStatDetail({kind:s.kind}),style:mobileStatCardStyle},
     React.createElement('span',{className:"lbl",style:mobileStatLabelStyle},s.label),
@@ -1001,6 +1034,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
           )
     ),
     lastMonthBanner,
+    setupReviewBanner,
 !isExcused&&React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}},
   statCards.map(s=>React.createElement(Card,{key:s.label,onClick:()=>setStatDetail({kind:s.kind}),style:desktopStatCardStyle,
     onMouseEnter:e=>e.currentTarget.style.transform="translateY(-1px)",

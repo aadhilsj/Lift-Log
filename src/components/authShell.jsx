@@ -9,7 +9,8 @@ import {
   getAcceptedWorkoutTypes,
   getGroupCloseMeta,
   getGroupMemberPreview,
-  isMobile
+  isMobile,
+  copyToClipboard
 } from "../lib/utils.js";
 import { Avatar, WorkoutTypeIcon, AppIcon, AnteWordmark, PrimaryActionButton } from "../components/primitives.jsx";
 import { GroupCreateModal } from "../modals/modals.jsx";
@@ -202,7 +203,7 @@ const JoinGroupModal = ({inviteContext,joinCode,setJoinCode,onClose,onJoin,joini
       React.createElement('div',{style:{color:"var(--muted)",fontSize:13,lineHeight:1.6,marginBottom:18}},helperCopy),
       React.createElement('label',{style:{display:"block",marginBottom:18}},
         React.createElement('span',{className:"lbl"},"Invite code"),
-        React.createElement('input',{value:joinCode,onChange:e=>setJoinCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,8)),placeholder:"OGGROUP",style:{width:"100%",background:"var(--s2)",border:"1px solid var(--border)",borderRadius:10,padding:"12px 13px",color:"var(--text)",fontSize:15,outline:"none",textTransform:"uppercase"}})
+        React.createElement('input',{value:joinCode,onChange:e=>setJoinCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,8)),placeholder:"XXXXXXX",style:{width:"100%",background:"var(--s2)",border:"1px solid var(--border)",borderRadius:10,padding:"12px 13px",color:"var(--text)",fontSize:15,outline:"none",textTransform:"uppercase"}})
       ),
       isFull && React.createElement('div',{style:{fontSize:12,color:"var(--amber)",marginBottom:14,padding:"9px 11px",borderRadius:9,background:"var(--amber-bg)",border:"1px solid var(--amber-dim)"}},"This Bloc is full. Maximum 20 members allowed."),
       !isFull && error && React.createElement('div',{style:{fontSize:12,color:"var(--red)",marginBottom:14}},error),
@@ -269,6 +270,52 @@ const IdentitySetup = ({members,onSelect}) => (
     )
   )
 );
+
+
+const CreatedBlocInviteScreen = ({group,onContinue}) => {
+  const compactMobile = isMobile();
+  if (!group) return null;
+  const inviteLink = `${window.location.origin}${window.location.pathname}?invite=${group.inviteCode}`;
+  const shareInvite = async event => {
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title:`Join ${group.name} on Fero`,
+          text:`Join ${group.name} on Fero with invite code ${group.inviteCode}.`,
+          url:inviteLink
+        });
+        return;
+      } catch {}
+    }
+    copyToClipboard(inviteLink, event.currentTarget);
+  };
+  return React.createElement('div',{
+    style:{
+      minHeight:"100vh",
+      display:"flex",
+      alignItems:"center",
+      justifyContent:"center",
+      padding:compactMobile?"calc(env(safe-area-inset-top) + 22px) 18px calc(env(safe-area-inset-bottom) + 28px)":"42px 18px",
+      background:"var(--bg-gradient)",
+      backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)"
+    }
+  },
+    React.createElement('div',{className:"fu",style:{width:"100%",maxWidth:420,textAlign:"center"}},
+      React.createElement('div',{style:{width:70,height:70,borderRadius:999,margin:"0 auto 18px",display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(78,205,196,.12)",border:"1px solid rgba(78,205,196,.3)",boxShadow:"0 0 34px rgba(78,205,196,.14)"}},
+        React.createElement(AppIcon,{name:"sparkles",size:36,stroke:"#4ECDC4"})
+      ),
+      React.createElement('h1',{style:{margin:"0 0 8px",fontSize:compactMobile?28:34,lineHeight:1.08,letterSpacing:0}},`${group.name} is live`),
+      React.createElement('div',{style:{fontSize:14,lineHeight:1.55,color:"var(--muted)",maxWidth:340,margin:"0 auto 24px"}},"Get people in now. You can adjust categories and rules once you're inside."),
+      React.createElement('div',{style:{padding:"15px 16px",borderRadius:16,background:"rgba(8,15,15,.86)",border:"0.5px solid #163d36",marginBottom:12}},
+        React.createElement('div',{className:"lbl",style:{marginBottom:8,textAlign:"center"}},"Invite code"),
+        React.createElement('div',{style:{fontFamily:"'JetBrains Mono',monospace",fontSize:26,fontWeight:900,letterSpacing:".16em",color:"#f5f7ff",marginBottom:12}},group.inviteCode),
+        React.createElement('button',{type:"button",onClick:event=>copyToClipboard(group.inviteCode,event.currentTarget),style:{width:"100%",minHeight:42,borderRadius:12,background:"#0D1F1E",border:"0.5px solid #163d36",color:"#4ECDC4",fontSize:13,fontWeight:800}},"Copy code")
+      ),
+      React.createElement('button',{type:"button",onClick:shareInvite,style:{width:"100%",minHeight:48,borderRadius:14,background:"#4ECDC4",color:"#050909",fontSize:15,fontWeight:900,marginTop:8}},"Share invite link"),
+      React.createElement('button',{type:"button",onClick:onContinue,style:{background:"transparent",border:"none",padding:"16px 8px 0",color:"var(--muted)",fontSize:13,fontWeight:700,textDecoration:"underline",textUnderlineOffset:"3px"}},"Continue to Bloc")
+    )
+  );
+};
 
 
 const GroupHome = ({groups,currentIdentity,currentEmail,currentUserId="",onOpenProfile,onOpenGroup,onCreateGroup,onJoinGroup,creating,autoOpenCreate=false,onAutoOpenHandled,suppressIntro=false}) => {
@@ -465,4 +512,4 @@ const LocalDevImpersonationBar = ({options,value,onChange}) => {
 
 // ─── LOG MODAL ────────────────────────────────────────────────────────────────
 
-export { PREVIEW_MEMBERS, previewStatus, PreviewLanding, ProfileModal, JoinGroupModal, AuthFlowModal, IdentitySetup, GroupHome, WhoAreYou, GroupAccessNotice, LocalDevImpersonationBar };
+export { PREVIEW_MEMBERS, previewStatus, PreviewLanding, ProfileModal, JoinGroupModal, AuthFlowModal, IdentitySetup, CreatedBlocInviteScreen, GroupHome, WhoAreYou, GroupAccessNotice, LocalDevImpersonationBar };
