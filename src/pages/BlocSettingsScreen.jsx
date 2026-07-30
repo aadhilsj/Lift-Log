@@ -253,12 +253,12 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
     );
     return React.createElement('div',null,
       React.createElement(EditableField,{title:"Bloc Name"},
-        React.createElement('input',{value:groupName,onChange:e=>setGroupName(e.target.value),style:{...inputShellStyle,width:"min(100%, 250px)",fontSize:11.5,padding:"7px 9px",borderRadius:9,textAlign:"left",display:"block",margin:"0 auto"}})
+        React.createElement('input',{value:groupName,onChange:e=>setGroupName(e.target.value),style:{...inputShellStyle,width:"min(100%, 250px)",fontSize:11.5,padding:"7px 9px",borderRadius:9,textAlign:"center",display:"block"}})
       ),
       React.createElement(EditableField,{title:"Monthly Fine Amount"},
-        React.createElement('div',{style:{display:"grid",gridTemplateColumns:"68px 96px",gap:7,maxWidth:172,margin:"0 auto"}},
-          React.createElement('div',{style:{...inputShellStyle,padding:"8px 9px",borderRadius:9,fontSize:11,textAlign:"left",color:"var(--muted)",display:"flex",alignItems:"center",justifyContent:"flex-start"}},settings.currency || DEFAULT_CURRENCY),
-          React.createElement('input',{type:"number",min:1,value:settings.fineAmount,onChange:e=>setSettings(current=>({...current,fineAmount:e.target.value})),style:{...inputShellStyle,width:"100%",fontSize:12,padding:"8px 9px",borderRadius:9,textAlign:"left"}})
+        React.createElement('div',{style:{display:"grid",gridTemplateColumns:"68px 96px",gap:7,maxWidth:172}},
+          React.createElement('div',{style:{...inputShellStyle,padding:"8px 9px",borderRadius:9,fontSize:11,textAlign:"center",color:"var(--muted)",display:"flex",alignItems:"center",justifyContent:"center"}},settings.currency || DEFAULT_CURRENCY),
+          React.createElement('input',{type:"number",min:1,value:settings.fineAmount,onChange:e=>setSettings(current=>({...current,fineAmount:e.target.value})),style:{...inputShellStyle,width:"100%",fontSize:12,padding:"8px 9px",borderRadius:9,textAlign:"center"}})
         )
       ),
       React.createElement(ReviewShell,{review:pendingSet.has("feeModel")},
