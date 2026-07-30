@@ -115,6 +115,7 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
     if(viewPlayer) profileLayerRef.current?.scrollTo?.({top:0,left:0,behavior:"auto"});
   },[viewPlayer]);
   const openPlayerProfile = useCallback(name => {
+    setProfileRevealActive(false);
     setViewPlayer(name);
   },[]);
   const closePlayerProfile = useCallback(() => {
