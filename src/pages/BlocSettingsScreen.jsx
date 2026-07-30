@@ -85,6 +85,7 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
   const [kickingUserId,setKickingUserId]=useState(null);
   const [dragX,setDragX]=useState(0);
   const [dragging,setDragging]=useState(false);
+  const surfaceRef = useRef(null);
   const swipeRef = useRef({sx:0,sy:0,active:false,mode:null});
   const pendingFields = useMemo(()=>getSetupReviewPendingFields(group),[group]);
   const pendingSet = useMemo(()=>new Set(pendingFields),[pendingFields]);
@@ -104,6 +105,40 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
     const timer = setTimeout(()=>onReviewSetup(), 250);
     return ()=>clearTimeout(timer);
   },[tab,isAdmin,pendingFields.length,onReviewSetup]);
+
+  useEffect(() => {
+    const el = surfaceRef.current;
+    if (!el) return undefined;
+
+    let startY = 0;
+
+    const handleTouchStart = event => {
+      const touch = event.touches?.[0];
+      if (!touch) return;
+      startY = touch.clientY;
+    };
+
+    const handleTouchMove = event => {
+      const touch = event.touches?.[0];
+      if (!touch || !event.cancelable) return;
+
+      const dy = touch.clientY - startY;
+      const atTop = el.scrollTop <= 0;
+      const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 1;
+
+      if ((dy > 0 && atTop) || (dy < 0 && atBottom)) {
+        event.preventDefault();
+      }
+    };
+
+    el.addEventListener("touchstart", handleTouchStart, { passive: true });
+    el.addEventListener("touchmove", handleTouchMove, { passive: false });
+
+    return () => {
+      el.removeEventListener("touchstart", handleTouchStart);
+      el.removeEventListener("touchmove", handleTouchMove);
+    };
+  }, []);
 
   const saveRules = () => {
     setSubmitAttempted(true);
@@ -323,11 +358,12 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
   const content = tab === "members" ? renderMembers() : tab === "invite" ? renderInvite() : renderRules();
 
   return React.createElement('div',{
+    ref:surfaceRef,
     onTouchStart:startSwipeBack,
     onTouchMove:moveSwipeBack,
     onTouchEnd:endSwipeBack,
     onTouchCancel:resetSwipe,
-    style:{position:"relative",zIndex:2,minHeight:"calc(100vh - 64px)",background:"var(--bg-gradient)",backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)",overflowY:"auto",WebkitOverflowScrolling:"touch",overscrollBehavior:"contain",transform:dragX?`translateX(${dragX}px)`:"translateX(0)",transition:dragging?"none":"transform .08s ease-out",boxShadow:dragX?"-18px 0 34px rgba(0,0,0,.28)":"none",willChange:dragging||dragX?"transform":"auto",touchAction:"pan-y"}
+    style:{position:"relative",zIndex:2,height:"calc(100dvh - 64px)",minHeight:"calc(100vh - 64px)",background:"var(--bg-gradient)",backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)",backgroundColor:"#050909",overflowY:"auto",overflowX:"hidden",WebkitOverflowScrolling:"touch",overscrollBehavior:"contain",isolation:"isolate",transform:dragX?`translateX(${dragX}px)`:"translateX(0)",transition:dragging?"none":"transform .08s ease-out",boxShadow:dragX?"-18px 0 34px rgba(0,0,0,.28)":"none",willChange:dragging||dragX?"transform":"auto",touchAction:"pan-y"}
   },
     React.createElement('div',{style:{maxWidth:560,margin:"0 auto",padding:compactMobile?"8px 16px calc(env(safe-area-inset-bottom) + 22px)":"16px 18px 34px"}},
       React.createElement('div',{style:{display:"grid",gridTemplateColumns:"38px 1fr 38px",alignItems:"center",minHeight:36,marginBottom:7}},
