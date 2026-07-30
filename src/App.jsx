@@ -1251,7 +1251,7 @@ const App = () => {
   },[]);
   const startPageSwipe = useCallback((e) => {
     if (showSettings || showTodayLog || showProfileModal || showStream || showJoinModal || authStep || prorationGroup || logCommentScreen) return;
-    if (e.target?.closest?.(".in-bloc-profile-layer,input,textarea,select,button,[contenteditable='true']")) return;
+    if (e.target?.closest?.(".in-bloc-profile-layer,input,textarea,select,[contenteditable='true']")) return;
     const t = e.touches?.[0];
     if (!t) return;
     pageSwipeRef.current = {sx:t.clientX, sy:t.clientY, st:performance.now(), active:true, mode:null, target:null};
@@ -1658,6 +1658,7 @@ const App = () => {
     IN_BLOC_PAGES.map((pageName,index) => {
       const active = pageName === page;
       const near = Math.abs(index - pageIndex) <= 1 || pageName === pageSwipeTarget;
+      const offsetX = (index - pageIndex) * screenWidth + pageDragX;
       return React.createElement('div',{
         key:pageName,
         style:{
@@ -1669,7 +1670,7 @@ const App = () => {
           zIndex:active?2:1,
           pointerEvents:active?"auto":"none",
           visibility:near?"visible":"hidden",
-          transform:`translateX(${(index - pageIndex) * screenWidth + pageDragX}px)`,
+          transform:offsetX ? `translateX(${offsetX}px)` : "none",
           transition:pageDragging?"none":"transform .08s ease-out",
           boxShadow:active&&pageDragX?"-18px 0 34px rgba(0,0,0,.24)":"none",
           willChange:pageDragging||pageDragX?"transform":"auto"
