@@ -1262,8 +1262,8 @@ const App = () => {
     if (!s.active || !t) return;
     const dx = t.clientX - s.sx;
     const dy = t.clientY - s.sy;
-    if (!s.mode && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) {
-      const horizontal = Math.abs(dx) > 6 && Math.abs(dx) > Math.abs(dy) * 1.05;
+    if (!s.mode && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) {
+      const horizontal = Math.abs(dx) > 4 && Math.abs(dx) > Math.abs(dy) * 0.88;
       if (!horizontal) {
         s.mode = "scroll";
         return;
@@ -1293,8 +1293,8 @@ const App = () => {
     const dy = t.clientY - s.sy;
     const screenWidth = window.innerWidth || 420;
     const elapsed = Math.max(1, performance.now() - (s.st || performance.now()));
-    const fastFlick = Math.abs(dx) > 20 && elapsed < 280 && Math.abs(dx) / elapsed > 0.18 && Math.abs(dx) > Math.abs(dy);
-    const dominantDrag = Math.abs(dx) > screenWidth * 0.24 && Math.abs(dy) < 120 && Math.abs(dx) > Math.abs(dy);
+    const fastFlick = Math.abs(dx) > 14 && elapsed < 300 && Math.abs(dx) / elapsed > 0.13 && Math.abs(dx) > Math.abs(dy) * 0.82;
+    const dominantDrag = Math.abs(dx) > screenWidth * 0.16 && Math.abs(dy) < 140 && Math.abs(dx) > Math.abs(dy) * 0.75;
     const shouldMove = s.mode === "page" && s.target && (fastFlick || dominantDrag);
     setPageDragging(false);
     if (shouldMove) {
@@ -1639,6 +1639,8 @@ const App = () => {
     pageName==="history"&&React.createElement(HistoryPage,{group:currentGroup,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,groupSettings:currentGroup.settings,navResetToken,currentUser})
   );
 
+  const pageIndex = Math.max(0, IN_BLOC_PAGES.indexOf(page));
+  const screenWidth = typeof window !== "undefined" ? (window.innerWidth || 420) : 420;
   const activePageLayer = React.createElement('div',{
     onTouchStart:startPageSwipe,
     onTouchMove:movePageSwipe,
@@ -1648,25 +1650,33 @@ const App = () => {
       position:"relative",
       zIndex:2,
       minHeight:"calc(100vh - 64px)",
-      transform:pageDragX?`translateX(${pageDragX}px)`:"translateX(0)",
       transition:pageDragging?"none":"transform .08s ease-out",
-      boxShadow:pageDragX?"-18px 0 34px rgba(0,0,0,.24)":"none",
       willChange:pageDragging||pageDragX?"transform":"auto",
       touchAction:"pan-y"
     }
-  }, renderInBlocPage(page));
-
-  const swipePreviewLayer = pageSwipeTarget && React.createElement('div',{
-    style:{
-      position:"absolute",
-      inset:"0 0 auto 0",
-      zIndex:1,
-      minHeight:"calc(100vh - 64px)",
-      pointerEvents:"none",
-      transform:`translateX(${pageDragX < 0 ? (window.innerWidth || 420) + pageDragX : -(window.innerWidth || 420) + pageDragX}px)`,
-      transition:pageDragging?"none":"transform .08s ease-out"
-    }
-  }, renderInBlocPage(pageSwipeTarget,{swipePreview:true}));
+  },
+    IN_BLOC_PAGES.map((pageName,index) => {
+      const active = pageName === page;
+      const near = Math.abs(index - pageIndex) <= 1 || pageName === pageSwipeTarget;
+      return React.createElement('div',{
+        key:pageName,
+        style:{
+          position:active?"relative":"absolute",
+          top:0,
+          left:0,
+          width:"100%",
+          minHeight:"calc(100vh - 64px)",
+          zIndex:active?2:1,
+          pointerEvents:active?"auto":"none",
+          visibility:near?"visible":"hidden",
+          transform:`translateX(${(index - pageIndex) * screenWidth + pageDragX}px)`,
+          transition:pageDragging?"none":"transform .08s ease-out",
+          boxShadow:active&&pageDragX?"-18px 0 34px rgba(0,0,0,.24)":"none",
+          willChange:pageDragging||pageDragX?"transform":"auto"
+        }
+      }, renderInBlocPage(pageName,{swipePreview:!active}));
+    })
+  );
 
   const activeBlocSurface = React.createElement('div',{
     onTouchStart:startBlocSwitchSwipe,
@@ -1692,7 +1702,7 @@ const App = () => {
       showSettings && React.createElement('div',{style:{position:"absolute",inset:"0 0 auto 0",zIndex:1,pointerEvents:"none"}},renderInBlocPage(page,{swipePreview:true})),
       showSettings
         ? React.createElement(BlocSettingsScreen,{group:currentGroup,actor:currentUser,actorUserId:authSession?.userId,isAdmin:isGroupAdmin,onSave:handleUpdateGroupSettings,onClose:()=>setShowSettings(false),saving:savingSettings,onReviewSetup:isGroupAdmin?handleReviewSetupDefaults:null,onReviewSitOut:isGroupAdmin?handleSitOutReview:null,onKickMember:isGroupAdmin?handleKickMember:null})
-        : React.createElement(React.Fragment,null,swipePreviewLayer,activePageLayer)
+        : activePageLayer
     ),
     showInstallBanner && React.createElement(InstallBanner,{
       installReady:Boolean(installPrompt),
