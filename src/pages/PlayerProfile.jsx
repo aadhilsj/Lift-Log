@@ -38,9 +38,11 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
   const compactMobile = isMobile();
   const [deleteTarget,setDeleteTarget]=useState(null);
   const [sparkDetailKey,setSparkDetailKey]=useState(null);
-  const [dragX,setDragX]=useState(0);
   const [dragging,setDragging]=useState(false);
   const swipeRef=useRef({sx:0,sy:0,active:false,mode:null});
+  const surfaceRef=useRef(null);
+  const dragXRef=useRef(0);
+  const frameRef=useRef(null);
   const currency = groupSettings?.currency || DEFAULT_CURRENCY;
   const [selMonthIdx,setSelMonthIdx]=useState(null); // null = current month
   const appliedInitialMonthKeyRef = useRef(null);
@@ -235,6 +237,30 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
     if(!t||t.clientX>72) return;
     swipeRef.current={sx:t.clientX,sy:t.clientY,st:performance.now(),active:true,mode:null};
   };
+  const applySwipeTransform=(x=dragXRef.current,isDragging=dragging)=>{
+    const el=surfaceRef.current;
+    if(!el) return;
+    el.style.transform=x?`translateX(${x}px)`:"translateX(0)";
+    el.style.transition=isDragging?"none":"transform .08s ease-out";
+    el.style.boxShadow=x?"-18px 0 34px rgba(0,0,0,.28)":"none";
+    el.style.willChange=isDragging||x?"transform":"auto";
+  };
+  const scheduleSwipeTransform=(x,isDragging=dragging)=>{
+    dragXRef.current=x;
+    if(frameRef.current) return;
+    frameRef.current=requestAnimationFrame(()=>{
+      frameRef.current=null;
+      applySwipeTransform(dragXRef.current,isDragging);
+    });
+  };
+  const resetSwipeTransform=()=>{
+    dragXRef.current=0;
+    if(frameRef.current){
+      cancelAnimationFrame(frameRef.current);
+      frameRef.current=null;
+    }
+    applySwipeTransform(0,false);
+  };
   const moveSwipeBack=e=>{
     e.stopPropagation();
     const s=swipeRef.current,t=e.touches?.[0];
@@ -244,8 +270,9 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
       s.mode=dx>0&&Math.abs(dx)>Math.abs(dy)?"back":"scroll";
       setDragging(s.mode==="back");
       onSwipeRevealChange?.(s.mode==="back");
+      if(s.mode==="back") requestAnimationFrame(()=>applySwipeTransform(dragXRef.current,true));
     }
-    if(s.mode==="back") setDragX(Math.max(0,Math.min(dx,window.innerWidth||420)));
+    if(s.mode==="back") scheduleSwipeTransform(Math.max(0,Math.min(dx,window.innerWidth||420)),true);
   };
   const endSwipeBack=e=>{
     e.stopPropagation();
@@ -259,11 +286,11 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
     const shouldClose=s.mode==="back"&&(fastEdgeFlick||dominantDrag);
     setDragging(false);
     if(shouldClose){
-      setDragX(screenWidth);
+      applySwipeTransform(screenWidth,false);
       window.setTimeout(()=>onBack?.(),45);
     }else{
       onSwipeRevealChange?.(false);
-      setDragX(0);
+      applySwipeTransform(0,false);
     }
   };
 
@@ -330,7 +357,7 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
     )
   );
 
-  return React.createElement('div',{onTouchStart:startSwipeBack,onTouchMove:moveSwipeBack,onTouchEnd:endSwipeBack,onTouchCancel:e=>{e.stopPropagation();swipeRef.current={sx:0,sy:0,active:false,mode:null};onSwipeRevealChange?.(false);setDragging(false);setDragX(0);},style:{minHeight:"100dvh",background:"var(--bg-gradient)",backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)",transform:dragX?`translateX(${dragX}px)`:"translateX(0)",transition:dragging?"none":"transform .08s ease-out",boxShadow:dragX?"-18px 0 34px rgba(0,0,0,.28)":"none",willChange:"transform",touchAction:"pan-y",overscrollBehavior:"contain"}},
+  return React.createElement('div',{ref:surfaceRef,onTouchStart:startSwipeBack,onTouchMove:moveSwipeBack,onTouchEnd:endSwipeBack,onTouchCancel:e=>{e.stopPropagation();swipeRef.current={sx:0,sy:0,active:false,mode:null};onSwipeRevealChange?.(false);setDragging(false);resetSwipeTransform();},style:{minHeight:"100dvh",background:"var(--bg-gradient)",backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)",transform:dragXRef.current?`translateX(${dragXRef.current}px)`:"translateX(0)",transition:dragging?"none":"transform .08s ease-out",boxShadow:dragXRef.current?"-18px 0 34px rgba(0,0,0,.28)":"none",willChange:dragging||dragXRef.current?"transform":"auto",touchAction:"pan-y",overscrollBehavior:"contain"}},
     deleteTarget && React.createElement(DeleteModal,{log:deleteTarget,onClose:()=>setDeleteTarget(null),onConfirm:async()=>{ const log = deleteTarget; setDeleteTarget(null); await onDeleteLog(log); }}),
     React.createElement('div',{style:{maxWidth:740,margin:"0 auto",padding:"16px",display:"flex",flexDirection:"column",gap:12}},
     // Header row

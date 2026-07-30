@@ -206,11 +206,13 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
   const [localProfilePhotoUrl, setLocalProfilePhotoUrl] = useState(profilePhotoUrl || "");
   const [cropSource, setCropSource] = useState("");
   const [sel, setSel] = useState(null); // tapped heatmap day { iso, count }
-  const [dragX, setDragX] = useState(0);
   const [dragging, setDragging] = useState(false);
   const heatScrollRef = useRef(null);
   const photoInputRef = useRef(null);
   const swipeRef = useRef({ sx: 0, sy: 0, active: false, mode: null });
+  const surfaceRef = useRef(null);
+  const dragXRef = useRef(0);
+  const frameRef = useRef(null);
   // Open the heatmap scrolled to today (data's most relevant end), not the join date.
   useEffect(() => { const el = heatScrollRef.current; if (el) el.scrollLeft = el.scrollWidth; }, []);
   useEffect(() => { setLocalProfilePhotoUrl(profilePhotoUrl || ""); }, [profilePhotoUrl]);
@@ -416,6 +418,30 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
     if (!t || t.clientX > 72) return;
     swipeRef.current = { sx: t.clientX, sy: t.clientY, st: performance.now(), active: true, mode: null };
   };
+  const applySwipeTransform = (x = dragXRef.current, isDragging = dragging) => {
+    const el = surfaceRef.current;
+    if (!el) return;
+    el.style.transform = x ? `translateX(${x}px)` : "translateX(0)";
+    el.style.transition = isDragging ? "none" : "transform .12s ease";
+    el.style.boxShadow = x ? "-18px 0 34px rgba(0,0,0,.28)" : "none";
+    el.style.willChange = isDragging || x ? "transform" : "auto";
+  };
+  const scheduleSwipeTransform = (x, isDragging = dragging) => {
+    dragXRef.current = x;
+    if (frameRef.current) return;
+    frameRef.current = requestAnimationFrame(() => {
+      frameRef.current = null;
+      applySwipeTransform(dragXRef.current, isDragging);
+    });
+  };
+  const resetSwipeTransform = () => {
+    dragXRef.current = 0;
+    if (frameRef.current) {
+      cancelAnimationFrame(frameRef.current);
+      frameRef.current = null;
+    }
+    applySwipeTransform(0, false);
+  };
   const moveSwipeBack = e => {
     const s = swipeRef.current;
     const t = e.touches?.[0];
@@ -426,9 +452,10 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
       s.mode = dx > 0 && Math.abs(dx) > Math.abs(dy) ? "back" : "scroll";
       setDragging(s.mode === "back");
       onSwipeRevealChange?.(s.mode === "back");
+      if (s.mode === "back") requestAnimationFrame(() => applySwipeTransform(dragXRef.current, true));
     }
     if (s.mode === "back") {
-      setDragX(Math.max(0, Math.min(dx, window.innerWidth || 420)));
+      scheduleSwipeTransform(Math.max(0, Math.min(dx, window.innerWidth || 420)), true);
     }
   };
   const endSwipeBack = e => {
@@ -445,15 +472,15 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
     const shouldClose = s.mode === "back" && (fastEdgeFlick || dominantDrag);
     setDragging(false);
     if (shouldClose) {
-      setDragX(screenWidth);
+      applySwipeTransform(screenWidth, false);
       window.setTimeout(() => onBack?.(), 95);
     } else {
       onSwipeRevealChange?.(false);
-      setDragX(0);
+      applySwipeTransform(0, false);
     }
   };
 
-  return React.createElement('div', { onTouchStart: startSwipeBack, onTouchMove: moveSwipeBack, onTouchEnd: endSwipeBack, onTouchCancel: () => { swipeRef.current = { sx: 0, sy: 0, active: false, mode: null }; onSwipeRevealChange?.(false); setDragging(false); setDragX(0); }, style: { position: "relative", isolation: "isolate", minHeight: "100dvh", width: "100%", maxWidth: 640, margin: "0 auto", padding: "10px 14px 40px", display: "flex", flexDirection: "column", gap: 14, background: "var(--bg-gradient)", backgroundImage: "var(--bg-radial-hint), var(--bg-gradient)", transform: dragX ? `translateX(${dragX}px)` : "translateX(0)", transition: dragging ? "none" : "transform .12s ease", boxShadow: dragX ? "-18px 0 34px rgba(0,0,0,.28)" : "none", willChange: "transform", touchAction: "pan-y" } },
+  return React.createElement('div', { ref:surfaceRef, onTouchStart: startSwipeBack, onTouchMove: moveSwipeBack, onTouchEnd: endSwipeBack, onTouchCancel: () => { swipeRef.current = { sx: 0, sy: 0, active: false, mode: null }; onSwipeRevealChange?.(false); setDragging(false); resetSwipeTransform(); }, style: { position: "relative", isolation: "isolate", minHeight: "100dvh", width: "100%", maxWidth: 640, margin: "0 auto", padding: "10px 14px 40px", display: "flex", flexDirection: "column", gap: 14, background: "var(--bg-gradient)", backgroundImage: "var(--bg-radial-hint), var(--bg-gradient)", transform: dragXRef.current ? `translateX(${dragXRef.current}px)` : "translateX(0)", transition: dragging ? "none" : "transform .12s ease", boxShadow: dragXRef.current ? "-18px 0 34px rgba(0,0,0,.28)" : "none", willChange: dragging||dragXRef.current ? "transform" : "auto", touchAction: "pan-y" } },
     cropSource ? React.createElement(ProfilePhotoCropModal, { imageSrc:cropSource, onCancel:()=>setCropSource(""), onConfirm:handleCroppedPhoto }) : null,
     React.createElement('div', { "aria-hidden": true, style: { position: "fixed", inset: 0, zIndex: -1, pointerEvents: "none", background: "var(--bg-gradient)", backgroundImage: "var(--bg-radial-hint), var(--bg-gradient)" } }),
     // Header

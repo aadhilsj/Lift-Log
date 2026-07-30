@@ -191,9 +191,7 @@ const App = () => {
   const [authHydrating,setAuthHydrating]=useState(false);
   const [localPreviewAuthEnabled,setLocalPreviewAuthEnabled]=useState(false);
   const [devImpersonationUserId,setDevImpersonationUserId]=useState(()=>{try{return localStorage.getItem(LOCAL_DEV_IMPERSONATION_KEY)||"";}catch{return ""; }});
-  const [blocDragX,setBlocDragX]=useState(0);
   const [blocDragging,setBlocDragging]=useState(false);
-  const [pageDragX,setPageDragX]=useState(0);
   const [pageDragging,setPageDragging]=useState(false);
   const [pageSwipeTarget,setPageSwipeTarget]=useState(null);
   const [suppressSwitcherIntro,setSuppressSwitcherIntro]=useState(false);
@@ -206,7 +204,14 @@ const App = () => {
   const logMutationQueueRef = useRef(Promise.resolve());
   const reactionMutationQueuesRef = useRef({});
   const blocSwipeRef = useRef({sx:0,sy:0,active:false,mode:null});
+  const blocSurfaceRef = useRef(null);
+  const blocBottomNavRef = useRef(null);
+  const blocDragXRef = useRef(0);
+  const blocFrameRef = useRef(null);
   const pageSwipeRef = useRef({sx:0,sy:0,active:false,mode:null,target:null});
+  const pageLayerRefs = useRef({});
+  const pageDragXRef = useRef(0);
+  const pageFrameRef = useRef(null);
   const profileOverlayRef = useRef(null);
 
   const persistGroupSelection = useCallback((groupId) => {
@@ -1129,11 +1134,36 @@ const App = () => {
     setShowProfileModal(false);
     return { ok: true };
   };
+  const applyBlocTransforms = useCallback((dragX = blocDragXRef.current, dragging = blocDragging) => {
+    [
+      [blocSurfaceRef.current, true],
+      [blocBottomNavRef.current, false]
+    ].forEach(([el, withShadow]) => {
+      if (!el) return;
+      el.style.transform = dragX ? `translateX(${dragX}px)` : "none";
+      el.style.transition = dragging ? "none" : "transform .08s ease-out";
+      el.style.boxShadow = withShadow && dragX ? "-18px 0 34px rgba(0,0,0,.28)" : "none";
+      el.style.willChange = dragging || dragX ? "transform" : "auto";
+    });
+  },[blocDragging]);
+  const scheduleBlocTransforms = useCallback((dragX = blocDragXRef.current, dragging = blocDragging) => {
+    blocDragXRef.current = dragX;
+    if (blocFrameRef.current) return;
+    blocFrameRef.current = requestAnimationFrame(() => {
+      blocFrameRef.current = null;
+      applyBlocTransforms(blocDragXRef.current, dragging);
+    });
+  },[applyBlocTransforms, blocDragging]);
   const resetBlocSwipe = useCallback(() => {
     blocSwipeRef.current = {sx:0,sy:0,active:false,mode:null};
+    blocDragXRef.current = 0;
+    if (blocFrameRef.current) {
+      cancelAnimationFrame(blocFrameRef.current);
+      blocFrameRef.current = null;
+    }
+    applyBlocTransforms(0, false);
     setBlocDragging(false);
-    setBlocDragX(0);
-  },[]);
+  },[applyBlocTransforms]);
   const handleSwitchGroup=()=>{
     setSuppressSwitcherIntro(false);
     resetBlocSwipe();
@@ -1155,9 +1185,10 @@ const App = () => {
     if (!s.mode && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) {
       s.mode = dx > 0 && Math.abs(dx) > Math.abs(dy) ? "back" : "scroll";
       setBlocDragging(s.mode === "back");
+      if (s.mode === "back") requestAnimationFrame(()=>applyBlocTransforms(blocDragXRef.current, true));
     }
-    if (s.mode === "back") setBlocDragX(Math.max(0, Math.min(dx, window.innerWidth || 420)));
-  },[]);
+    if (s.mode === "back") scheduleBlocTransforms(Math.max(0, Math.min(dx, window.innerWidth || 420)), true);
+  },[applyBlocTransforms, scheduleBlocTransforms]);
   const endBlocSwitchSwipe = useCallback((e) => {
     const s = blocSwipeRef.current;
     const t = e.changedTouches?.[0];
@@ -1172,16 +1203,16 @@ const App = () => {
     const shouldClose = s.mode === "back" && (fastEdgeFlick || dominantDrag);
     setBlocDragging(false);
     if (shouldClose) {
-      setBlocDragX(screenWidth);
+      applyBlocTransforms(screenWidth, false);
       window.setTimeout(() => {
         setSuppressSwitcherIntro(true);
         resetBlocSwipe();
         persistGroupSelection(null);
       }, 45);
     } else {
-      setBlocDragX(0);
+      applyBlocTransforms(0, false);
     }
-  },[persistGroupSelection, resetBlocSwipe]);
+  },[applyBlocTransforms, persistGroupSelection, resetBlocSwipe]);
   const handleStreamSeasonClosedTap = useCallback((groupId) => {
     if (!groupId) return;
     persistGroupSelection(groupId);
@@ -1229,7 +1260,18 @@ const App = () => {
   const handleNavSelect = useCallback((nextPage)=>{
     setShowTodayLog(false);
     setShowSettings(false);
-    setPageDragX(0);
+    pageDragXRef.current = 0;
+    if (pageFrameRef.current) {
+      cancelAnimationFrame(pageFrameRef.current);
+      pageFrameRef.current = null;
+    }
+    Object.values(pageLayerRefs.current || {}).forEach(el => {
+      if (!el) return;
+      el.style.transform = "";
+      el.style.transition = "";
+      el.style.boxShadow = "";
+      el.style.willChange = "";
+    });
     setPageDragging(false);
     setPageSwipeTarget(null);
     pageSwipeRef.current = {sx:0,sy:0,active:false,mode:null,target:null};
@@ -1243,12 +1285,38 @@ const App = () => {
     const nextIndex = index + direction;
     return IN_BLOC_PAGES[nextIndex] || null;
   },[page]);
+  const applyPageTransforms = useCallback((dragX = pageDragXRef.current, dragging = pageDragging) => {
+    const activeIndex = IN_BLOC_PAGES.indexOf(page);
+    const width = window.innerWidth || 420;
+    IN_BLOC_PAGES.forEach((pageName,index) => {
+      const el = pageLayerRefs.current?.[pageName];
+      if (!el) return;
+      const offsetX = (index - activeIndex) * width + dragX;
+      el.style.transform = offsetX ? `translateX(${offsetX}px)` : "translateX(0)";
+      el.style.transition = dragging ? "none" : "transform .08s ease-out";
+      el.style.boxShadow = pageName === page && dragX ? "-18px 0 34px rgba(0,0,0,.24)" : "none";
+      el.style.willChange = dragging || dragX ? "transform" : "auto";
+    });
+  },[page,pageDragging]);
+  const schedulePageTransforms = useCallback((dragX = pageDragXRef.current, dragging = pageDragging) => {
+    pageDragXRef.current = dragX;
+    if (pageFrameRef.current) return;
+    pageFrameRef.current = requestAnimationFrame(() => {
+      pageFrameRef.current = null;
+      applyPageTransforms(pageDragXRef.current, dragging);
+    });
+  },[applyPageTransforms,pageDragging]);
   const resetPageSwipe = useCallback(() => {
     pageSwipeRef.current = {sx:0,sy:0,active:false,mode:null,target:null};
+    pageDragXRef.current = 0;
+    if (pageFrameRef.current) {
+      cancelAnimationFrame(pageFrameRef.current);
+      pageFrameRef.current = null;
+    }
+    applyPageTransforms(0, false);
     setPageDragging(false);
-    setPageDragX(0);
     setPageSwipeTarget(null);
-  },[]);
+  },[applyPageTransforms]);
   const startPageSwipe = useCallback((e) => {
     if (showSettings || showTodayLog || showProfileModal || showStream || showJoinModal || authStep || prorationGroup || logCommentScreen) return;
     if (e.target?.closest?.(".in-bloc-profile-layer,input,textarea,select,[contenteditable='true']")) return;
@@ -1277,13 +1345,14 @@ const App = () => {
       s.target = target;
       setPageSwipeTarget(target);
       setPageDragging(true);
+      requestAnimationFrame(()=>applyPageTransforms(pageDragXRef.current, true));
     }
     if (s.mode === "page") {
       e.preventDefault();
       const screenWidth = window.innerWidth || 420;
-      setPageDragX(Math.max(-screenWidth, Math.min(screenWidth, dx)));
+      schedulePageTransforms(Math.max(-screenWidth, Math.min(screenWidth, dx)), true);
     }
-  },[adjacentInBlocPage]);
+  },[adjacentInBlocPage, applyPageTransforms, schedulePageTransforms]);
   const endPageSwipe = useCallback((e) => {
     const s = pageSwipeRef.current;
     const t = e.changedTouches?.[0];
@@ -1298,17 +1367,17 @@ const App = () => {
     const shouldMove = s.mode === "page" && s.target && (fastFlick || dominantDrag);
     setPageDragging(false);
     if (shouldMove) {
-      setPageDragX(dx < 0 ? -screenWidth : screenWidth);
+      applyPageTransforms(dx < 0 ? -screenWidth : screenWidth, false);
       window.setTimeout(() => {
+        pageDragXRef.current = 0;
         setPage(s.target);
-        setMonthInitialIdx(null);
         resetPageSwipe();
       }, 45);
     } else {
-      setPageDragX(0);
+      applyPageTransforms(0, false);
       setPageSwipeTarget(null);
     }
-  },[resetPageSwipe]);
+  },[applyPageTransforms, resetPageSwipe]);
   const dismissInstall = () => {
     setInstallDismissed(true);
     try { localStorage.setItem(INSTALL_DISMISSED_KEY, "1"); } catch {}
@@ -1631,11 +1700,11 @@ const App = () => {
   const renderInBlocPage = (pageName, { swipePreview=false } = {}) => React.createElement('div',{
     style:{paddingBottom:isMobileView?"calc(108px + env(safe-area-inset-bottom))":0}
   },
-    pageName==="today"  &&React.createElement(TodayPageErrorBoundary,{resetKey:`${selectedGroupId}:${swipePreview?"preview":navResetToken}:${currentUser}`},
-      React.createElement(TodayPage,  {user:currentUser,currentUserId:effectiveAuthSession?.userId,currentGroupId:selectedGroupId,groups,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,saving,onSave:handleSave,onMultiLog:handleMultiLog,onLogMutation:handleLogMutation,clockTick,onViewLastMonth:()=>{setMonthInitialIdx(0);setPage("month");},onSitOutRequest:handleSitOutRequest,onSettlementClaimPaid:handleSettlementClaimPaid,onSettlementConfirmPaid:handleSettlementConfirmPaid,onSettlementDisputePaid:handleSettlementDisputePaid,onOpenSetupReview:()=>setShowSettings(true),navResetToken,showLog:swipePreview?false:showTodayLog,setShowLog:swipePreview?()=>{}:setShowTodayLog})
+    pageName==="today"  &&React.createElement(TodayPageErrorBoundary,{resetKey:`${selectedGroupId}:${navResetToken}:${currentUser}`},
+      React.createElement(TodayPage,  {user:currentUser,currentUserId:effectiveAuthSession?.userId,currentGroupId:selectedGroupId,groups,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,saving,onSave:handleSave,onMultiLog:handleMultiLog,onLogMutation:handleLogMutation,clockTick,onViewLastMonth:()=>{setMonthInitialIdx(0);setPage("month");},onSitOutRequest:handleSitOutRequest,onSettlementClaimPaid:handleSettlementClaimPaid,onSettlementConfirmPaid:handleSettlementConfirmPaid,onSettlementDisputePaid:handleSettlementDisputePaid,onOpenSetupReview:()=>setShowSettings(true),navResetToken,showLog:showTodayLog,setShowLog})
     ),
-    pageName==="activity"&&React.createElement(ActivityPage,{group:currentGroup,currentUser,currentUserId:effectiveAuthSession?.userId,onLogMutation:handleLogMutation,clockTick,reactionOverrides,setReactionOverrides,commentCountOverrides:logCommentCountOverrides,onCommentCountsLoaded:swipePreview?()=>{}:setLogCommentCountOverrides,onOpenLogComments:swipePreview?()=>{}:handleOpenLogComments}),
-    pageName==="month"  &&React.createElement(MonthPage,  {key:`${selectedGroupId}:${swipePreview?"preview":navResetToken}:${monthInitialIdx ?? "current"}`,group:currentGroup,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,groupSettings:currentGroup.settings,currentUser,currentUserId:effectiveAuthSession?.userId,initialSelIdx:swipePreview?null:monthInitialIdx,onStartNextMonth:()=>{setMonthInitialIdx(null);setPage("today");},onOpenToday:()=>setPage("today"),onSettlementClaimPaid:handleSettlementClaimPaid,onSettlementConfirmPaid:handleSettlementConfirmPaid,navResetToken}),
+    pageName==="activity"&&React.createElement(ActivityPage,{group:currentGroup,currentUser,currentUserId:effectiveAuthSession?.userId,onLogMutation:handleLogMutation,clockTick,reactionOverrides,setReactionOverrides,commentCountOverrides:logCommentCountOverrides,onCommentCountsLoaded:setLogCommentCountOverrides,onOpenLogComments:handleOpenLogComments}),
+    pageName==="month"  &&React.createElement(MonthPage,  {key:`${selectedGroupId}:${navResetToken}:${monthInitialIdx ?? "current"}`,group:currentGroup,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,groupSettings:currentGroup.settings,currentUser,currentUserId:effectiveAuthSession?.userId,initialSelIdx:monthInitialIdx,onStartNextMonth:()=>{setMonthInitialIdx(null);setPage("today");},onOpenToday:()=>setPage("today"),onSettlementClaimPaid:handleSettlementClaimPaid,onSettlementConfirmPaid:handleSettlementConfirmPaid,navResetToken}),
     pageName==="history"&&React.createElement(HistoryPage,{group:currentGroup,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,groupSettings:currentGroup.settings,navResetToken,currentUser})
   );
 
@@ -1651,16 +1720,20 @@ const App = () => {
       zIndex:2,
       minHeight:"calc(100vh - 64px)",
       transition:pageDragging?"none":"transform .08s ease-out",
-      willChange:pageDragging||pageDragX?"transform":"auto",
+      willChange:pageDragging?"transform":"auto",
       touchAction:"pan-y"
     }
   },
     IN_BLOC_PAGES.map((pageName,index) => {
       const active = pageName === page;
       const near = Math.abs(index - pageIndex) <= 1 || pageName === pageSwipeTarget;
-      const offsetX = (index - pageIndex) * screenWidth + pageDragX;
+      const offsetX = (index - pageIndex) * screenWidth + pageDragXRef.current;
       return React.createElement('div',{
         key:pageName,
+        ref:el=>{
+          if (el) pageLayerRefs.current[pageName] = el;
+          else delete pageLayerRefs.current[pageName];
+        },
         style:{
           position:active?"relative":"absolute",
           top:0,
@@ -1672,14 +1745,15 @@ const App = () => {
           visibility:near?"visible":"hidden",
           transform:offsetX ? `translateX(${offsetX}px)` : "none",
           transition:pageDragging?"none":"transform .08s ease-out",
-          boxShadow:active&&pageDragX?"-18px 0 34px rgba(0,0,0,.24)":"none",
-          willChange:pageDragging||pageDragX?"transform":"auto"
+          boxShadow:active&&pageDragXRef.current?"-18px 0 34px rgba(0,0,0,.24)":"none",
+          willChange:pageDragging||pageDragXRef.current?"transform":"auto"
         }
       }, renderInBlocPage(pageName,{swipePreview:!active}));
     })
   );
 
   const activeBlocSurface = React.createElement('div',{
+    ref:blocSurfaceRef,
     onTouchStart:startBlocSwitchSwipe,
     onTouchMove:moveBlocSwitchSwipe,
     onTouchEnd:endBlocSwitchSwipe,
@@ -1690,10 +1764,10 @@ const App = () => {
       minHeight:"100vh",
       background:"var(--bg-gradient)",
       backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)",
-      transform:blocDragX?`translateX(${blocDragX}px)`:"none",
+      transform:blocDragXRef.current?`translateX(${blocDragXRef.current}px)`:"none",
       transition:blocDragging?"none":"transform .08s ease-out",
-      boxShadow:blocDragX?"-18px 0 34px rgba(0,0,0,.28)":"none",
-      willChange:blocDragging||blocDragX?"transform":"auto",
+      boxShadow:blocDragXRef.current?"-18px 0 34px rgba(0,0,0,.28)":"none",
+      willChange:blocDragging||blocDragXRef.current?"transform":"auto",
       touchAction:"pan-y"
     }
   },
@@ -1729,7 +1803,7 @@ const App = () => {
     }),
     page==="today"&&renderGroupSwitcherSurface({ inert:true, suppressIntro:true }),
     activeBlocSurface,
-    !showSettings && React.createElement(Nav,{onlyMobileBottomNav:true,page,setPage:handleNavSelect,user:currentUser,currentUserId:effectiveAuthSession?.userId||"",profilePhotoUrl:effectiveProfile?.profilePhotoUrl||"",groupName:currentGroup.name,canEditGroup:isGroupAdmin,onOpenSettings:()=>setShowSettings(true),onOpenProfile:()=>{setProfileError("");setShowProfileModal(true);},onOpenStream:handleOpenStream,streamUnreadCount,onSwitchUser:handleSwitchUser,onSwitchGroup:handleSwitchGroup,onOpenLog:()=>{setPage("today");setShowTodayLog(true);},syncing,lastSyncedAt,syncError,onRefresh:refreshNow,showJustSynced,activityAlertCount,mobileBottomDragX:blocDragX,mobileBottomDragging:blocDragging}),
+    !showSettings && React.createElement(Nav,{onlyMobileBottomNav:true,page,setPage:handleNavSelect,user:currentUser,currentUserId:effectiveAuthSession?.userId||"",profilePhotoUrl:effectiveProfile?.profilePhotoUrl||"",groupName:currentGroup.name,canEditGroup:isGroupAdmin,onOpenSettings:()=>setShowSettings(true),onOpenProfile:()=>{setProfileError("");setShowProfileModal(true);},onOpenStream:handleOpenStream,streamUnreadCount,onSwitchUser:handleSwitchUser,onSwitchGroup:handleSwitchGroup,onOpenLog:()=>{setPage("today");setShowTodayLog(true);},syncing,lastSyncedAt,syncError,onRefresh:refreshNow,showJustSynced,activityAlertCount,mobileBottomDragX:blocDragXRef.current,mobileBottomNavRef:blocBottomNavRef,mobileBottomDragging:blocDragging}),
     logCommentScreen && React.createElement('div',{
       style:{position:"fixed",inset:0,zIndex:520,overflow:"hidden",pointerEvents:"auto",background:"transparent"}
     },
