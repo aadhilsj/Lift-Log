@@ -663,12 +663,15 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, 
   const [mention, setMention] = useState(null); // { query, start } while typing "@…"
   const [listPositioned, setListPositioned] = useState(true);
   const [pendingListAnchor, setPendingListAnchor] = useState(null);
+  const [streamDragY, setStreamDragY] = useState(0);
+  const [streamDragging, setStreamDragging] = useState(false);
   const listRef = useRef(null);
   const inputRef = useRef(null);
   const messageNodeRefs = useRef(new Map());
   const previousOpenRef = useRef(false);
   const streamStateRef = useRef(new Map());
   const activeBlocIdRef = useRef(blocId);
+  const streamPullRef = useRef({sx:0,sy:0,active:false,mode:null});
 
   const fallbackBlocs = blocId ? [{ id: blocId, name: groupName, members }] : [];
   const availableBlocs = (streamBlocs.length ? streamBlocs : fallbackBlocs).filter(group => group?.id);
@@ -690,6 +693,53 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, 
       const el = listRef.current;
       if (el) el.scrollTop = el.scrollHeight;
     });
+  };
+  const resetStreamPull = () => {
+    streamPullRef.current = {sx:0,sy:0,active:false,mode:null};
+    setStreamDragging(false);
+    setStreamDragY(0);
+  };
+  const startStreamPull = e => {
+    if (showEventSheet || replyTarget || mention || e.target?.closest?.("input,textarea,select,button,[contenteditable='true']")) return;
+    const el = listRef.current;
+    const t = e.touches?.[0];
+    if (!el || !t || el.scrollTop > 1) return;
+    streamPullRef.current = {sx:t.clientX, sy:t.clientY, st:performance.now(), active:true, mode:null};
+  };
+  const moveStreamPull = e => {
+    const s = streamPullRef.current;
+    const t = e.touches?.[0];
+    if (!s.active || !t) return;
+    const dx = t.clientX - s.sx;
+    const dy = t.clientY - s.sy;
+    if (!s.mode && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) {
+      s.mode = dy > 0 && Math.abs(dy) > 9 && Math.abs(dy) > Math.abs(dx) * 1.15 ? "close" : "scroll";
+      setStreamDragging(s.mode === "close");
+    }
+    if (s.mode === "close") {
+      e.preventDefault();
+      setStreamDragY(Math.max(0, Math.min(dy, window.innerHeight || 720)));
+    }
+  };
+  const endStreamPull = e => {
+    const s = streamPullRef.current;
+    const t = e.changedTouches?.[0];
+    streamPullRef.current = {sx:0,sy:0,active:false,mode:null};
+    if (!s.active || !t) return;
+    const dx = t.clientX - s.sx;
+    const dy = t.clientY - s.sy;
+    const screenHeight = window.innerHeight || 720;
+    const elapsed = Math.max(1, performance.now() - (s.st || performance.now()));
+    const fastPull = dy > 34 && elapsed < 300 && dy / elapsed > 0.24 && dy > Math.abs(dx) * 1.08;
+    const dominantPull = dy > screenHeight * 0.24 && dy > Math.abs(dx);
+    const shouldClose = s.mode === "close" && (fastPull || dominantPull);
+    setStreamDragging(false);
+    if (shouldClose) {
+      setStreamDragY(screenHeight);
+      window.setTimeout(()=>{ resetStreamPull(); onClose?.(); },45);
+    } else {
+      setStreamDragY(0);
+    }
   };
   const positionListForUnread = (nextMessages, unreadCount, restoreScrollTop = null) => {
     const count = Math.max(0, Number(unreadCount || 0));
@@ -832,6 +882,7 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, 
     }
     if (!open && wasOpen) {
       setMounted(false);
+      resetStreamPull();
       streamStateRef.current = new Map();
       messageNodeRefs.current.clear();
       setViewedBlocId(nextBlocId);
@@ -1123,7 +1174,7 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, 
         background: "radial-gradient(ellipse 95% 38% at 50% 16%, rgba(78,205,196,0.13), transparent 60%), linear-gradient(180deg, #080f0e 0%, #070f0e 38%, #05090a 100%)",
         borderTop: "1px solid var(--border)",
         borderRadius: "16px 16px 0 0", height: "92dvh", display: "flex", flexDirection: "column",
-        transform: mounted ? "translateY(0)" : "translateY(100%)", transition: "transform .28s cubic-bezier(.22,.61,.36,1)",
+        transform: mounted ? `translateY(${streamDragY}px)` : "translateY(100%)", transition: streamDragging ? "none" : (streamDragY ? "transform .08s ease-out" : "transform .28s cubic-bezier(.22,.61,.36,1)"),
         overflow: "hidden", overscrollBehavior: "contain", boxShadow: "0 -12px 40px rgba(0,0,0,.5)"
       }
     },
@@ -1164,7 +1215,11 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, 
       // Message list
       React.createElement('div', {
         ref: listRef,
-        style: { flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", overscrollBehavior: "contain", padding: "16px 16px 20px", display: "flex", flexDirection: "column", userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none", opacity: listPositioned ? 1 : 0, transition: listPositioned ? "opacity .08s ease" : "none" }
+        onTouchStart:startStreamPull,
+        onTouchMove:moveStreamPull,
+        onTouchEnd:endStreamPull,
+        onTouchCancel:resetStreamPull,
+        style: { flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", overscrollBehavior: "contain", padding: "16px 16px 20px", display: "flex", flexDirection: "column", userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none", opacity: listPositioned ? 1 : 0, transition: listPositioned ? "opacity .08s ease" : "none", touchAction:"pan-y" }
       },
         messages.length === 0
           ? React.createElement('div', { style: { margin: "auto", color: "var(--muted2)", fontSize: 13 } }, "No messages yet")

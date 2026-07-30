@@ -124,6 +124,8 @@ const preserveKnownProfilePhotos = (current, incoming) => {
   return changed ? { ...incoming, profiles: mergedProfiles } : incoming;
 };
 
+const IN_BLOC_PAGES = ["today", "activity", "month", "history"];
+
 const App = () => {
   const cached = readCachedData();
   const initialPersistedSession = readPersistedAuthSession();
@@ -191,6 +193,9 @@ const App = () => {
   const [devImpersonationUserId,setDevImpersonationUserId]=useState(()=>{try{return localStorage.getItem(LOCAL_DEV_IMPERSONATION_KEY)||"";}catch{return ""; }});
   const [blocDragX,setBlocDragX]=useState(0);
   const [blocDragging,setBlocDragging]=useState(false);
+  const [pageDragX,setPageDragX]=useState(0);
+  const [pageDragging,setPageDragging]=useState(false);
+  const [pageSwipeTarget,setPageSwipeTarget]=useState(null);
   const [suppressSwitcherIntro,setSuppressSwitcherIntro]=useState(false);
   const [streamUnreadCount,setStreamUnreadCount]=useState(0);
   const [hiddenLeftGroupIds,setHiddenLeftGroupIds]=useState({});
@@ -201,6 +206,7 @@ const App = () => {
   const logMutationQueueRef = useRef(Promise.resolve());
   const reactionMutationQueuesRef = useRef({});
   const blocSwipeRef = useRef({sx:0,sy:0,active:false,mode:null});
+  const pageSwipeRef = useRef({sx:0,sy:0,active:false,mode:null,target:null});
   const profileOverlayRef = useRef(null);
 
   const persistGroupSelection = useCallback((groupId) => {
@@ -1223,10 +1229,87 @@ const App = () => {
   const handleNavSelect = useCallback((nextPage)=>{
     setShowTodayLog(false);
     setShowSettings(false);
+    setPageDragX(0);
+    setPageDragging(false);
+    setPageSwipeTarget(null);
+    pageSwipeRef.current = {sx:0,sy:0,active:false,mode:null,target:null};
     setMonthInitialIdx(null);
     setNavResetToken(value=>value+1);
     setPage(nextPage);
   },[]);
+  const adjacentInBlocPage = useCallback((direction) => {
+    const index = IN_BLOC_PAGES.indexOf(page);
+    if (index < 0) return null;
+    const nextIndex = index + direction;
+    return IN_BLOC_PAGES[nextIndex] || null;
+  },[page]);
+  const resetPageSwipe = useCallback(() => {
+    pageSwipeRef.current = {sx:0,sy:0,active:false,mode:null,target:null};
+    setPageDragging(false);
+    setPageDragX(0);
+    setPageSwipeTarget(null);
+  },[]);
+  const startPageSwipe = useCallback((e) => {
+    if (showSettings || showTodayLog || showProfileModal || showStream || showJoinModal || authStep || prorationGroup || logCommentScreen) return;
+    if (e.target?.closest?.(".in-bloc-profile-layer,input,textarea,select,button,[contenteditable='true']")) return;
+    const t = e.touches?.[0];
+    if (!t) return;
+    pageSwipeRef.current = {sx:t.clientX, sy:t.clientY, st:performance.now(), active:true, mode:null, target:null};
+  },[authStep, logCommentScreen, prorationGroup, showJoinModal, showProfileModal, showSettings, showStream, showTodayLog]);
+  const movePageSwipe = useCallback((e) => {
+    const s = pageSwipeRef.current;
+    const t = e.touches?.[0];
+    if (!s.active || !t) return;
+    const dx = t.clientX - s.sx;
+    const dy = t.clientY - s.sy;
+    if (!s.mode && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) {
+      const horizontal = Math.abs(dx) > 9 && Math.abs(dx) > Math.abs(dy) * 1.18;
+      if (!horizontal) {
+        s.mode = "scroll";
+        return;
+      }
+      const target = adjacentInBlocPage(dx < 0 ? 1 : -1);
+      if (!target) {
+        s.mode = "scroll";
+        return;
+      }
+      s.mode = "page";
+      s.target = target;
+      setPageSwipeTarget(target);
+      setPageDragging(true);
+    }
+    if (s.mode === "page") {
+      e.preventDefault();
+      const screenWidth = window.innerWidth || 420;
+      setPageDragX(Math.max(-screenWidth, Math.min(screenWidth, dx)));
+    }
+  },[adjacentInBlocPage]);
+  const endPageSwipe = useCallback((e) => {
+    const s = pageSwipeRef.current;
+    const t = e.changedTouches?.[0];
+    pageSwipeRef.current = {sx:0,sy:0,active:false,mode:null,target:null};
+    if (!s.active || !t) return;
+    const dx = t.clientX - s.sx;
+    const dy = t.clientY - s.sy;
+    const screenWidth = window.innerWidth || 420;
+    const elapsed = Math.max(1, performance.now() - (s.st || performance.now()));
+    const fastFlick = Math.abs(dx) > 30 && elapsed < 260 && Math.abs(dx) / elapsed > 0.24 && Math.abs(dx) > Math.abs(dy) * 1.08;
+    const dominantDrag = Math.abs(dx) > screenWidth * 0.34 && Math.abs(dy) < 110 && Math.abs(dx) > Math.abs(dy);
+    const shouldMove = s.mode === "page" && s.target && (fastFlick || dominantDrag);
+    setPageDragging(false);
+    if (shouldMove) {
+      setPageDragX(dx < 0 ? -screenWidth : screenWidth);
+      window.setTimeout(() => {
+        setPage(s.target);
+        setMonthInitialIdx(null);
+        setNavResetToken(value=>value+1);
+        resetPageSwipe();
+      }, 45);
+    } else {
+      setPageDragX(0);
+      setPageSwipeTarget(null);
+    }
+  },[resetPageSwipe]);
   const dismissInstall = () => {
     setInstallDismissed(true);
     try { localStorage.setItem(INSTALL_DISMISSED_KEY, "1"); } catch {}
@@ -1546,6 +1629,46 @@ const App = () => {
     });
   }
 
+  const renderInBlocPage = (pageName, { swipePreview=false } = {}) => React.createElement('div',{
+    style:{paddingBottom:isMobileView?"calc(108px + env(safe-area-inset-bottom))":0}
+  },
+    pageName==="today"  &&React.createElement(TodayPageErrorBoundary,{resetKey:`${selectedGroupId}:${swipePreview?"preview":navResetToken}:${currentUser}`},
+      React.createElement(TodayPage,  {user:currentUser,currentUserId:effectiveAuthSession?.userId,currentGroupId:selectedGroupId,groups,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,saving,onSave:handleSave,onMultiLog:handleMultiLog,onLogMutation:handleLogMutation,clockTick,onViewLastMonth:()=>{setMonthInitialIdx(0);setPage("month");},onSitOutRequest:handleSitOutRequest,onSettlementClaimPaid:handleSettlementClaimPaid,onSettlementConfirmPaid:handleSettlementConfirmPaid,onSettlementDisputePaid:handleSettlementDisputePaid,onOpenSetupReview:()=>setShowSettings(true),navResetToken,showLog:swipePreview?false:showTodayLog,setShowLog:swipePreview?()=>{}:setShowTodayLog})
+    ),
+    pageName==="activity"&&React.createElement(ActivityPage,{group:currentGroup,currentUser,currentUserId:effectiveAuthSession?.userId,onLogMutation:handleLogMutation,clockTick,reactionOverrides,setReactionOverrides,commentCountOverrides:logCommentCountOverrides,onCommentCountsLoaded:swipePreview?()=>{}:setLogCommentCountOverrides,onOpenLogComments:swipePreview?()=>{}:handleOpenLogComments}),
+    pageName==="month"  &&React.createElement(MonthPage,  {key:`${selectedGroupId}:${swipePreview?"preview":navResetToken}:${monthInitialIdx ?? "current"}`,group:currentGroup,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,groupSettings:currentGroup.settings,currentUser,currentUserId:effectiveAuthSession?.userId,initialSelIdx:swipePreview?null:monthInitialIdx,onStartNextMonth:()=>{setMonthInitialIdx(null);setPage("today");},onOpenToday:()=>setPage("today"),onSettlementClaimPaid:handleSettlementClaimPaid,onSettlementConfirmPaid:handleSettlementConfirmPaid,navResetToken}),
+    pageName==="history"&&React.createElement(HistoryPage,{group:currentGroup,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,groupSettings:currentGroup.settings,navResetToken,currentUser})
+  );
+
+  const activePageLayer = React.createElement('div',{
+    onTouchStart:startPageSwipe,
+    onTouchMove:movePageSwipe,
+    onTouchEnd:endPageSwipe,
+    onTouchCancel:resetPageSwipe,
+    style:{
+      position:"relative",
+      zIndex:2,
+      minHeight:"calc(100vh - 64px)",
+      transform:pageDragX?`translateX(${pageDragX}px)`:"translateX(0)",
+      transition:pageDragging?"none":"transform .08s ease-out",
+      boxShadow:pageDragX?"-18px 0 34px rgba(0,0,0,.24)":"none",
+      willChange:pageDragging||pageDragX?"transform":"auto",
+      touchAction:"pan-y"
+    }
+  }, renderInBlocPage(page));
+
+  const swipePreviewLayer = pageSwipeTarget && React.createElement('div',{
+    style:{
+      position:"absolute",
+      inset:"0 0 auto 0",
+      zIndex:1,
+      minHeight:"calc(100vh - 64px)",
+      pointerEvents:"none",
+      transform:`translateX(${pageDragX < 0 ? (window.innerWidth || 420) + pageDragX : -(window.innerWidth || 420) + pageDragX}px)`,
+      transition:pageDragging?"none":"transform .08s ease-out"
+    }
+  }, renderInBlocPage(pageSwipeTarget,{swipePreview:true}));
+
   const activeBlocSurface = React.createElement('div',{
     onTouchStart:startBlocSwitchSwipe,
     onTouchMove:moveBlocSwitchSwipe,
@@ -1566,16 +1689,12 @@ const App = () => {
   },
     React.createElement(Nav,{page,setPage:handleNavSelect,user:currentUser,currentUserId:effectiveAuthSession?.userId||"",profilePhotoUrl:effectiveProfile?.profilePhotoUrl||"",groupName:currentGroup.name,canEditGroup:isGroupAdmin,onOpenSettings:()=>setShowSettings(true),onOpenProfile:()=>{setProfileError("");setShowProfileModal(true);},onOpenStream:handleOpenStream,streamUnreadCount,onSwitchUser:handleSwitchUser,onSwitchGroup:handleSwitchGroup,onOpenLog:()=>{setPage("today");setShowTodayLog(true);},syncing,lastSyncedAt,syncError,onRefresh:refreshNow,showJustSynced,activityAlertCount,hideMobileBottomNav:true}),
     localDevMode && React.createElement(LocalDevImpersonationBar,{options:devImpersonationOptions,value:effectiveAuthSession?.devImpersonationActive?effectiveAuthSession.userId:"",onChange:handleSelectDevImpersonation}),
-    showSettings
-      ? React.createElement(BlocSettingsScreen,{group:currentGroup,actor:currentUser,actorUserId:authSession?.userId,isAdmin:isGroupAdmin,onSave:handleUpdateGroupSettings,onClose:()=>setShowSettings(false),saving:savingSettings,onReviewSetup:isGroupAdmin?handleReviewSetupDefaults:null,onReviewSitOut:isGroupAdmin?handleSitOutReview:null,onKickMember:isGroupAdmin?handleKickMember:null})
-      : React.createElement('div',{style:{paddingBottom:isMobileView?"calc(108px + env(safe-area-inset-bottom))":0}},
-        page==="today"  &&React.createElement(TodayPageErrorBoundary,{resetKey:`${selectedGroupId}:${navResetToken}:${currentUser}`},
-        React.createElement(TodayPage,  {user:currentUser,currentUserId:effectiveAuthSession?.userId,currentGroupId:selectedGroupId,groups,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,saving,onSave:handleSave,onMultiLog:handleMultiLog,onLogMutation:handleLogMutation,clockTick,onViewLastMonth:()=>{setMonthInitialIdx(0);setPage("month");},onSitOutRequest:handleSitOutRequest,onSettlementClaimPaid:handleSettlementClaimPaid,onSettlementConfirmPaid:handleSettlementConfirmPaid,onSettlementDisputePaid:handleSettlementDisputePaid,onOpenSetupReview:()=>setShowSettings(true),navResetToken,showLog:showTodayLog,setShowLog:setShowTodayLog})
-        ),
-        page==="activity"&&React.createElement(ActivityPage,{group:currentGroup,currentUser,currentUserId:effectiveAuthSession?.userId,onLogMutation:handleLogMutation,clockTick,reactionOverrides,setReactionOverrides,commentCountOverrides:logCommentCountOverrides,onCommentCountsLoaded:setLogCommentCountOverrides,onOpenLogComments:handleOpenLogComments}),
-        page==="month"  &&React.createElement(MonthPage,  {key:`${selectedGroupId}:${navResetToken}:${monthInitialIdx ?? "current"}`,group:currentGroup,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,groupSettings:currentGroup.settings,currentUser,currentUserId:effectiveAuthSession?.userId,initialSelIdx:monthInitialIdx,onStartNextMonth:()=>{setMonthInitialIdx(null);setPage("today");},onOpenToday:()=>setPage("today"),onSettlementClaimPaid:handleSettlementClaimPaid,onSettlementConfirmPaid:handleSettlementConfirmPaid,navResetToken}),
-        page==="history"&&React.createElement(HistoryPage,{group:currentGroup,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,groupSettings:currentGroup.settings,navResetToken,currentUser})
-      ),
+    React.createElement('div',{style:{position:"relative",overflow:"hidden",minHeight:"calc(100vh - 64px)"}},
+      showSettings && React.createElement('div',{style:{position:"absolute",inset:"0 0 auto 0",zIndex:1,pointerEvents:"none"}},renderInBlocPage(page,{swipePreview:true})),
+      showSettings
+        ? React.createElement(BlocSettingsScreen,{group:currentGroup,actor:currentUser,actorUserId:authSession?.userId,isAdmin:isGroupAdmin,onSave:handleUpdateGroupSettings,onClose:()=>setShowSettings(false),saving:savingSettings,onReviewSetup:isGroupAdmin?handleReviewSetupDefaults:null,onReviewSitOut:isGroupAdmin?handleSitOutReview:null,onKickMember:isGroupAdmin?handleKickMember:null})
+        : React.createElement(React.Fragment,null,swipePreviewLayer,activePageLayer)
+    ),
     showInstallBanner && React.createElement(InstallBanner,{
       installReady:Boolean(installPrompt),
       onInstall:installApp,
