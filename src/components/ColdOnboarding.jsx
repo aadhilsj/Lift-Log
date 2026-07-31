@@ -1,11 +1,11 @@
 import React from "react";
 import { AppIcon, AnteWordmark, WorkoutTypeIcon } from "./primitives.jsx";
 
-const { useMemo, useRef, useState } = React;
+const { useRef, useState } = React;
 
 const ONBOARDING_SCREENS = [
   {
-    headlineLines: ["For the group that keeps", "you showing up."],
+    headlineLines: ["For the group that keeps you", "showing up."],
     subtextLines: ["A monthly goal.", "Your people.", "Something real on the line."]
   },
   {
@@ -26,7 +26,8 @@ const ONBOARDING_SCREENS = [
 const statusStyles = {
   "AT RISK": { bg:"#1E1808", fg:"#D4A843", border:"#3D3010" },
   "ON TRACK": { bg:"rgba(90,191,90,.14)", fg:"#5ABF5A", border:"rgba(90,191,90,.35)" },
-  "LOCKED IN": { bg:"linear-gradient(90deg, rgba(203,213,225,.08) 0%, rgba(203,213,225,.35) 100%)", fg:"#E2E8F0", border:"#2a2d31" }
+  "CLEARED": { bg:"linear-gradient(90deg, rgba(203,213,225,.08) 0%, rgba(203,213,225,.35) 100%)", fg:"#E2E8F0", border:"#2a2d31" },
+  "COOKED": { bg:"rgba(212,74,74,.14)", fg:"#D44A4A", border:"#3B1818" }
 };
 
 const cardShell = {
@@ -109,9 +110,10 @@ const FakePhoto = ({src,label}) => {
 
 const LeaderboardPreview = () => {
   const rows = [
-    { name:"Maya", status:"LOCKED IN", color:"#D94D68", count:14 },
+    { name:"Maya", status:"CLEARED", color:"#D94D68", count:14 },
     { name:"Leo", status:"ON TRACK", color:"#F2A83A", count:10 },
-    { name:"Noah", status:"AT RISK", color:"#8A78D6", count:7 }
+    { name:"Noah", status:"AT RISK", color:"#8A78D6", count:7 },
+    { name:"Eli", status:"COOKED", color:"#6B7280", count:3 }
   ];
   return React.createElement('div',{style:cardShell},
     React.createElement('div',{style:{padding:"16px 16px 10px",borderBottom:"0.5px solid rgba(22,61,54,.7)"}},
@@ -125,7 +127,7 @@ const LeaderboardPreview = () => {
           gridTemplateColumns:"24px 30px minmax(0,1fr) auto 30px",
           alignItems:"center",
           gap:10,
-          padding:"10px 6px",
+          padding:"9px 6px",
           borderBottom:index<rows.length-1?"0.5px solid rgba(22,61,54,.5)":"none"
         }
       },
@@ -217,10 +219,9 @@ const SettlementResultCard = ({tone,tag,stat,line,rows}) => {
 };
 
 const SettlementPreview = () => {
-  const month = useMemo(() => new Date().toLocaleString("en-US", { month:"short" }).toUpperCase(), []);
   return React.createElement('div',{style:cardShell},
     React.createElement('div',{style:{padding:"16px",borderBottom:"0.5px solid rgba(22,61,54,.7)"}},
-      React.createElement('div',{style:previewLabel},`THE SETTLEMENT · ${month}`)
+      React.createElement('div',{style:previewLabel},"THE SETTLEMENT")
     ),
     React.createElement('div',{style:{padding:"12px 14px",display:"grid",gap:10}},
       React.createElement(SettlementResultCard,{
@@ -237,7 +238,7 @@ const SettlementPreview = () => {
         tone:"missed",
         tag:"Tough Month",
         stat:"-$20",
-        line:"Miss the target, settle up, go again.",
+        line:"You needed 12. Bounce back next month.",
         rows:[
           { name:"You owe Noah", amount:"-$20" }
         ]
@@ -395,7 +396,7 @@ const ColdOnboarding = ({onCreate,onJoin}) => {
       style:{flex:1,display:"flex",flexDirection:"column",justifyContent:"center",maxWidth:520,width:"100%",margin:"0 auto",animation:"fadeUp .22s ease both"}
     },
       React.createElement('div',{style:{marginBottom:22}},
-        React.createElement('h1',{style:{margin:0,fontSize:36,lineHeight:1.02,letterSpacing:0,fontWeight:900,color:"#f5f7ff"}},
+        React.createElement('h1',{style:{margin:0,fontSize:index===0?32:36,lineHeight:1.02,letterSpacing:0,fontWeight:900,color:"#f5f7ff"}},
           (screen.headlineLines || [screen.headline]).map(line=>React.createElement('span',{key:line,style:{display:"block"}},line))
         ),
         React.createElement('p',{style:{margin:"12px 0 0",fontSize:16,lineHeight:1.45,fontWeight:600,color:"rgba(214,226,224,.72)"}},
