@@ -1297,7 +1297,7 @@ const App = () => {
       const el = pageLayerRefs.current?.[pageName];
       if (!el) return;
       const offsetX = (index - activeIndex) * width + dragX;
-      el.style.transform = offsetX ? `translateX(${offsetX}px)` : "translateX(0)";
+      el.style.transform = offsetX ? `translateX(${offsetX}px)` : "none";
       el.style.transition = dragging ? "none" : "transform .08s ease-out";
       el.style.boxShadow = pageName === page && dragX ? "-18px 0 34px rgba(0,0,0,.24)" : "none";
       el.style.willChange = dragging || dragX ? "transform" : "auto";
