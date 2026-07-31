@@ -97,12 +97,7 @@ function writeStreamMessageCache(cache) {
 function formatStamp(iso) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
-  const now = new Date();
-  const sameDay = d.toDateString() === now.toDateString();
-  const time = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-  if (sameDay) return time;
-  const date = d.toLocaleDateString([], { month: "short", day: "numeric" });
-  return `${date} · ${time}`;
+  return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
 
 // Two timestamps fall in the same clock minute (used to collapse timestamps on
@@ -210,27 +205,35 @@ const ReactionChip = ({ emoji, users, mine, onToggle, nameFor, photoFor, align }
       onPointerUp: () => { clear(); if (!p.current.sup && !p.current.moved) onToggle(); },
       onPointerLeave: () => clear(),
       onContextMenu: e => { e.preventDefault(); setWho(true); },
-      style: { display: "inline-flex", alignItems: "center", gap: 4, background: mine ? C.chipOnBg : C.chipBg, border: `1px solid ${mine ? C.chipOnBorder : C.chipBorder}`, borderRadius: 16, padding: "1px 7px", fontSize: 12.5, color: "var(--text)", cursor: "pointer", lineHeight: 1.7, userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none", touchAction: "manipulation" }
-    }, emoji, React.createElement('span', { style: { fontFamily: "'Outfit', sans-serif", fontSize: 11, color: "var(--muted)", fontWeight: 600 } }, users.length)),
+      style: { minHeight: 18, display: "inline-flex", alignItems: "center", gap: 3, background: mine ? C.chipOnBg : C.chipBg, border: `1px solid ${mine ? C.chipOnBorder : C.chipBorder}`, borderRadius: 999, padding: "0 5px", fontSize: 10.5, color: "var(--text)", cursor: "pointer", lineHeight: 1.25, userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none", touchAction: "manipulation", boxShadow: "0 5px 12px rgba(0,0,0,.22)" }
+    }, emoji, React.createElement('span', { style: { fontFamily: "'Outfit', sans-serif", fontSize: 9.5, color: "var(--muted)", fontWeight: 700 } }, users.length)),
     who && React.createElement(RosterPopover, { title: `${emoji} · ${users.length}`, ids: users, nameFor, photoFor, onClose: () => setWho(false), align })
   );
 };
 
 // Compact reaction chips row. `showAdd` renders a "+" that opens the react bar
 // (kept for system moments; text bubbles add via double-tap / long-press).
-const ReactionChips = ({ msg, currentUserId, onReact, nameFor, photoFor, align, showAdd, onAdd }) => {
+const ReactionChips = ({ msg, currentUserId, onReact, nameFor, photoFor, align, showAdd, onAdd, placement = "row" }) => {
   const active = Object.entries(msg.reactions || {}).filter(([, u]) => (u || []).length > 0);
   if (!active.length && !showAdd) return null;
   const justify = align === "right" ? "flex-end" : align === "center" ? "center" : "flex-start";
+  const attached = placement !== "row";
+  const attachStyle = placement === "bubble-left"
+    ? { position: "absolute", left: -8, bottom: -10, zIndex: 4 }
+    : placement === "bubble-right"
+      ? { position: "absolute", right: -8, bottom: -10, zIndex: 4 }
+      : placement === "center"
+        ? { position: "absolute", left: "50%", bottom: -9, transform: "translateX(-50%)", zIndex: 4 }
+        : {};
   return React.createElement('div', {
-    style: { display: "flex", flexWrap: "wrap", gap: 4, justifyContent: justify, marginTop: 5, paddingLeft: align === "left" ? 36 : 0 }
+    style: { display: "flex", flexWrap: "wrap", gap: 3, justifyContent: justify, marginTop: attached ? 0 : 5, paddingLeft: attached ? 0 : (align === "left" ? 36 : 0), width: attached ? "max-content" : "auto", maxWidth: attached ? "min(220px, calc(100vw - 68px))" : "none", ...attachStyle }
   },
     active.map(([emoji, users]) => React.createElement(ReactionChip, {
       key: emoji, emoji, users, mine: users.includes(currentUserId), onToggle: () => onReact(msg.id, emoji), nameFor, photoFor, align
     })),
     showAdd && React.createElement('button', {
       onClick: onAdd, onMouseDown: e => e.preventDefault(),
-      style: { display: "inline-flex", alignItems: "center", justifyContent: "center", width: 26, height: 22, borderRadius: 16, background: C.chipBg, border: `1px solid ${C.chipBorder}`, color: "var(--muted)", fontSize: 13, cursor: "pointer", userSelect: "none", WebkitUserSelect: "none" }
+      style: { display: "inline-flex", alignItems: "center", justifyContent: "center", width: 20, height: 18, borderRadius: 999, background: C.chipBg, border: `1px solid ${C.chipBorder}`, color: "var(--muted)", fontSize: 11, cursor: "pointer", userSelect: "none", WebkitUserSelect: "none", boxShadow: "0 5px 12px rgba(0,0,0,.22)" }
     }, "+")
   );
 };
@@ -287,7 +290,13 @@ const Reactable = ({ msg, currentUserId, onReact, onReply, nameFor, photoFor, al
     setSwipeX(0); s.mode = null;
   };
 
-  return React.createElement('div', { style: { position: "relative" } },
+  const reactionPlacement = align === "center" ? "center" : align === "right" ? "bubble-left" : "bubble-right";
+  const hasReactionBadge = showAdd || Object.values(msg.reactions || {}).some(users => (users || []).length > 0);
+  const reactionNode = hasReactionBadge
+    ? React.createElement(ReactionChips, { msg, currentUserId, onReact, nameFor, photoFor, align, showAdd, onAdd: () => setShowBar(true), placement: reactionPlacement })
+    : null;
+  const renderedChildren = typeof children === "function" ? children(reactionNode) : children;
+  return React.createElement('div', { style: { position: "relative", paddingBottom: hasReactionBadge ? 10 : 0 } },
     swipeEnabled && React.createElement('div', {
       style: { position: "absolute", top: 0, bottom: 0, left: 14, display: "flex", alignItems: "center", opacity: Math.min(1, swipeX / 56), pointerEvents: "none" }
     }, React.createElement(AppIcon, { name: "reply", size: 18, stroke: C.accent })),
@@ -300,9 +309,9 @@ const Reactable = ({ msg, currentUserId, onReact, onReply, nameFor, photoFor, al
       onDoubleClick: () => { if (Date.now() - g.current.lastTouch > 800) onReact(msg.id, DOUBLE_TAP_EMOJI); },
       onContextMenu: e => { e.preventDefault(); setShowBar(true); },
       style: { transform: swipeX ? `translateX(${swipeX}px)` : "none", transition: g.current.mode === "swipe" ? "none" : "transform .18s ease", touchAction: swipeEnabled ? "pan-y" : "auto", userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none" }
-    }, children),
+    }, renderedChildren),
     showBar && React.createElement(ReactBar, { align, onClose: () => setShowBar(false), onPick: emoji => { onReact(msg.id, emoji); setShowBar(false); } }),
-    React.createElement(ReactionChips, { msg, currentUserId, onReact, nameFor, photoFor, align, showAdd, onAdd: () => setShowBar(true) })
+    typeof children !== "function" && reactionNode
   );
 };
 
@@ -310,7 +319,7 @@ const Reactable = ({ msg, currentUserId, onReact, onReply, nameFor, photoFor, al
 // `showName` (received only) on the first of a run, `showAvatar` on the last,
 // and `showTime` only on the last message of a same-minute cluster. Own
 // messages never show a name. The tail corner is only on the first bubble.
-const TextBubble = ({ msg, isOwn, authorName, authorPhotoUrl, nameFor, members, replyToMsg, showName, showTime, showAvatar, firstInGroup }) => {
+const TextBubble = ({ msg, isOwn, authorName, authorPhotoUrl, nameFor, members, replyToMsg, showName, showTime, showAvatar, firstInGroup, reactionNode }) => {
   const nameText = !isOwn && showName ? authorName : "";
   const timeText = showTime ? formatStamp(msg.created_at) : "";
   const radius = isOwn
@@ -328,6 +337,7 @@ const TextBubble = ({ msg, isOwn, authorName, authorPhotoUrl, nameFor, members, 
       }, nameText),
       React.createElement('div', {
         style: {
+          position: "relative",
           background: isOwn ? C.ownBg : C.rcvBg,
           border: `1px solid ${isOwn ? C.ownBorder : C.rcvBorder}`,
           borderRadius: radius,
@@ -344,10 +354,11 @@ const TextBubble = ({ msg, isOwn, authorName, authorPhotoUrl, nameFor, members, 
             style: { fontSize: 12, color: "var(--muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 220 }
           }, msgSnippet(replyToMsg))
         ),
-        React.createElement('span', null, renderBody(msg.body, members))
+        React.createElement('span', null, renderBody(msg.body, members)),
+        reactionNode
       ),
       timeText && React.createElement('div', {
-        style: { fontFamily: "'Outfit', sans-serif", fontSize: 11, fontWeight: 500, color: C.meta, margin: isOwn ? "3px 4px 0 0" : "3px 0 0 4px" }
+        style: { fontFamily: "'Outfit', sans-serif", fontSize: 9.5, fontWeight: 500, color: C.meta, margin: isOwn ? `${reactionNode ? 8 : 3}px 4px 0 0` : `${reactionNode ? 8 : 3}px 0 0 4px` }
       }, timeText)
     )
   );
@@ -1273,7 +1284,7 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, 
               // Time shows on the last message of a same-minute run from this sender.
               const showTime = !(sameAuthorNext && sameMinute(msg.created_at, next.created_at));
               return wrap(React.createElement(Reactable, { msg, currentUserId, onReact: handleReact, onReply: handleReply, nameFor, photoFor, align: isOwn ? "right" : "left", swipeEnabled: true },
-                React.createElement(TextBubble, { msg, isOwn, authorName: nameFor(msg.author_id), authorPhotoUrl: photoFor(msg.author_id), nameFor, members: activeMembers, replyToMsg, showName: firstInGroup, showTime, showAvatar: !sameAuthorNext, firstInGroup })));
+                reactionNode => React.createElement(TextBubble, { msg, isOwn, authorName: nameFor(msg.author_id), authorPhotoUrl: photoFor(msg.author_id), nameFor, members: activeMembers, replyToMsg, showName: firstInGroup, showTime, showAvatar: !sameAuthorNext, firstInGroup, reactionNode })));
             })
       ),
       // Input bar
