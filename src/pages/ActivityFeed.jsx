@@ -1,5 +1,6 @@
 import React from "react";
 const { useState, useEffect, useMemo, useCallback, useRef } = React;
+import { createPortal } from "react-dom";
 import {
   QUICK_REACTIONS,
   countApprovedFlagsForActor,
@@ -348,7 +349,7 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
     if (!imagePost) return null;
     const canFlag = imagePost.owner !== currentUser && imagePost.verifiedVia !== "strava";
     const categoryIcon = React.createElement(WorkoutTypeIcon,{type:imagePost.type,size:13});
-    return React.createElement('div',{onClick:closeImage,style:{position:"fixed",inset:0,background:"rgba(0,0,0,0.92)",zIndex:260,display:"flex",alignItems:"center",justifyContent:"center",padding:compactFeed?"18px 14px":"24px"}},
+    const overlay = React.createElement('div',{onClick:closeImage,style:{position:"fixed",inset:0,background:"rgba(0,0,0,0.92)",zIndex:1200,display:"flex",alignItems:"center",justifyContent:"center",padding:compactFeed?"18px 14px":"24px"}},
       React.createElement('button',{type:"button",onClick:closeImage,style:{position:"fixed",top:16,right:16,zIndex:2,width:40,height:40,borderRadius:999,background:"rgba(7,7,10,.82)",border:"1px solid rgba(255,255,255,.12)",color:"#fff",fontSize:18,fontWeight:800}},"×"),
       canFlag && React.createElement('button',{type:"button",onClick:e=>{e.stopPropagation();closeImage();setFlagTarget(imagePost);},style:{position:"fixed",bottom:28,right:20,zIndex:2,display:"flex",alignItems:"center",gap:6,padding:"9px 14px",borderRadius:999,background:"rgba(7,7,10,.82)",border:"1px solid rgba(255,255,255,.1)",color:"rgba(255,255,255,.55)",fontSize:12,fontWeight:600,letterSpacing:".01em"}},
         React.createElement('svg',{width:13,height:13,viewBox:"0 0 24 24",fill:"currentColor",xmlns:"http://www.w3.org/2000/svg"},
@@ -356,7 +357,7 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
         ),
         "Report"
       ),
-      React.createElement('div',{onClick:e=>e.stopPropagation(),onPointerDown:handlePhotoPointerDown,onPointerUp:handlePhotoPointerUp,style:{width:"100%",maxWidth:720,maxHeight:"92vh",display:"flex",flexDirection:"column",gap:10}},
+      React.createElement('div',{onPointerDown:handlePhotoPointerDown,onPointerUp:handlePhotoPointerUp,style:{width:"100%",maxWidth:720,maxHeight:"92vh",display:"flex",flexDirection:"column",gap:10}},
         React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"center",gap:7,minWidth:0,whiteSpace:"nowrap",padding:"0 2px",textAlign:"center"}},
           React.createElement(Avatar,{name:imagePost.owner,userId:userIdForOwner(imagePost.owner),size:28}),
           React.createElement('span',{style:{fontWeight:600,fontSize:13,color:"#fff",minWidth:0,overflow:"hidden",textOverflow:"ellipsis",flex:"0 1 auto",maxWidth:compactFeed?118:220}},imagePost.owner),
@@ -367,10 +368,11 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
           React.createElement('span',{className:"mono",style:{fontSize:8,color:"var(--muted2)",letterSpacing:"-.01em",flexShrink:0}},formatShortDate(imagePost.date))
         ),
         React.createElement('img',{src:resolveStorageImageUrl(imagePost.photoUrl),alt:`${imagePost.owner} ${imagePost.type}`,onClick:e=>e.stopPropagation(),style:{display:"block",width:"100%",maxHeight:compactFeed?"62vh":"68vh",objectFit:"contain",borderRadius:12,background:"#050507",boxShadow:"0 24px 60px rgba(0,0,0,.45)",cursor:"default"}}),
-        React.createElement('div',{style:{padding:"0 2px"}},renderReactionRow(imagePost,false,false,true)),
+        React.createElement('div',{onClick:e=>e.stopPropagation(),style:{padding:"0 2px"}},renderReactionRow(imagePost,false,false,true)),
         imagePost.note && React.createElement('div',{style:{fontSize:14,lineHeight:1.45,color:"var(--text-soft)",fontStyle:"italic",whiteSpace:"pre-wrap",padding:"0 2px",overflowY:"auto",maxHeight:"18vh",textAlign:"center"}},imagePost.note)
       )
     );
+    return createPortal(overlay, document.body);
   };
 
   return React.createElement(React.Fragment,null,
