@@ -2,6 +2,49 @@
 
 This file records fixes for bugs that have repeated during the Fero preview branch work. Read this before re-fixing one of these symptoms.
 
+## Swipe Navigation Contract
+
+This is the current intended behavior for swipe navigation. If swipe regressions come back, preserve this contract before changing thresholds or animation code.
+
+Surfaces:
+- Main in-Bloc tabs swipe horizontally in this order: Today -> Activity -> Month -> History, and back in reverse.
+- Today can swipe right out to the Bloc switcher.
+- Account Profile swipes right back to the Bloc switcher.
+- In-Bloc Player Profile swipes right back to the entry screen, either Today or History.
+- Log comment screens and settings screens have their own back-swipe surfaces; keep them separate from the main tab swipe.
+
+Interaction rules:
+- A half-swipe must show both screens at once and track the finger directly.
+- The destination/source screen behind the moving surface must already be mounted, static, and visually ready. It should not generate after the swipe finishes.
+- Swiping must not reset scroll position. Explicit tab taps may still use `navResetToken`/intentional resets, but horizontal swipe navigation must preserve where the user was.
+- The release must always snap to either the origin or destination. It must never get stuck mid-swipe.
+- No flicker, white flash, background flash, or previous-screen flash should appear during release.
+- Horizontal swipes should win over tiny initial vertical jitter. Do not lock into scroll from the first few pixels unless there is a clear vertical signal.
+
+Implementation rules:
+- Main tab dragging in `src/App.jsx` uses refs plus `requestAnimationFrame`, not React state updates on every `touchmove`.
+- `pageDragXRef` and direct DOM transforms drive the frame-by-frame movement.
+- React state should update at gesture start/end only: target selection, dragging state, and final page commit.
+- `src/lib/swipeRelease.js` owns the release handoff. Keep the sequence: cancel RAF, set the drag ref to the final value, apply the final transform, commit destination state, then cleanup after the handoff.
+- Do not apply generic `translateX(0)` cleanup to the outgoing screen before React has committed the destination state.
+- At rest, active swipe surfaces must use `transform: none`, not `translateX(0)`. Safari treats even `translateX(0)` as a transformed containing block and that breaks fixed children.
+- For main tab gestures, the classifier in `movePageSwipe(...)` waits for either a clear horizontal or clear vertical signal. This prevents Today -> Activity from intermittently being stolen by tiny vertical jitter:
+  - horizontal: `absDx > 5 && absDx > absDy * 0.72`
+  - vertical: `absDy > 9 && absDy > absDx * 1.08`
+  - if neither is clear, keep waiting rather than choosing scroll too early.
+
+Mounted-page rules:
+- Main tab pages are rendered in the same swipe track so adjacent pages can be visible during drag.
+- Do not key active and preview versions differently in a way that remounts a page on arrival.
+- Do not let `swipePreview` drive component identity. It can disable interaction for inactive pages, but it must not create a new page instance on release.
+- Keep Activity/History/Month data derivation tied to actual data changes, not tab activation.
+
+Mobile nav indicator:
+- The bottom nav active highlight is one moving element, `.mobile-tab-indicator`, not separate backgrounds on each tab.
+- `src/pages/Nav.jsx` maps pages to slots: Today `0`, Activity `1`, Month `3`, History `4`; slot `2` is the center log button.
+- The indicator moves by changing `--mobile-active-slot`; tab buttons only change text/icon color.
+- Do not tie the moving nav indicator to drag position unless explicitly redesigning that interaction. Current behavior animates on page commit only.
+
 ## Swipe And Fixed-Layer Flicker
 
 Symptoms:
