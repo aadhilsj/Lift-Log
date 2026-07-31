@@ -413,7 +413,7 @@ const ColdOnboarding = ({onCreate,onJoin}) => {
       style:{flex:1,display:"flex",flexDirection:"column",justifyContent:"center",maxWidth:520,width:"100%",margin:"0 auto",animation:"fadeUp .22s ease both"}
     },
       React.createElement('div',{style:{marginBottom:22}},
-        React.createElement('h1',{style:{margin:0,fontSize:index===0?30:36,lineHeight:1.02,letterSpacing:0,fontWeight:900,color:"#f5f7ff"}},
+        React.createElement('h1',{style:{margin:0,fontSize:36,lineHeight:1.02,letterSpacing:0,fontWeight:900,color:"#f5f7ff"}},
           (screen.headlineLines || [screen.headline]).map(line=>React.createElement('span',{key:line,style:{display:"block",whiteSpace:"nowrap"}},line))
         ),
         React.createElement('p',{style:{margin:"12px 0 0",fontSize:16,lineHeight:1.45,fontWeight:600,color:"rgba(214,226,224,.72)"}},
