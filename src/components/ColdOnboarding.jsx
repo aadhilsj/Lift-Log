@@ -14,7 +14,7 @@ const ONBOARDING_SCREENS = [
   },
   {
     headlineLines: ["Set a target.", "Set a penalty."],
-    subtext: "Miss it, and you owe. Hit it, and you don't."
+    subtext: "Miss it, and you owe. Hit it, and you're cleared."
   },
   {
     headlineLines: ["Show up together.", "Or pay up."],
