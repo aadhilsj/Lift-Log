@@ -13,7 +13,7 @@ const ONBOARDING_SCREENS = [
     subtext: "Hold each other accountable."
   },
   {
-    headlineLines: ["Set a target.", "Set a penalty."],
+    headlineLines: ["Set a target. Set a penalty."],
     subtext: "Miss it, and you owe. Hit it, and you're cleared."
   },
   {
@@ -388,11 +388,11 @@ const ColdOnboarding = ({onCreate,onJoin}) => {
         ? React.createElement(SettlementPreview)
         : React.createElement(BlocStarterPreview,{blocName,setBlocName});
   const moveSubtextBelowPreview = index === 1 || index === 2;
-  const headlineFontSize = index === 2 ? 31 : 34;
+  const headlineFontSize = index === 2 ? "clamp(24px, 7.5vw, 30px)" : 34;
   const renderSubtext = (options = {}) => React.createElement('p',{
     style:{
       margin:options.below ? "16px 0 0" : "12px 0 0",
-      textAlign:options.center ? "center" : "left",
+      textAlign:"center",
       fontSize:16,
       lineHeight:1.45,
       fontWeight:600,
@@ -430,7 +430,7 @@ const ColdOnboarding = ({onCreate,onJoin}) => {
       style:{flex:1,minHeight:0,display:"flex",flexDirection:"column",justifyContent:"center",maxWidth:520,width:"100%",margin:"0 auto",animation:"fadeUp .22s ease both"}
     },
       React.createElement('div',{style:{marginBottom:index===0?16:22}},
-        React.createElement('h1',{style:{margin:0,fontSize:headlineFontSize,lineHeight:1.02,letterSpacing:0,fontWeight:900,color:"#f5f7ff"}},
+        React.createElement('h1',{style:{margin:0,textAlign:"center",fontSize:headlineFontSize,lineHeight:1.02,letterSpacing:0,fontWeight:900,color:"#f5f7ff"}},
           (screen.headlineLines || [screen.headline]).map(line=>React.createElement('span',{key:line,style:{display:"block",whiteSpace:"nowrap"}},line))
         ),
         index !== 0 && !moveSubtextBelowPreview && renderSubtext()
