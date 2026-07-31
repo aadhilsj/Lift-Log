@@ -320,7 +320,7 @@ const RoundNavButton = ({direction,onClick,disabled=false,hidden=false}) => Reac
 }, React.createElement(AppIcon,{name:direction==="next"?"chevron-right":"chevron-left",size:18,stroke:"currentColor"}));
 
 const ProgressControls = ({index,onNext,onPrev}) => React.createElement('div',{
-  style:{display:"grid",gridTemplateColumns:"42px 1fr 42px",alignItems:"center",gap:16,width:"100%",marginTop:22}
+  style:{display:"grid",gridTemplateColumns:"42px 1fr 42px",alignItems:"center",gap:16,width:"100%"}
 },
   React.createElement(RoundNavButton,{direction:"prev",onClick:onPrev,disabled:index===0}),
   React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"center",gap:7}},
@@ -427,7 +427,7 @@ const ColdOnboarding = ({onCreate,onJoin}) => {
     React.createElement('section',{
       key:index,
       className:"fu",
-      style:{flex:1,display:"flex",flexDirection:"column",justifyContent:"center",maxWidth:520,width:"100%",margin:"0 auto",animation:"fadeUp .22s ease both"}
+      style:{flex:1,minHeight:0,display:"flex",flexDirection:"column",justifyContent:"center",maxWidth:520,width:"100%",margin:"0 auto",animation:"fadeUp .22s ease both"}
     },
       React.createElement('div',{style:{marginBottom:index===0?16:22}},
         React.createElement('h1',{style:{margin:0,fontSize:headlineFontSize,lineHeight:1.02,letterSpacing:0,fontWeight:900,color:"#f5f7ff"}},
@@ -473,7 +473,9 @@ const ColdOnboarding = ({onCreate,onJoin}) => {
             cursor:"pointer"
           }
         },"Join an existing Bloc instead")
-      ),
+      )
+    ),
+    React.createElement('div',{style:{maxWidth:520,width:"100%",margin:"22px auto 0",flexShrink:0}},
       React.createElement(ProgressControls,{index,onNext:goNext,onPrev:goPrev})
     )
   );
