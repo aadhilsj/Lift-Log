@@ -35,7 +35,7 @@ const cardShell = {
   border:"0.5px solid rgba(22,61,54,.9)",
   borderRadius:18,
   background:"radial-gradient(circle at 78% 0%, rgba(78,205,196,.08), transparent 34%), rgba(6,16,14,.96)",
-  boxShadow:"inset 0 1px 0 rgba(255,255,255,.05), 0 18px 42px rgba(0,0,0,.26)",
+  boxShadow:"inset 0 1px 0 rgba(255,255,255,.06), 0 18px 46px rgba(0,0,0,.32), 0 0 0 1px rgba(78,205,196,.025)",
   overflow:"hidden"
 };
 
@@ -223,7 +223,7 @@ const SettlementPreview = () => {
     React.createElement('div',{style:{padding:"16px",borderBottom:"0.5px solid rgba(22,61,54,.7)"}},
       React.createElement('div',{style:previewLabel},"THE SETTLEMENT")
     ),
-    React.createElement('div',{style:{padding:"12px 14px",display:"grid",gap:10}},
+    React.createElement('div',{style:{padding:"12px 14px",display:"grid",gap:12}},
       React.createElement(SettlementResultCard,{
         tone:"winner",
         tag:"Winner",
@@ -234,6 +234,7 @@ const SettlementPreview = () => {
           { name:"Leo", amount:"+$10" }
         ]
       }),
+      React.createElement('div',{style:{height:1,width:"58%",justifySelf:"center",background:"linear-gradient(90deg, transparent, rgba(143,174,170,.22), transparent)"}}),
       React.createElement(SettlementResultCard,{
         tone:"missed",
         tag:"Tough Month",
@@ -254,16 +255,17 @@ const BlocStarterPreview = ({blocName,setBlocName}) => {
       React.createElement('input',{
         value:blocName,
         onChange:event=>setBlocName(event.target.value),
-        placeholder:"Sunday Warriors",
+        placeholder:"Type your Bloc name",
         style:{
           width:"100%",
           boxSizing:"border-box",
           height:50,
           borderRadius:16,
-          background:"#10151d",
-          border:"0.5px solid rgba(78,205,196,.32)",
-          boxShadow:"0 0 0 3px rgba(78,205,196,.06)",
+          background:"linear-gradient(180deg, rgba(18,27,34,.98), rgba(12,22,24,.98))",
+          border:"0.5px solid rgba(78,205,196,.52)",
+          boxShadow:"0 0 0 3px rgba(78,205,196,.1), inset 0 1px 0 rgba(255,255,255,.08), 0 12px 24px rgba(0,0,0,.2)",
           color:"#f5f7ff",
+          caretColor:"#4ECDC4",
           fontSize:17,
           fontWeight:800,
           outline:"none",
@@ -388,7 +390,7 @@ const ColdOnboarding = ({onCreate,onJoin}) => {
         ? React.createElement(SettlementPreview)
         : React.createElement(BlocStarterPreview,{blocName,setBlocName});
   const moveSubtextBelowPreview = index === 1 || index === 2;
-  const headlineFontSize = index === 2 ? "clamp(24px, 7.5vw, 30px)" : 34;
+  const headlineFontSize = index === 2 ? "clamp(23px, 7.25vw, 29px)" : 34;
   const renderSubtext = (options = {}) => React.createElement('p',{
     style:{
       margin:options.below ? "16px 0 0" : "12px 0 0",
