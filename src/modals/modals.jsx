@@ -816,42 +816,41 @@ const SoloModal = ({mode,monthName,minimumTarget,defaultTarget,onClose,onSubmit,
       }
     : {
         title:`Request Solo for ${monthName}?`,
-        body:["You keep logging, but you are out of money stakes for the month.","Your request will be sent to the bloc admin for approval."],
+        body:["You keep logging, but you are out of the reward / penalty system for the month.","Your request will be sent to the bloc admin for approval."],
         cta:"Send request"
       };
   const submit = () => onSubmit({ personalTarget: Math.max(minTarget, Math.round(Number(target || minTarget))), reason });
   return React.createElement('div',{className:`overlay${isMobile() ? " center-mobile" : ""}`,onClick:onClose},
-    React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{maxWidth:420}},
+    React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{maxWidth:420,fontFamily:UI_FONT}},
       React.createElement('div',{style:{display:"flex",alignItems:"center",gap:10,marginBottom:12}},
-        React.createElement('div',{style:{width:34,height:34,borderRadius:999,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(78,205,196,.08)",border:"1px solid rgba(78,205,196,.28)",color:"#4ECDC4",fontSize:16,fontWeight:900}},"S"),
-        React.createElement('div',{style:{fontWeight:800,fontSize:20,lineHeight:1.1}},config.title)
+        React.createElement('div',{style:{width:34,height:34,borderRadius:999,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(78,205,196,.08)",border:"1px solid rgba(78,205,196,.28)",color:"#4ECDC4",fontSize:16,fontWeight:900,fontFamily:UI_FONT}},"S"),
+        React.createElement('div',{style:{fontFamily:UI_FONT,fontWeight:800,fontSize:20,lineHeight:1.1,letterSpacing:0}},config.title)
       ),
-      React.createElement('div',{style:{display:"grid",gap:7,padding:"11px 12px",borderRadius:12,background:"rgba(8,15,15,.72)",border:"0.5px solid rgba(78,205,196,.16)",marginBottom:14}},
+      React.createElement('div',{style:{display:"grid",gap:7,padding:"11px 12px",borderRadius:12,background:"linear-gradient(180deg, rgba(13,31,30,.96), rgba(8,15,15,.86))",border:"1px solid rgba(78,205,196,.34)",boxShadow:"0 0 0 1px rgba(78,205,196,.08), inset 0 1px 0 rgba(255,255,255,.04)",marginBottom:14}},
         [
           "Keep logging with a personal target.",
-          "Step out of this month's money stakes.",
-          "Needs admin approval, even in the first 10 days."
-        ].map(line=>React.createElement('div',{key:line,style:{display:"flex",alignItems:"flex-start",gap:8,fontSize:12.5,color:"var(--text)",lineHeight:1.35,fontWeight:650}},
+          "Step out of this month's potential reward / penalty."
+        ].map(line=>React.createElement('div',{key:line,style:{display:"flex",alignItems:"flex-start",gap:8,fontFamily:UI_FONT,fontSize:12.5,color:"var(--text)",lineHeight:1.35,fontWeight:650}},
           React.createElement('span',{style:{width:5,height:5,borderRadius:999,background:"#4ECDC4",marginTop:7,flexShrink:0}}),
           React.createElement('span',null,line)
         ))
       ),
-      React.createElement('div',{style:{display:"grid",gap:4,color:"var(--muted)",fontSize:13,lineHeight:1.55,marginBottom:16}},
+      React.createElement('div',{style:{display:"grid",gap:4,color:"var(--muted)",fontFamily:UI_FONT,fontSize:13,lineHeight:1.55,marginBottom:16}},
         config.body.map(line=>React.createElement('div',{key:line},line))
       ),
       React.createElement('label',{style:{display:"block",marginBottom:14}},
         React.createElement('span',{className:"lbl"},"Solo target"),
-        React.createElement('input',{type:"number",min:minTarget,value:target,onChange:e=>setTarget(e.target.value),style:{width:"100%",background:"var(--s2)",border:"1px solid var(--border)",borderRadius:10,padding:"12px 13px",color:"var(--text)",fontSize:14,outline:"none"}}),
-        React.createElement('span',{style:{display:"block",marginTop:6,fontSize:11,color:"var(--muted)"}},"Minimum ",minTarget," workouts")
+        React.createElement('input',{type:"number",min:minTarget,value:target,onChange:e=>setTarget(e.target.value),style:{width:"100%",background:"var(--s2)",border:"1px solid var(--border)",borderRadius:10,padding:"12px 13px",color:"var(--text)",fontFamily:UI_FONT,fontSize:14,outline:"none"}}),
+        React.createElement('span',{style:{display:"block",marginTop:6,fontFamily:UI_FONT,fontSize:11,color:"var(--muted)"}},"Minimum ",minTarget," workouts")
       ),
       React.createElement('label',{style:{display:"block",marginBottom:16}},
         React.createElement('span',{className:"lbl"},"Reason (optional)"),
-        React.createElement('textarea',{value:reason,onChange:e=>setReason(e.target.value),placeholder:"e.g. rehab month, travel month",rows:3,style:{width:"100%",background:"var(--s2)",border:"1px solid var(--border)",borderRadius:10,padding:"12px 13px",color:"var(--text)",fontSize:14,outline:"none",resize:"none"}})
+        React.createElement('textarea',{value:reason,onChange:e=>setReason(e.target.value),placeholder:"e.g. travel month, work sprint",rows:3,style:{width:"100%",background:"var(--s2)",border:"1px solid var(--border)",borderRadius:10,padding:"12px 13px",color:"var(--text)",fontFamily:UI_FONT,fontSize:14,outline:"none",resize:"none"}})
       ),
-      error && React.createElement('div',{style:{fontSize:12,color:"var(--red)",marginBottom:14}},error),
+      error && React.createElement('div',{style:{fontFamily:UI_FONT,fontSize:12,color:"var(--red)",marginBottom:14}},error),
       React.createElement('div',{style:{display:"flex",gap:9}},
-        React.createElement('button',{onClick:onClose,style:{flex:1,background:"var(--s2)",border:"1px solid var(--border)",color:"var(--muted)",padding:"14px",borderRadius:10,fontSize:15,fontWeight:600}},"Cancel"),
-        React.createElement('button',{onClick:submit,disabled:submitting,style:{flex:1,background:"#4ECDC4",color:"#050909",padding:"14px",borderRadius:10,fontSize:15,fontWeight:800,opacity:submitting ? .75 : 1}},submitting?"Sending...":config.cta)
+        React.createElement('button',{onClick:onClose,style:{flex:1,background:"var(--s2)",border:"1px solid var(--border)",color:"var(--muted)",padding:"14px",borderRadius:10,fontFamily:UI_FONT,fontSize:15,fontWeight:600}},"Cancel"),
+        React.createElement('button',{onClick:submit,disabled:submitting,style:{flex:1,background:"#4ECDC4",color:"#050909",padding:"14px",borderRadius:10,fontFamily:UI_FONT,fontSize:15,fontWeight:800,opacity:submitting ? .75 : 1}},submitting?"Sending...":config.cta)
       )
     )
   );
