@@ -1569,10 +1569,10 @@ const App = () => {
   const handleSendOtp = async () => {
     setSendingOtp(true);
     setAuthError("");
-    const result = await sendOtpData(authEmail.trim());
+    const result = await sendOtpData(authEmail.trim(), { shouldCreateUser: authIntent?.type !== "signin" });
     setSendingOtp(false);
     if (!result?.ok) {
-      setAuthError(result?.error || "Unable to send code");
+      setAuthError(authIntent?.type === "signin" ? "No Fero account found for that email. Create a new account instead." : (result?.error || "Unable to send code"));
       return;
     }
     setDevOtpCode(result.devCode || "");
@@ -1595,7 +1595,21 @@ const App = () => {
     };
     persistSession(nextSession);
     setPendingAuthSession(nextSession);
-    let nextProfile = getProfileForSession(result.state || appState, nextSession);
+    const syncedState = result.state || appState;
+    let nextProfile = getProfileForSession(syncedState, nextSession);
+    const hasExistingFeroAccount = authIntent?.type === "signup" && (
+      Boolean(nextProfile?.displayName)
+      || Object.values(syncedState?.groups || {}).some(group => Boolean(getMembershipForUser(group, nextSession, nextProfile)))
+    );
+    if (hasExistingFeroAccount) {
+      try { await signOutAuthSession(); } catch (error) { console.error("Sign out after duplicate signup failed:", error); }
+      persistSession(null);
+      setPendingAuthSession(null);
+      setAuthCode("");
+      setAuthStep("email");
+      setAuthError("This email already has a Fero account. Sign in instead.");
+      return;
+    }
     let needsProfileSetup = typeof result.session.needsProfileSetup === "boolean"
       ? result.session.needsProfileSetup
       : !nextProfile?.displayName;
@@ -1625,6 +1639,7 @@ const App = () => {
   const handleSaveProfile = async () => {
     setSavingProfile(true);
     setAuthError("");
+    const completedIntent = authIntent?.type || "";
     const activeSession = pendingAuthSession || authSession || await getCurrentAuthSession();
     const result = await upsertProfileData(
       { userId: activeSession?.userId, email: activeSession?.email, displayName: authDisplayName.trim() },
@@ -1641,6 +1656,11 @@ const App = () => {
       await refreshNow();
     }
     closeAuth();
+    if (completedIntent === "signup") {
+      setColdOnboardingPreviewDismissed(false);
+      setReplayColdOnboarding(true);
+      return;
+    }
     if (pendingJoinAfterProfile && activeSession?.userId) {
       setPendingJoinAfterProfile(false);
       setShowJoinModal(true);
@@ -1745,13 +1765,12 @@ const App = () => {
             onSignIn:()=>openAuth({ type:"signin" })
           })
         : React.createElement(SignedOutLanding,{
-            onCreate:()=>openAuth({ type:"create" }),
-            onJoin:()=>openAuth({ type:"join" }),
+            onCreateAccount:()=>openAuth({ type:"signup" }),
             onSignIn:()=>openAuth({ type:"signin" }),
-            onShowOnboarding:()=>{setColdOnboardingPreviewDismissed(false);setReplayColdOnboarding(true);}
           }),
       authStep && React.createElement(AuthFlowModal,{
         step:authStep,
+        mode:authIntent?.type === "signup" ? "signup" : "signin",
         email:authEmail,
         setEmail:setAuthEmail,
         code:authCode,
@@ -1773,6 +1792,7 @@ const App = () => {
   if(authStep === "name") {
     return React.createElement(AuthFlowModal,{
       step:"name",
+      mode:authIntent?.type === "signup" ? "signup" : "signin",
       email:authEmail || authSession.email || "",
       setEmail:setAuthEmail,
       code:authCode,

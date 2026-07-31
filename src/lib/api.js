@@ -416,13 +416,16 @@ async function deleteAccountData(userId) {
   return { ok:true, state: normalizeAppState(result.body.state) };
 }
 
-async function sendOtpData(email) {
+async function sendOtpData(email, options = {}) {
   try {
     const client = await getSupabaseAuthClient();
+    const shouldCreateUser = options && Object.prototype.hasOwnProperty.call(options, "shouldCreateUser")
+      ? Boolean(options.shouldCreateUser)
+      : true;
     const { error } = await client.auth.signInWithOtp({
       email,
       options: {
-        shouldCreateUser: true,
+        shouldCreateUser,
         emailRedirectTo: `${window.location.origin}${window.location.pathname}`
       }
     });
