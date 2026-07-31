@@ -1530,29 +1530,6 @@ const App = () => {
     if (displayName && Array.isArray(group.leftMemberNames) && group.leftMemberNames.includes(displayName)) return false;
     return Boolean(getMembershipForUser(group, effectiveAuthSession, effectiveProfile));
   });
-  const firstVisibleGroupId = visibleGroups[0]?.id || null;
-  useEffect(() => {
-    if (!authSession?.userId) return;
-    let showWelcomePreview = false;
-    let showDownloadPreview = false;
-    try {
-      const params = new URLSearchParams(window.location.search);
-      showWelcomePreview = params.get("inviteWelcomePreview") === "1";
-      showDownloadPreview = params.get("inviteDownloadPreview") === "1";
-    } catch {}
-    if (!showWelcomePreview && !showDownloadPreview) return;
-    const previewGroupId = (selectedGroupId && appState.groups?.[selectedGroupId])
-      ? selectedGroupId
-      : firstVisibleGroupId;
-    if (!previewGroupId) return;
-    if (showWelcomePreview) {
-      setInviteDownloadPrompt(null);
-      setInviteWelcomeGroupId(previewGroupId);
-    }
-    if (showDownloadPreview) {
-      setInviteDownloadPrompt({ groupId: previewGroupId });
-    }
-  },[appState.groups, authSession?.userId, firstVisibleGroupId, selectedGroupId]);
   const localPreviewMembers = uniqueNames(groups.flatMap(group => getCurrentGroupMemberNames(group)));
   const activityAlertCount = currentGroup && currentUser ? getActivityAlertCount(currentGroup, currentUser) : 0;
   const renderGroupSwitcherSurface = ({ inert=false, suppressIntro=false } = {}) => React.createElement('div',{
