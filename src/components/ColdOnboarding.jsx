@@ -192,7 +192,7 @@ const ActivityPreview = () => {
   );
 };
 
-const SettlementResultCard = ({tone,tag,stat,line,rows}) => {
+const SettlementResultCard = ({tone,month,tag,stat,line,rows}) => {
   const winner = tone === "winner";
   const heroStyle = winner
     ? {background:"rgba(57,168,90,.11)",border:"1px solid rgba(57,168,90,.24)"}
@@ -210,7 +210,10 @@ const SettlementResultCard = ({tone,tag,stat,line,rows}) => {
       boxShadow:"inset 0 1px 0 rgba(255,255,255,.05)"
     }
   },
-    React.createElement('div',{style:{display:"inline-block",fontFamily:"'Outfit',sans-serif",fontSize:10,fontWeight:900,letterSpacing:".08em",textTransform:"uppercase",background:labelGradient,WebkitBackgroundClip:"text",backgroundClip:"text",color:"transparent"}},tag),
+    React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"center",gap:8,marginBottom:2}},
+      React.createElement('span',{style:{height:19,padding:"0 8px",borderRadius:999,border:"0.5px solid rgba(143,174,170,.22)",background:"rgba(8,15,15,.42)",display:"inline-flex",alignItems:"center",fontFamily:"'Outfit',sans-serif",fontSize:9,fontWeight:900,letterSpacing:".08em",textTransform:"uppercase",color:"rgba(214,226,224,.66)"}},month),
+      React.createElement('span',{style:{display:"inline-block",fontFamily:"'Outfit',sans-serif",fontSize:10,fontWeight:900,letterSpacing:".08em",textTransform:"uppercase",background:labelGradient,WebkitBackgroundClip:"text",backgroundClip:"text",color:"transparent"}},tag)
+    ),
     React.createElement('div',{style:{fontFamily:"'Outfit',sans-serif",fontSize:34,lineHeight:1,fontWeight:900,color:statColor,marginTop:5}},stat),
     React.createElement('div',{style:{fontSize:12,fontWeight:700,color:"rgba(214,226,224,.72)",lineHeight:1.3,marginTop:5}},line),
     React.createElement('div',{style:{width:"44%",height:1,margin:"10px auto 8px",background:"linear-gradient(90deg, transparent, rgba(255,255,255,.18), transparent)"}}),
@@ -231,6 +234,7 @@ const SettlementPreview = () => {
     React.createElement('div',{style:{padding:"12px 14px",display:"grid",gap:12}},
       React.createElement(SettlementResultCard,{
         tone:"winner",
+        month:"June",
         tag:"Winner",
         stat:"+$25",
         line:"Top of the Bloc. Maya and Leo pay you.",
@@ -242,6 +246,7 @@ const SettlementPreview = () => {
       React.createElement('div',{style:{height:1,width:"58%",justifySelf:"center",background:"linear-gradient(90deg, transparent, rgba(143,174,170,.22), transparent)"}}),
       React.createElement(SettlementResultCard,{
         tone:"missed",
+        month:"July",
         tag:"Tough Month",
         stat:"-$20",
         line:"You missed the target. Bounce back next month.",
