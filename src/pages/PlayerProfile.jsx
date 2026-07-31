@@ -298,7 +298,6 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
     const dominantDrag=dx>screenWidth/2&&Math.abs(dy)<100&&dx>Math.abs(dy);
     const shouldClose=s.mode==="back"&&(fastEdgeFlick||dominantDrag);
     if(shouldClose){
-      onSwipeRevealChange?.(false);
       releaseSwipeForward({
         dragRef:dragXRef,
         frameRef,

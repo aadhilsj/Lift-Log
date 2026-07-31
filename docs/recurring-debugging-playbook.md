@@ -21,6 +21,7 @@ Known-good files/patterns:
 - `src/App.jsx`: completed Today -> Bloc switcher swipe keeps the final transform until the group selection is cleared.
 - `src/pages/TodayPage.jsx` and `src/pages/HistoryPage.jsx`: source content remains mounted in a stable wrapper, with the profile layer rendered as a fixed sibling.
 - `src/lib/swipeRelease.js`: release helpers cancel RAF, set the drag ref to the final value, apply the final transform, then commit state.
+- `src/pages/PlayerProfile.jsx`: on successful profile swipe-out, keep `profileRevealActive` true until the profile unmounts. Turning it false before the close animation finishes makes the fixed layer opaque and causes a background flash before Today/History is revealed.
 
 ## In-Bloc Profile Layering
 
