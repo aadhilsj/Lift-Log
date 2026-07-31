@@ -10,7 +10,7 @@ const ONBOARDING_SCREENS = [
   },
   {
     headlineLines: ["Pick your people."],
-    subtext: "You hold each other to it."
+    subtext: "Hold each other accountable."
   },
   {
     headlineLines: ["Set a target.", "Set a penalty."],
