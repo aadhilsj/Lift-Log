@@ -242,7 +242,7 @@ const AuthFlowModal = ({step,email,setEmail,code,setCode,displayName,setDisplayN
     ),
     step==="name" && React.createElement('label',{style:{display:"block",marginBottom:18}},
       React.createElement('span',{className:"lbl"},"Display name"),
-      React.createElement('input',{value:displayName,onChange:e=>setDisplayName(e.target.value),placeholder:(email.split("@")[0]||"Aadhil").replace(/[._-]+/g," "),style:{width:"100%",background:"var(--s2)",border:"1px solid var(--border)",borderRadius:10,padding:"12px 13px",color:"var(--text)",fontSize:15,outline:"none"}})
+      React.createElement('input',{value:displayName,onChange:e=>setDisplayName(e.target.value),placeholder:"Your name",style:{width:"100%",background:"var(--s2)",border:"1px solid var(--border)",borderRadius:10,padding:"12px 13px",color:"var(--text)",fontSize:15,outline:"none"}})
     ),
     error && React.createElement('div',{style:{fontSize:12,color:"var(--red)",marginBottom:16,whiteSpace:"pre-wrap"}},error),
     React.createElement('div',{style:{display:"flex",gap:9}},

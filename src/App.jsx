@@ -1612,7 +1612,7 @@ const App = () => {
 
     if (needsProfileSetup && authIntent?.type !== "join") {
       setShowJoinModal(false);
-      setAuthDisplayName(nextProfile?.displayName || (authEmail.split("@")[0] || "").replace(/[._-]+/g," "));
+      setAuthDisplayName("");
       setAuthStep("name");
       setAuthError("");
       return;
@@ -1675,7 +1675,7 @@ const App = () => {
     if (!String(profile?.displayName || "").trim()) {
       setPendingJoinAfterProfile(true);
       setShowJoinModal(false);
-      setAuthDisplayName((authSession?.email?.split("@")[0] || "").replace(/[._-]+/g," "));
+      setAuthDisplayName("");
       setAuthError("");
       setAuthStep("name");
       return;
