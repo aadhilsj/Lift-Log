@@ -390,6 +390,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
   const currentMonthKey = `${CUR_YEAR}-${CUR_MONTH}`;
   const currentMonthLabel = `${FULL_MONTH_NAMES[CUR_MONTH] || MONTH_NAMES[CUR_MONTH]} '${String(CUR_YEAR).slice(-2)}`;
   const todayHeaderMonthName = FULL_MONTH_NAMES[CUR_MONTH] || MONTH_NAMES[CUR_MONTH];
+  const modalMonthName = FULL_MONTH_NAMES[CUR_MONTH] || monthSummary?.monthName || MONTH_NAMES[CUR_MONTH];
   const expandMonthLabel = label => String(label || "").replace(/^([A-Z][a-z]{2})\s+'(\d{2})$/, (_, shortName, year) => `${FULL_MONTH_NAMES[MONTH_NAMES.indexOf(shortName)] || shortName} '${year}`);
   const blocMonthHistoryRows = useMemo(() => {
     const closedRows = [...monthHistory]
@@ -1227,8 +1228,8 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
   const todayContent = React.createElement('div',{style:{position:"relative",minHeight:"calc(100vh - 44px)",background:"transparent"}},
     showLog&&React.createElement(LogModal,{user,currentGroupId,groups,onConfirm:doLog,onClose:()=>setShowLog(false)}),
     deleteTarget && React.createElement(DeleteModal,{log:deleteTarget,onClose:()=>setDeleteTarget(null),onConfirm:async()=>{ const logId = deleteTarget.id; setDeleteTarget(null); await onLogMutation({action:"delete-log",groupId:currentGroupId,actor:user,owner:user,logId}); }}),
-    showExcuse && sitOutMode && React.createElement(SitOutModal,{mode:sitOutMode,monthName:monthSummary?.monthName || MONTH_NAMES[CUR_MONTH],onClose:()=>{setShowExcuse(false);setSitOutError("");},onSubmit:submitSitOut,submitting:sitOutSubmitting,error:sitOutError}),
-    showSolo && visibleSoloMode && React.createElement(SoloModal,{mode:visibleSoloMode,monthName:monthSummary?.monthName || MONTH_NAMES[CUR_MONTH],minimumTarget:soloMinimumTarget,defaultTarget:Math.max(soloMinimumTarget, Math.ceil(effectiveTarget * .5)),onClose:()=>{setShowSolo(false);setSoloError("");},onSubmit:submitSolo,submitting:soloSubmitting,error:soloError}),
+    showExcuse && sitOutMode && React.createElement(SitOutModal,{mode:sitOutMode,monthName:modalMonthName,onClose:()=>{setShowExcuse(false);setSitOutError("");},onSubmit:submitSitOut,submitting:sitOutSubmitting,error:sitOutError}),
+    showSolo && visibleSoloMode && React.createElement(SoloModal,{mode:visibleSoloMode,monthName:modalMonthName,minimumTarget:soloMinimumTarget,defaultTarget:Math.max(soloMinimumTarget, Math.ceil(effectiveTarget * .5)),onClose:()=>{setShowSolo(false);setSoloError("");},onSubmit:submitSolo,submitting:soloSubmitting,error:soloError}),
     showSoloLocked && React.createElement(NoticeModal,{title:"Solo Mode is locked",body:"Solo Mode is only available in the first 10 days of the month.",onClose:()=>setShowSoloLocked(false)}),
     settlementDisputePrompt,
     settlementConfirmPrompt,

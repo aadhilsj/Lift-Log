@@ -815,17 +815,14 @@ const SoloModal = ({mode,monthName,minimumTarget,defaultTarget,onClose,onSubmit,
         cta:"Send exceptional request"
       }
     : {
-        title:`Request Solo for ${monthName}?`,
+        title:`Go Solo for ${monthName}`,
         body:["You keep logging, but you are out of the reward / penalty system for the month.","Your request will be sent to the bloc admin for approval."],
         cta:"Send request"
       };
   const submit = () => onSubmit({ personalTarget: Math.max(minTarget, Math.round(Number(target || minTarget))), reason });
   return React.createElement('div',{className:`overlay${isMobile() ? " center-mobile" : ""}`,onClick:onClose},
     React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{maxWidth:420,fontFamily:UI_FONT}},
-      React.createElement('div',{style:{display:"flex",alignItems:"center",gap:10,marginBottom:12}},
-        React.createElement('div',{style:{width:34,height:34,borderRadius:999,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(78,205,196,.08)",border:"1px solid rgba(78,205,196,.28)",color:"#4ECDC4",fontSize:16,fontWeight:900,fontFamily:UI_FONT}},"S"),
-        React.createElement('div',{style:{fontFamily:UI_FONT,fontWeight:800,fontSize:20,lineHeight:1.1,letterSpacing:0}},config.title)
-      ),
+      React.createElement('div',{style:{fontFamily:UI_FONT,fontWeight:800,fontSize:20,lineHeight:1.1,letterSpacing:0,marginBottom:12}},config.title),
       React.createElement('div',{style:{display:"grid",gap:7,padding:"11px 12px",borderRadius:12,background:"linear-gradient(180deg, rgba(13,31,30,.96), rgba(8,15,15,.86))",border:"1px solid rgba(78,205,196,.34)",boxShadow:"0 0 0 1px rgba(78,205,196,.08), inset 0 1px 0 rgba(255,255,255,.04)",marginBottom:14}},
         [
           "Keep logging with a personal target.",
