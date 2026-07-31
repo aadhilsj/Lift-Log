@@ -194,19 +194,17 @@ const RosterPopover = ({ title, ids, nameFor, photoFor, onClose, align = "left" 
   );
 };
 
-// One reaction chip: tap shows who reacted; press-and-hold/right-click does the
-// same. Reaction toggles happen via double-tap or the long-press emoji bar.
+// One reaction chip: tap shows who reacted. Reaction toggles happen via
+// double-tap or the message long-press emoji bar, not by holding the chip.
 const ReactionChip = ({ emoji, users, mine, nameFor, photoFor, align }) => {
   const [who, setWho] = useState(false);
-  const p = useRef({ lp: null, moved: false, sup: false, sx: 0, sy: 0 });
-  const clear = () => { if (p.current.lp) { clearTimeout(p.current.lp); p.current.lp = null; } };
+  const p = useRef({ moved: false, sx: 0, sy: 0 });
   return React.createElement('span', { style: { position: "relative", display: "inline-flex" } },
     React.createElement('button', {
-      onPointerDown: e => { const s = p.current; s.moved = false; s.sup = false; s.sx = e.clientX; s.sy = e.clientY; clear(); s.lp = setTimeout(() => { s.sup = true; setWho(true); try { navigator.vibrate && navigator.vibrate(8); } catch (_) {} }, 420); },
-      onPointerMove: e => { const s = p.current; if (Math.abs(e.clientX - s.sx) > 8 || Math.abs(e.clientY - s.sy) > 8) { s.moved = true; clear(); } },
-      onPointerUp: () => { clear(); if (!p.current.sup && !p.current.moved) setWho(true); },
-      onPointerLeave: () => clear(),
-      onContextMenu: e => { e.preventDefault(); setWho(true); },
+      onPointerDown: e => { const s = p.current; s.moved = false; s.sx = e.clientX; s.sy = e.clientY; },
+      onPointerMove: e => { const s = p.current; if (Math.abs(e.clientX - s.sx) > 8 || Math.abs(e.clientY - s.sy) > 8) s.moved = true; },
+      onPointerUp: () => { if (!p.current.moved) setWho(true); },
+      onContextMenu: e => e.preventDefault(),
       style: { minHeight: 20, display: "inline-flex", alignItems: "center", gap: 4, background: "#182120", border: "1px solid rgba(255,255,255,.06)", borderRadius: 999, padding: "0 7px", fontSize: 11, color: "var(--text)", cursor: "pointer", lineHeight: 1.25, userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none", touchAction: "manipulation", boxShadow: "0 7px 14px rgba(0,0,0,.32), inset 0 1px 0 rgba(255,255,255,.04)" }
     }, emoji, React.createElement('span', { style: { fontFamily: "'Outfit', sans-serif", fontSize: 10, color: "rgba(255,255,255,.8)", fontWeight: 800 } }, users.length)),
     who && React.createElement(RosterPopover, { title: `${emoji} · ${users.length}`, ids: users, nameFor, photoFor, onClose: () => setWho(false), align })
