@@ -5,7 +5,9 @@ import {
   QUICK_REACTIONS,
   countApprovedFlagsForActor,
   flattenFeedPosts,
-  resolveStorageImageUrl
+  resolveStorageImageUrl,
+  getMonthKeyFromISO,
+  isSoloForMonth
 } from "../lib/appState.js";
 import { getLogCommentCountsData } from "../lib/api.js";
 import {
@@ -73,6 +75,8 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
   const approvedFlagCount = countApprovedFlagsForActor(group, currentUser);
   const cannotFlagMore = approvedFlagCount >= 3;
   const compactFeed = isMobile();
+  const soloBadge = React.createElement('span',{className:"mono",style:{fontSize:7.5,color:"#4ECDC4",border:"0.5px solid rgba(78,205,196,.34)",borderRadius:999,padding:"2px 5px",letterSpacing:".08em",fontWeight:800,flexShrink:0}},"SOLO");
+  const isPostSolo = post => !!post && isSoloForMonth(group, post.owner, getMonthKeyFromISO(post.date));
   const getCommentCount = useCallback(post => {
     const key = String(post?.id || "");
     const appOverride = commentCountOverrides[key];
@@ -361,6 +365,7 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
         React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"center",gap:7,minWidth:0,whiteSpace:"nowrap",padding:"0 2px",textAlign:"center"}},
           React.createElement(Avatar,{name:imagePost.owner,userId:userIdForOwner(imagePost.owner),size:28}),
           React.createElement('span',{style:{fontWeight:600,fontSize:13,color:"#fff",minWidth:0,overflow:"hidden",textOverflow:"ellipsis",flex:"0 1 auto",maxWidth:compactFeed?118:220}},imagePost.owner),
+          isPostSolo(imagePost) && soloBadge,
           React.createElement('span',{style:{display:"inline-flex",alignItems:"center",gap:4,color:"var(--muted)",fontSize:11.5,flexShrink:0}},
             React.createElement('span',{style:{display:"inline-flex",alignItems:"center",justifyContent:"center",color:"var(--cyan)",width:14}},categoryIcon),
             React.createElement('span',null,imagePost.type)
@@ -448,6 +453,7 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
                             React.createElement('div',{style:{display:"flex",alignItems:"center",gap:7,minWidth:0,flex:1}},
                               React.createElement(Avatar,{name:post.owner,userId:userIdForOwner(post.owner),size:28}),
                               React.createElement('span',{style:{fontWeight:600,fontSize:13,color:"#fff",minWidth:0,overflow:"hidden",textOverflow:"ellipsis",flex:"0 1 auto",maxWidth:hasThumbnail?(compactFeed?96:180):(compactFeed?116:220)}},post.owner),
+                              isPostSolo(post) && soloBadge,
                               React.createElement('span',{style:{display:"inline-flex",alignItems:"center",gap:4,color:"var(--muted)",fontSize:11.5,flexShrink:0}},
                                 React.createElement('span',{style:{display:"inline-flex",alignItems:"center",justifyContent:"center",color:"var(--cyan)",width:14}},categoryIcon),
                                 React.createElement('span',null,post.type)
@@ -478,6 +484,7 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
                       React.createElement('div',{style:{display:"flex",alignItems:"center",gap:7,minWidth:0,flex:1}},
                         React.createElement(Avatar,{name:post.owner,userId:userIdForOwner(post.owner),size:22}),
                         React.createElement('span',{style:{fontWeight:600,fontSize:13,color:"#fff",minWidth:0,overflow:"hidden",textOverflow:"ellipsis",flex:"0 1 auto",maxWidth:compactFeed?116:220}},post.owner),
+                        isPostSolo(post) && soloBadge,
                         React.createElement('span',{style:{display:"inline-flex",alignItems:"center",gap:4,color:"var(--muted)",fontSize:11.5,flexShrink:0}},
                           React.createElement('span',{style:{display:"inline-flex",alignItems:"center",justifyContent:"center",color:"var(--cyan)",width:14}},categoryIcon),
                           React.createElement('span',null,post.type)

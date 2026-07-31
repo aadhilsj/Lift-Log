@@ -13,6 +13,7 @@ import {
   curKey,
   buildNormalizedSettings,
   normalizeSitOutRequests,
+  normalizeSoloRequests,
   normalizeEscalationStepAmount,
   getCurrentGroupMemberNames,
   getSetupReviewPendingFields
@@ -75,7 +76,7 @@ const EditableField = ({title,description,children}) => (
   )
 );
 
-const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,saving,onReviewSetup,onReviewSitOut,onKickMember}) => {
+const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,saving,onReviewSetup,onReviewSitOut,onReviewSolo,onKickMember}) => {
   const compactMobile = isMobile();
   const [tab,setTab]=useState("rules");
   const [groupName,setGroupName]=useState(group?.name || "");
@@ -91,6 +92,7 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
   const pendingSet = useMemo(()=>new Set(pendingFields),[pendingFields]);
   const inviteLink = `${window.location.origin}${window.location.pathname}?invite=${group?.inviteCode || ""}`;
   const pendingSitOuts = Object.values(normalizeSitOutRequests(group?.sitOutRequests)?.[curKey] || {}).filter(request => request.status === "pending");
+  const pendingSolos = Object.values(normalizeSoloRequests(group?.soloRequests)?.[curKey] || {}).filter(request => request.status === "pending");
   const normalizedSettings = buildNormalizedSettings(settings);
   const escalationStepMissing = normalizedSettings.feeModel === "escalating" && normalizedSettings.escalationStepAmount === null;
   const canSave = isAdmin && groupName.trim() && normalizedSettings.acceptedWorkoutTypes.length > 0 && !saving;
@@ -312,6 +314,19 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
           React.createElement('div',{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}},
             React.createElement('button',{type:"button",onClick:()=>onReviewSitOut && onReviewSitOut({memberName:request.memberName,monthKey:request.monthKey,decision:"decline"}),style:{padding:"8px 10px",borderRadius:9,background:"transparent",border:"1px solid var(--border)",color:"var(--muted)",fontSize:10,fontWeight:800}},"Decline"),
             React.createElement('button',{type:"button",onClick:()=>onReviewSitOut && onReviewSitOut({memberName:request.memberName,monthKey:request.monthKey,decision:"approve"}),style:{padding:"8px 10px",borderRadius:9,background:"#4ECDC4",color:"#050909",fontSize:10,fontWeight:900}},"Approve")
+          )
+        ))
+      ),
+      pendingSolos.length>0 && isAdmin && React.createElement('div',{style:{marginBottom:10,padding:"11px 12px",borderRadius:12,background:"#080F0F",border:"0.5px solid rgba(78,205,196,.24)",display:"grid",gap:8}},
+        React.createElement('div',{style:{fontWeight:900,fontSize:12}},"Pending Solo Mode requests"),
+        pendingSolos.map(request=>React.createElement('div',{key:`solo-${request.monthKey}-${request.memberName}`,style:{display:"grid",gap:8,padding:"9px 10px",borderRadius:10,background:"rgba(78,205,196,.06)",border:"0.5px solid rgba(78,205,196,.20)"}},
+          React.createElement('div',null,
+            React.createElement('div',{style:{fontWeight:800,fontSize:11}},request.memberName),
+            React.createElement('div',{style:{fontSize:10,color:"var(--muted)",marginTop:2}},`Target ${request.personalTarget} · ${request.reason || (request.exceptional ? "Exceptional request" : "No reason provided")}`)
+          ),
+          React.createElement('div',{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}},
+            React.createElement('button',{type:"button",onClick:()=>onReviewSolo && onReviewSolo({memberName:request.memberName,monthKey:request.monthKey,decision:"decline"}),style:{padding:"8px 10px",borderRadius:9,background:"transparent",border:"1px solid var(--border)",color:"var(--muted)",fontSize:10,fontWeight:800}},"Decline"),
+            React.createElement('button',{type:"button",onClick:()=>onReviewSolo && onReviewSolo({memberName:request.memberName,monthKey:request.monthKey,decision:"approve"}),style:{padding:"8px 10px",borderRadius:9,background:"#4ECDC4",color:"#050909",fontSize:10,fontWeight:900}},"Approve")
           )
         ))
       ),

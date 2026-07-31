@@ -398,6 +398,18 @@ async function reviewSitOutData(payload) {
   return { ok:true, data: normalizeAppState(result.body) };
 }
 
+async function requestSoloData(payload) {
+  const result = await postApi("solo-request", payload);
+  if (!result.ok) return { ok:false, error: result.error || "Unable to request Solo Mode" };
+  return { ok:true, data: normalizeAppState(result.body) };
+}
+
+async function reviewSoloData(payload) {
+  const result = await postApi("solo-review", payload);
+  if (!result.ok) return { ok:false, error: result.error || "Unable to review Solo Mode" };
+  return { ok:true, data: normalizeAppState(result.body) };
+}
+
 async function deleteAccountData(userId) {
   const result = await postApi("delete-account", { userId });
   if (!result.ok) return { ok:false, error: result.error || "Unable to delete account" };
@@ -678,6 +690,8 @@ export {
   saveSeasonProrationChoice,
   requestSitOutData,
   reviewSitOutData,
+  requestSoloData,
+  reviewSoloData,
   deleteAccountData,
   sendOtpData,
   verifyOtpData,

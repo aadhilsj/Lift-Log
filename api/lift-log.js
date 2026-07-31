@@ -34,6 +34,8 @@ const WRITE_HYDRATION_PARITY_DEFAULT_ACTIONS = [
   "season-proration-choice",
   "sitout-request",
   "sitout-review",
+  "solo-request",
+  "solo-review",
   "add-log",
   "multi-log",
   "reaction",
@@ -396,6 +398,7 @@ function buildCurrentOpenComparisonGroup(group) {
   const monthKey = group.lastMonth || getLeagueMonthKey(group.settings?.timeZone);
   const seasonOverrides = normalizeSeasonOverrides(group.seasonOverrides);
   const sitOutRequests = normalizeSitOutRequests(group.sitOutRequests);
+  const soloRequests = normalizeSoloRequests(group.soloRequests);
   return {
     id: group.id,
     name: group.name,
@@ -408,8 +411,10 @@ function buildCurrentOpenComparisonGroup(group) {
     settings: group.settings || {},
     logs: group.logs || {},
     excused: pickCurrentMonthOnlyMap(group.excused || {}, monthKey),
+    solo: pickCurrentMonthOnlyMap(group.solo || {}, monthKey),
     seasonOverrides: seasonOverrides[monthKey] ? { [monthKey]: seasonOverrides[monthKey] } : {},
     sitOutRequests: sitOutRequests[monthKey] ? { [monthKey]: sitOutRequests[monthKey] } : {},
+    soloRequests: soloRequests[monthKey] ? { [monthKey]: soloRequests[monthKey] } : {},
     settlementConfirmationsEnabled: !!group.settlementConfirmationsEnabled,
     settlementConfirmationsPreviewMode: !!group.settlementConfirmationsPreviewMode,
     lastMonth: monthKey
@@ -697,9 +702,9 @@ function rekeyAuthReference(value, legacyUserId, nextUserId) {
   return value === legacyUserId ? nextUserId : value || null;
 }
 
-function rekeySitOutRequestUserIds(sitOutRequests, legacyUserId, nextUserId) {
+function rekeyRequestUserIds(requestsByMonth, legacyUserId, nextUserId) {
   return Object.fromEntries(
-    Object.entries(sitOutRequests || {}).map(([monthKey, requests]) => [
+    Object.entries(requestsByMonth || {}).map(([monthKey, requests]) => [
       monthKey,
       Object.fromEntries(
         Object.entries(requests || {}).map(([memberName, request]) => [
@@ -731,7 +736,8 @@ function rekeyLegacyAuthIdentityInGroup(group, legacyUserId, nextUserId) {
     ...group,
     adminUserId: group.adminUserId === legacyUserId ? nextUserId : group.adminUserId,
     memberships,
-    sitOutRequests: rekeySitOutRequestUserIds(group.sitOutRequests, legacyUserId, nextUserId)
+    sitOutRequests: rekeyRequestUserIds(group.sitOutRequests, legacyUserId, nextUserId),
+    soloRequests: rekeyRequestUserIds(group.soloRequests, legacyUserId, nextUserId)
   });
 }
 
@@ -815,6 +821,8 @@ function normalizeLegacyGroup(data) {
     settings: buildNormalizedSettings({ minTarget: DEFAULT_MIN_TARGET, acceptedWorkoutTypes: [...WORKOUT_TYPES], timeZone: DEFAULT_GROUP_TIME_ZONE }),
     logs: data?.logs || {},
     excused: data?.excused || {},
+    solo: data?.solo || {},
+    soloRequests: data?.soloRequests || {},
     monthHistory: data?.monthHistory || [],
     lastMonth: data?.lastMonth || null
   });
@@ -958,6 +966,16 @@ function removeMemberSitOutRequests(sitOutRequests, displayName) {
   return nextSitOutRequests;
 }
 
+function removeMemberRequests(requestsByMonth, displayName) {
+  const nextRequests = {};
+  for (const [monthKey, monthRequests] of Object.entries(requestsByMonth || {})) {
+    const filtered = { ...monthRequests };
+    delete filtered[displayName];
+    if (Object.keys(filtered).length > 0) nextRequests[monthKey] = filtered;
+  }
+  return nextRequests;
+}
+
 function removeLegacyLeftMemberName(leftMemberNames, displayName) {
   const safeDisplayName = String(displayName || "").trim();
   if (!safeDisplayName) return uniqueNames(Array.isArray(leftMemberNames) ? leftMemberNames : []);
@@ -997,6 +1015,7 @@ function normalizeGroup(group) {
     ])
   );
   const normalizedExcused = normalizeExcused(group?.excused, memberOrder);
+  const normalizedSolo = normalizeSolo(group?.solo, memberOrder);
   const adminUserId = normalizeAdminUserId(group?.adminUserId, memberships, group?.adminName);
   const normalized = {
     id: typeof group?.id === "string" && group.id ? group.id : `group-${Date.now()}`,
@@ -1015,8 +1034,10 @@ function normalizeGroup(group) {
     logs: normalizedLogs,
     deletedCurrentLogIds: normalizeDeletedCurrentLogIds(group?.deletedCurrentLogIds),
     excused: normalizedExcused,
+    solo: normalizedSolo,
     seasonOverrides: normalizeSeasonOverrides(group?.seasonOverrides),
     sitOutRequests: normalizeSitOutRequests(group?.sitOutRequests),
+    soloRequests: normalizeSoloRequests(group?.soloRequests),
     settlementConfirmationsEnabled: !!group?.settlementConfirmationsEnabled,
     settlementConfirmationsPreviewMode: !!group?.settlementConfirmationsPreviewMode,
     settlementConfirmations: normalizeSettlementConfirmations(group?.settlementConfirmations),
@@ -1103,6 +1124,77 @@ function pruneSitOutRequestsForRead(sitOutRequests, monthKey) {
   if (!monthKey) return {};
   const normalized = normalizeSitOutRequests(sitOutRequests);
   return normalized[monthKey] ? { [monthKey]: normalized[monthKey] } : {};
+}
+
+function normalizeSoloRequests(soloRequests) {
+  if (!soloRequests || typeof soloRequests !== "object") return {};
+  return Object.fromEntries(
+    Object.entries(soloRequests)
+      .map(([monthKey, requests]) => {
+        if (!monthKey || !requests || typeof requests !== "object") return null;
+        return [monthKey, Object.fromEntries(
+          Object.entries(requests)
+            .map(([memberName, request]) => {
+              if (!memberName || !request) return null;
+              const target = Number(request?.personalTarget || request?.target || 0);
+              return [memberName, {
+                memberName,
+                monthKey,
+                status: request?.status || "pending",
+                personalTarget: Number.isFinite(target) ? Math.max(1, Math.round(target)) : 1,
+                reason: typeof request?.reason === "string" ? request.reason : "",
+                exceptional: !!request?.exceptional,
+                requestedAt: request?.requestedAt || null,
+                requestedBy: request?.requestedBy || memberName,
+                requestedByUserId: request?.requestedByUserId || null,
+                targetApproverName: request?.targetApproverName || null,
+                targetApproverUserId: request?.targetApproverUserId || null,
+                decidedAt: request?.decidedAt || null,
+                decidedBy: request?.decidedBy || null,
+                decidedByUserId: request?.decidedByUserId || null
+              }];
+            })
+            .filter(Boolean)
+        )];
+      })
+      .filter(Boolean)
+  );
+}
+
+function pruneSoloRequestsForRead(soloRequests, monthKey) {
+  if (!monthKey) return {};
+  const normalized = normalizeSoloRequests(soloRequests);
+  return normalized[monthKey] ? { [monthKey]: normalized[monthKey] } : {};
+}
+
+function normalizeSolo(solo, memberOrder = []) {
+  const source = solo && typeof solo === "object" ? solo : {};
+  const names = uniqueNames([...memberOrder, ...Object.keys(source)]);
+  return Object.fromEntries(
+    names.map(name => {
+      const monthEntries = source?.[name] && typeof source[name] === "object" ? source[name] : {};
+      return [name, Object.fromEntries(
+        Object.entries(monthEntries)
+          .map(([monthKey, value]) => {
+            const target = Number(value?.target || value?.personalTarget || value || 0);
+            if (!monthKey || !Number.isFinite(target) || target < 1) return null;
+            return [monthKey, { target: Math.round(target) }];
+          })
+          .filter(Boolean)
+      )];
+    })
+  );
+}
+
+function isSoloForMonth(groupOrMonth, memberName, monthKey) {
+  if (!groupOrMonth || !memberName || !monthKey) return false;
+  return !!groupOrMonth?.solo?.[memberName]?.[monthKey];
+}
+
+function getSoloTargetForMonth(groupOrMonth, memberName, monthKey) {
+  const value = groupOrMonth?.solo?.[memberName]?.[monthKey];
+  const target = Number(value?.target || value?.personalTarget || value || 0);
+  return Number.isFinite(target) && target > 0 ? Math.round(target) : null;
 }
 
 function normalizeMemberships(memberships, memberOrder, adminName, adminUserId) {
@@ -1328,6 +1420,7 @@ function normalizeMonthHistory(monthHistory, memberOrder, joinedMonthByName, set
       ...Object.keys(month?.counts || {}),
       ...Object.keys(month?.logsByUser || {}),
       ...Object.keys(month?.excused || {}),
+      ...Object.keys(month?.solo || {}),
       ...Object.keys(month?.memberTargets || {}),
       ...Object.keys(month?.settlements || {}),
       ...monthMembershipNames
@@ -1341,6 +1434,14 @@ function normalizeMonthHistory(monthHistory, memberOrder, joinedMonthByName, set
     const relevantNames = relevantShellNames.filter(name => isJoinedForMonth(joinedMonthByName, name, monthKey));
     const counts = Object.fromEntries(relevantNames.map(name => [name, Number(month?.counts?.[name] || getCountedLogCount(logsByUser[name]) || 0)]));
     const excused = Object.fromEntries(relevantNames.map(name => [name, !!month?.excused?.[name]]));
+    const solo = Object.fromEntries(
+      relevantNames
+        .map(name => {
+          const target = getSoloTargetForMonth(month, name, monthKey);
+          return target ? [name, { [monthKey]: { target } }] : null;
+        })
+        .filter(Boolean)
+    );
     const monthSettings = resolveHistoricalMonthSettings(month?.settings, settings);
     const monthGroup = {
       settings,
@@ -1362,10 +1463,11 @@ function normalizeMonthHistory(monthHistory, memberOrder, joinedMonthByName, set
       label: formatMonthLabelFromKey(monthKey) || month?.label,
       counts,
       excused,
+      solo,
       logsByUser,
       memberTargets,
       settings: monthSettings,
-      settlements: month?.settlements || buildDefaultSettlements({ counts, excused, key: monthKey }, relevantNames, monthSettings, memberTargets)
+      settlements: month?.settlements || buildDefaultSettlements({ counts, excused, solo, key: monthKey }, relevantNames, monthSettings, memberTargets)
     };
   }).filter(Boolean).sort((a, b) => compareMonthKeys(a.key, b.key));
 }
@@ -1608,11 +1710,16 @@ function buildCanonicalMonthHistoryForGroup(group, canonicalSeasons) {
     });
     const counts = {};
     const excused = {};
+    const solo = {};
     const memberAuthUserIds = {};
     for (const name of relevantNames) {
       const m = membersByName[name];
       counts[name] = m ? m.workout_count : 0;
       excused[name] = m ? !!m.excused : false;
+      const soloTarget = Number(m?.solo_target || 0);
+      if (m?.solo && Number.isFinite(soloTarget) && soloTarget > 0) {
+        solo[name] = { [monthKey]: { target: Math.round(soloTarget) } };
+      }
       if (m?.auth_user_id) memberAuthUserIds[name] = m.auth_user_id;
     }
 
@@ -1657,6 +1764,7 @@ function buildCanonicalMonthHistoryForGroup(group, canonicalSeasons) {
       month:        season.monthIndex,
       counts,
       excused,
+      solo,
       memberAuthUserIds,
       logsByUser,
       settings:     canonicalSettings,
@@ -1697,6 +1805,7 @@ function hasParticipationBeforeMonth(group, displayName, monthKey) {
     if ((month?.counts?.[displayName] || 0) > 0) return true;
     if ((month?.logsByUser?.[displayName] || []).length > 0) return true;
     if (month?.excused?.[displayName]) return true;
+    if (isSoloForMonth(month, displayName, month.key)) return true;
     if (month?.settlements?.[displayName]) return true;
     if (Object.prototype.hasOwnProperty.call(month?.memberTargets || {}, displayName)) return true;
     return false;
@@ -1740,7 +1849,7 @@ function calcPenalties(activeCounts, settings) {
 
 function buildDefaultSettlements(month, relevantNames, settings, memberTargets = {}) {
   const activeCounts = relevantNames
-    .filter(name => !(month.excused?.[name]))
+    .filter(name => !(month.excused?.[name]) && !isSoloForMonth(month, name, month.key))
     .map(name => ({ name, count: month.counts?.[name] || 0, target: memberTargets?.[name] || Number(settings?.minTarget || DEFAULT_MIN_TARGET) }));
   const { losers } = calcPenalties(activeCounts, settings);
   return Object.fromEntries(
@@ -1839,9 +1948,10 @@ function rebuildMonthSnapshot(group, month, logsByUser) {
     relevantNames.map(name => [name, getCountedLogCount(nextLogsByUser[name])])
   );
   const excused = month?.excused || Object.fromEntries(relevantNames.map(name => [name, false]));
+  const solo = month?.solo || Object.fromEntries(relevantNames.map(name => [name, {}]));
   const settings = buildNormalizedSettings(month?.settings || group.settings);
   const memberTargets = getMemberTargetsForMonth(group, relevantNames, monthKey, settings);
-  const defaultSettlements = buildDefaultSettlements({ counts, excused }, relevantNames, settings, memberTargets);
+  const defaultSettlements = buildDefaultSettlements({ counts, excused, solo, key: monthKey }, relevantNames, settings, memberTargets);
   const previousSettlements = month?.settlements || {};
   const settlements = Object.fromEntries(
     Object.entries(defaultSettlements).map(([name, settlement]) => {
@@ -1858,6 +1968,7 @@ function rebuildMonthSnapshot(group, month, logsByUser) {
     ...month,
     counts,
     excused,
+    solo,
     logsByUser: nextLogsByUser,
     memberTargets,
     settings,
@@ -1883,6 +1994,14 @@ function rolloverGroupIfNeeded(group) {
   const excused = Object.fromEntries(
     relevantNames.map(name => [name, group.excused?.[name]?.[group.lastMonth] || false])
   );
+  const solo = Object.fromEntries(
+    relevantNames
+      .map(name => {
+        const target = getSoloTargetForMonth(group, name, group.lastMonth);
+        return target ? [name, { [group.lastMonth]: { target } }] : null;
+      })
+      .filter(Boolean)
+  );
   const memberTargets = getMemberTargetsForMonth(group, relevantNames, group.lastMonth, group.settings);
   const snapshot = {
     key: group.lastMonth,
@@ -1891,10 +2010,11 @@ function rolloverGroupIfNeeded(group) {
     month: lm,
     counts,
     excused,
+    solo,
     logsByUser: buildMonthLogsSnapshot(group.logs, relevantNames),
     memberTargets,
     settings: buildNormalizedSettings(group.settings),
-    settlements: buildDefaultSettlements({ counts, excused }, relevantNames, group.settings, memberTargets)
+    settlements: buildDefaultSettlements({ counts, excused, solo, key: group.lastMonth }, relevantNames, group.settings, memberTargets)
   };
 
   return normalizeGroup({
@@ -1902,6 +2022,7 @@ function rolloverGroupIfNeeded(group) {
     logs: {},
     deletedCurrentLogIds: [],
     excused: {},
+    solo: {},
     monthHistory: [...group.monthHistory, snapshot],
     lastMonth: expectedKey
   });
@@ -2356,6 +2477,27 @@ async function upsertSeasonMemberExcusedInCanonical(legacyGroupKey, monthKey, di
   }
 }
 
+async function upsertSeasonMemberSoloInCanonical(legacyGroupKey, monthKey, displayName, authUserId, soloTarget, options = {}) {
+  if (!legacyGroupKey || !monthKey || !displayName) return;
+  const { throwOnError = false } = options;
+  try {
+    await supabaseFetch("/rest/v1/rpc/upsert_ante_core_season_member_solo", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({
+        p_legacy_group_key: legacyGroupKey,
+        p_month_key:        monthKey,
+        p_display_name:     displayName,
+        p_auth_user_id:     authUserId || null,
+        p_solo_target:      soloTarget || null
+      })
+    });
+  } catch (err) {
+    if (throwOnError) throw err;
+    console.error("Canonical solo status sync failed:", err?.message || err);
+  }
+}
+
 async function upsertSeasonOverrideInCanonical(legacyGroupKey, monthKey, prorated, proratedMas, chosenAt, chosenBy, chosenByUserId, options = {}) {
   if (!legacyGroupKey || !monthKey) return;
   const { throwOnError = false } = options;
@@ -2408,6 +2550,37 @@ async function upsertSitOutRequestInCanonical(legacyGroupKey, monthKey, memberNa
   } catch (err) {
     if (throwOnError) throw err;
     console.error("Canonical sit-out request sync failed:", err?.message || err);
+  }
+}
+
+async function upsertSoloRequestInCanonical(legacyGroupKey, monthKey, memberName, request, options = {}) {
+  if (!legacyGroupKey || !monthKey || !memberName) return;
+  const { throwOnError = false } = options;
+  try {
+    await supabaseFetch("/rest/v1/rpc/upsert_ante_core_solo_request", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({
+        p_legacy_group_key:        legacyGroupKey,
+        p_month_key:               monthKey,
+        p_display_name:            memberName,
+        p_requested_by_user_id:    request?.requestedByUserId    || null,
+        p_status:                  request?.status               || "pending",
+        p_personal_target:         request?.personalTarget       || null,
+        p_reason:                  request?.reason               || "",
+        p_exceptional:             !!request?.exceptional,
+        p_requested_at:            request?.requestedAt          || null,
+        p_requested_by:            request?.requestedBy          || null,
+        p_target_approver_name:    request?.targetApproverName   || null,
+        p_target_approver_user_id: request?.targetApproverUserId || null,
+        p_decided_at:              request?.decidedAt            || null,
+        p_decided_by:              request?.decidedBy            || null,
+        p_decided_by_user_id:      request?.decidedByUserId      || null
+      })
+    });
+  } catch (err) {
+    if (throwOnError) throw err;
+    console.error("Canonical solo request sync failed:", err?.message || err);
   }
 }
 
@@ -3202,6 +3375,8 @@ async function fetchAnteCurrentExcusedAndSitouts() {
     if (!payload || typeof payload !== "object") return null;
     const excusedRows     = Array.isArray(payload.excused) ? payload.excused : [];
     const sitoutRows      = Array.isArray(payload.sit_out_requests) ? payload.sit_out_requests : [];
+    const soloRows        = Array.isArray(payload.solo) ? payload.solo : [];
+    const soloRequestRows = Array.isArray(payload.solo_requests) ? payload.solo_requests : [];
     const openSeasonRows  = Array.isArray(payload.open_seasons) ? payload.open_seasons : [];
     // Do NOT early-return on empty rows — an empty canonical state is still a
     // valid successful fetch and must be applied to clear stale blob values.
@@ -3244,6 +3419,42 @@ async function fetchAnteCurrentExcusedAndSitouts() {
       return acc;
     }, {});
 
+    const solo = soloRows.reduce((acc, row) => {
+      const key = typeof row?.legacy_group_key === "string" ? row.legacy_group_key : "";
+      if (!key) return acc;
+      if (!acc[key]) acc[key] = [];
+      acc[key].push({
+        monthKey: row.month_key,
+        displayName: row.display_name,
+        solo: !!row.solo,
+        target: Number(row.solo_target || 0)
+      });
+      return acc;
+    }, {});
+
+    const soloRequests = soloRequestRows.reduce((acc, row) => {
+      const key = typeof row?.legacy_group_key === "string" ? row.legacy_group_key : "";
+      if (!key) return acc;
+      if (!acc[key]) acc[key] = [];
+      acc[key].push({
+        monthKey:             row.month_key,
+        displayName:          row.display_name,
+        status:               row.status || "pending",
+        personalTarget:       Number(row.personal_target || 0),
+        reason:               typeof row.reason === "string" ? row.reason : "",
+        exceptional:          !!row.exceptional,
+        requestedAt:          row.requested_at || null,
+        requestedBy:          row.requested_by || row.display_name,
+        requestedByUserId:    row.requested_by_user_id || null,
+        targetApproverName:   row.target_approver_name || null,
+        targetApproverUserId: row.target_approver_user_id || null,
+        decidedAt:            row.decided_at || null,
+        decidedBy:            row.decided_by || null,
+        decidedByUserId:      row.decided_by_user_id || null
+      });
+      return acc;
+    }, {});
+
     // Build a {groupKey: monthKey} map from open seasons. Used by the overlay
     // to identify the current month to clear even when excused/sitout rows are
     // absent (zero-row empty-state case).
@@ -3253,7 +3464,7 @@ async function fetchAnteCurrentExcusedAndSitouts() {
       return acc;
     }, {});
 
-    return { excused, sitOutRequests, openSeasonMonthKeys };
+    return { excused, sitOutRequests, solo, soloRequests, openSeasonMonthKeys };
   } catch {
     return null;
   }
@@ -3492,6 +3703,8 @@ async function fetchReadableCurrentState() {
   if (anteExcusedSitouts) {
     const excusedByGroup        = anteExcusedSitouts.excused || {};
     const sitoutsByGroup        = anteExcusedSitouts.sitOutRequests || {};
+    const soloByGroup           = anteExcusedSitouts.solo || {};
+    const soloRequestsByGroup   = anteExcusedSitouts.soloRequests || {};
     const openSeasonMonthKeys   = anteExcusedSitouts.openSeasonMonthKeys || {};
     const overlaidGroups = Object.fromEntries(
       Object.entries(state.groups || {}).map(([groupId, group]) => {
@@ -3517,6 +3730,20 @@ async function fetchReadableCurrentState() {
           ...nextGroup,
           lastMonth: openMonthKey,
           excused: Object.fromEntries(activeMemberNames.map(name => [name, excusedByName[name] || {}]))
+        };
+
+        const canonicalSoloRows = soloByGroup[groupId] || [];
+        const soloByName = {};
+        for (const row of canonicalSoloRows) {
+          if (!soloByName[row.displayName]) soloByName[row.displayName] = {};
+          const target = Number(row.target || 0);
+          if (row.solo && Number.isFinite(target) && target > 0) {
+            soloByName[row.displayName][row.monthKey] = { target: Math.round(target) };
+          }
+        }
+        nextGroup = {
+          ...nextGroup,
+          solo: Object.fromEntries(activeMemberNames.map(name => [name, soloByName[name] || {}]))
         };
 
         // Sit-out overlay: replace only the open-season month key, keyed by
@@ -3553,6 +3780,39 @@ async function fetchReadableCurrentState() {
           ...nextGroup,
           sitOutRequests: monthRequests && Object.keys(monthRequests).length > 0
             ? { [openMonthKey]: monthRequests }
+            : {}
+        };
+
+        const canonicalSoloRequests = soloRequestsByGroup[groupId] || [];
+        const soloRequestByName = {};
+        for (const row of canonicalSoloRequests) {
+          soloRequestByName[row.displayName] = row;
+        }
+        const soloMonthRequests = {};
+        for (const name of activeMemberNames) {
+          const req = soloRequestByName[name];
+          if (!req) continue;
+          soloMonthRequests[name] = {
+            memberName:           name,
+            monthKey:             openMonthKey,
+            status:               req.status,
+            personalTarget:       req.personalTarget,
+            reason:               req.reason,
+            exceptional:          req.exceptional,
+            requestedAt:          req.requestedAt,
+            requestedBy:          req.requestedBy,
+            requestedByUserId:    req.requestedByUserId,
+            targetApproverName:   req.targetApproverName,
+            targetApproverUserId: req.targetApproverUserId,
+            decidedAt:            req.decidedAt,
+            decidedBy:            req.decidedBy,
+            decidedByUserId:      req.decidedByUserId
+          };
+        }
+        nextGroup = {
+          ...nextGroup,
+          soloRequests: soloMonthRequests && Object.keys(soloMonthRequests).length > 0
+            ? { [openMonthKey]: soloMonthRequests }
             : {}
         };
 
@@ -3811,6 +4071,24 @@ async function buildCanonicalWritableStateForGroup(groupId, baseStateOverride = 
     })
   );
 
+  const historicalSolo = { ...(baseGroup.solo || {}) };
+  const currentSoloRows = anteExcusedSitouts?.solo?.[safeGroupId] || [];
+  const canonicalSoloByName = {};
+  for (const row of currentSoloRows) {
+    if (!row.displayName || !row.monthKey || !row.solo) continue;
+    const target = Number(row.target || 0);
+    if (!Number.isFinite(target) || target < 1) continue;
+    if (!canonicalSoloByName[row.displayName]) canonicalSoloByName[row.displayName] = {};
+    canonicalSoloByName[row.displayName][row.monthKey] = { target: Math.round(target) };
+  }
+  const canonicalSolo = Object.fromEntries(
+    uniqueNames([...Object.keys(historicalSolo), ...canonicalMemberOrder]).map(name => {
+      const prior = { ...(historicalSolo[name] || {}) };
+      if (openMonthKey) delete prior[openMonthKey];
+      return [name, { ...prior, ...(canonicalSoloByName[name] || {}) }];
+    })
+  );
+
   const historicalSitouts = { ...(baseGroup.sitOutRequests || {}) };
   if (openMonthKey) delete historicalSitouts[openMonthKey];
   const canonicalSitoutRows = anteExcusedSitouts?.sitOutRequests?.[safeGroupId] || [];
@@ -3838,6 +4116,36 @@ async function buildCanonicalWritableStateForGroup(groupId, baseStateOverride = 
     ...historicalSitouts,
     ...(openMonthKey && Object.keys(currentSitoutRequests).length > 0
       ? { [openMonthKey]: currentSitoutRequests }
+      : {})
+  };
+
+  const historicalSoloRequests = { ...(baseGroup.soloRequests || {}) };
+  if (openMonthKey) delete historicalSoloRequests[openMonthKey];
+  const canonicalSoloRows = anteExcusedSitouts?.soloRequests?.[safeGroupId] || [];
+  const currentSoloRequests = {};
+  for (const row of canonicalSoloRows) {
+    if (!row.displayName) continue;
+    currentSoloRequests[row.displayName] = {
+      memberName: row.displayName,
+      monthKey: openMonthKey || row.monthKey,
+      status: row.status || "pending",
+      personalTarget: Number(row.personalTarget || 1),
+      reason: row.reason || "",
+      exceptional: !!row.exceptional,
+      requestedAt: row.requestedAt || null,
+      requestedBy: row.requestedBy || row.displayName,
+      requestedByUserId: row.requestedByUserId || null,
+      targetApproverName: row.targetApproverName || null,
+      targetApproverUserId: row.targetApproverUserId || null,
+      decidedAt: row.decidedAt || null,
+      decidedBy: row.decidedBy || null,
+      decidedByUserId: row.decidedByUserId || null
+    };
+  }
+  const canonicalSoloRequests = {
+    ...historicalSoloRequests,
+    ...(openMonthKey && Object.keys(currentSoloRequests).length > 0
+      ? { [openMonthKey]: currentSoloRequests }
       : {})
   };
 
@@ -3871,7 +4179,9 @@ async function buildCanonicalWritableStateForGroup(groupId, baseStateOverride = 
     settings,
     logs: canonicalLogs,
     excused: canonicalExcused,
+    solo: canonicalSolo,
     sitOutRequests: canonicalSitOutRequests,
+    soloRequests: canonicalSoloRequests,
     seasonOverrides: canonicalSeasonOverrides,
     monthHistory: canonicalMonthHistory,
     lastMonth: openMonthKey || baseGroup.lastMonth
@@ -4116,6 +4426,16 @@ async function persistState(nextState, reason) {
           closedSnapshot.excused[memberName] ?? false,
           { throwOnError: true }
         );
+        if (isSoloForMonth(closedSnapshot, memberName, closedMonthKey)) {
+          await upsertSeasonMemberSoloInCanonical(
+            groupId,
+            closedMonthKey,
+            memberName,
+            memberAuthUserId,
+            getSoloTargetForMonth(closedSnapshot, memberName, closedMonthKey),
+            { throwOnError: true }
+          );
+        }
       }
     }
     console.log(`Season rollover canonical sync fired: ${groupId} ${closedMonthKey} → ${newMonthKey}`);
@@ -6539,6 +6859,164 @@ function applySitOutReview(current, payload) {
   };
 }
 
+function applySoloRequest(current, payload) {
+  const actor = String(payload?.actor || "").trim();
+  const actorUserId = String(payload?.actorUserId || "").trim();
+  const groupId = String(payload?.groupId || "").trim();
+  const reason = typeof payload?.reason === "string" ? payload.reason.slice(0, 280) : "";
+  const exceptional = !!payload?.exceptional;
+  const requestedTarget = Number(payload?.personalTarget || payload?.target || 0);
+  const base = rolloverStateIfNeeded(current);
+  const group = base.groups[groupId];
+  if (!group) {
+    const error = new Error("Bloc not found");
+    error.status = 404;
+    throw error;
+  }
+  if (!isCurrentGroupMember(group, actor, actorUserId)) {
+    const error = new Error("Only Bloc members can request Solo Mode");
+    error.status = 403;
+    throw error;
+  }
+  const month = getCurrentMonthSummary(group.settings?.timeZone);
+  if (month.day > 10) {
+    const error = new Error("Solo Mode requests close after day 10 of the month");
+    error.status = 403;
+    throw error;
+  }
+  if (group.excused?.[actor]?.[month.monthKey]) {
+    const error = new Error("You're sitting out this month");
+    error.status = 400;
+    throw error;
+  }
+  if (isSoloForMonth(group, actor, month.monthKey)) {
+    const error = new Error("You're already Solo this month");
+    error.status = 400;
+    throw error;
+  }
+  const baseTarget = getEffectiveTargetForMonth(group, month.monthKey, group.settings);
+  const minimumTarget = Math.max(1, Math.ceil(baseTarget * 0.25));
+  const personalTarget = Number.isFinite(requestedTarget) ? Math.max(1, Math.round(requestedTarget)) : 0;
+  if (personalTarget < minimumTarget) {
+    const error = new Error(`Solo target must be at least ${minimumTarget}`);
+    error.status = 400;
+    throw error;
+  }
+  const recentCount = getRecentSoloCount(group, actor, month.monthKey);
+  if (recentCount >= 1 && !exceptional) {
+    const error = new Error(`You've already gone Solo recently. Your next Solo month is available in ${MONTH_NAMES[(month.month + 3) % 12]}.`);
+    error.status = 403;
+    throw error;
+  }
+  const existingRequests = normalizeSoloRequests(group.soloRequests);
+  const existing = existingRequests?.[month.monthKey]?.[actor];
+  if (existing?.status === "pending") {
+    const error = new Error("Solo Mode request already pending");
+    error.status = 400;
+    throw error;
+  }
+  const deputy = getDeputyAdmin(group);
+  const actorIsAdmin = isGroupAdminActor(group, actorUserId, actor);
+  const targetApprover = actorIsAdmin ? deputy : (group.adminUserId ? group.memberships?.[group.adminUserId] : null);
+  if (!targetApprover?.userId && actorIsAdmin) {
+    const error = new Error("Solo Mode for the admin needs another Bloc member to approve it");
+    error.status = 400;
+    throw error;
+  }
+  const nextGroup = normalizeGroup({
+    ...group,
+    soloRequests: {
+      ...existingRequests,
+      [month.monthKey]: {
+        ...(existingRequests[month.monthKey] || {}),
+        [actor]: {
+          memberName: actor,
+          monthKey: month.monthKey,
+          status: "pending",
+          personalTarget,
+          reason,
+          exceptional,
+          requestedAt: new Date().toISOString(),
+          requestedBy: actor,
+          requestedByUserId: actorUserId || null,
+          targetApproverName: targetApprover?.displayName || null,
+          targetApproverUserId: targetApprover?.userId || null,
+          decidedAt: null,
+          decidedBy: null,
+          decidedByUserId: null
+        }
+      }
+    }
+  });
+  return {
+    ...base,
+    groups: { ...base.groups, [groupId]: nextGroup },
+    meta: { revision: base.meta.revision + 1, updatedAt: new Date().toISOString() }
+  };
+}
+
+function applySoloReview(current, payload) {
+  const actor = String(payload?.actor || "").trim();
+  const actorUserId = String(payload?.actorUserId || "").trim();
+  const groupId = String(payload?.groupId || "").trim();
+  const memberName = String(payload?.memberName || "").trim();
+  const monthKey = String(payload?.monthKey || "").trim();
+  const decision = payload?.decision === "approve" ? "approved" : payload?.decision === "decline" ? "declined" : null;
+  if (!decision) {
+    const error = new Error("A valid review decision is required");
+    error.status = 400;
+    throw error;
+  }
+  const base = rolloverStateIfNeeded(current);
+  const group = base.groups[groupId];
+  if (!group) {
+    const error = new Error("Bloc not found");
+    error.status = 404;
+    throw error;
+  }
+  const request = normalizeSoloRequests(group.soloRequests)?.[monthKey]?.[memberName];
+  if (!request || request.status !== "pending") {
+    const error = new Error("Solo Mode request not found");
+    error.status = 404;
+    throw error;
+  }
+  if (!canReviewSitOutRequest(group, request, memberName, actorUserId, actor)) {
+    const error = new Error("You can't review this Solo Mode request");
+    error.status = 403;
+    throw error;
+  }
+  const nextSolo = normalizeSolo(group.solo, group.memberOrder);
+  if (decision === "approved") {
+    nextSolo[memberName] = {
+      ...(nextSolo[memberName] || {}),
+      [monthKey]: { target: request.personalTarget }
+    };
+  }
+  const requests = normalizeSoloRequests(group.soloRequests);
+  const nextGroup = normalizeGroup({
+    ...group,
+    solo: nextSolo,
+    soloRequests: {
+      ...requests,
+      [monthKey]: {
+        ...(requests[monthKey] || {}),
+        [memberName]: {
+          ...request,
+          status: decision,
+          decidedAt: new Date().toISOString(),
+          decidedBy: actor,
+          decidedByUserId: actorUserId || null
+        }
+      }
+    }
+  });
+  return {
+    ...base,
+    groups: { ...base.groups, [groupId]: nextGroup },
+    meta: { revision: base.meta.revision + 1, updatedAt: new Date().toISOString() }
+  };
+}
+
 function updateGroupLog(current, payload, updater, reasonPrefix) {
   const actor = String(payload?.actor || "").trim();
   const actorUserId = String(payload?.actorUserId || "").trim();
@@ -6786,6 +7264,7 @@ function renameGroupDisplayNameSurfaces(group, userId, oldName, displayName, opt
     ...month,
     counts:      renameKey(month.counts      || {}, oldName, displayName),
     excused:     renameKey(month.excused     || {}, oldName, displayName),
+    solo:        renameKey(month.solo        || {}, oldName, displayName),
     logsByUser:  renameKey(month.logsByUser  || {}, oldName, displayName),
     settlements: renameKey(month.settlements || {}, oldName, displayName),
     ...(month.memberTargets ? { memberTargets: renameKey(month.memberTargets, oldName, displayName) } : {}),
@@ -6794,6 +7273,12 @@ function renameGroupDisplayNameSurfaces(group, userId, oldName, displayName, opt
 
   const nextSitOutRequests = Object.fromEntries(
     Object.entries(group.sitOutRequests || {}).map(([monthKey, requests]) => [
+      monthKey,
+      renameKey(requests || {}, oldName, displayName)
+    ])
+  );
+  const nextSoloRequests = Object.fromEntries(
+    Object.entries(group.soloRequests || {}).map(([monthKey, requests]) => [
       monthKey,
       renameKey(requests || {}, oldName, displayName)
     ])
@@ -6815,8 +7300,10 @@ function renameGroupDisplayNameSurfaces(group, userId, oldName, displayName, opt
     adminName:         nextAdminName,
     logs:              renameKey(group.logs              || {}, oldName, displayName),
     excused:           renameKey(group.excused           || {}, oldName, displayName),
+    solo:              renameKey(group.solo              || {}, oldName, displayName),
     joinedMonthByName: renameKey(group.joinedMonthByName || {}, oldName, displayName),
     sitOutRequests:    nextSitOutRequests,
+    soloRequests:      nextSoloRequests,
     settlementConfirmations: nextSettlementConfirmations,
     monthHistory:      nextMonthHistory
   });
@@ -7250,6 +7737,9 @@ function applyDeleteAccount(current, payload) {
     const nextMemberOrder = group.memberOrder.filter(n => n !== dn);
 
     const nextSitOutRequests = removeMemberSitOutRequests(group.sitOutRequests, dn);
+    const nextSoloRequests = removeMemberRequests(group.soloRequests, dn);
+    const nextSolo = { ...(group.solo || {}) };
+    delete nextSolo[dn];
 
     nextGroups[groupId] = normalizeGroup({
       ...group,
@@ -7259,7 +7749,9 @@ function applyDeleteAccount(current, payload) {
       memberships: nextMemberships,
       leftMemberNames: removeLegacyLeftMemberName(group.leftMemberNames, dn),
       logs: scrubbedLogs,
-      sitOutRequests: nextSitOutRequests
+      solo: nextSolo,
+      sitOutRequests: nextSitOutRequests,
+      soloRequests: nextSoloRequests
     });
   }
 
@@ -8338,6 +8830,92 @@ export default async function handler(req, res) {
         return res.status(200).json(persisted);
       }
 
+      if (payload?.action === "solo-request") {
+        const auth = await requireAuthenticatedContext(req, payload, current);
+        const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
+        let shadowBlobUpdated = null;
+        try {
+          shadowBlobUpdated = applySoloRequest(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        } catch (err) {
+          if (err?.status !== 404) throw err;
+        }
+        const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
+        const canonicalActor = resolveDisplayNameForUser(canonicalState, payload.groupId, auth.user.id, auth.user.email) || actor;
+        const updated = applySoloRequest(canonicalState, { ...payload, actor: canonicalActor, actorUserId: auth.user.id });
+        if (shadowBlobUpdated) {
+          await runWriteHydrationParityProbe("solo-request", payload, auth, actor, shadowBlobUpdated, applySoloRequest);
+        }
+        const soloGroup = updated.groups?.[payload.groupId];
+        const soloMonthKey = soloGroup?.lastMonth;
+        const nextRequest = soloMonthKey
+          ? soloGroup?.soloRequests?.[soloMonthKey]?.[canonicalActor]
+          : null;
+        if (soloGroup && soloMonthKey && nextRequest) {
+          await syncSeasonToCanonical(soloGroup, soloMonthKey, "open", null, { throwOnError: true });
+          await upsertSoloRequestInCanonical(payload.groupId, soloMonthKey, canonicalActor, nextRequest, { throwOnError: true });
+        }
+        const persisted = await persistState(updated, `solo-request:${payload.groupId}:${canonicalActor || actor || auth.user.id}`);
+        return res.status(200).json(persisted);
+      }
+
+      if (payload?.action === "solo-review") {
+        const auth = await requireAuthenticatedContext(req, payload, current);
+        const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
+        const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
+        const canonicalActor = resolveDisplayNameForUser(canonicalState, payload.groupId, auth.user.id, auth.user.email) || actor;
+        let updated = null;
+        try {
+          updated = applySoloReview(canonicalState, { ...payload, actor: canonicalActor, actorUserId: auth.user.id });
+        } catch (err) {
+          if (err?.status !== 404) throw err;
+        }
+        let shadowBlobUpdated = null;
+        try {
+          shadowBlobUpdated = applySoloReview(auth.state, { ...payload, actor, actorUserId: auth.user.id });
+        } catch (err) {
+          if (err?.status !== 404 || !updated) throw err;
+        }
+        if (!updated) updated = shadowBlobUpdated;
+        if (shadowBlobUpdated) {
+          await runWriteHydrationParityProbe("solo-review", payload, auth, actor, shadowBlobUpdated, applySoloReview);
+        }
+        const reviewGroup = updated.groups?.[payload.groupId];
+        const reviewedRequest = payload.memberName && payload.monthKey
+          ? reviewGroup?.soloRequests?.[payload.monthKey]?.[payload.memberName]
+          : null;
+        if (reviewGroup && payload.monthKey && payload.memberName && reviewedRequest) {
+          await syncSeasonToCanonical(reviewGroup, payload.monthKey, "open", null, { throwOnError: true });
+          await upsertSoloRequestInCanonical(payload.groupId, payload.monthKey, payload.memberName, reviewedRequest, { throwOnError: true });
+          if (reviewedRequest.status === "approved") {
+            await upsertSeasonMemberSoloInCanonical(
+              payload.groupId,
+              payload.monthKey,
+              payload.memberName,
+              reviewedRequest.requestedByUserId || null,
+              reviewedRequest.personalTarget,
+              { throwOnError: true }
+            );
+            await insertBlocSystemMomentInCanonical(
+              payload.groupId,
+              "solo_started",
+              `${payload.memberName} went Solo for the month.`,
+              {
+                memberUserId: reviewedRequest.requestedByUserId || null,
+                memberDisplayName: payload.memberName,
+                monthKey: payload.monthKey,
+                personalTarget: reviewedRequest.personalTarget,
+                reviewerUserId: auth.user.id
+              },
+              `solo_started:${payload.groupId}:${payload.monthKey}:${reviewedRequest.requestedByUserId || payload.memberName}`,
+              reviewedRequest.decidedAt || null,
+              { throwOnError: true }
+            );
+          }
+        }
+        const persisted = await persistState(updated, `solo-review:${payload.groupId}:${payload.memberName}:${payload.decision}`);
+        return res.status(200).json(persisted);
+      }
+
       if (payload?.action === "reaction") {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
@@ -8625,6 +9203,12 @@ function getMonthKeyWindow(monthKey, count) {
 function getRecentSitOutCount(group, memberName, monthKey) {
   return getMonthKeyWindow(monthKey, 3).reduce((sum, key) => (
     sum + (group?.excused?.[memberName]?.[key] ? 1 : 0)
+  ), 0);
+}
+
+function getRecentSoloCount(group, memberName, monthKey) {
+  return getMonthKeyWindow(monthKey, 3).reduce((sum, key) => (
+    sum + (isSoloForMonth(group, memberName, key) ? 1 : 0)
   ), 0);
 }
 

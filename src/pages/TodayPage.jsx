@@ -23,7 +23,11 @@ import {
   getSeasonOverrideForMonth,
   getMemberTargetInfoForMonth,
   getCurrentSitOutRequest,
+  getCurrentSoloRequest,
   getRecentSitOutCount,
+  getRecentSoloCount,
+  isSoloForMonth,
+  getSoloTargetForMonth,
   getCurrentMonthSummary,
   buildSettlementReminderCards,
   buildSettlementPreviewCards,
@@ -46,15 +50,18 @@ import {
   buildLocalWeeklyMvpPreview
 } from "../lib/utils.js";
 import { Avatar, WorkoutTypeIcon, ChevronRightIcon, TargetHitHexIcon, StatusBadge, RankIcon, Bar, Card, AppIcon, PlayerProfileErrorBoundary } from "../components/primitives.jsx";
-import { LogModal, DeleteModal, SitOutModal } from "../modals/modals.jsx";
+import { LogModal, DeleteModal, SitOutModal, SoloModal } from "../modals/modals.jsx";
 import { PlayerProfile } from "../pages/PlayerProfile.jsx";
 
 const FULL_MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
-const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthHistory,saving,onSave,onMultiLog,onLogMutation,clockTick,onViewLastMonth,onSitOutRequest,onSettlementClaimPaid,onSettlementConfirmPaid,onSettlementDisputePaid,onOpenSetupReview,navResetToken,showLog,setShowLog}) => {
+const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthHistory,saving,onSave,onMultiLog,onLogMutation,clockTick,onViewLastMonth,onSitOutRequest,onSoloRequest,onSettlementClaimPaid,onSettlementConfirmPaid,onSettlementDisputePaid,onOpenSetupReview,navResetToken,showLog,setShowLog}) => {
   const [showExcuse,setShowExcuse]=useState(false);
   const [sitOutSubmitting,setSitOutSubmitting]=useState(false);
   const [sitOutError,setSitOutError]=useState("");
+  const [showSolo,setShowSolo]=useState(false);
+  const [soloSubmitting,setSoloSubmitting]=useState(false);
+  const [soloError,setSoloError]=useState("");
   const [viewPlayer,setViewPlayer]=useState(null);
   const [deleteTarget,setDeleteTarget]=useState(null);
   const [statDetail,setStatDetail]=useState(null);
@@ -112,6 +119,10 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
   const monthSummary = currentGroup ? getCurrentMonthSummary(currentGroup) : null;
   const currentSitOutRequest = currentGroup ? getCurrentSitOutRequest(currentGroup, user, curKey) : null;
   const recentSitOutCount = currentGroup ? getRecentSitOutCount(currentGroup, user, curKey) : 0;
+  const currentSoloRequest = currentGroup ? getCurrentSoloRequest(currentGroup, user, curKey) : null;
+  const recentSoloCount = currentGroup ? getRecentSoloCount(currentGroup, user, curKey) : 0;
+  const currentSoloTarget = currentGroup ? getSoloTargetForMonth(currentGroup, user, curKey) : null;
+  const isSolo = currentGroup ? isSoloForMonth(currentGroup, user, curKey) : false;
   const currentMonthOverride = currentGroup ? getSeasonOverrideForMonth(currentGroup, curKey) : null;
   const isGroupAdmin = currentGroup?.adminName === user;
   const setupReviewCount = isGroupAdmin ? getSetupReviewPendingCount(currentGroup) : 0;
@@ -122,47 +133,57 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
   const myLogs=logs[user]||[];
   const countedMyLogs = getCountedLogs(myLogs);
   const isExcused=excused[user]?.[curKey]||false;
+  const effectiveTarget = isSolo && currentSoloTarget ? currentSoloTarget : myTarget;
   const expected = myProratedDays
-    ? Math.floor((myTarget / myProratedDays) * Math.max(0, DAY_OF_MON - myJoinDay + 1))
-    : getExpected(myTarget);
+    ? Math.floor((effectiveTarget / myProratedDays) * Math.max(0, DAY_OF_MON - myJoinDay + 1))
+    : getExpected(effectiveTarget);
   const myDaysActive = myProratedDays ? Math.max(0, DAY_OF_MON - myJoinDay + 1) : DAY_OF_MON;
   const sitOutMode = currentSitOutRequest?.status === "pending"
     ? null
     : (recentSitOutCount >= 1 ? "exceptional" : ((monthSummary?.day || DAY_OF_MON) <= 5 ? "instant" : "request"));
+  const soloMinimumTarget = currentGroup ? Math.max(1, Math.ceil(getMemberTargetInfoForMonth(currentGroup, user, curKey).target * 0.25)) : 1;
+  const soloMode = currentSoloRequest?.status === "pending" || isExcused || isSolo || (monthSummary?.day || DAY_OF_MON) > 10
+    ? null
+    : (recentSoloCount >= 1 ? "exceptional" : "request");
 
   const board=NAMES.filter(name=>isJoinedForMonth(name, curKey)).map(name=>{
     const count=getCountedLogCount(logs[name]||[]);
     const isOut=excused[name]?.[curKey]||false;
     const { target, joinDay=1, proratedDays, prorationSource } = currentGroup ? getMemberTargetInfoForMonth(currentGroup, name, curKey) : { target: MIN_TARGET };
+    const memberSoloTarget = currentGroup ? getSoloTargetForMonth(currentGroup, name, curKey) : null;
+    const isSoloMember = currentGroup ? isSoloForMonth(currentGroup, name, curKey) : false;
+    const activeTarget = isSoloMember && memberSoloTarget ? memberSoloTarget : target;
     let status, memberDiffLabel;
     if (isOut) {
       status = "excused";
       memberDiffLabel = null;
     } else if (proratedDays) {
       const daysActive = Math.max(0, DAY_OF_MON - joinDay + 1);
-      const expected = Math.floor((target / proratedDays) * daysActive);
-      status = resolvePaceStatus({ count, target, expected, daysLeft: getDaysLeft() });
+      const expected = Math.floor((activeTarget / proratedDays) * daysActive);
+      status = resolvePaceStatus({ count, target: activeTarget, expected, daysLeft: getDaysLeft() });
       const d = count - expected;
       memberDiffLabel = d > 0 ? `+${d} ahead of pace` : d < 0 ? `${d} behind pace` : "on pace";
     } else {
-      status = getStatus(count, target);
+      status = getStatus(count, activeTarget);
       memberDiffLabel = null;
     }
-    return {name,count,isOut,target,status,memberDiffLabel,prorated:prorationSource === "member"};
-  }).sort((a,b)=>{if(a.isOut&&!b.isOut)return 1;if(!a.isOut&&b.isOut)return -1;return b.count-a.count||a.name.localeCompare(b.name);});
+    return {name,count,isOut,isSolo:isSoloMember,soloTarget:memberSoloTarget,target:activeTarget,status,memberDiffLabel,prorated:prorationSource === "member"};
+  }).sort((a,b)=>{if(a.isOut&&!b.isOut)return 1;if(!a.isOut&&b.isOut)return -1;if(a.isSolo&&!b.isSolo)return 1;if(!a.isSolo&&b.isSolo)return -1;return b.count-a.count||a.name.localeCompare(b.name);});
 
   let activeRank=0;
-  const boardRanked=board.map(u=>{if(!u.isOut)activeRank++;return {...u,rank:u.isOut?null:activeRank};});
+  const boardRanked=board.map(u=>{if(!u.isOut&&!u.isSolo)activeRank++;return {...u,rank:u.isOut||u.isSolo?null:activeRank};});
   const leaderboardRows = buildLocalLeaderboardComparisonRows(currentGroup, boardRanked) || boardRanked;
-  const me=boardRanked.find(u=>u.name===user) || { count:0, rank:null, status:"behind", target:myTarget };
+  const stakesLeaderboardRows = leaderboardRows.filter(u=>!u.isSolo);
+  const soloLeaderboardRows = leaderboardRows.filter(u=>u.isSolo);
+  const me=boardRanked.find(u=>u.name===user) || { count:0, rank:null, status:"behind", target:effectiveTarget };
   const paceCheckMessage = getPaceCheckMessage({
     status: me.status,
     count: me.count,
     expected,
-    target: myTarget,
+    target: effectiveTarget,
     isFirstActiveDay: myDaysActive <= 1
   });
-  const needed=Math.max(0,myTarget-me.count);
+  const needed=Math.max(0,effectiveTarget-me.count);
 
   let streak=0;
   for(let d=DAY_OF_MON;d>=1;d--){
@@ -194,6 +215,23 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
       return;
     }
     setShowExcuse(false);
+  };
+
+  const submitSolo = async ({ personalTarget, reason }) => {
+    if (!onSoloRequest || !soloMode) return;
+    setSoloSubmitting(true);
+    setSoloError("");
+    const result = await onSoloRequest({
+      personalTarget,
+      reason,
+      exceptional: soloMode === "exceptional"
+    });
+    setSoloSubmitting(false);
+    if (!result?.ok) {
+      setSoloError(result?.error || "Unable to submit Solo Mode request.");
+      return;
+    }
+    setShowSolo(false);
   };
 
   const [previewSettlementCards, setPreviewSettlementCards] = useState([]);
@@ -406,31 +444,55 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
         React.createElement('div',{style:{fontSize:13,color:"var(--text)",fontWeight:600}},`You're sitting out ${MONTH_NAMES[CUR_MONTH]}.`),
         React.createElement('div',{style:{fontSize:12,color:"var(--muted)"}},"You won't pay or collect anything.")
       )
+    : isSolo
+      ? React.createElement('div',{style:{display:"grid",gap:4}},
+          React.createElement('div',{style:{fontSize:13,color:"var(--text)",fontWeight:600}},`You're Solo this month.`),
+          React.createElement('div',{style:{fontSize:12,color:"var(--muted)"}},`Target: ${currentSoloTarget || effectiveTarget}. You can log, but you're out of stakes.`)
+        )
     : currentSitOutRequest?.status === "pending"
       ? React.createElement('div',{style:{fontSize:13,color:"var(--muted)",lineHeight:1.45}},
           currentSitOutRequest.exceptional
             ? "Exceptional sit-out requested. Awaiting approval from the bloc admin."
             : "Sit-out requested. Awaiting approval from the bloc admin."
         )
+      : currentSoloRequest?.status === "pending"
+        ? React.createElement('div',{style:{fontSize:13,color:"var(--muted)",lineHeight:1.45}},"Solo Mode requested. Awaiting approval from the bloc admin.")
       : currentSitOutRequest?.status === "declined"
         ? React.createElement('div',{style:{fontSize:13,color:"var(--muted)",lineHeight:1.45}},"Your sit-out request was declined.")
+        : currentSoloRequest?.status === "declined"
+          ? React.createElement('div',{style:{fontSize:13,color:"var(--muted)",lineHeight:1.45}},"Your Solo Mode request was declined.")
         : React.createElement('div',{style:{fontSize:13,color:"var(--muted)",lineHeight:1.45}},"If you're injured, traveling, or need this month off, you can sit out.");
 
-  const competitionAction = isExcused || currentSitOutRequest?.status === "pending"
+  const competitionAction = isExcused || isSolo || currentSitOutRequest?.status === "pending" || currentSoloRequest?.status === "pending"
     ? null
-    : React.createElement('button',{
-        onClick:()=>{ setSitOutError(""); setShowExcuse(true); },
-        style:{
-          background:currentSitOutRequest?.status === "declined"?"var(--s2)":"var(--s3)",
-          border:`1px solid ${currentSitOutRequest?.status === "declined"?"var(--border)":"var(--border2)"}`,
-          color:"var(--muted)",
-          padding:"7px 12px",
-          borderRadius:8,
-          fontSize:12,
-          fontWeight:700,
-          whiteSpace:"nowrap"
-        }
-      },currentSitOutRequest?.status === "declined"?"Request again":"Sit out");
+    : React.createElement('div',{style:{display:"flex",gap:8,flexWrap:"wrap",justifyContent:"flex-end"}},
+        soloMode && React.createElement('button',{
+          onClick:()=>{ setSoloError(""); setShowSolo(true); },
+          style:{
+            background:"rgba(78,205,196,.10)",
+            border:"1px solid rgba(78,205,196,.28)",
+            color:"#4ECDC4",
+            padding:"7px 12px",
+            borderRadius:8,
+            fontSize:12,
+            fontWeight:800,
+            whiteSpace:"nowrap"
+          }
+        },"Go Solo"),
+        React.createElement('button',{
+          onClick:()=>{ setSitOutError(""); setShowExcuse(true); },
+          style:{
+            background:currentSitOutRequest?.status === "declined"?"var(--s2)":"var(--s3)",
+            border:`1px solid ${currentSitOutRequest?.status === "declined"?"var(--border)":"var(--border2)"}`,
+            color:"var(--muted)",
+            padding:"7px 12px",
+            borderRadius:8,
+            fontSize:12,
+            fontWeight:700,
+            whiteSpace:"nowrap"
+          }
+        },currentSitOutRequest?.status === "declined"?"Request again":"Sit out")
+      );
 
   const paceDelta = me.count - expected;
   const earlyMonthPaceQuiet = isEarlyMonthNeutralWindow() && me.count === 0;
@@ -944,6 +1006,33 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
     React.createElement(ChevronRightIcon,null)
   );
 
+  const soloTag = React.createElement('span',{className:"mono",style:{fontSize:8,color:"#4ECDC4",border:"0.5px solid rgba(78,205,196,.35)",borderRadius:999,padding:"2px 6px",letterSpacing:".1em",fontWeight:800}},"SOLO");
+  const renderSoloSection = () => soloLeaderboardRows.length > 0 && React.createElement('div',{style:{display:"grid",gap:6,padding:"8px",borderTop:"1px solid rgba(78,205,196,.10)"}},
+    React.createElement('div',{style:{fontSize:9,color:"#4ECDC4",fontWeight:800,letterSpacing:".12em",textTransform:"uppercase",padding:"4px 2px 2px"}},"Solo this month"),
+    soloLeaderboardRows.map(u=>{
+      const pct = Math.max(0, Math.min(100, Math.round((u.count / Math.max(1, u.soloTarget || u.target || 1)) * 100)));
+      return React.createElement('button',{key:`solo-${u.key || u.name}`,type:"button",onClick:()=>openPlayerProfile(u.name),style:{...leaderboardRowBaseStyle,borderColor:"rgba(78,205,196,.18)",background:"rgba(78,205,196,.045)",boxShadow:"inset 0 1px 0 rgba(255,255,255,.04)"}},
+        React.createElement('div',{style:{display:"grid",gridTemplateColumns:"auto minmax(0,1fr) auto",gap:9,alignItems:"center"}},
+          React.createElement(Avatar,{name:u.name,size:22}),
+          React.createElement('div',{style:{display:"grid",gap:5,minWidth:0}},
+            React.createElement('div',{style:{display:"flex",alignItems:"center",gap:7,minWidth:0}},
+              React.createElement('span',{style:{fontSize:13,fontWeight:700,color:"var(--text)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},u.name),
+              u.name===user&&React.createElement('span',{className:"mono",style:{fontSize:8,color:"#3d5e59"}},"you"),
+              soloTag
+            ),
+            React.createElement('div',{style:{height:5,borderRadius:999,background:"rgba(78,205,196,.10)",overflow:"hidden"}},
+              React.createElement('div',{style:{height:"100%",width:`${pct}%`,borderRadius:999,background:"#4ECDC4"}})
+            )
+          ),
+          React.createElement('div',{style:{display:"grid",justifyItems:"end",gap:2}},
+            React.createElement('span',{style:{fontSize:13,fontWeight:800,color:"#4ECDC4"}},`${u.count}/${u.soloTarget || u.target}`),
+            React.createElement('span',{style:{fontSize:8,color:"var(--muted)",fontWeight:700}},`${pct}%`)
+          )
+        )
+      );
+    })
+  );
+
   const mobileView = React.createElement('div',{className:"mobile-only",style:{padding:"12px 14px 0",display:"flex",flexDirection:"column",gap:12}},
     React.createElement('div',{style:{display:"grid",gap:10}},
       React.createElement('div',{style:{minWidth:0,flex:1}},
@@ -968,11 +1057,11 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
         React.createElement('div',{style:{fontWeight:600,fontSize:15}},"Bloc Leaderboard")
       ),
       React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:4,padding:"8px"}},
-      leaderboardRows.map(u=>{
+      stakesLeaderboardRows.map(u=>{
         const isMe=u.name===user;
         const displayStatus = getLeaderboardDisplayStatus(u.status, u.count);
         const earlyMonthQuiet = !u.isOut && isEarlyMonthNeutralWindow() && u.count === 0;
-        const aArr=leaderboardRows.filter(x=>!x.isOut);
+        const aArr=stakesLeaderboardRows.filter(x=>!x.isOut);
         const aIdx=aArr.findIndex(x=>x.name===u.name);
         return React.createElement('button',{key:u.key || u.name,type:"button",onClick:()=>openPlayerProfile(u.name),
           style:{...leaderboardRowBaseStyle,borderColor:leaderboardRowBorderColor(displayStatus,isMe,u.isOut),background:leaderboardRowBackground(displayStatus),boxShadow:leaderboardRowBoxShadow(displayStatus),opacity:u.isOut?.55:1}},
@@ -1008,7 +1097,8 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
                 )
           )
         );
-      }))
+      }),
+      renderSoloSection())
     ),
     React.createElement(Card,{style:{padding:14}},
       React.createElement('span',{className:"lbl"},"Competition Status"),
@@ -1057,11 +1147,11 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
           React.createElement('div',{style:{fontWeight:600,fontSize:13}},"Bloc leaderboard")
         ),
         React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:4,padding:"8px"}},
-        leaderboardRows.map(u=>{
+        stakesLeaderboardRows.map(u=>{
           const isMe=u.name===user;
           const displayStatus = getLeaderboardDisplayStatus(u.status, u.count);
           const earlyMonthQuiet = !u.isOut && isEarlyMonthNeutralWindow() && u.count === 0;
-          const aArr=leaderboardRows.filter(x=>!x.isOut);
+          const aArr=stakesLeaderboardRows.filter(x=>!x.isOut);
           const aIdx=aArr.findIndex(x=>x.name===u.name);
           return React.createElement('button',{key:u.key || u.name,type:"button",onClick:()=>openPlayerProfile(u.name),style:{...leaderboardRowBaseStyle,borderColor:leaderboardRowBorderColor(displayStatus,isMe,u.isOut),background:leaderboardRowBackground(displayStatus),boxShadow:leaderboardRowBoxShadow(displayStatus),opacity:u.isOut?.55:1},
             onMouseEnter:e=>e.currentTarget.style.borderColor=leaderboardRowHoverBorderColor(displayStatus,isMe,u.isOut),onMouseLeave:e=>e.currentTarget.style.borderColor=leaderboardRowBorderColor(displayStatus,isMe,u.isOut)},
@@ -1097,7 +1187,8 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
                   )
             )
           );
-        }))
+        }),
+        renderSoloSection())
       ),
       React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:10}},
         React.createElement(Card,{style:{padding:15}},
@@ -1116,6 +1207,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
     showLog&&React.createElement(LogModal,{user,currentGroupId,groups,onConfirm:doLog,onClose:()=>setShowLog(false)}),
     deleteTarget && React.createElement(DeleteModal,{log:deleteTarget,onClose:()=>setDeleteTarget(null),onConfirm:async()=>{ const logId = deleteTarget.id; setDeleteTarget(null); await onLogMutation({action:"delete-log",groupId:currentGroupId,actor:user,owner:user,logId}); }}),
     showExcuse && sitOutMode && React.createElement(SitOutModal,{mode:sitOutMode,monthName:monthSummary ? MONTH_NAMES[monthSummary.month] : MONTH_NAMES[CUR_MONTH],onClose:()=>{setShowExcuse(false);setSitOutError("");},onSubmit:submitSitOut,submitting:sitOutSubmitting,error:sitOutError}),
+    showSolo && soloMode && React.createElement(SoloModal,{mode:soloMode,monthName:monthSummary ? MONTH_NAMES[monthSummary.month] : MONTH_NAMES[CUR_MONTH],minimumTarget:soloMinimumTarget,defaultTarget:Math.max(soloMinimumTarget, Math.ceil(effectiveTarget * .5)),onClose:()=>{setShowSolo(false);setSoloError("");},onSubmit:submitSolo,submitting:soloSubmitting,error:soloError}),
     settlementDisputePrompt,
     settlementConfirmPrompt,
     statDetailOverlay,

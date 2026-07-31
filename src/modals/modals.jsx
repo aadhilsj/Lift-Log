@@ -804,6 +804,46 @@ const SitOutModal = ({mode,monthName,onClose,onSubmit,submitting,error}) => {
   );
 };
 
+const SoloModal = ({mode,monthName,minimumTarget,defaultTarget,onClose,onSubmit,submitting,error}) => {
+  const [target,setTarget] = React.useState(Math.max(Number(minimumTarget || 1), Number(defaultTarget || minimumTarget || 1)));
+  const [reason,setReason] = React.useState("");
+  const minTarget = Math.max(1, Number(minimumTarget || 1));
+  const config = mode === "exceptional"
+    ? {
+        title:"Request Solo Mode again?",
+        body:[`Your next standard Solo month is not available yet.`,"An exceptional request still needs admin approval."],
+        cta:"Send exceptional request"
+      }
+    : {
+        title:`Request Solo for ${monthName}?`,
+        body:["You keep logging, but you are out of money stakes for the month.","Your request will be sent to the bloc admin for approval."],
+        cta:"Send request"
+      };
+  const submit = () => onSubmit({ personalTarget: Math.max(minTarget, Math.round(Number(target || minTarget))), reason });
+  return React.createElement('div',{className:`overlay${isMobile() ? " center-mobile" : ""}`,onClick:onClose},
+    React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{maxWidth:420}},
+      React.createElement('div',{style:{fontWeight:800,fontSize:20,marginBottom:10}},config.title),
+      React.createElement('div',{style:{display:"grid",gap:4,color:"var(--muted)",fontSize:13,lineHeight:1.55,marginBottom:16}},
+        config.body.map(line=>React.createElement('div',{key:line},line))
+      ),
+      React.createElement('label',{style:{display:"block",marginBottom:14}},
+        React.createElement('span',{className:"lbl"},"Solo target"),
+        React.createElement('input',{type:"number",min:minTarget,value:target,onChange:e=>setTarget(e.target.value),style:{width:"100%",background:"var(--s2)",border:"1px solid var(--border)",borderRadius:10,padding:"12px 13px",color:"var(--text)",fontSize:14,outline:"none"}}),
+        React.createElement('span',{style:{display:"block",marginTop:6,fontSize:11,color:"var(--muted)"}},"Minimum ",minTarget," workouts")
+      ),
+      React.createElement('label',{style:{display:"block",marginBottom:16}},
+        React.createElement('span',{className:"lbl"},"Reason (optional)"),
+        React.createElement('textarea',{value:reason,onChange:e=>setReason(e.target.value),placeholder:"e.g. rehab month, travel month",rows:3,style:{width:"100%",background:"var(--s2)",border:"1px solid var(--border)",borderRadius:10,padding:"12px 13px",color:"var(--text)",fontSize:14,outline:"none",resize:"none"}})
+      ),
+      error && React.createElement('div',{style:{fontSize:12,color:"var(--red)",marginBottom:14}},error),
+      React.createElement('div',{style:{display:"flex",gap:9}},
+        React.createElement('button',{onClick:onClose,style:{flex:1,background:"var(--s2)",border:"1px solid var(--border)",color:"var(--muted)",padding:"14px",borderRadius:10,fontSize:15,fontWeight:600}},"Cancel"),
+        React.createElement('button',{onClick:submit,disabled:submitting,style:{flex:1,background:"#4ECDC4",color:"#050909",padding:"14px",borderRadius:10,fontSize:15,fontWeight:800,opacity:submitting ? .75 : 1}},submitting?"Sending...":config.cta)
+      )
+    )
+  );
+};
+
 
 const ProrationChoiceModal = ({monthName,fullMas,daysRemaining,daysInMonth,proratedMas,onKeep,onProrate,savingChoice}) => React.createElement('div',{className:"overlay center-mobile"},
   React.createElement('div',{className:"modal pi",style:{maxWidth:430}},
@@ -884,4 +924,4 @@ const PinModal = ({prompt, onConfirm, onClose}) => {
 
 // ─── SETTLEMENT SCREEN ───────────────────────────────────────────────────────
 
-export { SETTINGS_DEFAULTS, TIME_ZONE_OPTIONS, GroupSettingsFields, GroupCreateModal, GroupSettingsModal, CropModal, LogModal, DeleteModal, SitOutModal, ProrationChoiceModal, TextEntryModal, NoticeModal, ImageLightbox, PinModal };
+export { SETTINGS_DEFAULTS, TIME_ZONE_OPTIONS, GroupSettingsFields, GroupCreateModal, GroupSettingsModal, CropModal, LogModal, DeleteModal, SitOutModal, SoloModal, ProrationChoiceModal, TextEntryModal, NoticeModal, ImageLightbox, PinModal };

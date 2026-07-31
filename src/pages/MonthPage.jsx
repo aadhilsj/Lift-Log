@@ -14,6 +14,8 @@ import {
   calcPenalties,
   getLoserAmount,
   getCurrentMemberTargetInfo,
+  isSoloForMonth,
+  getSoloTargetForMonth,
   fmtCurrency,
   getCountedLogCount,
   isJoinedForMonth
@@ -46,19 +48,22 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
         const { target, joinDay=1, proratedDays } = getCurrentMemberTargetInfo(n, curKey, MIN_TARGET);
         const count = getCountedLogCount(logs[n]||[]);
         const isOut = excused[n]?.[curKey]||false;
+        const isSolo = isSoloForMonth(group, n, curKey);
+        const soloTarget = getSoloTargetForMonth(group, n, curKey);
+        const activeTarget = isSolo && soloTarget ? soloTarget : target;
         let memberDiffLabel = null;
         if (!isOut && proratedDays) {
           const daysActive = Math.max(0, DAY_OF_MON - joinDay + 1);
-          const exp = Math.floor((target / proratedDays) * daysActive);
+          const exp = Math.floor((activeTarget / proratedDays) * daysActive);
           const d = count - exp;
           memberDiffLabel = d > 0 ? `+${d} ahead of pace` : d < 0 ? `${d} behind pace` : "on pace";
         }
-        return { name:n, count, isOut, target, memberDiffLabel, joinDay, proratedDays };
+        return { name:n, count, isOut, isSolo, target:activeTarget, soloTarget, memberDiffLabel, joinDay, proratedDays };
       })
-    : relevantNames.map(n=>({name:n,count:selMonth.counts[n]||0,isOut:selMonth.excused?.[n]||false,target:selMonth.memberTargets?.[n] || selMonth.settings?.minTarget || MIN_TARGET}));
+    : relevantNames.map(n=>({name:n,count:selMonth.counts[n]||0,isOut:selMonth.excused?.[n]||false,isSolo:isSoloForMonth(selMonth,n,selMonth.key),soloTarget:getSoloTargetForMonth(selMonth,n,selMonth.key),target:getSoloTargetForMonth(selMonth,n,selMonth.key) || selMonth.memberTargets?.[n] || selMonth.settings?.minTarget || MIN_TARGET}));
 
-  const activeCounts=counts.filter(u=>!u.isOut);
-  const sorted=[...counts].sort((a,b)=>{if(a.isOut&&!b.isOut)return 1;if(!a.isOut&&b.isOut)return -1;return b.count-a.count;});
+  const activeCounts=counts.filter(u=>!u.isOut&&!u.isSolo);
+  const sorted=[...counts].sort((a,b)=>{if(a.isOut&&!b.isOut)return 1;if(!a.isOut&&b.isOut)return -1;if(a.isSolo&&!b.isSolo)return 1;if(!a.isSolo&&b.isSolo)return -1;return b.count-a.count;});
   const penalties = calcPenalties(activeCounts, isCurrent ? groupSettings || {} : selMonth?.settings || {});
   const {winners,losers,perWinner}=penalties;
   const hasActivity=activeCounts.some(u=>u.count>0);
@@ -106,12 +111,12 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
   const renderStandings=()=>React.createElement(Card,{style:{overflow:"hidden"}},
     React.createElement('div',{style:{padding:"11px 15px",borderBottom:"1px solid var(--border)",fontWeight:800,fontSize:14}},isCurrent?"Full Standings":"Final Standings"),
     sorted.map((u,i)=>{
-      const activeOnly=sorted.filter(x=>!x.isOut);
+      const activeOnly=sorted.filter(x=>!x.isOut&&!x.isSolo);
       const aRank=activeOnly.findIndex(x=>x.name===u.name);
       const isWin=winners.find(w=>w.name===u.name);
       const isLose=losers.find(l=>l.name===u.name);
       return React.createElement('div',{key:u.name,style:{display:"flex",alignItems:"center",padding:"11px 15px",borderBottom:i<sorted.length-1?"1px solid var(--border)":"none",background:isWin?"rgba(245,200,66,.03)":isLose?"rgba(232,69,69,.03)":"transparent",opacity:u.isOut?.4:1}},
-        React.createElement('div',{style:{minWidth:26}},u.isOut?React.createElement('span',{style:{fontSize:13}},"💤"):React.createElement(RankIcon,{rank:aRank+1})),
+        React.createElement('div',{style:{minWidth:26}},u.isOut?React.createElement('span',{style:{fontSize:13}},"💤"):u.isSolo?React.createElement('span',{style:{fontSize:10,color:"#4ECDC4",fontWeight:900}},"S"):React.createElement(RankIcon,{rank:aRank+1})),
         React.createElement('button',{onClick:()=>setViewPlayer(u.name),
           style:{display:"flex",alignItems:"center",gap:8,background:"transparent",padding:"0",cursor:"pointer",flexShrink:0},
           onMouseEnter:e=>e.currentTarget.style.opacity=".7",onMouseLeave:e=>e.currentTarget.style.opacity="1"},
@@ -119,6 +124,7 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
           React.createElement('span',{style:{fontWeight:700,fontSize:14,color:u.isOut?"var(--muted)":"var(--text)",marginLeft:6,textDecoration:"underline",textDecorationColor:"rgba(255,255,255,.15)"}},u.name)
         ),
         u.isOut&&React.createElement('span',{className:"mono",style:{fontSize:9,color:"var(--muted2)",marginLeft:6}},"excused"),
+        u.isSolo&&React.createElement('span',{className:"mono",style:{fontSize:9,color:"#4ECDC4",marginLeft:6,border:"0.5px solid rgba(78,205,196,.32)",borderRadius:999,padding:"2px 6px",fontWeight:800}},"SOLO"),
         React.createElement('div',{style:{flex:1}}),
         React.createElement('span',{className:"mono",style:{fontSize:17,fontWeight:700,marginRight:12,color:u.isOut?"var(--muted)":"var(--text)"}},u.isOut?"—":u.count),
         React.createElement('span',{className:"mono",style:{fontSize:12,minWidth:74,textAlign:"right",color:isWin&&losers.length>0?"#4ECDC4":isLose?"var(--red)":"var(--muted)"}},

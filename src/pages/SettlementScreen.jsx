@@ -9,6 +9,7 @@ import {
   buildSettlementPairsForMonth,
   buildSettlementPairState,
   fmtCurrency,
+  isSoloForMonth,
   ordinal,
   workoutsLabel
 } from "../lib/appState.js";
@@ -22,8 +23,9 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
   const ledgerRef = React.useRef(null);
 
   const relevantNames = Object.keys(month.counts || {});
+  const soloNames = relevantNames.filter(name => isSoloForMonth(month, name, month.key));
   const activeCounts = relevantNames
-    .filter(name => !month.excused?.[name])
+    .filter(name => !month.excused?.[name] && !isSoloForMonth(month, name, month.key))
     .map(name => ({
       name,
       count: Number(month.counts[name] || 0),
@@ -70,7 +72,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
     return parts ? (parts.year * 12) + parts.monthIndex : -Infinity;
   };
   const hitTargetForMonth = (memberName, snapshot) => {
-    if (!memberName || !snapshot || snapshot.excused?.[memberName]) return false;
+    if (!memberName || !snapshot || snapshot.excused?.[memberName] || isSoloForMonth(snapshot, memberName, snapshot.key)) return false;
     const target = snapshot.memberTargets?.[memberName] || snapshot.settings?.minTarget || MIN_TARGET;
     return (Number(snapshot.counts?.[memberName] || 0) >= target);
   };
@@ -237,15 +239,15 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
   };
 
   const renderLedger = () => {
-    if (isBlocPerfect) return null;
-    if (!incomingRows.length && !outgoingRows.length) return null;
+    if (isBlocPerfect && soloNames.length === 0) return null;
+    if (!incomingRows.length && !outgoingRows.length && soloNames.length === 0) return null;
 
     const rows = outcome === "winner" ? incomingRows : outgoingRows;
     const title = outcome === "winner" ? `${rows.length} to pay:` : "You owe:";
     const totalColor = outcome === "winner" ? C.greenText : C.redText;
 
-    return React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:outcome==="winner"?2:4,width:"100%",maxWidth:outcome==="winner"?150:260,margin:"0 auto"}},
-      React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"center",gap:10,textAlign:"center"}},
+    return React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:outcome==="winner"?2:4,width:"100%",maxWidth:outcome==="winner"?190:280,margin:"0 auto"}},
+      rows.length > 0 && React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"center",gap:10,textAlign:"center"}},
         React.createElement('div',{style:{...C.sectionLabel,fontSize:8,letterSpacing:".04em"}},title)
       ),
       rows.map((pair, index) => {
@@ -283,7 +285,12 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
                 action && React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"flex-end"}},action)
               )
             );
-      })
+      }),
+      soloNames.length > 0 && React.createElement('div',{style:{display:"grid",gap:3,marginTop:rows.length?7:0,paddingTop:rows.length?7:0,borderTop:rows.length?"1px solid rgba(78,205,196,.12)":"none"}},
+        soloNames.map(name => React.createElement('div',{key:`solo-${name}`,style:{fontSize:10,color:"var(--muted)",fontWeight:700,textAlign:"center",lineHeight:1.35}},
+          `${name} — not in stakes this month.`
+        ))
+      )
     );
   };
 

@@ -18,6 +18,8 @@ import {
   getCurrentMemberTargetInfo,
   getHistoricalMemberNamesForMonth,
   getHistoricalGroupMemberNames,
+  isSoloForMonth,
+  getSoloTargetForMonth,
   fmtCurrency,
   getCountedLogs,
   getCountedLogCount,
@@ -92,10 +94,12 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
       const monthNames = getHistoricalMemberNamesForMonth(m, historicalNames);
       if(!monthNames.includes(name)) return;
       if(m.excused?.[name]) return;
-      const ac=monthNames.filter(n=>isJoinedForMonth(n, m.key) && !m.excused?.[n]).map(n=>({name:n,count:m.counts[n]||0,target:m.memberTargets?.[n] || m.settings?.minTarget || MIN_TARGET}));
+      const memberIsSolo = isSoloForMonth(m, name, m.key);
+      closedTotal+=m.counts[name]||0;
+      if (memberIsSolo) return;
+      const ac=monthNames.filter(n=>isJoinedForMonth(n, m.key) && !m.excused?.[n] && !isSoloForMonth(m, n, m.key)).map(n=>({name:n,count:m.counts[n]||0,target:m.memberTargets?.[n] || m.settings?.minTarget || MIN_TARGET}));
       const penalties = calcPenalties(ac, m.settings || {});
       const {winners,losers,perWinner}=penalties;
-      closedTotal+=m.counts[name]||0;
       if(winners.find(w=>w.name===name)){wins++;moneyWon+=perWinner;}
       if(losers.find(l=>l.name===name)){moneyLost+=getLoserAmount(penalties, name);}
     });
@@ -113,11 +117,13 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
         month:m.month,
         year:m.year,
         count:Number(m.counts?.[name] || 0),
-        target:m.memberTargets?.[name] || m.settings?.minTarget || MIN_TARGET,
+        target:getSoloTargetForMonth(m, name, m.key) || m.memberTargets?.[name] || m.settings?.minTarget || MIN_TARGET,
+        stakesTarget:m.memberTargets?.[name] || m.settings?.minTarget || MIN_TARGET,
         settings:m.settings || {},
         counts:m.counts || {},
         memberTargets:m.memberTargets || {},
         excused:m.excused || {},
+        solo:m.solo || {},
         closed:true
       }));
     const current = isJoinedForMonth(name, curKey) && !excused?.[name]?.[curKey]
@@ -128,9 +134,11 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
           year:CUR_YEAR,
           count:getCountedLogCount(logs[name] || []),
           target:getCurrentMemberTarget(name, curKey, MIN_TARGET),
+          stakesTarget:getCurrentMemberTarget(name, curKey, MIN_TARGET),
           settings:groupSettings || {},
           counts:{[name]:getCountedLogCount(logs[name] || [])},
           excused:{},
+          solo:{},
           closed:false
         }]
       : [];
@@ -140,12 +148,13 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
   const perfectMonthStats = useMemo(()=>{
     const perfectMonths = profileMonths.filter(m=>{
       if (!m.closed) return false;
+      if (isSoloForMonth(m, name, m.key)) return false;
       const monthNames = getHistoricalMemberNamesForMonth(m, historicalNames);
       const activeCounts = monthNames
-        .filter(n=>isJoinedForMonth(n, m.key) && !m.excused?.[n])
+        .filter(n=>isJoinedForMonth(n, m.key) && !m.excused?.[n] && !isSoloForMonth(m, n, m.key))
         .map(n=>({name:n,count:Number(m.counts?.[n] || 0),target:m.memberTargets?.[n] || m.settings?.minTarget || MIN_TARGET}));
       const { losers } = calcPenalties(activeCounts, m.settings || {});
-      return Number(m.count || 0) >= Number(m.target || MIN_TARGET) && !losers.some(l=>l.name===name);
+      return Number(m.count || 0) >= Number(m.stakesTarget || MIN_TARGET) && !losers.some(l=>l.name===name);
     });
     const perfectKeys = new Set(perfectMonths.map(m=>m.key));
     let activeStreak = 0;

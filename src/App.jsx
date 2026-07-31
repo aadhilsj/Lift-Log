@@ -48,6 +48,8 @@ import {
   saveSeasonProrationChoice,
   requestSitOutData,
   reviewSitOutData,
+  requestSoloData,
+  reviewSoloData,
   deleteAccountData,
   sendOtpData,
   verifyOtpData,
@@ -1052,6 +1054,56 @@ const App = () => {
     }
   },[selectedGroupId,currentUser,authSession,applyData]);
 
+  const handleSoloRequest = useCallback(async(payload)=>{
+    if (!selectedGroupId || !currentUser) return { ok:false, error:"No Bloc selected" };
+    setSaving(true);
+    try {
+      const result = await requestSoloData({
+        groupId: selectedGroupId,
+        actor: currentUser,
+        actorUserId: authSession?.userId,
+        personalTarget: payload?.personalTarget,
+        reason: payload?.reason || "",
+        exceptional: !!payload?.exceptional
+      });
+      if (result?.ok && result.data) {
+        const applied = applyData(result.data);
+        if (applied) {
+          setLastSyncedAt(new Date());
+          setSyncError(false);
+        }
+      }
+      return result;
+    } finally {
+      setSaving(false);
+    }
+  },[selectedGroupId,currentUser,authSession,applyData]);
+
+  const handleSoloReview = useCallback(async(payload)=>{
+    if (!selectedGroupId || !currentUser) return { ok:false, error:"No Bloc selected" };
+    setSaving(true);
+    try {
+      const result = await reviewSoloData({
+        groupId: selectedGroupId,
+        actor: currentUser,
+        actorUserId: authSession?.userId,
+        memberName: payload.memberName,
+        monthKey: payload.monthKey,
+        decision: payload.decision
+      });
+      if (result?.ok && result.data) {
+        const applied = applyData(result.data);
+        if (applied) {
+          setLastSyncedAt(new Date());
+          setSyncError(false);
+        }
+      }
+      return result;
+    } finally {
+      setSaving(false);
+    }
+  },[selectedGroupId,currentUser,authSession,applyData]);
+
   const handleKickMember = useCallback(async(targetUserId, targetDisplayName)=>{
     if (!selectedGroupId || !authSession?.userId) return { ok:false, error:"No Bloc selected" };
     const result = await kickMemberData({ groupId: selectedGroupId, actorUserId: authSession.userId, actorDisplayName: currentUser, targetUserId, targetDisplayName });
@@ -1767,7 +1819,7 @@ const App = () => {
     style:{paddingBottom:isMobileView?"calc(108px + env(safe-area-inset-bottom))":0}
   },
     pageName==="today"  &&React.createElement(TodayPageErrorBoundary,{resetKey:`${selectedGroupId}:${navResetToken}:${currentUser}`},
-      React.createElement(TodayPage,  {user:currentUser,currentUserId:effectiveAuthSession?.userId,currentGroupId:selectedGroupId,groups,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,saving,onSave:handleSave,onMultiLog:handleMultiLog,onLogMutation:handleLogMutation,clockTick,onViewLastMonth:()=>{setMonthInitialIdx(0);setPage("month");},onSitOutRequest:handleSitOutRequest,onSettlementClaimPaid:handleSettlementClaimPaid,onSettlementConfirmPaid:handleSettlementConfirmPaid,onSettlementDisputePaid:handleSettlementDisputePaid,onOpenSetupReview:()=>setShowSettings(true),navResetToken,showLog:showTodayLog,setShowLog:setShowTodayLog})
+      React.createElement(TodayPage,  {user:currentUser,currentUserId:effectiveAuthSession?.userId,currentGroupId:selectedGroupId,groups,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,saving,onSave:handleSave,onMultiLog:handleMultiLog,onLogMutation:handleLogMutation,clockTick,onViewLastMonth:()=>{setMonthInitialIdx(0);setPage("month");},onSitOutRequest:handleSitOutRequest,onSoloRequest:handleSoloRequest,onSettlementClaimPaid:handleSettlementClaimPaid,onSettlementConfirmPaid:handleSettlementConfirmPaid,onSettlementDisputePaid:handleSettlementDisputePaid,onOpenSetupReview:()=>setShowSettings(true),navResetToken,showLog:showTodayLog,setShowLog:setShowTodayLog})
     ),
     pageName==="activity"&&React.createElement(ActivityPage,{group:currentGroup,currentUser,currentUserId:effectiveAuthSession?.userId,onLogMutation:handleLogMutation,clockTick,reactionOverrides,setReactionOverrides,commentCountOverrides:logCommentCountOverrides,onCommentCountsLoaded:setLogCommentCountOverrides,onOpenLogComments:handleOpenLogComments}),
     pageName==="month"  &&React.createElement(MonthPage,  {key:`${selectedGroupId}:${navResetToken}:${monthInitialIdx ?? "current"}`,group:currentGroup,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,groupSettings:currentGroup.settings,currentUser,currentUserId:effectiveAuthSession?.userId,initialSelIdx:monthInitialIdx,onStartNextMonth:()=>{setMonthInitialIdx(null);setPage("today");},onOpenToday:()=>setPage("today"),onSettlementClaimPaid:handleSettlementClaimPaid,onSettlementConfirmPaid:handleSettlementConfirmPaid,navResetToken}),
@@ -1842,7 +1894,7 @@ const App = () => {
     React.createElement('div',{style:{position:"relative",overflow:"hidden",minHeight:"calc(100vh - 64px)"}},
       showSettings && React.createElement('div',{style:{position:"absolute",inset:"0 0 auto 0",zIndex:1,pointerEvents:"none"}},renderInBlocPage(page,{swipePreview:true})),
       showSettings
-        ? React.createElement(BlocSettingsScreen,{group:currentGroup,actor:currentUser,actorUserId:authSession?.userId,isAdmin:isGroupAdmin,onSave:handleUpdateGroupSettings,onClose:()=>setShowSettings(false),saving:savingSettings,onReviewSetup:isGroupAdmin?handleReviewSetupDefaults:null,onReviewSitOut:isGroupAdmin?handleSitOutReview:null,onKickMember:isGroupAdmin?handleKickMember:null})
+        ? React.createElement(BlocSettingsScreen,{group:currentGroup,actor:currentUser,actorUserId:authSession?.userId,isAdmin:isGroupAdmin,onSave:handleUpdateGroupSettings,onClose:()=>setShowSettings(false),saving:savingSettings,onReviewSetup:isGroupAdmin?handleReviewSetupDefaults:null,onReviewSitOut:isGroupAdmin?handleSitOutReview:null,onReviewSolo:isGroupAdmin?handleSoloReview:null,onKickMember:isGroupAdmin?handleKickMember:null})
         : activePageLayer
     ),
     showInstallBanner && React.createElement(InstallBanner,{

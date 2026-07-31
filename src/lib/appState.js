@@ -352,10 +352,81 @@ function normalizeSitOutRequests(sitOutRequests) {
   );
 }
 
+function normalizeSoloRequests(soloRequests) {
+  if (!soloRequests || typeof soloRequests !== "object") return {};
+  return Object.fromEntries(
+    Object.entries(soloRequests)
+      .map(([monthKey, requests]) => {
+        if (!monthKey || !requests || typeof requests !== "object") return null;
+        return [monthKey, Object.fromEntries(
+          Object.entries(requests)
+            .map(([memberName, request]) => {
+              if (!memberName || !request) return null;
+              const personalTarget = Number(request?.personalTarget);
+              return [memberName, {
+                memberName,
+                monthKey,
+                status: request?.status || "pending",
+                personalTarget: Number.isFinite(personalTarget) ? Math.max(1, Math.round(personalTarget)) : 1,
+                reason: typeof request?.reason === "string" ? request.reason : "",
+                exceptional: !!request?.exceptional,
+                requestedAt: request?.requestedAt || null,
+                requestedBy: request?.requestedBy || memberName,
+                requestedByUserId: request?.requestedByUserId || null,
+                targetApproverName: request?.targetApproverName || null,
+                targetApproverUserId: request?.targetApproverUserId || null,
+                decidedAt: request?.decidedAt || null,
+                decidedBy: request?.decidedBy || null,
+                decidedByUserId: request?.decidedByUserId || null
+              }];
+            })
+            .filter(Boolean)
+        )];
+      })
+      .filter(Boolean)
+  );
+}
+
 function pruneSitOutRequestsForRead(sitOutRequests, monthKey) {
   if (!monthKey) return {};
   const normalized = normalizeSitOutRequests(sitOutRequests);
   return normalized[monthKey] ? { [monthKey]: normalized[monthKey] } : {};
+}
+
+function pruneSoloRequestsForRead(soloRequests, monthKey) {
+  if (!monthKey) return {};
+  const normalized = normalizeSoloRequests(soloRequests);
+  return normalized[monthKey] ? { [monthKey]: normalized[monthKey] } : {};
+}
+
+function normalizeSolo(solo, memberOrder = []) {
+  const source = solo && typeof solo === "object" ? solo : {};
+  const names = uniqueNames([...memberOrder, ...Object.keys(source)]);
+  const normalized = {};
+  names.forEach(name => {
+    const monthMap = source?.[name] && typeof source[name] === "object" ? source[name] : {};
+    normalized[name] = Object.fromEntries(
+      Object.entries(monthMap)
+        .map(([monthKey, value]) => {
+          const target = typeof value === "object" ? Number(value?.target ?? value?.personalTarget) : Number(value);
+          if (!monthKey || !Number.isFinite(target)) return null;
+          return [monthKey, { target: Math.max(1, Math.round(target)) }];
+        })
+        .filter(Boolean)
+    );
+  });
+  return normalized;
+}
+
+function isSoloForMonth(groupOrMonth, memberName, monthKey) {
+  if (!memberName || !monthKey) return false;
+  return !!groupOrMonth?.solo?.[memberName]?.[monthKey];
+}
+
+function getSoloTargetForMonth(groupOrMonth, memberName, monthKey) {
+  const value = groupOrMonth?.solo?.[memberName]?.[monthKey];
+  const target = typeof value === "object" ? Number(value?.target ?? value?.personalTarget) : Number(value);
+  return Number.isFinite(target) ? Math.max(1, Math.round(target)) : null;
 }
 
 function getSeasonOverrideForMonth(group, monthKey) {
@@ -537,6 +608,10 @@ function getCurrentSitOutRequest(group, memberName, monthKey = curKey) {
   return normalizeSitOutRequests(group?.sitOutRequests)?.[monthKey]?.[memberName] || null;
 }
 
+function getCurrentSoloRequest(group, memberName, monthKey = curKey) {
+  return normalizeSoloRequests(group?.soloRequests)?.[monthKey]?.[memberName] || null;
+}
+
 function getMonthKeyWindow(monthKey, count) {
   const [year, month] = String(monthKey || "").split("-").map(Number);
   if (!Number.isFinite(year) || !Number.isFinite(month)) return [];
@@ -557,6 +632,13 @@ function getRecentSitOutCount(group, memberName, monthKey = curKey) {
   const priorKeys = getMonthKeyWindow(monthKey, 3);
   return priorKeys.reduce((sum, key) => (
     sum + (group?.excused?.[memberName]?.[key] ? 1 : 0)
+  ), 0);
+}
+
+function getRecentSoloCount(group, memberName, monthKey = curKey) {
+  const priorKeys = getMonthKeyWindow(monthKey, 3);
+  return priorKeys.reduce((sum, key) => (
+    sum + (isSoloForMonth(group, memberName, key) ? 1 : 0)
   ), 0);
 }
 
@@ -592,10 +674,10 @@ function shouldPromptProration(group, actorUserId) {
   return !getSeasonOverrideForMonth(group, summary.monthKey);
 }
 
-function buildSettlementMap(counts, excusedByName, settings = {}, memberTargets = {}) {
+function buildSettlementMap(counts, excusedByName, settings = {}, memberTargets = {}, soloByName = {}, monthKey = null) {
   const activeCounts = NAMES
     .filter(name => Object.prototype.hasOwnProperty.call(counts || {}, name))
-    .filter(name => !excusedByName?.[name])
+    .filter(name => !excusedByName?.[name] && !(monthKey && soloByName?.[name]?.[monthKey]))
     .map(name => ({ name, count: counts?.[name] || 0, target: memberTargets?.[name] || Number(settings?.minTarget || MIN_TARGET) }));
   const { losers } = calcPenalties(activeCounts, settings);
   return Object.fromEntries(
@@ -607,7 +689,7 @@ function buildSettlementMap(counts, excusedByName, settings = {}, memberTargets 
 }
 
 function getMonthSettlements(month) {
-  return month?.settlements || buildSettlementMap(month?.counts || {}, month?.excused || {}, month?.settings || {}, month?.memberTargets || {});
+  return month?.settlements || buildSettlementMap(month?.counts || {}, month?.excused || {}, month?.settings || {}, month?.memberTargets || {}, month?.solo || {}, month?.key);
 }
 
 function buildSettlementPairsForMonth(month) {
@@ -619,7 +701,7 @@ function buildSettlementPairsForMonth(month) {
   const memberAuthUserIds = month?.memberAuthUserIds || {};
   const relevantNames = Object.keys(counts);
   const activeCounts = relevantNames
-    .filter(name => !excused?.[name])
+    .filter(name => !excused?.[name] && !isSoloForMonth(month, name, month.key))
     .map(name => ({ name, count: counts?.[name] || 0, target: memberTargets?.[name] || Number(settings?.minTarget || MIN_TARGET) }));
   const penalties = calcPenalties(activeCounts, settings);
   const { winners, losers } = penalties;
@@ -1268,6 +1350,14 @@ function normalizeMonthHistoryState(monthHistory, memberOrder, joinedMonthByName
     const excused = Object.fromEntries(
       relevantNames.map(name => [name, !!month?.excused?.[name]])
     );
+    const solo = Object.fromEntries(
+      relevantNames
+        .map(name => {
+          const target = getSoloTargetForMonth(month, name, monthKey);
+          return target ? [name, { [monthKey]: { target } }] : null;
+        })
+        .filter(Boolean)
+    );
     const monthSettings = resolveHistoricalMonthSettings(month?.settings, settings);
     const monthGroup = {
       settings,
@@ -1289,10 +1379,11 @@ function normalizeMonthHistoryState(monthHistory, memberOrder, joinedMonthByName
       label: formatMonthLabelFromKey(monthKey) || month?.label,
       counts,
       excused,
+      solo,
       logsByUser,
       memberTargets,
       settings: monthSettings,
-      settlements: month?.settlements || buildSettlementMap(counts, excused, monthSettings, memberTargets)
+      settlements: month?.settlements || buildSettlementMap(counts, excused, monthSettings, memberTargets, solo, monthKey)
     };
   }).filter(Boolean).sort((a, b) => compareMonthKeys(a.key, b.key));
 }
@@ -1363,8 +1454,10 @@ function normalizeGroupState(group) {
     logs: normalizedLogs,
     deletedCurrentLogIds: normalizeDeletedCurrentLogIds(group?.deletedCurrentLogIds),
     excused,
+    solo: normalizeSolo(group?.solo, memberOrder),
     seasonOverrides: normalizeSeasonOverrides(group?.seasonOverrides),
     sitOutRequests: pruneSitOutRequestsForRead(group?.sitOutRequests, group?.lastMonth || curKey),
+    soloRequests: pruneSoloRequestsForRead(group?.soloRequests, group?.lastMonth || curKey),
     settlementConfirmationsEnabled: !!group?.settlementConfirmationsEnabled,
     settlementConfirmationsPreviewMode: !!group?.settlementConfirmationsPreviewMode,
     settlementConfirmations: normalizeSettlementConfirmations(group?.settlementConfirmations),
@@ -1385,6 +1478,8 @@ function buildLegacyGroupState(data) {
     settings: buildNormalizedSettings({ minTarget: DEFAULT_MIN_TARGET, acceptedWorkoutTypes: [...WORKOUT_TYPES], timeZone: DEFAULT_GROUP_TIME_ZONE }),
     logs: data?.logs || {},
     excused: data?.excused || {},
+    solo: data?.solo || {},
+    soloRequests: data?.soloRequests || {},
     monthHistory: data?.monthHistory || [],
     lastMonth: data?.lastMonth || curKey
   });
@@ -1633,6 +1728,7 @@ function hasActiveParticipationBeforeMonth(displayName, monthKey) {
     if ((month?.counts?.[displayName] || 0) > 0) return true;
     if ((month?.logsByUser?.[displayName] || []).length > 0) return true;
     if (month?.excused?.[displayName]) return true;
+    if (isSoloForMonth(month, displayName, month.key)) return true;
     if (month?.settlements?.[displayName]) return true;
     if (Object.prototype.hasOwnProperty.call(month?.memberTargets || {}, displayName)) return true;
     return false;
@@ -1656,6 +1752,7 @@ function shouldInferJoinedMonthFromMembership(group, displayName, monthKey, memb
     if ((month?.counts?.[displayName] || 0) > 0) return true;
     if ((month?.logsByUser?.[displayName] || []).length > 0) return true;
     if (month?.excused?.[displayName]) return true;
+    if (isSoloForMonth(month, displayName, month.key)) return true;
     if (month?.settlements?.[displayName]) return true;
     if (Object.prototype.hasOwnProperty.call(month?.memberTargets || {}, displayName)) return true;
     return false;
@@ -1691,7 +1788,7 @@ function rebuildMonthSnapshot(month, logsByUser) {
   const memberTargets = Object.fromEntries(
     relevantNames.map(name => [name, getMemberTargetForMonth(monthGroup, name, monthKey, settings)])
   );
-  const defaultSettlements = buildSettlementMap(counts, excused, settings, memberTargets);
+  const defaultSettlements = buildSettlementMap(counts, excused, settings, memberTargets, month?.solo || {}, monthKey);
   const previousSettlements = month?.settlements || {};
   const settlements = Object.fromEntries(
     Object.entries(defaultSettlements).map(([name, settlement]) => {
@@ -1740,6 +1837,15 @@ function checkRollover(data) {
   const settings = buildNormalizedSettings({ minTarget: MIN_TARGET });
   const memberTargets = Object.fromEntries(relevantNames.map(name => [name, getCurrentMemberTarget(name, prevKey, settings.minTarget)]));
 
+  const solo = Object.fromEntries(
+    relevantNames
+      .map(name => {
+        const target = getSoloTargetForMonth(data, name, prevKey);
+        return target ? [name, { [prevKey]: { target } }] : null;
+      })
+      .filter(Boolean)
+  );
+
   const snapshot = {
     key: prevKey,
     label,
@@ -1747,18 +1853,20 @@ function checkRollover(data) {
     month: prevMonth,
     counts,
     excused: exc,
+    solo,
     logsByUser: buildMonthLogsSnapshot(logs),
     memberTargets,
     settings,
-    settlements: buildSettlementMap(counts, exc, settings, memberTargets)
+    settlements: buildSettlementMap(counts, exc, settings, memberTargets, solo, prevKey)
   };
   const newHistory = [...(monthHistory||[]), snapshot];
 
-  // Clear current logs and excused for new month
+  // Clear current logs, excused, and solo mode for new month
   const newLogs    = {};
   const newExcused = {};
+  const newSolo = {};
 
-  return { logs: newLogs, excused: newExcused, monthHistory: newHistory, lastMonth: expectedKey };
+  return { logs: newLogs, excused: newExcused, solo: newSolo, monthHistory: newHistory, lastMonth: expectedKey };
 }
 
 // ─── API SYNC ─────────────────────────────────────────────────────────────────
@@ -1879,6 +1987,11 @@ export {
   normalizeSeasonOverrides,
   normalizeSitOutRequests,
   pruneSitOutRequestsForRead,
+  normalizeSoloRequests,
+  pruneSoloRequestsForRead,
+  normalizeSolo,
+  isSoloForMonth,
+  getSoloTargetForMonth,
   getSeasonOverrideForMonth,
   getEffectiveTargetForMonth,
   getSeasonProrationSummaryForMonth,
@@ -1892,8 +2005,10 @@ export {
   getCurrentMemberTarget,
   getCurrentMemberTargetInfo,
   getCurrentSitOutRequest,
+  getCurrentSoloRequest,
   getMonthKeyWindow,
   getRecentSitOutCount,
+  getRecentSoloCount,
   getDeputyAdmin,
   getCurrentMonthSummary,
   shouldPromptProration,
