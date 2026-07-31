@@ -6902,18 +6902,36 @@ function applySoloRequest(current, payload) {
     error.status = 400;
     throw error;
   }
-  const recentCount = getRecentSoloCount(group, actor, month.monthKey);
-  if (recentCount >= 1 && !exceptional) {
-    const error = new Error(`You've already gone Solo recently. Your next Solo month is available in ${MONTH_NAMES[(month.month + 3) % 12]}.`);
-    error.status = 403;
+  if (personalTarget > baseTarget) {
+    const error = new Error(`Solo target can't be above your normal target of ${baseTarget}`);
+    error.status = 400;
     throw error;
   }
+  const recentCount = getRecentSoloCount(group, actor, month.monthKey);
   const existingRequests = normalizeSoloRequests(group.soloRequests);
   const existing = existingRequests?.[month.monthKey]?.[actor];
   if (existing?.status === "pending") {
     const error = new Error("Solo Mode request already pending");
     error.status = 400;
     throw error;
+  }
+  if (recentCount < 1 && !exceptional) {
+    const nextSolo = normalizeSolo(group.solo, group.memberOrder);
+    const nextGroup = normalizeGroup({
+      ...group,
+      solo: {
+        ...nextSolo,
+        [actor]: {
+          ...(nextSolo[actor] || {}),
+          [month.monthKey]: { target: personalTarget }
+        }
+      }
+    });
+    return {
+      ...base,
+      groups: { ...base.groups, [groupId]: nextGroup },
+      meta: { revision: base.meta.revision + 1, updatedAt: new Date().toISOString() }
+    };
   }
   const deputy = getDeputyAdmin(group);
   const actorIsAdmin = isGroupAdminActor(group, actorUserId, actor);
@@ -8850,9 +8868,23 @@ export default async function handler(req, res) {
         const nextRequest = soloMonthKey
           ? soloGroup?.soloRequests?.[soloMonthKey]?.[canonicalActor]
           : null;
-        if (soloGroup && soloMonthKey && nextRequest) {
+        const nextSoloTarget = soloMonthKey
+          ? getSoloTargetForMonth(soloGroup, canonicalActor, soloMonthKey)
+          : 0;
+        if (soloGroup && soloMonthKey) {
           await syncSeasonToCanonical(soloGroup, soloMonthKey, "open", null, { throwOnError: true });
+        }
+        if (soloGroup && soloMonthKey && nextRequest) {
           await upsertSoloRequestInCanonical(payload.groupId, soloMonthKey, canonicalActor, nextRequest, { throwOnError: true });
+        } else if (soloGroup && soloMonthKey && nextSoloTarget > 0) {
+          await upsertSeasonMemberSoloInCanonical(
+            payload.groupId,
+            soloMonthKey,
+            canonicalActor,
+            auth.user.id,
+            nextSoloTarget,
+            { throwOnError: true }
+          );
         }
         const persisted = await persistState(updated, `solo-request:${payload.groupId}:${canonicalActor || actor || auth.user.id}`);
         return res.status(200).json(persisted);

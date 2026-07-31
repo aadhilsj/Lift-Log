@@ -805,23 +805,28 @@ const SitOutModal = ({mode,monthName,onClose,onSubmit,submitting,error}) => {
   );
 };
 
-const SoloModal = ({mode,monthName,minimumTarget,defaultTarget,onClose,onSubmit,submitting,error}) => {
-  const [target,setTarget] = React.useState(Math.max(Number(minimumTarget || 1), Number(defaultTarget || minimumTarget || 1)));
+const SoloModal = ({mode,monthName,minimumTarget,maximumTarget,defaultTarget,onClose,onSubmit,submitting,error}) => {
   const [reason,setReason] = React.useState("");
   const minTarget = Math.max(1, Number(minimumTarget || 1));
+  const maxTarget = Math.max(minTarget, Math.round(Number(maximumTarget || defaultTarget || minTarget)));
+  const initialTarget = Math.max(minTarget, Math.min(maxTarget, Math.round(Number(defaultTarget || minTarget))));
+  const [target,setTarget] = React.useState(initialTarget);
   const competitionModalLabelStyle = {display:"block",marginBottom:5,fontFamily:UI_FONT,fontSize:9,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".08em",fontWeight:800};
   const config = mode === "exceptional"
     ? {
-        title:"Request Solo Mode again?",
-        body:[`Your next standard Solo month is not available yet.`,"An exceptional request still needs admin approval."],
-        cta:"Send exceptional request"
+        title:`Request Solo for ${monthName}?`,
+        body:["Solo is meant to be used only once every three months.","If you want to go Solo again, your request will be sent to the Bloc admin for approval."],
+        cta:"Send request",
+        showReason:true
       }
     : {
         title:`Go Solo for ${monthName}?`,
-        body:["You keep logging, but you are out of the reward / penalty system for the month.","Your request will be sent to the bloc admin for approval."],
-        cta:"Send request"
+        body:["You keep logging, but you are out of the reward / penalty system for the month.","This action can't be undone."],
+        cta:"Go Solo",
+        showReason:false
       };
-  const submit = () => onSubmit({ personalTarget: Math.max(minTarget, Math.round(Number(target || minTarget))), reason });
+  const adjustTarget = delta => setTarget(current => Math.max(minTarget, Math.min(maxTarget, Number(current || minTarget) + delta)));
+  const submit = () => onSubmit({ personalTarget: Math.max(minTarget, Math.min(maxTarget, Math.round(Number(target || minTarget)))), reason });
   return React.createElement('div',{className:`overlay${isMobile() ? " center-mobile" : ""}`,onClick:onClose},
     React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{maxWidth:420,fontFamily:UI_FONT}},
       React.createElement('div',{style:{fontFamily:UI_FONT,fontWeight:800,fontSize:20,lineHeight:1.1,letterSpacing:0,marginBottom:12}},config.title),
@@ -839,10 +844,14 @@ const SoloModal = ({mode,monthName,minimumTarget,defaultTarget,onClose,onSubmit,
       ),
       React.createElement('label',{style:{display:"block",marginBottom:14}},
         React.createElement('span',{style:competitionModalLabelStyle},"Solo target"),
-        React.createElement('input',{type:"number",min:minTarget,value:target,onChange:e=>setTarget(e.target.value),style:{width:"100%",background:"var(--s2)",border:"1px solid var(--border)",borderRadius:10,padding:"12px 13px",color:"var(--text)",fontFamily:UI_FONT,fontSize:14,outline:"none"}}),
+        React.createElement('div',{style:{display:"grid",gridTemplateColumns:"44px 1fr 44px",height:46,background:"var(--s2)",border:"1px solid var(--border)",borderRadius:10,overflow:"hidden"}},
+          React.createElement('button',{type:"button",onClick:()=>adjustTarget(-1),disabled:target <= minTarget,style:{background:"transparent",borderRight:"1px solid var(--border)",color:target <= minTarget ? "var(--muted2)" : "var(--text)",fontFamily:UI_FONT,fontSize:20,fontWeight:900,opacity:target <= minTarget ? .5 : 1}},"-"),
+          React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"center",fontFamily:UI_FONT,fontSize:15,fontWeight:800,color:"var(--text)"}},target),
+          React.createElement('button',{type:"button",onClick:()=>adjustTarget(1),disabled:target >= maxTarget,style:{background:"transparent",borderLeft:"1px solid var(--border)",color:target >= maxTarget ? "var(--muted2)" : "#4ECDC4",fontFamily:UI_FONT,fontSize:20,fontWeight:900,opacity:target >= maxTarget ? .5 : 1}},"+")
+        ),
         React.createElement('span',{style:{display:"block",marginTop:6,fontFamily:UI_FONT,fontSize:11,color:"var(--muted)"}},"Minimum ",minTarget," workouts")
       ),
-      React.createElement('label',{style:{display:"block",marginBottom:16}},
+      config.showReason && React.createElement('label',{style:{display:"block",marginBottom:16}},
         React.createElement('span',{style:competitionModalLabelStyle},"Reason (optional)"),
         React.createElement('textarea',{value:reason,onChange:e=>setReason(e.target.value),placeholder:"e.g. travel month, work sprint",rows:3,style:{width:"100%",background:"var(--s2)",border:"1px solid var(--border)",borderRadius:10,padding:"12px 13px",color:"var(--text)",fontFamily:UI_FONT,fontSize:14,outline:"none",resize:"none"}})
       ),

@@ -1229,7 +1229,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
     showLog&&React.createElement(LogModal,{user,currentGroupId,groups,onConfirm:doLog,onClose:()=>setShowLog(false)}),
     deleteTarget && React.createElement(DeleteModal,{log:deleteTarget,onClose:()=>setDeleteTarget(null),onConfirm:async()=>{ const logId = deleteTarget.id; setDeleteTarget(null); await onLogMutation({action:"delete-log",groupId:currentGroupId,actor:user,owner:user,logId}); }}),
     showExcuse && sitOutMode && React.createElement(SitOutModal,{mode:sitOutMode,monthName:modalMonthName,onClose:()=>{setShowExcuse(false);setSitOutError("");},onSubmit:submitSitOut,submitting:sitOutSubmitting,error:sitOutError}),
-    showSolo && visibleSoloMode && React.createElement(SoloModal,{mode:visibleSoloMode,monthName:modalMonthName,minimumTarget:soloMinimumTarget,defaultTarget:Math.max(soloMinimumTarget, Math.ceil(effectiveTarget * .5)),onClose:()=>{setShowSolo(false);setSoloError("");},onSubmit:submitSolo,submitting:soloSubmitting,error:soloError}),
+    showSolo && visibleSoloMode && React.createElement(SoloModal,{mode:visibleSoloMode,monthName:modalMonthName,minimumTarget:soloMinimumTarget,maximumTarget:effectiveTarget,defaultTarget:Math.max(soloMinimumTarget, Math.ceil(effectiveTarget * .5)),onClose:()=>{setShowSolo(false);setSoloError("");},onSubmit:submitSolo,submitting:soloSubmitting,error:soloError}),
     showSoloLocked && React.createElement(NoticeModal,{title:"Solo Mode is locked",body:"Solo Mode is only available in the first 10 days of the month.",onClose:()=>setShowSoloLocked(false)}),
     settlementDisputePrompt,
     settlementConfirmPrompt,
