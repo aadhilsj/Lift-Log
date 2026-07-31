@@ -477,11 +477,11 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
         ? React.createElement('div',{style:{fontSize:12,color:"var(--muted)",fontWeight:700,lineHeight:1.35}},"Sit-out was declined.")
         : currentSoloRequest?.status === "declined"
           ? React.createElement('div',{style:{fontSize:12,color:"var(--muted)",fontWeight:700,lineHeight:1.35}},"Solo Mode was declined.")
-        : React.createElement('div',{style:{fontSize:12,color:"var(--muted)",fontWeight:700,lineHeight:1.35,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},"Injured, traveling, or got a busy month ahead?");
+        : React.createElement('div',{style:{flex:"1 1 auto",minWidth:0,fontSize:10,color:"var(--muted)",fontWeight:700,lineHeight:1.35,whiteSpace:"nowrap",overflow:"visible"}},"Injured, traveling, or got a busy month ahead?");
 
   const competitionAction = isExcused || isSolo || currentSitOutRequest?.status === "pending" || currentSoloRequest?.status === "pending"
     ? null
-    : React.createElement('div',{style:{display:"flex",gap:7,flexWrap:"nowrap",justifyContent:"flex-end",alignItems:"center"}},
+    : React.createElement('div',{style:{display:"flex",gap:6,flexWrap:"nowrap",justifyContent:"flex-end",alignItems:"center",flexShrink:0}},
         React.createElement('button',{
           onClick:()=>{
             if (!visibleSoloMode) {
@@ -495,7 +495,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
             background:visibleSoloMode ? "rgba(78,205,196,.07)" : "rgba(255,255,255,.025)",
             border:`1px solid ${visibleSoloMode ? "rgba(78,205,196,.30)" : "rgba(148,163,184,.18)"}`,
             color:visibleSoloMode ? "#4ECDC4" : "rgba(148,163,184,.48)",
-            padding:"6px 10px",
+            padding:"6px 8px",
             borderRadius:999,
             fontSize:11,
             fontWeight:800,
@@ -508,7 +508,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
             background:"transparent",
             border:"1px solid rgba(148,163,184,.22)",
             color:"var(--muted)",
-            padding:"6px 10px",
+            padding:"6px 8px",
             borderRadius:999,
             fontSize:11,
             fontWeight:800,
