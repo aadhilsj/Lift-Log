@@ -50,7 +50,7 @@ import {
   buildLocalWeeklyMvpPreview
 } from "../lib/utils.js";
 import { Avatar, WorkoutTypeIcon, ChevronRightIcon, TargetHitHexIcon, StatusBadge, RankIcon, Bar, Card, AppIcon, PlayerProfileErrorBoundary } from "../components/primitives.jsx";
-import { LogModal, DeleteModal, SitOutModal, SoloModal } from "../modals/modals.jsx";
+import { LogModal, DeleteModal, SitOutModal, SoloModal, NoticeModal } from "../modals/modals.jsx";
 import { PlayerProfile } from "../pages/PlayerProfile.jsx";
 
 const FULL_MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
@@ -60,6 +60,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
   const [sitOutSubmitting,setSitOutSubmitting]=useState(false);
   const [sitOutError,setSitOutError]=useState("");
   const [showSolo,setShowSolo]=useState(false);
+  const [showSoloLocked,setShowSoloLocked]=useState(false);
   const [soloSubmitting,setSoloSubmitting]=useState(false);
   const [soloError,setSoloError]=useState("");
   const [viewPlayer,setViewPlayer]=useState(null);
@@ -456,7 +457,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
         ? React.createElement('div',{style:{fontSize:12,color:"var(--muted)",fontWeight:700,lineHeight:1.35}},"Sit-out was declined.")
         : currentSoloRequest?.status === "declined"
           ? React.createElement('div',{style:{fontSize:12,color:"var(--muted)",fontWeight:700,lineHeight:1.35}},"Solo Mode was declined.")
-        : React.createElement('div',{style:{fontSize:12,color:"var(--muted)",fontWeight:700,lineHeight:1.35}},"Injured or traveling?");
+        : React.createElement('div',{style:{fontSize:12,color:"var(--muted)",fontWeight:700,lineHeight:1.35}},"Injured, traveling, or busy month ahead?");
 
   const competitionAction = isExcused || isSolo || currentSitOutRequest?.status === "pending" || currentSoloRequest?.status === "pending"
     ? null
@@ -464,7 +465,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
         React.createElement('button',{
           onClick:()=>{
             if (!soloMode) {
-              window.alert("Solo Mode is locked for the month and is only available in the first 10 days.");
+              setShowSoloLocked(true);
               return;
             }
             setSoloError("");
@@ -1208,6 +1209,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
     deleteTarget && React.createElement(DeleteModal,{log:deleteTarget,onClose:()=>setDeleteTarget(null),onConfirm:async()=>{ const logId = deleteTarget.id; setDeleteTarget(null); await onLogMutation({action:"delete-log",groupId:currentGroupId,actor:user,owner:user,logId}); }}),
     showExcuse && sitOutMode && React.createElement(SitOutModal,{mode:sitOutMode,monthName:monthSummary ? MONTH_NAMES[monthSummary.month] : MONTH_NAMES[CUR_MONTH],onClose:()=>{setShowExcuse(false);setSitOutError("");},onSubmit:submitSitOut,submitting:sitOutSubmitting,error:sitOutError}),
     showSolo && soloMode && React.createElement(SoloModal,{mode:soloMode,monthName:monthSummary ? MONTH_NAMES[monthSummary.month] : MONTH_NAMES[CUR_MONTH],minimumTarget:soloMinimumTarget,defaultTarget:Math.max(soloMinimumTarget, Math.ceil(effectiveTarget * .5)),onClose:()=>{setShowSolo(false);setSoloError("");},onSubmit:submitSolo,submitting:soloSubmitting,error:soloError}),
+    showSoloLocked && React.createElement(NoticeModal,{title:"Solo Mode is locked",body:"Solo Mode is only available in the first 10 days of the month.",onClose:()=>setShowSoloLocked(false)}),
     settlementDisputePrompt,
     settlementConfirmPrompt,
     statDetailOverlay,
