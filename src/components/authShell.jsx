@@ -209,14 +209,14 @@ const ProfileModal = ({email,onSignOut,onClose,showDisplayName,currentDisplayNam
 };
 
 
-const JoinGroupModal = ({inviteContext,joinCode,setJoinCode,onClose,onJoin,joining,error,signedIn=false}) => {
+const JoinGroupModal = ({inviteContext,joinCode,setJoinCode,onClose,onJoin,joining,error,signedIn=false,confirmLabel="Join Bloc",pendingLabel="Joining...",helperOverride=""}) => {
   const isFull = inviteContext && inviteContext.memberCount >= 20;
   const canJoin = joinCode.trim() && !joining && !isFull;
-  const helperCopy = inviteContext
+  const helperCopy = helperOverride || (inviteContext
     ? (signedIn
         ? `${inviteContext.groupName} is ready. Confirm the invite code below to join.`
         : `${inviteContext.groupName} is waiting for you. Confirm the invite code below to join.`)
-    : "Enter a Bloc invite code. You can always ask the admin to share the link instead.";
+    : "Enter a Bloc invite code. You can always ask the admin to share the link instead.");
   return React.createElement('div',{className:"overlay center-mobile",style:{background:"rgba(5,9,9,0.85)"}},
     React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{maxWidth:380}},
       React.createElement('div',{style:{fontFamily:"'Raleway', sans-serif",fontWeight:800,fontSize:22,letterSpacing:0,lineHeight:1.08,marginBottom:6}},inviteContext?"Join this Bloc":"Join a Bloc"),
@@ -229,7 +229,7 @@ const JoinGroupModal = ({inviteContext,joinCode,setJoinCode,onClose,onJoin,joini
       !isFull && error && React.createElement('div',{style:{fontSize:12,color:"var(--red)",marginBottom:14}},error),
       React.createElement('div',{style:{display:"flex",gap:9}},
         React.createElement('button',{type:"button",className:"setup-press",onClick:onClose,style:{flex:1,background:"transparent",border:"1px solid var(--border)",color:"var(--muted)",padding:"14px",borderRadius:10,fontSize:15,fontWeight:700}},"Cancel"),
-        React.createElement('button',{type:"button",className:"setup-press",disabled:!canJoin,onClick:onJoin,style:{flex:1,background:canJoin?"#4ECDC4":"var(--s3)",color:canJoin?"#050909":"var(--muted2)",padding:"14px",borderRadius:10,fontSize:15,fontWeight:900}},joining?"Joining...":"Join Bloc")
+        React.createElement('button',{type:"button",className:"setup-press",disabled:!canJoin,onClick:onJoin,style:{flex:1,background:canJoin?"#4ECDC4":"var(--s3)",color:canJoin?"#050909":"var(--muted2)",padding:"14px",borderRadius:10,fontSize:15,fontWeight:900}},joining?pendingLabel:confirmLabel)
       )
     )
   );

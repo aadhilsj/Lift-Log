@@ -1554,7 +1554,7 @@ function normalizeProfiles(profiles) {
       .map(([userId, profile]) => {
         const id = String(profile?.id || userId || "").trim();
         const email = String(profile?.email || "").trim().toLowerCase();
-        if (!id || !email) return null;
+        if (!id) return null;
         return [id, {
           id,
           email,
@@ -1636,17 +1636,25 @@ function getProfileForSession(appState, session) {
   return Object.values(appState?.profiles || {}).find(profile => profile?.email === normalizedEmail) || null;
 }
 
+// IDENTITY GUARD: display names are cosmetic and never grant Bloc access.
+// A real authenticated session resolves membership ONLY through
+// `group.memberships[session.userId]`. The name-based lookup below is scoped
+// strictly to local preview/dev impersonation sessions, which have no real auth
+// user id to key off. Two accounts may share a display name; neither may see the
+// other's Blocs.
 function getMembershipForUser(group, session, profile) {
   if (!group || !session?.userId) return null;
   if (group.memberships?.[session.userId]) return group.memberships[session.userId];
+  if (!session.localPreview) return null;
   const activeNames = Array.isArray(group.activeMemberOrder) && group.activeMemberOrder.length
     ? group.activeMemberOrder
     : (group.memberOrder || []);
-  if (profile?.displayName && activeNames.includes(profile.displayName)) {
+  const previewName = session.previewDisplayName || profile?.displayName || "";
+  if (previewName && activeNames.includes(previewName)) {
     return {
       userId: session.userId,
-      displayName: profile.displayName,
-      role: group.adminName === profile.displayName ? "admin" : "member"
+      displayName: previewName,
+      role: group.adminName === previewName ? "admin" : "member"
     };
   }
   return null;

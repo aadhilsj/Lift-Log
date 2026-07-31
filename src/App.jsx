@@ -208,6 +208,10 @@ const App = () => {
   const [returnToColdOnboardingOnCreateCancel,setReturnToColdOnboardingOnCreateCancel]=useState(false);
   const [returnToColdOnboardingOnJoinCancel,setReturnToColdOnboardingOnJoinCancel]=useState(false);
   const [pendingJoinAfterProfile,setPendingJoinAfterProfile]=useState(false);
+  // Cold-onboarding join collects the invite code BEFORE auth, so a brand-new
+  // account lands straight in the target Bloc after display-name setup.
+  const [onboardingJoinCodeStep,setOnboardingJoinCodeStep]=useState(false);
+  const [checkingOnboardingInvite,setCheckingOnboardingInvite]=useState(false);
   const [joinCode,setJoinCode]=useState(()=>{
     try {
       const params = new URLSearchParams(window.location.search);
@@ -1623,15 +1627,50 @@ const App = () => {
     openAuth({ type:"create", initialGroupName });
   },[authSession?.userId, completeColdOnboarding, persistGroupSelection, openAuth]);
   const handleColdOnboardingJoin = useCallback(() => {
-    completeColdOnboarding();
     setReturnToColdOnboardingOnJoinCancel(true);
     setReturnToColdOnboardingOnCreateCancel(false);
     if (authSession?.userId) {
+      completeColdOnboarding();
       setShowJoinModal(true);
       return;
     }
-    openAuth({ type:"join" });
-  },[authSession?.userId, completeColdOnboarding, openAuth]);
+    // Signed out: ask for the invite code first, then email → OTP → name → join.
+    setInviteError("");
+    setOnboardingJoinCodeStep(true);
+  },[authSession?.userId, completeColdOnboarding]);
+  const handleOnboardingJoinCodeCancel = useCallback(() => {
+    setOnboardingJoinCodeStep(false);
+    setCheckingOnboardingInvite(false);
+    setInviteError("");
+    setJoinCode("");
+    setReturnToColdOnboardingOnJoinCancel(false);
+    // Cancelling the join always returns to onboarding screen 4, never to an
+    // empty Bloc switcher.
+    setColdOnboardingInitialIndex(3);
+    setColdOnboardingPreviewDismissed(false);
+    setReplayColdOnboarding(true);
+  },[]);
+  const handleOnboardingJoinCodeContinue = useCallback(async () => {
+    const code = String(joinCode || "").trim().toUpperCase();
+    if (!code) return;
+    setCheckingOnboardingInvite(true);
+    setInviteError("");
+    const result = await fetchInviteContextData(code);
+    setCheckingOnboardingInvite(false);
+    if (!result?.ok) {
+      setInviteError(result?.error || "Invite not found");
+      return;
+    }
+    setInviteContext(result.data);
+    if (Number(result.data?.memberCount || 0) >= 20) {
+      setInviteError("This Bloc is full. Maximum 20 members allowed.");
+      return;
+    }
+    setJoinCode(code);
+    setOnboardingJoinCodeStep(false);
+    completeColdOnboarding();
+    openAuth({ type:"join", fromOnboarding:true, inviteCode:code });
+  },[joinCode, completeColdOnboarding, openAuth]);
   const resetAuthFlow = () => {
     setAuthStep(null);
     setAuthIntent(null);
@@ -1642,11 +1681,47 @@ const App = () => {
   };
   const closeAuth = () => {
     const shouldResumeColdOnboarding = (authIntent?.type === "create" && returnToColdOnboardingOnCreateCancel) || (authIntent?.type === "join" && returnToColdOnboardingOnJoinCancel);
+    const cancelledOnboardingJoin = authIntent?.type === "join" && returnToColdOnboardingOnJoinCancel;
     resetAuthFlow();
+    if (cancelledOnboardingJoin) {
+      setOnboardingJoinCodeStep(false);
+      setReturnToColdOnboardingOnJoinCancel(false);
+      resetInviteFlow({ clearUrl:false });
+    }
     if (shouldResumeColdOnboarding) {
       setColdOnboardingInitialIndex(3);
+      setColdOnboardingPreviewDismissed(false);
       setReplayColdOnboarding(true);
     }
+  };
+  // Single join path shared by the onboarding flow, the invite-link flow and the
+  // signed-in Join modal. Membership is granted by the invite code alone — never
+  // by a display name.
+  const joinWithInviteCode = async (session, rawCode) => {
+    const inviteCode = String(rawCode || "").trim().toUpperCase();
+    if (!session?.userId || !inviteCode) return { ok:false, error:"Enter an invite code" };
+    setJoiningGroup(true);
+    setInviteError("");
+    const result = await joinGroupData({ userId: session.userId, inviteCode });
+    setJoiningGroup(false);
+    if (!result?.ok) {
+      setInviteError(result?.error || "Unable to join Bloc");
+      return result || { ok:false, error:"Unable to join Bloc" };
+    }
+    applyData(result.state);
+    setHiddenLeftGroupIds(current => {
+      if (!current[result.joinedGroupId]) return current;
+      const next = { ...current };
+      delete next[result.joinedGroupId];
+      return next;
+    });
+    resetInviteFlow({ clearUrl:true });
+    completeInviteJoin({ groupId: result.joinedGroupId, userId: session.userId, inviteCode });
+    setReturnToColdOnboardingOnCreateCancel(false);
+    setReturnToColdOnboardingOnJoinCancel(false);
+    setOnboardingJoinCodeStep(false);
+    setShowJoinModal(false);
+    return result;
   };
   const continueAfterAuth = async (nextSession = authSession, nextProfile = effectiveProfile, completedIntent = authIntent) => {
     if (completedIntent?.type === "create") {
@@ -1655,6 +1730,17 @@ const App = () => {
       return;
     }
     if (completedIntent?.type === "join") {
+      const pendingCode = String(completedIntent?.inviteCode || joinCode || inviteContext?.inviteCode || "").trim();
+      // Onboarding join already collected and validated the code up front, so
+      // finish the join instead of re-asking for it. The invite-link flow keeps
+      // its existing confirm step.
+      if (completedIntent?.fromOnboarding && pendingCode && nextProfile?.displayName) {
+        const result = await joinWithInviteCode(nextSession, pendingCode);
+        if (result?.ok) return;
+        setShowJoinModal(true);
+        setJoinCode(pendingCode.toUpperCase());
+        return;
+      }
       setShowJoinModal(true);
       if (inviteContext?.inviteCode) setJoinCode(inviteContext.inviteCode);
     }
@@ -1714,38 +1800,31 @@ const App = () => {
       setAuthError("This email already has a Fero account. Sign in instead.");
       return;
     }
-    if (result.state) applyData(result.state);
-    persistSession(nextSession);
-    setPendingAuthSession(nextSession);
-    let needsProfileSetup = typeof result.session.needsProfileSetup === "boolean"
+    const needsProfileSetup = typeof result.session.needsProfileSetup === "boolean"
       ? result.session.needsProfileSetup
       : !nextProfile?.displayName;
 
-    if (needsProfileSetup) {
-      const freshData = await fetchData();
-      if (freshData) {
-        applyData(freshData);
-        const freshProfile = getProfileForSession(freshData, nextSession);
-        if (freshProfile?.displayName) {
-          needsProfileSetup = false;
-          nextProfile = freshProfile;
-        }
-      }
-    }
-
+    // Move to the display-name screen BEFORE the session is persisted, so the
+    // app never renders an empty Bloc switcher in the gap between OTP success
+    // and profile setup. auth-sync already resolved needsProfileSetup against
+    // the migrated server state, so no pre-fetch is needed here.
     if (needsProfileSetup) {
       setShowJoinModal(false);
       setAuthDisplayName("");
       setAuthStep("name");
       setAuthError("");
-      return;
     }
+    if (result.state) applyData(result.state);
+    persistSession(nextSession);
+    setPendingAuthSession(nextSession);
+    if (needsProfileSetup) return;
     resetAuthFlow();
     continueAfterAuth(nextSession, nextProfile, authIntent);
   };
   const handleSaveProfile = async () => {
     setSavingProfile(true);
     setAuthError("");
+    const completedIntentObj = authIntent;
     const completedIntent = authIntent?.type || "";
     const activeSession = pendingAuthSession || authSession || await getCurrentAuthSession();
     const result = await upsertProfileData(
@@ -1758,49 +1837,53 @@ const App = () => {
       return;
     }
     if (activeSession?.userId) persistSession(activeSession);
+    const savedDisplayName = authDisplayName.trim();
+    const pendingInviteCode = String(completedIntentObj?.inviteCode || joinCode || inviteContext?.inviteCode || "").trim().toUpperCase();
+    // Auto-join only where the code was already collected as part of that flow:
+    // the onboarding join, or a signed-in join that detoured through name setup.
+    const shouldAutoJoin = Boolean(activeSession?.userId)
+      && Boolean(pendingInviteCode)
+      && (pendingJoinAfterProfile || Boolean(completedIntentObj?.fromOnboarding));
     const applied = result.data ? applyData(result.data) : false;
-    if (!applied) {
+    // The profile write is the gate for joining (the server refuses a join
+    // without a saved display name), so only skip the extra refetch — never the
+    // save itself. When we already have the state back, the extra round trip is
+    // pure latency between the name screen and the target Bloc.
+    if (!applied && !shouldAutoJoin) {
       await refreshNow();
     }
     resetAuthFlow();
-    if (completedIntent === "signup") {
+    if (completedIntent === "signup" && !shouldAutoJoin) {
       setColdOnboardingPreviewDismissed(false);
       setColdOnboardingInitialIndex(0);
       setReplayColdOnboarding(true);
       return;
     }
-    if (pendingJoinAfterProfile && activeSession?.userId) {
+    if (shouldAutoJoin) {
       setPendingJoinAfterProfile(false);
-      setShowJoinModal(true);
-      setJoiningGroup(true);
-      setInviteError("");
-      const joinResult = await joinGroupData({ userId: activeSession.userId, inviteCode: joinCode.trim().toUpperCase() });
-      setJoiningGroup(false);
+      const joinResult = await joinWithInviteCode(activeSession, pendingInviteCode);
       if (!joinResult?.ok) {
-        setInviteError(joinResult?.error || "Unable to join Bloc");
+        if (joinResult?.status === 409) {
+          setAuthIntent(completedIntentObj);
+          setPendingAuthSession(activeSession);
+          setAuthDisplayName(savedDisplayName);
+          setAuthStep("name");
+          setAuthError(joinResult.error || "That display name is already used in this Bloc. Pick another one.");
+          return;
+        }
+        // Keep the user on the join step with the code they entered rather than
+        // dropping them into an empty switcher.
         setShowJoinModal(true);
-        if (inviteContext?.inviteCode) setJoinCode(inviteContext.inviteCode);
+        setJoinCode(pendingInviteCode);
         return;
       }
-      applyData(joinResult.state);
-      setHiddenLeftGroupIds(current => {
-        if (!current[joinResult.joinedGroupId]) return current;
-        const next = { ...current };
-        delete next[joinResult.joinedGroupId];
-        return next;
-      });
-      resetInviteFlow({ clearUrl:true });
-      completeInviteJoin({
-        groupId: joinResult.joinedGroupId,
-        userId: activeSession.userId,
-        inviteCode: joinCode.trim().toUpperCase()
-      });
-      setReturnToColdOnboardingOnCreateCancel(false);
-      setReturnToColdOnboardingOnJoinCancel(false);
-      setShowJoinModal(false);
       return;
     }
-    continueAfterAuth(activeSession, getProfileForSession(result.data || appState, activeSession), { type: completedIntent, initialGroupName: authIntent?.initialGroupName || "" });
+    continueAfterAuth(
+      activeSession,
+      getProfileForSession(result.data || appState, activeSession) || { id: activeSession?.userId, email: activeSession?.email, displayName: savedDisplayName },
+      { ...(completedIntentObj || {}), type: completedIntent, initialGroupName: completedIntentObj?.initialGroupName || "" }
+    );
   };
   const handleJoinGroup = async () => {
     if (!authSession?.userId) {
@@ -1815,30 +1898,7 @@ const App = () => {
       setAuthStep("name");
       return;
     }
-    setJoiningGroup(true);
-    setInviteError("");
-    const result = await joinGroupData({ userId: authSession.userId, inviteCode: joinCode.trim().toUpperCase() });
-    setJoiningGroup(false);
-    if (!result?.ok) {
-      setInviteError(result?.error || "Unable to join Bloc");
-      return;
-    }
-    applyData(result.state);
-    setHiddenLeftGroupIds(current => {
-      if (!current[result.joinedGroupId]) return current;
-      const next = { ...current };
-      delete next[result.joinedGroupId];
-      return next;
-    });
-    resetInviteFlow({ clearUrl:true });
-    completeInviteJoin({
-      groupId: result.joinedGroupId,
-      userId: authSession.userId,
-      inviteCode: joinCode.trim().toUpperCase()
-    });
-    setReturnToColdOnboardingOnCreateCancel(false);
-    setReturnToColdOnboardingOnJoinCancel(false);
-    setShowJoinModal(false);
+    await joinWithInviteCode(authSession, joinCode);
   };
 
   const handleInviteWelcomeContinue = useCallback(() => {
@@ -1933,6 +1993,31 @@ const App = () => {
   const shouldShowColdOnboarding = forceColdOnboardingPreview || replayColdOnboarding || (!authSession?.userId && !localPreviewAuthEnabled && !hasInviteEntry && !coldOnboardingSeen && !authStep);
 
   if(loading || !authReady || authHydrating) return React.createElement(Spinner,{label:"Opening Fero..."});
+  // Onboarding join, step 1: invite code, collected before any auth. Onboarding
+  // screen 4 stays behind the sheet so Cancel lands back exactly where it began.
+  if(onboardingJoinCodeStep && !authSession?.userId && !authStep) {
+    return React.createElement(React.Fragment,null,
+      React.createElement(ColdOnboarding,{
+        key:"cold-onboarding-join-code",
+        initialIndex:3,
+        onCreate:handleColdOnboardingCreate,
+        onJoin:handleColdOnboardingJoin
+      }),
+      React.createElement(JoinGroupModal,{
+        inviteContext,
+        joinCode,
+        setJoinCode,
+        onClose:handleOnboardingJoinCodeCancel,
+        onJoin:handleOnboardingJoinCodeContinue,
+        joining:checkingOnboardingInvite,
+        error:inviteError,
+        signedIn:false,
+        confirmLabel:"Continue",
+        pendingLabel:"Checking...",
+        helperOverride:"Enter the invite code for the Bloc you're joining. We'll set up your account next."
+      })
+    );
+  }
   if(shouldShowColdOnboarding) {
     return React.createElement(ColdOnboarding,{
       key:`cold-onboarding-${coldOnboardingInitialIndex}`,
@@ -2000,6 +2085,11 @@ const App = () => {
       profilePhotoByUserId:appState.profiles,
       onContinue:handleInviteWelcomeContinue
     });
+  }
+  // An in-flight join must never flash the empty Bloc switcher between the
+  // display-name save and landing in the joined Bloc.
+  if(joiningGroup && !showJoinModal && !visibleGroups.some(group => group.id === selectedGroupId)) {
+    return React.createElement(Spinner,{label:"Joining your Bloc..."});
   }
   if(!selectedGroupId || !currentGroup || !visibleGroups.some(group => group.id === selectedGroupId)) {
     const createdInviteGroup = createdInviteGroupId ? appState.groups?.[createdInviteGroupId] : null;

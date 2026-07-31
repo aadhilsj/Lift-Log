@@ -237,13 +237,13 @@ async function postApi(action, payload = {}, options = {}) {
             body: JSON.stringify({ action, ...payload })
           });
           const retryBody = await retryRes.json().catch(()=>null);
-          if (!retryRes.ok) return { ok:false, error: retryBody?.details || retryBody?.error || "Request failed", body: retryBody };
-          return { ok:true, body: retryBody };
+          if (!retryRes.ok) return { ok:false, status: retryRes.status, error: retryBody?.details || retryBody?.error || "Request failed", body: retryBody };
+          return { ok:true, status: retryRes.status, body: retryBody };
         }
       }
-      return { ok:false, error: body?.details || body?.error || "Request failed", body };
+      return { ok:false, status: res.status, error: body?.details || body?.error || "Request failed", body };
     }
-    return { ok:true, body };
+    return { ok:true, status: res.status, body };
   } catch (e) {
     console.error(`${action} request error:`, e);
   }
@@ -523,7 +523,7 @@ async function uploadProfilePhotoData(dataUrl) {
 
 async function joinGroupData(payload) {
   const result = await postApi("join-group", payload);
-  if (!result.ok) return { ok:false, error: result.error || "Unable to join Bloc" };
+  if (!result.ok) return { ok:false, status: result.status || 0, error: result.error || "Unable to join Bloc" };
   return { ok:true, state: normalizeAppState(result.body.state), joinedGroupId: result.body.joinedGroupId };
 }
 

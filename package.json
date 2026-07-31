@@ -8,6 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "test:stream-moments": "node scripts/test-bloc-stream-derived-moments.mjs",
+    "test:identity": "node scripts/test-display-name-identity.mjs",
     "dev:api": "node scripts/local-dev-server.mjs"
   },
   "dependencies": {
