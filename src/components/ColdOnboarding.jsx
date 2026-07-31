@@ -5,20 +5,21 @@ const { useMemo, useRef, useState } = React;
 
 const ONBOARDING_SCREENS = [
   {
-    headline: "For the group that keeps you showing up.",
-    subtext: "A monthly goal. Your people. Something real on the line."
+    headlineLines: ["For the group that", "keeps you showing up."],
+    subtextLines: ["A monthly goal.", "Your people.", "Something real on the line."]
   },
   {
-    headline: "Pick your people.",
+    headlineLines: ["Pick your people."],
     subtext: "You hold each other to it."
   },
   {
-    headline: "Set a target. Set a penalty.",
+    headlineLines: ["Set a target.", "Set a penalty."],
     subtext: "Miss it, and you owe. Hit it, and you don't."
   },
   {
-    headline: "Show up together. Or pay up.",
-    subtext: "Start a Bloc. Invite your people. Consistency's a group sport."
+    headlineLines: ["Show up together.", "Or pay up."],
+    subtext: "Start a Bloc. Invite your people.",
+    highlight: "Consistency's a group sport."
   }
 ];
 
@@ -86,11 +87,36 @@ const PreviewAvatar = ({name,color}) => React.createElement('div',{
   }
 }, name[0]);
 
+const FakePhoto = ({tone="gym"}) => {
+  const styles = {
+    gym:["linear-gradient(135deg,#202328,#5b5d60 48%,#22252a)","linear-gradient(90deg,transparent 0 34%,rgba(78,205,196,.42) 34% 39%,transparent 39% 100%)","Gym"],
+    run:["linear-gradient(135deg,#1b3440,#6fb2a8 46%,#203040)","radial-gradient(circle at 72% 26%,rgba(245,166,35,.86),transparent 16%)","Run"],
+    sports:["linear-gradient(135deg,#1f2f1e,#496b3d 45%,#193026)","radial-gradient(circle at 42% 48%,rgba(245,247,255,.9),transparent 18%)","Sports"]
+  };
+  const [base,accent,label] = styles[tone] || styles.gym;
+  return React.createElement('div',{
+    style:{
+      width:78,
+      height:78,
+      borderRadius:14,
+      backgroundImage:`${accent}, ${base}`,
+      border:"0.5px solid rgba(255,255,255,.12)",
+      boxShadow:"inset 0 1px 0 rgba(255,255,255,.08)",
+      overflow:"hidden",
+      flexShrink:0,
+      position:"relative"
+    }
+  },
+    React.createElement('div',{style:{position:"absolute",inset:0,background:"linear-gradient(180deg,transparent,rgba(0,0,0,.22))"}}),
+    React.createElement('div',{style:{position:"absolute",left:8,bottom:7,fontSize:9,fontWeight:900,color:"rgba(255,255,255,.78)",letterSpacing:".08em",textTransform:"uppercase"}},label)
+  );
+};
+
 const LeaderboardPreview = () => {
   const rows = [
-    { name:"Aysha", status:"LOCKED IN", color:"#D94D68", count:14 },
-    { name:"Kisal", status:"ON TRACK", color:"#F2A83A", count:10 },
-    { name:"Rishane", status:"AT RISK", color:"#8A78D6", count:7 }
+    { name:"Maya", status:"LOCKED IN", color:"#D94D68", count:14 },
+    { name:"Leo", status:"ON TRACK", color:"#F2A83A", count:10 },
+    { name:"Noah", status:"AT RISK", color:"#8A78D6", count:7 }
   ];
   return React.createElement('div',{style:cardShell},
     React.createElement('div',{style:{padding:"16px 16px 10px",borderBottom:"0.5px solid rgba(22,61,54,.7)"}},
@@ -120,67 +146,96 @@ const LeaderboardPreview = () => {
 
 const ActivityPreview = () => {
   const rows = [
-    { name:"Nishara", type:"Gym", color:"#8CA4C6" },
-    { name:"Varun", type:"Run", color:"#8A78D6" },
-    { name:"Biankovic", type:"Sports", color:"#D94D68" }
+    { name:"Sofia", type:"Gym", color:"#8CA4C6", photo:"gym", time:"2h" },
+    { name:"Jonah", type:"Run", color:"#8A78D6", photo:"run", time:"5h" },
+    { name:"Mina", type:"Sports", color:"#D94D68", photo:"sports", time:"8h" }
   ];
   return React.createElement('div',{style:cardShell},
     React.createElement('div',{style:{padding:"16px",borderBottom:"0.5px solid rgba(22,61,54,.7)"}},
       React.createElement('div',{style:previewLabel},"ACTIVITY FEED")
     ),
-    React.createElement('div',{style:{padding:"10px 14px"}},
+    React.createElement('div',{style:{padding:"10px 12px"}},
       rows.map((row,index)=>React.createElement('div',{
         key:row.name,
         style:{
-          display:"flex",
+          display:"grid",
+          gridTemplateColumns:"30px minmax(0,1fr) 78px",
           alignItems:"center",
-          gap:11,
-          padding:"11px 0",
+          gap:10,
+          padding:"10px 0",
           borderBottom:index<rows.length-1?"0.5px solid rgba(22,61,54,.5)":"none"
         }
       },
         React.createElement(PreviewAvatar,{name:row.name,color:row.color}),
-        React.createElement('div',{style:{minWidth:0,flex:1}},
-          React.createElement('div',{style:{fontSize:15,fontWeight:900,color:"#f5f7ff",lineHeight:1.15}},row.name),
-          React.createElement('div',{style:{display:"flex",alignItems:"center",gap:7,marginTop:4,color:"var(--muted)",fontSize:12,fontWeight:700}},
-            React.createElement('span',{style:{color:"#4ECDC4",display:"inline-flex"}},React.createElement(WorkoutTypeIcon,{type:row.type,size:13})),
-            React.createElement('span',null,`${row.type} logged`)
+        React.createElement('div',{style:{minWidth:0,alignSelf:"stretch",display:"flex",flexDirection:"column",justifyContent:"space-between",padding:"2px 0"}},
+          React.createElement('div',null,
+            React.createElement('div',{style:{display:"flex",alignItems:"center",gap:7,minWidth:0}},
+              React.createElement('span',{style:{fontSize:15,fontWeight:900,color:"#f5f7ff",lineHeight:1.15,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},row.name),
+              React.createElement('span',{style:{color:"#4ECDC4",display:"inline-flex",flexShrink:0}},React.createElement(WorkoutTypeIcon,{type:row.type,size:12})),
+              React.createElement('span',{style:{fontSize:12,fontWeight:700,color:"rgba(143,174,170,.78)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},row.type)
+            ),
+            React.createElement('div',{style:{fontSize:12,fontWeight:700,color:"rgba(214,226,224,.65)",marginTop:5,whiteSpace:"nowrap"}},"Logged before work")
+          ),
+          React.createElement('div',{style:{display:"flex",alignItems:"center",gap:7}},
+            React.createElement('span',{style:{height:24,padding:"0 9px",borderRadius:999,border:"0.5px solid rgba(78,205,196,.35)",background:"rgba(78,205,196,.08)",display:"inline-flex",alignItems:"center",gap:5,fontSize:12,color:"#4ECDC4",fontWeight:800}},"🔥",index+1),
+            React.createElement('span',{style:{width:24,height:24,borderRadius:999,border:"0.5px solid rgba(22,61,54,.9)",display:"inline-flex",alignItems:"center",justifyContent:"center",color:"rgba(143,174,170,.75)",fontSize:16,lineHeight:1}},"+")
           )
         ),
-        React.createElement('span',{style:{fontFamily:"'Outfit',sans-serif",fontSize:11,fontWeight:800,color:"rgba(143,174,170,.65)"}},"today")
+        React.createElement('div',{style:{position:"relative"}},
+          React.createElement('span',{style:{position:"absolute",left:-26,top:4,fontFamily:"'Outfit',sans-serif",fontSize:10,fontWeight:800,color:"rgba(143,174,170,.68)"}},row.time),
+          React.createElement(FakePhoto,{tone:row.photo})
+        )
       ))
     )
   );
 };
 
+const SettlementMonthCard = ({title,status,rows,accent="#4ECDC4"}) => React.createElement('div',{
+  style:{
+    border:"0.5px solid rgba(22,61,54,.72)",
+    borderRadius:14,
+    background:"rgba(8,15,15,.72)",
+    padding:"12px 12px 11px"
+  }
+},
+  React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,marginBottom:9}},
+    React.createElement('span',{style:{fontSize:13,fontWeight:900,color:"#f5f7ff"}},title),
+    React.createElement('span',{style:{fontFamily:"'Outfit',sans-serif",fontSize:9,fontWeight:900,letterSpacing:".08em",textTransform:"uppercase",color:accent}},status)
+  ),
+  rows.map((row,index)=>React.createElement('div',{
+    key:row.left,
+    style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,padding:index===0?"0 0 7px":"7px 0 0",borderTop:index>0?"0.5px solid rgba(22,61,54,.45)":"none"}
+  },
+    React.createElement('span',{style:{fontSize:12,fontWeight:800,color:"rgba(214,226,224,.82)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},row.left),
+    React.createElement('span',{style:{fontFamily:"'Outfit',sans-serif",fontSize:13,fontWeight:900,color:row.amount==="$0"?"#4ECDC4":"#f5f7ff",whiteSpace:"nowrap"}},row.amount)
+  ))
+);
+
 const SettlementPreview = () => {
-  const month = useMemo(() => new Date().toLocaleString("en-US", { month:"long" }).toUpperCase(), []);
-  const rows = [
-    "Rishane owes Kisal $25",
-    "Aysha owes Nishara $15",
-    "You owe $0"
-  ];
+  const month = useMemo(() => new Date().toLocaleString("en-US", { month:"short" }).toUpperCase(), []);
   return React.createElement('div',{style:cardShell},
     React.createElement('div',{style:{padding:"16px",borderBottom:"0.5px solid rgba(22,61,54,.7)"}},
       React.createElement('div',{style:previewLabel},`THE SETTLEMENT · ${month}`)
     ),
-    React.createElement('div',{style:{padding:"12px 14px",display:"grid",gap:9}},
-      rows.map((row,index)=>React.createElement('div',{
-        key:row,
-        style:{
-          display:"flex",
-          alignItems:"center",
-          justifyContent:"space-between",
-          gap:12,
-          border:"0.5px solid rgba(22,61,54,.62)",
-          borderRadius:12,
-          background:index===2?"rgba(78,205,196,.08)":"rgba(8,15,15,.9)",
-          padding:"10px 12px"
-        }
-      },
-        React.createElement('span',{style:{fontSize:14,fontWeight:800,color:index===2?"#4ECDC4":"#f5f7ff"}},row),
-        React.createElement('span',{style:{fontFamily:"'Outfit',sans-serif",fontSize:11,fontWeight:900,color:"rgba(143,174,170,.7)",letterSpacing:".08em",textTransform:"uppercase"}},index===2?"Clear":"Due")
-      ))
+    React.createElement('div',{style:{padding:"12px 14px",display:"grid",gap:10}},
+      React.createElement(SettlementMonthCard,{
+        title:"June",
+        status:"You cleared",
+        rows:[
+          { left:"Noah owes Maya", amount:"$25" },
+          { left:"Leo owes Sofia", amount:"$15" },
+          { left:"You owe", amount:"$0" }
+        ]
+      }),
+      React.createElement(SettlementMonthCard,{
+        title:"May",
+        status:"Pay up",
+        accent:"#D4A843",
+        rows:[
+          { left:"You owe Maya", amount:"$20" },
+          { left:"Noah owes Leo", amount:"$10" }
+        ]
+      })
     )
   );
 };
@@ -221,23 +276,47 @@ const BlocStarterPreview = ({blocName,setBlocName}) => {
           alignItems:"center",
           justifyContent:"center",
           flexShrink:0,
-          background:index===0?"rgba(78,205,196,.16)":"rgba(8,15,15,.5)",
-          border:index===0?"0.5px solid rgba(78,205,196,.5)":"0.5px dashed rgba(78,205,196,.35)",
-          color:index===0?"#4ECDC4":"rgba(78,205,196,.55)",
+          background:index===0?"rgba(78,205,196,.16)":"rgba(8,15,15,.42)",
+          border:index===0?"0.5px solid rgba(78,205,196,.5)":"0.5px dashed rgba(143,174,170,.28)",
+          color:index===0?"#4ECDC4":"rgba(143,174,170,.42)",
           fontFamily:"'Outfit',sans-serif",
-          fontSize:index===0?10:18,
+          fontSize:index===0?10:14,
           fontWeight:900,
-          letterSpacing:index===0?".06em":0
+          letterSpacing:index===0?".06em":0,
+          pointerEvents:"none"
         }
-      }, index===0?"YOU":"+"))
+      }, index===0?"YOU":React.createElement('span',{style:{transform:"translateY(-1px)",opacity:.62}},"+")))
     )
   );
 };
 
-const ProgressControls = ({index,onNext}) => React.createElement('div',{
-  style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:16,width:"100%",marginTop:22}
+const RoundNavButton = ({direction,onClick,disabled=false,hidden=false}) => React.createElement('button',{
+  type:"button",
+  onClick,
+  disabled:disabled || hidden,
+  style:{
+    width:42,
+    height:42,
+    borderRadius:999,
+    display:"inline-flex",
+    alignItems:"center",
+    justifyContent:"center",
+    background:direction==="next"?"#4ECDC4":"rgba(13,31,30,.86)",
+    color:direction==="next"?"#04100f":"#4ECDC4",
+    border:direction==="next"?"none":"0.5px solid rgba(78,205,196,.25)",
+    boxShadow:direction==="next"?"0 10px 24px rgba(78,205,196,.18)":"inset 0 1px 0 rgba(255,255,255,.04)",
+    cursor:disabled||hidden?"default":"pointer",
+    opacity:hidden ? 0 : (disabled ? .45 : 1),
+    pointerEvents:hidden?"none":"auto"
+  },
+  "aria-label":direction==="next"?"Next onboarding screen":"Previous onboarding screen"
+}, React.createElement(AppIcon,{name:direction==="next"?"chevron-right":"chevron-left",size:18,stroke:"currentColor"}));
+
+const ProgressControls = ({index,onNext,onPrev}) => React.createElement('div',{
+  style:{display:"grid",gridTemplateColumns:"42px 1fr 42px",alignItems:"center",gap:16,width:"100%",marginTop:22}
 },
-  React.createElement('div',{style:{display:"flex",alignItems:"center",gap:7}},
+  React.createElement(RoundNavButton,{direction:"prev",onClick:onPrev,disabled:index===0}),
+  React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"center",gap:7}},
     ONBOARDING_SCREENS.map((_,dotIndex)=>React.createElement('span',{
       key:dotIndex,
       style:{
@@ -249,24 +328,7 @@ const ProgressControls = ({index,onNext}) => React.createElement('div',{
       }
     }))
   ),
-  index < ONBOARDING_SCREENS.length - 1 && React.createElement('button',{
-    type:"button",
-    onClick:onNext,
-    style:{
-      width:48,
-      height:48,
-      borderRadius:999,
-      display:"inline-flex",
-      alignItems:"center",
-      justifyContent:"center",
-      background:"#4ECDC4",
-      color:"#04100f",
-      border:"none",
-      boxShadow:"0 12px 28px rgba(78,205,196,.22)",
-      cursor:"pointer"
-    },
-    "aria-label":"Next onboarding screen"
-  }, React.createElement(AppIcon,{name:"chevron-right",size:22,stroke:"currentColor"}))
+  React.createElement(RoundNavButton,{direction:"next",onClick:onNext,hidden:index>=ONBOARDING_SCREENS.length-1})
 );
 
 const ColdOnboarding = ({onCreate,onJoin}) => {
@@ -327,8 +389,15 @@ const ColdOnboarding = ({onCreate,onJoin}) => {
       style:{flex:1,display:"flex",flexDirection:"column",justifyContent:"center",maxWidth:520,width:"100%",margin:"0 auto",animation:"fadeUp .22s ease both"}
     },
       React.createElement('div',{style:{marginBottom:22}},
-        React.createElement('h1',{style:{margin:0,fontSize:38,lineHeight:1.02,letterSpacing:0,fontWeight:900,color:"#f5f7ff"}},screen.headline),
-        React.createElement('p',{style:{margin:"12px 0 0",fontSize:16,lineHeight:1.45,fontWeight:600,color:"rgba(214,226,224,.72)"}},screen.subtext)
+        React.createElement('h1',{style:{margin:0,fontSize:38,lineHeight:1.02,letterSpacing:0,fontWeight:900,color:"#f5f7ff"}},
+          (screen.headlineLines || [screen.headline]).map(line=>React.createElement('span',{key:line,style:{display:"block"}},line))
+        ),
+        React.createElement('p',{style:{margin:"12px 0 0",fontSize:16,lineHeight:1.45,fontWeight:600,color:"rgba(214,226,224,.72)"}},
+          screen.subtextLines
+            ? screen.subtextLines.map(line=>React.createElement('span',{key:line,style:{display:"block"}},line))
+            : screen.subtext,
+          screen.highlight && React.createElement('span',{style:{display:"block",marginTop:4,fontWeight:900,color:"transparent",background:"linear-gradient(90deg,#E2E8F0 0%,#4ECDC4 42%,#F5A623 76%,#E2E8F0 100%)",WebkitBackgroundClip:"text",backgroundClip:"text",textShadow:"0 0 18px rgba(78,205,196,.12)"}},screen.highlight)
+        )
       ),
       preview,
       index === 3 && React.createElement('div',{style:{display:"grid",gap:10,marginTop:18}},
@@ -362,9 +431,9 @@ const ColdOnboarding = ({onCreate,onJoin}) => {
             fontWeight:800,
             cursor:"pointer"
           }
-        },"Join a Bloc instead")
+        },"Join an existing Bloc instead")
       ),
-      React.createElement(ProgressControls,{index,onNext:goNext})
+      React.createElement(ProgressControls,{index,onNext:goNext,onPrev:goPrev})
     )
   );
 };
