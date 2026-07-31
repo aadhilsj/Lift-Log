@@ -815,7 +815,7 @@ const SoloModal = ({mode,monthName,minimumTarget,defaultTarget,onClose,onSubmit,
         cta:"Send exceptional request"
       }
     : {
-        title:`Go Solo for ${monthName}`,
+        title:`Go Solo for ${monthName}?`,
         body:["You keep logging, but you are out of the reward / penalty system for the month.","Your request will be sent to the bloc admin for approval."],
         cta:"Send request"
       };
