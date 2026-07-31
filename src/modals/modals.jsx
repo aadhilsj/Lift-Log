@@ -768,6 +768,7 @@ const DeleteModal = ({log,onConfirm,onClose}) => React.createElement('div',{clas
 
 const SitOutModal = ({mode,monthName,onClose,onSubmit,submitting,error}) => {
   const [reason,setReason] = React.useState("");
+  const competitionModalLabelStyle = {display:"block",marginBottom:5,fontFamily:UI_FONT,fontSize:9,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".08em",fontWeight:800};
   const config = mode === "instant"
     ? {
         title:`Sit out ${monthName}?`,
@@ -786,19 +787,19 @@ const SitOutModal = ({mode,monthName,onClose,onSubmit,submitting,error}) => {
           cta:"Send request"
         };
   return React.createElement('div',{className:`overlay${isMobile() ? " center-mobile" : ""}`,onClick:onClose},
-    React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{maxWidth:420}},
-      React.createElement('div',{style:{fontWeight:800,fontSize:20,marginBottom:10}},config.title),
-      React.createElement('div',{style:{display:"grid",gap:4,color:"var(--muted)",fontSize:13,lineHeight:1.55,marginBottom:16}},
+    React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{maxWidth:420,fontFamily:UI_FONT}},
+      React.createElement('div',{style:{fontFamily:UI_FONT,fontWeight:800,fontSize:20,marginBottom:10}},config.title),
+      React.createElement('div',{style:{display:"grid",gap:4,color:"var(--muted)",fontFamily:UI_FONT,fontSize:13,lineHeight:1.55,marginBottom:16}},
         config.body.map(line=>React.createElement('div',{key:line},line))
       ),
       React.createElement('label',{style:{display:"block",marginBottom:16}},
-        React.createElement('span',{className:"lbl"},"Reason (optional)"),
-        React.createElement('textarea',{value:reason,onChange:e=>setReason(e.target.value),placeholder:"e.g. travelling, injured",rows:3,style:{width:"100%",background:"var(--s2)",border:"1px solid var(--border)",borderRadius:10,padding:"12px 13px",color:"var(--text)",fontSize:14,outline:"none",resize:"none"}})
+        React.createElement('span',{style:competitionModalLabelStyle},"Reason (optional)"),
+        React.createElement('textarea',{value:reason,onChange:e=>setReason(e.target.value),placeholder:"e.g. travelling, injured",rows:3,style:{width:"100%",background:"var(--s2)",border:"1px solid var(--border)",borderRadius:10,padding:"12px 13px",color:"var(--text)",fontFamily:UI_FONT,fontSize:14,outline:"none",resize:"none"}})
       ),
-      error && React.createElement('div',{style:{fontSize:12,color:"var(--red)",marginBottom:14}},error),
+      error && React.createElement('div',{style:{fontFamily:UI_FONT,fontSize:12,color:"var(--red)",marginBottom:14}},error),
       React.createElement('div',{style:{display:"flex",gap:9}},
-        React.createElement('button',{onClick:onClose,style:{flex:1,background:"var(--s2)",border:"1px solid var(--border)",color:"var(--muted)",padding:"14px",borderRadius:10,fontSize:15,fontWeight:600}},"Cancel"),
-        React.createElement('button',{onClick:()=>onSubmit(reason),style:{flex:1,background:"#4ECDC4",color:"#050909",padding:"14px",borderRadius:10,fontSize:15,fontWeight:800}},submitting?"Sending...":config.cta)
+        React.createElement('button',{onClick:onClose,style:{flex:1,background:"var(--s2)",border:"1px solid var(--border)",color:"var(--muted)",padding:"14px",borderRadius:10,fontFamily:UI_FONT,fontSize:15,fontWeight:600}},"Cancel"),
+        React.createElement('button',{onClick:()=>onSubmit(reason),style:{flex:1,background:"#4ECDC4",color:"#050909",padding:"14px",borderRadius:10,fontFamily:UI_FONT,fontSize:15,fontWeight:800}},submitting?"Sending...":config.cta)
       )
     )
   );
@@ -808,6 +809,7 @@ const SoloModal = ({mode,monthName,minimumTarget,defaultTarget,onClose,onSubmit,
   const [target,setTarget] = React.useState(Math.max(Number(minimumTarget || 1), Number(defaultTarget || minimumTarget || 1)));
   const [reason,setReason] = React.useState("");
   const minTarget = Math.max(1, Number(minimumTarget || 1));
+  const competitionModalLabelStyle = {display:"block",marginBottom:5,fontFamily:UI_FONT,fontSize:9,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".08em",fontWeight:800};
   const config = mode === "exceptional"
     ? {
         title:"Request Solo Mode again?",
@@ -836,12 +838,12 @@ const SoloModal = ({mode,monthName,minimumTarget,defaultTarget,onClose,onSubmit,
         config.body.map(line=>React.createElement('div',{key:line},line))
       ),
       React.createElement('label',{style:{display:"block",marginBottom:14}},
-        React.createElement('span',{className:"lbl"},"Solo target"),
+        React.createElement('span',{style:competitionModalLabelStyle},"Solo target"),
         React.createElement('input',{type:"number",min:minTarget,value:target,onChange:e=>setTarget(e.target.value),style:{width:"100%",background:"var(--s2)",border:"1px solid var(--border)",borderRadius:10,padding:"12px 13px",color:"var(--text)",fontFamily:UI_FONT,fontSize:14,outline:"none"}}),
         React.createElement('span',{style:{display:"block",marginTop:6,fontFamily:UI_FONT,fontSize:11,color:"var(--muted)"}},"Minimum ",minTarget," workouts")
       ),
       React.createElement('label',{style:{display:"block",marginBottom:16}},
-        React.createElement('span',{className:"lbl"},"Reason (optional)"),
+        React.createElement('span',{style:competitionModalLabelStyle},"Reason (optional)"),
         React.createElement('textarea',{value:reason,onChange:e=>setReason(e.target.value),placeholder:"e.g. travel month, work sprint",rows:3,style:{width:"100%",background:"var(--s2)",border:"1px solid var(--border)",borderRadius:10,padding:"12px 13px",color:"var(--text)",fontFamily:UI_FONT,fontSize:14,outline:"none",resize:"none"}})
       ),
       error && React.createElement('div',{style:{fontFamily:UI_FONT,fontSize:12,color:"var(--red)",marginBottom:14}},error),
