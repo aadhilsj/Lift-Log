@@ -632,8 +632,9 @@ const LogModal = ({user,currentGroupId,groups,onConfirm,onClose}) => {
   const needsNote = wType === "Other";
   const canSubmit = Boolean(wType && photoUrl && !alreadyLogged && (!needsNote || note.trim()));
   const modalFrameStyle = compactMobile
-    ? { position:"fixed", top:"calc(env(safe-area-inset-top) + 18px)", left:"50%", transform:"translateX(-50%)", zIndex:1000, width:"calc(100% - 32px)", maxWidth:440, maxHeight:"calc(100dvh - 150px - env(safe-area-inset-bottom))", overflowY:"auto", background:"#080F0F", border:"0.5px solid #0D1F1E", borderRadius:20, padding:"16px 14px", boxSizing:"border-box", boxShadow:"0 20px 60px rgba(0,0,0,.5)" }
-    : { position:"fixed", top:"50%", left:"50%", transform:"translate(-50%,-50%)", zIndex:1000, width:"calc(100% - 32px)", maxWidth:440, maxHeight:"85vh", overflowY:"auto", background:"#080F0F", border:"0.5px solid #0D1F1E", borderRadius:20, padding:"20px 18px", boxSizing:"border-box", boxShadow:"0 20px 60px rgba(0,0,0,.5)" };
+    ? { position:"fixed", top:"50%", left:"50%", transform:"translate(-50%,-50%)", zIndex:1000, width:"calc(100% - 32px)", maxWidth:440, maxHeight:"calc(100dvh - 170px - env(safe-area-inset-bottom))", overflowY:"auto", background:"#080F0F", border:"0.5px solid #0D1F1E", borderRadius:20, padding:"16px 14px", boxSizing:"border-box", boxShadow:"0 20px 60px rgba(0,0,0,.5)", fontFamily:UI_FONT }
+    : { position:"fixed", top:"50%", left:"50%", transform:"translate(-50%,-50%)", zIndex:1000, width:"calc(100% - 32px)", maxWidth:440, maxHeight:"85vh", overflowY:"auto", background:"#080F0F", border:"0.5px solid #0D1F1E", borderRadius:20, padding:"20px 18px", boxSizing:"border-box", boxShadow:"0 20px 60px rgba(0,0,0,.5)", fontFamily:UI_FONT };
+  const logFieldLabelStyle = {fontFamily:UI_FONT,marginBottom:6,color:"var(--text)",fontSize:10,fontWeight:800,textTransform:"uppercase",letterSpacing:".08em"};
   const handleDateChange = event => {
     const value = event.target.value;
     if (!value) return;
@@ -652,15 +653,15 @@ const LogModal = ({user,currentGroupId,groups,onConfirm,onClose}) => {
     React.createElement('div',{onClick:e=>e.stopPropagation(),style:modalFrameStyle},
       React.createElement('div',{style:{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:10,marginBottom:compactMobile?7:12}},
         React.createElement('div',{style:{minWidth:0}},
-          React.createElement('div',{style:{fontWeight:800,fontSize:compactMobile?18:20}},"Log a workout")
+          React.createElement('div',{style:{fontFamily:DISPLAY_FONT,fontWeight:800,fontSize:compactMobile?18:20,letterSpacing:0,lineHeight:1.08}},"Log a workout")
         ),
         React.createElement('button',{type:"button",onClick:onClose,style:{width:32,height:32,borderRadius:999,background:"var(--s2)",border:"1px solid var(--border)",color:"var(--muted)",fontSize:18,lineHeight:1,flexShrink:0}},"×")
       ),
-      React.createElement('span',{className:"lbl",style:{marginBottom:6,color:"var(--text)",fontSize:10,fontWeight:500}},"Date"),
+      React.createElement('span',{style:logFieldLabelStyle},"Date"),
       React.createElement('input',{type:"date",value:selDate,min:timeContext.earliestIso,max:timeContext.todayIso,onChange:handleDateChange,
-        style:{width:"100%",maxWidth:"100%",minWidth:0,display:"block",height:34,background:"var(--s1)",border:`1px solid ${alreadyLogged?"var(--red)":"rgba(13,31,30,.8)"}`,borderRadius:10,padding:"7px 10px",color:"#9BA6B5",fontSize:13,lineHeight:"18px",marginBottom:alreadyLogged?4:(compactMobile?7:10),outline:"none",boxSizing:"border-box",appearance:"none",WebkitAppearance:"none",opacity:0.92}}),
-      alreadyLogged&&React.createElement('div',{style:{color:"var(--red)",fontSize:compactMobile?11:12,fontFamily:"'JetBrains Mono',monospace",marginBottom:compactMobile?7:10}},"Already logged for this date"),
-      React.createElement('span',{className:"lbl",style:{marginBottom:6,color:"var(--text)",fontSize:10,fontWeight:500}},"Workout type"),
+        style:{width:"100%",maxWidth:"100%",minWidth:0,display:"block",height:34,background:"var(--s1)",border:`1px solid ${alreadyLogged?"var(--red)":"rgba(13,31,30,.8)"}`,borderRadius:10,padding:"7px 10px",color:"#9BA6B5",fontSize:13,lineHeight:"18px",marginBottom:alreadyLogged?4:(compactMobile?7:10),outline:"none",boxSizing:"border-box",appearance:"none",WebkitAppearance:"none",opacity:0.92,fontFamily:UI_FONT}}),
+      alreadyLogged&&React.createElement('div',{style:{color:"var(--red)",fontSize:compactMobile?11:12,fontFamily:UI_FONT,fontWeight:700,marginBottom:compactMobile?7:10}},"Already logged for this date"),
+      React.createElement('span',{style:logFieldLabelStyle},"Workout type"),
       React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(5,minmax(0,1fr))",gap:compactMobile?5:6,marginBottom:compactMobile?8:12}},
         visibleWorkoutTypes.map(t=>React.createElement('button',{key:t,onClick:()=>setWType(t),type:"button",
           style:{minWidth:0,background:wType===t?"var(--green-dim)":"var(--s2)",border:`1px solid ${wType===t?"var(--green)":"var(--border)"}`,borderRadius:10,padding:compactMobile?"7px 2px":"8px 4px",display:"flex",flexDirection:"column",alignItems:"center",gap:compactMobile?3:4,color:wType===t?"var(--green)":"var(--muted)"}},
@@ -668,7 +669,7 @@ const LogModal = ({user,currentGroupId,groups,onConfirm,onClose}) => {
           React.createElement('span',{style:{fontSize:compactMobile?10:11,fontWeight:600,lineHeight:1.1}},t)
         ))
       ),
-      React.createElement('span',{className:"lbl",style:{marginBottom:6,color:"var(--text)",fontSize:10,fontWeight:500}},"Photo"),
+      React.createElement('span',{style:logFieldLabelStyle},"Photo"),
       React.createElement('input',{ref:takePhotoInputRef,type:"file",accept:"image/*",capture:"environment",onChange:handlePhotoPick,style:{display:"none"}}),
       React.createElement('input',{ref:choosePhotoInputRef,type:"file",accept:"image/*",onChange:handlePhotoPick,style:{display:"none"}}),
       React.createElement('div',{style:{display:"flex",alignItems:"center",gap:6,minHeight:36,padding:"0 8px",borderRadius:12,background:photoUrl?"rgba(31,206,101,.04)":"var(--s2)",border:`1px solid ${photoUrl?"rgba(31,206,101,.35)":"var(--border)"}`,marginBottom:photoUrl?8:7}},
@@ -684,11 +685,11 @@ const LogModal = ({user,currentGroupId,groups,onConfirm,onClose}) => {
         )
       ),
       photoError && React.createElement('div',{style:{fontSize:12,color:"var(--red)",marginBottom:7}},photoError),
-      React.createElement('span',{className:"lbl",style:{marginBottom:6,color:"var(--text)",fontSize:10,fontWeight:500}},needsNote?"Describe your workout":"Add a note (optional)"),
-      React.createElement('textarea',{value:note,onChange:e=>setNote(e.target.value.slice(0,WORKOUT_NOTE_LIMIT)),rows:compactMobile?2:3,placeholder:needsNote?"e.g. swim, home workout, martial arts":"e.g. trail run, home workout, yoga",style:{width:"100%",resize:"none",background:"var(--s2)",border:`1px solid ${needsNote&&!note.trim()?"rgba(240,165,0,.28)":"var(--border)"}`,borderRadius:10,padding:compactMobile?"9px 11px":"10px 13px",color:"var(--text)",fontSize:compactMobile?13:14,outline:"none",marginBottom:compactMobile?8:12,boxSizing:"border-box"}}),
-      React.createElement('div',{className:"mono",style:{fontSize:10,color:"var(--muted)",marginTop:compactMobile?-3:-6,marginBottom:compactMobile?8:10,textAlign:"right"}},`${note.length}/${WORKOUT_NOTE_LIMIT}`),
+      React.createElement('span',{style:logFieldLabelStyle},needsNote?"Describe your workout":"Add a note (optional)"),
+      React.createElement('textarea',{value:note,onChange:e=>setNote(e.target.value.slice(0,WORKOUT_NOTE_LIMIT)),rows:compactMobile?2:3,placeholder:needsNote?"e.g. swim, home workout, martial arts":"e.g. trail run, home workout, yoga",style:{width:"100%",resize:"none",background:"var(--s2)",border:`1px solid ${needsNote&&!note.trim()?"rgba(240,165,0,.28)":"var(--border)"}`,borderRadius:10,padding:compactMobile?"9px 11px":"10px 13px",color:"var(--text)",fontSize:compactMobile?13:14,outline:"none",marginBottom:compactMobile?8:12,boxSizing:"border-box",fontFamily:UI_FONT}}),
+      React.createElement('div',{style:{fontFamily:UI_FONT,fontSize:10,color:"var(--muted)",marginTop:compactMobile?-3:-6,marginBottom:compactMobile?8:10,textAlign:"right"}},`${note.length}/${WORKOUT_NOTE_LIMIT}`),
       wType && eligibleGroups.length > 0 && React.createElement('div',{style:{marginBottom:compactMobile?10:16}},
-        React.createElement('span',{className:"lbl",style:{marginBottom:6,color:"var(--text)",fontSize:10,fontWeight:500}},"Also Log To"),
+        React.createElement('span',{style:logFieldLabelStyle},"Also Log To"),
         React.createElement('div',{style:{display:"flex",flexWrap:"wrap",gap:6}},
           eligibleGroups.map(group => React.createElement('button',{
             key:group.id,
