@@ -412,11 +412,11 @@ const ColdOnboarding = ({onCreate,onJoin}) => {
       className:"fu",
       style:{flex:1,display:"flex",flexDirection:"column",justifyContent:"center",maxWidth:520,width:"100%",margin:"0 auto",animation:"fadeUp .22s ease both"}
     },
-      React.createElement('div',{style:{marginBottom:22}},
+      React.createElement('div',{style:{marginBottom:index===0?16:22}},
         React.createElement('h1',{style:{margin:0,fontSize:34,lineHeight:1.02,letterSpacing:0,fontWeight:900,color:"#f5f7ff"}},
           (screen.headlineLines || [screen.headline]).map(line=>React.createElement('span',{key:line,style:{display:"block",whiteSpace:"nowrap"}},line))
         ),
-        React.createElement('p',{style:{margin:"12px 0 0",fontSize:16,lineHeight:1.45,fontWeight:600,color:"rgba(214,226,224,.72)"}},
+        index !== 0 && React.createElement('p',{style:{margin:"12px 0 0",fontSize:16,lineHeight:1.45,fontWeight:600,color:"rgba(214,226,224,.72)"}},
           screen.subtextLines
             ? screen.subtextLines.map(line=>React.createElement('span',{key:line,style:{display:"block"}},line))
             : screen.subtext,
@@ -424,6 +424,10 @@ const ColdOnboarding = ({onCreate,onJoin}) => {
         )
       ),
       preview,
+      index === 0 && React.createElement('p',{style:{margin:"16px 0 0",textAlign:"center",fontSize:15,lineHeight:1.42,fontWeight:700,color:"rgba(214,226,224,.72)"}},
+        React.createElement('span',{style:{display:"block",whiteSpace:"nowrap"}},"A monthly target. A live leaderboard."),
+        React.createElement('span',{style:{display:"block",whiteSpace:"nowrap"}},"Progress everyone can see.")
+      ),
       index === 3 && React.createElement('div',{style:{display:"grid",gap:10,marginTop:18}},
         React.createElement('button',{
           type:"button",
