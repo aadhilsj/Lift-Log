@@ -71,7 +71,7 @@ const StatusTag = ({label}) => {
   }, label);
 };
 
-const PreviewAvatar = ({name,color}) => React.createElement('div',{
+const PreviewAvatar = ({name,color,src}) => React.createElement('div',{
   style:{
     width:30,
     height:30,
@@ -84,9 +84,14 @@ const PreviewAvatar = ({name,color}) => React.createElement('div',{
     color:"#fff",
     fontFamily:"'Outfit',sans-serif",
     fontSize:12,
-    fontWeight:900
+    fontWeight:900,
+    overflow:"hidden",
+    boxShadow:"inset 0 1px 0 rgba(255,255,255,.12), 0 4px 10px rgba(0,0,0,.18)"
   }
-}, name[0]);
+}, src
+  ? React.createElement('img',{src,alt:"",loading:"lazy",referrerPolicy:"no-referrer",style:{width:"100%",height:"100%",objectFit:"cover",display:"block"}})
+  : name[0]
+);
 
 const FakePhoto = ({src,label}) => {
   return React.createElement('div',{
@@ -110,10 +115,10 @@ const FakePhoto = ({src,label}) => {
 
 const LeaderboardPreview = () => {
   const rows = [
-    { name:"Maya", status:"CLEARED", color:"#D94D68", count:14 },
-    { name:"Leo", status:"ON TRACK", color:"#F2A83A", count:10 },
-    { name:"Noah", status:"AT RISK", color:"#8A78D6", count:7 },
-    { name:"Eli", status:"COOKED", color:"#C17F5A", count:3 }
+    { name:"Maya", status:"CLEARED", color:"#D94D68", count:14, avatar:"https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=96&h=96&q=80" },
+    { name:"Leo", status:"ON TRACK", color:"#F2A83A", count:10, avatar:"https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=96&h=96&q=80" },
+    { name:"Noah", status:"AT RISK", color:"#8A78D6", count:7, avatar:"https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=96&h=96&q=80" },
+    { name:"Eli", status:"COOKED", color:"#C17F5A", count:3, avatar:"https://images.unsplash.com/photo-1527980965255-d3b416303d12?auto=format&fit=crop&w=96&h=96&q=80" }
   ];
   return React.createElement('div',{style:cardShell},
     React.createElement('div',{style:{padding:"16px 16px 10px",borderBottom:"0.5px solid rgba(22,61,54,.7)"}},
@@ -132,7 +137,7 @@ const LeaderboardPreview = () => {
         }
       },
         React.createElement('span',{style:{fontFamily:"'Outfit',sans-serif",fontSize:12,fontWeight:900,color:"var(--muted)",textAlign:"center"}},`#${index+1}`),
-        React.createElement(PreviewAvatar,{name:row.name,color:row.color}),
+        React.createElement(PreviewAvatar,{name:row.name,color:row.color,src:row.avatar}),
         React.createElement('span',{style:{minWidth:0,fontSize:16,fontWeight:900,color:"#f5f7ff",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},row.name),
         React.createElement(StatusTag,{label:row.status}),
         React.createElement('span',{style:{fontFamily:"'Outfit',sans-serif",fontSize:18,fontWeight:900,color:"#4ECDC4",textAlign:"right"}},row.count)
@@ -143,9 +148,9 @@ const LeaderboardPreview = () => {
 
 const ActivityPreview = () => {
   const rows = [
-    { name:"Sofia", type:"Gym", color:"#8CA4C6", photo:"https://images.unsplash.com/photo-1517836357463-d25dfeac3438?auto=format&fit=crop&w=240&q=80", time:"2h", note:"Chest day done" },
-    { name:"Jonah", type:"Run", color:"#8A78D6", photo:"https://images.unsplash.com/photo-1502904550040-7534597429ae?auto=format&fit=crop&w=240&q=80", time:"5h", note:"5K this morning" },
-    { name:"Mina", type:"Sports", color:"#D94D68", photo:"https://images.unsplash.com/photo-1546519638-68e109498ffc?auto=format&fit=crop&w=240&q=80", time:"8h", note:"Pickup hoops" }
+    { name:"Sofia", type:"Gym", color:"#8CA4C6", avatar:"https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=96&h=96&q=80", photo:"https://images.unsplash.com/photo-1517836357463-d25dfeac3438?auto=format&fit=crop&w=240&q=80", time:"2h", note:"Chest day done" },
+    { name:"Jonah", type:"Run", color:"#8A78D6", avatar:"https://images.unsplash.com/photo-1544723795-3fb6469f5b39?auto=format&fit=crop&w=96&h=96&q=80", photo:"https://images.unsplash.com/photo-1502904550040-7534597429ae?auto=format&fit=crop&w=240&q=80", time:"5h", note:"5K this morning" },
+    { name:"Mina", type:"Sports", color:"#D94D68", avatar:"https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&w=96&h=96&q=80", photo:"https://images.unsplash.com/photo-1546519638-68e109498ffc?auto=format&fit=crop&w=240&q=80", time:"8h", note:"Pickup hoops" }
   ];
   return React.createElement('div',{style:cardShell},
     React.createElement('div',{style:{padding:"16px",borderBottom:"0.5px solid rgba(22,61,54,.7)"}},
@@ -163,7 +168,7 @@ const ActivityPreview = () => {
           borderBottom:index<rows.length-1?"0.5px solid rgba(22,61,54,.5)":"none"
         }
       },
-        React.createElement(PreviewAvatar,{name:row.name,color:row.color}),
+        React.createElement(PreviewAvatar,{name:row.name,color:row.color,src:row.avatar}),
         React.createElement('div',{style:{minWidth:0,alignSelf:"stretch",display:"flex",flexDirection:"column",justifyContent:"space-between",padding:"2px 0"}},
           React.createElement('div',null,
             React.createElement('div',{style:{display:"flex",alignItems:"center",gap:7,minWidth:0}},
