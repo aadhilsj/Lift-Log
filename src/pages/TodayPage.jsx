@@ -493,9 +493,9 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
             setShowSolo(true);
           },
           style:{
-            background:visibleSoloMode ? "rgba(78,205,196,.07)" : "rgba(255,255,255,.025)",
-            border:`1px solid ${visibleSoloMode ? "rgba(78,205,196,.30)" : "rgba(148,163,184,.18)"}`,
-            color:visibleSoloMode ? "#4ECDC4" : "rgba(148,163,184,.48)",
+            background:visibleSoloMode ? "rgba(255,255,255,.018)" : "rgba(255,255,255,.025)",
+            border:`1px solid ${visibleSoloMode ? "rgba(148,163,184,.20)" : "rgba(148,163,184,.18)"}`,
+            color:visibleSoloMode ? "rgba(143,174,170,.66)" : "rgba(148,163,184,.48)",
             padding:"6px 8px",
             borderRadius:999,
             fontSize:11,
