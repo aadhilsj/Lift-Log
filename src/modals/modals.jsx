@@ -632,8 +632,8 @@ const LogModal = ({user,currentGroupId,groups,onConfirm,onClose}) => {
   const needsNote = wType === "Other";
   const canSubmit = Boolean(wType && photoUrl && !alreadyLogged && (!needsNote || note.trim()));
   const modalFrameStyle = compactMobile
-    ? { position:"fixed", top:"50%", left:"50%", transform:"translate(-50%,-50%)", zIndex:1000, width:"calc(100% - 32px)", maxWidth:440, maxHeight:"calc(100dvh - 170px - env(safe-area-inset-bottom))", overflowY:"auto", background:"#080F0F", border:"0.5px solid #0D1F1E", borderRadius:20, padding:"16px 14px", boxSizing:"border-box", boxShadow:"0 20px 60px rgba(0,0,0,.5)", fontFamily:UI_FONT }
-    : { position:"fixed", top:"50%", left:"50%", transform:"translate(-50%,-50%)", zIndex:1000, width:"calc(100% - 32px)", maxWidth:440, maxHeight:"85vh", overflowY:"auto", background:"#080F0F", border:"0.5px solid #0D1F1E", borderRadius:20, padding:"20px 18px", boxSizing:"border-box", boxShadow:"0 20px 60px rgba(0,0,0,.5)", fontFamily:UI_FONT };
+    ? { position:"fixed", top:"50%", left:"50%", transform:"translate(-50%,-50%)", zIndex:1000, width:"calc(100% - 32px)", maxWidth:440, maxHeight:"calc(100dvh - 170px - env(safe-area-inset-bottom))", overflowY:"auto", background:"radial-gradient(circle at 50% -18%, rgba(78,205,196,.13), transparent 34%), linear-gradient(180deg, rgba(10,24,23,.99), rgba(8,15,15,.99))", border:"0.5px solid rgba(78,205,196,.2)", borderRadius:20, padding:"16px 14px", boxSizing:"border-box", boxShadow:"inset 0 1px 0 rgba(255,255,255,.055), 0 24px 62px rgba(0,0,0,.58), 0 0 34px rgba(78,205,196,.07)", fontFamily:UI_FONT }
+    : { position:"fixed", top:"50%", left:"50%", transform:"translate(-50%,-50%)", zIndex:1000, width:"calc(100% - 32px)", maxWidth:440, maxHeight:"85vh", overflowY:"auto", background:"radial-gradient(circle at 50% -18%, rgba(78,205,196,.13), transparent 34%), linear-gradient(180deg, rgba(10,24,23,.99), rgba(8,15,15,.99))", border:"0.5px solid rgba(78,205,196,.2)", borderRadius:20, padding:"20px 18px", boxSizing:"border-box", boxShadow:"inset 0 1px 0 rgba(255,255,255,.055), 0 24px 62px rgba(0,0,0,.58), 0 0 34px rgba(78,205,196,.07)", fontFamily:UI_FONT };
   const logFieldLabelStyle = {fontFamily:UI_FONT,marginBottom:6,color:"var(--text)",fontSize:10,fontWeight:800,textTransform:"uppercase",letterSpacing:".08em"};
   const handleDateChange = event => {
     const value = event.target.value;
@@ -650,7 +650,7 @@ const LogModal = ({user,currentGroupId,groups,onConfirm,onClose}) => {
 
   return React.createElement(React.Fragment,null,
     React.createElement('div',{onClick:onClose,style:{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",zIndex:999}}),
-    React.createElement('div',{onClick:e=>e.stopPropagation(),style:modalFrameStyle},
+    React.createElement('div',{className:"log-workout-modal",onClick:e=>e.stopPropagation(),style:modalFrameStyle},
       React.createElement('div',{style:{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:10,marginBottom:compactMobile?7:12}},
         React.createElement('div',{style:{minWidth:0}},
           React.createElement('div',{style:{fontFamily:DISPLAY_FONT,fontWeight:800,fontSize:compactMobile?18:20,letterSpacing:0,lineHeight:1.08}},"Log a workout")

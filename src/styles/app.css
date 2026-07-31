@@ -65,6 +65,7 @@
     @keyframes fadeIn  { from{opacity:0} to{opacity:1} }
     @keyframes popIn   { from{opacity:0;transform:scale(.94)} to{opacity:1;transform:scale(1)} }
     @keyframes setupModalIn { 0%{opacity:0;transform:scale(.92) translateY(8px)} 72%{opacity:1;transform:scale(1.018) translateY(0)} 100%{opacity:1;transform:scale(1) translateY(0)} }
+    @keyframes logModalIn { 0%{opacity:0;transform:translate(-50%,-48%) scale(.955)} 72%{opacity:1;transform:translate(-50%,-50%) scale(1.012)} 100%{opacity:1;transform:translate(-50%,-50%) scale(1)} }
     @keyframes glow    { 0%,100%{box-shadow:0 0 0 0 rgba(31,206,101,.25)} 50%{box-shadow:0 0 22px 5px rgba(31,206,101,.1)} }
     @keyframes spin    { to{transform:rotate(360deg)} }
     .fu  { animation:fadeUp .35s ease both; }
@@ -74,6 +75,7 @@
     .fu5 { animation:fadeUp .35s .24s ease both; }
     .pi  { animation:popIn .22s cubic-bezier(.34,1.4,.64,1) both; }
     .setup-create-modal { animation:setupModalIn .24s cubic-bezier(.2,1.22,.36,1) both; }
+    .log-workout-modal { animation:logModalIn .22s cubic-bezier(.2,1.12,.36,1) both; }
     .setup-press { transition:transform .12s ease,background .12s ease,border-color .12s ease,box-shadow .12s ease,color .12s ease; }
     .setup-press:active { transform:scale(.975); }
     .stepper-btn:active { transform:scale(.92);background:rgba(78,205,196,.12) !important;color:#4ECDC4 !important; }
