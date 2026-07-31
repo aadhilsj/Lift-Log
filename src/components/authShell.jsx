@@ -125,7 +125,7 @@ const SignedOutLanding = ({onCreateAccount,onSignIn}) => (
           "Welcome back."
         ),
         React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontSize:15,fontWeight:700,lineHeight:1.45,color:"var(--text-soft)",maxWidth:340,margin:"0 auto"}},
-          "Sign in to get back to your Blocs, or start fresh with a new one."
+          "Sign in to get back to your Blocs, or create a new account to get started."
         )
       ),
       React.createElement('div',{style:{width:"100%",display:"grid",gap:10,padding:14,borderRadius:18,background:"rgba(8,15,15,.82)",border:"0.5px solid rgba(78,205,196,.18)",boxShadow:"0 18px 46px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.035)"}},
