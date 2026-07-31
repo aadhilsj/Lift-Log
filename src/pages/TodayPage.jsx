@@ -478,7 +478,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
         ? React.createElement('div',{style:{fontSize:12,color:"var(--muted)",fontWeight:700,lineHeight:1.35}},"Sit-out was declined.")
         : currentSoloRequest?.status === "declined"
           ? React.createElement('div',{style:{fontSize:12,color:"var(--muted)",fontWeight:700,lineHeight:1.35}},"Solo Mode was declined.")
-        : React.createElement('div',{style:{flex:"1 1 auto",minWidth:0,fontSize:10,color:"var(--muted)",fontWeight:700,lineHeight:1.35,whiteSpace:"nowrap",overflow:"visible"}},"Injured, traveling, or got a busy month ahead?");
+        : React.createElement('div',{style:{flex:"1 1 auto",minWidth:0,fontSize:11,color:"var(--muted)",fontWeight:700,lineHeight:1.35,whiteSpace:"nowrap",overflow:"visible"}},"Injured, traveling, or got a busy month ahead?");
 
   const competitionAction = isExcused || isSolo || currentSitOutRequest?.status === "pending" || currentSoloRequest?.status === "pending"
     ? null
