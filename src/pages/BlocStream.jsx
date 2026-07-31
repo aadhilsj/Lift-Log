@@ -56,6 +56,7 @@ const SYSTEM_KIND_META = {
   settings_changed: { label: "SETTINGS", tone: "neutral" },
   sit_out_requested: { label: "SIT OUT", tone: "neutral" },
   sit_out_approved: { label: "SIT OUT", tone: "neutral" },
+  solo_started: { label: "SOLO", tone: "neutral" },
   settlement_paid: { label: "SETTLEMENT", tone: "neutral" },
   settlement_confirmed: { label: "SETTLEMENT", tone: "positive" }
 };

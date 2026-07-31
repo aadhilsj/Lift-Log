@@ -816,15 +816,14 @@ const SoloModal = ({mode,monthName,minimumTarget,maximumTarget,defaultTarget,onC
     ? {
         title:`Request Solo for ${monthName}?`,
         body:["Solo is meant to be used only once every three months.","If you want to go Solo again, your request will be sent to the Bloc admin for approval."],
-        cta:"Send request",
-        showReason:true
+        cta:"Send request"
       }
     : {
         title:`Go Solo for ${monthName}?`,
         body:["You keep logging, but you are out of the reward / penalty system for the month.","This action can't be undone."],
-        cta:"Go Solo",
-        showReason:false
+        cta:"Go Solo"
       };
+  const reasonReady = reason.trim().length > 0;
   const adjustTarget = delta => setTarget(current => Math.max(minTarget, Math.min(maxTarget, Number(current || minTarget) + delta)));
   const submit = () => onSubmit({ personalTarget: Math.max(minTarget, Math.min(maxTarget, Math.round(Number(target || minTarget)))), reason });
   return React.createElement('div',{className:`overlay${isMobile() ? " center-mobile" : ""}`,onClick:onClose},
@@ -851,14 +850,14 @@ const SoloModal = ({mode,monthName,minimumTarget,maximumTarget,defaultTarget,onC
         ),
         React.createElement('span',{style:{display:"block",marginTop:6,fontFamily:UI_FONT,fontSize:11,color:"var(--muted)"}},"Minimum ",minTarget," workouts")
       ),
-      config.showReason && React.createElement('label',{style:{display:"block",marginBottom:16}},
-        React.createElement('span',{style:competitionModalLabelStyle},"Reason (optional)"),
+      React.createElement('label',{style:{display:"block",marginBottom:16}},
+        React.createElement('span',{style:competitionModalLabelStyle},"Reason"),
         React.createElement('textarea',{value:reason,onChange:e=>setReason(e.target.value),placeholder:"e.g. travel month, work sprint",rows:3,style:{width:"100%",background:"var(--s2)",border:"1px solid var(--border)",borderRadius:10,padding:"12px 13px",color:"var(--text)",fontFamily:UI_FONT,fontSize:14,outline:"none",resize:"none"}})
       ),
       error && React.createElement('div',{style:{fontFamily:UI_FONT,fontSize:12,color:"var(--red)",marginBottom:14}},error),
       React.createElement('div',{style:{display:"flex",gap:9}},
         React.createElement('button',{onClick:onClose,style:{flex:1,background:"var(--s2)",border:"1px solid var(--border)",color:"var(--muted)",padding:"14px",borderRadius:10,fontFamily:UI_FONT,fontSize:15,fontWeight:600}},"Cancel"),
-        React.createElement('button',{onClick:submit,disabled:submitting,style:{flex:1,background:"#4ECDC4",color:"#050909",padding:"14px",borderRadius:10,fontFamily:UI_FONT,fontSize:15,fontWeight:800,opacity:submitting ? .75 : 1}},submitting?"Sending...":config.cta)
+        React.createElement('button',{onClick:submit,disabled:submitting||!reasonReady,style:{flex:1,background:reasonReady?"#4ECDC4":"var(--s3)",color:reasonReady?"#050909":"var(--muted2)",padding:"14px",borderRadius:10,fontFamily:UI_FONT,fontSize:15,fontWeight:800,opacity:submitting ? .75 : 1}},submitting?"Sending...":config.cta)
       )
     )
   );

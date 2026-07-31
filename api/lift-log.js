@@ -6863,7 +6863,7 @@ function applySoloRequest(current, payload) {
   const actor = String(payload?.actor || "").trim();
   const actorUserId = String(payload?.actorUserId || "").trim();
   const groupId = String(payload?.groupId || "").trim();
-  const reason = typeof payload?.reason === "string" ? payload.reason.slice(0, 280) : "";
+  const reason = typeof payload?.reason === "string" ? payload.reason.trim().slice(0, 280) : "";
   const exceptional = !!payload?.exceptional;
   const requestedTarget = Number(payload?.personalTarget || payload?.target || 0);
   const base = rolloverStateIfNeeded(current);
@@ -6876,6 +6876,11 @@ function applySoloRequest(current, payload) {
   if (!isCurrentGroupMember(group, actor, actorUserId)) {
     const error = new Error("Only Bloc members can request Solo Mode");
     error.status = 403;
+    throw error;
+  }
+  if (!reason) {
+    const error = new Error("Solo Mode requires a reason");
+    error.status = 400;
     throw error;
   }
   const month = getCurrentMonthSummary(group.settings?.timeZone);
@@ -8877,12 +8882,28 @@ export default async function handler(req, res) {
         if (soloGroup && soloMonthKey && nextRequest) {
           await upsertSoloRequestInCanonical(payload.groupId, soloMonthKey, canonicalActor, nextRequest, { throwOnError: true });
         } else if (soloGroup && soloMonthKey && nextSoloTarget > 0) {
+          const soloReason = typeof payload?.reason === "string" ? payload.reason.trim().slice(0, 280) : "";
           await upsertSeasonMemberSoloInCanonical(
             payload.groupId,
             soloMonthKey,
             canonicalActor,
             auth.user.id,
             nextSoloTarget,
+            { throwOnError: true }
+          );
+          await insertBlocSystemMomentInCanonical(
+            payload.groupId,
+            "solo_started",
+            `${canonicalActor} went Solo for the month: ${soloReason}`,
+            {
+              memberUserId: auth.user.id,
+              memberDisplayName: canonicalActor,
+              monthKey: soloMonthKey,
+              personalTarget: nextSoloTarget,
+              reason: soloReason
+            },
+            `solo_started:${payload.groupId}:${soloMonthKey}:${auth.user.id || canonicalActor}`,
+            null,
             { throwOnError: true }
           );
         }
@@ -8930,12 +8951,13 @@ export default async function handler(req, res) {
             await insertBlocSystemMomentInCanonical(
               payload.groupId,
               "solo_started",
-              `${payload.memberName} went Solo for the month.`,
+              `${payload.memberName} went Solo for the month: ${reviewedRequest.reason}`,
               {
                 memberUserId: reviewedRequest.requestedByUserId || null,
                 memberDisplayName: payload.memberName,
                 monthKey: payload.monthKey,
                 personalTarget: reviewedRequest.personalTarget,
+                reason: reviewedRequest.reason,
                 reviewerUserId: auth.user.id
               },
               `solo_started:${payload.groupId}:${payload.monthKey}:${reviewedRequest.requestedByUserId || payload.memberName}`,
