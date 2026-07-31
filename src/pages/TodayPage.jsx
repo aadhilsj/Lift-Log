@@ -142,7 +142,8 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
     ? null
     : (recentSitOutCount >= 1 ? "exceptional" : ((monthSummary?.day || DAY_OF_MON) <= 5 ? "instant" : "request"));
   const soloMinimumTarget = currentGroup ? Math.max(1, Math.ceil(getMemberTargetInfoForMonth(currentGroup, user, curKey).target * 0.25)) : 1;
-  const soloMode = currentSoloRequest?.status === "pending" || isExcused || isSolo || (monthSummary?.day || DAY_OF_MON) > 10
+  const soloRequestWindowClosed = (monthSummary?.day || DAY_OF_MON) > 10;
+  const soloMode = currentSoloRequest?.status === "pending" || isExcused || isSolo || soloRequestWindowClosed
     ? null
     : (recentSoloCount >= 1 ? "exceptional" : "request");
 
@@ -440,55 +441,56 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
       : leaderboardRowShadow;
 
   const competitionStatusBody = isExcused
-    ? React.createElement('div',{style:{display:"grid",gap:4}},
-        React.createElement('div',{style:{fontSize:13,color:"var(--text)",fontWeight:600}},`You're sitting out ${MONTH_NAMES[CUR_MONTH]}.`),
-        React.createElement('div',{style:{fontSize:12,color:"var(--muted)"}},"You won't pay or collect anything.")
-      )
+    ? React.createElement('div',{style:{fontSize:12,color:"var(--muted)",fontWeight:700,lineHeight:1.35}},`You're sitting out ${MONTH_NAMES[CUR_MONTH]}.`)
     : isSolo
-      ? React.createElement('div',{style:{display:"grid",gap:4}},
-          React.createElement('div',{style:{fontSize:13,color:"var(--text)",fontWeight:600}},`You're Solo this month.`),
-          React.createElement('div',{style:{fontSize:12,color:"var(--muted)"}},`Target: ${currentSoloTarget || effectiveTarget}. You can log, but you're out of stakes.`)
-        )
+      ? React.createElement('div',{style:{fontSize:12,color:"var(--muted)",fontWeight:700,lineHeight:1.35}},`Solo this month · target ${currentSoloTarget || effectiveTarget}`)
     : currentSitOutRequest?.status === "pending"
-      ? React.createElement('div',{style:{fontSize:13,color:"var(--muted)",lineHeight:1.45}},
+      ? React.createElement('div',{style:{fontSize:12,color:"var(--muted)",fontWeight:700,lineHeight:1.35}},
           currentSitOutRequest.exceptional
-            ? "Exceptional sit-out requested. Awaiting approval from the bloc admin."
-            : "Sit-out requested. Awaiting approval from the bloc admin."
+            ? "Exceptional sit-out requested."
+            : "Sit-out requested."
         )
       : currentSoloRequest?.status === "pending"
-        ? React.createElement('div',{style:{fontSize:13,color:"var(--muted)",lineHeight:1.45}},"Solo Mode requested. Awaiting approval from the bloc admin.")
+        ? React.createElement('div',{style:{fontSize:12,color:"var(--muted)",fontWeight:700,lineHeight:1.35}},"Solo Mode requested.")
       : currentSitOutRequest?.status === "declined"
-        ? React.createElement('div',{style:{fontSize:13,color:"var(--muted)",lineHeight:1.45}},"Your sit-out request was declined.")
+        ? React.createElement('div',{style:{fontSize:12,color:"var(--muted)",fontWeight:700,lineHeight:1.35}},"Sit-out was declined.")
         : currentSoloRequest?.status === "declined"
-          ? React.createElement('div',{style:{fontSize:13,color:"var(--muted)",lineHeight:1.45}},"Your Solo Mode request was declined.")
-        : React.createElement('div',{style:{fontSize:13,color:"var(--muted)",lineHeight:1.45}},"If you're injured, traveling, or need this month off, you can sit out.");
+          ? React.createElement('div',{style:{fontSize:12,color:"var(--muted)",fontWeight:700,lineHeight:1.35}},"Solo Mode was declined.")
+        : React.createElement('div',{style:{fontSize:12,color:"var(--muted)",fontWeight:700,lineHeight:1.35}},"Injured or traveling?");
 
   const competitionAction = isExcused || isSolo || currentSitOutRequest?.status === "pending" || currentSoloRequest?.status === "pending"
     ? null
-    : React.createElement('div',{style:{display:"flex",gap:8,flexWrap:"wrap",justifyContent:"flex-end"}},
-        soloMode && React.createElement('button',{
-          onClick:()=>{ setSoloError(""); setShowSolo(true); },
+    : React.createElement('div',{style:{display:"flex",gap:7,flexWrap:"nowrap",justifyContent:"flex-end",alignItems:"center"}},
+        React.createElement('button',{
+          onClick:()=>{
+            if (!soloMode) {
+              window.alert("Solo Mode is locked for the month and is only available in the first 10 days.");
+              return;
+            }
+            setSoloError("");
+            setShowSolo(true);
+          },
           style:{
-            background:"rgba(78,205,196,.10)",
-            border:"1px solid rgba(78,205,196,.28)",
-            color:"#4ECDC4",
-            padding:"7px 12px",
-            borderRadius:8,
-            fontSize:12,
+            background:soloMode ? "rgba(78,205,196,.07)" : "rgba(255,255,255,.025)",
+            border:`1px solid ${soloMode ? "rgba(78,205,196,.30)" : "rgba(148,163,184,.18)"}`,
+            color:soloMode ? "#4ECDC4" : "rgba(148,163,184,.48)",
+            padding:"6px 10px",
+            borderRadius:999,
+            fontSize:11,
             fontWeight:800,
             whiteSpace:"nowrap"
           }
-        },"Go Solo"),
+        },"Solo"),
         React.createElement('button',{
           onClick:()=>{ setSitOutError(""); setShowExcuse(true); },
           style:{
-            background:currentSitOutRequest?.status === "declined"?"var(--s2)":"var(--s3)",
-            border:`1px solid ${currentSitOutRequest?.status === "declined"?"var(--border)":"var(--border2)"}`,
+            background:"transparent",
+            border:"1px solid rgba(148,163,184,.22)",
             color:"var(--muted)",
-            padding:"7px 12px",
-            borderRadius:8,
-            fontSize:12,
-            fontWeight:700,
+            padding:"6px 10px",
+            borderRadius:999,
+            fontSize:11,
+            fontWeight:800,
             whiteSpace:"nowrap"
           }
         },currentSitOutRequest?.status === "declined"?"Request again":"Sit out")
@@ -1100,9 +1102,8 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
       }),
       renderSoloSection())
     ),
-    React.createElement(Card,{style:{padding:14}},
-      React.createElement('span',{className:"lbl"},"Competition Status"),
-      React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10}},
+    React.createElement(Card,{style:{padding:"9px 10px",background:"rgba(8,15,15,.72)",border:"0.5px solid rgba(78,205,196,.12)"}},
+      React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,minHeight:30}},
         competitionStatusBody,
         competitionAction
       )
@@ -1191,9 +1192,8 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
         renderSoloSection())
       ),
       React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:10}},
-        React.createElement(Card,{style:{padding:15}},
-          React.createElement('span',{className:"lbl"},"Month Status"),
-          React.createElement('div',{style:{display:"grid",gridTemplateColumns:"minmax(0,1fr)",gap:12}},
+        React.createElement(Card,{style:{padding:"9px 10px",background:"rgba(8,15,15,.72)",border:"0.5px solid rgba(78,205,196,.12)"}},
+          React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,minHeight:30}},
             competitionStatusBody,
             competitionAction
           )
