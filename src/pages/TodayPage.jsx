@@ -93,7 +93,9 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
     };
   },[viewPlayer]);
   useLayoutEffect(()=>{
-    if(viewPlayer) profileLayerRef.current?.scrollTo?.({top:0,left:0,behavior:"auto"});
+    if(!viewPlayer) return;
+    profileLayerRef.current?.scrollTo?.({top:0,left:0,behavior:"auto"});
+    requestAnimationFrame(()=>profileLayerRef.current?.scrollTo?.({top:0,left:0,behavior:"auto"}));
   },[viewPlayer]);
   const openPlayerProfile = useCallback(name => {
     setProfileRevealActive(false);
@@ -1121,14 +1123,16 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
     desktopView
   );
 
-  return React.createElement(React.Fragment,null,
-    todayContent,
-    viewPlayer&&React.createElement('div',{ref:profileLayerRef,className:"in-bloc-profile-layer",style:{background:profileRevealActive?"transparent":"var(--bg-gradient)",backgroundImage:profileRevealActive?"none":"var(--bg-radial-hint), var(--bg-gradient)"}},
+  if(viewPlayer) return React.createElement(React.Fragment,null,
+    React.createElement('div',{"aria-hidden":true,style:{pointerEvents:"none"}},todayContent),
+    React.createElement('div',{key:`profile-layer-${viewPlayer}`,ref:profileLayerRef,className:"in-bloc-profile-layer",style:{backgroundColor:"#070C0C",background:profileRevealActive?"transparent":"var(--bg-gradient)",backgroundImage:profileRevealActive?"none":"var(--bg-radial-hint), var(--bg-gradient)",overflowY:"auto",overflowX:"hidden",WebkitOverflowScrolling:"touch",overscrollBehavior:"contain",touchAction:"pan-y"}},
       React.createElement(PlayerProfileErrorBoundary,{profileName:viewPlayer,onBack:closePlayerProfile},
         React.createElement(PlayerProfile,{name:viewPlayer,logs,excused,monthHistory,onBack:closePlayerProfile,onSwipeRevealChange:setProfileRevealActive,groupSettings,onDeleteLog:viewPlayer===user?async(log)=>{ await onLogMutation({action:"delete-log",groupId:currentGroupId,actor:user,owner:viewPlayer,logId:log.id}); }:undefined})
       )
     )
   );
+
+  return todayContent;
 };
 
 

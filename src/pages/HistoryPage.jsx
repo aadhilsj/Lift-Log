@@ -112,7 +112,9 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
     };
   },[viewPlayer]);
   useLayoutEffect(()=>{
-    if(viewPlayer) profileLayerRef.current?.scrollTo?.({top:0,left:0,behavior:"auto"});
+    if(!viewPlayer) return;
+    profileLayerRef.current?.scrollTo?.({top:0,left:0,behavior:"auto"});
+    requestAnimationFrame(()=>profileLayerRef.current?.scrollTo?.({top:0,left:0,behavior:"auto"}));
   },[viewPlayer]);
   const openPlayerProfile = useCallback(name => {
     setProfileRevealActive(false);
@@ -355,7 +357,7 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
 
   return React.createElement(React.Fragment,null,
     historyContent,
-    viewPlayer&&React.createElement('div',{ref:profileLayerRef,className:"in-bloc-profile-layer",style:{background:profileRevealActive?"transparent":"var(--bg-gradient)",backgroundImage:profileRevealActive?"none":"var(--bg-radial-hint), var(--bg-gradient)"}},
+    viewPlayer&&React.createElement('div',{key:`profile-layer-${viewPlayer}`,ref:profileLayerRef,className:"in-bloc-profile-layer",style:{backgroundColor:"#070C0C",background:profileRevealActive?"transparent":"var(--bg-gradient)",backgroundImage:profileRevealActive?"none":"var(--bg-radial-hint), var(--bg-gradient)",overflowY:"auto",overflowX:"hidden",WebkitOverflowScrolling:"touch",overscrollBehavior:"contain",touchAction:"pan-y"}},
       React.createElement(PlayerProfileErrorBoundary,{profileName:viewPlayer,onBack:closePlayerProfile},
         React.createElement(PlayerProfile,{name:viewPlayer,logs,excused,monthHistory,onBack:closePlayerProfile,onSwipeRevealChange:setProfileRevealActive,groupSettings})
       )

@@ -263,6 +263,18 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
     cancelSwipeFrame(frameRef);
     applySwipeTransform(0,false);
   };
+  useEffect(()=>{
+    swipeRef.current={sx:0,sy:0,active:false,mode:null};
+    dragXRef.current=0;
+    cancelSwipeFrame(frameRef);
+    setDragging(false);
+    onSwipeRevealChange?.(false);
+    requestAnimationFrame(()=>applySwipeTransform(0,false));
+    return ()=>{
+      cancelSwipeFrame(frameRef);
+      onSwipeRevealChange?.(false);
+    };
+  },[name]);
   const moveSwipeBack=e=>{
     e.stopPropagation();
     const s=swipeRef.current,t=e.touches?.[0];
