@@ -631,24 +631,34 @@ const LogModal = ({user,currentGroupId,groups,onConfirm,onClose}) => {
 
   const needsNote = wType === "Other";
   const canSubmit = Boolean(wType && photoUrl && !alreadyLogged && (!needsNote || note.trim()));
+  const modalFrameStyle = compactMobile
+    ? { position:"fixed", top:"calc(env(safe-area-inset-top) + 18px)", left:"50%", transform:"translateX(-50%)", zIndex:1000, width:"calc(100% - 32px)", maxWidth:440, maxHeight:"calc(100dvh - 150px - env(safe-area-inset-bottom))", overflowY:"auto", background:"#080F0F", border:"0.5px solid #0D1F1E", borderRadius:20, padding:"16px 14px", boxSizing:"border-box", boxShadow:"0 20px 60px rgba(0,0,0,.5)" }
+    : { position:"fixed", top:"50%", left:"50%", transform:"translate(-50%,-50%)", zIndex:1000, width:"calc(100% - 32px)", maxWidth:440, maxHeight:"85vh", overflowY:"auto", background:"#080F0F", border:"0.5px solid #0D1F1E", borderRadius:20, padding:"20px 18px", boxSizing:"border-box", boxShadow:"0 20px 60px rgba(0,0,0,.5)" };
+  const handleDateChange = event => {
+    const value = event.target.value;
+    if (!value) return;
+    const clamped = value < timeContext.earliestIso
+      ? timeContext.earliestIso
+      : value > timeContext.todayIso
+        ? timeContext.todayIso
+        : value;
+    setSelDate(clamped);
+  };
 
   if (cropSource) return React.createElement(CropModal, {imageSrc:cropSource, onConfirm:handleCropConfirm, onCancel:handleCropCancel});
 
   return React.createElement(React.Fragment,null,
     React.createElement('div',{onClick:onClose,style:{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",zIndex:999}}),
-    React.createElement('div',{onClick:e=>e.stopPropagation(),style:{position:"fixed",top:"50%",left:"50%",transform:"translate(-50%,-50%)",zIndex:1000,width:"calc(100% - 32px)",maxWidth:440,maxHeight:"85vh",overflowY:"auto",background:"#080F0F",border:"0.5px solid #0D1F1E",borderRadius:20,padding:compactMobile?"16px 14px":"20px 18px",boxSizing:"border-box",boxShadow:"0 20px 60px rgba(0,0,0,.5)"}},
+    React.createElement('div',{onClick:e=>e.stopPropagation(),style:modalFrameStyle},
       React.createElement('div',{style:{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:10,marginBottom:compactMobile?7:12}},
         React.createElement('div',{style:{minWidth:0}},
-          React.createElement('div',{style:{fontWeight:800,fontSize:compactMobile?18:20,marginBottom:4}},"Log a workout"),
-          React.createElement('div',{style:{color:"var(--muted)",fontSize:compactMobile?12:14,lineHeight:1.45}},"Choose the date, type, photo, and where it should count.")
+          React.createElement('div',{style:{fontWeight:800,fontSize:compactMobile?18:20}},"Log a workout")
         ),
         React.createElement('button',{type:"button",onClick:onClose,style:{width:32,height:32,borderRadius:999,background:"var(--s2)",border:"1px solid var(--border)",color:"var(--muted)",fontSize:18,lineHeight:1,flexShrink:0}},"×")
       ),
-      React.createElement('div',{className:"mono",style:{fontSize:9,color:"#1E4040",letterSpacing:".05em",marginBottom:compactMobile?7:10}},getGroupCloseMeta(currentGroup).label),
       React.createElement('span',{className:"lbl",style:{marginBottom:6,color:"var(--text)",fontSize:10,fontWeight:500}},"Date"),
-      React.createElement('input',{type:"date",value:selDate,min:timeContext.earliestIso,max:timeContext.todayIso,onChange:e=>setSelDate(e.target.value),
+      React.createElement('input',{type:"date",value:selDate,min:timeContext.earliestIso,max:timeContext.todayIso,onChange:handleDateChange,
         style:{width:"100%",maxWidth:"100%",minWidth:0,display:"block",height:34,background:"var(--s1)",border:`1px solid ${alreadyLogged?"var(--red)":"rgba(13,31,30,.8)"}`,borderRadius:10,padding:"7px 10px",color:"#9BA6B5",fontSize:13,lineHeight:"18px",marginBottom:alreadyLogged?4:(compactMobile?7:10),outline:"none",boxSizing:"border-box",appearance:"none",WebkitAppearance:"none",opacity:0.92}}),
-      React.createElement('div',{style:{fontSize:11,color:"var(--muted)",lineHeight:1.45,marginBottom:compactMobile?7:10}},"Workouts can only be logged for this month's dates."),
       alreadyLogged&&React.createElement('div',{style:{color:"var(--red)",fontSize:compactMobile?11:12,fontFamily:"'JetBrains Mono',monospace",marginBottom:compactMobile?7:10}},"Already logged for this date"),
       React.createElement('span',{className:"lbl",style:{marginBottom:6,color:"var(--text)",fontSize:10,fontWeight:500}},"Workout type"),
       React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(5,minmax(0,1fr))",gap:compactMobile?5:6,marginBottom:compactMobile?8:12}},
@@ -661,11 +671,11 @@ const LogModal = ({user,currentGroupId,groups,onConfirm,onClose}) => {
       React.createElement('span',{className:"lbl",style:{marginBottom:6,color:"var(--text)",fontSize:10,fontWeight:500}},"Photo"),
       React.createElement('input',{ref:takePhotoInputRef,type:"file",accept:"image/*",capture:"environment",onChange:handlePhotoPick,style:{display:"none"}}),
       React.createElement('input',{ref:choosePhotoInputRef,type:"file",accept:"image/*",onChange:handlePhotoPick,style:{display:"none"}}),
-      React.createElement('div',{style:{display:"flex",alignItems:"center",gap:8,minHeight:40,padding:"0 10px",borderRadius:12,background:photoUrl?"rgba(31,206,101,.04)":"var(--s2)",border:`1px solid ${photoUrl?"rgba(31,206,101,.35)":"var(--border)"}`,marginBottom:photoUrl?8:7}},
+      React.createElement('div',{style:{display:"flex",alignItems:"center",gap:6,minHeight:36,padding:"0 8px",borderRadius:12,background:photoUrl?"rgba(31,206,101,.04)":"var(--s2)",border:`1px solid ${photoUrl?"rgba(31,206,101,.35)":"var(--border)"}`,marginBottom:photoUrl?8:7}},
         React.createElement('span',{style:{flex:1,minWidth:0,fontSize:13,fontWeight:400,color:"var(--muted)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},uploading?"Processing photo...":"Add photo"),
-        React.createElement('div',{style:{display:"flex",alignItems:"center",gap:6,flexShrink:0}},
-          React.createElement('button',{type:"button",onClick:()=>takePhotoInputRef.current?.click(),style:{height:28,padding:"0 10px",borderRadius:999,background:"var(--s1)",border:"1px solid var(--border)",fontSize:11,fontWeight:700,color:"var(--text)"}},"Camera"),
-          React.createElement('button',{type:"button",onClick:()=>choosePhotoInputRef.current?.click(),style:{height:28,padding:"0 10px",borderRadius:999,background:"var(--s1)",border:"1px solid var(--border)",fontSize:11,fontWeight:700,color:"var(--text)"}},"Library")
+        React.createElement('div',{style:{display:"flex",alignItems:"center",gap:4,flexShrink:0}},
+          React.createElement('button',{type:"button",onClick:()=>takePhotoInputRef.current?.click(),style:{height:26,padding:"0 9px",borderRadius:999,background:"var(--s1)",border:"1px solid var(--border)",fontSize:10.5,fontWeight:700,color:"var(--text)"}},"Camera"),
+          React.createElement('button',{type:"button",onClick:()=>choosePhotoInputRef.current?.click(),style:{height:26,padding:"0 9px",borderRadius:999,background:"var(--s1)",border:"1px solid var(--border)",fontSize:10.5,fontWeight:700,color:"var(--text)"}},"Library")
         )
       ),
       photoUrl && React.createElement('label',{style:{display:"block",marginBottom:7,cursor:"pointer"}},
@@ -679,40 +689,36 @@ const LogModal = ({user,currentGroupId,groups,onConfirm,onClose}) => {
       React.createElement('div',{className:"mono",style:{fontSize:10,color:"var(--muted)",marginTop:compactMobile?-3:-6,marginBottom:compactMobile?8:10,textAlign:"right"}},`${note.length}/${WORKOUT_NOTE_LIMIT}`),
       wType && eligibleGroups.length > 0 && React.createElement('div',{style:{marginBottom:compactMobile?10:16}},
         React.createElement('span',{className:"lbl",style:{marginBottom:6,color:"var(--text)",fontSize:10,fontWeight:500}},"Also Log To"),
-        React.createElement('div',{style:{display:"flex",flexWrap:"wrap",gap:8}},
+        React.createElement('div',{style:{display:"flex",flexWrap:"wrap",gap:6}},
           eligibleGroups.map(group => React.createElement('button',{
             key:group.id,
             type:"button",
             disabled:group.disabled,
             onClick:()=>!group.disabled&&toggleGroupSelection(group.id),
             style:{
-              minWidth:compactMobile?"calc(50% - 4px - 15px)":"100%",
-              flex:compactMobile?"1 1 calc(50% - 4px - 15px)":"0 0 100%",
+              minWidth:0,
+              flex:"0 1 auto",
+              maxWidth:"100%",
               background:selectedGroupIds.includes(group.id)?"rgba(31,206,101,.08)":"var(--s2)",
               border:`1px solid ${group.disabled?"rgba(62,62,82,.8)":selectedGroupIds.includes(group.id)?"rgba(31,206,101,.35)":"var(--border)"}`,
-              borderRadius:10,
-              padding:compactMobile?"8px 8px":"9px 9px",
+              borderRadius:999,
+              padding:"5px 8px",
               display:"flex",
               alignItems:"center",
-              justifyContent:"flex-start",
-              gap:8,
+              justifyContent:"center",
+              gap:6,
               color:group.disabled?"var(--muted2)":"var(--text)",
               cursor:group.disabled?"default":"pointer",
               opacity:group.disabled?0.75:1
             }},
-            React.createElement('div',{style:{display:"flex",alignItems:"center",gap:8,width:"100%"}},
-              React.createElement('div',{style:{width:15,height:15,borderRadius:999,border:`1px solid ${group.disabled?"var(--border2)":selectedGroupIds.includes(group.id)?"var(--green)":"var(--border2)"}`,background:selectedGroupIds.includes(group.id)?"var(--green)":"transparent",display:"flex",alignItems:"center",justifyContent:"center",color:"#04110a",fontSize:9,fontWeight:800,flexShrink:0}},selectedGroupIds.includes(group.id)?"✓":""),
-              React.createElement('div',{style:{flex:1,textAlign:"center"}},
-                React.createElement('div',{style:{fontSize:compactMobile?11:12,fontWeight:600}},group.name),
-                group.helper && React.createElement('div',{style:{fontSize:10,color:group.acceptsType?"var(--red)":"var(--muted)",marginTop:1}},group.helper)
-              ),
-              React.createElement('div',{style:{width:15,flexShrink:0}})
-            )
+            React.createElement('span',{style:{width:14,height:14,borderRadius:999,border:`1px solid ${group.disabled?"var(--border2)":selectedGroupIds.includes(group.id)?"var(--green)":"var(--border2)"}`,background:selectedGroupIds.includes(group.id)?"var(--green)":"transparent",display:"inline-flex",alignItems:"center",justifyContent:"center",color:"#04110a",fontSize:8,fontWeight:800,flexShrink:0}},selectedGroupIds.includes(group.id)?"✓":""),
+            React.createElement('span',{style:{minWidth:0,maxWidth:150,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontSize:11,fontWeight:600}},group.name),
+            group.helper && React.createElement('span',{style:{fontSize:9,color:group.acceptsType?"var(--red)":"var(--muted)"}},group.helper)
           ))
         )
       ),
-      React.createElement('div',{style:{display:"flex",gap:9,position:"sticky",bottom:0,paddingTop:6,background:"linear-gradient(to top, rgba(9,14,14,.98), rgba(9,14,14,.92) 72%, rgba(9,14,14,0))"}},
-        React.createElement('button',{onClick:onClose,style:{flex:1,background:"var(--s2)",border:"1px solid var(--border)",color:"var(--muted)",padding:compactMobile?"12px":"14px",borderRadius:10,fontSize:compactMobile?14:15,fontWeight:600}},"Cancel"),
+      React.createElement('div',{style:{display:"flex",gap:9,position:"sticky",bottom:-1,paddingTop:6,paddingBottom:1,background:"linear-gradient(to top, rgba(8,15,15,1), rgba(8,15,15,.94) 72%, rgba(8,15,15,0))"}},
+        React.createElement('button',{onClick:onClose,style:{flex:1,background:"transparent",border:"1px solid #163d36",color:"var(--muted)",padding:compactMobile?"12px":"14px",borderRadius:10,fontSize:compactMobile?14:15,fontWeight:700}},"Cancel"),
         React.createElement('button',{onClick:()=>canSubmit&&onConfirm({ workoutType:wType, isoDate:selDate, targetGroupIds:isCurrentMonthSelection?selectedGroupIds:[], note:note.trim(), photoUrl }),
           style:{flex:2,background:canSubmit?"var(--green)":"var(--s3)",color:canSubmit?"#000":"var(--muted2)",padding:compactMobile?"12px":"14px",borderRadius:10,fontSize:compactMobile?14:15,fontWeight:800,animation:canSubmit?"glow 2s infinite":"none",cursor:canSubmit?"pointer":"default"}},
           uploading?"Processing photo...":"Log workout")
