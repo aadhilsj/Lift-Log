@@ -5,7 +5,7 @@ const { useMemo, useRef, useState } = React;
 
 const ONBOARDING_SCREENS = [
   {
-    headlineLines: ["For the group that", "keeps you showing up."],
+    headlineLines: ["For the group that keeps", "you showing up."],
     subtextLines: ["A monthly goal.", "Your people.", "Something real on the line."]
   },
   {
@@ -87,19 +87,13 @@ const PreviewAvatar = ({name,color}) => React.createElement('div',{
   }
 }, name[0]);
 
-const FakePhoto = ({tone="gym"}) => {
-  const styles = {
-    gym:["linear-gradient(135deg,#202328,#5b5d60 48%,#22252a)","linear-gradient(90deg,transparent 0 34%,rgba(78,205,196,.42) 34% 39%,transparent 39% 100%)","Gym"],
-    run:["linear-gradient(135deg,#1b3440,#6fb2a8 46%,#203040)","radial-gradient(circle at 72% 26%,rgba(245,166,35,.86),transparent 16%)","Run"],
-    sports:["linear-gradient(135deg,#1f2f1e,#496b3d 45%,#193026)","radial-gradient(circle at 42% 48%,rgba(245,247,255,.9),transparent 18%)","Sports"]
-  };
-  const [base,accent,label] = styles[tone] || styles.gym;
+const FakePhoto = ({src,label}) => {
   return React.createElement('div',{
     style:{
       width:78,
       height:78,
       borderRadius:14,
-      backgroundImage:`${accent}, ${base}`,
+      background:"#0D1F1E",
       border:"0.5px solid rgba(255,255,255,.12)",
       boxShadow:"inset 0 1px 0 rgba(255,255,255,.08)",
       overflow:"hidden",
@@ -107,6 +101,7 @@ const FakePhoto = ({tone="gym"}) => {
       position:"relative"
     }
   },
+    React.createElement('img',{src,alt:"",loading:"lazy",style:{width:"100%",height:"100%",objectFit:"cover",display:"block"}}),
     React.createElement('div',{style:{position:"absolute",inset:0,background:"linear-gradient(180deg,transparent,rgba(0,0,0,.22))"}}),
     React.createElement('div',{style:{position:"absolute",left:8,bottom:7,fontSize:9,fontWeight:900,color:"rgba(255,255,255,.78)",letterSpacing:".08em",textTransform:"uppercase"}},label)
   );
@@ -146,9 +141,9 @@ const LeaderboardPreview = () => {
 
 const ActivityPreview = () => {
   const rows = [
-    { name:"Sofia", type:"Gym", color:"#8CA4C6", photo:"gym", time:"2h" },
-    { name:"Jonah", type:"Run", color:"#8A78D6", photo:"run", time:"5h" },
-    { name:"Mina", type:"Sports", color:"#D94D68", photo:"sports", time:"8h" }
+    { name:"Sofia", type:"Gym", color:"#8CA4C6", photo:"https://images.unsplash.com/photo-1517836357463-d25dfeac3438?auto=format&fit=crop&w=240&q=80", time:"2h", note:"Chest day done" },
+    { name:"Jonah", type:"Run", color:"#8A78D6", photo:"https://images.unsplash.com/photo-1502904550040-7534597429ae?auto=format&fit=crop&w=240&q=80", time:"5h", note:"5K this morning" },
+    { name:"Mina", type:"Sports", color:"#D94D68", photo:"https://images.unsplash.com/photo-1546519638-68e109498ffc?auto=format&fit=crop&w=240&q=80", time:"8h", note:"Pickup hoops" }
   ];
   return React.createElement('div',{style:cardShell},
     React.createElement('div',{style:{padding:"16px",borderBottom:"0.5px solid rgba(22,61,54,.7)"}},
@@ -174,7 +169,7 @@ const ActivityPreview = () => {
               React.createElement('span',{style:{color:"#4ECDC4",display:"inline-flex",flexShrink:0}},React.createElement(WorkoutTypeIcon,{type:row.type,size:12})),
               React.createElement('span',{style:{fontSize:12,fontWeight:700,color:"rgba(143,174,170,.78)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},row.type)
             ),
-            React.createElement('div',{style:{fontSize:12,fontWeight:700,color:"rgba(214,226,224,.65)",marginTop:5,whiteSpace:"nowrap"}},"Logged before work")
+            React.createElement('div',{style:{fontSize:12,fontWeight:700,color:"rgba(214,226,224,.65)",marginTop:5,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},row.note)
           ),
           React.createElement('div',{style:{display:"flex",alignItems:"center",gap:7}},
             React.createElement('span',{style:{height:24,padding:"0 9px",borderRadius:999,border:"0.5px solid rgba(78,205,196,.35)",background:"rgba(78,205,196,.08)",display:"inline-flex",alignItems:"center",gap:5,fontSize:12,color:"#4ECDC4",fontWeight:800}},"🔥",index+1),
@@ -183,33 +178,43 @@ const ActivityPreview = () => {
         ),
         React.createElement('div',{style:{position:"relative"}},
           React.createElement('span',{style:{position:"absolute",left:-26,top:4,fontFamily:"'Outfit',sans-serif",fontSize:10,fontWeight:800,color:"rgba(143,174,170,.68)"}},row.time),
-          React.createElement(FakePhoto,{tone:row.photo})
+          React.createElement(FakePhoto,{src:row.photo,label:row.type})
         )
       ))
     )
   );
 };
 
-const SettlementMonthCard = ({title,status,rows,accent="#4ECDC4"}) => React.createElement('div',{
-  style:{
-    border:"0.5px solid rgba(22,61,54,.72)",
-    borderRadius:14,
-    background:"rgba(8,15,15,.72)",
-    padding:"12px 12px 11px"
-  }
-},
-  React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,marginBottom:9}},
-    React.createElement('span',{style:{fontSize:13,fontWeight:900,color:"#f5f7ff"}},title),
-    React.createElement('span',{style:{fontFamily:"'Outfit',sans-serif",fontSize:9,fontWeight:900,letterSpacing:".08em",textTransform:"uppercase",color:accent}},status)
-  ),
-  rows.map((row,index)=>React.createElement('div',{
-    key:row.left,
-    style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,padding:index===0?"0 0 7px":"7px 0 0",borderTop:index>0?"0.5px solid rgba(22,61,54,.45)":"none"}
+const SettlementResultCard = ({tone,tag,stat,line,rows}) => {
+  const winner = tone === "winner";
+  const heroStyle = winner
+    ? {background:"rgba(57,168,90,.11)",border:"1px solid rgba(57,168,90,.24)"}
+    : {background:"rgba(185,50,50,.07)",border:"1px solid rgba(185,50,50,.18)"};
+  const labelGradient = winner
+    ? "linear-gradient(135deg, #DDFDE9, #39A85A 54%, #1E7C3D)"
+    : "linear-gradient(135deg, #FFD8D8, #E65A5A 50%, #A92F2F)";
+  const statColor = winner ? "#39A85A" : "#E65A5A";
+  return React.createElement('div',{
+    style:{
+      ...heroStyle,
+      borderRadius:15,
+      padding:"14px 13px",
+      textAlign:"center",
+      boxShadow:"inset 0 1px 0 rgba(255,255,255,.05)"
+    }
   },
-    React.createElement('span',{style:{fontSize:12,fontWeight:800,color:"rgba(214,226,224,.82)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},row.left),
-    React.createElement('span',{style:{fontFamily:"'Outfit',sans-serif",fontSize:13,fontWeight:900,color:row.amount==="$0"?"#4ECDC4":"#f5f7ff",whiteSpace:"nowrap"}},row.amount)
-  ))
-);
+    React.createElement('div',{style:{display:"inline-block",fontFamily:"'Outfit',sans-serif",fontSize:10,fontWeight:900,letterSpacing:".08em",textTransform:"uppercase",background:labelGradient,WebkitBackgroundClip:"text",backgroundClip:"text",color:"transparent"}},tag),
+    React.createElement('div',{style:{fontFamily:"'Outfit',sans-serif",fontSize:34,lineHeight:1,fontWeight:900,color:statColor,marginTop:5}},stat),
+    React.createElement('div',{style:{fontSize:12,fontWeight:700,color:"rgba(214,226,224,.72)",lineHeight:1.3,marginTop:5}},line),
+    React.createElement('div',{style:{width:"44%",height:1,margin:"10px auto 8px",background:"linear-gradient(90deg, transparent, rgba(255,255,255,.18), transparent)"}}),
+    React.createElement('div',{style:{display:"grid",gap:5}},
+      rows.map(row=>React.createElement('div',{key:row.name,style:{display:"flex",alignItems:"center",justifyContent:"center",gap:8,minWidth:0}},
+        React.createElement('span',{style:{fontSize:12,fontWeight:900,color:"#f5f7ff",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:116}},row.name),
+        React.createElement('span',{style:{fontFamily:"'Outfit',sans-serif",fontSize:12,fontWeight:900,color:statColor,whiteSpace:"nowrap"}},row.amount)
+      ))
+    )
+  );
+};
 
 const SettlementPreview = () => {
   const month = useMemo(() => new Date().toLocaleString("en-US", { month:"short" }).toUpperCase(), []);
@@ -218,22 +223,23 @@ const SettlementPreview = () => {
       React.createElement('div',{style:previewLabel},`THE SETTLEMENT · ${month}`)
     ),
     React.createElement('div',{style:{padding:"12px 14px",display:"grid",gap:10}},
-      React.createElement(SettlementMonthCard,{
-        title:"June",
-        status:"You cleared",
+      React.createElement(SettlementResultCard,{
+        tone:"winner",
+        tag:"Winner",
+        stat:"+$25",
+        line:"Top of the Bloc. Maya and Leo pay you.",
         rows:[
-          { left:"Noah owes Maya", amount:"$25" },
-          { left:"Leo owes Sofia", amount:"$15" },
-          { left:"You owe", amount:"$0" }
+          { name:"Maya", amount:"+$15" },
+          { name:"Leo", amount:"+$10" }
         ]
       }),
-      React.createElement(SettlementMonthCard,{
-        title:"May",
-        status:"Pay up",
-        accent:"#D4A843",
+      React.createElement(SettlementResultCard,{
+        tone:"missed",
+        tag:"Tough Month",
+        stat:"-$20",
+        line:"Miss the target, settle up, go again.",
         rows:[
-          { left:"You owe Maya", amount:"$20" },
-          { left:"Noah owes Leo", amount:"$10" }
+          { name:"You owe Noah", amount:"-$20" }
         ]
       })
     )
@@ -389,7 +395,7 @@ const ColdOnboarding = ({onCreate,onJoin}) => {
       style:{flex:1,display:"flex",flexDirection:"column",justifyContent:"center",maxWidth:520,width:"100%",margin:"0 auto",animation:"fadeUp .22s ease both"}
     },
       React.createElement('div',{style:{marginBottom:22}},
-        React.createElement('h1',{style:{margin:0,fontSize:38,lineHeight:1.02,letterSpacing:0,fontWeight:900,color:"#f5f7ff"}},
+        React.createElement('h1',{style:{margin:0,fontSize:36,lineHeight:1.02,letterSpacing:0,fontWeight:900,color:"#f5f7ff"}},
           (screen.headlineLines || [screen.headline]).map(line=>React.createElement('span',{key:line,style:{display:"block"}},line))
         ),
         React.createElement('p',{style:{margin:"12px 0 0",fontSize:16,lineHeight:1.45,fontWeight:600,color:"rgba(214,226,224,.72)"}},
