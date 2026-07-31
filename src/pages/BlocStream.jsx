@@ -225,7 +225,7 @@ const ReactionChips = ({ msg, currentUserId, onReact, nameFor, photoFor, align, 
     : placement === "bubble-right"
       ? { position: "absolute", right: -10, bottom: -12, zIndex: 4 }
       : placement === "center"
-        ? { position: "absolute", left: "50%", bottom: -11, transform: "translateX(-50%)", zIndex: 4 }
+        ? { position: "absolute", left: "50%", bottom: -7, transform: "translateX(-50%)", zIndex: 4 }
         : {};
   return React.createElement('div', {
     style: { display: "flex", flexWrap: "wrap", gap: 3, justifyContent: justify, marginTop: attached ? 0 : 5, paddingLeft: attached ? 0 : (align === "left" ? 36 : 0), width: attached ? "max-content" : "auto", maxWidth: attached ? "min(220px, calc(100vw - 68px))" : "none", ...attachStyle }
@@ -298,7 +298,7 @@ const Reactable = ({ msg, currentUserId, onReact, onReply, nameFor, photoFor, al
     ? React.createElement(ReactionChips, { msg, currentUserId, onReact, nameFor, photoFor, align, showAdd, onAdd: () => setShowBar(true), placement: reactionPlacement })
     : null;
   const renderedChildren = typeof children === "function" ? children(reactionNode) : children;
-  return React.createElement('div', { style: { position: "relative", paddingBottom: hasReactionBadge ? (align === "center" ? 20 : 13) : 0 } },
+  return React.createElement('div', { style: { position: "relative", paddingBottom: hasReactionBadge ? (align === "center" ? 18 : 13) : 0 } },
     swipeEnabled && React.createElement('div', {
       style: { position: "absolute", top: 0, bottom: 0, left: 14, display: "flex", alignItems: "center", opacity: Math.min(1, swipeX / 56), pointerEvents: "none" }
     }, React.createElement(AppIcon, { name: "reply", size: 18, stroke: C.accent })),
@@ -324,14 +324,12 @@ const Reactable = ({ msg, currentUserId, onReact, onReply, nameFor, photoFor, al
 const TextBubble = ({ msg, isOwn, authorName, authorPhotoUrl, nameFor, members, replyToMsg, showName, showTime, showAvatar, firstInGroup, reactionNode }) => {
   const nameText = !isOwn && showName ? authorName : "";
   const timeText = showTime ? formatStamp(msg.created_at) : "";
-  const radius = isOwn
-    ? (firstInGroup ? "12px 3px 12px 12px" : "12px 12px 12px 12px")
-    : (firstInGroup ? "3px 12px 12px 12px" : "12px 12px 12px 12px");
+  const radius = 18;
   return React.createElement('div', {
-    style: { display: "flex", gap: 8, alignItems: "flex-end", justifyContent: isOwn ? "flex-end" : "flex-start" }
+    style: { display: "flex", gap: 8, alignItems: "flex-start", justifyContent: isOwn ? "flex-end" : "flex-start" }
   },
     !isOwn && (showAvatar
-      ? React.createElement('div', { style: { flexShrink: 0 } }, React.createElement(Avatar, { name: authorName, userId: msg.author_id, photoUrl: authorPhotoUrl, size: 28 }))
+      ? React.createElement('div', { style: { flexShrink: 0, paddingTop: nameText ? 18 : 0 } }, React.createElement(Avatar, { name: authorName, userId: msg.author_id, photoUrl: authorPhotoUrl, size: 28 }))
       : React.createElement('div', { style: { width: 28, flexShrink: 0 } })),
     React.createElement('div', { style: { maxWidth: "76%", display: "flex", flexDirection: "column", alignItems: isOwn ? "flex-end" : "flex-start" } },
       nameText && React.createElement('div', {
@@ -343,7 +341,7 @@ const TextBubble = ({ msg, isOwn, authorName, authorPhotoUrl, nameFor, members, 
           background: isOwn ? C.ownBg : C.rcvBg,
           border: `1px solid ${isOwn ? C.ownBorder : C.rcvBorder}`,
           borderRadius: radius,
-          padding: "9px 12px", color: "var(--text)", fontSize: 14.5, lineHeight: 1.4, wordBreak: "break-word"
+          padding: "7px 11px", color: "var(--text)", fontSize: 14, lineHeight: 1.34, wordBreak: "break-word"
         }
       },
         replyToMsg && React.createElement('div', {
@@ -1256,7 +1254,8 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, 
               const showDaySep = i === 0 || (prev && !sameDay(prev.created_at, msg.created_at));
               // Tight spacing within a sender's run, larger between groups / cards.
               // A preceding day separator already provides the gap, so drop the top margin.
-              const marginTop = i === 0 || showDaySep ? 0 : (firstInGroup || !isText ? 12 : 3);
+              const prevHasCenteredReactions = prev && (prev.message_type === "system" || prev.message_type === "event") && Object.values(prev.reactions || {}).some(users => (users || []).length > 0);
+              const marginTop = i === 0 || showDaySep ? 0 : (prevHasCenteredReactions ? 18 : (firstInGroup || !isText ? 12 : 2));
               const wrap = child => React.createElement(React.Fragment, { key: msg.id },
                 showDaySep && React.createElement(DaySeparator, { label: dayLabel(msg.created_at) }),
                 React.createElement('div', {
