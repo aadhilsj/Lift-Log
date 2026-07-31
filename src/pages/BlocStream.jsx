@@ -100,9 +100,12 @@ function formatStamp(iso) {
   return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
 
-// Two timestamps fall in the same clock minute (used to collapse timestamps on
-// back-to-back messages from the same sender).
-const sameMinute = (a, b) => Math.floor(new Date(a).getTime() / 60000) === Math.floor(new Date(b).getTime() / 60000);
+// Collapse timestamps across short same-sender runs.
+const sameFiveMinuteWindow = (a, b) => {
+  const aTime = new Date(a).getTime();
+  const bTime = new Date(b).getTime();
+  return Number.isFinite(aTime) && Number.isFinite(bTime) && Math.abs(aTime - bTime) < 5 * 60000;
+};
 
 // Same calendar day (drives the date separators between days).
 const sameDay = (a, b) => new Date(a).toDateString() === new Date(b).toDateString();
@@ -191,10 +194,9 @@ const RosterPopover = ({ title, ids, nameFor, photoFor, onClose, align = "left" 
   );
 };
 
-// One reaction chip: tap toggles your reaction; press-and-hold (or right-click)
-// reveals who reacted, Discord-style. Pointer events + a movement guard keep tap
-// and long-press from fighting; user-select/callout are off so nothing selects.
-const ReactionChip = ({ emoji, users, mine, onToggle, nameFor, photoFor, align }) => {
+// One reaction chip: tap shows who reacted; press-and-hold/right-click does the
+// same. Reaction toggles happen via double-tap or the long-press emoji bar.
+const ReactionChip = ({ emoji, users, mine, nameFor, photoFor, align }) => {
   const [who, setWho] = useState(false);
   const p = useRef({ lp: null, moved: false, sup: false, sx: 0, sy: 0 });
   const clear = () => { if (p.current.lp) { clearTimeout(p.current.lp); p.current.lp = null; } };
@@ -202,11 +204,11 @@ const ReactionChip = ({ emoji, users, mine, onToggle, nameFor, photoFor, align }
     React.createElement('button', {
       onPointerDown: e => { const s = p.current; s.moved = false; s.sup = false; s.sx = e.clientX; s.sy = e.clientY; clear(); s.lp = setTimeout(() => { s.sup = true; setWho(true); try { navigator.vibrate && navigator.vibrate(8); } catch (_) {} }, 420); },
       onPointerMove: e => { const s = p.current; if (Math.abs(e.clientX - s.sx) > 8 || Math.abs(e.clientY - s.sy) > 8) { s.moved = true; clear(); } },
-      onPointerUp: () => { clear(); if (!p.current.sup && !p.current.moved) onToggle(); },
+      onPointerUp: () => { clear(); if (!p.current.sup && !p.current.moved) setWho(true); },
       onPointerLeave: () => clear(),
       onContextMenu: e => { e.preventDefault(); setWho(true); },
-      style: { minHeight: 18, display: "inline-flex", alignItems: "center", gap: 3, background: mine ? C.chipOnBg : C.chipBg, border: `1px solid ${mine ? C.chipOnBorder : C.chipBorder}`, borderRadius: 999, padding: "0 5px", fontSize: 10.5, color: "var(--text)", cursor: "pointer", lineHeight: 1.25, userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none", touchAction: "manipulation", boxShadow: "0 5px 12px rgba(0,0,0,.22)" }
-    }, emoji, React.createElement('span', { style: { fontFamily: "'Outfit', sans-serif", fontSize: 9.5, color: "var(--muted)", fontWeight: 700 } }, users.length)),
+      style: { minHeight: 20, display: "inline-flex", alignItems: "center", gap: 4, background: "#182120", border: "1px solid rgba(255,255,255,.06)", borderRadius: 999, padding: "0 7px", fontSize: 11, color: "var(--text)", cursor: "pointer", lineHeight: 1.25, userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none", touchAction: "manipulation", boxShadow: "0 7px 14px rgba(0,0,0,.32), inset 0 1px 0 rgba(255,255,255,.04)" }
+    }, emoji, React.createElement('span', { style: { fontFamily: "'Outfit', sans-serif", fontSize: 10, color: "rgba(255,255,255,.8)", fontWeight: 800 } }, users.length)),
     who && React.createElement(RosterPopover, { title: `${emoji} · ${users.length}`, ids: users, nameFor, photoFor, onClose: () => setWho(false), align })
   );
 };
@@ -219,21 +221,21 @@ const ReactionChips = ({ msg, currentUserId, onReact, nameFor, photoFor, align, 
   const justify = align === "right" ? "flex-end" : align === "center" ? "center" : "flex-start";
   const attached = placement !== "row";
   const attachStyle = placement === "bubble-left"
-    ? { position: "absolute", left: -8, bottom: -10, zIndex: 4 }
+    ? { position: "absolute", left: -10, bottom: -12, zIndex: 4 }
     : placement === "bubble-right"
-      ? { position: "absolute", right: -8, bottom: -10, zIndex: 4 }
+      ? { position: "absolute", right: -10, bottom: -12, zIndex: 4 }
       : placement === "center"
-        ? { position: "absolute", left: "50%", bottom: -9, transform: "translateX(-50%)", zIndex: 4 }
+        ? { position: "absolute", left: "50%", bottom: -11, transform: "translateX(-50%)", zIndex: 4 }
         : {};
   return React.createElement('div', {
     style: { display: "flex", flexWrap: "wrap", gap: 3, justifyContent: justify, marginTop: attached ? 0 : 5, paddingLeft: attached ? 0 : (align === "left" ? 36 : 0), width: attached ? "max-content" : "auto", maxWidth: attached ? "min(220px, calc(100vw - 68px))" : "none", ...attachStyle }
   },
     active.map(([emoji, users]) => React.createElement(ReactionChip, {
-      key: emoji, emoji, users, mine: users.includes(currentUserId), onToggle: () => onReact(msg.id, emoji), nameFor, photoFor, align
+      key: emoji, emoji, users, mine: users.includes(currentUserId), nameFor, photoFor, align
     })),
     showAdd && React.createElement('button', {
       onClick: onAdd, onMouseDown: e => e.preventDefault(),
-      style: { display: "inline-flex", alignItems: "center", justifyContent: "center", width: 20, height: 18, borderRadius: 999, background: C.chipBg, border: `1px solid ${C.chipBorder}`, color: "var(--muted)", fontSize: 11, cursor: "pointer", userSelect: "none", WebkitUserSelect: "none", boxShadow: "0 5px 12px rgba(0,0,0,.22)" }
+      style: { display: "inline-flex", alignItems: "center", justifyContent: "center", width: 20, height: 20, borderRadius: 999, background: "#182120", border: "1px solid rgba(255,255,255,.06)", color: "rgba(255,255,255,.72)", fontSize: 11, cursor: "pointer", userSelect: "none", WebkitUserSelect: "none", boxShadow: "0 7px 14px rgba(0,0,0,.32), inset 0 1px 0 rgba(255,255,255,.04)" }
     }, "+")
   );
 };
@@ -296,7 +298,7 @@ const Reactable = ({ msg, currentUserId, onReact, onReply, nameFor, photoFor, al
     ? React.createElement(ReactionChips, { msg, currentUserId, onReact, nameFor, photoFor, align, showAdd, onAdd: () => setShowBar(true), placement: reactionPlacement })
     : null;
   const renderedChildren = typeof children === "function" ? children(reactionNode) : children;
-  return React.createElement('div', { style: { position: "relative", paddingBottom: hasReactionBadge ? 10 : 0 } },
+  return React.createElement('div', { style: { position: "relative", paddingBottom: hasReactionBadge ? (align === "center" ? 20 : 13) : 0 } },
     swipeEnabled && React.createElement('div', {
       style: { position: "absolute", top: 0, bottom: 0, left: 14, display: "flex", alignItems: "center", opacity: Math.min(1, swipeX / 56), pointerEvents: "none" }
     }, React.createElement(AppIcon, { name: "reply", size: 18, stroke: C.accent })),
@@ -1281,8 +1283,8 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, 
               }
               const isOwn = msg.author_id === currentUserId;
               const replyToMsg = msg.reply_to ? messages.find(x => x.id === msg.reply_to) : null;
-              // Time shows on the last message of a same-minute run from this sender.
-              const showTime = !(sameAuthorNext && sameMinute(msg.created_at, next.created_at));
+              // Time shows on the last message of a five-minute run from this sender.
+              const showTime = !(sameAuthorNext && sameFiveMinuteWindow(msg.created_at, next.created_at));
               return wrap(React.createElement(Reactable, { msg, currentUserId, onReact: handleReact, onReply: handleReply, nameFor, photoFor, align: isOwn ? "right" : "left", swipeEnabled: true },
                 reactionNode => React.createElement(TextBubble, { msg, isOwn, authorName: nameFor(msg.author_id), authorPhotoUrl: photoFor(msg.author_id), nameFor, members: activeMembers, replyToMsg, showName: firstInGroup, showTime, showAvatar: !sameAuthorNext, firstInGroup, reactionNode })));
             })
