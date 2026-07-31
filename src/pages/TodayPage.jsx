@@ -69,9 +69,40 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
   const [settlementCardBusy,setSettlementCardBusy]=useState(null);
   const [settlementConfirmPromptCard,setSettlementConfirmPromptCard]=useState(null);
   const [settlementDisputePromptCard,setSettlementDisputePromptCard]=useState(null);
+  const todayRootRef = useRef(null);
   const profileLayerRef = useRef(null);
   const [profileRevealActive,setProfileRevealActive]=useState(false);
   useEffect(()=>{ setViewPlayer(null); },[navResetToken]);
+  useEffect(() => {
+    const el = todayRootRef.current;
+    if (!el) return undefined;
+    let startX = 0;
+    let startY = 0;
+    const handleTouchStart = event => {
+      const touch = event.touches?.[0];
+      if (!touch) return;
+      startX = touch.clientX;
+      startY = touch.clientY;
+    };
+    const handleTouchMove = event => {
+      const touch = event.touches?.[0];
+      if (!touch || !event.cancelable) return;
+      if (event.target?.closest?.(".modal,.overlay,.in-bloc-profile-layer,input,textarea,select,[contenteditable='true']")) return;
+      const dx = touch.clientX - startX;
+      const dy = touch.clientY - startY;
+      if (Math.abs(dx) >= Math.abs(dy)) return;
+      const scrollEl = document.scrollingElement || document.documentElement;
+      const atTop = scrollEl.scrollTop <= 0;
+      const atBottom = scrollEl.scrollTop + window.innerHeight >= scrollEl.scrollHeight - 1;
+      if ((dy > 0 && atTop) || (dy < 0 && atBottom)) event.preventDefault();
+    };
+    el.addEventListener("touchstart", handleTouchStart, { passive: true });
+    el.addEventListener("touchmove", handleTouchMove, { passive: false });
+    return () => {
+      el.removeEventListener("touchstart", handleTouchStart);
+      el.removeEventListener("touchmove", handleTouchMove);
+    };
+  },[]);
   useEffect(() => {
     const el = profileLayerRef.current;
     if (!viewPlayer || !el) return undefined;
@@ -1225,7 +1256,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
     )
   );
 
-  const todayContent = React.createElement('div',{style:{position:"relative",minHeight:"calc(100vh - 44px)",backgroundColor:"#070C0C",background:"var(--bg-gradient)",backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)",overscrollBehavior:"contain"}},
+  const todayContent = React.createElement('div',{ref:todayRootRef,style:{position:"relative",minHeight:"calc(100vh - 44px)",backgroundColor:"#070C0C",background:"var(--bg-gradient)",backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)",overscrollBehavior:"contain",overscrollBehaviorY:"contain"}},
     showLog&&React.createElement(LogModal,{user,currentGroupId,groups,onConfirm:doLog,onClose:()=>setShowLog(false)}),
     deleteTarget && React.createElement(DeleteModal,{log:deleteTarget,onClose:()=>setDeleteTarget(null),onConfirm:async()=>{ const logId = deleteTarget.id; setDeleteTarget(null); await onLogMutation({action:"delete-log",groupId:currentGroupId,actor:user,owner:user,logId}); }}),
     showExcuse && sitOutMode && React.createElement(SitOutModal,{mode:sitOutMode,monthName:modalMonthName,onClose:()=>{setShowExcuse(false);setSitOutError("");},onSubmit:submitSitOut,submitting:sitOutSubmitting,error:sitOutError}),
