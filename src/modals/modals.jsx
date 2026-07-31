@@ -651,11 +651,10 @@ const LogModal = ({user,currentGroupId,groups,onConfirm,onClose}) => {
   return React.createElement(React.Fragment,null,
     React.createElement('div',{onClick:onClose,style:{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",zIndex:999}}),
     React.createElement('div',{className:"log-workout-modal",onClick:e=>e.stopPropagation(),style:modalFrameStyle},
-      React.createElement('div',{style:{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:10,marginBottom:compactMobile?7:12}},
+      React.createElement('div',{style:{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:10,marginBottom:compactMobile?9:14}},
         React.createElement('div',{style:{minWidth:0}},
           React.createElement('div',{style:{fontFamily:DISPLAY_FONT,fontWeight:800,fontSize:compactMobile?18:20,letterSpacing:0,lineHeight:1.08}},"Log a workout")
-        ),
-        React.createElement('button',{type:"button",onClick:onClose,style:{width:32,height:32,borderRadius:999,background:"var(--s2)",border:"1px solid var(--border)",color:"var(--muted)",fontSize:18,lineHeight:1,flexShrink:0}},"×")
+        )
       ),
       React.createElement('span',{style:logFieldLabelStyle},"Date"),
       React.createElement('input',{type:"date",value:selDate,min:timeContext.earliestIso,max:timeContext.todayIso,onChange:handleDateChange,
@@ -664,7 +663,7 @@ const LogModal = ({user,currentGroupId,groups,onConfirm,onClose}) => {
       React.createElement('span',{style:logFieldLabelStyle},"Workout type"),
       React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(5,minmax(0,1fr))",gap:compactMobile?5:6,marginBottom:compactMobile?8:12}},
         visibleWorkoutTypes.map(t=>React.createElement('button',{key:t,onClick:()=>setWType(t),type:"button",
-          style:{minWidth:0,background:wType===t?"var(--green-dim)":"var(--s2)",border:`1px solid ${wType===t?"var(--green)":"var(--border)"}`,borderRadius:10,padding:compactMobile?"7px 2px":"8px 4px",display:"flex",flexDirection:"column",alignItems:"center",gap:compactMobile?3:4,color:wType===t?"var(--green)":"var(--muted)"}},
+          style:{minWidth:0,background:wType===t?"var(--green-dim)":"rgba(25,27,36,.82)",border:`1px solid ${wType===t?"var(--green)":"rgba(78,205,196,.16)"}`,borderRadius:10,padding:compactMobile?"7px 2px":"8px 4px",display:"flex",flexDirection:"column",alignItems:"center",gap:compactMobile?3:4,color:wType===t?"var(--green)":"var(--text)"}},
           React.createElement('span',{style:{width:compactMobile?24:30,height:compactMobile?24:30,display:"inline-flex",alignItems:"center",justifyContent:"center"}},React.createElement(WorkoutTypeIcon,{type:t,size:compactMobile?18:22})),
           React.createElement('span',{style:{fontSize:compactMobile?10:11,fontWeight:600,lineHeight:1.1}},t)
         ))
@@ -672,22 +671,30 @@ const LogModal = ({user,currentGroupId,groups,onConfirm,onClose}) => {
       React.createElement('span',{style:logFieldLabelStyle},"Photo"),
       React.createElement('input',{ref:takePhotoInputRef,type:"file",accept:"image/*",capture:"environment",onChange:handlePhotoPick,style:{display:"none"}}),
       React.createElement('input',{ref:choosePhotoInputRef,type:"file",accept:"image/*",onChange:handlePhotoPick,style:{display:"none"}}),
-      React.createElement('div',{style:{display:"flex",alignItems:"center",gap:6,minHeight:36,padding:"0 8px",borderRadius:12,background:photoUrl?"rgba(31,206,101,.04)":"var(--s2)",border:`1px solid ${photoUrl?"rgba(31,206,101,.35)":"var(--border)"}`,marginBottom:photoUrl?8:7}},
-        React.createElement('span',{style:{flex:1,minWidth:0,fontSize:13,fontWeight:400,color:"var(--muted)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},uploading?"Processing photo...":"Add photo"),
+      !photoUrl && React.createElement('div',{style:{display:"flex",alignItems:"center",gap:6,minHeight:36,padding:"0 8px",borderRadius:12,background:"rgba(25,27,36,.82)",border:"1px solid rgba(78,205,196,.16)",marginBottom:7}},
+        React.createElement('span',{style:{flex:1,minWidth:0,fontSize:13,fontWeight:600,color:"var(--text)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},uploading?"Processing photo...":"Add photo"),
         React.createElement('div',{style:{display:"flex",alignItems:"center",gap:4,flexShrink:0}},
-          React.createElement('button',{type:"button",onClick:()=>takePhotoInputRef.current?.click(),style:{height:26,padding:"0 9px",borderRadius:999,background:"var(--s1)",border:"1px solid var(--border)",fontSize:10.5,fontWeight:700,color:"var(--text)"}},"Camera"),
-          React.createElement('button',{type:"button",onClick:()=>choosePhotoInputRef.current?.click(),style:{height:26,padding:"0 9px",borderRadius:999,background:"var(--s1)",border:"1px solid var(--border)",fontSize:10.5,fontWeight:700,color:"var(--text)"}},"Library")
+          React.createElement('button',{type:"button",onClick:()=>takePhotoInputRef.current?.click(),style:{height:26,padding:"0 9px",borderRadius:999,background:"var(--s1)",border:"1px solid rgba(78,205,196,.16)",fontSize:10.5,fontWeight:700,color:"var(--text)"}},"Camera"),
+          React.createElement('button',{type:"button",onClick:()=>choosePhotoInputRef.current?.click(),style:{height:26,padding:"0 9px",borderRadius:999,background:"var(--s1)",border:"1px solid rgba(78,205,196,.16)",fontSize:10.5,fontWeight:700,color:"var(--text)"}},"Library")
         )
       ),
-      photoUrl && React.createElement('label',{style:{display:"block",marginBottom:7,cursor:"pointer"}},
-        React.createElement('div',{style:{minHeight:compactMobile?72:114,borderRadius:14,border:"1px dashed rgba(31,206,101,.35)",background:"rgba(31,206,101,.04)",display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden"}},
-          React.createElement('img',{src:photoUrl,alt:"Workout preview",style:{display:"block",width:"100%",maxHeight:compactMobile?104:176,objectFit:"cover"}})
+      photoUrl && React.createElement('div',{style:{display:"grid",gap:5,marginBottom:7}},
+        React.createElement('label',{style:{display:"block",cursor:"pointer"}},
+          React.createElement('div',{style:{minHeight:compactMobile?72:114,borderRadius:14,border:"1px dashed rgba(31,206,101,.35)",background:"rgba(31,206,101,.04)",display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden"}},
+            React.createElement('img',{src:photoUrl,alt:"Workout preview",style:{display:"block",width:"100%",maxHeight:compactMobile?104:176,objectFit:"cover"}})
+          )
+        ),
+        React.createElement('div',{style:{display:"flex",justifyContent:"center",gap:5}},
+          React.createElement('button',{type:"button",onClick:()=>takePhotoInputRef.current?.click(),style:{height:23,padding:"0 8px",borderRadius:999,background:"rgba(25,27,36,.82)",border:"1px solid rgba(78,205,196,.16)",fontSize:10,fontWeight:700,color:"var(--text)"}},"Camera"),
+          React.createElement('button',{type:"button",onClick:()=>choosePhotoInputRef.current?.click(),style:{height:23,padding:"0 8px",borderRadius:999,background:"rgba(25,27,36,.82)",border:"1px solid rgba(78,205,196,.16)",fontSize:10,fontWeight:700,color:"var(--text)"}},"Library")
         )
       ),
       photoError && React.createElement('div',{style:{fontSize:12,color:"var(--red)",marginBottom:7}},photoError),
       React.createElement('span',{style:logFieldLabelStyle},needsNote?"Describe your workout":"Add a note (optional)"),
-      React.createElement('textarea',{value:note,onChange:e=>setNote(e.target.value.slice(0,WORKOUT_NOTE_LIMIT)),rows:compactMobile?2:3,placeholder:needsNote?"e.g. swim, home workout, martial arts":"e.g. trail run, home workout, yoga",style:{width:"100%",resize:"none",background:"var(--s2)",border:`1px solid ${needsNote&&!note.trim()?"rgba(240,165,0,.28)":"var(--border)"}`,borderRadius:10,padding:compactMobile?"9px 11px":"10px 13px",color:"var(--text)",fontSize:compactMobile?13:14,outline:"none",marginBottom:compactMobile?8:12,boxSizing:"border-box",fontFamily:UI_FONT}}),
-      React.createElement('div',{style:{fontFamily:UI_FONT,fontSize:10,color:"var(--muted)",marginTop:compactMobile?-3:-6,marginBottom:compactMobile?8:10,textAlign:"right"}},`${note.length}/${WORKOUT_NOTE_LIMIT}`),
+      React.createElement('div',{style:{position:"relative",marginBottom:compactMobile?8:12}},
+        React.createElement('textarea',{value:note,onChange:e=>setNote(e.target.value.slice(0,WORKOUT_NOTE_LIMIT)),rows:compactMobile?2:3,placeholder:needsNote?"e.g. swim, home workout, martial arts":"e.g. trail run, home workout, yoga",style:{width:"100%",resize:"none",background:"var(--s2)",border:`1px solid ${needsNote&&!note.trim()?"rgba(240,165,0,.28)":"var(--border)"}`,borderRadius:10,padding:compactMobile?"9px 44px 16px 11px":"10px 48px 17px 13px",color:"var(--text)",fontSize:compactMobile?13:14,outline:"none",boxSizing:"border-box",fontFamily:UI_FONT,display:"block"}}),
+        React.createElement('div',{style:{position:"absolute",right:9,bottom:5,fontFamily:UI_FONT,fontSize:8.5,color:"var(--muted2)",pointerEvents:"none"}},`${note.length}/${WORKOUT_NOTE_LIMIT}`)
+      ),
       wType && eligibleGroups.length > 0 && React.createElement('div',{style:{marginBottom:compactMobile?10:16}},
         React.createElement('span',{style:logFieldLabelStyle},"Also Log To"),
         React.createElement('div',{style:{display:"flex",flexWrap:"wrap",gap:6}},
@@ -718,7 +725,7 @@ const LogModal = ({user,currentGroupId,groups,onConfirm,onClose}) => {
           ))
         )
       ),
-      React.createElement('div',{style:{display:"flex",gap:9,position:"sticky",bottom:-1,paddingTop:6,paddingBottom:1,background:"linear-gradient(to top, rgba(8,15,15,1), rgba(8,15,15,.94) 72%, rgba(8,15,15,0))"}},
+      React.createElement('div',{style:{display:"flex",gap:9,paddingTop:6}},
         React.createElement('button',{onClick:onClose,style:{flex:1,background:"transparent",border:"1px solid #163d36",color:"var(--muted)",padding:compactMobile?"12px":"14px",borderRadius:10,fontSize:compactMobile?14:15,fontWeight:700}},"Cancel"),
         React.createElement('button',{onClick:()=>canSubmit&&onConfirm({ workoutType:wType, isoDate:selDate, targetGroupIds:isCurrentMonthSelection?selectedGroupIds:[], note:note.trim(), photoUrl }),
           style:{flex:2,background:canSubmit?"var(--green)":"var(--s3)",color:canSubmit?"#000":"var(--muted2)",padding:compactMobile?"12px":"14px",borderRadius:10,fontSize:compactMobile?14:15,fontWeight:800,animation:canSubmit?"glow 2s infinite":"none",cursor:canSubmit?"pointer":"default"}},
