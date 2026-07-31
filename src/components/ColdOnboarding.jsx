@@ -387,6 +387,23 @@ const ColdOnboarding = ({onCreate,onJoin}) => {
       : index === 2
         ? React.createElement(SettlementPreview)
         : React.createElement(BlocStarterPreview,{blocName,setBlocName});
+  const moveSubtextBelowPreview = index === 1 || index === 2;
+  const headlineFontSize = index === 2 ? 31 : 34;
+  const renderSubtext = (options = {}) => React.createElement('p',{
+    style:{
+      margin:options.below ? "16px 0 0" : "12px 0 0",
+      textAlign:options.center ? "center" : "left",
+      fontSize:16,
+      lineHeight:1.45,
+      fontWeight:600,
+      color:"rgba(214,226,224,.72)"
+    }
+  },
+    screen.subtextLines
+      ? screen.subtextLines.map(line=>React.createElement('span',{key:line,style:{display:"block"}},line))
+      : screen.subtext,
+    screen.highlight && React.createElement('span',{style:{display:"block",marginTop:4,fontWeight:900,color:"transparent",background:"linear-gradient(90deg,#E2E8F0 0%,#4ECDC4 42%,#F5A623 76%,#E2E8F0 100%)",WebkitBackgroundClip:"text",backgroundClip:"text",textShadow:"0 0 18px rgba(78,205,196,.12)"}},screen.highlight)
+  );
 
   return React.createElement('main',{
     onClick:handleTapNav,
@@ -413,17 +430,13 @@ const ColdOnboarding = ({onCreate,onJoin}) => {
       style:{flex:1,display:"flex",flexDirection:"column",justifyContent:"center",maxWidth:520,width:"100%",margin:"0 auto",animation:"fadeUp .22s ease both"}
     },
       React.createElement('div',{style:{marginBottom:index===0?16:22}},
-        React.createElement('h1',{style:{margin:0,fontSize:34,lineHeight:1.02,letterSpacing:0,fontWeight:900,color:"#f5f7ff"}},
+        React.createElement('h1',{style:{margin:0,fontSize:headlineFontSize,lineHeight:1.02,letterSpacing:0,fontWeight:900,color:"#f5f7ff"}},
           (screen.headlineLines || [screen.headline]).map(line=>React.createElement('span',{key:line,style:{display:"block",whiteSpace:"nowrap"}},line))
         ),
-        index !== 0 && React.createElement('p',{style:{margin:"12px 0 0",fontSize:16,lineHeight:1.45,fontWeight:600,color:"rgba(214,226,224,.72)"}},
-          screen.subtextLines
-            ? screen.subtextLines.map(line=>React.createElement('span',{key:line,style:{display:"block"}},line))
-            : screen.subtext,
-          screen.highlight && React.createElement('span',{style:{display:"block",marginTop:4,fontWeight:900,color:"transparent",background:"linear-gradient(90deg,#E2E8F0 0%,#4ECDC4 42%,#F5A623 76%,#E2E8F0 100%)",WebkitBackgroundClip:"text",backgroundClip:"text",textShadow:"0 0 18px rgba(78,205,196,.12)"}},screen.highlight)
-        )
+        index !== 0 && !moveSubtextBelowPreview && renderSubtext()
       ),
       preview,
+      moveSubtextBelowPreview && renderSubtext({ below:true, center:true }),
       index === 0 && React.createElement('p',{style:{margin:"16px 0 0",textAlign:"center",fontSize:15,lineHeight:1.42,fontWeight:700,color:"rgba(214,226,224,.72)"}},
         React.createElement('span',{style:{display:"block",whiteSpace:"nowrap"}},"A monthly target. A live leaderboard."),
         React.createElement('span',{style:{display:"block",whiteSpace:"nowrap"}},"Progress everyone can see.")
