@@ -200,16 +200,32 @@ const RosterPopover = ({ title, ids, nameFor, photoFor, onClose, align = "left" 
 // double-tap or the message long-press emoji bar, not by holding the chip.
 const ReactionChip = ({ emoji, users, mine, nameFor, photoFor, align }) => {
   const [who, setWho] = useState(false);
+  const [rosterAlign, setRosterAlign] = useState(align);
+  const rootRef = useRef(null);
   const p = useRef({ moved: false, sx: 0, sy: 0 });
+  const openRoster = () => {
+    const rect = rootRef.current?.getBoundingClientRect();
+    if (rect && typeof window !== "undefined") {
+      const popWidth = 240;
+      const gutter = 12;
+      const overflowsRight = rect.left + popWidth > window.innerWidth - gutter;
+      const overflowsLeft = rect.right - popWidth < gutter;
+      setRosterAlign(overflowsRight && !overflowsLeft ? "right" : align);
+    } else {
+      setRosterAlign(align);
+    }
+    setWho(true);
+  };
   return React.createElement('span', { style: { position: "relative", display: "inline-flex" } },
     React.createElement('button', {
+      ref: rootRef,
       onPointerDown: e => { const s = p.current; s.moved = false; s.sx = e.clientX; s.sy = e.clientY; },
       onPointerMove: e => { const s = p.current; if (Math.abs(e.clientX - s.sx) > 8 || Math.abs(e.clientY - s.sy) > 8) s.moved = true; },
-      onPointerUp: () => { if (!p.current.moved) setWho(true); },
+      onPointerUp: () => { if (!p.current.moved) openRoster(); },
       onContextMenu: e => e.preventDefault(),
       style: { minHeight: 20, display: "inline-flex", alignItems: "center", gap: 4, background: "#182120", border: "1px solid rgba(255,255,255,.06)", borderRadius: 999, padding: "0 7px", fontSize: 11, color: "var(--text)", cursor: "pointer", lineHeight: 1.25, userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none", touchAction: "manipulation", boxShadow: "0 7px 14px rgba(0,0,0,.32), inset 0 1px 0 rgba(255,255,255,.04)" }
     }, emoji, React.createElement('span', { style: { fontFamily: "'Outfit', sans-serif", fontSize: 10, color: "rgba(255,255,255,.8)", fontWeight: 800 } }, users.length)),
-    who && React.createElement(RosterPopover, { title: `${emoji} · ${users.length}`, ids: users, nameFor, photoFor, onClose: () => setWho(false), align })
+    who && React.createElement(RosterPopover, { title: `${emoji} · ${users.length}`, ids: users, nameFor, photoFor, onClose: () => setWho(false), align: rosterAlign })
   );
 };
 
@@ -331,7 +347,7 @@ const TextBubble = ({ msg, isOwn, authorName, authorPhotoUrl, nameFor, members, 
     !isOwn && (showAvatar
       ? React.createElement('div', { style: { flexShrink: 0, paddingTop: nameText ? 18 : 0 } }, React.createElement(Avatar, { name: authorName, userId: msg.author_id, photoUrl: authorPhotoUrl, size: 28 }))
       : React.createElement('div', { style: { width: 28, flexShrink: 0 } })),
-    React.createElement('div', { style: { maxWidth: "76%", display: "flex", flexDirection: "column", alignItems: isOwn ? "flex-end" : "flex-start" } },
+    React.createElement('div', { style: { maxWidth: isOwn ? "76%" : "74%", width: "fit-content", display: "flex", flexDirection: "column", alignItems: isOwn ? "flex-end" : "flex-start" } },
       nameText && React.createElement('div', {
         style: { fontFamily: "'Outfit', sans-serif", fontSize: 11, fontWeight: 500, color: C.meta, margin: "0 0 3px 4px" }
       }, nameText),
@@ -341,6 +357,7 @@ const TextBubble = ({ msg, isOwn, authorName, authorPhotoUrl, nameFor, members, 
           background: isOwn ? C.ownBg : C.rcvBg,
           border: `1px solid ${isOwn ? C.ownBorder : C.rcvBorder}`,
           borderRadius: radius,
+          width: "fit-content", maxWidth: "100%", boxSizing: "border-box",
           padding: "7px 11px", color: "var(--text)", fontSize: 14, lineHeight: 1.34, wordBreak: "break-word"
         }
       },
