@@ -318,15 +318,17 @@ const CreatedBlocInviteScreen = ({group,onContinue}) => {
 };
 
 
-const GroupHome = ({groups,currentIdentity,currentEmail,currentUserId="",onOpenProfile,onOpenGroup,onCreateGroup,onJoinGroup,creating,autoOpenCreate=false,onAutoOpenHandled,suppressIntro=false}) => {
+const GroupHome = ({groups,currentIdentity,currentEmail,currentUserId="",onOpenProfile,onOpenGroup,onCreateGroup,onJoinGroup,creating,autoOpenCreate=false,initialCreateGroupName="",onAutoOpenHandled,suppressIntro=false}) => {
   const [showCreate,setShowCreate]=useState(false);
+  const [createInitialGroupName,setCreateInitialGroupName]=useState("");
   const compactMobile = isMobile();
   useEffect(() => {
     if (autoOpenCreate) {
+      setCreateInitialGroupName(initialCreateGroupName || "");
       setShowCreate(true);
       onAutoOpenHandled && onAutoOpenHandled();
     }
-  }, [autoOpenCreate, onAutoOpenHandled]);
+  }, [autoOpenCreate, initialCreateGroupName, onAutoOpenHandled]);
   const renderCloseMeta = group => {
     const closeMeta = getGroupCloseMeta(group);
     if (!closeMeta.isCountdown) return null;
@@ -357,7 +359,7 @@ const GroupHome = ({groups,currentIdentity,currentEmail,currentUserId="",onOpenP
             React.createElement(AnteWordmark,{size:compactMobile?38:52}),
             React.createElement('div',{style:{color:"var(--muted)",fontSize:14,fontWeight:500,marginTop:12,marginBottom:32}},"You're not in any Blocs yet."),
             React.createElement('div',{style:{display:"flex",gap:10,flexWrap:"wrap",justifyContent:"center"}},
-              React.createElement('button',{onClick:()=>setShowCreate(true),style:{background:"var(--green)",color:"#000",padding:compactMobile?"12px 18px":"12px 20px",borderRadius:10,fontSize:14,fontWeight:800}},"Create Bloc"),
+              React.createElement('button',{onClick:()=>{setCreateInitialGroupName("");setShowCreate(true);},style:{background:"var(--green)",color:"#000",padding:compactMobile?"12px 18px":"12px 20px",borderRadius:10,fontSize:14,fontWeight:800}},"Create Bloc"),
               React.createElement('button',{onClick:onJoinGroup,style:{background:"var(--green)",color:"#000",padding:compactMobile?"12px 18px":"12px 20px",borderRadius:10,fontSize:14,fontWeight:800}},"Join Existing")
             )
           )
@@ -420,12 +422,13 @@ const GroupHome = ({groups,currentIdentity,currentEmail,currentUserId="",onOpenP
       ),
       React.createElement('div',{style:{width:"100%",maxWidth:744,height:1,margin:compactMobile?"2px 0 14px":"6px 0 18px",background:"linear-gradient(90deg,transparent,rgba(78,205,196,.28),rgba(255,255,255,.08),rgba(78,205,196,.28),transparent)"}}),
       React.createElement('div',{style:{display:"flex",gap:10,justifyContent:"center",flexWrap:"wrap",width:"100%",maxWidth:744,marginTop:0,marginBottom:compactMobile?28:34}},
-        React.createElement('button',{onClick:()=>setShowCreate(true),style:{background:"var(--green)",color:"#000",padding:compactMobile?"10px 16px":"11px 18px",borderRadius:10,fontSize:13,fontWeight:800}},"Create Bloc"),
+        React.createElement('button',{onClick:()=>{setCreateInitialGroupName("");setShowCreate(true);},style:{background:"var(--green)",color:"#000",padding:compactMobile?"10px 16px":"11px 18px",borderRadius:10,fontSize:13,fontWeight:800}},"Create Bloc"),
         React.createElement('button',{onClick:onJoinGroup,style:{background:"var(--green)",color:"#000",padding:compactMobile?"10px 16px":"11px 18px",borderRadius:10,fontSize:13,fontWeight:800}},"Join Existing")
       )
     )/* end non-empty Fragment */),
     showCreate && React.createElement(GroupCreateModal,{
       creating,
+      initialGroupName: createInitialGroupName,
       defaultCreatorName: currentIdentity || "",
       defaultTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || DEFAULT_GROUP_TIME_ZONE,
       lockCreatorName: true,

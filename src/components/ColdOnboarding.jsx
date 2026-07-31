@@ -6,7 +6,7 @@ const { useRef, useState } = React;
 const ONBOARDING_SCREENS = [
   {
     headlineLines: ["For the group that", "keeps you showing up."],
-    subtextLines: ["A monthly goal.", "Your people.", "Something real on the line."]
+    subtextLines: ["A monthly target.", "A live leaderboard.", "Progress everyone can see."]
   },
   {
     headlineLines: ["Pick your people."],
@@ -18,7 +18,7 @@ const ONBOARDING_SCREENS = [
   },
   {
     headlineLines: ["Show up together.", "Or pay up."],
-    subtext: "Start a Bloc. Invite your people.",
+    subtext: "Start a Bloc. Bring your mates in.",
     highlight: "Consistency's a group sport."
   }
 ];

@@ -180,9 +180,9 @@ const GroupSettingsFields = ({settings,setSettings,showAdvanced,setShowAdvanced,
 };
 
 
-const GroupCreateModal = ({onCreate,onClose,creating,defaultCreatorName="",defaultTimeZone=DEFAULT_GROUP_TIME_ZONE,lockCreatorName=false}) => {
+const GroupCreateModal = ({onCreate,onClose,creating,defaultCreatorName="",defaultTimeZone=DEFAULT_GROUP_TIME_ZONE,lockCreatorName=false,initialGroupName=""}) => {
   const compactMobile = isMobile();
-  const [groupName,setGroupName]=useState("");
+  const [groupName,setGroupName]=useState(initialGroupName);
   const [creatorName,setCreatorName]=useState(defaultCreatorName);
   const [settings,setSettings]=useState({
     ...SETTINGS_DEFAULTS,

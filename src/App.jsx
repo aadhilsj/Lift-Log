@@ -175,6 +175,7 @@ const App = () => {
   const [savingProfile,setSavingProfile]=useState(false);
   const [showJoinModal,setShowJoinModal]=useState(false);
   const [queuedCreate,setQueuedCreate]=useState(false);
+  const [queuedCreateGroupName,setQueuedCreateGroupName]=useState("");
   const [pendingJoinAfterProfile,setPendingJoinAfterProfile]=useState(false);
   const [joinCode,setJoinCode]=useState(()=>{
     try {
@@ -1449,7 +1450,8 @@ const App = () => {
       onOpenProfile:inert?()=>{}:()=>setShowProfile(true),
       creating: inert ? false : creatingGroup,
       autoOpenCreate: inert ? false : queuedCreate,
-      onAutoOpenHandled: inert ? ()=>{} : ()=>setQueuedCreate(false),
+      initialCreateGroupName: inert ? "" : queuedCreateGroupName,
+      onAutoOpenHandled: inert ? ()=>{} : ()=>{setQueuedCreate(false);setQueuedCreateGroupName("");},
       onOpenGroup: inert ? ()=>{} : groupId=>{ window.scrollTo({top:0,left:0,behavior:"auto"}); setSuppressSwitcherIntro(false); persistGroupSelection(groupId); setPage("today"); },
       onCreateGroup: inert ? ()=>{} : handleCreateGroup,
       onJoinGroup: inert ? ()=>{} : ()=>setShowJoinModal(true),
@@ -1471,15 +1473,17 @@ const App = () => {
     setColdOnboardingSeen(true);
     try { localStorage.setItem(COLD_ONBOARDING_SEEN_KEY, "1"); } catch {}
   },[]);
-  const handleColdOnboardingCreate = useCallback(() => {
+  const handleColdOnboardingCreate = useCallback(({ blocName } = {}) => {
+    const initialGroupName = String(blocName || "").trim();
     completeColdOnboarding();
+    setQueuedCreateGroupName(initialGroupName);
     if (authSession?.userId) {
       persistGroupSelection(null);
       setSuppressSwitcherIntro(true);
       setQueuedCreate(true);
       return;
     }
-    openAuth({ type:"create" });
+    openAuth({ type:"create", initialGroupName });
   },[authSession?.userId, completeColdOnboarding, persistGroupSelection, openAuth]);
   const handleColdOnboardingJoin = useCallback(() => {
     completeColdOnboarding();
@@ -1499,6 +1503,7 @@ const App = () => {
   };
   const continueAfterAuth = async (nextSession = authSession, nextProfile = effectiveProfile) => {
     if (authIntent?.type === "create") {
+      setQueuedCreateGroupName(String(authIntent?.initialGroupName || "").trim());
       setQueuedCreate(true);
       return;
     }
