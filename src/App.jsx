@@ -94,7 +94,6 @@ import { ProfilePage } from "./pages/ProfilePage.jsx";
 import { BlocSettingsScreen } from "./pages/BlocSettingsScreen.jsx";
 import { LogCommentThread } from "./components/LogCommentThread.jsx";
 import { ColdOnboarding } from "./components/ColdOnboarding.jsx";
-import { InviteWelcomeScreen } from "./components/InviteWelcomeScreen.jsx";
 
 const normalizeReactionMembers = (members) => Array.isArray(members)
   ? Array.from(new Set(members.filter(Boolean))).sort()
@@ -137,29 +136,6 @@ const preserveKnownProfilePhotos = (current, incoming) => {
 
 const IN_BLOC_PAGES = ["today", "activity", "month", "history"];
 const COLD_ONBOARDING_SEEN_KEY = "fero_cold_onboarding_seen";
-const INVITE_WELCOME_SEEN_PREFIX = "fero_invite_welcome_seen";
-const INVITE_HANDOFF_MARKER_KEY = "fero_invite_web_handoff";
-
-const inviteWelcomeSeenKey = (userId, groupId) => `${INVITE_WELCOME_SEEN_PREFIX}:${userId || "anon"}:${groupId || "none"}`;
-
-const hasSeenInviteWelcome = (userId, groupId) => {
-  try { return localStorage.getItem(inviteWelcomeSeenKey(userId, groupId)) === "1"; } catch { return false; }
-};
-
-const markInviteWelcomeSeen = (userId, groupId) => {
-  try { localStorage.setItem(inviteWelcomeSeenKey(userId, groupId), "1"); } catch {}
-};
-
-const persistInviteWebHandoffMarker = ({userId, groupId, inviteCode}) => {
-  try {
-    localStorage.setItem(INVITE_HANDOFF_MARKER_KEY, JSON.stringify({
-      userId:userId || "",
-      groupId:groupId || "",
-      inviteCode:inviteCode || "",
-      joinedAt:new Date().toISOString()
-    }));
-  } catch {}
-};
 
 const App = () => {
   const cached = readCachedData();
@@ -214,8 +190,6 @@ const App = () => {
   const [inviteContext,setInviteContext]=useState(null);
   const [inviteError,setInviteError]=useState("");
   const [joiningGroup,setJoiningGroup]=useState(false);
-  const [inviteWelcomeGroupId,setInviteWelcomeGroupId]=useState(null);
-  const [inviteDownloadPrompt,setInviteDownloadPrompt]=useState(null);
   const [pendingProrationGroupId,setPendingProrationGroupId]=useState(null);
   const [prorationSavingChoice,setProrationSavingChoice]=useState(null);
   const [installPrompt,setInstallPrompt]=useState(null);
@@ -244,7 +218,6 @@ const App = () => {
   const optimisticMutationRef = useRef(null);
   const logMutationQueueRef = useRef(Promise.resolve());
   const reactionMutationQueuesRef = useRef({});
-  const inviteDownloadPromptTimerRef = useRef(null);
   const blocSwipeRef = useRef({sx:0,sy:0,active:false,mode:null});
   const blocSurfaceRef = useRef(null);
   const blocBottomNavRef = useRef(null);
@@ -287,25 +260,6 @@ const App = () => {
     setJoinCode("");
     if (clearUrl) clearInviteParamFromUrl();
   },[clearInviteParamFromUrl]);
-
-  const scheduleInviteDownloadPrompt = useCallback((groupId) => {
-    if (inviteDownloadPromptTimerRef.current) clearTimeout(inviteDownloadPromptTimerRef.current);
-    inviteDownloadPromptTimerRef.current = setTimeout(() => {
-      setInviteDownloadPrompt({ groupId });
-    }, 2200);
-  },[]);
-
-  const completeInviteJoin = useCallback(({groupId, userId, inviteCode}) => {
-    if (!groupId) return;
-    persistGroupSelection(groupId);
-    setPage("today");
-    persistInviteWebHandoffMarker({ userId, groupId, inviteCode });
-    if (hasSeenInviteWelcome(userId, groupId)) {
-      scheduleInviteDownloadPrompt(groupId);
-      return;
-    }
-    setInviteWelcomeGroupId(groupId);
-  },[persistGroupSelection, scheduleInviteDownloadPrompt]);
 
   const currentGroup = selectedGroupId ? appState.groups?.[selectedGroupId] || null : null;
   const localDevMode = isLocalDevEnvironment();
@@ -424,10 +378,6 @@ const App = () => {
   useEffect(() => {
     const interval = setInterval(() => setClockTick(Date.now()), 30000);
     return () => clearInterval(interval);
-  }, []);
-
-  useEffect(() => () => {
-    if (inviteDownloadPromptTimerRef.current) clearTimeout(inviteDownloadPromptTimerRef.current);
   }, []);
 
   useEffect(() => {
@@ -1747,11 +1697,8 @@ const App = () => {
         return next;
       });
       resetInviteFlow({ clearUrl:true });
-      completeInviteJoin({
-        groupId: joinResult.joinedGroupId,
-        userId: activeSession.userId,
-        inviteCode: joinCode.trim().toUpperCase()
-      });
+      persistGroupSelection(joinResult.joinedGroupId);
+      setPage("today");
       setShowJoinModal(false);
       return;
     }
@@ -1786,64 +1733,9 @@ const App = () => {
       return next;
     });
     resetInviteFlow({ clearUrl:true });
-    completeInviteJoin({
-      groupId: result.joinedGroupId,
-      userId: authSession.userId,
-      inviteCode: joinCode.trim().toUpperCase()
-    });
-    setShowJoinModal(false);
-  };
-
-  const handleInviteWelcomeContinue = useCallback(() => {
-    const groupId = inviteWelcomeGroupId;
-    if (!groupId) return;
-    markInviteWelcomeSeen(authSession?.userId, groupId);
-    persistGroupSelection(groupId);
+    persistGroupSelection(result.joinedGroupId);
     setPage("today");
-    setInviteWelcomeGroupId(null);
-    scheduleInviteDownloadPrompt(groupId);
-  },[authSession?.userId, inviteWelcomeGroupId, persistGroupSelection, scheduleInviteDownloadPrompt]);
-
-  const dismissInviteDownloadPrompt = useCallback(() => {
-    if (inviteDownloadPromptTimerRef.current) clearTimeout(inviteDownloadPromptTimerRef.current);
-    setInviteDownloadPrompt(null);
-  },[]);
-
-  const renderInviteDownloadPrompt = () => {
-    if (!inviteDownloadPrompt) return null;
-    const promptGroup = appState.groups?.[inviteDownloadPrompt.groupId] || currentGroup;
-    return React.createElement('div',{
-      style:{
-        position:"fixed",
-        left:16,
-        right:16,
-        bottom:"calc(106px + env(safe-area-inset-bottom))",
-        zIndex:410,
-        pointerEvents:"auto",
-        borderRadius:18,
-        background:"rgba(8,15,15,.96)",
-        border:"0.5px solid rgba(78,205,196,.24)",
-        boxShadow:"0 22px 64px rgba(0,0,0,.42), 0 0 30px rgba(78,205,196,.08)",
-        padding:14,
-        display:"grid",
-        gap:12
-      }
-    },
-      React.createElement('div',{style:{display:"flex",alignItems:"flex-start",gap:12}},
-        React.createElement('div',{style:{width:34,height:34,borderRadius:12,background:"rgba(78,205,196,.12)",border:"0.5px solid rgba(78,205,196,.28)",display:"flex",alignItems:"center",justifyContent:"center",color:"#4ECDC4",fontFamily:"'Outfit', sans-serif",fontWeight:900,fontSize:18,flexShrink:0}},"F"),
-        React.createElement('div',{style:{flex:1,minWidth:0}},
-          React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontSize:15,fontWeight:900,color:"var(--text)",lineHeight:1.2}},"Log workouts from your phone. Get the app."),
-          React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontSize:12,fontWeight:700,color:"var(--text-soft)",lineHeight:1.35,marginTop:3}},
-            `You can keep using ${promptGroup?.name || "your Bloc"} here.`
-          )
-        ),
-        React.createElement('button',{type:"button",onClick:dismissInviteDownloadPrompt,style:{width:28,height:28,borderRadius:999,background:"transparent",border:"0.5px solid rgba(78,205,196,.18)",color:"#4ECDC4",fontSize:18,lineHeight:1,flexShrink:0}},"×")
-      ),
-      React.createElement('div',{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}},
-        React.createElement('button',{type:"button",className:"setup-press",style:{minHeight:40,borderRadius:12,background:"#4ECDC4",color:"#050909",fontFamily:"'Outfit', sans-serif",fontSize:13,fontWeight:900}},"App Store"),
-        React.createElement('button',{type:"button",className:"setup-press",style:{minHeight:40,borderRadius:12,background:"rgba(78,205,196,.1)",border:"0.5px solid rgba(78,205,196,.22)",color:"#4ECDC4",fontFamily:"'Outfit', sans-serif",fontSize:13,fontWeight:900}},"Play Store")
-      )
-    );
+    setShowJoinModal(false);
   };
 
   const handleSelectLocalPreviewIdentity = useCallback((displayName) => {
@@ -1931,15 +1823,6 @@ const App = () => {
       savingProfile,
       error:authError,
       devCode:devOtpCode
-    });
-  }
-  const inviteWelcomeGroup = inviteWelcomeGroupId ? appState.groups?.[inviteWelcomeGroupId] || null : null;
-  if(inviteWelcomeGroup && authSession?.userId) {
-    return React.createElement(InviteWelcomeScreen,{
-      group:inviteWelcomeGroup,
-      currentUserId:authSession.userId,
-      profilePhotoByUserId:appState.profiles,
-      onContinue:handleInviteWelcomeContinue
     });
   }
   if(!selectedGroupId || !currentGroup || !visibleGroups.some(group => group.id === selectedGroupId)) {
@@ -2083,7 +1966,6 @@ const App = () => {
     page==="today"&&renderGroupSwitcherSurface({ inert:true, suppressIntro:true }),
     activeBlocSurface,
     !showSettings && React.createElement(Nav,{onlyMobileBottomNav:true,page,setPage:handleNavSelect,user:currentUser,currentUserId:effectiveAuthSession?.userId||"",profilePhotoUrl:effectiveProfile?.profilePhotoUrl||"",groupName:currentGroup.name,canEditGroup:isGroupAdmin,onOpenSettings:()=>setShowSettings(true),onOpenProfile:()=>{setProfileError("");setShowProfileModal(true);},onOpenStream:handleOpenStream,streamUnreadCount,onSwitchUser:handleSwitchUser,onSwitchGroup:handleSwitchGroup,onOpenLog:()=>{setPage("today");setShowTodayLog(true);},syncing,lastSyncedAt,syncError,onRefresh:refreshNow,showJustSynced,activityAlertCount,mobileBottomDragX:blocDragXRef.current,mobileBottomNavRef:blocBottomNavRef,mobileBottomDragging:blocDragging}),
-    renderInviteDownloadPrompt(),
     logCommentScreen && React.createElement('div',{
       style:{position:"fixed",inset:0,zIndex:520,overflow:"hidden",pointerEvents:"auto",background:"transparent"}
     },
