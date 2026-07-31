@@ -90,6 +90,7 @@ import { BlocStream } from "./pages/BlocStream.jsx";
 import { ProfilePage } from "./pages/ProfilePage.jsx";
 import { BlocSettingsScreen } from "./pages/BlocSettingsScreen.jsx";
 import { LogCommentThread } from "./components/LogCommentThread.jsx";
+import { ColdOnboarding } from "./components/ColdOnboarding.jsx";
 
 const normalizeReactionMembers = (members) => Array.isArray(members)
   ? Array.from(new Set(members.filter(Boolean))).sort()
@@ -131,6 +132,7 @@ const preserveKnownProfilePhotos = (current, incoming) => {
 };
 
 const IN_BLOC_PAGES = ["today", "activity", "month", "history"];
+const COLD_ONBOARDING_SEEN_KEY = "fero_cold_onboarding_seen";
 
 const App = () => {
   const cached = readCachedData();
@@ -161,6 +163,8 @@ const App = () => {
   const [pendingAuthSession,setPendingAuthSession]=useState(null);
   const [authStep,setAuthStep]=useState(null);
   const [authIntent,setAuthIntent]=useState(null);
+  const [coldOnboardingSeen,setColdOnboardingSeen]=useState(()=>{try{return localStorage.getItem(COLD_ONBOARDING_SEEN_KEY)==="1";}catch{return false;}});
+  const [coldOnboardingPreviewDismissed,setColdOnboardingPreviewDismissed]=useState(false);
   const [authEmail,setAuthEmail]=useState("");
   const [authCode,setAuthCode]=useState("");
   const [authDisplayName,setAuthDisplayName]=useState("");
@@ -1462,6 +1466,29 @@ const App = () => {
     setAuthError("");
     setDevOtpCode("");
   };
+  const completeColdOnboarding = useCallback(() => {
+    setColdOnboardingPreviewDismissed(true);
+    setColdOnboardingSeen(true);
+    try { localStorage.setItem(COLD_ONBOARDING_SEEN_KEY, "1"); } catch {}
+  },[]);
+  const handleColdOnboardingCreate = useCallback(() => {
+    completeColdOnboarding();
+    if (authSession?.userId) {
+      persistGroupSelection(null);
+      setSuppressSwitcherIntro(true);
+      setQueuedCreate(true);
+      return;
+    }
+    openAuth({ type:"create" });
+  },[authSession?.userId, completeColdOnboarding, persistGroupSelection, openAuth]);
+  const handleColdOnboardingJoin = useCallback(() => {
+    completeColdOnboarding();
+    if (authSession?.userId) {
+      setShowJoinModal(true);
+      return;
+    }
+    openAuth({ type:"join" });
+  },[authSession?.userId, completeColdOnboarding, openAuth]);
   const closeAuth = () => {
     setAuthStep(null);
     setAuthIntent(null);
@@ -1627,7 +1654,22 @@ const App = () => {
     }
   },[groups, persistGroupSelection, persistSession]);
 
+  const hasInviteEntry = Boolean(String(joinCode || "").trim()) || Boolean(inviteContext?.inviteCode);
+  const forceColdOnboardingPreview = (() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      return params.get("onboarding") === "1" && !hasInviteEntry && !coldOnboardingPreviewDismissed;
+    } catch { return false; }
+  })();
+  const shouldShowColdOnboarding = forceColdOnboardingPreview || (!authSession?.userId && !localPreviewAuthEnabled && !hasInviteEntry && !coldOnboardingSeen && !authStep);
+
   if(loading || !authReady || authHydrating) return React.createElement(Spinner,{label:"Opening Fero..."});
+  if(shouldShowColdOnboarding) {
+    return React.createElement(ColdOnboarding,{
+      onCreate:handleColdOnboardingCreate,
+      onJoin:handleColdOnboardingJoin
+    });
+  }
   if(localPreviewAuthEnabled && !authSession?.userId) {
     return React.createElement(IdentitySetup,{
       members: localPreviewMembers,
