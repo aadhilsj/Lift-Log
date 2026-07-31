@@ -822,7 +822,20 @@ const SoloModal = ({mode,monthName,minimumTarget,defaultTarget,onClose,onSubmit,
   const submit = () => onSubmit({ personalTarget: Math.max(minTarget, Math.round(Number(target || minTarget))), reason });
   return React.createElement('div',{className:`overlay${isMobile() ? " center-mobile" : ""}`,onClick:onClose},
     React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{maxWidth:420}},
-      React.createElement('div',{style:{fontWeight:800,fontSize:20,marginBottom:10}},config.title),
+      React.createElement('div',{style:{display:"flex",alignItems:"center",gap:10,marginBottom:12}},
+        React.createElement('div',{style:{width:34,height:34,borderRadius:999,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(78,205,196,.08)",border:"1px solid rgba(78,205,196,.28)",color:"#4ECDC4",fontSize:16,fontWeight:900}},"S"),
+        React.createElement('div',{style:{fontWeight:800,fontSize:20,lineHeight:1.1}},config.title)
+      ),
+      React.createElement('div',{style:{display:"grid",gap:7,padding:"11px 12px",borderRadius:12,background:"rgba(8,15,15,.72)",border:"0.5px solid rgba(78,205,196,.16)",marginBottom:14}},
+        [
+          "Keep logging with a personal target.",
+          "Step out of this month's money stakes.",
+          "Needs admin approval, even in the first 10 days."
+        ].map(line=>React.createElement('div',{key:line,style:{display:"flex",alignItems:"flex-start",gap:8,fontSize:12.5,color:"var(--text)",lineHeight:1.35,fontWeight:650}},
+          React.createElement('span',{style:{width:5,height:5,borderRadius:999,background:"#4ECDC4",marginTop:7,flexShrink:0}}),
+          React.createElement('span',null,line)
+        ))
+      ),
       React.createElement('div',{style:{display:"grid",gap:4,color:"var(--muted)",fontSize:13,lineHeight:1.55,marginBottom:16}},
         config.body.map(line=>React.createElement('div',{key:line},line))
       ),

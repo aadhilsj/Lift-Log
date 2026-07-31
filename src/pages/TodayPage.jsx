@@ -147,6 +147,22 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
   const soloMode = currentSoloRequest?.status === "pending" || isExcused || isSolo || soloRequestWindowClosed
     ? null
     : (recentSoloCount >= 1 ? "exceptional" : "request");
+  const soloPreviewOverride = (() => {
+    try {
+      const host = window.location.hostname.toLowerCase();
+      const params = new URLSearchParams(window.location.search);
+      return params.get("soloPreview") === "1"
+        || (host.includes("vercel.app") && (host.includes("reco") || host.includes("reconcile") || host.includes("codex")));
+    } catch {
+      return false;
+    }
+  })();
+  const soloPreviewMode = soloPreviewOverride
+    && soloRequestWindowClosed
+    && !currentSoloRequest?.status
+    && !isExcused
+    && !isSolo;
+  const visibleSoloMode = soloMode || (soloPreviewMode ? "request" : null);
 
   const board=NAMES.filter(name=>isJoinedForMonth(name, curKey)).map(name=>{
     const count=getCountedLogCount(logs[name]||[]);
@@ -220,7 +236,11 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
   };
 
   const submitSolo = async ({ personalTarget, reason }) => {
-    if (!onSoloRequest || !soloMode) return;
+    if (!onSoloRequest || !visibleSoloMode) return;
+    if (soloPreviewMode && !soloMode) {
+      setSoloError("Preview only. Real Solo requests are locked after day 10.");
+      return;
+    }
     setSoloSubmitting(true);
     setSoloError("");
     const result = await onSoloRequest({
@@ -464,7 +484,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
     : React.createElement('div',{style:{display:"flex",gap:7,flexWrap:"nowrap",justifyContent:"flex-end",alignItems:"center"}},
         React.createElement('button',{
           onClick:()=>{
-            if (!soloMode) {
+            if (!visibleSoloMode) {
               setShowSoloLocked(true);
               return;
             }
@@ -472,9 +492,9 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
             setShowSolo(true);
           },
           style:{
-            background:soloMode ? "rgba(78,205,196,.07)" : "rgba(255,255,255,.025)",
-            border:`1px solid ${soloMode ? "rgba(78,205,196,.30)" : "rgba(148,163,184,.18)"}`,
-            color:soloMode ? "#4ECDC4" : "rgba(148,163,184,.48)",
+            background:visibleSoloMode ? "rgba(78,205,196,.07)" : "rgba(255,255,255,.025)",
+            border:`1px solid ${visibleSoloMode ? "rgba(78,205,196,.30)" : "rgba(148,163,184,.18)"}`,
+            color:visibleSoloMode ? "#4ECDC4" : "rgba(148,163,184,.48)",
             padding:"6px 10px",
             borderRadius:999,
             fontSize:11,
@@ -1208,7 +1228,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
     showLog&&React.createElement(LogModal,{user,currentGroupId,groups,onConfirm:doLog,onClose:()=>setShowLog(false)}),
     deleteTarget && React.createElement(DeleteModal,{log:deleteTarget,onClose:()=>setDeleteTarget(null),onConfirm:async()=>{ const logId = deleteTarget.id; setDeleteTarget(null); await onLogMutation({action:"delete-log",groupId:currentGroupId,actor:user,owner:user,logId}); }}),
     showExcuse && sitOutMode && React.createElement(SitOutModal,{mode:sitOutMode,monthName:monthSummary ? MONTH_NAMES[monthSummary.month] : MONTH_NAMES[CUR_MONTH],onClose:()=>{setShowExcuse(false);setSitOutError("");},onSubmit:submitSitOut,submitting:sitOutSubmitting,error:sitOutError}),
-    showSolo && soloMode && React.createElement(SoloModal,{mode:soloMode,monthName:monthSummary ? MONTH_NAMES[monthSummary.month] : MONTH_NAMES[CUR_MONTH],minimumTarget:soloMinimumTarget,defaultTarget:Math.max(soloMinimumTarget, Math.ceil(effectiveTarget * .5)),onClose:()=>{setShowSolo(false);setSoloError("");},onSubmit:submitSolo,submitting:soloSubmitting,error:soloError}),
+    showSolo && visibleSoloMode && React.createElement(SoloModal,{mode:visibleSoloMode,monthName:monthSummary ? MONTH_NAMES[monthSummary.month] : MONTH_NAMES[CUR_MONTH],minimumTarget:soloMinimumTarget,defaultTarget:Math.max(soloMinimumTarget, Math.ceil(effectiveTarget * .5)),onClose:()=>{setShowSolo(false);setSoloError("");},onSubmit:submitSolo,submitting:soloSubmitting,error:soloError}),
     showSoloLocked && React.createElement(NoticeModal,{title:"Solo Mode is locked",body:"Solo Mode is only available in the first 10 days of the month.",onClose:()=>setShowSoloLocked(false)}),
     settlementDisputePrompt,
     settlementConfirmPrompt,
