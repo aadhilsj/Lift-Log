@@ -115,8 +115,8 @@ const FakePhoto = ({src,label}) => {
 
 const LeaderboardPreview = () => {
   const rows = [
-    { name:"Maya", status:"CLEARED", color:"#D94D68", count:14, avatar:"https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=96&h=96&q=80" },
-    { name:"Leo", status:"ON TRACK", color:"#F2A83A", count:10, avatar:"https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=96&h=96&q=80" },
+    { name:"Tariq", status:"CLEARED", color:"#D94D68", count:14, avatar:"https://images.unsplash.com/photo-1611432579699-484f7990b127?auto=format&fit=crop&w=96&h=96&q=80" },
+    { name:"Hana", status:"ON TRACK", color:"#F2A83A", count:10, avatar:"https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=96&h=96&q=80" },
     { name:"Noah", status:"AT RISK", color:"#8A78D6", count:7, avatar:"https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=96&h=96&q=80" },
     { name:"Eli", status:"COOKED", color:"#C17F5A", count:3, avatar:"https://images.unsplash.com/photo-1527980965255-d3b416303d12?auto=format&fit=crop&w=96&h=96&q=80" }
   ];
@@ -148,9 +148,9 @@ const LeaderboardPreview = () => {
 
 const ActivityPreview = () => {
   const rows = [
-    { name:"Sofia", type:"Gym", color:"#8CA4C6", avatar:"https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=96&h=96&q=80", photo:"https://images.unsplash.com/photo-1517836357463-d25dfeac3438?auto=format&fit=crop&w=240&q=80", time:"2h", note:"Chest day done" },
+    { name:"Mina", type:"Gym", color:"#8CA4C6", avatar:"https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=96&h=96&q=80", photo:"https://images.unsplash.com/photo-1517836357463-d25dfeac3438?auto=format&fit=crop&w=240&q=80", time:"2h", note:"Chest day done" },
     { name:"Jonah", type:"Run", color:"#8A78D6", avatar:"https://images.unsplash.com/photo-1544723795-3fb6469f5b39?auto=format&fit=crop&w=96&h=96&q=80", photo:"https://images.unsplash.com/photo-1502904550040-7534597429ae?auto=format&fit=crop&w=240&q=80", time:"5h", note:"5K this morning" },
-    { name:"Mina", type:"Sports", color:"#D94D68", avatar:"https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&w=96&h=96&q=80", photo:"https://images.unsplash.com/photo-1546519638-68e109498ffc?auto=format&fit=crop&w=240&q=80", time:"8h", note:"Pickup hoops" }
+    { name:"Axel", type:"Sports", color:"#D94D68", avatar:"https://images.unsplash.com/photo-1506277886164-e25aa3f4ef7f?auto=format&fit=crop&w=96&h=96&q=80", photo:"https://images.unsplash.com/photo-1546519638-68e109498ffc?auto=format&fit=crop&w=240&q=80", time:"8h", note:"Pickup hoops" }
   ];
   return React.createElement('div',{style:cardShell},
     React.createElement('div',{style:{padding:"16px",borderBottom:"0.5px solid rgba(22,61,54,.7)"}},
