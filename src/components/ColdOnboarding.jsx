@@ -5,7 +5,7 @@ const { useRef, useState } = React;
 
 const ONBOARDING_SCREENS = [
   {
-    headlineLines: ["For the group that keeps you", "showing up."],
+    headlineLines: ["For the group that", "keeps you showing up."],
     subtextLines: ["A monthly goal.", "Your people.", "Something real on the line."]
   },
   {
@@ -113,7 +113,7 @@ const LeaderboardPreview = () => {
     { name:"Maya", status:"CLEARED", color:"#D94D68", count:14 },
     { name:"Leo", status:"ON TRACK", color:"#F2A83A", count:10 },
     { name:"Noah", status:"AT RISK", color:"#8A78D6", count:7 },
-    { name:"Eli", status:"COOKED", color:"#6B7280", count:3 }
+    { name:"Eli", status:"COOKED", color:"#C17F5A", count:3 }
   ];
   return React.createElement('div',{style:cardShell},
     React.createElement('div',{style:{padding:"16px 16px 10px",borderBottom:"0.5px solid rgba(22,61,54,.7)"}},
@@ -238,7 +238,7 @@ const SettlementPreview = () => {
         tone:"missed",
         tag:"Tough Month",
         stat:"-$20",
-        line:"You needed 12. Bounce back next month.",
+        line:"You missed the target. Bounce back next month.",
         rows:[
           { name:"You owe Noah", amount:"-$20" }
         ]
@@ -342,9 +342,24 @@ const ColdOnboarding = ({onCreate,onJoin}) => {
   const [index,setIndex] = useState(0);
   const [blocName,setBlocName] = useState("");
   const touchRef = useRef({sx:0,sy:0,active:false});
+  const suppressTapRef = useRef(false);
   const screen = ONBOARDING_SCREENS[index];
   const goNext = () => setIndex(current => Math.min(ONBOARDING_SCREENS.length - 1, current + 1));
   const goPrev = () => setIndex(current => Math.max(0, current - 1));
+  const handleTapNav = event => {
+    if (suppressTapRef.current) {
+      suppressTapRef.current = false;
+      return;
+    }
+    if (event.defaultPrevented) return;
+    if (event.target?.closest?.("button,input,textarea,select,a,label")) return;
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const x = event.clientX - bounds.left;
+    const leftZone = bounds.width * .42;
+    const rightZone = bounds.width * .58;
+    if (x <= leftZone) goPrev();
+    if (x >= rightZone) goNext();
+  };
   const handleTouchStart = event => {
     const touch = event.touches?.[0];
     if (!touch) return;
@@ -360,6 +375,7 @@ const ColdOnboarding = ({onCreate,onJoin}) => {
     const dx = touch.clientX - sx;
     const dy = touch.clientY - sy;
     if (Math.abs(dx) < 44 || Math.abs(dx) < Math.abs(dy) * 1.15) return;
+    suppressTapRef.current = true;
     if (dx < 0) goNext();
     else goPrev();
   };
@@ -373,6 +389,7 @@ const ColdOnboarding = ({onCreate,onJoin}) => {
         : React.createElement(BlocStarterPreview,{blocName,setBlocName});
 
   return React.createElement('main',{
+    onClick:handleTapNav,
     onTouchStart:handleTouchStart,
     onTouchEnd:handleTouchEnd,
     style:{
@@ -396,8 +413,8 @@ const ColdOnboarding = ({onCreate,onJoin}) => {
       style:{flex:1,display:"flex",flexDirection:"column",justifyContent:"center",maxWidth:520,width:"100%",margin:"0 auto",animation:"fadeUp .22s ease both"}
     },
       React.createElement('div',{style:{marginBottom:22}},
-        React.createElement('h1',{style:{margin:0,fontSize:index===0?32:36,lineHeight:1.02,letterSpacing:0,fontWeight:900,color:"#f5f7ff"}},
-          (screen.headlineLines || [screen.headline]).map(line=>React.createElement('span',{key:line,style:{display:"block"}},line))
+        React.createElement('h1',{style:{margin:0,fontSize:index===0?30:36,lineHeight:1.02,letterSpacing:0,fontWeight:900,color:"#f5f7ff"}},
+          (screen.headlineLines || [screen.headline]).map(line=>React.createElement('span',{key:line,style:{display:"block",whiteSpace:"nowrap"}},line))
         ),
         React.createElement('p',{style:{margin:"12px 0 0",fontSize:16,lineHeight:1.45,fontWeight:600,color:"rgba(214,226,224,.72)"}},
           screen.subtextLines
