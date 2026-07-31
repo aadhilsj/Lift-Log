@@ -5,7 +5,7 @@ const { useRef, useState } = React;
 
 const ONBOARDING_SCREENS = [
   {
-    headlineLines: ["For the group that", "keeps you showing up."],
+    headlineLines: ["For the Bloc that", "keeps you showing up."],
     subtextLines: ["A monthly target.", "A live leaderboard.", "Progress everyone can see."]
   },
   {
