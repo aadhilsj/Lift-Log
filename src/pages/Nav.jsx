@@ -17,8 +17,11 @@ const StreamIconButton = ({ onOpenStream, unreadCount = 0, size }) => {
 
 const Nav = ({page,setPage,user,groupName,canEditGroup,onOpenSettings,onOpenProfile,onOpenStream,streamUnreadCount=0,onSwitchUser,onSwitchGroup,onOpenLog,syncing,lastSyncedAt,syncError,onRefresh,showJustSynced,activityAlertCount=0,hideMobileBottomNav=false,onlyMobileBottomNav=false,mobileBottomDragX=0,mobileBottomDragging=false,mobileBottomNavRef=null,currentUserId="",profilePhotoUrl=""}) => {
   const navItems = [["today","Today","today"],["activity","Activity","activity"],["month","Month","results"],["history","History","history"]];
+  const mobilePageSlots = { today: 0, activity: 1, month: 3, history: 4 };
+  const mobileActiveSlot = mobilePageSlots[page] ?? 0;
   const mobileBottomNav = React.createElement('div',{ref:mobileBottomNavRef,className:"mobile-only mobile-bottom-nav",style:{transform:mobileBottomDragX?`translateX(${mobileBottomDragX}px)`:"none",transition:mobileBottomDragging?"none":"transform .08s ease-out",willChange:mobileBottomDragging||mobileBottomDragX?"transform":"auto"}},
     React.createElement('div',{className:"mobile-bottom-nav-grid"},
+      React.createElement('div',{className:"mobile-tab-indicator",style:{"--mobile-active-slot":mobileActiveSlot}}),
       [
         ["today","Today","today"],
         ["activity","Activity","activity"],
@@ -32,7 +35,7 @@ const Nav = ({page,setPage,user,groupName,canEditGroup,onOpenSettings,onOpenProf
                 React.createElement(AppIcon,{name:icon,size:24,stroke:"#FFFFFF"})
               )
             )
-          : React.createElement('button',{key:id,onClick:()=>setPage(id),className:`mobile-tab${page===id?" on":""}`},
+          : React.createElement('button',{key:id,onClick:()=>setPage(id),className:`mobile-tab${page===id?" on":""}`,"aria-current":page===id?"page":undefined},
           React.createElement('div',{style:{position:"relative",display:"inline-flex",alignItems:"center",justifyContent:"center"}},
             React.createElement('span',{style:{fontSize:18,lineHeight:1,display:"inline-flex"}},React.createElement(AppIcon,{name:icon,size:18})),
             id==="activity" && activityAlertCount>0 && React.createElement('span',{className:"mono",style:{position:"absolute",top:-6,right:-14,minWidth:18,height:18,padding:"0 5px",borderRadius:999,background:"rgba(232,69,69,.18)",border:"1px solid rgba(232,69,69,.28)",fontSize:9,color:"#ff9c9c",display:"inline-flex",alignItems:"center",justifyContent:"center"}},activityAlertCount)
