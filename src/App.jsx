@@ -81,7 +81,7 @@ import {
   releaseSwipeForward
 } from "./lib/swipeRelease.js";
 import { Spinner, InstallBanner, TodayPageErrorBoundary } from "./components/primitives.jsx";
-import { PreviewLanding, ProfileModal, JoinGroupModal, AuthFlowModal, IdentitySetup, CreatedBlocInviteScreen, GroupHome, GroupAccessNotice, LocalDevImpersonationBar } from "./components/authShell.jsx";
+import { PreviewLanding, SignedOutLanding, ProfileModal, JoinGroupModal, AuthFlowModal, IdentitySetup, CreatedBlocInviteScreen, GroupHome, GroupAccessNotice, LocalDevImpersonationBar } from "./components/authShell.jsx";
 import { ProrationChoiceModal } from "./modals/modals.jsx";
 import { Nav } from "./pages/Nav.jsx";
 import { TodayPage } from "./pages/TodayPage.jsx";
@@ -166,6 +166,7 @@ const App = () => {
   const [authStep,setAuthStep]=useState(null);
   const [authIntent,setAuthIntent]=useState(null);
   const [coldOnboardingSeen,setColdOnboardingSeen]=useState(()=>{try{return localStorage.getItem(COLD_ONBOARDING_SEEN_KEY)==="1";}catch{return false;}});
+  const [replayColdOnboarding,setReplayColdOnboarding]=useState(false);
   const [coldOnboardingPreviewDismissed,setColdOnboardingPreviewDismissed]=useState(false);
   const [authEmail,setAuthEmail]=useState("");
   const [authCode,setAuthCode]=useState("");
@@ -1516,11 +1517,12 @@ const App = () => {
     setAuthStep("email");
     setAuthEmail(authSession?.email || "");
     setAuthCode("");
-    setAuthDisplayName(effectiveProfile?.displayName || "");
+    setAuthDisplayName("");
     setAuthError("");
     setDevOtpCode("");
   };
   const completeColdOnboarding = useCallback(() => {
+    setReplayColdOnboarding(false);
     setColdOnboardingPreviewDismissed(true);
     setColdOnboardingSeen(true);
     try { localStorage.setItem(COLD_ONBOARDING_SEEN_KEY, "1"); } catch {}
@@ -1718,7 +1720,7 @@ const App = () => {
       return params.get("onboarding") === "1" && !hasInviteEntry && !coldOnboardingPreviewDismissed;
     } catch { return false; }
   })();
-  const shouldShowColdOnboarding = forceColdOnboardingPreview || (!authSession?.userId && !localPreviewAuthEnabled && !hasInviteEntry && !authStep);
+  const shouldShowColdOnboarding = forceColdOnboardingPreview || replayColdOnboarding || (!authSession?.userId && !localPreviewAuthEnabled && !hasInviteEntry && !coldOnboardingSeen && !authStep);
 
   if(loading || !authReady || authHydrating) return React.createElement(Spinner,{label:"Opening Fero..."});
   if(shouldShowColdOnboarding) {
@@ -1735,12 +1737,19 @@ const App = () => {
   }
   if(!authSession?.userId) {
     return React.createElement(React.Fragment,null,
-      React.createElement(PreviewLanding,{
-        inviteContext,
-        onCreate:()=>openAuth({ type:"create" }),
-        onJoin:()=>openAuth({ type:"join" }),
-        onSignIn:()=>openAuth({ type:"signin" })
-      }),
+      inviteContext
+        ? React.createElement(PreviewLanding,{
+            inviteContext,
+            onCreate:()=>openAuth({ type:"create" }),
+            onJoin:()=>openAuth({ type:"join" }),
+            onSignIn:()=>openAuth({ type:"signin" })
+          })
+        : React.createElement(SignedOutLanding,{
+            onCreate:()=>openAuth({ type:"create" }),
+            onJoin:()=>openAuth({ type:"join" }),
+            onSignIn:()=>openAuth({ type:"signin" }),
+            onShowOnboarding:()=>{setColdOnboardingPreviewDismissed(false);setReplayColdOnboarding(true);}
+          }),
       authStep && React.createElement(AuthFlowModal,{
         step:authStep,
         email:authEmail,

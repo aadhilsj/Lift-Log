@@ -116,6 +116,32 @@ const PreviewLanding = ({inviteContext,onCreate,onJoin,onSignIn}) => {
   return React.createElement('div',{style:{minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"32px 18px",background:"transparent"}},children);
 };
 
+const SignedOutLanding = ({onCreate,onJoin,onSignIn,onShowOnboarding}) => (
+  React.createElement('div',{style:{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:"32px 20px",background:"var(--bg-gradient)",backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)"}},
+    React.createElement('div',{className:"fu",style:{width:"100%",maxWidth:420,display:"grid",gap:20}},
+      React.createElement('div',{style:{display:"grid",gap:12}},
+        React.createElement(AnteWordmark,{size:64}),
+        React.createElement('div',{style:{fontFamily:"'Raleway', sans-serif",fontSize:34,fontWeight:900,lineHeight:1.02,letterSpacing:0,color:"var(--text)"}},
+          "Welcome back."
+        ),
+        React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontSize:15,fontWeight:700,lineHeight:1.45,color:"var(--text-soft)",maxWidth:330}},
+          "Sign in to get back to your Blocs, or start fresh with a new one."
+        )
+      ),
+      React.createElement('div',{style:{display:"grid",gap:10,padding:14,borderRadius:18,background:"rgba(8,15,15,.82)",border:"0.5px solid rgba(78,205,196,.18)",boxShadow:"0 18px 46px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.035)"}},
+        React.createElement('button',{type:"button",className:"setup-press",onClick:onSignIn,style:{minHeight:50,borderRadius:14,background:"#4ECDC4",color:"#050909",fontFamily:"'Outfit', sans-serif",fontSize:15,fontWeight:900}},"Sign in"),
+        React.createElement('div',{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:9}},
+          React.createElement('button',{type:"button",className:"setup-press",onClick:onCreate,style:{minHeight:44,borderRadius:13,background:"rgba(13,31,30,.64)",border:"0.5px solid rgba(78,205,196,.22)",color:"var(--text)",fontFamily:"'Outfit', sans-serif",fontSize:13,fontWeight:800}},"Create Bloc"),
+          React.createElement('button',{type:"button",className:"setup-press",onClick:onJoin,style:{minHeight:44,borderRadius:13,background:"rgba(13,31,30,.38)",border:"0.5px solid rgba(78,205,196,.16)",color:"var(--text-soft)",fontFamily:"'Outfit', sans-serif",fontSize:13,fontWeight:800}},"Join Bloc")
+        )
+      ),
+      React.createElement('button',{type:"button",onClick:onShowOnboarding,style:{justifySelf:"center",background:"transparent",border:"none",padding:"4px 6px",fontFamily:"'Outfit', sans-serif",fontSize:13,fontWeight:700,color:"rgba(78,205,196,.82)",textDecoration:"underline",textUnderlineOffset:"3px"}},
+        "See how Fero works"
+      )
+    )
+  )
+);
+
 
 const ProfileModal = ({email,onSignOut,onClose,showDisplayName,currentDisplayName,onSaveDisplayName,saving,saveError,onLeaveBloc,onDeleteAccount}) => {
   const [name,setName]=React.useState(currentDisplayName||"");
@@ -515,4 +541,4 @@ const LocalDevImpersonationBar = ({options,value,onChange}) => {
 
 // ─── LOG MODAL ────────────────────────────────────────────────────────────────
 
-export { PREVIEW_MEMBERS, previewStatus, PreviewLanding, ProfileModal, JoinGroupModal, AuthFlowModal, IdentitySetup, CreatedBlocInviteScreen, GroupHome, WhoAreYou, GroupAccessNotice, LocalDevImpersonationBar };
+export { PREVIEW_MEMBERS, previewStatus, PreviewLanding, SignedOutLanding, ProfileModal, JoinGroupModal, AuthFlowModal, IdentitySetup, CreatedBlocInviteScreen, GroupHome, WhoAreYou, GroupAccessNotice, LocalDevImpersonationBar };
