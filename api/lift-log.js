@@ -698,6 +698,10 @@ function findProfileEntryByEmail(profiles, email) {
   return Object.entries(profiles).find(([, profile]) => profile?.email === email) || null;
 }
 
+function isUuidLike(value) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(value || "").trim());
+}
+
 // IDENTITY GUARD: a display name is cosmetic and never proof of membership.
 // A legacy membership row may only be backfilled when the group itself already
 // records this *auth user id* against that name — either as the admin user id or
@@ -824,6 +828,9 @@ function migrateAuthIdentity(base, nextUserId, email) {
   const [legacyUserId, legacyProfile] = profileEntry;
   if (legacyUserId === normalizedUserId) {
     return { state: base, profile: legacyProfile, changed: false };
+  }
+  if (isUuidLike(legacyUserId)) {
+    return { state: base, profile: null, changed: false };
   }
 
   const nextProfiles = { ...(base.profiles || {}) };

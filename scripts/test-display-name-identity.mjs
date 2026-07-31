@@ -16,6 +16,7 @@ import { getMembershipForUser } from "../src/lib/appState.js";
 const OWNER_ID = "11111111-1111-1111-1111-111111111111";
 const IMPOSTOR_ID = "22222222-2222-2222-2222-222222222222";
 const MEMBER_ID = "33333333-3333-3333-3333-333333333333";
+const NEW_AUTH_ID = "44444444-4444-4444-8444-444444444444";
 const NAME = "Aadhil";
 
 function ownerBloc(overrides = {}) {
@@ -94,7 +95,40 @@ function stateWith(group) {
   assert.equal(repaired.memberships[OWNER_ID]?.role, "member");
 }
 
-// 4. Inside a Bloc, the actor name resolves only from memberships[userId].
+// 4. Email migration must not let a new auth UUID claim another real auth
+//    user's existing profile or memberships.
+{
+  const state = stateWith(ownerBloc());
+  const migrated = migrateAuthIdentity(state, NEW_AUTH_ID, "owner@example.com");
+  assert.equal(migrated.changed, false, "real UUID-backed profiles must not be re-keyed by email");
+  assert.equal(migrated.profile, null);
+  assert.equal(migrated.state.profiles[OWNER_ID]?.email, "owner@example.com");
+  assert.equal(migrated.state.profiles[NEW_AUTH_ID], undefined);
+  assert.equal(migrated.state.groups["bloc-owner"].memberships[OWNER_ID]?.role, "admin");
+  assert.equal(migrated.state.groups["bloc-owner"].memberships[NEW_AUTH_ID], undefined);
+}
+
+// 5. Email migration still works for true non-UUID legacy profile keys.
+{
+  const legacyUserId = "legacy-aadhil";
+  const state = stateWith(ownerBloc({
+    adminUserId: legacyUserId,
+    memberships: {
+      [legacyUserId]: { userId: legacyUserId, displayName: NAME, role: "admin", joinedAt: null }
+    }
+  }));
+  delete state.profiles[OWNER_ID];
+  state.profiles[legacyUserId] = { id: legacyUserId, email: "owner@example.com", displayName: NAME };
+  const migrated = migrateAuthIdentity(state, OWNER_ID, "owner@example.com");
+  assert.equal(migrated.changed, true, "non-UUID legacy profile should migrate by email");
+  assert.equal(migrated.state.profiles[legacyUserId], undefined);
+  assert.equal(migrated.state.profiles[OWNER_ID]?.email, "owner@example.com");
+  assert.equal(migrated.state.groups["bloc-owner"].adminUserId, OWNER_ID);
+  assert.equal(migrated.state.groups["bloc-owner"].memberships[OWNER_ID]?.role, "admin");
+  assert.equal(migrated.state.groups["bloc-owner"].memberships[legacyUserId], undefined);
+}
+
+// 6. Inside a Bloc, the actor name resolves only from memberships[userId].
 {
   const state = stateWith(ownerBloc());
   assert.equal(resolveDisplayNameForUser(state, "bloc-owner", OWNER_ID, "owner@example.com"), NAME);
@@ -103,7 +137,7 @@ function stateWith(group) {
   assert.equal(resolveDisplayNameForUser(state, "", IMPOSTOR_ID, "impostor@example.com"), NAME);
 }
 
-// 5. Group-scoped mutations fail closed for a non-member.
+// 7. Group-scoped mutations fail closed for a non-member.
 {
   const state = stateWith(ownerBloc());
   assert.equal(assertGroupMembershipForUser(state, "bloc-owner", OWNER_ID), NAME);
@@ -113,7 +147,7 @@ function stateWith(group) {
   );
 }
 
-// 6. Membership and admin checks never accept a name for an authenticated id.
+// 8. Membership and admin checks never accept a name for an authenticated id.
 {
   const group = ownerBloc();
   assert.equal(isCurrentGroupMember(group, NAME, OWNER_ID), true);
@@ -126,7 +160,7 @@ function stateWith(group) {
   assert.equal(isGroupAdminActor(legacyNoAdminId, IMPOSTOR_ID, NAME), false);
 }
 
-// 7. Joining requires a valid invite code, and a name already held by another
+// 9. Joining requires a valid invite code, and a name already held by another
 //    member in that Bloc is rejected (Bloc state is name-keyed).
 {
   const state = stateWith(ownerBloc());
@@ -140,7 +174,7 @@ function stateWith(group) {
   );
 }
 
-// 8. Read scoping never leaks another account's Blocs or profile.
+// 10. Read scoping never leaks another account's Blocs or profile.
 {
   const scoped = scopeReadableStateForUser(stateWith(ownerBloc()), IMPOSTOR_ID);
   assert.deepEqual(scoped.groups, {});
@@ -148,7 +182,7 @@ function stateWith(group) {
   assert.deepEqual(Object.keys(scoped.profiles), [IMPOSTOR_ID]);
 }
 
-// 8b. Read scoping preserves co-member profile photos for visible Blocs without
+// 10b. Read scoping preserves co-member profile photos for visible Blocs without
 //     exposing profiles from unrelated Blocs.
 {
   const scoped = scopeReadableStateForUser(stateWith(ownerBloc({
@@ -164,7 +198,7 @@ function stateWith(group) {
   assert.equal(scoped.profiles[IMPOSTOR_ID], undefined);
 }
 
-// 9. Frontend: a real authenticated session resolves membership only by userId.
+// 11. Frontend: a real authenticated session resolves membership only by userId.
 {
   const group = ownerBloc();
   const impostorSession = { userId: IMPOSTOR_ID, email: "impostor@example.com" };
