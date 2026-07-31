@@ -1332,8 +1332,12 @@ const App = () => {
     const dx = t.clientX - s.sx;
     const dy = t.clientY - s.sy;
     if (!s.mode && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) {
-      const horizontal = Math.abs(dx) > 4 && Math.abs(dx) > Math.abs(dy) * 0.88;
-      if (!horizontal) {
+      const absDx = Math.abs(dx);
+      const absDy = Math.abs(dy);
+      const horizontal = absDx > 5 && absDx > absDy * 0.72;
+      const vertical = absDy > 9 && absDy > absDx * 1.08;
+      if (!horizontal && !vertical) return;
+      if (vertical) {
         s.mode = "scroll";
         return;
       }
