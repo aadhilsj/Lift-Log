@@ -1718,7 +1718,7 @@ const App = () => {
       return params.get("onboarding") === "1" && !hasInviteEntry && !coldOnboardingPreviewDismissed;
     } catch { return false; }
   })();
-  const shouldShowColdOnboarding = forceColdOnboardingPreview || (!authSession?.userId && !localPreviewAuthEnabled && !hasInviteEntry && !coldOnboardingSeen && !authStep);
+  const shouldShowColdOnboarding = forceColdOnboardingPreview || (!authSession?.userId && !localPreviewAuthEnabled && !hasInviteEntry && !authStep);
 
   if(loading || !authReady || authHydrating) return React.createElement(Spinner,{label:"Opening Fero..."});
   if(shouldShowColdOnboarding) {
