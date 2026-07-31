@@ -1271,6 +1271,10 @@ const App = () => {
     refreshStreamUnreadCount();
   }, [appState?.meta?.revision, refreshStreamUnreadCount, selectedGroupId, showStream]);
   const handleNavSelect = useCallback((nextPage)=>{
+    if (showTodayLog && nextPage === page) {
+      setShowTodayLog(false);
+      return;
+    }
     setShowTodayLog(false);
     setShowSettings(false);
     pageDragXRef.current = 0;
@@ -1282,7 +1286,7 @@ const App = () => {
     setMonthInitialIdx(null);
     setNavResetToken(value=>value+1);
     setPage(nextPage);
-  },[]);
+  },[page, showTodayLog]);
   const adjacentInBlocPage = useCallback((direction) => {
     const index = IN_BLOC_PAGES.indexOf(page);
     if (index < 0) return null;
