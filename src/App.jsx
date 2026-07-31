@@ -51,6 +51,7 @@ import {
   requestSoloData,
   reviewSoloData,
   deleteAccountData,
+  checkAuthEmailExistsData,
   sendOtpData,
   verifyOtpData,
   upsertProfileData,
@@ -1569,7 +1570,21 @@ const App = () => {
   const handleSendOtp = async () => {
     setSendingOtp(true);
     setAuthError("");
-    const result = await sendOtpData(authEmail.trim(), { shouldCreateUser: authIntent?.type !== "signin" });
+    const normalizedEmail = authEmail.trim();
+    if (authIntent?.type === "signup") {
+      const existingAccount = await checkAuthEmailExistsData(normalizedEmail);
+      if (!existingAccount?.ok) {
+        setSendingOtp(false);
+        setAuthError(existingAccount?.error || "Unable to check email");
+        return;
+      }
+      if (existingAccount.exists) {
+        setSendingOtp(false);
+        setAuthError("There is already a Fero account with this email. Create a new account with a different email.");
+        return;
+      }
+    }
+    const result = await sendOtpData(normalizedEmail, { shouldCreateUser: authIntent?.type !== "signin" });
     setSendingOtp(false);
     if (!result?.ok) {
       setAuthError(authIntent?.type === "signin" ? "No Fero account found for that email. Create a new account instead." : (result?.error || "Unable to send code"));
@@ -1587,14 +1602,11 @@ const App = () => {
       setAuthError(result?.error || "Unable to verify code");
       return;
     }
-    if (result.state) applyData(result.state);
     const nextSession = {
       userId: result.session.userId,
       email: result.session.email,
       accessToken: result.session.accessToken || authSession?.accessToken || null
     };
-    persistSession(nextSession);
-    setPendingAuthSession(nextSession);
     const syncedState = result.state || appState;
     let nextProfile = getProfileForSession(syncedState, nextSession);
     const hasExistingFeroAccount = authIntent?.type === "signup" && (
@@ -1610,6 +1622,9 @@ const App = () => {
       setAuthError("This email already has a Fero account. Sign in instead.");
       return;
     }
+    if (result.state) applyData(result.state);
+    persistSession(nextSession);
+    setPendingAuthSession(nextSession);
     let needsProfileSetup = typeof result.session.needsProfileSetup === "boolean"
       ? result.session.needsProfileSetup
       : !nextProfile?.displayName;

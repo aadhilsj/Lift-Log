@@ -25,6 +25,7 @@ const DEFAULT_JOINED_MONTH_BY_NAME = { Abhishek: "2026-4" };
 const SUPABASE_URL = process.env.SUPABASE_URL || "";
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_PUBLISHABLE_KEY || "";
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+let supabaseAdminClientPromise = null;
 const ENABLE_SETTLEMENT_CONFIRMATIONS = String(process.env.ENABLE_SETTLEMENT_CONFIRMATIONS || "").trim().toLowerCase() === "true";
 const ENABLE_SETTLEMENT_CONFIRMATIONS_PREVIEW = String(process.env.ENABLE_SETTLEMENT_CONFIRMATIONS_PREVIEW || "").trim().toLowerCase() === "true";
 const ENABLE_LOCAL_PREVIEW_AUTH = String(process.env.ENABLE_LOCAL_PREVIEW_AUTH || "").trim().toLowerCase() === "true";
@@ -4688,6 +4689,55 @@ async function supabaseFetch(path, options = {}) {
   return response;
 }
 
+async function getSupabaseAdminClient() {
+  assertSupabaseConfigured();
+  if (!supabaseAdminClientPromise) {
+    supabaseAdminClientPromise = import("@supabase/supabase-js")
+      .then(({ createClient }) => createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+        auth: {
+          persistSession: false,
+          autoRefreshToken: false
+        }
+      }))
+      .catch(error => {
+        supabaseAdminClientPromise = null;
+        throw error;
+      });
+  }
+  return await supabaseAdminClientPromise;
+}
+
+function normalizeEmailAddress(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function isProbablyEmail(value) {
+  return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(value || "").trim());
+}
+
+async function checkSupabaseAuthEmailExists(email) {
+  const normalizedEmail = normalizeEmailAddress(email);
+  if (!isProbablyEmail(normalizedEmail)) {
+    const error = new Error("Enter a valid email address");
+    error.status = 400;
+    throw error;
+  }
+  const client = await getSupabaseAdminClient();
+  const perPage = 1000;
+  for (let page = 1; page <= 100; page += 1) {
+    const { data, error } = await client.auth.admin.listUsers({ page, perPage });
+    if (error) throw error;
+    const users = Array.isArray(data?.users) ? data.users : [];
+    if (users.some(user => normalizeEmailAddress(user?.email) === normalizedEmail)) {
+      return true;
+    }
+    if (users.length < perPage) return false;
+  }
+  const error = new Error("Unable to check email right now");
+  error.status = 503;
+  throw error;
+}
+
 async function supabaseStorageFetch(path, options = {}) {
   const response = await fetch(`${SUPABASE_URL}${path}`, {
     ...options,
@@ -7889,6 +7939,11 @@ export default async function handler(req, res) {
         return res.status(410).json({
           error: "Legacy OTP verify is disabled. Use Supabase Auth verifyOtp from the client."
         });
+      }
+
+      if (payload?.action === "auth-email-exists") {
+        const exists = await checkSupabaseAuthEmailExists(payload.email);
+        return res.status(200).json({ ok: true, exists });
       }
 
       let current = null;

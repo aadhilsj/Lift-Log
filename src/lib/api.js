@@ -435,6 +435,12 @@ async function sendOtpData(email, options = {}) {
   return { ok:false, error:"Unable to send code" };
 }
 
+async function checkAuthEmailExistsData(email) {
+  const result = await postApi("auth-email-exists", { email }, { auth:false });
+  if (!result.ok) return { ok:false, error: result.error || "Unable to check email" };
+  return { ok:true, exists: Boolean(result.body?.exists) };
+}
+
 async function verifyOtpData(email, code) {
   try {
     const client = await getSupabaseAuthClient();
@@ -696,6 +702,7 @@ export {
   requestSoloData,
   reviewSoloData,
   deleteAccountData,
+  checkAuthEmailExistsData,
   sendOtpData,
   verifyOtpData,
   upsertProfileData,
