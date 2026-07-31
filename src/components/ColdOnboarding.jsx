@@ -149,7 +149,7 @@ const LeaderboardPreview = () => {
 const ActivityPreview = () => {
   const rows = [
     { name:"Axel", type:"Gym", color:"#8CA4C6", avatar:"https://images.unsplash.com/photo-1506277886164-e25aa3f4ef7f?auto=format&fit=crop&w=96&h=96&q=80", photo:"https://images.unsplash.com/photo-1517836357463-d25dfeac3438?auto=format&fit=crop&w=240&q=80", time:"2h", note:"Chest day done" },
-    { name:"Jonah", type:"Run", color:"#8A78D6", avatar:"https://images.unsplash.com/photo-1544723795-3fb6469f5b39?auto=format&fit=crop&w=96&h=96&q=80", photo:"https://images.unsplash.com/photo-1502904550040-7534597429ae?auto=format&fit=crop&w=240&q=80", time:"5h", note:"5K this morning" },
+    { name:"Monica", type:"Run", color:"#8A78D6", avatar:"https://images.unsplash.com/photo-1531123897727-8f129e1688ce?auto=format&fit=crop&w=96&h=96&q=80", photo:"https://images.unsplash.com/photo-1502904550040-7534597429ae?auto=format&fit=crop&w=240&q=80", time:"5h", note:"5K this morning" },
     { name:"Mina", type:"Sports", color:"#D94D68", avatar:"https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=96&h=96&q=80", photo:"https://images.unsplash.com/photo-1546519638-68e109498ffc?auto=format&fit=crop&w=240&q=80", time:"8h", note:"Pickup hoops" }
   ];
   return React.createElement('div',{style:cardShell},
