@@ -177,8 +177,10 @@ const ReactBar = ({ align, onPick, onClose }) => {
 const RosterPopover = ({ title, ids, nameFor, photoFor, onClose, align = "left" }) => {
   const pos = align === "right" ? { right: 0 } : align === "center" ? { left: "50%", transform: "translateX(-50%)" } : { left: 0 };
   return React.createElement(React.Fragment, null,
-    React.createElement('div', { onClick: onClose, onTouchStart: onClose, style: { position: "fixed", inset: 0, zIndex: 40 } }),
+    React.createElement('div', { onClick: e => { e.stopPropagation(); onClose(); }, onTouchStart: e => e.stopPropagation(), style: { position: "fixed", inset: 0, zIndex: 40 } }),
     React.createElement('div', {
+      onClick: e => e.stopPropagation(),
+      onTouchStart: e => e.stopPropagation(),
       style: { position: "absolute", bottom: "calc(100% + 6px)", zIndex: 41, minWidth: 150, maxWidth: 240, maxHeight: 210, overflowY: "auto", background: C.sheetBg, border: `1px solid ${C.sheetBorder}`, borderRadius: 12, padding: "9px 11px", boxShadow: "0 10px 26px rgba(0,0,0,.55)", ...pos }
     },
       title && React.createElement('div', { style: { fontFamily: "'Outfit', sans-serif", fontSize: 9.5, fontWeight: 700, color: C.meta, letterSpacing: ".08em", textTransform: "uppercase", marginBottom: 7 } }, title),
