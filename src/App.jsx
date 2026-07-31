@@ -1214,8 +1214,7 @@ const App = () => {
         commit: () => {
           setSuppressSwitcherIntro(true);
           persistGroupSelection(null);
-        },
-        cleanup: () => clearInlineSwipeStyles([blocSurfaceRef.current, blocBottomNavRef.current])
+        }
       });
     } else {
       releaseSwipeBack({
