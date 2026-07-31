@@ -236,15 +236,30 @@ const JoinGroupModal = ({inviteContext,joinCode,setJoinCode,onClose,onJoin,joini
 };
 
 
-const AuthFlowModal = ({step,mode="signin",email,setEmail,code,setCode,displayName,setDisplayName,onClose,onSendOtp,onVerifyOtp,onSaveProfile,sending,verifying,savingProfile,error,devCode}) => React.createElement('div',{className:"overlay center-mobile",onClick:()=>{}},
+const authTitle = (step, mode, intent) => {
+  if (step === "name") return "Choose your Fero name";
+  if (step === "otp") return "Check your email";
+  if (mode === "signup") return "Create your account";
+  if (intent === "create" || intent === "join") return "Sign in first";
+  return "Continue with email";
+};
+
+const authHelper = (step, mode, intent, email) => {
+  if (step === "otp") return `We sent a 6-digit code to ${email}.`;
+  if (step === "name") return "This is the name your Bloc will see.";
+  if (mode === "signup") return "Use a new email. We'll send a one-time code.";
+  if (intent === "create") return "Use your email so your Bloc is saved to your account.";
+  if (intent === "join") return "Use your email so we can add you to the Bloc.";
+  return "Use a one-time code to sign in.";
+};
+
+const AuthFlowModal = ({step,mode="signin",intent="",email,setEmail,code,setCode,displayName,setDisplayName,onClose,onSendOtp,onVerifyOtp,onSaveProfile,sending,verifying,savingProfile,error,devCode}) => React.createElement('div',{className:"overlay center-mobile",onClick:()=>{}},
   React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{maxWidth:420}},
-    React.createElement('div',{style:{fontWeight:800,fontSize:20,marginBottom:6}},
-      step==="name" ? "Set your Fero name" : mode==="signup" ? "Create your account" : "Continue with email"
+    React.createElement('div',{style:{fontFamily:"'Raleway', sans-serif",fontWeight:900,fontSize:22,marginBottom:6,lineHeight:1.05,letterSpacing:0}},
+      authTitle(step, mode, intent)
     ),
-    React.createElement('div',{style:{color:"var(--muted)",fontSize:13,lineHeight:1.6,marginBottom:18}},
-      step==="email" ? (mode==="signup" ? "Use a new email. We'll send a one-time code." : "Use a one-time code to sign in.")
-      : step==="otp" ? `We sent a 6-digit code to ${email}.`
-      : "What should your Blocs call you?"
+    React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",color:"var(--muted)",fontSize:13,lineHeight:1.6,marginBottom:18}},
+      authHelper(step, mode, intent, email)
     ),
     step==="email" && React.createElement('label',{style:{display:"block",marginBottom:18}},
       React.createElement('span',{className:"lbl"},"Email"),
@@ -266,10 +281,31 @@ const AuthFlowModal = ({step,mode="signin",email,setEmail,code,setCode,displayNa
     ),
     error && React.createElement('div',{style:{fontSize:12,color:"var(--red)",marginBottom:16,whiteSpace:"pre-wrap"}},error),
     React.createElement('div',{style:{display:"flex",gap:9}},
-      React.createElement('button',{onClick:onClose,style:{flex:1,background:"var(--s2)",border:"1px solid var(--border)",color:"var(--muted)",padding:"14px",borderRadius:10,fontSize:15,fontWeight:600}},"Cancel"),
+      React.createElement('button',{onClick:onClose,style:{flex:1,background:"var(--s2)",border:"1px solid var(--border)",color:"var(--muted)",padding:"14px",borderRadius:10,fontFamily:"'Outfit', sans-serif",fontSize:15,fontWeight:700}},"Cancel"),
       step==="email" && React.createElement('button',{disabled:!email.trim()||sending,onClick:onSendOtp,style:{flex:1,background:email.trim()&&!sending?"var(--green)":"var(--s3)",color:email.trim()&&!sending?"#000":"var(--muted2)",padding:"14px",borderRadius:10,fontSize:15,fontWeight:800}},sending?"Sending...":"Send code"),
       step==="otp" && React.createElement('button',{disabled:code.length!==6||verifying,onClick:onVerifyOtp,style:{flex:1,background:code.length===6&&!verifying?"var(--green)":"var(--s3)",color:code.length===6&&!verifying?"#000":"var(--muted2)",padding:"14px",borderRadius:10,fontSize:15,fontWeight:800}},verifying?"Checking...":"Verify"),
       step==="name" && React.createElement('button',{disabled:!displayName.trim()||savingProfile,onClick:onSaveProfile,style:{flex:1,background:displayName.trim()&&!savingProfile?"var(--green)":"var(--s3)",color:displayName.trim()&&!savingProfile?"#000":"var(--muted2)",padding:"14px",borderRadius:10,fontSize:15,fontWeight:800}},savingProfile?"Saving...":"Continue")
+    )
+  )
+);
+
+const DisplayNameSetupScreen = ({email,displayName,setDisplayName,onSave,saving,error}) => (
+  React.createElement('main',{style:{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:"32px 20px",background:"var(--bg-gradient)",backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)",color:"var(--text)"}},
+    React.createElement('section',{className:"fu",style:{width:"100%",maxWidth:420,display:"grid",gap:20,textAlign:"center",justifyItems:"center",transform:"translateY(-18px)"}},
+      React.createElement(AnteWordmark,{size:76}),
+      React.createElement('div',{style:{display:"grid",gap:8,justifyItems:"center"}},
+        React.createElement('h1',{style:{margin:0,fontFamily:"'Raleway', sans-serif",fontSize:34,fontWeight:900,lineHeight:1.02,letterSpacing:0}},"What should your Bloc call you?"),
+        React.createElement('p',{style:{margin:0,fontFamily:"'Outfit', sans-serif",fontSize:14,fontWeight:700,lineHeight:1.45,color:"var(--text-soft)",maxWidth:310}},
+          email ? `Signed in as ${email}. Pick the name people will see.` : "Pick the name people will see."
+        )
+      ),
+      React.createElement('div',{style:{width:"100%",display:"grid",gap:12,padding:14,borderRadius:18,background:"rgba(8,15,15,.84)",border:"0.5px solid rgba(78,205,196,.18)",boxShadow:"0 18px 46px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.035)"}},
+        React.createElement('input',{value:displayName,onChange:event=>setDisplayName(event.target.value),placeholder:"Display name",autoFocus:true,style:{width:"100%",boxSizing:"border-box",height:52,borderRadius:14,background:"rgba(18,27,34,.98)",border:"0.5px solid rgba(78,205,196,.28)",boxShadow:"inset 0 1px 0 rgba(255,255,255,.06)",color:"var(--text)",fontFamily:"'Outfit', sans-serif",fontSize:16,fontWeight:800,outline:"none",padding:"0 14px"}}),
+        error && React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontSize:12,fontWeight:700,color:"var(--red)",lineHeight:1.4,textAlign:"left",whiteSpace:"pre-wrap"}},error),
+        React.createElement('button',{type:"button",className:"setup-press",disabled:!displayName.trim()||saving,onClick:onSave,style:{minHeight:50,borderRadius:14,background:displayName.trim()&&!saving?"#4ECDC4":"var(--s3)",color:displayName.trim()&&!saving?"#050909":"var(--muted2)",fontFamily:"'Outfit', sans-serif",fontSize:15,fontWeight:900}},
+          saving ? "Saving..." : "Continue"
+        )
+      )
     )
   )
 );
@@ -338,7 +374,7 @@ const CreatedBlocInviteScreen = ({group,onContinue}) => {
 };
 
 
-const GroupHome = ({groups,currentIdentity,currentEmail,currentUserId="",onOpenProfile,onOpenGroup,onCreateGroup,onJoinGroup,creating,autoOpenCreate=false,initialCreateGroupName="",onAutoOpenHandled,suppressIntro=false}) => {
+const GroupHome = ({groups,currentIdentity,currentEmail,currentUserId="",onOpenProfile,onOpenGroup,onCreateGroup,onJoinGroup,creating,autoOpenCreate=false,initialCreateGroupName="",onAutoOpenHandled,onCreateCancel,suppressIntro=false}) => {
   const [showCreate,setShowCreate]=useState(false);
   const [createInitialGroupName,setCreateInitialGroupName]=useState("");
   const compactMobile = isMobile();
@@ -452,7 +488,7 @@ const GroupHome = ({groups,currentIdentity,currentEmail,currentUserId="",onOpenP
       defaultCreatorName: currentIdentity || "",
       defaultTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || DEFAULT_GROUP_TIME_ZONE,
       lockCreatorName: true,
-      onClose:()=>setShowCreate(false),
+      onClose:()=>{setShowCreate(false); onCreateCancel && onCreateCancel();},
       onCreate:async payload=>{
         const result = await onCreateGroup(payload);
         if (result?.ok) setShowCreate(false);
@@ -535,4 +571,4 @@ const LocalDevImpersonationBar = ({options,value,onChange}) => {
 
 // ─── LOG MODAL ────────────────────────────────────────────────────────────────
 
-export { PREVIEW_MEMBERS, previewStatus, PreviewLanding, SignedOutLanding, ProfileModal, JoinGroupModal, AuthFlowModal, IdentitySetup, CreatedBlocInviteScreen, GroupHome, WhoAreYou, GroupAccessNotice, LocalDevImpersonationBar };
+export { PREVIEW_MEMBERS, previewStatus, PreviewLanding, SignedOutLanding, ProfileModal, JoinGroupModal, AuthFlowModal, DisplayNameSetupScreen, IdentitySetup, CreatedBlocInviteScreen, GroupHome, WhoAreYou, GroupAccessNotice, LocalDevImpersonationBar };

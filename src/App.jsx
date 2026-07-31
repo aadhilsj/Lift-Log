@@ -82,7 +82,7 @@ import {
   releaseSwipeForward
 } from "./lib/swipeRelease.js";
 import { Spinner, InstallBanner, TodayPageErrorBoundary } from "./components/primitives.jsx";
-import { PreviewLanding, SignedOutLanding, ProfileModal, JoinGroupModal, AuthFlowModal, IdentitySetup, CreatedBlocInviteScreen, GroupHome, GroupAccessNotice, LocalDevImpersonationBar } from "./components/authShell.jsx";
+import { PreviewLanding, SignedOutLanding, ProfileModal, JoinGroupModal, AuthFlowModal, DisplayNameSetupScreen, IdentitySetup, CreatedBlocInviteScreen, GroupHome, GroupAccessNotice, LocalDevImpersonationBar } from "./components/authShell.jsx";
 import { ProrationChoiceModal } from "./modals/modals.jsx";
 import { Nav } from "./pages/Nav.jsx";
 import { TodayPage } from "./pages/TodayPage.jsx";
@@ -192,6 +192,7 @@ const App = () => {
   const [authIntent,setAuthIntent]=useState(null);
   const [coldOnboardingSeen,setColdOnboardingSeen]=useState(()=>{try{return localStorage.getItem(COLD_ONBOARDING_SEEN_KEY)==="1";}catch{return false;}});
   const [replayColdOnboarding,setReplayColdOnboarding]=useState(false);
+  const [coldOnboardingInitialIndex,setColdOnboardingInitialIndex]=useState(0);
   const [coldOnboardingPreviewDismissed,setColdOnboardingPreviewDismissed]=useState(false);
   const [authEmail,setAuthEmail]=useState("");
   const [authCode,setAuthCode]=useState("");
@@ -204,6 +205,8 @@ const App = () => {
   const [showJoinModal,setShowJoinModal]=useState(false);
   const [queuedCreate,setQueuedCreate]=useState(false);
   const [queuedCreateGroupName,setQueuedCreateGroupName]=useState("");
+  const [returnToColdOnboardingOnCreateCancel,setReturnToColdOnboardingOnCreateCancel]=useState(false);
+  const [returnToColdOnboardingOnJoinCancel,setReturnToColdOnboardingOnJoinCancel]=useState(false);
   const [pendingJoinAfterProfile,setPendingJoinAfterProfile]=useState(false);
   const [joinCode,setJoinCode]=useState(()=>{
     try {
@@ -1010,6 +1013,8 @@ const App = () => {
         });
         setCreatedInviteGroupId(result.createdGroupId);
         setSuppressSwitcherIntro(true);
+        setReturnToColdOnboardingOnCreateCancel(false);
+        setReturnToColdOnboardingOnJoinCancel(false);
       }
       return result;
     } finally {
@@ -1579,6 +1584,7 @@ const App = () => {
       autoOpenCreate: inert ? false : queuedCreate,
       initialCreateGroupName: inert ? "" : queuedCreateGroupName,
       onAutoOpenHandled: inert ? ()=>{} : ()=>{setQueuedCreate(false);setQueuedCreateGroupName("");},
+      onCreateCancel: inert ? ()=>{} : handleCreateCancelFromGroupHome,
       onOpenGroup: inert ? ()=>{} : groupId=>{ window.scrollTo({top:0,left:0,behavior:"auto"}); setSuppressSwitcherIntro(false); persistGroupSelection(groupId); setPage("today"); },
       onCreateGroup: inert ? ()=>{} : handleCreateGroup,
       onJoinGroup: inert ? ()=>{} : ()=>setShowJoinModal(true),
@@ -1597,6 +1603,7 @@ const App = () => {
   };
   const completeColdOnboarding = useCallback(() => {
     setReplayColdOnboarding(false);
+    setColdOnboardingInitialIndex(0);
     setColdOnboardingPreviewDismissed(true);
     setColdOnboardingSeen(true);
     try { localStorage.setItem(COLD_ONBOARDING_SEEN_KEY, "1"); } catch {}
@@ -1605,6 +1612,8 @@ const App = () => {
     const initialGroupName = String(blocName || "").trim();
     completeColdOnboarding();
     setQueuedCreateGroupName(initialGroupName);
+    setReturnToColdOnboardingOnCreateCancel(true);
+    setReturnToColdOnboardingOnJoinCancel(false);
     if (authSession?.userId) {
       persistGroupSelection(null);
       setSuppressSwitcherIntro(true);
@@ -1615,13 +1624,15 @@ const App = () => {
   },[authSession?.userId, completeColdOnboarding, persistGroupSelection, openAuth]);
   const handleColdOnboardingJoin = useCallback(() => {
     completeColdOnboarding();
+    setReturnToColdOnboardingOnJoinCancel(true);
+    setReturnToColdOnboardingOnCreateCancel(false);
     if (authSession?.userId) {
       setShowJoinModal(true);
       return;
     }
     openAuth({ type:"join" });
   },[authSession?.userId, completeColdOnboarding, openAuth]);
-  const closeAuth = () => {
+  const resetAuthFlow = () => {
     setAuthStep(null);
     setAuthIntent(null);
     setAuthCode("");
@@ -1629,13 +1640,21 @@ const App = () => {
     setDevOtpCode("");
     setPendingAuthSession(null);
   };
-  const continueAfterAuth = async (nextSession = authSession, nextProfile = effectiveProfile) => {
-    if (authIntent?.type === "create") {
-      setQueuedCreateGroupName(String(authIntent?.initialGroupName || "").trim());
+  const closeAuth = () => {
+    const shouldResumeColdOnboarding = (authIntent?.type === "create" && returnToColdOnboardingOnCreateCancel) || (authIntent?.type === "join" && returnToColdOnboardingOnJoinCancel);
+    resetAuthFlow();
+    if (shouldResumeColdOnboarding) {
+      setColdOnboardingInitialIndex(3);
+      setReplayColdOnboarding(true);
+    }
+  };
+  const continueAfterAuth = async (nextSession = authSession, nextProfile = effectiveProfile, completedIntent = authIntent) => {
+    if (completedIntent?.type === "create") {
+      setQueuedCreateGroupName(String(completedIntent?.initialGroupName || "").trim());
       setQueuedCreate(true);
       return;
     }
-    if (authIntent?.type === "join") {
+    if (completedIntent?.type === "join") {
       setShowJoinModal(true);
       if (inviteContext?.inviteCode) setJoinCode(inviteContext.inviteCode);
     }
@@ -1702,7 +1721,7 @@ const App = () => {
       ? result.session.needsProfileSetup
       : !nextProfile?.displayName;
 
-    if (needsProfileSetup && authIntent?.type !== "join") {
+    if (needsProfileSetup) {
       const freshData = await fetchData();
       if (freshData) {
         applyData(freshData);
@@ -1714,15 +1733,15 @@ const App = () => {
       }
     }
 
-    if (needsProfileSetup && authIntent?.type !== "join") {
+    if (needsProfileSetup) {
       setShowJoinModal(false);
       setAuthDisplayName("");
       setAuthStep("name");
       setAuthError("");
       return;
     }
-    closeAuth();
-    continueAfterAuth(nextSession, nextProfile);
+    resetAuthFlow();
+    continueAfterAuth(nextSession, nextProfile, authIntent);
   };
   const handleSaveProfile = async () => {
     setSavingProfile(true);
@@ -1743,9 +1762,10 @@ const App = () => {
     if (!applied) {
       await refreshNow();
     }
-    closeAuth();
+    resetAuthFlow();
     if (completedIntent === "signup") {
       setColdOnboardingPreviewDismissed(false);
+      setColdOnboardingInitialIndex(0);
       setReplayColdOnboarding(true);
       return;
     }
@@ -1775,10 +1795,12 @@ const App = () => {
         userId: activeSession.userId,
         inviteCode: joinCode.trim().toUpperCase()
       });
+      setReturnToColdOnboardingOnCreateCancel(false);
+      setReturnToColdOnboardingOnJoinCancel(false);
       setShowJoinModal(false);
       return;
     }
-    continueAfterAuth(activeSession, getProfileForSession(result.data || appState, activeSession));
+    continueAfterAuth(activeSession, getProfileForSession(result.data || appState, activeSession), { type: completedIntent, initialGroupName: authIntent?.initialGroupName || "" });
   };
   const handleJoinGroup = async () => {
     if (!authSession?.userId) {
@@ -1814,6 +1836,8 @@ const App = () => {
       userId: authSession.userId,
       inviteCode: joinCode.trim().toUpperCase()
     });
+    setReturnToColdOnboardingOnCreateCancel(false);
+    setReturnToColdOnboardingOnJoinCancel(false);
     setShowJoinModal(false);
   };
 
@@ -1869,6 +1893,26 @@ const App = () => {
     );
   };
 
+  const resumeColdOnboardingAtActionScreen = useCallback(() => {
+    setColdOnboardingInitialIndex(3);
+    setReplayColdOnboarding(true);
+  },[]);
+
+  const handleJoinModalClose = useCallback(() => {
+    setShowJoinModal(false);
+    if (returnToColdOnboardingOnJoinCancel && visibleGroups.length === 0) {
+      setReturnToColdOnboardingOnJoinCancel(false);
+      resumeColdOnboardingAtActionScreen();
+    }
+  },[resumeColdOnboardingAtActionScreen, returnToColdOnboardingOnJoinCancel, visibleGroups.length]);
+
+  const handleCreateCancelFromGroupHome = useCallback(() => {
+    if (returnToColdOnboardingOnCreateCancel && visibleGroups.length === 0) {
+      setReturnToColdOnboardingOnCreateCancel(false);
+      resumeColdOnboardingAtActionScreen();
+    }
+  },[resumeColdOnboardingAtActionScreen, returnToColdOnboardingOnCreateCancel, visibleGroups.length]);
+
   const handleSelectLocalPreviewIdentity = useCallback((displayName) => {
     const session = buildLocalPreviewSession(displayName);
     persistSession(session);
@@ -1891,6 +1935,8 @@ const App = () => {
   if(loading || !authReady || authHydrating) return React.createElement(Spinner,{label:"Opening Fero..."});
   if(shouldShowColdOnboarding) {
     return React.createElement(ColdOnboarding,{
+      key:`cold-onboarding-${coldOnboardingInitialIndex}`,
+      initialIndex:coldOnboardingInitialIndex,
       onCreate:handleColdOnboardingCreate,
       onJoin:handleColdOnboardingJoin
     });
@@ -1917,6 +1963,7 @@ const App = () => {
       authStep && React.createElement(AuthFlowModal,{
         step:authStep,
         mode:authIntent?.type === "signup" ? "signup" : "signin",
+        intent:authIntent?.type || "",
         email:authEmail,
         setEmail:setAuthEmail,
         code:authCode,
@@ -1936,24 +1983,13 @@ const App = () => {
     );
   }
   if(authStep === "name") {
-    return React.createElement(AuthFlowModal,{
-      step:"name",
-      mode:authIntent?.type === "signup" ? "signup" : "signin",
+    return React.createElement(DisplayNameSetupScreen,{
       email:authEmail || authSession.email || "",
-      setEmail:setAuthEmail,
-      code:authCode,
-      setCode:setAuthCode,
       displayName:authDisplayName,
       setDisplayName:setAuthDisplayName,
-      onClose:closeAuth,
-      onSendOtp:handleSendOtp,
-      onVerifyOtp:handleVerifyOtp,
-      onSaveProfile:handleSaveProfile,
-      sending:sendingOtp,
-      verifying:verifyingOtp,
-      savingProfile,
+      onSave:handleSaveProfile,
+      saving:savingProfile,
       error:authError,
-      devCode:devOtpCode
     });
   }
   const inviteWelcomeGroup = inviteWelcomeGroupId ? appState.groups?.[inviteWelcomeGroupId] || null : null;
@@ -1968,7 +2004,7 @@ const App = () => {
   if(!selectedGroupId || !currentGroup || !visibleGroups.some(group => group.id === selectedGroupId)) {
     const createdInviteGroup = createdInviteGroupId ? appState.groups?.[createdInviteGroupId] : null;
     return React.createElement(React.Fragment,null,
-      showJoinModal && !authStep && React.createElement(JoinGroupModal,{inviteContext,joinCode,setJoinCode,onClose:()=>setShowJoinModal(false),onJoin:handleJoinGroup,joining:joiningGroup,error:inviteError,signedIn:true}),
+      showJoinModal && !authStep && React.createElement(JoinGroupModal,{inviteContext,joinCode,setJoinCode,onClose:handleJoinModalClose,onJoin:handleJoinGroup,joining:joiningGroup,error:inviteError,signedIn:true}),
       showProfileModal && React.createElement(ProfileModal,{email:authSession?.email,onSignOut:handleSwitchUser,onClose:()=>{setProfileError("");setShowProfileModal(false);},currentDisplayName:profile?.displayName||"",onSaveDisplayName:handleSaveProfileFromModal,saving:profileSaving,saveError:profileError,onDeleteAccount:handleDeleteAccount}),
       createdInviteGroup
         ? React.createElement(CreatedBlocInviteScreen,{group:createdInviteGroup,onContinue:handleContinueFromCreatedInvite})
@@ -2090,7 +2126,7 @@ const App = () => {
   );
 
   return React.createElement(React.Fragment,null,
-    showJoinModal && !authStep && React.createElement(JoinGroupModal,{inviteContext,joinCode,setJoinCode,onClose:()=>setShowJoinModal(false),onJoin:handleJoinGroup,joining:joiningGroup,error:inviteError,signedIn:true}),
+    showJoinModal && !authStep && React.createElement(JoinGroupModal,{inviteContext,joinCode,setJoinCode,onClose:handleJoinModalClose,onJoin:handleJoinGroup,joining:joiningGroup,error:inviteError,signedIn:true}),
     showProfileModal && React.createElement(ProfileModal,{email:authSession?.email,onSignOut:handleSwitchUser,onClose:()=>setShowProfileModal(false),showDisplayName:true,currentDisplayName:currentUser,onSaveDisplayName:handleSaveProfileFromModal,saving:profileSaving,saveError:profileError,onLeaveBloc:handleLeaveBloc,onDeleteAccount:handleDeleteAccount}),
     React.createElement(BlocStream,{open:showStream,groupName:currentGroup.name,blocId:currentGroup.id,initialBlocId:streamFocusBlocId,initialScrollTop:streamReturnScrollTop,initialUnreadCount:streamUnreadCount,currentUserId:effectiveAuthSession?.userId,members:Object.values(currentGroup.memberships||{}).map(m=>({id:m.userId,name:m.displayName,photoUrl:appState.profiles?.[m.userId]?.profilePhotoUrl||""})),streamBlocs:visibleGroups.map(group=>({id:group.id,name:group.name,members:Object.values(group.memberships||{}).map(m=>({id:m.userId,name:m.displayName,photoUrl:appState.profiles?.[m.userId]?.profilePhotoUrl||""}))})),onSeasonClosedTap:handleStreamSeasonClosedTap,onUnreadCountChange:(groupId,count)=>{if(groupId===currentGroup.id)setStreamUnreadCount(Number(count)||0);},onOpenLogComments:handleOpenLogComments,onClose:()=>{setShowStream(false);setStreamFocusBlocId(null);setStreamReturnScrollTop(null);refreshStreamUnreadCount(currentGroup.id);}}),
     prorationGroup && React.createElement(ProrationChoiceModal,{

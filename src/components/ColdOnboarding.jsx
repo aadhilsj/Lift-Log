@@ -350,8 +350,8 @@ const ProgressControls = ({index,onNext,onPrev}) => React.createElement('div',{
   React.createElement(RoundNavButton,{direction:"next",onClick:onNext,hidden:index>=ONBOARDING_SCREENS.length-1})
 );
 
-const ColdOnboarding = ({onCreate,onJoin}) => {
-  const [index,setIndex] = useState(0);
+const ColdOnboarding = ({onCreate,onJoin,initialIndex=0}) => {
+  const [index,setIndex] = useState(() => Math.max(0, Math.min(ONBOARDING_SCREENS.length - 1, Number(initialIndex) || 0)));
   const [blocName,setBlocName] = useState("");
   const touchRef = useRef({sx:0,sy:0,active:false});
   const suppressTapRef = useRef(false);
