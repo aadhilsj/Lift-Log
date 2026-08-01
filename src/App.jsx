@@ -586,15 +586,8 @@ const App = () => {
       setInviteError("");
       return;
     }
-    fetchInviteContextData(joinCode).then(result => {
-      if (result?.ok) {
-        setInviteContext(result.data);
-        setInviteError("");
-      } else {
-        setInviteContext(null);
-        setInviteError(result?.error || "Invite not found");
-      }
-    });
+    setInviteContext(null);
+    setInviteError("");
   }, [joinCode]);
 
 
