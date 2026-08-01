@@ -324,7 +324,8 @@ const App = () => {
   const switcherRestoreScrollRef = useRef(null);
   const profileOverlayRef = useRef(null);
 
-  const authSurfaceOpen = Boolean(authStep || onboardingJoinCodeStep || showJoinModal);
+  // The display-name step is a full screen rendered inside #root; only modal auth surfaces should inert the app root.
+  const authSurfaceOpen = Boolean((authStep && authStep !== "name") || onboardingJoinCodeStep || showJoinModal);
 
   useEffect(() => {
     if (!authSurfaceOpen) return undefined;
