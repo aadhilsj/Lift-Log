@@ -1399,6 +1399,10 @@ const App = () => {
       const absDx = Math.abs(dx);
       const absDy = Math.abs(dy);
       const horizontalPriority = s.priority === "horizontal-scroll";
+      if (horizontalPriority && absDx > 8 && absDx > absDy * 0.65) {
+        s.mode = "scroll";
+        return;
+      }
       const minHorizontal = horizontalPriority ? 28 : 5;
       const dominanceRatio = horizontalPriority ? 1.35 : 0.72;
       const horizontal = absDx > minHorizontal && absDx > absDy * dominanceRatio;
@@ -1971,7 +1975,7 @@ const App = () => {
       onProrate:()=>handleSeasonProrationChoice("prorate"),
       savingChoice:prorationSavingChoice
     }),
-    page==="today"&&renderGroupSwitcherSurface({ inert:true, suppressIntro:true }),
+    page==="today"&&(blocDragging||blocDragXRef.current)&&renderGroupSwitcherSurface({ inert:true, suppressIntro:true }),
     activeBlocSurface,
     !showSettings && React.createElement(Nav,{onlyMobileBottomNav:true,page,setPage:handleNavSelect,user:currentUser,currentUserId:effectiveAuthSession?.userId||"",profilePhotoUrl:effectiveProfile?.profilePhotoUrl||"",groupName:currentGroup.name,canEditGroup:isGroupAdmin,onOpenSettings:()=>setShowSettings(true),onOpenProfile:()=>{setProfileError("");setShowProfileModal(true);},onOpenStream:handleOpenStream,streamUnreadCount,onSwitchUser:handleSwitchUser,onSwitchGroup:handleSwitchGroup,onOpenLog:()=>{setPage("today");setShowTodayLog(true);},syncing,lastSyncedAt,syncError,onRefresh:refreshNow,showJustSynced,activityAlertCount,mobileBottomDragX:blocDragXRef.current,mobileBottomNavRef:blocBottomNavRef,mobileBottomDragging:blocDragging}),
     logCommentScreen && React.createElement('div',{

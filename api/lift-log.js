@@ -922,10 +922,6 @@ function canReviewSitOutRequest(group, request, memberName, actorUserId = "", ac
 function updateLegacyLeftMemberNamesForDeparture(leftMemberNames, authUserId, displayName) {
   const safeDisplayName = String(displayName || "").trim();
   if (!safeDisplayName) return uniqueNames(Array.isArray(leftMemberNames) ? leftMemberNames : []);
-  if (String(authUserId || "").trim()) {
-    return (Array.isArray(leftMemberNames) ? leftMemberNames : [])
-      .filter(name => name !== safeDisplayName);
-  }
   return uniqueNames([...(Array.isArray(leftMemberNames) ? leftMemberNames : []), safeDisplayName]);
 }
 
@@ -2300,7 +2296,7 @@ async function updateBlocAdminInCanonical(legacyGroupKey, newAdminAuthUserId, op
 }
 
 async function upsertSeasonMemberStatusToCanonical(group, closedMonthKey, displayName, authUserId, workoutCount, excused, options = {}) {
-  const { throwOnError = false } = options;
+  const { throwOnError = false, joinedForMonth = true } = options;
   if (!group || !closedMonthKey || !displayName) return;
   try {
     await supabaseFetch("/rest/v1/rpc/upsert_ante_core_season_member_status", {
@@ -2313,7 +2309,7 @@ async function upsertSeasonMemberStatusToCanonical(group, closedMonthKey, displa
         p_auth_user_id:     authUserId || null,
         p_workout_count:    workoutCount,
         p_excused:          excused,
-        p_joined_for_month: true
+        p_joined_for_month: joinedForMonth !== false
       })
     });
   } catch (err) {
@@ -4432,6 +4428,10 @@ async function persistState(nextState, reason) {
       );
       for (const memberName of Object.keys(closedSnapshot.counts || {})) {
         const memberAuthUserId = authUserIdByName[memberName] || null;
+        const hasCanonicalMemberships = Object.keys(group.memberships || {}).length > 0;
+        const memberIsActiveForClosedMonth = hasCanonicalMemberships
+          ? !!memberAuthUserId && !!group.memberships?.[memberAuthUserId]
+          : !(group.leftMemberNames || []).includes(memberName);
         await upsertSeasonMemberStatusToCanonical(
           group,
           closedMonthKey,
@@ -4439,7 +4439,7 @@ async function persistState(nextState, reason) {
           memberAuthUserId,
           closedSnapshot.counts[memberName] ?? 0,
           closedSnapshot.excused[memberName] ?? false,
-          { throwOnError: true }
+          { throwOnError: true, joinedForMonth: memberIsActiveForClosedMonth }
         );
         if (isSoloForMonth(closedSnapshot, memberName, closedMonthKey)) {
           await upsertSeasonMemberSoloInCanonical(
@@ -7773,7 +7773,7 @@ function applyLeaveBloc(current, payload) {
     adminName: nextAdmin.adminName,
     memberOrder: nextMemberOrder,
     memberships: nextMemberships,
-    leftMemberNames: removeLegacyLeftMemberName(group.leftMemberNames, displayName),
+    leftMemberNames: updateLegacyLeftMemberNamesForDeparture(group.leftMemberNames, userId, displayName),
     logs: nextLogs
   });
   return {

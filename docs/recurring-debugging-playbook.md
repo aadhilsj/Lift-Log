@@ -124,3 +124,21 @@ Fix rules:
 Known-good response pattern:
 - `leave-bloc` was already safe: persist/mirror first, then `fetchReadableCurrentState()`, then `scopeReadableStateForUser(...)`.
 - Other authenticated full-state mutation responses should follow the same pattern.
+
+## Left Members Appearing In New Month Or Settlement
+
+Symptoms:
+- A member who already left a Bloc appears in the next month summary, settlement, furthest-behind card, or all-time/history views.
+- Removing that member would change the previous month from a penalty month to a perfect/cleared month.
+- Canonical `bloc_members.left_at` is null or the legacy blob still has the member in `memberships`/`memberOrder`.
+
+Root cause:
+- The rollover canonical sync wrote one `season_member_status` row per name in the closed blob snapshot and always sent `joined_for_month: true`.
+- If a departed member survived in legacy snapshot data, canonical history later treated them as a real participant for that closed month.
+- Separately, the legacy leave path was clearing the `leftMemberNames` marker for auth-linked users, so stale blob fallback did not have a suppression signal.
+
+Fix rules:
+- On departure, legacy compatibility state must add the display name to `leftMemberNames`; rejoin/join flows are responsible for removing it.
+- On closed-month canonical sync, only send `joined_for_month: true` for members that are still active in `group.memberships`. For legacy-only groups with no membership ids, fall back to excluding names in `leftMemberNames`.
+- Do not globally delete a departed member's old historical participation. Preserve months they actually joined, but mark them left for current/future membership and exclude them from months they did not participate in.
+- If data is already bad, repair both canonical membership (`bloc_members.left_at`) and the legacy blob active membership/member order for that specific Bloc/member.

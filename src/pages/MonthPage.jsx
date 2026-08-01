@@ -220,13 +220,18 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
     const maxC = Math.max(thisCount, priorCount, 1);
     const barH = n => n > 0 ? Math.max(4, Math.round(42 * n / maxC)) : 0;
     const takeawayColor = tone === "ahead" ? "#4ECDC4" : tone === "behind" ? "#F5A623" : "var(--muted)";
-    const bar = (label, n, color, numColor) => React.createElement('div', { key: label, style: { display: "flex", flexDirection: "column", alignItems: "center", gap: 5, width: 52 } },
-      React.createElement('div', { style: { fontFamily: "'Outfit', sans-serif", fontSize: 16, fontWeight: 800, color: numColor, lineHeight: 1 } }, n),
-      React.createElement('div', { style: { width: 24, height: 42, display: "flex", alignItems: "flex-end" } },
-        React.createElement('div', { style: { width: "100%", height: barH(n), background: color, borderRadius: "4px 4px 0 0" } })
+    const bar = (label, n, color, numColor) => {
+      const isZero = Number(n || 0) <= 0;
+      const valueNode = React.createElement('div', { style: { fontFamily: "'Outfit', sans-serif", fontSize: 16, fontWeight: 800, color: numColor, lineHeight: 1 } }, n);
+      return React.createElement('div', { key: label, style: { display: "flex", flexDirection: "column", alignItems: "center", gap: 5, width: 52 } },
+      isZero ? React.createElement('div', { style: { height: 16 } }) : valueNode,
+      React.createElement('div', { style: { width: 24, height: 42, display: "flex", alignItems: isZero ? "center" : "flex-end", justifyContent: "center" } },
+        isZero
+          ? valueNode
+          : React.createElement('div', { style: { width: "100%", height: barH(n), background: color, borderRadius: "4px 4px 0 0" } })
       ),
       React.createElement('div', { style: { fontSize: 9.5, color: "var(--muted)", whiteSpace: "nowrap" } }, label)
-    );
+    ); };
     return React.createElement('div', { style: { border: "1px solid rgba(78,205,196,.16)", borderRadius: 10, background: "linear-gradient(135deg, rgba(78,205,196,.075), rgba(8,15,15,.58) 48%, rgba(78,205,196,.035))", boxShadow: "inset 0 1px 0 rgba(255,255,255,.035), 0 10px 28px rgba(78,205,196,.045)", padding: "12px 15px", display: "flex", flexDirection: "column", gap: 10 } },
       React.createElement('div', { style: { fontFamily: "'Outfit', sans-serif", fontSize: 8.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".1em", color: "var(--muted)", textAlign: "center" } }, "This Month v Last Month"),
       React.createElement('div', { style: { display: "grid", gridTemplateColumns: "52px minmax(0,1fr) 52px", alignItems: "center", gap: 12 } },
