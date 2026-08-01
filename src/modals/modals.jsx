@@ -180,7 +180,7 @@ const GroupSettingsFields = ({settings,setSettings,showAdvanced,setShowAdvanced,
 };
 
 
-const GroupCreateModal = ({onCreate,onClose,creating,defaultCreatorName="",defaultTimeZone=DEFAULT_GROUP_TIME_ZONE,lockCreatorName=false,initialGroupName=""}) => {
+const GroupCreateModal = ({onCreate,onClose,creating,defaultCreatorName="",defaultTimeZone=DEFAULT_GROUP_TIME_ZONE,lockCreatorName=false,initialGroupName="",requireCreatorName=true}) => {
   const compactMobile = isMobile();
   const [groupName,setGroupName]=useState(initialGroupName);
   const [creatorName,setCreatorName]=useState(defaultCreatorName);
@@ -194,7 +194,7 @@ const GroupCreateModal = ({onCreate,onClose,creating,defaultCreatorName="",defau
   const [submitAttempted,setSubmitAttempted]=useState(false);
   const normalizedSettings = buildNormalizedSettings(settings);
   const escalationStepMissing = normalizedSettings.feeModel === "escalating" && normalizedSettings.escalationStepAmount === null;
-  const canCreate = groupName.trim() && creatorName.trim() && normalizedSettings.acceptedWorkoutTypes.length > 0 && !creating;
+  const canCreate = groupName.trim() && (!requireCreatorName || creatorName.trim()) && normalizedSettings.acceptedWorkoutTypes.length > 0 && !creating;
 
   return React.createElement('div',{className:`overlay${compactMobile ? " center-mobile" : ""}`,onClick:onClose},
     React.createElement('div',{className:"modal setup-create-modal",onClick:e=>e.stopPropagation(),style:{maxWidth:400,padding:"24px 20px 18px",fontFamily:UI_FONT,background:"radial-gradient(circle at 50% -18%, rgba(78,205,196,.16), transparent 36%), linear-gradient(180deg, rgba(11,25,24,.98), rgba(7,15,14,.98))",border:"0.5px solid rgba(78,205,196,.22)",boxShadow:"inset 0 1px 0 rgba(255,255,255,.07), 0 22px 54px rgba(0,0,0,.46), 0 0 42px rgba(78,205,196,.08)"}},
@@ -202,7 +202,7 @@ const GroupCreateModal = ({onCreate,onClose,creating,defaultCreatorName="",defau
       React.createElement('div',{style:{fontFamily:UI_FONT,color:"var(--muted)",fontSize:13,lineHeight:1.35,marginBottom:17,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},"Start the Bloc now. Tune the rules after."),
       [
         ["Bloc Name",groupName,setGroupName,"Sunday Runners"],
-        ...(!lockCreatorName ? [["Your Name",creatorName,setCreatorName,"Aadhil"]] : [])
+        ...(!lockCreatorName && requireCreatorName ? [["Your Name",creatorName,setCreatorName,"Aadhil"]] : [])
       ].map(([label,value,setter,placeholder])=>
         React.createElement('label',{key:label,style:{display:"block",marginBottom:14}},
           React.createElement('div',{style:setupFieldTitleStyle},label),

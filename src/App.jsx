@@ -83,7 +83,7 @@ import {
 } from "./lib/swipeRelease.js";
 import { Spinner, InstallBanner, TodayPageErrorBoundary } from "./components/primitives.jsx";
 import { PreviewLanding, SignedOutLanding, ProfileModal, JoinGroupModal, AuthFlowModal, DisplayNameSetupScreen, IdentitySetup, CreatedBlocInviteScreen, GroupHome, GroupAccessNotice, LocalDevImpersonationBar } from "./components/authShell.jsx";
-import { ProrationChoiceModal } from "./modals/modals.jsx";
+import { GroupCreateModal, ProrationChoiceModal } from "./modals/modals.jsx";
 import { Nav } from "./pages/Nav.jsx";
 import { TodayPage } from "./pages/TodayPage.jsx";
 import { ActivityPage } from "./pages/ActivityPage.jsx";
@@ -199,12 +199,16 @@ const App = () => {
   const [authDisplayName,setAuthDisplayName]=useState("");
   const [authError,setAuthError]=useState("");
   const [devOtpCode,setDevOtpCode]=useState("");
+  const [postAuthActionPending,setPostAuthActionPending]=useState(false);
   const [sendingOtp,setSendingOtp]=useState(false);
   const [verifyingOtp,setVerifyingOtp]=useState(false);
   const [savingProfile,setSavingProfile]=useState(false);
   const [showJoinModal,setShowJoinModal]=useState(false);
   const [queuedCreate,setQueuedCreate]=useState(false);
   const [queuedCreateGroupName,setQueuedCreateGroupName]=useState("");
+  const [onboardingCreateModalOpen,setOnboardingCreateModalOpen]=useState(false);
+  const [onboardingCreateInitialName,setOnboardingCreateInitialName]=useState("");
+  const [pendingOnboardingCreatePayload,setPendingOnboardingCreatePayload]=useState(null);
   const [returnToColdOnboardingOnCreateCancel,setReturnToColdOnboardingOnCreateCancel]=useState(false);
   const [returnToColdOnboardingOnJoinCancel,setReturnToColdOnboardingOnJoinCancel]=useState(false);
   const [pendingJoinAfterProfile,setPendingJoinAfterProfile]=useState(false);
@@ -1003,10 +1007,10 @@ const App = () => {
     return result;
   },[applyData, effectiveAuthSession, selectedGroupId]);
 
-  const handleCreateGroup = useCallback(async(payload)=>{
+  const handleCreateGroup = useCallback(async(payload, options = {})=>{
     setCreatingGroup(true);
     try {
-      const result = await createGroupData({ ...payload, actorUserId: authSession?.userId });
+      const result = await createGroupData({ ...payload, actorUserId: options.actorUserId || authSession?.userId });
       if(result.ok && result.state){
         applyData(result.state);
         setHiddenLeftGroupIds(current => {
@@ -1015,7 +1019,13 @@ const App = () => {
           delete next[result.createdGroupId];
           return next;
         });
-        setCreatedInviteGroupId(result.createdGroupId);
+        if (options.showInviteScreen === false) {
+          setCreatedInviteGroupId(null);
+          persistGroupSelection(result.createdGroupId);
+          setPage("today");
+        } else {
+          setCreatedInviteGroupId(result.createdGroupId);
+        }
         setSuppressSwitcherIntro(true);
         setReturnToColdOnboardingOnCreateCancel(false);
         setReturnToColdOnboardingOnJoinCancel(false);
@@ -1024,7 +1034,7 @@ const App = () => {
     } finally {
       setCreatingGroup(false);
     }
-  },[applyData]);
+  },[applyData, authSession?.userId, persistGroupSelection]);
 
   const handleContinueFromCreatedInvite = useCallback(()=>{
     const createdGroup = appState.groups?.[createdInviteGroupId];
@@ -1614,18 +1624,49 @@ const App = () => {
   },[]);
   const handleColdOnboardingCreate = useCallback(({ blocName } = {}) => {
     const initialGroupName = String(blocName || "").trim();
-    completeColdOnboarding();
-    setQueuedCreateGroupName(initialGroupName);
+    setOnboardingCreateInitialName(initialGroupName);
+    setOnboardingCreateModalOpen(true);
+    setReturnToColdOnboardingOnCreateCancel(true);
+    setReturnToColdOnboardingOnJoinCancel(false);
+  },[]);
+  const handleOnboardingCreateCancel = useCallback(() => {
+    setOnboardingCreateModalOpen(false);
+    setPendingOnboardingCreatePayload(null);
+    setReturnToColdOnboardingOnCreateCancel(false);
+    setColdOnboardingInitialIndex(3);
+    setColdOnboardingPreviewDismissed(false);
+    setReplayColdOnboarding(true);
+  },[]);
+  const handleOnboardingCreateSubmit = useCallback((payload) => {
+    const createDraft = {
+      ...payload,
+      creatorName: ""
+    };
+    setPendingOnboardingCreatePayload(createDraft);
+    setOnboardingCreateModalOpen(false);
     setReturnToColdOnboardingOnCreateCancel(true);
     setReturnToColdOnboardingOnJoinCancel(false);
     if (authSession?.userId) {
-      persistGroupSelection(null);
-      setSuppressSwitcherIntro(true);
-      setQueuedCreate(true);
+      if (String(profile?.displayName || "").trim()) {
+        handleCreateGroup(
+          { ...createDraft, creatorName: profile.displayName },
+          { actorUserId: authSession.userId, showInviteScreen:false }
+        ).then(result => {
+          if (result?.ok) {
+            setPendingOnboardingCreatePayload(null);
+            completeColdOnboarding();
+          }
+        });
+        return;
+      }
+      setAuthDisplayName("");
+      setAuthError("");
+      setAuthIntent({ type:"create", fromOnboarding:true });
+      setAuthStep("name");
       return;
     }
-    openAuth({ type:"create", initialGroupName });
-  },[authSession?.userId, completeColdOnboarding, persistGroupSelection, openAuth]);
+    openAuth({ type:"create", fromOnboarding:true });
+  },[authSession, completeColdOnboarding, handleCreateGroup, openAuth, profile]);
   const handleColdOnboardingJoin = useCallback(() => {
     setReturnToColdOnboardingOnJoinCancel(true);
     setReturnToColdOnboardingOnCreateCancel(false);
@@ -1678,11 +1719,18 @@ const App = () => {
     setAuthError("");
     setDevOtpCode("");
     setPendingAuthSession(null);
+    setPostAuthActionPending(false);
   };
   const closeAuth = () => {
     const shouldResumeColdOnboarding = (authIntent?.type === "create" && returnToColdOnboardingOnCreateCancel) || (authIntent?.type === "join" && returnToColdOnboardingOnJoinCancel);
     const cancelledOnboardingJoin = authIntent?.type === "join" && returnToColdOnboardingOnJoinCancel;
+    const cancelledOnboardingCreate = authIntent?.type === "create" && returnToColdOnboardingOnCreateCancel;
     resetAuthFlow();
+    if (cancelledOnboardingCreate) {
+      setPendingOnboardingCreatePayload(null);
+      setOnboardingCreateModalOpen(false);
+      setReturnToColdOnboardingOnCreateCancel(false);
+    }
     if (cancelledOnboardingJoin) {
       setOnboardingJoinCodeStep(false);
       setReturnToColdOnboardingOnJoinCancel(false);
@@ -1725,6 +1773,34 @@ const App = () => {
   };
   const continueAfterAuth = async (nextSession = authSession, nextProfile = effectiveProfile, completedIntent = authIntent) => {
     if (completedIntent?.type === "create") {
+      if (completedIntent?.fromOnboarding && pendingOnboardingCreatePayload) {
+        const creatorName = String(nextProfile?.displayName || authDisplayName || "").trim();
+        if (!creatorName) {
+          setAuthIntent(completedIntent);
+          setPendingAuthSession(nextSession);
+          setAuthDisplayName("");
+          setAuthError("");
+          setAuthStep("name");
+          return;
+        }
+        setPostAuthActionPending(true);
+        const result = await handleCreateGroup(
+          { ...pendingOnboardingCreatePayload, creatorName },
+          { actorUserId: nextSession?.userId, showInviteScreen:false }
+        );
+        setPostAuthActionPending(false);
+        if (result?.ok) {
+          setPendingOnboardingCreatePayload(null);
+          setReturnToColdOnboardingOnCreateCancel(false);
+          completeColdOnboarding();
+        } else {
+          setAuthError(result?.error || "Unable to create Bloc");
+          setAuthIntent(completedIntent);
+          setPendingAuthSession(nextSession);
+          setAuthStep("name");
+        }
+        return;
+      }
       setQueuedCreateGroupName(String(completedIntent?.initialGroupName || "").trim());
       setQueuedCreate(true);
       return;
@@ -1735,7 +1811,9 @@ const App = () => {
       // finish the join instead of re-asking for it. The invite-link flow keeps
       // its existing confirm step.
       if (completedIntent?.fromOnboarding && pendingCode && nextProfile?.displayName) {
+        setPostAuthActionPending(true);
         const result = await joinWithInviteCode(nextSession, pendingCode);
+        setPostAuthActionPending(false);
         if (result?.ok) return;
         setShowJoinModal(true);
         setJoinCode(pendingCode.toUpperCase());
@@ -1993,6 +2071,18 @@ const App = () => {
   const shouldShowColdOnboarding = forceColdOnboardingPreview || replayColdOnboarding || (!authSession?.userId && !localPreviewAuthEnabled && !hasInviteEntry && !coldOnboardingSeen && !authStep);
 
   if(loading || !authReady || authHydrating) return React.createElement(Spinner,{label:"Opening Fero..."});
+  if(authStep === "name") {
+    const nameSession = pendingAuthSession || authSession || {};
+    return React.createElement(DisplayNameSetupScreen,{
+      email:authEmail || nameSession.email || "",
+      displayName:authDisplayName,
+      setDisplayName:setAuthDisplayName,
+      onSave:handleSaveProfile,
+      saving:savingProfile,
+      error:authError,
+    });
+  }
+  if(postAuthActionPending) return React.createElement(Spinner,{label:"Setting up your Bloc..."});
   // Onboarding join, step 1: invite code, collected before any auth. Onboarding
   // screen 4 stays behind the sheet so Cancel lands back exactly where it began.
   if(onboardingJoinCodeStep && !authSession?.userId && !authStep) {
@@ -2019,12 +2109,24 @@ const App = () => {
     );
   }
   if(shouldShowColdOnboarding) {
-    return React.createElement(ColdOnboarding,{
-      key:`cold-onboarding-${coldOnboardingInitialIndex}`,
-      initialIndex:coldOnboardingInitialIndex,
-      onCreate:handleColdOnboardingCreate,
-      onJoin:handleColdOnboardingJoin
-    });
+    return React.createElement(React.Fragment,null,
+      React.createElement(ColdOnboarding,{
+        key:`cold-onboarding-${coldOnboardingInitialIndex}`,
+        initialIndex:coldOnboardingInitialIndex,
+        onCreate:handleColdOnboardingCreate,
+        onJoin:handleColdOnboardingJoin
+      }),
+      onboardingCreateModalOpen && React.createElement(GroupCreateModal,{
+        creating:creatingGroup,
+        initialGroupName:onboardingCreateInitialName,
+        defaultCreatorName:"",
+        defaultTimeZone:Intl.DateTimeFormat().resolvedOptions().timeZone || "Europe/Oslo",
+        lockCreatorName:true,
+        requireCreatorName:false,
+        onClose:handleOnboardingCreateCancel,
+        onCreate:handleOnboardingCreateSubmit
+      })
+    );
   }
   if(localPreviewAuthEnabled && !authSession?.userId) {
     return React.createElement(IdentitySetup,{
@@ -2066,16 +2168,6 @@ const App = () => {
         devCode:devOtpCode
       })
     );
-  }
-  if(authStep === "name") {
-    return React.createElement(DisplayNameSetupScreen,{
-      email:authEmail || authSession.email || "",
-      displayName:authDisplayName,
-      setDisplayName:setAuthDisplayName,
-      onSave:handleSaveProfile,
-      saving:savingProfile,
-      error:authError,
-    });
   }
   const inviteWelcomeGroup = inviteWelcomeGroupId ? appState.groups?.[inviteWelcomeGroupId] || null : null;
   if(inviteWelcomeGroup && authSession?.userId) {
