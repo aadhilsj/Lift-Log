@@ -421,7 +421,7 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
       ),
       !feedPosts.length
         ? React.createElement('div',{style:{padding:"18px 15px",fontSize:13,color:"var(--muted)"}},"No workouts logged yet.")
-        : React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:6,padding:10,paddingBottom:reactionTarget?48:10,overflow:"visible"}},
+        : React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:6,padding:10,overflow:"visible"}},
             feedPosts.map((post,index)=>{
               const displayDate = post.date;
               const showDateHeader = index === 0 || feedPosts[index - 1]?.date !== displayDate;
