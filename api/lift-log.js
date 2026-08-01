@@ -1745,6 +1745,12 @@ function buildCanonicalMonthHistoryForGroup(group, canonicalSeasons) {
         reactions:    log.reactions     || {}
       }));
     }
+    for (const name of relevantNames) {
+      const derivedLogCount = getCountedLogCount(logsByUser[name] || []);
+      if (derivedLogCount > Number(counts[name] || 0)) {
+        counts[name] = derivedLogCount;
+      }
+    }
 
     const settlements = {};
     for (const name of relevantNames) {
