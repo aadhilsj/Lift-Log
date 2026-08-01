@@ -3493,7 +3493,10 @@ async function fetchReadableCurrentState() {
   // every call (~28-60s), causing loading screen hangs. All GETs read directly
   // from the blob, which is fast and always correct. Projection tables remain
   // intact for future use but are no longer consulted on read.
-  const baseState = await fetchCurrentStateFromSupabase();
+  let baseState = await fetchCurrentStateFromSupabase();
+  if (Array.isArray(baseState?._rollovers) && baseState._rollovers.length > 0) {
+    baseState = await persistState(baseState, "auto-rollover-read");
+  }
 
   // Overlay canonical bloc settings plus stable group shell metadata onto the
   // group shell. Canonical blocs now provide the readable group set. The only
