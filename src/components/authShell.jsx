@@ -31,6 +31,15 @@ const previewStatus = (logged, target) => {
   return             { label:"Behind",     color:"var(--red)" };
 };
 
+const containOverlayTouchMove = event => {
+  if (event.target?.closest?.(".modal")) return;
+  if (event.cancelable) event.preventDefault();
+};
+
+const stopModalTouchMove = event => {
+  event.stopPropagation();
+};
+
 
 const PreviewLanding = ({inviteContext,onCreate,onJoin,onSignIn}) => {
   const previewRows = PREVIEW_MEMBERS.map((m,i) => {
@@ -217,8 +226,8 @@ const JoinGroupModal = ({inviteContext,joinCode,setJoinCode,onClose,onJoin,joini
         ? `${inviteContext.groupName} is ready. Confirm the invite code below to join.`
         : `${inviteContext.groupName} is waiting for you. Confirm the invite code below to join.`)
     : "Enter a Bloc invite code. You can always ask the admin to share the link instead.");
-  return React.createElement('div',{className:"overlay center-mobile",style:{background:"rgba(5,9,9,0.85)"}},
-    React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{maxWidth:380}},
+  return React.createElement('div',{className:"overlay center-mobile",onTouchMove:containOverlayTouchMove,style:{background:"rgba(5,9,9,0.85)",touchAction:"none"}},
+    React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),onTouchMove:stopModalTouchMove,style:{maxWidth:380,touchAction:"auto"}},
       React.createElement('div',{style:{fontFamily:"'Raleway', sans-serif",fontWeight:800,fontSize:22,letterSpacing:0,lineHeight:1.08,marginBottom:6}},inviteContext?"Join this Bloc":"Join a Bloc"),
       React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",color:"var(--muted)",fontSize:13,lineHeight:1.6,marginBottom:16}},helperCopy),
       React.createElement('label',{style:{display:"block",marginBottom:18}},
@@ -255,8 +264,8 @@ const authHelper = (step, mode, intent, email) => {
   return "Use a one-time code to sign in.";
 };
 
-const AuthFlowModal = ({step,mode="signin",intent="",email,setEmail,code,setCode,displayName,setDisplayName,onClose,onSendOtp,onVerifyOtp,onSaveProfile,onConfirmExistingAccount,onUseDifferentEmail,sending,verifying,savingProfile,error,devCode}) => React.createElement('div',{className:"overlay center-mobile",onClick:()=>{}},
-  React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{maxWidth:420}},
+const AuthFlowModal = ({step,mode="signin",intent="",email,setEmail,code,setCode,displayName,setDisplayName,onClose,onSendOtp,onVerifyOtp,onSaveProfile,onConfirmExistingAccount,onUseDifferentEmail,sending,verifying,savingProfile,error,devCode}) => React.createElement('div',{className:"overlay center-mobile",onClick:()=>{},onTouchMove:containOverlayTouchMove,style:{touchAction:"none"}},
+  React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),onTouchMove:stopModalTouchMove,style:{maxWidth:420,touchAction:"auto"}},
     React.createElement('div',{style:{fontFamily:"'Raleway', sans-serif",fontWeight:900,fontSize:22,marginBottom:6,lineHeight:1.05,letterSpacing:0}},
       authTitle(step, mode, intent)
     ),
