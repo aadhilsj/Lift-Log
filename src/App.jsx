@@ -223,7 +223,7 @@ const App = () => {
   const blocBottomNavRef = useRef(null);
   const blocDragXRef = useRef(0);
   const blocFrameRef = useRef(null);
-  const pageSwipeRef = useRef({sx:0,sy:0,active:false,mode:null,target:null});
+  const pageSwipeRef = useRef({sx:0,sy:0,active:false,mode:null,target:null,priority:null});
   const pageLayerRefs = useRef({});
   const pageDragXRef = useRef(0);
   const pageFrameRef = useRef(null);
@@ -1341,7 +1341,7 @@ const App = () => {
     clearInlineSwipeStyles(Object.values(pageLayerRefs.current || {}));
     setPageDragging(false);
     setPageSwipeTarget(null);
-    pageSwipeRef.current = {sx:0,sy:0,active:false,mode:null,target:null};
+    pageSwipeRef.current = {sx:0,sy:0,active:false,mode:null,target:null,priority:null};
     setMonthInitialIdx(null);
     setNavResetToken(value=>value+1);
     setPage(nextPage);
@@ -1374,7 +1374,7 @@ const App = () => {
     });
   },[applyPageTransforms,pageDragging]);
   const resetPageSwipe = useCallback(() => {
-    pageSwipeRef.current = {sx:0,sy:0,active:false,mode:null,target:null};
+    pageSwipeRef.current = {sx:0,sy:0,active:false,mode:null,target:null,priority:null};
     pageDragXRef.current = 0;
     cancelSwipeFrame(pageFrameRef);
     applyPageTransforms(0, false);
@@ -1386,7 +1386,8 @@ const App = () => {
     if (e.target?.closest?.(".in-bloc-profile-layer,input,textarea,select,[contenteditable='true']")) return;
     const t = e.touches?.[0];
     if (!t) return;
-    pageSwipeRef.current = {sx:t.clientX, sy:t.clientY, st:performance.now(), active:true, mode:null, target:null};
+    if (page === "today" && t.clientX <= 96) return;
+    pageSwipeRef.current = {sx:t.clientX, sy:t.clientY, st:performance.now(), active:true, mode:null, target:null,priority:e.target?.closest?.("[data-page-swipe-priority='horizontal-scroll']") ? "horizontal-scroll" : null};
   },[authStep, logCommentScreen, prorationGroup, showJoinModal, showProfileModal, showSettings, showStream, showTodayLog]);
   const movePageSwipe = useCallback((e) => {
     const s = pageSwipeRef.current;
@@ -1397,7 +1398,10 @@ const App = () => {
     if (!s.mode && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) {
       const absDx = Math.abs(dx);
       const absDy = Math.abs(dy);
-      const horizontal = absDx > 5 && absDx > absDy * 0.72;
+      const horizontalPriority = s.priority === "horizontal-scroll";
+      const minHorizontal = horizontalPriority ? 28 : 5;
+      const dominanceRatio = horizontalPriority ? 1.35 : 0.72;
+      const horizontal = absDx > minHorizontal && absDx > absDy * dominanceRatio;
       const vertical = absDy > 9 && absDy > absDx * 1.08;
       if (!horizontal && !vertical) return;
       if (vertical) {
@@ -1423,7 +1427,7 @@ const App = () => {
   const endPageSwipe = useCallback((e) => {
     const s = pageSwipeRef.current;
     const t = e.changedTouches?.[0];
-    pageSwipeRef.current = {sx:0,sy:0,active:false,mode:null,target:null};
+    pageSwipeRef.current = {sx:0,sy:0,active:false,mode:null,target:null,priority:null};
     if (!s.active || !t) return;
     const dx = t.clientX - s.sx;
     const dy = t.clientY - s.sy;
@@ -1926,6 +1930,10 @@ const App = () => {
       minHeight:"100vh",
       background:"var(--bg-gradient)",
       backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)",
+      backgroundColor:"#070C0C",
+      overflow:"hidden",
+      overscrollBehavior:"none",
+      isolation:"isolate",
       transform:blocDragXRef.current?`translateX(${blocDragXRef.current}px)`:"none",
       transition:blocDragging?"none":"transform .08s ease-out",
       boxShadow:blocDragXRef.current?"-18px 0 34px rgba(0,0,0,.28)":"none",

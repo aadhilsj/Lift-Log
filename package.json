@@ -8,6 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "test:stream-moments": "node scripts/test-bloc-stream-derived-moments.mjs",
+    "audit:rollover-counts": "node scripts/audit-rollover-counts.mjs",
     "dev:api": "node scripts/local-dev-server.mjs"
   },
   "dependencies": {

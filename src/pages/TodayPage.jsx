@@ -469,7 +469,10 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
   const settlementReminderCards = currentGroup?.settlementConfirmationsPreviewMode
     ? previewSettlementCards
     : (currentGroup ? buildSettlementReminderCards(currentGroup, currentUserId, user) : []);
-  const showSettlementReminderSlot = settlementReminderCards.length > 0 && !lastMonthBanner;
+  const visibleSettlementReminderCards = lastMonthBanner && lastClosedMonth
+    ? settlementReminderCards.filter(card => card.monthKey !== lastClosedMonth.key)
+    : settlementReminderCards;
+  const showSettlementReminderSlot = visibleSettlementReminderCards.length > 0;
   const leaderboardRowBaseStyle = {
     width:"100%",
     background:"#080F0F",
@@ -750,9 +753,9 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
   const settlementReminderSlot = showSettlementReminderSlot && React.createElement(Card,{style:{padding:"9px 10px",display:"flex",flexDirection:"column",gap:6,background:"#0A1412",border:"0.5px solid #163d36",boxShadow:"inset 0 1px 0 rgba(78,205,196,.03)"}},
     React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}},
       React.createElement('span',{className:"lbl",style:{fontSize:8,marginBottom:0,color:"#7DB8B1",fontFamily:"'Outfit', sans-serif",fontWeight:700}},"Settlement reminders"),
-      React.createElement('span',{style:{fontSize:9,color:"#6B9690",fontFamily:"'Outfit', sans-serif",fontWeight:500}},`${settlementReminderCards.length} unpaid`)
+      React.createElement('span',{style:{fontSize:9,color:"#6B9690",fontFamily:"'Outfit', sans-serif",fontWeight:500}},`${visibleSettlementReminderCards.length} unpaid`)
     ),
-    settlementReminderCards.map(card => React.createElement('div',{key:card.key,style:{border:"0.5px solid #0D1F1E",borderRadius:9,padding:"6px 10px",display:"grid",gap:2,background:"#080F0F",fontFamily:"'Outfit', sans-serif",position:"relative"}},
+    visibleSettlementReminderCards.map(card => React.createElement('div',{key:card.key,style:{border:"0.5px solid #0D1F1E",borderRadius:9,padding:"6px 10px",display:"grid",gap:2,background:"#080F0F",fontFamily:"'Outfit', sans-serif",position:"relative"}},
       React.createElement('div',{style:{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:8}},
         React.createElement('div',{style:{minWidth:0,flex:1,display:"grid",gap:1}},
           React.createElement('div',{style:{fontSize:8,color:"#89A39E",letterSpacing:".12em",textTransform:"uppercase",fontFamily:"'Outfit', sans-serif",fontWeight:600}},card.monthLabel || card.month || card.label),
@@ -1256,7 +1259,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
     )
   );
 
-  const todayContent = React.createElement('div',{ref:todayRootRef,style:{position:"relative",minHeight:"calc(100vh - 44px)",backgroundColor:"#070C0C",background:"var(--bg-gradient)",backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)",overscrollBehavior:"contain",overscrollBehaviorY:"contain"}},
+  const todayContent = React.createElement('div',{ref:todayRootRef,style:{position:"relative",minHeight:"calc(100vh - 44px)",backgroundColor:"#070C0C",background:"var(--bg-gradient)",backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)",overscrollBehavior:"contain",overscrollBehaviorY:"contain",overflowX:"hidden",isolation:"isolate"}},
     showLog&&React.createElement(LogModal,{user,currentGroupId,groups,onConfirm:doLog,onClose:()=>setShowLog(false)}),
     deleteTarget && React.createElement(DeleteModal,{log:deleteTarget,onClose:()=>setDeleteTarget(null),onConfirm:async()=>{ const logId = deleteTarget.id; setDeleteTarget(null); await onLogMutation({action:"delete-log",groupId:currentGroupId,actor:user,owner:user,logId}); }}),
     showExcuse && sitOutMode && React.createElement(SitOutModal,{mode:sitOutMode,monthName:modalMonthName,onClose:()=>{setShowExcuse(false);setSitOutError("");},onSubmit:submitSitOut,submitting:sitOutSubmitting,error:sitOutError}),
