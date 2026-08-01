@@ -135,14 +135,43 @@ const preserveKnownProfilePhotos = (current, incoming) => {
   return changed ? { ...incoming, profiles: mergedProfiles } : incoming;
 };
 
-const SetupProgressScreen = () => {
-  const labels = ["Saving your name...", "Setting up your Bloc...", "Almost done...", "Opening your Bloc..."];
-  const [index,setIndex]=useState(0);
+const SETUP_PROGRESS_STAGES = {
+  savingName: { label:"Saving your name...", min:8, max:34 },
+  settingUpBloc: { label:"Setting up your Bloc...", min:35, max:74 },
+  joiningBloc: { label:"Joining your Bloc...", min:35, max:74 },
+  finalTouches: { label:"Final touches...", min:75, max:92 },
+  openingBloc: { label:"Opening your Bloc...", min:93, max:100 }
+};
+
+const SetupProgressScreen = ({stage="savingName"}) => {
+  const config = SETUP_PROGRESS_STAGES[stage] || SETUP_PROGRESS_STAGES.savingName;
+  const [progress,setProgress]=useState(config.min);
   useEffect(()=>{
-    const timer = window.setInterval(()=>setIndex(current=>Math.min(labels.length-1,current+1)),1800);
+    setProgress(current=>Math.max(current, config.min));
+    const timer = window.setInterval(()=>{
+      setProgress(current=>{
+        const ceiling = config.max;
+        if (current >= ceiling) return current;
+        const remaining = ceiling - current;
+        const step = remaining > 12 ? 2.2 : remaining > 4 ? 0.9 : 0.28;
+        return Math.min(ceiling, current + step);
+      });
+    },360);
     return ()=>window.clearInterval(timer);
-  },[]);
-  return React.createElement(Spinner,{label:labels[index]});
+  },[config.max, config.min]);
+  return React.createElement('main',{style:{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:"32px 22px",background:"var(--bg-gradient)",backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)",color:"var(--text)"}},
+    React.createElement('section',{className:"fu",style:{width:"100%",maxWidth:360,display:"grid",gap:14,textAlign:"center",justifyItems:"center",transform:"translateY(-18px)"}},
+      React.createElement('div',{style:{width:58,height:58,borderRadius:999,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(78,205,196,.10)",border:"0.5px solid rgba(78,205,196,.26)",boxShadow:"0 0 34px rgba(78,205,196,.12)"}},
+        React.createElement('div',{style:{width:12,height:12,borderRadius:999,background:"#4ECDC4",boxShadow:"0 0 18px rgba(78,205,196,.8)"}})
+      ),
+      React.createElement('div',{style:{width:"100%",display:"grid",gap:8}},
+        React.createElement('div',{style:{height:8,borderRadius:999,background:"rgba(13,31,30,.9)",border:"0.5px solid rgba(22,61,54,.75)",overflow:"hidden",boxShadow:"inset 0 1px 2px rgba(0,0,0,.35)"}},
+          React.createElement('div',{style:{height:"100%",width:`${progress}%`,borderRadius:999,background:"linear-gradient(90deg,#2fb8ad,#4ECDC4,#8ff3ec)",boxShadow:"0 0 18px rgba(78,205,196,.42)",transition:"width .36s ease-out"}})
+        ),
+        React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontSize:13,fontWeight:800,color:"var(--text-soft)",lineHeight:1.35}},config.label)
+      )
+    )
+  );
 };
 
 const IN_BLOC_PAGES = ["today", "activity", "month", "history"];
@@ -212,6 +241,7 @@ const App = () => {
   const [authExistingAccountEmail,setAuthExistingAccountEmail]=useState("");
   const [authExistingAccountConfirmed,setAuthExistingAccountConfirmed]=useState(false);
   const [postAuthActionPending,setPostAuthActionPending]=useState(false);
+  const [postAuthProgressStage,setPostAuthProgressStage]=useState("savingName");
   const [sendingOtp,setSendingOtp]=useState(false);
   const [verifyingOtp,setVerifyingOtp]=useState(false);
   const [savingProfile,setSavingProfile]=useState(false);
@@ -864,17 +894,29 @@ const App = () => {
 
   const handleUpdateGroupSettings = useCallback(async(groupName, settings, options = {})=>{
     if(!selectedGroupId || !currentUser) return { ok:false, error:"No Bloc selected" };
+    if (options.optimisticClose && currentGroup) {
+      const optimisticGroup = normalizeGroupState({
+        ...currentGroup,
+        name: groupName,
+        settings,
+        setupReview: options.setupReview ?? currentGroup.setupReview
+      });
+      beginOptimisticMutation();
+      applyData(buildOptimisticState({ groupId:selectedGroupId, group:optimisticGroup }), { optimistic:true });
+      setShowSettings(false);
+    }
     setSavingSettings(true);
     try {
       const result = await updateGroupSettingsData(selectedGroupId, currentUser, authSession?.userId, groupName, settings, options);
       if(result.ok && result.data){
-        const applied = applyData(result.data);
+        const applied = applyData(result.data, { fromMutation: true });
         if (applied) {
           setLastSyncedAt(new Date());
           setSyncError(false);
         }
-        if (options.closeAfterSave !== false) setShowSettings(false);
+        if (!options.optimisticClose && options.closeAfterSave !== false) setShowSettings(false);
       } else {
+        if (options.optimisticClose) clearOptimisticMutation();
         setSyncError(true);
         await refreshNow();
       }
@@ -882,7 +924,7 @@ const App = () => {
     } finally {
       setSavingSettings(false);
     }
-  },[applyData, currentUser, refreshNow, selectedGroupId, authSession]);
+  },[applyData, beginOptimisticMutation, buildOptimisticState, clearOptimisticMutation, currentGroup, currentUser, refreshNow, selectedGroupId, authSession]);
 
   const handleLogMutation = useCallback(async(payload)=>{
     if (payload.action === "reaction") {
@@ -1628,6 +1670,7 @@ const App = () => {
     setDevOtpCode("");
     setAuthExistingAccountEmail("");
     setAuthExistingAccountConfirmed(false);
+    setPostAuthProgressStage("savingName");
   };
   const completeColdOnboarding = useCallback(() => {
     setReplayColdOnboarding(false);
@@ -1663,11 +1706,13 @@ const App = () => {
     if (authSession?.userId) {
       if (String(profile?.displayName || "").trim()) {
         setPostAuthActionPending(true);
+        setPostAuthProgressStage("settingUpBloc");
         handleCreateGroup(
           { ...createDraft, creatorName: profile.displayName },
           { actorUserId: authSession.userId, showInviteScreen:false }
         ).then(result => {
           if (result?.ok) {
+            setPostAuthProgressStage("openingBloc");
             setPendingOnboardingCreatePayload(null);
             completeColdOnboarding();
           }
@@ -1801,16 +1846,19 @@ const App = () => {
           return;
         }
         setPostAuthActionPending(true);
+        setPostAuthProgressStage("settingUpBloc");
         const result = await handleCreateGroup(
           { ...pendingOnboardingCreatePayload, creatorName },
           { actorUserId: nextSession?.userId, showInviteScreen:false }
         );
-        setPostAuthActionPending(false);
         if (result?.ok) {
+          setPostAuthProgressStage("openingBloc");
           setPendingOnboardingCreatePayload(null);
           setReturnToColdOnboardingOnCreateCancel(false);
           completeColdOnboarding();
+          window.setTimeout(()=>setPostAuthActionPending(false),220);
         } else {
+          setPostAuthActionPending(false);
           setAuthError(result?.error || "Unable to create Bloc");
           setAuthIntent(completedIntent);
           setPendingAuthSession(nextSession);
@@ -1829,9 +1877,14 @@ const App = () => {
       // its existing confirm step.
       if (completedIntent?.fromOnboarding && pendingCode && nextProfile?.displayName) {
         setPostAuthActionPending(true);
+        setPostAuthProgressStage("joiningBloc");
         const result = await joinWithInviteCode(nextSession, pendingCode);
+        if (result?.ok) {
+          setPostAuthProgressStage("openingBloc");
+          window.setTimeout(()=>setPostAuthActionPending(false),220);
+          return;
+        }
         setPostAuthActionPending(false);
-        if (result?.ok) return;
         setShowJoinModal(true);
         setJoinCode(pendingCode.toUpperCase());
         return;
@@ -1962,7 +2015,10 @@ const App = () => {
     const completedIntentObj = authIntent;
     const completedIntent = authIntent?.type || "";
     const onboardingPostAuthAction = Boolean(completedIntentObj?.fromOnboarding) && (completedIntent === "create" || completedIntent === "join");
-    if (onboardingPostAuthAction) setPostAuthActionPending(true);
+    if (onboardingPostAuthAction) {
+      setPostAuthProgressStage("savingName");
+      setPostAuthActionPending(true);
+    }
     const activeSession = pendingAuthSession || authSession || await getCurrentAuthSession();
     const result = await upsertProfileData(
       { userId: activeSession?.userId, email: activeSession?.email, displayName: authDisplayName.trim() },
@@ -1982,6 +2038,9 @@ const App = () => {
     const shouldAutoJoin = Boolean(activeSession?.userId)
       && Boolean(pendingInviteCode)
       && (pendingJoinAfterProfile || Boolean(completedIntentObj?.fromOnboarding));
+    if (onboardingPostAuthAction) {
+      setPostAuthProgressStage(shouldAutoJoin ? "joiningBloc" : "settingUpBloc");
+    }
     const applied = result.data ? applyData(result.data) : false;
     // The profile write is the gate for joining (the server refuses a join
     // without a saved display name), so only skip the extra refetch — never the
@@ -2000,6 +2059,7 @@ const App = () => {
     if (shouldAutoJoin) {
       setPendingJoinAfterProfile(false);
       const joinResult = await joinWithInviteCode(activeSession, pendingInviteCode);
+      if (joinResult?.ok) setPostAuthProgressStage("openingBloc");
       setPostAuthActionPending(false);
       if (!joinResult?.ok) {
         if (joinResult?.status === 409) {
@@ -2159,7 +2219,7 @@ const App = () => {
   );
 
   if(loading || !authReady || (authHydrating && !authStep)) return React.createElement(Spinner,{label:"Opening Fero..."});
-  if(postAuthActionPending) return React.createElement(SetupProgressScreen,null);
+  if(postAuthActionPending) return React.createElement(SetupProgressScreen,{stage:postAuthProgressStage});
   if(authStep === "name") {
     const nameSession = pendingAuthSession || authSession || {};
     return React.createElement(DisplayNameSetupScreen,{

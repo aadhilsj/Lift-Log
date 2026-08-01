@@ -1046,15 +1046,16 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
       background:"linear-gradient(135deg,rgba(78,205,196,.12),rgba(8,15,15,.94) 46%,rgba(245,166,35,.08))",
       border:"0.5px solid rgba(78,205,196,.35)",
       boxShadow:"0 12px 28px rgba(0,0,0,.2), inset 0 1px 0 rgba(255,255,255,.05)",
-      textAlign:"left"
+      textAlign:"left",
+      fontFamily:"'Outfit', sans-serif"
     }
   },
     React.createElement('span',{style:{width:42,height:42,borderRadius:999,display:"inline-flex",alignItems:"center",justifyContent:"center",background:"rgba(78,205,196,.1)",border:"0.5px solid rgba(78,205,196,.28)",color:"#4ECDC4"}},
       React.createElement(AppIcon,{name:"settings",size:22,stroke:"#4ECDC4"})
     ),
     React.createElement('span',{style:{minWidth:0}},
-      React.createElement('span',{style:{display:"block",fontSize:15,fontWeight:900,color:"#f5f7ff",lineHeight:1.1}},"Finish setup"),
-      React.createElement('span',{style:{display:"block",fontSize:12,color:"var(--muted)",marginTop:4}},
+      React.createElement('span',{style:{display:"block",fontFamily:"'Outfit', sans-serif",fontSize:15,fontWeight:900,color:"#f5f7ff",lineHeight:1.1}},"Finish setup"),
+      React.createElement('span',{style:{display:"block",fontFamily:"'Outfit', sans-serif",fontSize:12,color:"var(--muted)",marginTop:4}},
         `${setupReviewCount} thing${setupReviewCount === 1 ? "" : "s"} need review`
       )
     ),

@@ -145,7 +145,7 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
     setSubmitAttempted(true);
     if (!canSave || escalationStepMissing) return;
     setDismissedReviewFields({});
-    onSave(groupName.trim(), normalizedSettings, { setupReview: { pending: {} } });
+    onSave(groupName.trim(), normalizedSettings, { setupReview: { pending: {} }, optimisticClose: true });
   };
 
   const dismissReviewField = field => {
