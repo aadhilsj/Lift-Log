@@ -332,11 +332,17 @@ const App = () => {
     const previousHtmlOverflow = document.documentElement.style.overflow;
     const previousBodyTouchAction = document.body.style.touchAction;
     const previousHtmlTouchAction = document.documentElement.style.touchAction;
+    const blockBackgroundTouchMove = event => {
+      if (event.target?.closest?.(".modal")) return;
+      if (event.cancelable) event.preventDefault();
+    };
     document.body.style.overflow = "hidden";
     document.documentElement.style.overflow = "hidden";
     document.body.style.touchAction = "none";
     document.documentElement.style.touchAction = "none";
+    document.addEventListener("touchmove", blockBackgroundTouchMove, { passive:false, capture:true });
     return () => {
+      document.removeEventListener("touchmove", blockBackgroundTouchMove, { capture:true });
       document.body.style.overflow = previousBodyOverflow;
       document.documentElement.style.overflow = previousHtmlOverflow;
       document.body.style.touchAction = previousBodyTouchAction;
