@@ -8638,8 +8638,7 @@ export default async function handler(req, res) {
               joinedMonthKey: joinedGroup.joinedMonthByName?.[joinedDisplayName] || joinedGroup.lastMonth || null
             },
             `member_joined:${joinedGroup.id}:${auth.user.id}`,
-            joinedGroup.memberships?.[auth.user.id]?.joinedAt || null,
-            { throwOnError: true }
+            joinedGroup.memberships?.[auth.user.id]?.joinedAt || null
           );
         }
         const persisted = await persistOrSkipBlobMirror(joined.state, `join-group:${joined.joinedGroupId}:${auth.user.id}`, "join-group");
