@@ -1794,6 +1794,12 @@ function compareMonthKeys(a, b) {
   return am - bm;
 }
 
+function canonicalOpenMonthIsCurrentForGroup(group, canonicalMonthKey) {
+  if (!canonicalMonthKey) return false;
+  const groupMonthKey = group?.lastMonth || getLeagueMonthKey(group?.settings?.timeZone);
+  return compareMonthKeys(canonicalMonthKey, groupMonthKey) >= 0;
+}
+
 function hasParticipationBeforeMonth(group, displayName, monthKey) {
   if (!group || !displayName || !monthKey) return false;
   const currentMonthLogs = Array.isArray(group?.logs?.[displayName]) ? group.logs[displayName] : [];
@@ -3661,6 +3667,7 @@ async function fetchReadableCurrentState() {
         // Skip groups with no canonical open season — they have no canonical
         // current-month state to clear or replace.
         if (!openMonthKey) return [groupId, group];
+        if (!canonicalOpenMonthIsCurrentForGroup(group, openMonthKey)) return [groupId, group];
         const deletedLogIds = new Set(normalizeDeletedCurrentLogIds(group.deletedCurrentLogIds));
         const canonicalLogs = (anteCurrentLogs[groupId] || []).filter(log => !deletedLogIds.has(String(log?.id || "")));
         // Index canonical logs by ownerDisplayName for O(1) lookup below.
@@ -3712,6 +3719,7 @@ async function fetchReadableCurrentState() {
         const openMonthKey = openSeasonMonthKeys[groupId];
         // Skip groups with no open season — they have no canonical current-month state.
         if (!openMonthKey) return [groupId, group];
+        if (!canonicalOpenMonthIsCurrentForGroup(group, openMonthKey)) return [groupId, group];
 
         const activeMemberNames = Array.isArray(group.activeMemberOrder) && group.activeMemberOrder.length
           ? group.activeMemberOrder
