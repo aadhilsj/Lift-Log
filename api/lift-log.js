@@ -4974,6 +4974,26 @@ function slugifyDevIdentity(value) {
   return String(value || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "local";
 }
 
+function hashLocalDevUuidPart(input, salt) {
+  let hash = 2166136261 ^ salt;
+  for (let index = 0; index < input.length; index += 1) {
+    hash ^= input.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(16).padStart(8, "0");
+}
+
+function buildLocalDevUserId(email) {
+  const normalizedEmail = String(email || "").trim().toLowerCase();
+  const source = `fero-local-dev-otp:${normalizedEmail}`;
+  const part1 = hashLocalDevUuidPart(source, 0x1234);
+  const part2 = hashLocalDevUuidPart(source, 0x5678);
+  const part3 = hashLocalDevUuidPart(source, 0x9abc);
+  const part4 = hashLocalDevUuidPart(source, 0xdef0);
+  const variant = ((Number.parseInt(part3.slice(0, 2), 16) & 0x3f) | 0x80).toString(16).padStart(2, "0");
+  return `${part1}-${part2.slice(0, 4)}-4${part2.slice(5, 8)}-${variant}${part3.slice(2, 4)}-${part3.slice(4)}${part4}`;
+}
+
 function parseLocalDevAuthToken(accessToken) {
   const token = String(accessToken || "").trim();
   if (!ENABLE_LOCAL_DEV_OTP || !token.startsWith("local-dev:")) return null;
@@ -4981,7 +5001,7 @@ function parseLocalDevAuthToken(accessToken) {
     const email = normalizeEmailAddress(Buffer.from(token.slice("local-dev:".length), "base64url").toString("utf8"));
     if (!isProbablyEmail(email) || !email.endsWith("@local.test")) return null;
     return {
-      id: `local-dev:${slugifyDevIdentity(email)}`,
+      id: buildLocalDevUserId(email),
       email,
       raw: { localDevOtp: true }
     };

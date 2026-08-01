@@ -293,15 +293,12 @@ const AuthFlowModal = ({step,mode="signin",intent="",email,setEmail,code,setCode
   )
 );
 
-const DisplayNameSetupScreen = ({email,displayName,setDisplayName,onSave,saving,error}) => (
+const DisplayNameSetupScreen = ({displayName,setDisplayName,onSave,saving,error}) => (
   React.createElement('main',{style:{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:"32px 20px",background:"var(--bg-gradient)",backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)",color:"var(--text)"}},
     React.createElement('section',{className:"fu",style:{width:"100%",maxWidth:420,display:"grid",gap:20,textAlign:"center",justifyItems:"center",transform:"translateY(-18px)"}},
       React.createElement(AnteWordmark,{size:76}),
       React.createElement('div',{style:{display:"grid",gap:8,justifyItems:"center"}},
-        React.createElement('h1',{style:{margin:0,fontFamily:"'Raleway', sans-serif",fontSize:34,fontWeight:900,lineHeight:1.02,letterSpacing:0}},"What should your Bloc call you?"),
-        React.createElement('p',{style:{margin:0,fontFamily:"'Outfit', sans-serif",fontSize:14,fontWeight:700,lineHeight:1.45,color:"var(--text-soft)",maxWidth:310}},
-          email ? `Signed in as ${email}. Pick the name people will see.` : "Pick the name people will see."
-        )
+        React.createElement('h1',{style:{margin:0,fontFamily:"'Raleway', sans-serif",fontSize:34,fontWeight:900,lineHeight:1.02,letterSpacing:0}},"What should your Bloc call you?")
       ),
       React.createElement('div',{style:{width:"100%",display:"grid",gap:12,padding:14,borderRadius:18,background:"rgba(8,15,15,.84)",border:"0.5px solid rgba(78,205,196,.18)",boxShadow:"0 18px 46px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.035)"}},
         React.createElement('input',{value:displayName,onChange:event=>setDisplayName(event.target.value),placeholder:"Display name",autoFocus:true,style:{width:"100%",boxSizing:"border-box",height:52,borderRadius:14,background:"rgba(18,27,34,.98)",border:"0.5px solid rgba(78,205,196,.28)",boxShadow:"inset 0 1px 0 rgba(255,255,255,.06)",color:"var(--text)",fontFamily:"'Outfit', sans-serif",fontSize:16,fontWeight:800,outline:"none",padding:"0 14px"}}),
