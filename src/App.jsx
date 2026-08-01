@@ -334,10 +334,19 @@ const App = () => {
     const previousHtmlTouchAction = document.documentElement.style.touchAction;
     const previousBodyOverscroll = document.body.style.overscrollBehavior;
     const previousHtmlOverscroll = document.documentElement.style.overscrollBehavior;
+    const root = document.getElementById("root");
+    const previousRootInert = root ? root.inert : false;
+    const previousRootAriaHidden = root ? root.getAttribute("aria-hidden") : null;
+    const previousRootPointerEvents = root ? root.style.pointerEvents : "";
     const blockBackgroundTouchMove = event => {
       if (event.target?.closest?.(".modal")) return;
       if (event.cancelable) event.preventDefault();
     };
+    if (root) {
+      root.inert = true;
+      root.setAttribute("aria-hidden", "true");
+      root.style.pointerEvents = "none";
+    }
     document.body.style.overflow = "hidden";
     document.documentElement.style.overflow = "hidden";
     document.body.style.touchAction = "none";
@@ -347,6 +356,12 @@ const App = () => {
     document.addEventListener("touchmove", blockBackgroundTouchMove, { passive:false, capture:true });
     return () => {
       document.removeEventListener("touchmove", blockBackgroundTouchMove, { capture:true });
+      if (root) {
+        root.inert = previousRootInert;
+        if (previousRootAriaHidden == null) root.removeAttribute("aria-hidden");
+        else root.setAttribute("aria-hidden", previousRootAriaHidden);
+        root.style.pointerEvents = previousRootPointerEvents;
+      }
       document.body.style.overflow = previousBodyOverflow;
       document.documentElement.style.overflow = previousHtmlOverflow;
       document.body.style.touchAction = previousBodyTouchAction;
