@@ -102,12 +102,6 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
     setSettings({...SETTINGS_DEFAULTS,...group?.settings});
   },[group?.id]);
 
-  useEffect(()=>{
-    if (tab !== "rules" || !isAdmin || pendingFields.length === 0 || !onReviewSetup) return undefined;
-    const timer = setTimeout(()=>onReviewSetup(), 250);
-    return ()=>clearTimeout(timer);
-  },[tab,isAdmin,pendingFields.length,onReviewSetup]);
-
   useEffect(() => {
     const el = surfaceRef.current;
     if (!el) return undefined;

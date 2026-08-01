@@ -1648,6 +1648,7 @@ const App = () => {
     setReturnToColdOnboardingOnJoinCancel(false);
     if (authSession?.userId) {
       if (String(profile?.displayName || "").trim()) {
+        setPostAuthActionPending(true);
         handleCreateGroup(
           { ...createDraft, creatorName: profile.displayName },
           { actorUserId: authSession.userId, showInviteScreen:false }
@@ -1656,7 +1657,7 @@ const App = () => {
             setPendingOnboardingCreatePayload(null);
             completeColdOnboarding();
           }
-        });
+        }).finally(() => setPostAuthActionPending(false));
         return;
       }
       setAuthDisplayName("");
@@ -2068,7 +2069,11 @@ const App = () => {
       return params.get("onboarding") === "1" && !hasInviteEntry && !coldOnboardingPreviewDismissed;
     } catch { return false; }
   })();
-  const shouldShowColdOnboarding = forceColdOnboardingPreview || replayColdOnboarding || (!authSession?.userId && !localPreviewAuthEnabled && !hasInviteEntry && !coldOnboardingSeen && !authStep);
+  const shouldShowColdOnboarding = !authStep && (
+    forceColdOnboardingPreview
+    || replayColdOnboarding
+    || (!authSession?.userId && !localPreviewAuthEnabled && !hasInviteEntry && !coldOnboardingSeen)
+  );
 
   if(loading || !authReady || authHydrating) return React.createElement(Spinner,{label:"Opening Fero..."});
   if(authStep === "name") {
