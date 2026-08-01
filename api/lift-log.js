@@ -8489,7 +8489,7 @@ export default async function handler(req, res) {
           await syncBlocToCanonical(newGroup, auth.user.id, newGroupSortOrder >= 0 ? newGroupSortOrder : null, { throwOnError: true });
           await syncSeasonToCanonical(newGroup, newGroup?.lastMonth, "open", null, { throwOnError: true });
           await syncBlocMemberToCanonical(newGroup, auth.user.id, "admin", { throwOnError: true });
-          await seedOpenSeasonMemberStatusInCanonical(newGroup, newGroup?.lastMonth, creatorName, auth.user.id, { throwOnError: true });
+          await seedOpenSeasonMemberStatusInCanonical(newGroup, newGroup?.lastMonth, creatorName, auth.user.id);
         }
         const persisted = await persistOrSkipBlobMirror(created.state, `create-group:${created.createdGroupId}`, "create-group");
         return res.status(200).json({ state: scopeReadableStateForUser(persisted, auth.user.id), createdGroupId: created.createdGroupId });
@@ -8626,7 +8626,7 @@ export default async function handler(req, res) {
           await syncBlocToCanonical(joinedGroup, joinedGroup.adminUserId || null, joinedGroupSortOrder >= 0 ? joinedGroupSortOrder : null, { throwOnError: true });
           await syncBlocMemberToCanonical(joinedGroup, auth.user.id, "member", { throwOnError: true });
           await syncSeasonToCanonical(joinedGroup, joinedGroup?.lastMonth, "open", null, { throwOnError: true });
-          await seedOpenSeasonMemberStatusInCanonical(joinedGroup, joinedGroup?.lastMonth, joinedDisplayName, auth.user.id, { throwOnError: true });
+          await seedOpenSeasonMemberStatusInCanonical(joinedGroup, joinedGroup?.lastMonth, joinedDisplayName, auth.user.id);
           await insertBlocSystemMomentInCanonical(
             joinedGroup.id,
             "member_joined",

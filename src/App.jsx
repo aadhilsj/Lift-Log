@@ -173,11 +173,8 @@ const SetupProgressScreen = ({stage="savingName"}) => {
     return ()=>window.clearInterval(timer);
   },[config.max, config.min]);
   return React.createElement('main',{style:{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:"32px 22px",background:"var(--bg-gradient)",backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)",color:"var(--text)"}},
-    React.createElement('section',{className:"fu",style:{width:"100%",maxWidth:360,display:"grid",gap:14,textAlign:"center",justifyItems:"center",transform:"translateY(-18px)"}},
-      React.createElement('div',{style:{width:58,height:58,borderRadius:999,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(78,205,196,.10)",border:"0.5px solid rgba(78,205,196,.26)",boxShadow:"0 0 34px rgba(78,205,196,.12)"}},
-        React.createElement('div',{style:{width:12,height:12,borderRadius:999,background:"#4ECDC4",boxShadow:"0 0 18px rgba(78,205,196,.8)"}})
-      ),
-      React.createElement('div',{style:{width:"100%",display:"grid",gap:8}},
+    React.createElement('section',{className:"fu",style:{width:"100%",maxWidth:320,display:"grid",gap:10,textAlign:"center",justifyItems:"center",transform:"translateY(-18px)"}},
+      React.createElement('div',{style:{width:"88%",display:"grid",gap:8}},
         React.createElement('div',{style:{height:8,borderRadius:999,background:"rgba(13,31,30,.9)",border:"0.5px solid rgba(22,61,54,.75)",overflow:"hidden",boxShadow:"inset 0 1px 2px rgba(0,0,0,.35)"}},
           React.createElement('div',{style:{height:"100%",width:`${progress}%`,borderRadius:999,background:"linear-gradient(90deg,#2fb8ad,#4ECDC4,#8ff3ec)",boxShadow:"0 0 18px rgba(78,205,196,.42)",transition:"width .36s ease-out"}})
         ),
@@ -1081,7 +1078,10 @@ const App = () => {
   const handleCreateGroup = useCallback(async(payload, options = {})=>{
     setCreatingGroup(true);
     try {
-      const result = await createGroupData({ ...payload, actorUserId: options.actorUserId || authSession?.userId });
+      const result = await createGroupData(
+        { ...payload, actorUserId: options.actorUserId || authSession?.userId },
+        options.sessionOverride || null
+      );
       if(result.ok && result.state){
         applyData(result.state);
         setHiddenLeftGroupIds(current => {
@@ -1865,7 +1865,7 @@ const App = () => {
     if (!session?.userId || !inviteCode) return { ok:false, error:"Enter an invite code" };
     setJoiningGroup(true);
     setInviteError("");
-    const result = await joinGroupData({ userId: session.userId, inviteCode });
+    const result = await joinGroupData({ userId: session.userId, inviteCode }, session);
     setJoiningGroup(false);
     if (!result?.ok) {
       setInviteError(result?.error || "Unable to join Bloc");
@@ -1902,7 +1902,7 @@ const App = () => {
         setPostAuthProgressStage("settingUpBloc");
         const result = await handleCreateGroup(
           { ...pendingOnboardingCreatePayload, creatorName },
-          { actorUserId: nextSession?.userId, showInviteScreen:false }
+          { actorUserId: nextSession?.userId, sessionOverride:nextSession, showInviteScreen:false }
         );
         if (result?.ok) {
           setPostAuthProgressStage("openingBloc");
@@ -2024,7 +2024,8 @@ const App = () => {
     const nextSession = {
       userId: result.session.userId,
       email: result.session.email,
-      accessToken: result.session.accessToken || authSession?.accessToken || null
+      accessToken: result.session.accessToken || authSession?.accessToken || null,
+      localDevOtp: Boolean(result.session.localDevOtp)
     };
     const syncedState = result.state || appState;
     let nextProfile = getProfileForSession(syncedState, nextSession);

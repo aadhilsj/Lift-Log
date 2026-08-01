@@ -431,8 +431,8 @@ async function updateGroupSettingsData(groupId, actor, actorUserId, groupName, s
   return { ok:true, data: normalizeAppState(result.body) };
 }
 
-async function createGroupData(payload) {
-  const result = await postApi("create-group", payload);
+async function createGroupData(payload, sessionOverride = null) {
+  const result = await postApi("create-group", payload, { sessionOverride });
   if (!result.ok) return { ok:false, error: result.error || "Unable to create Bloc" };
   return { ok:true, state: normalizeAppState(result.body.state), createdGroupId: result.body.createdGroupId };
 }
@@ -607,8 +607,8 @@ async function uploadProfilePhotoData(dataUrl) {
   return { ok:false, error:"Unable to save photo" };
 }
 
-async function joinGroupData(payload) {
-  const result = await postApi("join-group", payload);
+async function joinGroupData(payload, sessionOverride = null) {
+  const result = await postApi("join-group", payload, { sessionOverride });
   if (!result.ok) return { ok:false, status: result.status || 0, error: result.error || "Unable to join Bloc" };
   return { ok:true, state: normalizeAppState(result.body.state), joinedGroupId: result.body.joinedGroupId };
 }
