@@ -321,6 +321,9 @@ const App = () => {
   const pageLayerRefs = useRef({});
   const pageDragXRef = useRef(0);
   const pageFrameRef = useRef(null);
+  const switcherSurfaceRef = useRef(null);
+  const switcherScrollTopRef = useRef(0);
+  const switcherRestoreScrollRef = useRef(null);
   const profileOverlayRef = useRef(null);
 
   const persistGroupSelection = useCallback((groupId) => {
@@ -1366,6 +1369,8 @@ const App = () => {
   },[applyBlocTransforms]);
   const handleSwitchGroup=()=>{
     setSuppressSwitcherIntro(false);
+    switcherScrollTopRef.current = 0;
+    switcherRestoreScrollRef.current = 0;
     resetBlocSwipe();
     persistGroupSelection(null);
   };
@@ -1410,6 +1415,7 @@ const App = () => {
         setDragging: setBlocDragging,
         applyTransform: applyBlocTransforms,
         commit: () => {
+          switcherRestoreScrollRef.current = switcherScrollTopRef.current;
           setSuppressSwitcherIntro(true);
           persistGroupSelection(null);
           setSwitcherRevealInteractive(false);
@@ -1656,6 +1662,26 @@ const App = () => {
   const localPreviewMembers = uniqueNames(groups.flatMap(group => getCurrentGroupMemberNames(group)));
   const activityAlertCount = currentGroup && currentUser ? getActivityAlertCount(currentGroup, currentUser) : 0;
   const renderGroupSwitcherSurface = ({ inert=false, suppressIntro=false } = {}) => React.createElement('div',{
+    ref:el=>{
+      if (!el) {
+        switcherSurfaceRef.current = null;
+        return;
+      }
+      switcherSurfaceRef.current = el;
+      if (switcherRestoreScrollRef.current !== null) {
+        const targetScrollTop = Math.max(0, Number(switcherRestoreScrollRef.current) || 0);
+        requestAnimationFrame(() => {
+          el.scrollTop = targetScrollTop;
+          if (!inert) {
+            switcherScrollTopRef.current = targetScrollTop;
+            switcherRestoreScrollRef.current = null;
+          }
+        });
+      }
+    },
+    onScroll:e=>{
+      if (!inert) switcherScrollTopRef.current = e.currentTarget.scrollTop || 0;
+    },
     style:{
       position:"fixed",
       inset:0,
@@ -1680,7 +1706,7 @@ const App = () => {
       initialCreateGroupName: inert ? "" : queuedCreateGroupName,
       onAutoOpenHandled: inert ? ()=>{} : ()=>{setQueuedCreate(false);setQueuedCreateGroupName("");},
       onCreateCancel: inert ? ()=>{} : handleCreateCancelFromGroupHome,
-      onOpenGroup: inert ? ()=>{} : groupId=>{ window.scrollTo({top:0,left:0,behavior:"auto"}); setSuppressSwitcherIntro(false); persistGroupSelection(groupId); setPage("today"); },
+      onOpenGroup: inert ? ()=>{} : groupId=>{ switcherRestoreScrollRef.current = switcherScrollTopRef.current; window.scrollTo({top:0,left:0,behavior:"auto"}); setSuppressSwitcherIntro(false); persistGroupSelection(groupId); setPage("today"); },
       onCreateGroup: inert ? ()=>{} : handleCreateGroup,
       onJoinGroup: inert ? ()=>{} : ()=>setShowJoinModal(true),
       suppressIntro
