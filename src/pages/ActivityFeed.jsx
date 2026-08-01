@@ -415,13 +415,13 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
       onClose:()=>{ setResponseTarget(null); setResponseText(""); },
       onConfirm:()=>{ onRespond(responseTarget.owner, responseTarget.id, responseText.trim()); setResponseTarget(null); setResponseText(""); }
     }),
-    React.createElement(Card,{style:{overflow:"hidden"}},
+    React.createElement(Card,{style:{overflow:"visible",position:"relative",zIndex:reactionTarget ? 2 : "auto"}},
       React.createElement('div',{style:{padding:"12px 15px",borderBottom:"1px solid var(--border)",display:"flex",alignItems:"center",justifyContent:"space-between"}},
         React.createElement('div',{style:{fontWeight:800,fontSize:15,textAlign:"left"}},"Activity Feed")
       ),
       !feedPosts.length
         ? React.createElement('div',{style:{padding:"18px 15px",fontSize:13,color:"var(--muted)"}},"No workouts logged yet.")
-        : React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:6,padding:10}},
+        : React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:6,padding:10,paddingBottom:reactionTarget?48:10,overflow:"visible"}},
             feedPosts.map((post,index)=>{
               const displayDate = post.date;
               const showDateHeader = index === 0 || feedPosts[index - 1]?.date !== displayDate;
