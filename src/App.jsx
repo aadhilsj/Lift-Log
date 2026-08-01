@@ -332,6 +332,8 @@ const App = () => {
     const previousHtmlOverflow = document.documentElement.style.overflow;
     const previousBodyTouchAction = document.body.style.touchAction;
     const previousHtmlTouchAction = document.documentElement.style.touchAction;
+    const previousBodyOverscroll = document.body.style.overscrollBehavior;
+    const previousHtmlOverscroll = document.documentElement.style.overscrollBehavior;
     const blockBackgroundTouchMove = event => {
       if (event.target?.closest?.(".modal")) return;
       if (event.cancelable) event.preventDefault();
@@ -340,6 +342,8 @@ const App = () => {
     document.documentElement.style.overflow = "hidden";
     document.body.style.touchAction = "none";
     document.documentElement.style.touchAction = "none";
+    document.body.style.overscrollBehavior = "none";
+    document.documentElement.style.overscrollBehavior = "none";
     document.addEventListener("touchmove", blockBackgroundTouchMove, { passive:false, capture:true });
     return () => {
       document.removeEventListener("touchmove", blockBackgroundTouchMove, { capture:true });
@@ -347,6 +351,8 @@ const App = () => {
       document.documentElement.style.overflow = previousHtmlOverflow;
       document.body.style.touchAction = previousBodyTouchAction;
       document.documentElement.style.touchAction = previousHtmlTouchAction;
+      document.body.style.overscrollBehavior = previousBodyOverscroll;
+      document.documentElement.style.overscrollBehavior = previousHtmlOverscroll;
     };
   }, [authSurfaceOpen]);
 

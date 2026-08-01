@@ -1,4 +1,5 @@
 import React from "react";
+import { createPortal } from "react-dom";
 const { useState, useEffect, useMemo, useCallback, useRef } = React;
 import {
   DEFAULT_GROUP_TIME_ZONE,
@@ -44,6 +45,11 @@ const containOverlayTouch = event => {
 
 const stopModalTouch = event => {
   event.stopPropagation();
+};
+
+const renderTopLevelOverlay = node => {
+  if (typeof document === "undefined") return node;
+  return createPortal(node, document.body);
 };
 
 
@@ -232,7 +238,7 @@ const JoinGroupModal = ({inviteContext,joinCode,setJoinCode,onClose,onJoin,joini
         ? `${inviteContext.groupName} is ready. Confirm the invite code below to join.`
         : `${inviteContext.groupName} is waiting for you. Confirm the invite code below to join.`)
     : "Enter a Bloc invite code. You can always ask the admin to share the link instead.");
-  return React.createElement('div',{className:"overlay center-mobile",onTouchStart:containOverlayTouch,onTouchMove:containOverlayTouchMove,onTouchEnd:containOverlayTouch,onTouchCancel:containOverlayTouch,style:{background:"rgba(5,9,9,0.85)",touchAction:"none"}},
+  return renderTopLevelOverlay(React.createElement('div',{className:"overlay center-mobile",onTouchStart:containOverlayTouch,onTouchMove:containOverlayTouchMove,onTouchEnd:containOverlayTouch,onTouchCancel:containOverlayTouch,style:{background:"rgba(5,9,9,0.85)",touchAction:"none",zIndex:10000,pointerEvents:"auto"}},
     React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),onTouchStart:stopModalTouch,onTouchMove:stopModalTouch,onTouchEnd:stopModalTouch,onTouchCancel:stopModalTouch,style:{maxWidth:380,touchAction:"auto"}},
       React.createElement('div',{style:{fontFamily:"'Raleway', sans-serif",fontWeight:800,fontSize:22,letterSpacing:0,lineHeight:1.08,marginBottom:6}},inviteContext?"Join this Bloc":"Join a Bloc"),
       React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",color:"var(--muted)",fontSize:13,lineHeight:1.6,marginBottom:16}},helperCopy),
@@ -247,7 +253,7 @@ const JoinGroupModal = ({inviteContext,joinCode,setJoinCode,onClose,onJoin,joini
         React.createElement('button',{type:"button",className:"setup-press",disabled:!canJoin,onClick:onJoin,style:{flex:1,background:canJoin?"#4ECDC4":"var(--s3)",color:canJoin?"#050909":"var(--muted2)",padding:"14px",borderRadius:10,fontSize:15,fontWeight:900}},joining?pendingLabel:confirmLabel)
       )
     )
-  );
+  ));
 };
 
 
@@ -270,7 +276,7 @@ const authHelper = (step, mode, intent, email) => {
   return "Use a one-time code to sign in.";
 };
 
-const AuthFlowModal = ({step,mode="signin",intent="",email,setEmail,code,setCode,displayName,setDisplayName,onClose,onSendOtp,onVerifyOtp,onSaveProfile,onConfirmExistingAccount,onUseDifferentEmail,sending,verifying,savingProfile,error,devCode}) => React.createElement('div',{className:"overlay center-mobile",onClick:()=>{},onTouchStart:containOverlayTouch,onTouchMove:containOverlayTouchMove,onTouchEnd:containOverlayTouch,onTouchCancel:containOverlayTouch,style:{touchAction:"none"}},
+const AuthFlowModal = ({step,mode="signin",intent="",email,setEmail,code,setCode,displayName,setDisplayName,onClose,onSendOtp,onVerifyOtp,onSaveProfile,onConfirmExistingAccount,onUseDifferentEmail,sending,verifying,savingProfile,error,devCode}) => renderTopLevelOverlay(React.createElement('div',{className:"overlay center-mobile",onClick:()=>{},onTouchStart:containOverlayTouch,onTouchMove:containOverlayTouchMove,onTouchEnd:containOverlayTouch,onTouchCancel:containOverlayTouch,style:{touchAction:"none",zIndex:10000,pointerEvents:"auto"}},
   React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),onTouchStart:stopModalTouch,onTouchMove:stopModalTouch,onTouchEnd:stopModalTouch,onTouchCancel:stopModalTouch,style:{maxWidth:420,touchAction:"auto"}},
     React.createElement('div',{style:{fontFamily:"'Raleway', sans-serif",fontWeight:900,fontSize:22,marginBottom:6,lineHeight:1.05,letterSpacing:0}},
       authTitle(step, mode, intent)
@@ -306,7 +312,7 @@ const AuthFlowModal = ({step,mode="signin",intent="",email,setEmail,code,setCode
       step==="existing" && React.createElement('button',{disabled:sending,onClick:onConfirmExistingAccount,style:{flex:1,background:!sending?"var(--green)":"var(--s3)",color:!sending?"#000":"var(--muted2)",padding:"14px",borderRadius:10,fontSize:15,fontWeight:800}},sending?"Sending...":"Sign in")
     )
   )
-);
+));
 
 const DisplayNameSetupScreen = ({displayName,setDisplayName,onSave,saving,error}) => (
   React.createElement('main',{style:{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:"32px 20px",background:"var(--bg-gradient)",backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)",color:"var(--text)"}},
