@@ -337,6 +337,9 @@ Block App Store readiness on:
 
 - auth/session reliability
 - account deletion working end-to-end
+- identity safety inside a Bloc: logs, comments, reactions, settlement rows,
+  membership history, and other Bloc-scoped structures should be keyed by stable
+  user/profile IDs rather than display names wherever possible
 - no unauthenticated app-data endpoints
 - service-role key staying server-only
 - privacy/data disclosure accuracy
@@ -347,6 +350,23 @@ Block App Store readiness on:
 
 Full blob deletion is an internal post-launch cleanup unless a future audit finds
 a concrete App Store blocker.
+
+Identity note:
+
+- Display names are cosmetic and should not be treated as identity. Two users in
+  the same Bloc may need to swap or rename display names later, for example one
+  member named `Dan` and another named `Daniel` deciding to switch names.
+- The app must preserve ownership/history correctly through that rename. A log,
+  comment, reaction, settlement row, profile photo, leaderboard row, or history
+  entry should continue to belong to the same underlying user/profile ID after a
+  display-name change.
+- Current code still has some Blob-compatible, display-name-keyed surfaces inside
+  Bloc/log/history structures. Before App Store submission, audit these surfaces
+  and move any feasible user-owned data to stable user/profile IDs, keeping
+  display-name snapshots only for presentation or legacy compatibility.
+- This is separate from allowing duplicate names globally. Same display names in
+  unrelated Blocs are fine. Same/similar names inside one Bloc must not allow
+  account takeover, ownership transfer, or history corruption.
 
 ## Things Not To Do Casually
 
@@ -376,7 +396,9 @@ Normal backend write migration:
 Optional future compatibility-retirement work:
 
 - retire `auth-sync` blob repair dependencies
-- retire display-name keyed historical/profile compatibility shells
+- retire display-name keyed historical/profile compatibility shells, especially
+  any Bloc/log/comment/reaction/settlement/history structures where a display
+  name is still acting as the owner key instead of a stable user/profile ID
 - retire `upsert-profile` mirror dependency
 - retire `delete-account` blob cleanup dependency
 - make sit-out request/review validation fully canonical-input
