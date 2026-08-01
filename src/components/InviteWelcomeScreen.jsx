@@ -84,7 +84,7 @@ const InviteWelcomeScreen = ({group, currentUserId, profilePhotoByUserId, onCont
         React.createElement('h1',{style:{margin:0,fontFamily:"'Raleway', sans-serif",fontSize:32,fontWeight:900,lineHeight:1,letterSpacing:".02em",color:"#4ECDC4",textTransform:"uppercase"}},
           "YOU'RE IN"
         ),
-        React.createElement('p',{style:{margin:0,maxWidth:340,fontFamily:"'Outfit', sans-serif",fontSize:12,fontWeight:800,lineHeight:1.42,color:"var(--text-soft)",textAlign:"center"}},
+        React.createElement('p',{style:{margin:0,maxWidth:340,fontFamily:"'Outfit', sans-serif",fontSize:13,fontWeight:800,lineHeight:1.42,color:"var(--text-soft)",textAlign:"center"}},
           React.createElement('span',{style:{display:"block"}},`Your Bloc's target: ${target} workouts`),
           React.createElement('span',{style:{display:"block"}}, "Log your first one and get on the board.")
         )
