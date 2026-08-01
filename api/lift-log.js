@@ -29,6 +29,8 @@ let supabaseAdminClientPromise = null;
 const ENABLE_SETTLEMENT_CONFIRMATIONS = String(process.env.ENABLE_SETTLEMENT_CONFIRMATIONS || "").trim().toLowerCase() === "true";
 const ENABLE_SETTLEMENT_CONFIRMATIONS_PREVIEW = String(process.env.ENABLE_SETTLEMENT_CONFIRMATIONS_PREVIEW || "").trim().toLowerCase() === "true";
 const ENABLE_LOCAL_PREVIEW_AUTH = String(process.env.ENABLE_LOCAL_PREVIEW_AUTH || "").trim().toLowerCase() === "true";
+const ENABLE_LOCAL_DEV_OTP = String(process.env.ENABLE_LOCAL_DEV_OTP || "").trim().toLowerCase() === "true";
+const LOCAL_DEV_OTP_CODE = String(process.env.LOCAL_DEV_OTP_CODE || "000000").trim() || "000000";
 const WRITE_HYDRATION_PARITY_PREVIEW_BRANCH = "codex/create-group-canonical-first";
 const WRITE_HYDRATION_PARITY_DEFAULT_ACTIONS = [
   "update-settings",
@@ -4946,7 +4948,9 @@ function getClientAuthConfig() {
   return {
     supabaseUrl: SUPABASE_URL,
     supabaseAnonKey: SUPABASE_ANON_KEY,
-    enableLocalPreviewAuth: ENABLE_LOCAL_PREVIEW_AUTH
+    enableLocalPreviewAuth: ENABLE_LOCAL_PREVIEW_AUTH,
+    enableLocalDevOtp: ENABLE_LOCAL_DEV_OTP,
+    localDevOtpCode: ENABLE_LOCAL_DEV_OTP ? LOCAL_DEV_OTP_CODE : null
   };
 }
 
@@ -4970,6 +4974,22 @@ function slugifyDevIdentity(value) {
   return String(value || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "local";
 }
 
+function parseLocalDevAuthToken(accessToken) {
+  const token = String(accessToken || "").trim();
+  if (!ENABLE_LOCAL_DEV_OTP || !token.startsWith("local-dev:")) return null;
+  try {
+    const email = normalizeEmailAddress(Buffer.from(token.slice("local-dev:".length), "base64url").toString("utf8"));
+    if (!isProbablyEmail(email) || !email.endsWith("@local.test")) return null;
+    return {
+      id: `local-dev:${slugifyDevIdentity(email)}`,
+      email,
+      raw: { localDevOtp: true }
+    };
+  } catch {
+    return null;
+  }
+}
+
 function isLocalDevRequest(req) {
   const host = String(req?.headers?.host || req?.headers?.Host || "").trim().toLowerCase();
   return host.startsWith("localhost:")
@@ -4985,6 +5005,8 @@ function isLocalDevRequest(req) {
 }
 
 async function fetchAuthenticatedUser(accessToken) {
+  const localDevUser = parseLocalDevAuthToken(accessToken);
+  if (localDevUser) return localDevUser;
   if (!accessToken) {
     const error = new Error("You need to sign in again");
     error.status = 401;

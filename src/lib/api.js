@@ -26,6 +26,29 @@ function buildLocalPreviewSession(displayName) {
   };
 }
 
+function slugifyLocalDevEmail(value) {
+  return String(value || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "local";
+}
+
+function buildLocalDevOtpToken(email) {
+  try {
+    return `local-dev:${btoa(String(email || "").trim().toLowerCase()).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "")}`;
+  } catch {
+    return "";
+  }
+}
+
+function buildLocalDevOtpSession(email) {
+  const normalizedEmail = String(email || "").trim().toLowerCase();
+  if (!normalizedEmail) return null;
+  return {
+    userId: `local-dev:${slugifyLocalDevEmail(normalizedEmail)}`,
+    email: normalizedEmail,
+    accessToken: buildLocalDevOtpToken(normalizedEmail),
+    localDevOtp: true
+  };
+}
+
 function isLocalDevHost(hostname) {
   const normalized = String(hostname || "").trim().toLowerCase();
   return normalized === "localhost"
@@ -74,6 +97,9 @@ function readPersistedAuthSession() {
     if (parsed?.localPreview) {
       return buildLocalPreviewSession(parsed?.previewDisplayName || parsed?.displayName || "");
     }
+    if (parsed?.localDevOtp) {
+      return buildLocalDevOtpSession(parsed?.email || "");
+    }
     if (!parsed?.userId) return null;
     return {
       userId: parsed.userId,
@@ -95,6 +121,14 @@ function persistAuthSessionHint(session) {
       localStorage.setItem(PERSISTED_AUTH_SESSION_KEY, JSON.stringify({
         localPreview: true,
         previewDisplayName: session.previewDisplayName || ""
+      }));
+      return;
+    }
+    if (session.localDevOtp) {
+      localStorage.setItem(PERSISTED_AUTH_SESSION_KEY, JSON.stringify({
+        localDevOtp: true,
+        userId: session.userId,
+        email: session.email || ""
       }));
       return;
     }
@@ -158,6 +192,8 @@ async function getSupabaseAuthClient() {
 }
 
 async function getCurrentAuthSession() {
+  const persisted = readPersistedAuthSession();
+  if (persisted?.localDevOtp && persisted?.accessToken) return persisted;
   const client = await getSupabaseAuthClient();
   const { data, error } = await client.auth.getSession();
   if (error) throw error;
@@ -165,6 +201,11 @@ async function getCurrentAuthSession() {
 }
 
 async function signOutAuthSession() {
+  const persisted = readPersistedAuthSession();
+  if (persisted?.localDevOtp) {
+    persistAuthSessionHint(null);
+    return;
+  }
   const client = await getSupabaseAuthClient();
   const { error } = await client.auth.signOut();
   if (error) throw error;
@@ -418,6 +459,13 @@ async function deleteAccountData(userId) {
 
 async function sendOtpData(email, options = {}) {
   try {
+    const config = await fetchAuthConfig().catch(()=>null);
+    if (isLocalDevEnvironment() && config?.enableLocalDevOtp) {
+      if (!String(email || "").trim().toLowerCase().endsWith("@local.test")) {
+        return { ok:false, error:"Use a @local.test email for local dev OTP testing" };
+      }
+      return { ok:true, devCode:config.localDevOtpCode || "000000" };
+    }
     const client = await getSupabaseAuthClient();
     const shouldCreateUser = options && Object.prototype.hasOwnProperty.call(options, "shouldCreateUser")
       ? Boolean(options.shouldCreateUser)
@@ -443,6 +491,28 @@ async function checkAuthEmailExistsData(email) {
 
 async function verifyOtpData(email, code) {
   try {
+    const config = await fetchAuthConfig().catch(()=>null);
+    if (isLocalDevEnvironment() && config?.enableLocalDevOtp) {
+      if (!String(email || "").trim().toLowerCase().endsWith("@local.test")) {
+        return { ok:false, error:"Use a @local.test email for local dev OTP testing" };
+      }
+      const expectedCode = String(config.localDevOtpCode || "000000").trim();
+      if (String(code || "").trim() !== expectedCode) {
+        return { ok:false, error:"Invalid local dev code" };
+      }
+      const session = buildLocalDevOtpSession(email);
+      if (!session?.accessToken) return { ok:false, error:"Unable to create local dev session" };
+      const synced = await syncAuthSessionData(session);
+      if (!synced.ok) {
+        return {
+          ok:true,
+          state:null,
+          session,
+          syncError: synced.error || "Unable to sync account"
+        };
+      }
+      return { ok:true, state: synced.state, session: { ...synced.session, accessToken: session.accessToken, localDevOtp:true } };
+    }
     const client = await getSupabaseAuthClient();
     const { data, error } = await client.auth.verifyOtp({
       email,
