@@ -286,6 +286,7 @@ const App = () => {
   const [localPreviewAuthEnabled,setLocalPreviewAuthEnabled]=useState(false);
   const [devImpersonationUserId,setDevImpersonationUserId]=useState(()=>{try{return localStorage.getItem(LOCAL_DEV_IMPERSONATION_KEY)||"";}catch{return ""; }});
   const [blocDragging,setBlocDragging]=useState(false);
+  const [switcherRevealInteractive,setSwitcherRevealInteractive]=useState(false);
   const [pageDragging,setPageDragging]=useState(false);
   const [pageSwipeTarget,setPageSwipeTarget]=useState(null);
   const [suppressSwitcherIntro,setSuppressSwitcherIntro]=useState(false);
@@ -1348,6 +1349,7 @@ const App = () => {
     cancelSwipeFrame(blocFrameRef);
     applyBlocTransforms(0, false);
     setBlocDragging(false);
+    setSwitcherRevealInteractive(false);
   },[applyBlocTransforms]);
   const handleSwitchGroup=()=>{
     setSuppressSwitcherIntro(false);
@@ -1386,6 +1388,7 @@ const App = () => {
     const dominantDrag = dx > screenWidth / 2 && Math.abs(dy) < 100 && dx > Math.abs(dy);
     const shouldClose = s.mode === "back" && (fastEdgeFlick || dominantDrag);
     if (shouldClose) {
+      setSwitcherRevealInteractive(true);
       releaseSwipeForward({
         dragRef: blocDragXRef,
         frameRef: blocFrameRef,
@@ -1396,9 +1399,11 @@ const App = () => {
         commit: () => {
           setSuppressSwitcherIntro(true);
           persistGroupSelection(null);
+          setSwitcherRevealInteractive(false);
         }
       });
     } else {
+      setSwitcherRevealInteractive(false);
       releaseSwipeBack({
         dragRef: blocDragXRef,
         frameRef: blocFrameRef,
@@ -2414,6 +2419,7 @@ const App = () => {
       minHeight:"100vh",
       background:"var(--bg-gradient)",
       backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)",
+      pointerEvents:switcherRevealInteractive?"none":"auto",
       transform:blocDragXRef.current?`translateX(${blocDragXRef.current}px)`:"none",
       transition:blocDragging?"none":"transform .08s ease-out",
       boxShadow:blocDragXRef.current?"-18px 0 34px rgba(0,0,0,.28)":"none",
@@ -2451,7 +2457,7 @@ const App = () => {
       onProrate:()=>handleSeasonProrationChoice("prorate"),
       savingChoice:prorationSavingChoice
     }),
-    page==="today"&&renderGroupSwitcherSurface({ inert:true, suppressIntro:true }),
+    page==="today"&&renderGroupSwitcherSurface({ inert:!switcherRevealInteractive, suppressIntro:true }),
     activeBlocSurface,
     !showSettings && React.createElement(Nav,{onlyMobileBottomNav:true,page,setPage:handleNavSelect,user:currentUser,currentUserId:effectiveAuthSession?.userId||"",profilePhotoUrl:effectiveProfile?.profilePhotoUrl||"",groupName:currentGroup.name,canEditGroup:isGroupAdmin,onOpenSettings:()=>setShowSettings(true),onOpenProfile:()=>{setProfileError("");setShowProfileModal(true);},onOpenStream:handleOpenStream,streamUnreadCount,onSwitchUser:handleSwitchUser,onSwitchGroup:handleSwitchGroup,onOpenLog:()=>{setPage("today");setShowTodayLog(true);},syncing,lastSyncedAt,syncError,onRefresh:refreshNow,showJustSynced,activityAlertCount,mobileBottomDragX:blocDragXRef.current,mobileBottomNavRef:blocBottomNavRef,mobileBottomDragging:blocDragging}),
     renderInviteDownloadPrompt(),
