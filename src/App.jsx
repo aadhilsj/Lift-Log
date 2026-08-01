@@ -21,6 +21,7 @@ import {
   syncActiveProfileGlobals,
   getCurrentGroupMemberNames,
   flattenFeedPosts,
+  resolveLogCreatedAt,
   setActiveSessionUserId,
   getSetupReviewPendingCount
 } from "./lib/appState.js";
@@ -104,6 +105,18 @@ const reactionsMatch = (a, b) => {
   const left = normalizeReactionMembers(a);
   const right = normalizeReactionMembers(b);
   return left.length === right.length && left.every((member, index) => member === right[index]);
+};
+
+const getGroupNewestLogMs = group => {
+  let newest = 0;
+  Object.values(group?.logs || {}).forEach(logs => {
+    if (!Array.isArray(logs)) return;
+    logs.forEach(log => {
+      const parsed = Date.parse(resolveLogCreatedAt(log));
+      if (Number.isFinite(parsed) && parsed > newest) newest = parsed;
+    });
+  });
+  return newest;
 };
 
 const preserveKnownProfilePhotos = (current, incoming) => {
@@ -1608,6 +1621,15 @@ const App = () => {
     if (displayName && Array.isArray(group.leftMemberNames) && group.leftMemberNames.includes(displayName)) return false;
     return Boolean(getMembershipForUser(group, effectiveAuthSession, effectiveProfile));
   });
+  const switcherGroups = useMemo(() => {
+    const originalIndex = new Map(visibleGroups.map((group, index) => [group.id, index]));
+    return [...visibleGroups].sort((left, right) => {
+      const rightNewest = getGroupNewestLogMs(right);
+      const leftNewest = getGroupNewestLogMs(left);
+      if (rightNewest !== leftNewest) return rightNewest - leftNewest;
+      return (originalIndex.get(left.id) ?? 0) - (originalIndex.get(right.id) ?? 0);
+    });
+  }, [visibleGroups]);
   const firstVisibleGroupId = visibleGroups[0]?.id || null;
   useEffect(() => {
     if (!authSession?.userId) return;
@@ -1648,7 +1670,7 @@ const App = () => {
     }
   },
     React.createElement(GroupHome,{
-      groups: visibleGroups,
+      groups: switcherGroups,
       currentIdentity: profile?.displayName || authSession?.email?.split("@")[0] || effectiveProfile?.displayName || effectiveAuthSession?.email?.split("@")[0] || "",
       currentEmail: authSession?.email || effectiveAuthSession?.email,
       currentUserId: authSession?.userId || effectiveAuthSession?.userId || "",
