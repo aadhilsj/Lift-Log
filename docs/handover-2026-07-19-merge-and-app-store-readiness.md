@@ -331,10 +331,17 @@ Recommended if practical:
 
 ## App Store Readiness Advice
 
-Do not block App Store readiness on fully deleting the blob.
+Block App Store readiness on fully deleting the blob compatibility layer, or on
+proving with a fresh audit that the remaining blob dependencies cannot affect
+live UI. Normal product writes are canonical-authoritative, but the compatibility
+blob still participates in read/write hydration, auth/profile repair, destructive
+cleanup, and legacy fallbacks. The August 2026 rollover issue showed that stale
+blob/canonical residue can still leak into closed-month composition if the
+fallback is not fully retired or explicitly guarded.
 
 Block App Store readiness on:
 
+- blob retirement / compatibility fallback proof
 - auth/session reliability
 - account deletion working end-to-end
 - no unauthenticated app-data endpoints
@@ -345,8 +352,8 @@ Block App Store readiness on:
 - final mobile/PWA/native wrapper packaging
 - user-visible UX polish and smoke matrix passing
 
-Full blob deletion is an internal post-launch cleanup unless a future audit finds
-a concrete App Store blocker.
+Full blob deletion is no longer treated as a casual post-launch cleanup. It is a
+pre-App-Store backend hardening item.
 
 ## Things Not To Do Casually
 

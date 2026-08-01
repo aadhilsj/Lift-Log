@@ -851,7 +851,9 @@ function getCurrentMemberNamesForMonth(group, monthKey) {
   const sourceNames = Array.isArray(group?.activeMemberOrder) && group.activeMemberOrder.length
     ? group.activeMemberOrder
     : (Array.isArray(group?.memberOrder) ? group.memberOrder : []);
+  const leftMemberNames = new Set(Array.isArray(group?.leftMemberNames) ? group.leftMemberNames : []);
   return sourceNames.filter(name => {
+    if (leftMemberNames.has(name)) return false;
     const joinedMonth = getEffectiveJoinedMonthForMember(group, name, monthKey);
     return !joinedMonth || compareMonthKeys(monthKey, joinedMonth) >= 0;
   });
@@ -1682,9 +1684,25 @@ function buildCanonicalMonthHistoryForGroup(group, canonicalSeasons) {
     ]).length;
     if (canonicalCoverage < blobCoverage) continue;
 
-    const relevantNames = Object.keys(membersByName).filter(
-      name => membersByName[name]?.joined_for_month !== false
+    const activeNameSet = new Set(
+      Array.isArray(group?.activeMemberOrder) && group.activeMemberOrder.length
+        ? group.activeMemberOrder
+        : (Array.isArray(group?.memberOrder) ? group.memberOrder : [])
     );
+    const canonicalLogOwnerSet = new Set(
+      (season.logs || []).map(log => log?.owner_display_name).filter(Boolean)
+    );
+    const relevantNames = Object.keys(membersByName).filter(name => {
+      const member = membersByName[name];
+      if (member?.joined_for_month === false) return false;
+      if (activeNameSet.has(name)) return true;
+      const workoutCount = Number(member?.workout_count || 0);
+      const soloTarget = Number(member?.solo_target || 0);
+      return workoutCount > 0
+        || canonicalLogOwnerSet.has(name)
+        || !!member?.excused
+        || (!!member?.solo && Number.isFinite(soloTarget) && soloTarget > 0);
+    });
     const relevantNameSet = new Set(relevantNames);
     const historicalMemberNames = uniqueNames([
       ...relevantNames,
