@@ -237,6 +237,7 @@ const JoinGroupModal = ({inviteContext,joinCode,setJoinCode,onClose,onJoin,joini
 
 
 const authTitle = (step, mode, intent) => {
+  if (step === "existing") return "Account already exists";
   if (step === "name") return "Choose your Fero name";
   if (step === "otp") return "Check your email";
   if (mode === "signup") return "Create your account";
@@ -245,6 +246,7 @@ const authTitle = (step, mode, intent) => {
 };
 
 const authHelper = (step, mode, intent, email) => {
+  if (step === "existing") return `We found a Fero account for ${email}. Sign back into it, or use a different email to create a new account.`;
   if (step === "otp") return `We sent a 6-digit code to ${email}.`;
   if (step === "name") return "This is the name your Bloc will see.";
   if (mode === "signup") return "Use a new email. We'll send a one-time code.";
@@ -253,7 +255,7 @@ const authHelper = (step, mode, intent, email) => {
   return "Use a one-time code to sign in.";
 };
 
-const AuthFlowModal = ({step,mode="signin",intent="",email,setEmail,code,setCode,displayName,setDisplayName,onClose,onSendOtp,onVerifyOtp,onSaveProfile,sending,verifying,savingProfile,error,devCode}) => React.createElement('div',{className:"overlay center-mobile",onClick:()=>{}},
+const AuthFlowModal = ({step,mode="signin",intent="",email,setEmail,code,setCode,displayName,setDisplayName,onClose,onSendOtp,onVerifyOtp,onSaveProfile,onConfirmExistingAccount,onUseDifferentEmail,sending,verifying,savingProfile,error,devCode}) => React.createElement('div',{className:"overlay center-mobile",onClick:()=>{}},
   React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{maxWidth:420}},
     React.createElement('div',{style:{fontFamily:"'Raleway', sans-serif",fontWeight:900,fontSize:22,marginBottom:6,lineHeight:1.05,letterSpacing:0}},
       authTitle(step, mode, intent)
@@ -281,10 +283,12 @@ const AuthFlowModal = ({step,mode="signin",intent="",email,setEmail,code,setCode
     ),
     error && React.createElement('div',{style:{fontSize:12,color:"var(--red)",marginBottom:16,whiteSpace:"pre-wrap"}},error),
     React.createElement('div',{style:{display:"flex",gap:9}},
-      React.createElement('button',{onClick:onClose,style:{flex:1,background:"var(--s2)",border:"1px solid var(--border)",color:"var(--muted)",padding:"14px",borderRadius:10,fontFamily:"'Outfit', sans-serif",fontSize:15,fontWeight:700}},"Cancel"),
+      step!=="existing" && React.createElement('button',{onClick:onClose,style:{flex:1,background:"var(--s2)",border:"1px solid var(--border)",color:"var(--muted)",padding:"14px",borderRadius:10,fontFamily:"'Outfit', sans-serif",fontSize:15,fontWeight:700}},"Cancel"),
       step==="email" && React.createElement('button',{disabled:!email.trim()||sending,onClick:onSendOtp,style:{flex:1,background:email.trim()&&!sending?"var(--green)":"var(--s3)",color:email.trim()&&!sending?"#000":"var(--muted2)",padding:"14px",borderRadius:10,fontSize:15,fontWeight:800}},sending?"Sending...":"Send code"),
       step==="otp" && React.createElement('button',{disabled:code.length!==6||verifying,onClick:onVerifyOtp,style:{flex:1,background:code.length===6&&!verifying?"var(--green)":"var(--s3)",color:code.length===6&&!verifying?"#000":"var(--muted2)",padding:"14px",borderRadius:10,fontSize:15,fontWeight:800}},verifying?"Checking...":"Verify"),
-      step==="name" && React.createElement('button',{disabled:!displayName.trim()||savingProfile,onClick:onSaveProfile,style:{flex:1,background:displayName.trim()&&!savingProfile?"var(--green)":"var(--s3)",color:displayName.trim()&&!savingProfile?"#000":"var(--muted2)",padding:"14px",borderRadius:10,fontSize:15,fontWeight:800}},savingProfile?"Saving...":"Continue")
+      step==="name" && React.createElement('button',{disabled:!displayName.trim()||savingProfile,onClick:onSaveProfile,style:{flex:1,background:displayName.trim()&&!savingProfile?"var(--green)":"var(--s3)",color:displayName.trim()&&!savingProfile?"#000":"var(--muted2)",padding:"14px",borderRadius:10,fontSize:15,fontWeight:800}},savingProfile?"Saving...":"Continue"),
+      step==="existing" && React.createElement('button',{onClick:onUseDifferentEmail,style:{flex:1,background:"var(--s2)",border:"1px solid var(--border)",color:"var(--muted)",padding:"14px",borderRadius:10,fontFamily:"'Outfit', sans-serif",fontSize:15,fontWeight:700}},"Use different email"),
+      step==="existing" && React.createElement('button',{disabled:sending,onClick:onConfirmExistingAccount,style:{flex:1,background:!sending?"var(--green)":"var(--s3)",color:!sending?"#000":"var(--muted2)",padding:"14px",borderRadius:10,fontSize:15,fontWeight:800}},sending?"Sending...":"Sign in")
     )
   )
 );

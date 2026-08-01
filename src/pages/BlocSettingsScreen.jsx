@@ -64,8 +64,11 @@ const ReviewTag = () => (
   )
 );
 
-const ReviewShell = ({children,review=false}) => (
-  React.createElement('div',{style:review?{borderRadius:12,border:"1px solid rgba(78,205,196,.45)",boxShadow:"0 0 0 1px rgba(78,205,196,.06) inset",padding:"10px 10px 0",margin:"0 -10px 12px"}:{}},children)
+const ReviewShell = ({children,review=false,onDismiss}) => (
+  React.createElement('div',{
+    onPointerDown:review ? onDismiss : undefined,
+    style:review?{borderRadius:12,border:"1px solid rgba(78,205,196,.45)",boxShadow:"0 0 0 1px rgba(78,205,196,.06) inset",padding:"10px 10px 0",margin:"0 -10px 12px"}:{}
+  },children)
 );
 
 const EditableField = ({title,description,children}) => (
@@ -86,10 +89,11 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
   const [kickingUserId,setKickingUserId]=useState(null);
   const [dragX,setDragX]=useState(0);
   const [dragging,setDragging]=useState(false);
+  const [dismissedReviewFields,setDismissedReviewFields]=useState({});
   const surfaceRef = useRef(null);
   const swipeRef = useRef({sx:0,sy:0,active:false,mode:null});
   const pendingFields = useMemo(()=>getSetupReviewPendingFields(group),[group]);
-  const pendingSet = useMemo(()=>new Set(pendingFields),[pendingFields]);
+  const pendingSet = useMemo(()=>new Set(pendingFields.filter(field=>!dismissedReviewFields[field])),[dismissedReviewFields,pendingFields]);
   const inviteLink = `${window.location.origin}${window.location.pathname}?invite=${group?.inviteCode || ""}`;
   const pendingSitOuts = Object.values(normalizeSitOutRequests(group?.sitOutRequests)?.[curKey] || {}).filter(request => request.status === "pending");
   const pendingSolos = Object.values(normalizeSoloRequests(group?.soloRequests)?.[curKey] || {}).filter(request => request.status === "pending");
@@ -100,6 +104,7 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
   useEffect(()=>{
     setGroupName(group?.name || "");
     setSettings({...SETTINGS_DEFAULTS,...group?.settings});
+    setDismissedReviewFields({});
   },[group?.id]);
 
   useEffect(() => {
@@ -139,7 +144,13 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
   const saveRules = () => {
     setSubmitAttempted(true);
     if (!canSave || escalationStepMissing) return;
-    onSave(groupName.trim(), normalizedSettings);
+    setDismissedReviewFields({});
+    onSave(groupName.trim(), normalizedSettings, { setupReview: { pending: {} } });
+  };
+
+  const dismissReviewField = field => {
+    if (!field) return;
+    setDismissedReviewFields(current => current[field] ? current : { ...current, [field]: true });
   };
 
   const toggleType = type => setSettings(current => ({
@@ -257,7 +268,7 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
           React.createElement('input',{type:"number",min:1,value:settings.fineAmount,onChange:e=>setSettings(current=>({...current,fineAmount:e.target.value})),style:{...inputShellStyle,width:"100%",fontSize:12,padding:"8px 9px",borderRadius:9,textAlign:"center"}})
         )
       ),
-      React.createElement(ReviewShell,{review:pendingSet.has("feeModel")},
+      React.createElement(ReviewShell,{review:pendingSet.has("feeModel"),onDismiss:()=>dismissReviewField("feeModel")},
         React.createElement(EditableField,{title:renderRuleTitle("Fine Calculation","feeModel")},
           React.createElement('div',{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7,marginBottom:7}},
             ["escalating","flat"].map(value => {
@@ -280,14 +291,14 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
       React.createElement(EditableField,{title:"Monthly Workout Target"},
         React.createElement(StepperField,{value:settings.minTarget,onChange:value=>setSettings(current=>({...current,minTarget:value})),min:6,max:30,compact:true})
       ),
-      React.createElement(ReviewShell,{review:pendingSet.has("acceptedWorkoutTypes")},
+      React.createElement(ReviewShell,{review:pendingSet.has("acceptedWorkoutTypes"),onDismiss:()=>dismissReviewField("acceptedWorkoutTypes")},
         React.createElement(EditableField,{title:renderRuleTitle("Workout Types That Count","acceptedWorkoutTypes")},
           React.createElement('div',{style:{width:"100%"}},
             miniWorkoutTypeSelector
           )
         )
       ),
-      React.createElement(ReviewShell,{review:pendingSet.has("timeZone")},
+      React.createElement(ReviewShell,{review:pendingSet.has("timeZone"),onDismiss:()=>dismissReviewField("timeZone")},
         React.createElement(EditableField,{title:renderRuleTitle("Time Zone","timeZone")},
           React.createElement(SelectField,{value:settings.timeZone,onChange:e=>setSettings(current=>({...current,timeZone:e.target.value})),width:"100%",maxWidth:196,options:TIME_ZONE_OPTIONS.map(option=>({value:option.value,label:`${option.label} · ${option.abbr}`})),compact:true,arrowColor:"#4ECDC4"})
         )

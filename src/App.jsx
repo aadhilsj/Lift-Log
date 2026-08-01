@@ -135,6 +135,16 @@ const preserveKnownProfilePhotos = (current, incoming) => {
   return changed ? { ...incoming, profiles: mergedProfiles } : incoming;
 };
 
+const SetupProgressScreen = () => {
+  const labels = ["Saving your name...", "Setting up your Bloc...", "Almost done...", "Opening your Bloc..."];
+  const [index,setIndex]=useState(0);
+  useEffect(()=>{
+    const timer = window.setInterval(()=>setIndex(current=>Math.min(labels.length-1,current+1)),1800);
+    return ()=>window.clearInterval(timer);
+  },[]);
+  return React.createElement(Spinner,{label:labels[index]});
+};
+
 const IN_BLOC_PAGES = ["today", "activity", "month", "history"];
 const COLD_ONBOARDING_SEEN_KEY = "fero_cold_onboarding_seen";
 const INVITE_WELCOME_SEEN_PREFIX = "fero_invite_welcome_seen";
@@ -199,6 +209,8 @@ const App = () => {
   const [authDisplayName,setAuthDisplayName]=useState("");
   const [authError,setAuthError]=useState("");
   const [devOtpCode,setDevOtpCode]=useState("");
+  const [authExistingAccountEmail,setAuthExistingAccountEmail]=useState("");
+  const [authExistingAccountConfirmed,setAuthExistingAccountConfirmed]=useState(false);
   const [postAuthActionPending,setPostAuthActionPending]=useState(false);
   const [sendingOtp,setSendingOtp]=useState(false);
   const [verifyingOtp,setVerifyingOtp]=useState(false);
@@ -1614,6 +1626,8 @@ const App = () => {
     setAuthDisplayName("");
     setAuthError("");
     setDevOtpCode("");
+    setAuthExistingAccountEmail("");
+    setAuthExistingAccountConfirmed(false);
   };
   const completeColdOnboarding = useCallback(() => {
     setReplayColdOnboarding(false);
@@ -1720,13 +1734,15 @@ const App = () => {
     setAuthError("");
     setDevOtpCode("");
     setPendingAuthSession(null);
-    setPostAuthActionPending(false);
+    setAuthExistingAccountEmail("");
+    setAuthExistingAccountConfirmed(false);
   };
   const closeAuth = () => {
     const shouldResumeColdOnboarding = (authIntent?.type === "create" && returnToColdOnboardingOnCreateCancel) || (authIntent?.type === "join" && returnToColdOnboardingOnJoinCancel);
     const cancelledOnboardingJoin = authIntent?.type === "join" && returnToColdOnboardingOnJoinCancel;
     const cancelledOnboardingCreate = authIntent?.type === "create" && returnToColdOnboardingOnCreateCancel;
     resetAuthFlow();
+    setPostAuthActionPending(false);
     if (cancelledOnboardingCreate) {
       setPendingOnboardingCreatePayload(null);
       setOnboardingCreateModalOpen(false);
@@ -1828,6 +1844,7 @@ const App = () => {
     setSendingOtp(true);
     setAuthError("");
     const normalizedEmail = authEmail.trim();
+    const onboardingAccountAction = Boolean(authIntent?.fromOnboarding) && (authIntent?.type === "create" || authIntent?.type === "join");
     if (authIntent?.type === "signup") {
       const existingAccount = await checkAuthEmailExistsData(normalizedEmail);
       if (!existingAccount?.ok) {
@@ -1841,7 +1858,22 @@ const App = () => {
         return;
       }
     }
-    const result = await sendOtpData(normalizedEmail, { shouldCreateUser: authIntent?.type !== "signin" });
+    if (onboardingAccountAction && !authExistingAccountConfirmed) {
+      const existingAccount = await checkAuthEmailExistsData(normalizedEmail);
+      if (!existingAccount?.ok) {
+        setSendingOtp(false);
+        setAuthError(existingAccount?.error || "Unable to check email");
+        return;
+      }
+      if (existingAccount.exists) {
+        setSendingOtp(false);
+        setAuthExistingAccountEmail(normalizedEmail);
+        setAuthStep("existing");
+        return;
+      }
+    }
+    const shouldCreateUser = authIntent?.type !== "signin" && !(onboardingAccountAction && authExistingAccountConfirmed);
+    const result = await sendOtpData(normalizedEmail, { shouldCreateUser });
     setSendingOtp(false);
     if (!result?.ok) {
       setAuthError(authIntent?.type === "signin" ? "No Fero account found for that email. Create a new account instead." : (result?.error || "Unable to send code"));
@@ -1849,6 +1881,30 @@ const App = () => {
     }
     setDevOtpCode(result.devCode || "");
     setAuthStep("otp");
+  };
+  const handleConfirmExistingAccount = async () => {
+    const normalizedEmail = String(authExistingAccountEmail || authEmail || "").trim();
+    if (!normalizedEmail) return;
+    setAuthExistingAccountConfirmed(true);
+    setAuthEmail(normalizedEmail);
+    setSendingOtp(true);
+    setAuthError("");
+    const result = await sendOtpData(normalizedEmail, { shouldCreateUser:false });
+    setSendingOtp(false);
+    if (!result?.ok) {
+      setAuthError(result?.error || "Unable to send code");
+      return;
+    }
+    setDevOtpCode(result.devCode || "");
+    setAuthStep("otp");
+  };
+  const handleUseDifferentEmail = () => {
+    setAuthExistingAccountEmail("");
+    setAuthExistingAccountConfirmed(false);
+    setAuthEmail("");
+    setAuthCode("");
+    setAuthError("");
+    setAuthStep("email");
   };
   const handleVerifyOtp = async () => {
     setVerifyingOtp(true);
@@ -1905,6 +1961,8 @@ const App = () => {
     setAuthError("");
     const completedIntentObj = authIntent;
     const completedIntent = authIntent?.type || "";
+    const onboardingPostAuthAction = Boolean(completedIntentObj?.fromOnboarding) && (completedIntent === "create" || completedIntent === "join");
+    if (onboardingPostAuthAction) setPostAuthActionPending(true);
     const activeSession = pendingAuthSession || authSession || await getCurrentAuthSession();
     const result = await upsertProfileData(
       { userId: activeSession?.userId, email: activeSession?.email, displayName: authDisplayName.trim() },
@@ -1912,6 +1970,7 @@ const App = () => {
     );
     setSavingProfile(false);
     if (!result?.ok) {
+      setPostAuthActionPending(false);
       setAuthError(result?.error || "Unable to save profile");
       return;
     }
@@ -1941,6 +2000,7 @@ const App = () => {
     if (shouldAutoJoin) {
       setPendingJoinAfterProfile(false);
       const joinResult = await joinWithInviteCode(activeSession, pendingInviteCode);
+      setPostAuthActionPending(false);
       if (!joinResult?.ok) {
         if (joinResult?.status === 409) {
           setAuthIntent(completedIntentObj);
@@ -1994,6 +2054,29 @@ const App = () => {
     if (inviteDownloadPromptTimerRef.current) clearTimeout(inviteDownloadPromptTimerRef.current);
     setInviteDownloadPrompt(null);
   },[]);
+
+  const renderAuthFlowModal = () => React.createElement(AuthFlowModal,{
+    step:authStep,
+    mode:authIntent?.type === "signup" ? "signup" : "signin",
+    intent:authIntent?.type || "",
+    email:authEmail,
+    setEmail:setAuthEmail,
+    code:authCode,
+    setCode:setAuthCode,
+    displayName:authDisplayName,
+    setDisplayName:setAuthDisplayName,
+    onClose:closeAuth,
+    onSendOtp:handleSendOtp,
+    onVerifyOtp:handleVerifyOtp,
+    onSaveProfile:handleSaveProfile,
+    onConfirmExistingAccount:handleConfirmExistingAccount,
+    onUseDifferentEmail:handleUseDifferentEmail,
+    sending:sendingOtp,
+    verifying:verifyingOtp,
+    savingProfile,
+    error:authError,
+    devCode:devOtpCode
+  });
 
   const renderInviteDownloadPrompt = () => {
     if (!inviteDownloadPrompt) return null;
@@ -2075,7 +2158,8 @@ const App = () => {
     || (!authSession?.userId && !localPreviewAuthEnabled && !hasInviteEntry && !coldOnboardingSeen)
   );
 
-  if(loading || !authReady || authHydrating) return React.createElement(Spinner,{label:"Opening Fero..."});
+  if(loading || !authReady || (authHydrating && !authStep)) return React.createElement(Spinner,{label:"Opening Fero..."});
+  if(postAuthActionPending) return React.createElement(SetupProgressScreen,null);
   if(authStep === "name") {
     const nameSession = pendingAuthSession || authSession || {};
     return React.createElement(DisplayNameSetupScreen,{
@@ -2087,7 +2171,7 @@ const App = () => {
       error:authError,
     });
   }
-  if(postAuthActionPending) return React.createElement(Spinner,{label:"Setting up your Bloc..."});
+  if(authStep) return React.createElement(React.Fragment,null,renderAuthFlowModal());
   // Onboarding join, step 1: invite code, collected before any auth. Onboarding
   // screen 4 stays behind the sheet so Cancel lands back exactly where it began.
   if(onboardingJoinCodeStep && !authSession?.userId && !authStep) {
@@ -2152,26 +2236,7 @@ const App = () => {
             onCreateAccount:()=>openAuth({ type:"signup" }),
             onSignIn:()=>openAuth({ type:"signin" }),
           }),
-      authStep && React.createElement(AuthFlowModal,{
-        step:authStep,
-        mode:authIntent?.type === "signup" ? "signup" : "signin",
-        intent:authIntent?.type || "",
-        email:authEmail,
-        setEmail:setAuthEmail,
-        code:authCode,
-        setCode:setAuthCode,
-        displayName:authDisplayName,
-        setDisplayName:setAuthDisplayName,
-        onClose:closeAuth,
-        onSendOtp:handleSendOtp,
-        onVerifyOtp:handleVerifyOtp,
-        onSaveProfile:handleSaveProfile,
-        sending:sendingOtp,
-        verifying:verifyingOtp,
-        savingProfile,
-        error:authError,
-        devCode:devOtpCode
-      })
+      authStep && renderAuthFlowModal()
     );
   }
   const inviteWelcomeGroup = inviteWelcomeGroupId ? appState.groups?.[inviteWelcomeGroupId] || null : null;
