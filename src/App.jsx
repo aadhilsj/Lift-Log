@@ -324,6 +324,18 @@ const App = () => {
   const switcherRestoreScrollRef = useRef(null);
   const profileOverlayRef = useRef(null);
 
+  useEffect(() => {
+    if (!authStep) return undefined;
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      document.documentElement.style.overflow = previousHtmlOverflow;
+    };
+  }, [authStep]);
+
   const persistGroupSelection = useCallback((groupId) => {
     try {
       if (groupId) localStorage.setItem(LOCAL_GROUP_KEY, groupId);

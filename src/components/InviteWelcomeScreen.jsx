@@ -43,24 +43,21 @@ const StatusPill = ({status}) => {
 const getMemberRows = ({group, currentUserId, profilePhotoByUserId}) => {
   const target = Number(group?.settings?.minTarget || group?.target || MIN_TARGET);
   const memberships = Object.values(group?.memberships || {}).filter(member => String(member?.displayName || "").trim());
-  const rows = memberships.map(member => {
+  return memberships
+    .filter(member => member.userId !== currentUserId)
+    .map(member => {
     const name = member.displayName;
     const count = getCountedLogCount(group?.logs?.[name] || []);
     return {
       userId: member.userId || "",
       name,
       count,
-      status: member.userId === currentUserId ? "new" : resolveStatus(count, target),
+      status: resolveStatus(count, target),
       photoUrl: profilePhotoByUserId?.[member.userId]?.profilePhotoUrl || ""
     };
-  });
-
-  const own = rows.find(row => row.userId === currentUserId);
-  const others = rows
-    .filter(row => row.userId !== currentUserId)
+  })
     .sort((a,b) => b.count - a.count || a.name.localeCompare(b.name))
     .slice(0, 3);
-  return own ? [own, ...others].slice(0, 4) : rows.slice(0, 4);
 };
 
 const InviteWelcomeScreen = ({group, currentUserId, profilePhotoByUserId, onContinue}) => {
@@ -112,7 +109,7 @@ const InviteWelcomeScreen = ({group, currentUserId, profilePhotoByUserId, onCont
             alignItems:"center",
             gap:9,
             padding:"11px 14px",
-            background:row.userId === currentUserId ? "rgba(78,205,196,.08)" : "transparent",
+            background:"transparent",
             borderBottom:index < rows.length - 1 ? "0.5px solid rgba(78,205,196,.1)" : "none"
           }
         },

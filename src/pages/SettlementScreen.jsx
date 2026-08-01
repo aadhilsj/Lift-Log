@@ -20,6 +20,7 @@ const FULL_MONTH_NAMES = ["January","February","March","April","May","June","Jul
 const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistory, onSettlementClaimPaid, onSettlementConfirmPaid, onStartNextMonth, onViewProfileMonth}) => {
   const [settlementBusy, setSettlementBusy] = React.useState(null);
   const [showStandings, setShowStandings] = React.useState(false);
+  const [claimPrompt, setClaimPrompt] = React.useState(null);
   const ledgerRef = React.useRef(null);
 
   const relevantNames = Object.keys(month.counts || {});
@@ -112,6 +113,14 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
     } finally {
       setSettlementBusy(null);
     }
+  };
+
+  const requestSettlementAction = payload => {
+    if (payload?.kind === "claim") {
+      setClaimPrompt(payload);
+      return;
+    }
+    handleSettlementAction(payload);
   };
 
   const hero = (() => {
@@ -256,13 +265,13 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
         const action = outcome === "winner"
           ? state.pending && state.isReceiver && React.createElement('button',{
               type:"button",
-              onClick:()=>handleSettlementAction({key,kind:"confirm",payerDisplayName:pair.payerDisplayName,receiverDisplayName:pair.receiverDisplayName,amount:pair.amount}),
+              onClick:()=>requestSettlementAction({key,kind:"confirm",payerDisplayName:pair.payerDisplayName,receiverDisplayName:pair.receiverDisplayName,amount:pair.amount}),
               disabled:settlementBusy===key,
               style:{fontSize:11,fontWeight:800,padding:"6px 10px",borderRadius:8,background:"transparent",border:"1px solid var(--amber)",color:"var(--amber)"}
             }, settlementBusy===key ? "Saving..." : "Confirm received")
           : !state.confirmed && !state.pending && React.createElement('button',{
               type:"button",
-              onClick:()=>handleSettlementAction({key,kind:"claim",payerDisplayName:pair.payerDisplayName,receiverDisplayName:pair.receiverDisplayName,amount:pair.amount}),
+              onClick:()=>requestSettlementAction({key,kind:"claim",payerDisplayName:pair.payerDisplayName,receiverDisplayName:pair.receiverDisplayName,amount:pair.amount}),
               disabled:settlementBusy===key,
               style:{display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:8,fontWeight:800,lineHeight:1,padding:"4px 6px",borderRadius:999,background:"rgba(224,80,32,.035)",border:"1px solid rgba(224,80,32,.12)",color:"rgba(240,109,67,.68)",whiteSpace:"nowrap",fontFamily:"'Outfit', sans-serif"}
             }, settlementBusy===key ? "Saving..." : "Mark as paid");
@@ -359,7 +368,19 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
     ? "clamp(31px, 8vw, 42px)"
     : "clamp(36px, 10vw, 52px)";
 
-  return React.createElement('div',{style:{width:"100%",maxWidth:"100%",margin:"0 auto",padding:"0 0 32px",display:"flex",flexDirection:"column",gap:12,fontFamily:"'Outfit', sans-serif"}},
+  const claimConfirmation = claimPrompt && React.createElement('div',{className:"overlay center-mobile",onClick:()=>setClaimPrompt(null)},
+    React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{maxWidth:320,padding:"18px 16px",textAlign:"center"}},
+      React.createElement('div',{style:{fontSize:18,fontWeight:800,color:"var(--text)",marginBottom:8}},"Mark as paid?"),
+      React.createElement('div',{style:{fontSize:12,color:"var(--muted)",lineHeight:1.45,fontFamily:"'Outfit', sans-serif",fontWeight:600}},"This tells the receiver you paid them."),
+      React.createElement('div',{style:{display:"flex",gap:10,marginTop:16}},
+        React.createElement('button',{type:"button",onClick:()=>setClaimPrompt(null),style:{flex:1,padding:"10px 12px",borderRadius:12,border:"1px solid var(--border)",background:"var(--s2)",color:"var(--muted)",fontWeight:700}},"Cancel"),
+        React.createElement('button',{type:"button",onClick:async()=>{const payload = claimPrompt; setClaimPrompt(null); await handleSettlementAction(payload);},style:{flex:1,padding:"10px 12px",borderRadius:12,border:"1px solid rgba(224,80,32,.34)",background:"rgba(224,80,32,.10)",color:"#F06D43",fontWeight:800}},"Mark Paid")
+      )
+    )
+  );
+
+  return React.createElement(React.Fragment,null,
+    React.createElement('div',{style:{width:"100%",maxWidth:"100%",margin:"0 auto",padding:"0 0 32px",display:"flex",flexDirection:"column",gap:12,fontFamily:"'Outfit', sans-serif"}},
     React.createElement('div',{style:{...heroStyle,borderRadius:12,padding:"18px 18px 16px",textAlign:"center",display:"flex",flexDirection:"column",gap:10}},
       React.createElement('span',{style:heroPillStyle},hero.tag),
       React.createElement('div',{style:{fontSize:heroStatSize,fontWeight:900,lineHeight:1.05,color:heroColor,letterSpacing:0,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},hero.stat),
@@ -392,6 +413,8 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
         outcome === "missed" ? "View the settlement" : "Share this month"
       )
     )
+    ),
+    claimConfirmation
   );
 };
 

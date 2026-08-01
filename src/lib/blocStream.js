@@ -94,7 +94,7 @@ export function seedIfEmpty(blocId, { currentUserId, members = [] } = {}) {
     runMsg,
     sys(60 * 5, "positive", "TARGET HIT", "Aadhil hit target — 21 days early.", "First to target this month.", { "🔥": [currentUserId] }),
     txt(60 * 3, currentUserId, "just logged mine 💪", { reactions: other ? { "❤️": [other.id] } : {} }),
-    other2 && sys(150, "warning", "COOKED", `${other2.name} can't reach target this month.`, "Fine locked at month end.", { "😤": other ? [other.id] : [] }),
+    other2 && sys(150, "warning", "COOKED", `${other2.name} can't reach target this month.`, "Penalty locked at month end.", { "😤": other ? [other.id] : [] }),
     other && runMsg && txt(90, other.id, "2 behind pace, gonna catch up tmrw", { replyTo: runMsg.id }),
     eventMsg,
     other && sys(70, "positive", "COMEBACK", `${other.name}: Behind → On Track.`, "", {}),

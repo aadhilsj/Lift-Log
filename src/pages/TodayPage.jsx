@@ -67,6 +67,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
   const [deleteTarget,setDeleteTarget]=useState(null);
   const [statDetail,setStatDetail]=useState(null);
   const [settlementCardBusy,setSettlementCardBusy]=useState(null);
+  const [settlementClaimPromptCard,setSettlementClaimPromptCard]=useState(null);
   const [settlementConfirmPromptCard,setSettlementConfirmPromptCard]=useState(null);
   const [settlementDisputePromptCard,setSettlementDisputePromptCard]=useState(null);
   const todayRootRef = useRef(null);
@@ -372,6 +373,10 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
     if (!card || !actionKind) return;
     if (actionKind === "dispute") {
       setSettlementDisputePromptCard(card);
+      return;
+    }
+    if (actionKind === "claim") {
+      setSettlementClaimPromptCard(card);
       return;
     }
     if (actionKind === "confirm") {
@@ -834,6 +839,42 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
       )
     )
   );
+  const settlementClaimPrompt = settlementClaimPromptCard && React.createElement('div',{className:"overlay center-mobile",onClick:()=>setSettlementClaimPromptCard(null)},
+    React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{maxWidth:320,padding:"18px 16px",textAlign:"center"}},
+      React.createElement('div',{style:{fontSize:18,fontWeight:800,color:"var(--text)",marginBottom:8}},"Mark as paid?"),
+      React.createElement('div',{style:{fontSize:12,color:"var(--muted)",lineHeight:1.45,fontFamily:"'Outfit', sans-serif",fontWeight:600}},"This tells the receiver you paid them."),
+      React.createElement('div',{style:{display:"flex",gap:10,marginTop:16}},
+        React.createElement('button',{
+          onClick:()=>setSettlementClaimPromptCard(null),
+          style:{
+            flex:1,
+            padding:"10px 12px",
+            borderRadius:12,
+            border:"1px solid var(--border)",
+            background:"var(--s2)",
+            color:"var(--muted)",
+            fontWeight:700
+          }
+        },"Cancel"),
+        React.createElement('button',{
+          onClick:async()=>{
+            const card = settlementClaimPromptCard;
+            setSettlementClaimPromptCard(null);
+            await runSettlementCardAction(card, "claim");
+          },
+          style:{
+            flex:1,
+            padding:"10px 12px",
+            borderRadius:12,
+            border:"1px solid rgba(224,80,32,.34)",
+            background:"rgba(224,80,32,.10)",
+            color:"#F06D43",
+            fontWeight:800
+          }
+        },"Mark Paid")
+      )
+    )
+  );
   const settlementConfirmPrompt = settlementConfirmPromptCard && React.createElement('div',{className:"overlay center-mobile",onClick:()=>setSettlementConfirmPromptCard(null)},
     React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{maxWidth:320,padding:"18px 16px",textAlign:"center"}},
       React.createElement('div',{style:{fontSize:18,fontWeight:800,color:"var(--text)",marginBottom:8}},"Confirm this payment?"),
@@ -1267,6 +1308,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
     showSolo && visibleSoloMode && React.createElement(SoloModal,{mode:visibleSoloMode,monthName:modalMonthName,minimumTarget:soloMinimumTarget,maximumTarget:effectiveTarget,defaultTarget:Math.max(soloMinimumTarget, Math.ceil(effectiveTarget * .5)),onClose:()=>{setShowSolo(false);setSoloError("");},onSubmit:submitSolo,submitting:soloSubmitting,error:soloError}),
     showSoloLocked && React.createElement(NoticeModal,{title:"Solo Mode is locked",body:"Solo Mode is only available in the first 10 days of the month.",onClose:()=>setShowSoloLocked(false)}),
     settlementDisputePrompt,
+    settlementClaimPrompt,
     settlementConfirmPrompt,
     statDetailOverlay,
     mobileView,

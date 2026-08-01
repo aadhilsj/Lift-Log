@@ -57,6 +57,29 @@ const ReadOnlyField = ({title,value,review=false,children}) => (
   )
 );
 
+const ReadOnlyWorkoutTypeTile = ({type}) => (
+  React.createElement('div',{
+    style:{
+      minWidth:0,
+      minHeight:46,
+      borderRadius:9,
+      background:"rgba(78,205,196,.07)",
+      border:"0.5px solid rgba(78,205,196,.34)",
+      color:"#4ECDC4",
+      display:"flex",
+      flexDirection:"column",
+      alignItems:"center",
+      justifyContent:"center",
+      gap:2,
+      padding:"5px 2px",
+      fontFamily:UI_FONT
+    }
+  },
+    React.createElement('span',{style:{width:18,height:18,display:"inline-flex",alignItems:"center",justifyContent:"center"}},React.createElement(WorkoutTypeIcon,{type,size:14})),
+    React.createElement('span',{style:{fontSize:7.6,fontWeight:800,lineHeight:1.05,whiteSpace:"nowrap"}},type)
+  )
+);
+
 const ReviewTag = () => (
   React.createElement('span',{style:{display:"inline-flex",alignItems:"center",gap:5,borderRadius:999,padding:"3px 7px",background:"rgba(78,205,196,.08)",border:"0.5px solid rgba(78,205,196,.24)",color:"#4ECDC4",fontFamily:UI_FONT,fontSize:8,fontWeight:800,letterSpacing:".06em",textTransform:"uppercase"}},
     React.createElement('span',{style:{width:5,height:5,borderRadius:999,background:"#4ECDC4",boxShadow:"0 0 10px rgba(78,205,196,.55)"}}),
@@ -215,17 +238,20 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
 
   const renderRules = () => {
     if (!isAdmin) {
+      const readonlySettings = buildNormalizedSettings(group.settings || {});
+      const readonlyTypes = readonlySettings.acceptedWorkoutTypes?.length ? readonlySettings.acceptedWorkoutTypes : WORKOUT_TYPES;
       return React.createElement('div',null,
         React.createElement(ReadOnlyField,{title:"Bloc Name",value:group.name}),
-        React.createElement(ReadOnlyField,{title:"Monthly Fine Amount",value:`${group.settings?.currency || DEFAULT_CURRENCY} ${group.settings?.fineAmount || DEFAULT_FINE_AMOUNT}`}),
-        React.createElement(ReadOnlyField,{title:"Fine Calculation",value:group.settings?.feeModel === "flat" ? "Flat" : "Escalating",review:pendingSet.has("feeModel")}),
-        React.createElement(ReadOnlyField,{title:"Monthly Workout Target",value:`${group.settings?.minTarget || DEFAULT_MIN_TARGET} workouts`}),
-        React.createElement(ReadOnlyField,{title:"Workout Types That Count",review:pendingSet.has("acceptedWorkoutTypes")},
-          React.createElement('div',{style:{display:"flex",gap:7,flexWrap:"wrap"}},
-            (group.settings?.acceptedWorkoutTypes || WORKOUT_TYPES).map(type=>React.createElement('span',{key:type,style:{fontSize:11,fontWeight:700,color:"#f5f7ff"}},type))
+        React.createElement(ReadOnlyField,{title:"Monthly Penalty Amount",value:`${readonlySettings.currency || DEFAULT_CURRENCY} ${readonlySettings.fineAmount || DEFAULT_FINE_AMOUNT}`}),
+        React.createElement(ReadOnlyField,{title:"Penalty Calculation",value:readonlySettings.feeModel === "flat" ? "Flat" : "Escalating"}),
+        readonlySettings.feeModel === "escalating" && React.createElement(ReadOnlyField,{title:"Penalty Increase Per Miss",value:`${readonlySettings.currency || DEFAULT_CURRENCY} ${readonlySettings.escalationStepAmount || DEFAULT_FINE_AMOUNT}`}),
+        React.createElement(ReadOnlyField,{title:"Monthly Workout Target",value:`${readonlySettings.minTarget || DEFAULT_MIN_TARGET} workouts`}),
+        React.createElement(ReadOnlyField,{title:"Workout Types That Count"},
+          React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(5, minmax(0, 1fr))",gap:7,alignItems:"stretch",width:"100%"}},
+            readonlyTypes.map(type=>React.createElement(ReadOnlyWorkoutTypeTile,{key:type,type}))
           )
         ),
-        React.createElement(ReadOnlyField,{title:"Time Zone",value:group.settings?.timeZone || DEFAULT_GROUP_TIME_ZONE,review:pendingSet.has("timeZone")}),
+        React.createElement(ReadOnlyField,{title:"Time Zone",value:readonlySettings.timeZone || DEFAULT_GROUP_TIME_ZONE}),
         React.createElement('div',{style:{fontSize:11,color:"var(--muted)",lineHeight:1.5,marginTop:14}},"Only the Bloc admin can edit these.")
       );
     }
@@ -262,14 +288,14 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
       React.createElement(EditableField,{title:"Bloc Name"},
         React.createElement('input',{value:groupName,onChange:e=>setGroupName(e.target.value),style:{...inputShellStyle,width:"min(100%, 250px)",fontSize:11.5,padding:"7px 9px",borderRadius:9,textAlign:"center",display:"block"}})
       ),
-      React.createElement(EditableField,{title:"Monthly Fine Amount"},
+      React.createElement(EditableField,{title:"Monthly Penalty Amount"},
         React.createElement('div',{style:{display:"grid",gridTemplateColumns:"68px 96px",gap:7,maxWidth:172}},
           React.createElement('div',{style:{...inputShellStyle,padding:"8px 9px",borderRadius:9,fontSize:11,textAlign:"center",color:"var(--muted)",display:"flex",alignItems:"center",justifyContent:"center"}},settings.currency || DEFAULT_CURRENCY),
           React.createElement('input',{type:"number",min:1,value:settings.fineAmount,onChange:e=>setSettings(current=>({...current,fineAmount:e.target.value})),style:{...inputShellStyle,width:"100%",fontSize:12,padding:"8px 9px",borderRadius:9,textAlign:"center"}})
         )
       ),
       React.createElement(ReviewShell,{review:pendingSet.has("feeModel"),onDismiss:()=>dismissReviewField("feeModel")},
-        React.createElement(EditableField,{title:renderRuleTitle("Fine Calculation","feeModel")},
+        React.createElement(EditableField,{title:renderRuleTitle("Penalty Calculation","feeModel")},
           React.createElement('div',{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7,marginBottom:7}},
             ["escalating","flat"].map(value => {
               const active = settings.feeModel === value;
@@ -279,10 +305,10 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
           React.createElement('div',{style:{fontSize:10,color:"var(--muted)",lineHeight:1.35}},
             settings.feeModel === "flat"
               ? "Everyone who misses the target pays the same fixed amount."
-              : "Each extra miss raises the fine for everyone who missed."
+              : "Each extra miss raises the penalty for everyone who missed."
           ),
           settings.feeModel === "escalating" && React.createElement('div',{style:{marginTop:10}},
-            React.createElement('div',{style:{fontSize:10,fontWeight:800,color:"var(--text)",marginBottom:6}},"Fine Increase Per Miss"),
+            React.createElement('div',{style:{fontSize:10,fontWeight:800,color:"var(--text)",marginBottom:6}},"Penalty Increase Per Miss"),
             React.createElement(StepperField,{value:settings.escalationStepAmount,onChange:value=>setSettings(current=>({...current,escalationStepAmount:value})),min:1,compact:true,suffix:settings.currency || DEFAULT_CURRENCY}),
             submitAttempted && escalationStepMissing && React.createElement('div',{style:{fontSize:11,color:"var(--red)",marginTop:7}},"Set a step amount to continue.")
           )
