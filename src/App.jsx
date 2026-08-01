@@ -2540,7 +2540,7 @@ const App = () => {
     React.createElement('div',{style:{position:"relative",overflow:"hidden",minHeight:"calc(100vh - 64px)"}},
       showSettings && React.createElement('div',{style:{position:"absolute",inset:"0 0 auto 0",zIndex:1,pointerEvents:"none"}},renderInBlocPage(page,{swipePreview:true})),
       showSettings
-        ? React.createElement(BlocSettingsScreen,{group:currentGroup,actor:currentUser,actorUserId:authSession?.userId,isAdmin:isGroupAdmin,onSave:handleUpdateGroupSettings,onClose:()=>setShowSettings(false),saving:savingSettings,onReviewSetup:isGroupAdmin?handleReviewSetupDefaults:null,onReviewSitOut:isGroupAdmin?handleSitOutReview:null,onReviewSolo:isGroupAdmin?handleSoloReview:null,onKickMember:isGroupAdmin?handleKickMember:null})
+        ? React.createElement(BlocSettingsScreen,{group:currentGroup,actor:currentUser,actorUserId:authSession?.userId,isAdmin:isGroupAdmin,onSave:handleUpdateGroupSettings,onClose:()=>setShowSettings(false),saving:savingSettings,onReviewSetup:isGroupAdmin?handleReviewSetupDefaults:null,onReviewSitOut:isGroupAdmin?handleSitOutReview:null,onReviewSolo:isGroupAdmin?handleSoloReview:null,onKickMember:isGroupAdmin?handleKickMember:null,localDevMode})
         : activePageLayer
     ),
     showInstallBanner && React.createElement(InstallBanner,{

@@ -102,7 +102,7 @@ const EditableField = ({title,description,children}) => (
   )
 );
 
-const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,saving,onReviewSetup,onReviewSitOut,onReviewSolo,onKickMember}) => {
+const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,saving,onReviewSetup,onReviewSitOut,onReviewSolo,onKickMember,localDevMode=false}) => {
   const compactMobile = isMobile();
   const [tab,setTab]=useState("rules");
   const [groupName,setGroupName]=useState(group?.name || "");
@@ -402,6 +402,7 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
   );
 
   const content = tab === "members" ? renderMembers() : tab === "invite" ? renderInvite() : renderRules();
+  const surfaceHeight = localDevMode ? "calc(100dvh - 130px)" : "calc(100dvh - 64px)";
 
   return React.createElement('div',{
     ref:surfaceRef,
@@ -409,7 +410,7 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
     onTouchMove:moveSwipeBack,
     onTouchEnd:endSwipeBack,
     onTouchCancel:resetSwipe,
-    style:{position:"relative",zIndex:2,height:"calc(100dvh - 64px)",minHeight:"calc(100vh - 64px)",background:"var(--bg-gradient)",backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)",backgroundColor:"#050909",overflowY:"auto",overflowX:"hidden",WebkitOverflowScrolling:"touch",overscrollBehavior:"contain",isolation:"isolate",transform:dragX?`translateX(${dragX}px)`:"translateX(0)",transition:dragging?"none":"transform .08s ease-out",boxShadow:dragX?"-18px 0 34px rgba(0,0,0,.28)":"none",willChange:dragging||dragX?"transform":"auto",touchAction:"pan-y"}
+    style:{position:"relative",zIndex:2,height:surfaceHeight,minHeight:0,background:"var(--bg-gradient)",backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)",backgroundColor:"#050909",overflowY:"auto",overflowX:"hidden",WebkitOverflowScrolling:"touch",overscrollBehavior:"contain",isolation:"isolate",transform:dragX?`translateX(${dragX}px)`:"translateX(0)",transition:dragging?"none":"transform .08s ease-out",boxShadow:dragX?"-18px 0 34px rgba(0,0,0,.28)":"none",willChange:dragging||dragX?"transform":"auto",touchAction:"pan-y"}
   },
     React.createElement('div',{style:{maxWidth:560,margin:"0 auto",padding:compactMobile?"8px 16px calc(env(safe-area-inset-bottom) + 22px)":"16px 18px 34px"}},
       React.createElement('div',{style:{display:"grid",gridTemplateColumns:"38px 1fr 38px",alignItems:"center",minHeight:36,marginBottom:7}},
