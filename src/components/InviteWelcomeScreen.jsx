@@ -24,14 +24,14 @@ const StatusPill = ({status}) => {
       display:"inline-flex",
       alignItems:"center",
       justifyContent:"center",
-      minWidth:62,
-      padding:"5px 9px",
+      minWidth:56,
+      padding:"4px 8px",
       borderRadius:999,
       background:meta.bg,
       border:`0.5px solid ${meta.border}`,
       color:meta.color,
       fontFamily:"'Outfit', sans-serif",
-      fontSize:10,
+      fontSize:9.5,
       fontWeight:900,
       letterSpacing:".08em",
       lineHeight:1,
@@ -65,20 +65,12 @@ const getMemberRows = ({group, currentUserId, profilePhotoByUserId}) => {
 
 const InviteWelcomeScreen = ({group, currentUserId, profilePhotoByUserId, onContinue}) => {
   const target = Number(group?.settings?.minTarget || group?.target || MIN_TARGET);
-  const summary = group?.inviteWelcomeSummary || {};
-  const daysLeft = Number.isFinite(Number(summary.daysLeft))
-    ? Number(summary.daysLeft)
-    : (() => {
-        const now = new Date();
-        const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-        return Math.max(1, daysInMonth - now.getDate() + 1);
-      })();
   const rows = getMemberRows({group, currentUserId, profilePhotoByUserId});
 
   return React.createElement('main',{
     style:{
       minHeight:"100vh",
-      padding:"calc(env(safe-area-inset-top) + 26px) 20px calc(env(safe-area-inset-bottom) + 28px)",
+      padding:"calc(env(safe-area-inset-top) + 24px) 24px calc(env(safe-area-inset-bottom) + 28px)",
       display:"flex",
       flexDirection:"column",
       justifyContent:"center",
@@ -88,47 +80,47 @@ const InviteWelcomeScreen = ({group, currentUserId, profilePhotoByUserId, onCont
     }
   },
     React.createElement('section',{
-      style:{width:"100%",maxWidth:440,margin:"0 auto",display:"grid",gap:22}
+      style:{width:"100%",maxWidth:420,margin:"0 auto",display:"grid",gap:20}
     },
-      React.createElement('div',{style:{display:"grid",gap:14,justifyItems:"center",textAlign:"center"}},
+      React.createElement('div',{style:{display:"grid",gap:13,justifyItems:"center",textAlign:"center"}},
         React.createElement(AnteWordmark,{size:70}),
-        React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontSize:12,fontWeight:900,letterSpacing:".14em",color:"#4ECDC4"}},"YOU'RE IN"),
-        React.createElement('h1',{style:{margin:0,fontFamily:"'Raleway', sans-serif",fontSize:36,fontWeight:900,lineHeight:1.02,letterSpacing:0}},
-          `${group?.name || "Your Bloc"} just got sharper.`
+        React.createElement('h1',{style:{margin:0,fontFamily:"'Raleway', sans-serif",fontSize:32,fontWeight:900,lineHeight:1,letterSpacing:".02em",color:"#4ECDC4",textTransform:"uppercase"}},
+          "YOU'RE IN"
         ),
-        React.createElement('p',{style:{margin:0,maxWidth:360,fontFamily:"'Outfit', sans-serif",fontSize:15,fontWeight:700,lineHeight:1.42,color:"var(--text-soft)"}},
-          `Your Bloc's target: ${target} workouts this month. ${daysLeft} day${daysLeft === 1 ? "" : "s"} left. Log your first one and get on the board.`
+        React.createElement('p',{style:{margin:0,maxWidth:340,fontFamily:"'Outfit', sans-serif",fontSize:14,fontWeight:800,lineHeight:1.42,color:"var(--text-soft)",textAlign:"center"}},
+          React.createElement('span',{style:{display:"block"}},`Your Bloc's target: ${target} workouts`),
+          React.createElement('span',{style:{display:"block"}}, "Log your first one and get on the board.")
         )
       ),
       React.createElement('div',{
         style:{
-          borderRadius:20,
+          borderRadius:18,
           overflow:"hidden",
           background:"rgba(8,15,15,.88)",
           border:"0.5px solid rgba(78,205,196,.2)",
-          boxShadow:"0 24px 70px rgba(0,0,0,.34), 0 0 36px rgba(78,205,196,.08)"
+          boxShadow:"0 20px 54px rgba(0,0,0,.32), 0 0 28px rgba(78,205,196,.07)"
         }
       },
-        React.createElement('div',{style:{padding:"15px 17px",borderBottom:"0.5px solid rgba(78,205,196,.14)",fontFamily:"'Outfit', sans-serif",fontSize:11,fontWeight:900,letterSpacing:".12em",color:"#4ECDC4"}},
-          `${group?.name || "YOUR BLOC"} · BLOC LEADERBOARD`
+        React.createElement('div',{style:{padding:"12px 15px",borderBottom:"0.5px solid rgba(78,205,196,.14)",fontFamily:"'Outfit', sans-serif",fontSize:10,fontWeight:900,letterSpacing:".12em",color:"#4ECDC4",textAlign:"left"}},
+          "BLOC LEADERBOARD"
         ),
         rows.map((row, index) => React.createElement('div',{
           key:`${row.userId || row.name}-${index}`,
           style:{
             display:"grid",
-            gridTemplateColumns:"28px 36px minmax(0,1fr) auto 34px",
+            gridTemplateColumns:"24px 32px minmax(0,1fr) auto 28px",
             alignItems:"center",
-            gap:10,
-            padding:"13px 16px",
+            gap:9,
+            padding:"11px 14px",
             background:row.userId === currentUserId ? "rgba(78,205,196,.08)" : "transparent",
             borderBottom:index < rows.length - 1 ? "0.5px solid rgba(78,205,196,.1)" : "none"
           }
         },
-          React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontSize:13,fontWeight:900,color:"var(--muted)",textAlign:"right"}},`#${index + 1}`),
-          React.createElement(Avatar,{name:row.name,userId:row.userId,photoUrl:row.photoUrl,size:34}),
-          React.createElement('div',{style:{minWidth:0,fontFamily:"'Outfit', sans-serif",fontSize:17,fontWeight:900,color:"var(--text)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},row.name),
+          React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontSize:12,fontWeight:900,color:"var(--muted)",textAlign:"right"}},`#${index + 1}`),
+          React.createElement(Avatar,{name:row.name,userId:row.userId,photoUrl:row.photoUrl,size:31}),
+          React.createElement('div',{style:{minWidth:0,fontFamily:"'Outfit', sans-serif",fontSize:15,fontWeight:900,color:"var(--text)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},row.name),
           React.createElement(StatusPill,{status:row.status}),
-          React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontSize:18,fontWeight:900,color:"#4ECDC4",textAlign:"right"}},row.count)
+          React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontSize:16,fontWeight:900,color:"#4ECDC4",textAlign:"right"}},row.count)
         ))
       ),
       React.createElement('button',{
@@ -146,7 +138,7 @@ const InviteWelcomeScreen = ({group, currentUserId, profilePhotoByUserId, onCont
           fontWeight:900,
           boxShadow:"0 18px 44px rgba(78,205,196,.24)"
         }
-      },"Let's go")
+      },"Go To Bloc")
     )
   );
 };

@@ -278,6 +278,7 @@ const App = () => {
   const [inviteError,setInviteError]=useState("");
   const [joiningGroup,setJoiningGroup]=useState(false);
   const [inviteWelcomeGroupId,setInviteWelcomeGroupId]=useState(null);
+  const [inviteWelcomeDownloadPromptEnabled,setInviteWelcomeDownloadPromptEnabled]=useState(false);
   const [inviteDownloadPrompt,setInviteDownloadPrompt]=useState(null);
   const [pendingProrationGroupId,setPendingProrationGroupId]=useState(null);
   const [prorationSavingChoice,setProrationSavingChoice]=useState(null);
@@ -362,15 +363,16 @@ const App = () => {
     }, 2200);
   },[]);
 
-  const completeInviteJoin = useCallback(({groupId, userId, inviteCode}) => {
+  const completeInviteJoin = useCallback(({groupId, userId, inviteCode, promptDownload=false}) => {
     if (!groupId) return;
     persistGroupSelection(groupId);
     setPage("today");
     persistInviteWebHandoffMarker({ userId, groupId, inviteCode });
     if (hasSeenInviteWelcome(userId, groupId)) {
-      scheduleInviteDownloadPrompt(groupId);
+      if (promptDownload) scheduleInviteDownloadPrompt(groupId);
       return;
     }
+    setInviteWelcomeDownloadPromptEnabled(Boolean(promptDownload));
     setInviteWelcomeGroupId(groupId);
   },[persistGroupSelection, scheduleInviteDownloadPrompt]);
 
@@ -1284,6 +1286,9 @@ const App = () => {
     }
     persistSession(null);
     persistGroupSelection(null);
+    setPendingAuthSession(null);
+    setAuthDisplayName("");
+    setAuthError("");
     setShowSettings(false);
     setShowProfileModal(false);
   };
@@ -1829,6 +1834,7 @@ const App = () => {
     setAuthStep(null);
     setAuthIntent(null);
     setAuthCode("");
+    setAuthDisplayName("");
     setAuthError("");
     setDevOtpCode("");
     setPendingAuthSession(null);
@@ -1860,7 +1866,7 @@ const App = () => {
   // Single join path shared by the onboarding flow, the invite-link flow and the
   // signed-in Join modal. Membership is granted by the invite code alone — never
   // by a display name.
-  const joinWithInviteCode = async (session, rawCode) => {
+  const joinWithInviteCode = async (session, rawCode, options = {}) => {
     const inviteCode = String(rawCode || "").trim().toUpperCase();
     if (!session?.userId || !inviteCode) return { ok:false, error:"Enter an invite code" };
     setJoiningGroup(true);
@@ -1879,7 +1885,7 @@ const App = () => {
       return next;
     });
     resetInviteFlow({ clearUrl:true });
-    completeInviteJoin({ groupId: result.joinedGroupId, userId: session.userId, inviteCode });
+    completeInviteJoin({ groupId: result.joinedGroupId, userId: session.userId, inviteCode, promptDownload:Boolean(options.promptDownload) });
     setReturnToColdOnboardingOnCreateCancel(false);
     setReturnToColdOnboardingOnJoinCancel(false);
     setOnboardingJoinCodeStep(false);
@@ -1950,6 +1956,7 @@ const App = () => {
     setSendingOtp(true);
     setAuthError("");
     const normalizedEmail = authEmail.trim();
+    setAuthDisplayName("");
     const onboardingAccountAction = Boolean(authIntent?.fromOnboarding) && (authIntent?.type === "create" || authIntent?.type === "join");
     if (authIntent?.type === "signup") {
       const existingAccount = await checkAuthEmailExistsData(normalizedEmail);
@@ -2027,7 +2034,7 @@ const App = () => {
       accessToken: result.session.accessToken || authSession?.accessToken || null,
       localDevOtp: Boolean(result.session.localDevOtp)
     };
-    const syncedState = result.state || appState;
+    const syncedState = result.state || (nextSession.userId === authSession?.userId ? appState : null);
     let nextProfile = getProfileForSession(syncedState, nextSession);
     const hasExistingFeroAccount = authIntent?.type === "signup" && (
       Boolean(nextProfile?.displayName)
@@ -2042,9 +2049,11 @@ const App = () => {
       setAuthError("This email already has a Fero account. Sign in instead.");
       return;
     }
-    const needsProfileSetup = typeof result.session.needsProfileSetup === "boolean"
-      ? result.session.needsProfileSetup
-      : !nextProfile?.displayName;
+    const needsProfileSetup = syncedState
+      ? (typeof result.session.needsProfileSetup === "boolean"
+          ? result.session.needsProfileSetup
+          : !nextProfile?.displayName)
+      : true;
 
     // Move to the display-name screen BEFORE the session is persisted, so the
     // app never renders an empty Bloc switcher in the gap between OTP success
@@ -2112,7 +2121,7 @@ const App = () => {
     }
     if (shouldAutoJoin) {
       setPendingJoinAfterProfile(false);
-      const joinResult = await joinWithInviteCode(activeSession, pendingInviteCode);
+      const joinResult = await joinWithInviteCode(activeSession, pendingInviteCode, { promptDownload:Boolean(inviteContext?.inviteCode && !completedIntentObj?.fromOnboarding) });
       if (joinResult?.ok) setPostAuthProgressStage("openingBloc");
       setPostAuthActionPending(false);
       if (!joinResult?.ok) {
@@ -2151,7 +2160,7 @@ const App = () => {
       setAuthStep("name");
       return;
     }
-    await joinWithInviteCode(authSession, joinCode);
+    await joinWithInviteCode(authSession, joinCode, { promptDownload:Boolean(inviteContext?.inviteCode) });
   };
 
   const handleInviteWelcomeContinue = useCallback(() => {
@@ -2161,8 +2170,10 @@ const App = () => {
     persistGroupSelection(groupId);
     setPage("today");
     setInviteWelcomeGroupId(null);
-    scheduleInviteDownloadPrompt(groupId);
-  },[authSession?.userId, inviteWelcomeGroupId, persistGroupSelection, scheduleInviteDownloadPrompt]);
+    const shouldPromptDownload = inviteWelcomeDownloadPromptEnabled;
+    setInviteWelcomeDownloadPromptEnabled(false);
+    if (shouldPromptDownload) scheduleInviteDownloadPrompt(groupId);
+  },[authSession?.userId, inviteWelcomeDownloadPromptEnabled, inviteWelcomeGroupId, persistGroupSelection, scheduleInviteDownloadPrompt]);
 
   const dismissInviteDownloadPrompt = useCallback(() => {
     if (inviteDownloadPromptTimerRef.current) clearTimeout(inviteDownloadPromptTimerRef.current);
