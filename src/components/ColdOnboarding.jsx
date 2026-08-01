@@ -259,9 +259,9 @@ const SettlementPreview = () => {
 };
 
 const BlocStarterPreview = ({blocName,setBlocName}) => {
-  return React.createElement('div',{style:{...cardShell,padding:16,boxSizing:"border-box"}},
-    React.createElement('label',{style:{display:"block",marginBottom:16}},
-      React.createElement('div',{style:{...previewLabel,marginBottom:8}},"BLOC NAME"),
+  return React.createElement('div',{style:{...cardShell,padding:14,boxSizing:"border-box"}},
+    React.createElement('label',{style:{display:"block"}},
+      React.createElement('div',{style:{...previewLabel,marginBottom:6}},"BLOC NAME"),
       React.createElement('input',{
         value:blocName,
         onChange:event=>setBlocName(event.target.value),
@@ -269,42 +269,19 @@ const BlocStarterPreview = ({blocName,setBlocName}) => {
         style:{
           width:"100%",
           boxSizing:"border-box",
-          height:50,
-          borderRadius:16,
+          height:46,
+          borderRadius:14,
           background:"linear-gradient(180deg, rgba(18,27,34,.98), rgba(12,22,24,.98))",
           border:"0.5px solid rgba(78,205,196,.52)",
-          boxShadow:"0 0 0 3px rgba(78,205,196,.1), inset 0 1px 0 rgba(255,255,255,.08), 0 12px 24px rgba(0,0,0,.2)",
+          boxShadow:"0 0 0 3px rgba(78,205,196,.08), inset 0 1px 0 rgba(255,255,255,.08), 0 10px 20px rgba(0,0,0,.18)",
           color:"#f5f7ff",
           caretColor:"#4ECDC4",
-          fontSize:17,
+          fontSize:16,
           fontWeight:800,
           outline:"none",
-          padding:"0 15px"
+          padding:"0 14px"
         }
       })
-    ),
-    React.createElement('div',{style:{...previewLabel,marginBottom:10}},"INVITE SLOTS"),
-    React.createElement('div',{style:{display:"flex",alignItems:"center",gap:10}},
-      [0,1,2,3,4].map(index=>React.createElement('div',{
-        key:index,
-        style:{
-          width:44,
-          height:44,
-          borderRadius:999,
-          display:"inline-flex",
-          alignItems:"center",
-          justifyContent:"center",
-          flexShrink:0,
-          background:index===0?"rgba(78,205,196,.16)":"rgba(8,15,15,.42)",
-          border:index===0?"0.5px solid rgba(78,205,196,.5)":"0.5px dashed rgba(143,174,170,.28)",
-          color:index===0?"#4ECDC4":"rgba(143,174,170,.42)",
-          fontFamily:"'Outfit',sans-serif",
-          fontSize:index===0?10:14,
-          fontWeight:900,
-          letterSpacing:index===0?".06em":0,
-          pointerEvents:"none"
-        }
-      }, index===0?"YOU":React.createElement('span',{style:{transform:"translateY(-1px)",opacity:.62}},"+")))
     )
   );
 };
