@@ -195,9 +195,32 @@ const GroupCreateModal = ({onCreate,onClose,creating,defaultCreatorName="",defau
   const normalizedSettings = buildNormalizedSettings(settings);
   const escalationStepMissing = normalizedSettings.feeModel === "escalating" && normalizedSettings.escalationStepAmount === null;
   const canCreate = groupName.trim() && creatorName.trim() && normalizedSettings.acceptedWorkoutTypes.length > 0 && !creating;
+  const createProgressSteps = ["Creating your Bloc", "Doing the final touches", "Almost done", "Opening your Bloc"];
+  const [createProgressStep,setCreateProgressStep]=useState(0);
 
-  return React.createElement('div',{className:`overlay${compactMobile ? " center-mobile" : ""}`,onClick:onClose},
-    React.createElement('div',{className:"modal setup-create-modal",onClick:e=>e.stopPropagation(),style:{maxWidth:400,padding:"24px 20px 18px",fontFamily:UI_FONT,background:"radial-gradient(circle at 50% -18%, rgba(78,205,196,.16), transparent 36%), linear-gradient(180deg, rgba(11,25,24,.98), rgba(7,15,14,.98))",border:"0.5px solid rgba(78,205,196,.22)",boxShadow:"inset 0 1px 0 rgba(255,255,255,.07), 0 22px 54px rgba(0,0,0,.46), 0 0 42px rgba(78,205,196,.08)"}},
+  useEffect(()=>{
+    if (!creating) {
+      setCreateProgressStep(0);
+      return undefined;
+    }
+    const timers = [
+      window.setTimeout(()=>setCreateProgressStep(1), 2200),
+      window.setTimeout(()=>setCreateProgressStep(2), 4700),
+      window.setTimeout(()=>setCreateProgressStep(3), 7200)
+    ];
+    return ()=>timers.forEach(timer=>window.clearTimeout(timer));
+  },[creating]);
+
+  return React.createElement('div',{className:`overlay${compactMobile ? " center-mobile" : ""}`,onClick:creating ? undefined : onClose},
+    React.createElement('div',{className:"modal setup-create-modal",onClick:e=>e.stopPropagation(),style:{position:"relative",overflow:"hidden",maxWidth:400,padding:"24px 20px 18px",fontFamily:UI_FONT,background:"radial-gradient(circle at 50% -18%, rgba(78,205,196,.16), transparent 36%), linear-gradient(180deg, rgba(11,25,24,.98), rgba(7,15,14,.98))",border:"0.5px solid rgba(78,205,196,.22)",boxShadow:"inset 0 1px 0 rgba(255,255,255,.07), 0 22px 54px rgba(0,0,0,.46), 0 0 42px rgba(78,205,196,.08)"}},
+      creating && React.createElement('div',{style:{position:"absolute",inset:0,zIndex:4,display:"grid",placeItems:"center",padding:24,background:"radial-gradient(circle at 50% 8%, rgba(78,205,196,.14), transparent 38%), rgba(7,15,14,.96)",backdropFilter:"blur(8px)"}},
+        React.createElement('div',{style:{width:"min(220px, 78%)",display:"grid",gap:12,justifyItems:"center"}},
+          React.createElement('div',{style:{fontFamily:UI_FONT,fontSize:14,fontWeight:900,color:"var(--text)",textAlign:"center"}},createProgressSteps[createProgressStep]),
+          React.createElement('div',{style:{width:"100%",height:5,borderRadius:999,background:"rgba(78,205,196,.13)",border:"1px solid rgba(78,205,196,.13)",overflow:"hidden"}},
+            React.createElement('div',{style:{height:"100%",width:`${[24,50,76,94][createProgressStep]}%`,borderRadius:999,background:"#4ECDC4",boxShadow:"0 0 16px rgba(78,205,196,.28)",transition:"width .55s ease"}})
+          )
+        )
+      ),
       React.createElement('div',{style:{fontFamily:DISPLAY_FONT,fontWeight:800,fontSize:22,letterSpacing:0,lineHeight:1.08,marginBottom:6}},"Create a Bloc"),
       React.createElement('div',{style:{fontFamily:UI_FONT,color:"var(--muted)",fontSize:13,lineHeight:1.35,marginBottom:17,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},"Start the Bloc now. Tune the rules after."),
       [
@@ -231,7 +254,7 @@ const GroupCreateModal = ({onCreate,onClose,creating,defaultCreatorName="",defau
       ),
       submitAttempted && escalationStepMissing && React.createElement('div',{style:{fontSize:12,color:"var(--red)",marginTop:-6,marginBottom:10}},"Set a step amount to continue."),
       React.createElement('div',{style:{display:"grid",gridTemplateColumns:"0.82fr 1.18fr",gap:9,marginTop:18}},
-        React.createElement('button',{className:"setup-press",onClick:onClose,style:{background:"transparent",border:"1px solid #163d36",color:"var(--muted)",padding:"13px 12px",borderRadius:11,fontFamily:UI_FONT,fontSize:14,fontWeight:700}},"Cancel"),
+        React.createElement('button',{className:"setup-press",disabled:creating,onClick:onClose,style:{background:"transparent",border:"1px solid #163d36",color:"var(--muted)",padding:"13px 12px",borderRadius:11,fontFamily:UI_FONT,fontSize:14,fontWeight:700}},"Cancel"),
         React.createElement('button',{className:"setup-press",disabled:!canCreate,onClick:()=>{
           setSubmitAttempted(true);
           if (!canCreate || escalationStepMissing) return;

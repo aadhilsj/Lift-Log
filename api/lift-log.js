@@ -4485,6 +4485,23 @@ async function persistOrSkipBlobMirror(nextState, reason, action) {
   });
 }
 
+async function persistAndScopeReadableStateForUser(nextState, reason, action, userId) {
+  const persisted = action
+    ? await persistOrSkipBlobMirror(nextState, reason, action)
+    : await persistState(nextState, reason);
+  const readable = action && shouldSkipBlobMirrorForAction(action)
+    ? persisted
+    : await fetchReadableCurrentState();
+  const scoped = scopeReadableStateForUser(readable, userId);
+  return applyEffectiveRevision(scoped, {
+    revision: Math.max(
+      Number(scoped?.meta?.revision) || 0,
+      Number(persisted?.meta?.revision) || 0
+    ),
+    canonicalUpdatedAt: persisted?.meta?.updatedAt || scoped?.meta?.updatedAt || null
+  });
+}
+
 async function fetchCurrentStateFromSupabase() {
   assertSupabaseConfigured();
   const response = await supabaseFetch("/rest/v1/lift_log_state?id=eq.true&select=state,revision,updated_at", {
@@ -8317,8 +8334,8 @@ export default async function handler(req, res) {
             { throwOnError: true }
           );
         }
-        const persisted = await persistState(result.updated, result.reason);
-        return res.status(200).json(persisted);
+        const readableState = await persistAndScopeReadableStateForUser(result.updated, result.reason, null, auth.user.id);
+        return res.status(200).json(readableState);
       }
 
       if (payload?.action === "create-group") {
@@ -8350,8 +8367,8 @@ export default async function handler(req, res) {
           await syncBlocMemberToCanonical(newGroup, auth.user.id, "admin", { throwOnError: true });
           await seedOpenSeasonMemberStatusInCanonical(newGroup, newGroup?.lastMonth, creatorName, auth.user.id, { throwOnError: true });
         }
-        const persisted = await persistOrSkipBlobMirror(created.state, `create-group:${created.createdGroupId}`, "create-group");
-        return res.status(200).json({ state: persisted, createdGroupId: created.createdGroupId });
+        const readableState = await persistAndScopeReadableStateForUser(created.state, `create-group:${created.createdGroupId}`, "create-group", auth.user.id);
+        return res.status(200).json({ state: readableState, createdGroupId: created.createdGroupId });
       }
 
       if (payload?.action === "upsert-profile") {
@@ -8399,8 +8416,8 @@ export default async function handler(req, res) {
           const memberRole = group.memberships[auth.user.id].role || "member";
           await syncBlocMemberToCanonical(group, auth.user.id, memberRole, { throwOnError: true });
         }
-        const persisted = await persistOrSkipBlobMirror(updated, `profile:${auth.user.id}`, "upsert-profile");
-        return res.status(200).json(persisted);
+        const readableState = await persistAndScopeReadableStateForUser(updated, `profile:${auth.user.id}`, "upsert-profile", auth.user.id);
+        return res.status(200).json(readableState);
       }
 
       if (payload?.action === "update-profile-photo") {
@@ -8425,8 +8442,8 @@ export default async function handler(req, res) {
           profilePhotoUrl,
           { throwOnError: true }
         );
-        const persisted = await persistState(updated, `profile-photo:${auth.user.id}`);
-        return res.status(200).json(persisted);
+        const readableState = await persistAndScopeReadableStateForUser(updated, `profile-photo:${auth.user.id}`, null, auth.user.id);
+        return res.status(200).json(readableState);
       }
 
       if (payload?.action === "upload-profile-photo") {
@@ -8451,8 +8468,8 @@ export default async function handler(req, res) {
           profilePhotoUrl,
           { throwOnError: true }
         );
-        const persisted = await persistState(updated, `profile-photo:${auth.user.id}`);
-        return res.status(200).json({ state: persisted, profilePhotoUrl });
+        const readableState = await persistAndScopeReadableStateForUser(updated, `profile-photo:${auth.user.id}`, null, auth.user.id);
+        return res.status(200).json({ state: readableState, profilePhotoUrl });
       }
 
       if (payload?.action === "join-group") {
@@ -8501,8 +8518,8 @@ export default async function handler(req, res) {
             { throwOnError: true }
           );
         }
-        const persisted = await persistOrSkipBlobMirror(joined.state, `join-group:${joined.joinedGroupId}:${auth.user.id}`, "join-group");
-        return res.status(200).json({ state: persisted, joinedGroupId: joined.joinedGroupId });
+        const readableState = await persistAndScopeReadableStateForUser(joined.state, `join-group:${joined.joinedGroupId}:${auth.user.id}`, "join-group", auth.user.id);
+        return res.status(200).json({ state: readableState, joinedGroupId: joined.joinedGroupId });
       }
 
       if (payload?.action === "kick-member") {
@@ -8537,8 +8554,8 @@ export default async function handler(req, res) {
           );
         }
         const kickMirrorAction = payload.targetUserId ? "kick-member" : "kick-member-legacy-name";
-        const persisted = await persistOrSkipBlobMirror(updated, `kick-member:${payload.groupId}:${payload.targetUserId}`, kickMirrorAction);
-        return res.status(200).json({ ok: true, state: persisted });
+        const readableState = await persistAndScopeReadableStateForUser(updated, `kick-member:${payload.groupId}:${payload.targetUserId}`, kickMirrorAction, auth.user.id);
+        return res.status(200).json({ ok: true, state: readableState });
       }
 
       if (payload?.action === "leave-bloc") {
@@ -8658,8 +8675,8 @@ export default async function handler(req, res) {
         if (shadowBlobUpdated) {
           await runWriteHydrationMultiLogParityProbe(payload, auth, actor, shadowBlobUpdated);
         }
-        const persisted = await persistOrSkipBlobMirror(updated, reason, "multi-log");
-        return res.status(200).json(persisted);
+        const readableState = await persistAndScopeReadableStateForUser(updated, reason, "multi-log", auth.user.id);
+        return res.status(200).json(readableState);
       }
 
       if (payload?.action === "add-log") {
@@ -8701,8 +8718,8 @@ export default async function handler(req, res) {
         if (shadowBlobUpdated) {
           await runWriteHydrationParityProbe("add-log", payload, auth, actor, shadowBlobUpdated.updated, applyAddLog);
         }
-        const persisted = await persistOrSkipBlobMirror(result.updated, result.reason, "add-log");
-        return res.status(200).json(persisted);
+        const readableState = await persistAndScopeReadableStateForUser(result.updated, result.reason, "add-log", auth.user.id);
+        return res.status(200).json(readableState);
       }
 
       if (payload?.action === "update-settings") {
@@ -8749,8 +8766,8 @@ export default async function handler(req, res) {
             );
           }
         }
-        const persisted = await persistOrSkipBlobMirror(updated, `settings:${payload.groupId}:${canonicalActor || actor || auth.user.id}`, "update-settings");
-        return res.status(200).json(persisted);
+        const readableState = await persistAndScopeReadableStateForUser(updated, `settings:${payload.groupId}:${canonicalActor || actor || auth.user.id}`, "update-settings", auth.user.id);
+        return res.status(200).json(readableState);
       }
 
       if (payload?.action === "season-proration-choice") {
@@ -8791,8 +8808,8 @@ export default async function handler(req, res) {
             { throwOnError: true }
           );
         }
-        const persisted = await persistOrSkipBlobMirror(updated, `season-proration:${payload.groupId}:${payload.choice}`, "season-proration-choice");
-        return res.status(200).json(persisted);
+        const readableState = await persistAndScopeReadableStateForUser(updated, `season-proration:${payload.groupId}:${payload.choice}`, "season-proration-choice", auth.user.id);
+        return res.status(200).json(readableState);
       }
 
       if (payload?.action === "sitout-request") {
@@ -8856,8 +8873,8 @@ export default async function handler(req, res) {
             );
           }
         }
-        const persisted = await persistState(updated, `sitout-request:${payload.groupId}:${canonicalActor || actor || auth.user.id}`);
-        return res.status(200).json(persisted);
+        const readableState = await persistAndScopeReadableStateForUser(updated, `sitout-request:${payload.groupId}:${canonicalActor || actor || auth.user.id}`, null, auth.user.id);
+        return res.status(200).json(readableState);
       }
 
       if (payload?.action === "sitout-review") {
@@ -8918,8 +8935,8 @@ export default async function handler(req, res) {
             );
           }
         }
-        const persisted = await persistState(updated, `sitout-review:${payload.groupId}:${payload.memberName}:${payload.decision}`);
-        return res.status(200).json(persisted);
+        const readableState = await persistAndScopeReadableStateForUser(updated, `sitout-review:${payload.groupId}:${payload.memberName}:${payload.decision}`, null, auth.user.id);
+        return res.status(200).json(readableState);
       }
 
       if (payload?.action === "solo-request") {
@@ -8976,8 +8993,8 @@ export default async function handler(req, res) {
             { throwOnError: true }
           );
         }
-        const persisted = await persistState(updated, `solo-request:${payload.groupId}:${canonicalActor || actor || auth.user.id}`);
-        return res.status(200).json(persisted);
+        const readableState = await persistAndScopeReadableStateForUser(updated, `solo-request:${payload.groupId}:${canonicalActor || actor || auth.user.id}`, null, auth.user.id);
+        return res.status(200).json(readableState);
       }
 
       if (payload?.action === "solo-review") {
@@ -9035,8 +9052,8 @@ export default async function handler(req, res) {
             );
           }
         }
-        const persisted = await persistState(updated, `solo-review:${payload.groupId}:${payload.memberName}:${payload.decision}`);
-        return res.status(200).json(persisted);
+        const readableState = await persistAndScopeReadableStateForUser(updated, `solo-review:${payload.groupId}:${payload.memberName}:${payload.decision}`, null, auth.user.id);
+        return res.status(200).json(readableState);
       }
 
       if (payload?.action === "reaction") {
@@ -9073,8 +9090,8 @@ export default async function handler(req, res) {
             : (reactionLog.reactions?.[emoji] || []).includes(canonicalActor);
           await toggleWorkoutReactionInCanonical(payload.logId, auth.user.id, canonicalActor, emoji, isAdding, { throwOnError: true });
         }
-        const persisted = await persistOrSkipBlobMirror(result.updated, result.reason, "reaction");
-        return res.status(200).json(persisted);
+        const readableState = await persistAndScopeReadableStateForUser(result.updated, result.reason, "reaction", auth.user.id);
+        return res.status(200).json(readableState);
       }
 
       if (payload?.action === "flag") {
@@ -9097,8 +9114,8 @@ export default async function handler(req, res) {
         if (group && log) {
           await syncOpenWorkoutLogSnapshotToCanonical(group, payload.owner, log, { throwOnError: true });
         }
-        const persisted = await persistOrSkipBlobMirror(result.updated, result.reason, "flag");
-        return res.status(200).json(persisted);
+        const readableState = await persistAndScopeReadableStateForUser(result.updated, result.reason, "flag", auth.user.id);
+        return res.status(200).json(readableState);
       }
 
       if (payload?.action === "flag-response") {
@@ -9121,8 +9138,8 @@ export default async function handler(req, res) {
         if (group && log) {
           await syncOpenWorkoutLogSnapshotToCanonical(group, payload.owner, log, { throwOnError: true });
         }
-        const persisted = await persistOrSkipBlobMirror(result.updated, result.reason, "flag-response");
-        return res.status(200).json(persisted);
+        const readableState = await persistAndScopeReadableStateForUser(result.updated, result.reason, "flag-response", auth.user.id);
+        return res.status(200).json(readableState);
       }
 
       if (payload?.action === "flag-review") {
@@ -9145,8 +9162,8 @@ export default async function handler(req, res) {
         if (group && log) {
           await syncOpenWorkoutLogSnapshotToCanonical(group, payload.owner, log, { throwOnError: true });
         }
-        const persisted = await persistOrSkipBlobMirror(result.updated, result.reason, "flag-review");
-        return res.status(200).json(persisted);
+        const readableState = await persistAndScopeReadableStateForUser(result.updated, result.reason, "flag-review", auth.user.id);
+        return res.status(200).json(readableState);
       }
 
       if (payload?.action === "delete-log") {
@@ -9165,8 +9182,8 @@ export default async function handler(req, res) {
           await runWriteHydrationParityProbe("delete-log", payload, auth, actor, shadowBlobResult.updated, applyDeleteLog);
         }
         await deleteWorkoutLogFromCanonical(payload.logId, { throwOnError: true });
-        const persisted = await persistOrSkipBlobMirror(result.updated, result.reason, "delete-log");
-        return res.status(200).json(persisted);
+        const readableState = await persistAndScopeReadableStateForUser(result.updated, result.reason, "delete-log", auth.user.id);
+        return res.status(200).json(readableState);
       }
 
       if (payload?.action === "delete-account") {
@@ -9195,8 +9212,8 @@ export default async function handler(req, res) {
           await updateBlocAdminInCanonical(groupId, survivingGroup.adminUserId, { throwOnError: true });
         }
         await deleteProfileFromCanonical(auth.user.id, { throwOnError: true });
-        const persisted = await persistOrSkipBlobMirror(updated, `delete-account:${auth.user.id}`, "delete-account");
-        return res.status(200).json({ ok: true, state: persisted });
+        const readableState = await persistAndScopeReadableStateForUser(updated, `delete-account:${auth.user.id}`, "delete-account", auth.user.id);
+        return res.status(200).json({ ok: true, state: readableState });
       }
 
       if (payload?.action === "repair-display-name") {

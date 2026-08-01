@@ -101,3 +101,26 @@ Fix rules:
 - Delete empty reaction overrides so unreacting hides the chip immediately.
 - Do not serialize reactions through the global destructive log mutation queue. Use reaction-specific ordering so unrelated logs/reactions do not block each other.
 - Backend remains canonical-authoritative; frontend prevents stale refetches from overwriting local intent while writes are in flight.
+
+## Stale Or Left Blocs Reappearing After Mutations
+
+Symptoms:
+- Old test Blocs that a user already left briefly reappear in the Bloc switcher after actions like create Bloc, log workout, reactions, settings saves, or profile updates.
+- Refreshing the app removes them again.
+- The canonical read path does not show the old Blocs, but a mutation response can still reintroduce them.
+
+Root cause:
+- Writes still hydrate from the blob compatibility shell so legacy gaps are preserved during mutation.
+- If a user-facing mutation response returns the raw persisted blob state, stale/blob-only groups can be sent back to the client even though the canonical readable projection would suppress them.
+- This is especially risky when `BLOB_MIRROR_SKIP_ACTIONS` is empty or missing an action in production.
+
+Fix rules:
+- Do not use `fetchReadableCurrentState()` as the base for mutation writes.
+- Do persist the mutation through the existing blob/canonical mirror path.
+- Before returning app state to an authenticated client, re-read the canonical readable projection and scope it through `scopeReadableStateForUser(...)`.
+- Preserve response envelopes (`{ state, createdGroupId }`, `{ state, joinedGroupId }`, `{ ok, state }`) so frontend contracts do not change.
+- The intended helper is `persistAndScopeReadableStateForUser(...)` in `api/lift-log.js`.
+
+Known-good response pattern:
+- `leave-bloc` was already safe: persist/mirror first, then `fetchReadableCurrentState()`, then `scopeReadableStateForUser(...)`.
+- Other authenticated full-state mutation responses should follow the same pattern.
