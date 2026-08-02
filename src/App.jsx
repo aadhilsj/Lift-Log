@@ -262,6 +262,11 @@ const App = () => {
       return String(params.get("invite") || "").trim().toUpperCase();
     } catch { return ""; }
   });
+  const [inviteContextLoading,setInviteContextLoading]=useState(()=>{
+    try {
+      return Boolean(String(new URLSearchParams(window.location.search).get("invite") || "").trim());
+    } catch { return false; }
+  });
   const [inviteContext,setInviteContext]=useState(null);
   const [inviteError,setInviteError]=useState("");
   const [joiningGroup,setJoiningGroup]=useState(false);
@@ -407,7 +412,7 @@ const App = () => {
     setInviteJoinToast({ id:toastId, groupId });
     window.setTimeout(() => {
       setInviteJoinToast(current => current?.id === toastId ? null : current);
-    }, 4200);
+    }, 2000);
     if (promptDownload) scheduleInviteDownloadPrompt(groupId);
   },[persistGroupSelection, scheduleInviteDownloadPrompt]);
 
@@ -588,12 +593,20 @@ const App = () => {
       const params = new URLSearchParams(window.location.search);
       inviteCode = String(params.get("invite") || "").trim().toUpperCase();
     } catch {}
-    if (!inviteCode) return undefined;
-    if (inviteContext?.inviteCode === inviteCode) return undefined;
+    if (!inviteCode) {
+      setInviteContextLoading(false);
+      return undefined;
+    }
+    if (inviteContext?.inviteCode === inviteCode) {
+      setInviteContextLoading(false);
+      return undefined;
+    }
     setJoinCode(inviteCode);
     setInviteError("");
+    setInviteContextLoading(true);
     fetchInviteContextData(inviteCode).then(result => {
       if (cancelled) return;
+      setInviteContextLoading(false);
       if (!result?.ok) {
         setInviteContext(null);
         setInviteError(result?.error || "Bloc invite not found");
@@ -1347,6 +1360,11 @@ const App = () => {
     setAuthError("");
     setShowSettings(false);
     setShowProfileModal(false);
+    setReplayColdOnboarding(false);
+    setColdOnboardingInitialIndex(0);
+    setColdOnboardingPreviewDismissed(true);
+    setColdOnboardingSeen(true);
+    try { localStorage.setItem(COLD_ONBOARDING_SEEN_KEY, "1"); } catch {}
   };
   const handleSaveProfileFromModal = async (displayName) => {
     setProfileSaving(true);
@@ -2139,7 +2157,13 @@ const App = () => {
     const completedIntentObj = authIntent;
     const completedIntent = authIntent?.type || "";
     const onboardingPostAuthAction = Boolean(completedIntentObj?.fromOnboarding) && (completedIntent === "create" || completedIntent === "join");
-    if (onboardingPostAuthAction) {
+    const pendingInviteCode = String(completedIntentObj?.inviteCode || joinCode || inviteContext?.inviteCode || "").trim().toUpperCase();
+    const inviteLinkPostAuthJoin = Boolean(inviteContext?.inviteCode)
+      && pendingInviteCode
+      && pendingInviteCode === String(inviteContext.inviteCode || "").trim().toUpperCase()
+      && completedIntent === "join";
+    const profilePostAuthAction = onboardingPostAuthAction || inviteLinkPostAuthJoin;
+    if (profilePostAuthAction) {
       setPostAuthProgressStage("savingName");
       setPostAuthActionPending(true);
     }
@@ -2156,18 +2180,13 @@ const App = () => {
     }
     if (activeSession?.userId) persistSession(activeSession);
     const savedDisplayName = authDisplayName.trim();
-    const pendingInviteCode = String(completedIntentObj?.inviteCode || joinCode || inviteContext?.inviteCode || "").trim().toUpperCase();
-    const inviteLinkPostAuthJoin = Boolean(inviteContext?.inviteCode)
-      && pendingInviteCode
-      && pendingInviteCode === String(inviteContext.inviteCode || "").trim().toUpperCase()
-      && completedIntent === "join";
     // Auto-join only where the code was already collected as part of that flow:
     // the onboarding join, the invite-link join, or a signed-in join that
     // detoured through name setup.
     const shouldAutoJoin = Boolean(activeSession?.userId)
       && Boolean(pendingInviteCode)
       && (pendingJoinAfterProfile || Boolean(completedIntentObj?.fromOnboarding) || inviteLinkPostAuthJoin);
-    if (onboardingPostAuthAction) {
+    if (profilePostAuthAction) {
       setPostAuthProgressStage(shouldAutoJoin ? "joiningBloc" : "settingUpBloc");
     }
     const applied = result.data ? applyData(result.data) : false;
@@ -2234,10 +2253,6 @@ const App = () => {
     setInviteDownloadPrompt(null);
   },[]);
 
-  const dismissInviteJoinToast = useCallback(() => {
-    setInviteJoinToast(null);
-  },[]);
-
   const renderAuthFlowModal = () => React.createElement(AuthFlowModal,{
     step:authStep,
     mode:authIntent?.type === "signup" ? "signup" : "signin",
@@ -2300,25 +2315,20 @@ const App = () => {
 
   const renderInviteJoinToast = () => {
     if (!inviteJoinToast) return null;
-    const toastGroup = inviteJoinToast.groupId ? appState.groups?.[inviteJoinToast.groupId] || null : null;
-    const target = Number(toastGroup?.settings?.minTarget || MIN_TARGET);
     return React.createElement('div',{
       style:{
         position:"fixed",
         left:16,
         right:16,
-        bottom:"calc(env(safe-area-inset-bottom, 0px) + 102px)",
+        top:"calc(env(safe-area-inset-top, 0px) + 18px)",
         zIndex:3500,
         display:"flex",
         justifyContent:"center",
         pointerEvents:"none"
       }
     },
-      React.createElement('button',{
-        type:"button",
-        onClick:dismissInviteJoinToast,
+      React.createElement('div',{
         style:{
-          pointerEvents:"auto",
           maxWidth:360,
           width:"fit-content",
           border:"0.5px solid rgba(78,205,196,.28)",
@@ -2331,7 +2341,7 @@ const App = () => {
           fontWeight:800,
           boxShadow:"0 18px 46px rgba(0,0,0,.32), 0 0 22px rgba(78,205,196,.12)"
         }
-      },`You're in — target's ${target} workouts`)
+      },"You're in")
     );
   };
 
@@ -2445,6 +2455,7 @@ const App = () => {
   }
   if(!authSession?.userId) {
     const invitePreviewGroup = inviteContext?.groupId ? appState.groups?.[inviteContext.groupId] || null : null;
+    if (inviteContextLoading && !inviteContext) return React.createElement(Spinner,{label:"Loading invite..."});
     return React.createElement(React.Fragment,null,
       inviteContext
         ? React.createElement(PreviewLanding,{

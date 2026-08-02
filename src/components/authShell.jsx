@@ -101,20 +101,20 @@ const PreviewLanding = ({inviteContext,group,profilePhotoByUserId,onJoin}) => {
     return React.createElement('div',{
       key:m.userId || m.name,
       style:{
-        padding:"15px 16px",
+        padding:"13px 15px",
         borderBottom:i<rowData.length-1?"1px solid rgba(62,62,82,.45)":"none",
         display:"flex",
         alignItems:"center",
-        gap:13
+        gap:12
       }
     },
       React.createElement('div',{style:{fontWeight:900,fontSize:13,color:"var(--muted)",width:24,textAlign:"right",flexShrink:0}},`#${i+1}`),
       React.createElement(Avatar,{name:m.name,userId:m.userId,photoUrl:m.photoUrl,size:38}),
       React.createElement('div',{style:{flex:1,minWidth:0}},
-        React.createElement('div',{style:{fontFamily:"'Raleway', sans-serif",fontWeight:900,fontSize:18,lineHeight:1.05,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},m.name)
+        React.createElement('div',{style:{fontFamily:"'Raleway', sans-serif",fontWeight:900,fontSize:16,lineHeight:1.05,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},m.name)
       ),
-      React.createElement('span',{style:{fontFamily:"'Outfit', sans-serif",fontSize:10,fontWeight:900,color:st.color,background:st.bg,border:`0.5px solid ${st.border}`,borderRadius:999,padding:"5px 10px",letterSpacing:".08em",textTransform:"uppercase",lineHeight:1,flexShrink:0}},st.label),
-      React.createElement('div',{style:{fontFamily:"'Raleway', sans-serif",fontWeight:900,fontSize:22,color:"var(--green)",minWidth:26,textAlign:"right",flexShrink:0}},m.logged)
+      React.createElement('span',{style:{fontFamily:"'Outfit', sans-serif",fontSize:8.5,fontWeight:900,color:st.color,background:st.bg,border:`0.5px solid ${st.border}`,borderRadius:999,padding:"4px 8px",letterSpacing:".08em",textTransform:"uppercase",lineHeight:1,flexShrink:0}},st.label),
+      React.createElement('div',{style:{fontFamily:"'Raleway', sans-serif",fontWeight:900,fontSize:20,color:"var(--green)",minWidth:24,textAlign:"right",flexShrink:0}},m.logged)
     );
   });
 
@@ -136,8 +136,8 @@ const PreviewLanding = ({inviteContext,group,profilePhotoByUserId,onJoin}) => {
     style:{padding:"13px 16px",borderBottom:"1px solid rgba(62,62,82,.7)",display:"flex",alignItems:"center",justifyContent:"space-between"}
   },
     React.createElement('div',null,
-      React.createElement('div',{style:{fontWeight:900,fontSize:15,letterSpacing:"-.01em"}},inviteContext?.groupName ? `${inviteContext.groupName} Bloc` : "Sunday Runners Bloc"),
-      React.createElement('div',{className:"mono",style:{fontSize:9,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".1em",marginTop:2}},`${target} workouts · ${memberCount || "—"}/20 members`)
+      React.createElement('div',{style:{fontWeight:900,fontSize:15,letterSpacing:"-.01em"}},inviteContext?.groupName || group?.name || "Bloc"),
+      React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontSize:9,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".09em",fontWeight:800,marginTop:2}},`${target} workouts · ${memberCount || "—"}/20 members`)
     ),
   );
 
