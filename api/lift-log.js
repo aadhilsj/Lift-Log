@@ -697,7 +697,8 @@ function normalizeSettlementConfirmations(rows) {
 
 function findProfileEntryByEmail(profiles, email) {
   if (!profiles || !email) return null;
-  return Object.entries(profiles).find(([, profile]) => profile?.email === email) || null;
+  const normalizedEmail = normalizeEmailAddress(email);
+  return Object.entries(profiles).find(([, profile]) => normalizeEmailAddress(profile?.email) === normalizedEmail) || null;
 }
 
 function isUuidLike(value) {
@@ -8137,7 +8138,14 @@ export default async function handler(req, res) {
       }
 
       if (payload?.action === "auth-email-exists") {
-        const exists = await checkSupabaseAuthEmailExists(payload.email);
+        const normalizedEmail = normalizeEmailAddress(payload.email);
+        const authExists = await checkSupabaseAuthEmailExists(normalizedEmail);
+        let profileExists = false;
+        if (!authExists) {
+          const readable = await fetchReadableCurrentState();
+          profileExists = Boolean(findProfileEntryByEmail(readable.profiles, normalizedEmail));
+        }
+        const exists = authExists || profileExists;
         return res.status(200).json({ ok: true, exists });
       }
 

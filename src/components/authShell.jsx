@@ -62,6 +62,7 @@ const renderTopLevelOverlay = node => {
 
 const PreviewLanding = ({inviteContext,group,profilePhotoByUserId,onJoin}) => {
   const target = Number(group?.settings?.minTarget || inviteContext?.minTarget || MIN_TARGET);
+  const groupName = String(inviteContext?.groupName || group?.name || "Bloc").replace(/^join\s+/i, "").trim() || "Bloc";
   const liveRows = group
     ? Object.values(group.memberships || {})
         .filter(member => String(member?.displayName || "").trim())
@@ -121,7 +122,7 @@ const PreviewLanding = ({inviteContext,group,profilePhotoByUserId,onJoin}) => {
   const hero = React.createElement('div',{
     key:"preview-hero",
     className:"fu",
-    style:{textAlign:"center",maxWidth:620,marginBottom:24}
+    style:{textAlign:"center",maxWidth:620,marginBottom:16}
   },
     React.createElement('div',{style:{margin:"0 0 14px"}},React.createElement(AnteWordmark,{size:68})),
     React.createElement('div',{style:{fontSize:15,fontWeight:500,color:"#f5f7ff",marginBottom:8}},
@@ -136,7 +137,7 @@ const PreviewLanding = ({inviteContext,group,profilePhotoByUserId,onJoin}) => {
     style:{padding:"13px 16px",borderBottom:"1px solid rgba(62,62,82,.7)",display:"flex",alignItems:"center",justifyContent:"space-between"}
   },
     React.createElement('div',null,
-      React.createElement('div',{style:{fontWeight:900,fontSize:15,letterSpacing:"-.01em"}},inviteContext?.groupName || group?.name || "Bloc"),
+      React.createElement('div',{style:{fontWeight:900,fontSize:15,letterSpacing:"-.01em"}},groupName),
       React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontSize:9,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".09em",fontWeight:800,marginTop:2}},`${target} workouts · ${memberCount || "—"}/20 members`)
     ),
   );

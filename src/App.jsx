@@ -148,18 +148,21 @@ const preserveKnownProfilePhotos = (current, incoming) => {
 };
 
 const SETUP_PROGRESS_STAGES = {
-  savingName: { label:"Saving your name...", min:8, max:34 },
-  settingUpBloc: { label:"Setting up your Bloc...", min:35, max:74 },
-  joiningBloc: { label:"Joining your Bloc...", min:35, max:74 },
-  finalTouches: { label:"Final touches...", min:75, max:92 },
-  openingBloc: { label:"Opening your Bloc...", min:93, max:100 }
+  savingName: { labels:["Saving your name...", "Securing your profile..."], min:8, max:34 },
+  settingUpBloc: { labels:["Creating your Bloc...", "Setting things up...", "Final touches...", "Opening your Bloc..."], min:35, max:96 },
+  joiningBloc: { labels:["Joining your Bloc...", "Syncing the leaderboard...", "Final touches...", "Opening your Bloc..."], min:35, max:96 },
+  finalTouches: { labels:["Final touches...", "Opening your Bloc..."], min:75, max:98 },
+  openingBloc: { labels:["Opening your Bloc..."], min:93, max:100 }
 };
 
 const SetupProgressScreen = ({stage="savingName"}) => {
   const config = SETUP_PROGRESS_STAGES[stage] || SETUP_PROGRESS_STAGES.savingName;
   const [progress,setProgress]=useState(config.min);
+  const labels = config.labels || [config.label].filter(Boolean);
+  const [labelIndex,setLabelIndex]=useState(0);
   useEffect(()=>{
     setProgress(current=>Math.max(current, config.min));
+    setLabelIndex(0);
     const timer = window.setInterval(()=>{
       setProgress(current=>{
         const ceiling = config.max;
@@ -171,13 +174,20 @@ const SetupProgressScreen = ({stage="savingName"}) => {
     },360);
     return ()=>window.clearInterval(timer);
   },[config.max, config.min]);
+  useEffect(()=>{
+    if (labels.length <= 1) return undefined;
+    const timer = window.setInterval(()=>{
+      setLabelIndex(current=>Math.min(labels.length - 1, current + 1));
+    },2200);
+    return ()=>window.clearInterval(timer);
+  },[labels.length, stage]);
   return React.createElement('main',{style:{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:"32px 22px",background:"var(--bg-gradient)",backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)",color:"var(--text)"}},
     React.createElement('section',{className:"fu",style:{width:"100%",maxWidth:320,display:"grid",gap:10,textAlign:"center",justifyItems:"center",transform:"translateY(-18px)"}},
       React.createElement('div',{style:{width:"88%",display:"grid",gap:8}},
         React.createElement('div',{style:{height:8,borderRadius:999,background:"rgba(13,31,30,.9)",border:"0.5px solid rgba(22,61,54,.75)",overflow:"hidden",boxShadow:"inset 0 1px 2px rgba(0,0,0,.35)"}},
           React.createElement('div',{style:{height:"100%",width:`${progress}%`,borderRadius:999,background:"linear-gradient(90deg,#2fb8ad,#4ECDC4,#8ff3ec)",boxShadow:"0 0 18px rgba(78,205,196,.42)",transition:"width .36s ease-out"}})
         ),
-        React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontSize:13,fontWeight:800,color:"var(--text-soft)",lineHeight:1.35}},config.label)
+        React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontSize:13,fontWeight:800,color:"var(--text-soft)",lineHeight:1.35}},labels[labelIndex] || labels[0] || "")
       )
     )
   );
@@ -2046,7 +2056,8 @@ const App = () => {
       }
       if (existingAccount.exists) {
         setSendingOtp(false);
-        setAuthError("There is already a Fero account with this email. Create a new account with a different email.");
+        setAuthExistingAccountEmail(normalizedEmail);
+        setAuthStep("existing");
         return;
       }
     }
