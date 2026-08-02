@@ -1,28 +1,35 @@
-# Invite Link Flow Handoff Note - 2026-07-31
+# Invite Link Flow Handoff Note - Updated 2026-08-02
 
-Current scope built on `codex/reconcile-chat-with-backend`:
+Current preview-branch scope:
 
-- Invite preview and web auth/join still use the existing invite flow.
-- After a successful invite join, the user sees a one-time web confirmation screen:
-  - `YOU'RE IN`
-  - `[Bloc name] just got sharper.`
-  - target, days-left, and a leaderboard glimpse with the new user tagged `NEW`
-- `Let's go` marks that welcome as seen for that user and Bloc, then routes into the real Bloc Today screen.
-- After a short delay in the web Bloc view, a dismissible download prompt appears:
-  - `Log workouts from your phone. Get the app.`
-  - App Store / Play Store buttons
-- The web Bloc view remains usable if the prompt is ignored.
+- Invite links use `?invite=CODE`.
+- The web app now bootstraps the invite context from the URL on load, so a link opens the target Bloc preview instead of the generic signed-out screen.
+- The unauthenticated preview uses the real invited Bloc name, target, member count, and top visible leaderboard rows when the local app state has that Bloc.
+- Joining through the invite-link path still uses web auth first, then confirms the invite code, then grants real membership.
+- After a successful invite-link join, the user sees the one-time invite welcome screen using the latest approved pattern:
+  - big `YOU'RE IN`
+  - target/get-on-board copy, no old `just got sharper` headline
+  - compact real leaderboard glimpse excluding the brand-new zero-log user
+  - `Go To Bloc`
+- Tapping `Go To Bloc` routes into the real Bloc Today screen.
+- Only invite-link joins can schedule the non-blocking download prompt. Invite-code joins from cold onboarding should not show that prompt.
 
-Important Step 6 decision:
+Web-side handoff marker:
 
-Safari/web auth state and localStorage should not be assumed to survive into a native App Store install. The current branch writes a web-side handoff marker after invite join, but that only helps the same web/PWA context. A native app will need an explicit handoff mechanism.
+- On successful invite-link join, the web app stores `fero_invite_web_handoff` in localStorage with the joined user id, group id, invite code, and join timestamp.
+- This marker is useful inside the same web/PWA context for avoiding repeat invite welcome behavior and for proving the web side completed the invite flow.
+- This marker is not enough for App Store native handoff because Safari/localStorage does not automatically transfer into an installed native app.
 
-Recommended native handoff plan:
+Native Step 6 still required before App Store:
 
-1. After web invite join, generate an opaque one-time handoff token server-side, bound to the authenticated user, joined Bloc, invite code, and expiry.
-2. Use Universal Links / App Links for the download/open path so the installed app receives that token.
-3. Native app exchanges the token with the backend, validates the user/session, selects the joined Bloc, and routes directly to Today.
-4. Mark the invite welcome as consumed server-side so the user does not see the invite welcome again in native.
-5. If the token is missing or expired, fall back to sign-in, then select the user's joined Bloc after auth. Do not show cold onboarding for a user with an existing Bloc membership.
+1. Add Universal Links / App Links for invite download/open paths.
+2. Generate an opaque one-time server-side handoff token after web invite join, bound to the authenticated user, joined Bloc, invite code, and expiry.
+3. Pass only that opaque token through the app-open link. Do not put Supabase access or refresh tokens in URLs.
+4. Native app exchanges the token with the backend, validates it, restores/selects the joined Bloc, and routes directly to Today.
+5. Mark the invite welcome consumed server-side so the same user does not see both the web invite welcome and cold onboarding/native invite welcome.
+6. If the token is missing or expired, fall back to sign-in, then route to the already-joined Bloc after auth. Do not show cold onboarding to a user with an existing Bloc membership.
 
-Do not pass Supabase access or refresh tokens through URLs. Use an opaque, one-time token and server-side exchange.
+Decision:
+
+- Build and test the complete web invite flow now through the real Bloc web view and optional download prompt.
+- Treat native app handoff as an App Store/Capacitor-phase task. Do not mark it complete until the iOS shell and Universal Links are implemented and verified.

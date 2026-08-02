@@ -3,7 +3,9 @@ import { createPortal } from "react-dom";
 const { useState, useEffect, useMemo, useCallback, useRef } = React;
 import {
   DEFAULT_GROUP_TIME_ZONE,
+  MIN_TARGET,
   avatarColor,
+  getCountedLogCount,
   getCurrentGroupMemberNames
 } from "../lib/appState.js";
 import {
@@ -26,10 +28,10 @@ const PREVIEW_MEMBERS = [
 
 const previewStatus = (logged, target) => {
   const pct = logged / target;
-  if (pct >= 1)    return { label:"Done",     color:"#5ABF5A" };
-  if (pct >= 0.6)  return { label:"On track",  color:"#5ABF5A" };
-  if (pct >= 0.35) return { label:"At risk",   color:"var(--amber)" };
-  return             { label:"Behind",     color:"var(--red)" };
+  if (pct >= 1)    return { label:"CLEARED",  color:"#E9EEF5", bg:"rgba(233,238,245,.16)", border:"rgba(233,238,245,.18)" };
+  if (pct >= 0.6)  return { label:"ON TRACK", color:"#61D36A", bg:"rgba(97,211,106,.12)", border:"rgba(97,211,106,.18)" };
+  if (pct >= 0.35) return { label:"AT RISK",  color:"var(--amber)", bg:"rgba(255,177,66,.12)", border:"rgba(255,177,66,.18)" };
+  return             { label:"COOKED",   color:"var(--red)", bg:"rgba(255,91,91,.12)", border:"rgba(255,91,91,.18)" };
 };
 
 const containOverlayTouchMove = event => {
@@ -58,26 +60,47 @@ const renderTopLevelOverlay = node => {
 };
 
 
-const PreviewLanding = ({inviteContext,onCreate,onJoin,onSignIn}) => {
-  const previewRows = PREVIEW_MEMBERS.map((m,i) => {
-    const st = previewStatus(m.logged, m.target);
-    const pct = Math.min(1, m.logged / m.target);
+const PreviewLanding = ({inviteContext,group,profilePhotoByUserId,onCreate,onJoin,onSignIn}) => {
+  const target = Number(group?.settings?.minTarget || inviteContext?.minTarget || MIN_TARGET);
+  const liveRows = group
+    ? Object.values(group.memberships || {})
+        .filter(member => String(member?.displayName || "").trim())
+        .map(member => {
+          const count = getCountedLogCount(group.logs?.[member.displayName] || []);
+          return {
+            name: member.displayName,
+            userId: member.userId || "",
+            logged: count,
+            target,
+            photoUrl: profilePhotoByUserId?.[member.userId]?.profilePhotoUrl || ""
+          };
+        })
+        .sort((a,b) => b.logged - a.logged || a.name.localeCompare(b.name))
+        .slice(0, 3)
+    : [];
+  const rowData = liveRows.length
+    ? liveRows
+    : PREVIEW_MEMBERS.slice(0, 3).map(member => ({ ...member, target }));
+  const memberCount = inviteContext?.memberCount || (group ? getCurrentGroupMemberNames(group).length : 0);
+  const previewRows = rowData.map((m,i) => {
+    const st = previewStatus(m.logged, target);
+    const pct = Math.min(1, m.logged / target);
     return React.createElement('div',{
-      key:m.name,
+      key:m.userId || m.name,
       style:{
         padding:"12px 16px",
-        borderBottom:i<PREVIEW_MEMBERS.length-1?"1px solid rgba(62,62,82,.45)":"none",
+        borderBottom:i<rowData.length-1?"1px solid rgba(62,62,82,.45)":"none",
         display:"flex",
         alignItems:"center",
         gap:12
       }
     },
       React.createElement('div',{style:{fontWeight:700,fontSize:12,color:"var(--muted)",width:16,textAlign:"right",flexShrink:0}},i+1),
-      React.createElement('div',{style:{width:32,height:32,borderRadius:"50%",background:m.color,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Outfit',sans-serif",fontWeight:800,fontSize:12,color:"#fff",flexShrink:0}},m.name[0]),
+      React.createElement(Avatar,{name:m.name,userId:m.userId,photoUrl:m.photoUrl,size:32}),
       React.createElement('div',{style:{flex:1,minWidth:0}},
         React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:5}},
           React.createElement('span',{style:{fontWeight:700,fontSize:14}},m.name),
-          React.createElement('span',{className:"mono",style:{fontSize:10,color:st.color,letterSpacing:".06em",textTransform:"uppercase"}},st.label)
+          React.createElement('span',{style:{fontFamily:"'Outfit', sans-serif",fontSize:9.5,fontWeight:900,color:st.color,background:st.bg,border:`0.5px solid ${st.border}`,borderRadius:999,padding:"4px 8px",letterSpacing:".08em",textTransform:"uppercase",lineHeight:1}},st.label)
         ),
         React.createElement('div',{style:{height:4,borderRadius:999,background:"rgba(62,62,82,.6)",overflow:"hidden"}},
           React.createElement('div',{style:{height:"100%",width:`${pct*100}%`,borderRadius:999,background:pct>=1?"var(--green)":pct>=0.6?"var(--green)":pct>=0.35?"var(--amber)":"var(--red)",transition:"width .4s ease"}})
@@ -85,7 +108,7 @@ const PreviewLanding = ({inviteContext,onCreate,onJoin,onSignIn}) => {
       ),
       React.createElement('div',{style:{textAlign:"right",flexShrink:0}},
         React.createElement('div',{style:{fontWeight:800,fontSize:15}},m.logged),
-        React.createElement('div',{style:{fontSize:11,color:"var(--muted)"}},"/ "+m.target)
+        React.createElement('div',{style:{fontSize:11,color:"var(--muted)"}},"/ "+target)
       )
     );
   });
@@ -109,8 +132,8 @@ const PreviewLanding = ({inviteContext,onCreate,onJoin,onSignIn}) => {
     style:{padding:"13px 16px",borderBottom:"1px solid rgba(62,62,82,.7)",display:"flex",alignItems:"center",justifyContent:"space-between"}
   },
     React.createElement('div',null,
-      React.createElement('div',{style:{fontWeight:900,fontSize:15,letterSpacing:"-.01em"}},"Sunday Runners Bloc"),
-      React.createElement('div',{className:"mono",style:{fontSize:9,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".1em",marginTop:2}},"12 workouts · June")
+      React.createElement('div',{style:{fontWeight:900,fontSize:15,letterSpacing:"-.01em"}},inviteContext?.groupName ? `${inviteContext.groupName} Bloc` : "Sunday Runners Bloc"),
+      React.createElement('div',{className:"mono",style:{fontSize:9,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".1em",marginTop:2}},`${target} workouts · ${memberCount || "—"}/20 members`)
     ),
   );
 

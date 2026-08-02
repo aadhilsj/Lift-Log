@@ -586,9 +586,37 @@ const App = () => {
       setInviteError("");
       return;
     }
+    try {
+      const urlInviteCode = String(new URLSearchParams(window.location.search).get("invite") || "").trim().toUpperCase();
+      if (urlInviteCode && String(joinCode || "").trim().toUpperCase() === urlInviteCode) return;
+    } catch {}
     setInviteContext(null);
     setInviteError("");
   }, [joinCode]);
+
+  useEffect(() => {
+    let cancelled = false;
+    let inviteCode = "";
+    try {
+      const params = new URLSearchParams(window.location.search);
+      inviteCode = String(params.get("invite") || "").trim().toUpperCase();
+    } catch {}
+    if (!inviteCode) return undefined;
+    if (inviteContext?.inviteCode === inviteCode) return undefined;
+    setJoinCode(inviteCode);
+    setInviteError("");
+    fetchInviteContextData(inviteCode).then(result => {
+      if (cancelled) return;
+      if (!result?.ok) {
+        setInviteContext(null);
+        setInviteError(result?.error || "Bloc invite not found");
+        return;
+      }
+      setInviteContext(result.data);
+      setJoinCode(String(result.data?.inviteCode || inviteCode).trim().toUpperCase());
+    });
+    return () => { cancelled = true; };
+  }, [inviteContext?.inviteCode]);
 
 
   const applyData = useCallback((data, { optimistic=false, fromMutation=false } = {}) => {
@@ -2390,12 +2418,15 @@ const App = () => {
     });
   }
   if(!authSession?.userId) {
+    const invitePreviewGroup = inviteContext?.groupId ? appState.groups?.[inviteContext.groupId] || null : null;
     return React.createElement(React.Fragment,null,
       inviteContext
         ? React.createElement(PreviewLanding,{
             inviteContext,
+            group:invitePreviewGroup,
+            profilePhotoByUserId:appState.profiles,
             onCreate:()=>openAuth({ type:"create" }),
-            onJoin:()=>openAuth({ type:"join" }),
+            onJoin:()=>openAuth({ type:"join", inviteCode:inviteContext.inviteCode }),
             onSignIn:()=>openAuth({ type:"signin" })
           })
         : React.createElement(SignedOutLanding,{
