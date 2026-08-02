@@ -95,7 +95,6 @@ import { ProfilePage } from "./pages/ProfilePage.jsx";
 import { BlocSettingsScreen } from "./pages/BlocSettingsScreen.jsx";
 import { LogCommentThread } from "./components/LogCommentThread.jsx";
 import { ColdOnboarding } from "./components/ColdOnboarding.jsx";
-import { InviteWelcomeScreen } from "./components/InviteWelcomeScreen.jsx";
 
 const normalizeReactionMembers = (members) => Array.isArray(members)
   ? Array.from(new Set(members.filter(Boolean))).sort()
@@ -186,18 +185,7 @@ const SetupProgressScreen = ({stage="savingName"}) => {
 
 const IN_BLOC_PAGES = ["today", "activity", "month", "history"];
 const COLD_ONBOARDING_SEEN_KEY = "fero_cold_onboarding_seen";
-const INVITE_WELCOME_SEEN_PREFIX = "fero_invite_welcome_seen";
 const INVITE_HANDOFF_MARKER_KEY = "fero_invite_web_handoff";
-
-const inviteWelcomeSeenKey = (userId, groupId) => `${INVITE_WELCOME_SEEN_PREFIX}:${userId || "anon"}:${groupId || "none"}`;
-
-const hasSeenInviteWelcome = (userId, groupId) => {
-  try { return localStorage.getItem(inviteWelcomeSeenKey(userId, groupId)) === "1"; } catch { return false; }
-};
-
-const markInviteWelcomeSeen = (userId, groupId) => {
-  try { localStorage.setItem(inviteWelcomeSeenKey(userId, groupId), "1"); } catch {}
-};
 
 const persistInviteWebHandoffMarker = ({userId, groupId, inviteCode}) => {
   try {
@@ -277,8 +265,7 @@ const App = () => {
   const [inviteContext,setInviteContext]=useState(null);
   const [inviteError,setInviteError]=useState("");
   const [joiningGroup,setJoiningGroup]=useState(false);
-  const [inviteWelcomeGroupId,setInviteWelcomeGroupId]=useState(null);
-  const [inviteWelcomeDownloadPromptEnabled,setInviteWelcomeDownloadPromptEnabled]=useState(false);
+  const [inviteJoinToast,setInviteJoinToast]=useState(null);
   const [inviteDownloadPrompt,setInviteDownloadPrompt]=useState(null);
   const [pendingProrationGroupId,setPendingProrationGroupId]=useState(null);
   const [prorationSavingChoice,setProrationSavingChoice]=useState(null);
@@ -416,12 +403,12 @@ const App = () => {
     persistGroupSelection(groupId);
     setPage("today");
     persistInviteWebHandoffMarker({ userId, groupId, inviteCode });
-    if (hasSeenInviteWelcome(userId, groupId)) {
-      if (promptDownload) scheduleInviteDownloadPrompt(groupId);
-      return;
-    }
-    setInviteWelcomeDownloadPromptEnabled(Boolean(promptDownload));
-    setInviteWelcomeGroupId(groupId);
+    const toastId = Date.now();
+    setInviteJoinToast({ id:toastId, groupId });
+    window.setTimeout(() => {
+      setInviteJoinToast(current => current?.id === toastId ? null : current);
+    }, 4200);
+    if (promptDownload) scheduleInviteDownloadPrompt(groupId);
   },[persistGroupSelection, scheduleInviteDownloadPrompt]);
 
   const currentGroup = selectedGroupId ? appState.groups?.[selectedGroupId] || null : null;
@@ -1727,7 +1714,7 @@ const App = () => {
     if (!previewGroupId) return;
     if (showWelcomePreview) {
       setInviteDownloadPrompt(null);
-      setInviteWelcomeGroupId(previewGroupId);
+      setInviteJoinToast({ id:Date.now(), groupId:previewGroupId });
     }
     if (showDownloadPreview) {
       setInviteDownloadPrompt({ groupId: previewGroupId });
@@ -1999,14 +1986,19 @@ const App = () => {
       return;
     }
     if (completedIntent?.type === "join") {
-      const pendingCode = String(completedIntent?.inviteCode || joinCode || inviteContext?.inviteCode || "").trim();
+      const pendingCode = String(completedIntent?.inviteCode || joinCode || inviteContext?.inviteCode || "").trim().toUpperCase();
+      const inviteLinkJoin = Boolean(inviteContext?.inviteCode)
+        && pendingCode
+        && pendingCode === String(inviteContext.inviteCode || "").trim().toUpperCase()
+        && !completedIntent?.fromOnboarding;
       // Onboarding join already collected and validated the code up front, so
-      // finish the join instead of re-asking for it. The invite-link flow keeps
-      // its existing confirm step.
-      if (completedIntent?.fromOnboarding && pendingCode && nextProfile?.displayName) {
+      // finish the join instead of re-asking for it. Invite-link joins also
+      // confirmed the code before auth, so they should land directly in the
+      // Bloc after auth/profile setup.
+      if ((completedIntent?.fromOnboarding || inviteLinkJoin) && pendingCode && nextProfile?.displayName) {
         setPostAuthActionPending(true);
         setPostAuthProgressStage("joiningBloc");
-        const result = await joinWithInviteCode(nextSession, pendingCode);
+        const result = await joinWithInviteCode(nextSession, pendingCode, { promptDownload: inviteLinkJoin });
         if (result?.ok) {
           setPostAuthProgressStage("openingBloc");
           window.setTimeout(()=>setPostAuthActionPending(false),220);
@@ -2165,11 +2157,16 @@ const App = () => {
     if (activeSession?.userId) persistSession(activeSession);
     const savedDisplayName = authDisplayName.trim();
     const pendingInviteCode = String(completedIntentObj?.inviteCode || joinCode || inviteContext?.inviteCode || "").trim().toUpperCase();
+    const inviteLinkPostAuthJoin = Boolean(inviteContext?.inviteCode)
+      && pendingInviteCode
+      && pendingInviteCode === String(inviteContext.inviteCode || "").trim().toUpperCase()
+      && completedIntent === "join";
     // Auto-join only where the code was already collected as part of that flow:
-    // the onboarding join, or a signed-in join that detoured through name setup.
+    // the onboarding join, the invite-link join, or a signed-in join that
+    // detoured through name setup.
     const shouldAutoJoin = Boolean(activeSession?.userId)
       && Boolean(pendingInviteCode)
-      && (pendingJoinAfterProfile || Boolean(completedIntentObj?.fromOnboarding));
+      && (pendingJoinAfterProfile || Boolean(completedIntentObj?.fromOnboarding) || inviteLinkPostAuthJoin);
     if (onboardingPostAuthAction) {
       setPostAuthProgressStage(shouldAutoJoin ? "joiningBloc" : "settingUpBloc");
     }
@@ -2190,7 +2187,7 @@ const App = () => {
     }
     if (shouldAutoJoin) {
       setPendingJoinAfterProfile(false);
-      const joinResult = await joinWithInviteCode(activeSession, pendingInviteCode, { promptDownload:Boolean(inviteContext?.inviteCode && !completedIntentObj?.fromOnboarding) });
+      const joinResult = await joinWithInviteCode(activeSession, pendingInviteCode, { promptDownload:inviteLinkPostAuthJoin });
       if (joinResult?.ok) setPostAuthProgressStage("openingBloc");
       setPostAuthActionPending(false);
       if (!joinResult?.ok) {
@@ -2232,21 +2229,13 @@ const App = () => {
     await joinWithInviteCode(authSession, joinCode, { promptDownload:Boolean(inviteContext?.inviteCode) });
   };
 
-  const handleInviteWelcomeContinue = useCallback(() => {
-    const groupId = inviteWelcomeGroupId;
-    if (!groupId) return;
-    markInviteWelcomeSeen(authSession?.userId, groupId);
-    persistGroupSelection(groupId);
-    setPage("today");
-    setInviteWelcomeGroupId(null);
-    const shouldPromptDownload = inviteWelcomeDownloadPromptEnabled;
-    setInviteWelcomeDownloadPromptEnabled(false);
-    if (shouldPromptDownload) scheduleInviteDownloadPrompt(groupId);
-  },[authSession?.userId, inviteWelcomeDownloadPromptEnabled, inviteWelcomeGroupId, persistGroupSelection, scheduleInviteDownloadPrompt]);
-
   const dismissInviteDownloadPrompt = useCallback(() => {
     if (inviteDownloadPromptTimerRef.current) clearTimeout(inviteDownloadPromptTimerRef.current);
     setInviteDownloadPrompt(null);
+  },[]);
+
+  const dismissInviteJoinToast = useCallback(() => {
+    setInviteJoinToast(null);
   },[]);
 
   const renderAuthFlowModal = () => React.createElement(AuthFlowModal,{
@@ -2306,6 +2295,43 @@ const App = () => {
         React.createElement('button',{type:"button",className:"setup-press",style:{minHeight:40,borderRadius:12,background:"#4ECDC4",color:"#050909",fontFamily:"'Outfit', sans-serif",fontSize:13,fontWeight:900}},"App Store"),
         React.createElement('button',{type:"button",className:"setup-press",style:{minHeight:40,borderRadius:12,background:"rgba(78,205,196,.1)",border:"0.5px solid rgba(78,205,196,.22)",color:"#4ECDC4",fontFamily:"'Outfit', sans-serif",fontSize:13,fontWeight:900}},"Play Store")
       )
+    );
+  };
+
+  const renderInviteJoinToast = () => {
+    if (!inviteJoinToast) return null;
+    const toastGroup = inviteJoinToast.groupId ? appState.groups?.[inviteJoinToast.groupId] || null : null;
+    const target = Number(toastGroup?.settings?.minTarget || MIN_TARGET);
+    return React.createElement('div',{
+      style:{
+        position:"fixed",
+        left:16,
+        right:16,
+        bottom:"calc(env(safe-area-inset-bottom, 0px) + 102px)",
+        zIndex:3500,
+        display:"flex",
+        justifyContent:"center",
+        pointerEvents:"none"
+      }
+    },
+      React.createElement('button',{
+        type:"button",
+        onClick:dismissInviteJoinToast,
+        style:{
+          pointerEvents:"auto",
+          maxWidth:360,
+          width:"fit-content",
+          border:"0.5px solid rgba(78,205,196,.28)",
+          borderRadius:999,
+          padding:"10px 14px",
+          background:"rgba(8,15,15,.94)",
+          color:"var(--text)",
+          fontFamily:"'Outfit', sans-serif",
+          fontSize:13,
+          fontWeight:800,
+          boxShadow:"0 18px 46px rgba(0,0,0,.32), 0 0 22px rgba(78,205,196,.12)"
+        }
+      },`You're in — target's ${target} workouts`)
     );
   };
 
@@ -2425,9 +2451,7 @@ const App = () => {
             inviteContext,
             group:invitePreviewGroup,
             profilePhotoByUserId:appState.profiles,
-            onCreate:()=>openAuth({ type:"create" }),
-            onJoin:()=>openAuth({ type:"join", inviteCode:inviteContext.inviteCode }),
-            onSignIn:()=>openAuth({ type:"signin" })
+            onJoin:()=>openAuth({ type:"join", inviteCode:inviteContext.inviteCode })
           })
         : React.createElement(SignedOutLanding,{
             onCreateAccount:()=>openAuth({ type:"signup" }),
@@ -2435,15 +2459,6 @@ const App = () => {
           }),
       authStep && renderAuthFlowModal()
     );
-  }
-  const inviteWelcomeGroup = inviteWelcomeGroupId ? appState.groups?.[inviteWelcomeGroupId] || null : null;
-  if(inviteWelcomeGroup && authSession?.userId) {
-    return React.createElement(InviteWelcomeScreen,{
-      group:inviteWelcomeGroup,
-      currentUserId:authSession.userId,
-      profilePhotoByUserId:appState.profiles,
-      onContinue:handleInviteWelcomeContinue
-    });
   }
   // An in-flight join must never flash the empty Bloc switcher between the
   // display-name save and landing in the joined Bloc.
@@ -2592,6 +2607,7 @@ const App = () => {
     page==="today"&&renderGroupSwitcherSurface({ inert:!switcherRevealInteractive, suppressIntro:true }),
     activeBlocSurface,
     !showSettings && React.createElement(Nav,{onlyMobileBottomNav:true,page,setPage:handleNavSelect,user:currentUser,currentUserId:effectiveAuthSession?.userId||"",profilePhotoUrl:effectiveProfile?.profilePhotoUrl||"",groupName:currentGroup.name,canEditGroup:isGroupAdmin,onOpenSettings:()=>setShowSettings(true),onOpenProfile:()=>{setProfileError("");setShowProfileModal(true);},onOpenStream:handleOpenStream,streamUnreadCount,onSwitchUser:handleSwitchUser,onSwitchGroup:handleSwitchGroup,onOpenLog:()=>{setPage("today");setShowTodayLog(true);},syncing,lastSyncedAt,syncError,onRefresh:refreshNow,showJustSynced,activityAlertCount,mobileBottomDragX:blocDragXRef.current,mobileBottomNavRef:blocBottomNavRef,mobileBottomDragging:blocDragging}),
+    renderInviteJoinToast(),
     renderInviteDownloadPrompt(),
     logCommentScreen && React.createElement('div',{
       style:{position:"fixed",inset:0,zIndex:520,overflow:"hidden",pointerEvents:"auto",background:"transparent"}

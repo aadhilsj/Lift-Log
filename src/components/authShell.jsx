@@ -60,7 +60,7 @@ const renderTopLevelOverlay = node => {
 };
 
 
-const PreviewLanding = ({inviteContext,group,profilePhotoByUserId,onCreate,onJoin,onSignIn}) => {
+const PreviewLanding = ({inviteContext,group,profilePhotoByUserId,onJoin}) => {
   const target = Number(group?.settings?.minTarget || inviteContext?.minTarget || MIN_TARGET);
   const liveRows = group
     ? Object.values(group.memberships || {})
@@ -78,38 +78,43 @@ const PreviewLanding = ({inviteContext,group,profilePhotoByUserId,onCreate,onJoi
         .sort((a,b) => b.logged - a.logged || a.name.localeCompare(b.name))
         .slice(0, 3)
     : [];
+  const inviteRows = Array.isArray(inviteContext?.leaderboardRows)
+    ? inviteContext.leaderboardRows
+        .filter(member => String(member?.name || "").trim())
+        .map(member => ({
+          name: String(member.name || "").trim(),
+          userId: member.userId || "",
+          logged: Number(member.logged || 0),
+          target: Number(member.target || target),
+          photoUrl: member.photoUrl || ""
+        }))
+        .slice(0, 3)
+    : [];
   const rowData = liveRows.length
     ? liveRows
-    : PREVIEW_MEMBERS.slice(0, 3).map(member => ({ ...member, target }));
+    : inviteRows.length
+      ? inviteRows
+      : PREVIEW_MEMBERS.slice(0, 3).map(member => ({ ...member, target }));
   const memberCount = inviteContext?.memberCount || (group ? getCurrentGroupMemberNames(group).length : 0);
   const previewRows = rowData.map((m,i) => {
     const st = previewStatus(m.logged, target);
-    const pct = Math.min(1, m.logged / target);
     return React.createElement('div',{
       key:m.userId || m.name,
       style:{
-        padding:"12px 16px",
+        padding:"15px 16px",
         borderBottom:i<rowData.length-1?"1px solid rgba(62,62,82,.45)":"none",
         display:"flex",
         alignItems:"center",
-        gap:12
+        gap:13
       }
     },
-      React.createElement('div',{style:{fontWeight:700,fontSize:12,color:"var(--muted)",width:16,textAlign:"right",flexShrink:0}},i+1),
-      React.createElement(Avatar,{name:m.name,userId:m.userId,photoUrl:m.photoUrl,size:32}),
+      React.createElement('div',{style:{fontWeight:900,fontSize:13,color:"var(--muted)",width:24,textAlign:"right",flexShrink:0}},`#${i+1}`),
+      React.createElement(Avatar,{name:m.name,userId:m.userId,photoUrl:m.photoUrl,size:38}),
       React.createElement('div',{style:{flex:1,minWidth:0}},
-        React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:5}},
-          React.createElement('span',{style:{fontWeight:700,fontSize:14}},m.name),
-          React.createElement('span',{style:{fontFamily:"'Outfit', sans-serif",fontSize:9.5,fontWeight:900,color:st.color,background:st.bg,border:`0.5px solid ${st.border}`,borderRadius:999,padding:"4px 8px",letterSpacing:".08em",textTransform:"uppercase",lineHeight:1}},st.label)
-        ),
-        React.createElement('div',{style:{height:4,borderRadius:999,background:"rgba(62,62,82,.6)",overflow:"hidden"}},
-          React.createElement('div',{style:{height:"100%",width:`${pct*100}%`,borderRadius:999,background:pct>=1?"var(--green)":pct>=0.6?"var(--green)":pct>=0.35?"var(--amber)":"var(--red)",transition:"width .4s ease"}})
-        )
+        React.createElement('div',{style:{fontFamily:"'Raleway', sans-serif",fontWeight:900,fontSize:18,lineHeight:1.05,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},m.name)
       ),
-      React.createElement('div',{style:{textAlign:"right",flexShrink:0}},
-        React.createElement('div',{style:{fontWeight:800,fontSize:15}},m.logged),
-        React.createElement('div',{style:{fontSize:11,color:"var(--muted)"}},"/ "+target)
-      )
+      React.createElement('span',{style:{fontFamily:"'Outfit', sans-serif",fontSize:10,fontWeight:900,color:st.color,background:st.bg,border:`0.5px solid ${st.border}`,borderRadius:999,padding:"5px 10px",letterSpacing:".08em",textTransform:"uppercase",lineHeight:1,flexShrink:0}},st.label),
+      React.createElement('div',{style:{fontFamily:"'Raleway', sans-serif",fontWeight:900,fontSize:22,color:"var(--green)",minWidth:26,textAlign:"right",flexShrink:0}},m.logged)
     );
   });
 
@@ -120,11 +125,10 @@ const PreviewLanding = ({inviteContext,group,profilePhotoByUserId,onCreate,onJoi
   },
     React.createElement('div',{style:{margin:"0 0 14px"}},React.createElement(AnteWordmark,{size:68})),
     React.createElement('div',{style:{fontSize:15,fontWeight:500,color:"#f5f7ff",marginBottom:8}},
-      "For the ",
+      "Welcome to the ",
       React.createElement('span',{style:{color:"#4ECDC4"}},"Bloc"),
       " that keeps you showing up."
-    ),
-    React.createElement('div',{style:{color:"#2A5555",fontSize:13,lineHeight:1.5,maxWidth:540,margin:"0 auto"}},"See how Fero works")
+    )
   );
 
   const previewHeader = React.createElement('div',{
@@ -148,20 +152,12 @@ const PreviewLanding = ({inviteContext,group,profilePhotoByUserId,onCreate,onJoi
     className:"fu4",
     style:{display:"flex",gap:10,flexWrap:"wrap",justifyContent:"center"}
   },
-    React.createElement(PrimaryActionButton,{label:"Create a Bloc",onClick:onCreate}),
     inviteContext && inviteContext.memberCount>=20
       ? React.createElement('div',{style:{fontSize:12,color:"var(--amber)",padding:"10px 14px",borderRadius:9,background:"var(--amber-bg)",border:"1px solid var(--amber-dim)",textAlign:"center"}},"This Bloc is full. Maximum 20 members allowed.")
-      : React.createElement(PrimaryActionButton,{label:inviteContext?"Join this Bloc":"Join a Bloc",onClick:onJoin,secondary:true})
+      : React.createElement(PrimaryActionButton,{label:"Join this Bloc",onClick:onJoin})
   );
 
-  const signInLink = React.createElement('button',{
-    key:"preview-signin",
-    type:"button",
-    onClick:onSignIn,
-    style:{background:"transparent",padding:0,marginTop:10,color:"rgba(78,205,196,.9)",fontSize:13,fontWeight:500,textAlign:"center",textDecoration:"underline",textUnderlineOffset:"2px"}
-  },"Already have an account? Sign in");
-
-  const children = [hero, previewCard, actions, signInLink];
+  const children = [hero, previewCard, actions];
   return React.createElement('div',{style:{minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"32px 18px",background:"transparent"}},children);
 };
 

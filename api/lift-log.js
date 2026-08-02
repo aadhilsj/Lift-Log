@@ -7987,6 +7987,42 @@ function applyDeleteAccount(current, payload) {
   };
 }
 
+function buildInviteLeaderboardRows(current, group, target) {
+  if (!group) return [];
+  const profiles = current?.profiles || {};
+  const activeNames = Array.isArray(group.activeMemberOrder) && group.activeMemberOrder.length
+    ? group.activeMemberOrder
+    : (Array.isArray(group.memberOrder) ? group.memberOrder : []);
+  const activeNameSet = new Set(activeNames);
+  const rows = Object.entries(group.memberships || {})
+    .filter(([, membership]) => {
+      const displayName = String(membership?.displayName || "").trim();
+      return displayName && (!activeNameSet.size || activeNameSet.has(displayName));
+    })
+    .map(([userId, membership]) => {
+      const displayName = String(membership?.displayName || "").trim();
+      return {
+        name: displayName,
+        userId,
+        logged: getCountedLogCount(group.logs?.[displayName] || []),
+        target,
+        photoUrl: profiles?.[userId]?.profilePhotoUrl || ""
+      };
+    })
+    .sort((a, b) => b.logged - a.logged || a.name.localeCompare(b.name));
+  if (rows.length) return rows.slice(0, 3);
+  return activeNames
+    .map(name => ({
+      name,
+      userId: "",
+      logged: getCountedLogCount(group.logs?.[name] || []),
+      target,
+      photoUrl: ""
+    }))
+    .sort((a, b) => b.logged - a.logged || a.name.localeCompare(b.name))
+    .slice(0, 3);
+}
+
 function getInviteContext(current, payload) {
   const group = resolveGroupByInvite(current, payload);
   if (!group) {
@@ -7994,6 +8030,7 @@ function getInviteContext(current, payload) {
     error.status = 404;
     throw error;
   }
+  const target = group.settings?.minTarget || DEFAULT_MIN_TARGET;
   return {
     groupId: group.id,
     groupName: group.name,
@@ -8001,7 +8038,8 @@ function getInviteContext(current, payload) {
     memberCount: Array.isArray(group.activeMemberOrder) && group.activeMemberOrder.length
       ? group.activeMemberOrder.length
       : group.memberOrder.length,
-    minTarget: group.settings?.minTarget || DEFAULT_MIN_TARGET
+    minTarget: target,
+    leaderboardRows: buildInviteLeaderboardRows(current, group, target)
   };
 }
 
@@ -8009,6 +8047,7 @@ async function getInviteContextCanonicalFirst(current, payload) {
   const canonicalBloc = await fetchCanonicalBlocByInviteCode(payload?.inviteCode);
   if (canonicalBloc?.legacy_group_key) {
     const group = current.groups?.[canonicalBloc.legacy_group_key];
+    const target = canonicalBloc.min_target ?? group?.settings?.minTarget ?? DEFAULT_MIN_TARGET;
     return {
       groupId: canonicalBloc.legacy_group_key,
       groupName: canonicalBloc.name || group?.name || "",
@@ -8016,7 +8055,8 @@ async function getInviteContextCanonicalFirst(current, payload) {
       memberCount: Array.isArray(group?.activeMemberOrder) && group.activeMemberOrder.length
         ? group.activeMemberOrder.length
         : (Object.keys(group?.memberships || {}).length || group?.memberOrder?.length || 0),
-      minTarget: canonicalBloc.min_target ?? group?.settings?.minTarget ?? DEFAULT_MIN_TARGET
+      minTarget: target,
+      leaderboardRows: buildInviteLeaderboardRows(current, group, target)
     };
   }
   return getInviteContext(current, payload);
