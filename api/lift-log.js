@@ -8987,16 +8987,18 @@ export default async function handler(req, res) {
           await syncSeasonToCanonical(soloGroup, soloMonthKey, "open", null, { throwOnError: true });
         }
         if (soloGroup && soloMonthKey && nextRequest) {
-          await upsertSoloRequestInCanonical(payload.groupId, soloMonthKey, canonicalActor, nextRequest, { throwOnError: true });
+          await upsertSoloRequestInCanonical(payload.groupId, soloMonthKey, canonicalActor, nextRequest);
         } else if (soloGroup && soloMonthKey && nextSoloTarget > 0) {
           const soloReason = typeof payload?.reason === "string" ? payload.reason.trim().slice(0, 280) : "";
+          // Solo Mode is still mirrored to the blob state while the canonical
+          // solo schema rolls out. Keep these syncs best-effort so a missing
+          // preview/live RPC does not block the user's Solo Mode action.
           await upsertSeasonMemberSoloInCanonical(
             payload.groupId,
             soloMonthKey,
             canonicalActor,
             auth.user.id,
-            nextSoloTarget,
-            { throwOnError: true }
+            nextSoloTarget
           );
           await insertBlocSystemMomentInCanonical(
             payload.groupId,
@@ -9010,8 +9012,7 @@ export default async function handler(req, res) {
               reason: soloReason
             },
             `solo_started:${payload.groupId}:${soloMonthKey}:${auth.user.id || canonicalActor}`,
-            null,
-            { throwOnError: true }
+            null
           );
         }
         const readableState = await persistAndScopeReadableStateForUser(updated, `solo-request:${payload.groupId}:${canonicalActor || actor || auth.user.id}`, null, auth.user.id);
@@ -9045,15 +9046,16 @@ export default async function handler(req, res) {
           : null;
         if (reviewGroup && payload.monthKey && payload.memberName && reviewedRequest) {
           await syncSeasonToCanonical(reviewGroup, payload.monthKey, "open", null, { throwOnError: true });
-          await upsertSoloRequestInCanonical(payload.groupId, payload.monthKey, payload.memberName, reviewedRequest, { throwOnError: true });
+          await upsertSoloRequestInCanonical(payload.groupId, payload.monthKey, payload.memberName, reviewedRequest);
           if (reviewedRequest.status === "approved") {
+            // Solo-specific canonical writes are best-effort until every
+            // environment has the solo RPCs applied.
             await upsertSeasonMemberSoloInCanonical(
               payload.groupId,
               payload.monthKey,
               payload.memberName,
               reviewedRequest.requestedByUserId || null,
-              reviewedRequest.personalTarget,
-              { throwOnError: true }
+              reviewedRequest.personalTarget
             );
             await insertBlocSystemMomentInCanonical(
               payload.groupId,
@@ -9068,8 +9070,7 @@ export default async function handler(req, res) {
                 reviewerUserId: auth.user.id
               },
               `solo_started:${payload.groupId}:${payload.monthKey}:${reviewedRequest.requestedByUserId || payload.memberName}`,
-              reviewedRequest.decidedAt || null,
-              { throwOnError: true }
+              reviewedRequest.decidedAt || null
             );
           }
         }

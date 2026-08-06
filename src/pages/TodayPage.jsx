@@ -499,7 +499,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
   const competitionStatusBody = isExcused
     ? React.createElement('div',{style:{fontSize:12,color:"var(--muted)",fontWeight:700,lineHeight:1.35}},`You're sitting out ${MONTH_NAMES[CUR_MONTH]}.`)
     : isSolo
-      ? React.createElement('div',{style:{fontSize:12,color:"var(--muted)",fontWeight:700,lineHeight:1.35}},`Solo this month · target ${currentSoloTarget || effectiveTarget}`)
+      ? null
     : currentSitOutRequest?.status === "pending"
       ? React.createElement('div',{style:{fontSize:12,color:"var(--muted)",fontWeight:700,lineHeight:1.35}},
           currentSitOutRequest.exceptional
@@ -1158,7 +1158,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
       }),
       renderSoloSection())
     ),
-    React.createElement(Card,{style:{padding:"9px 10px",background:"rgba(8,15,15,.72)",border:"0.5px solid rgba(78,205,196,.12)"}},
+    (competitionStatusBody || competitionAction) && React.createElement(Card,{style:{padding:"9px 10px",background:"rgba(8,15,15,.72)",border:"0.5px solid rgba(78,205,196,.12)"}},
       React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,minHeight:30}},
         competitionStatusBody,
         competitionAction
@@ -1248,7 +1248,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
         renderSoloSection())
       ),
       React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:10}},
-        React.createElement(Card,{style:{padding:"9px 10px",background:"rgba(8,15,15,.72)",border:"0.5px solid rgba(78,205,196,.12)"}},
+        (competitionStatusBody || competitionAction) && React.createElement(Card,{style:{padding:"9px 10px",background:"rgba(8,15,15,.72)",border:"0.5px solid rgba(78,205,196,.12)"}},
           React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,minHeight:30}},
             competitionStatusBody,
             competitionAction
