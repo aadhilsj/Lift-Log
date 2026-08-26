@@ -35,9 +35,13 @@ Implementation rules:
 
 Mounted-page rules:
 - Main tab pages are rendered in the same swipe track so adjacent pages can be visible during drag.
+- At rest, only the active main-tab page is visible. Reveal an adjacent page only after it becomes the current swipe target; otherwise a stale inline transform can make multiple pages overlap after an active-tab reselect.
+- Active-tab reselect must restore every mounted layer to the selected page's coordinates. Do not blank every layer's transform: React may see unchanged style props and leave the blanked DOM styles in place.
 - Do not key active and preview versions differently in a way that remounts a page on arrival.
 - Do not let `swipePreview` drive component identity. It can disable interaction for inactive pages, but it must not create a new page instance on release.
 - Keep Activity/History/Month data derivation tied to actual data changes, not tab activation.
+- Every gesture callback that reads `page` must include `page` in its hook dependencies. A stale Today closure can incorrectly keep the left-edge guard active on Month and History, making rightward back-swipes appear disabled.
+- Horizontal-scroll regions such as the all-time leaderboard use the swipe-priority marker to contain horizontal drags, but their CSS touch action must still include `pan-y` so a vertical drag can scroll the parent page.
 
 Mobile nav indicator:
 - The bottom nav active highlight is one moving element, `.mobile-tab-indicator`, not separate backgrounds on each tab.

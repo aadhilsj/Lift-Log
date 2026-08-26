@@ -79,7 +79,6 @@ import {
 } from "./lib/utils.js";
 import {
   cancelSwipeFrame,
-  clearInlineSwipeStyles,
   releaseSwipeBack,
   releaseSwipeForward
 } from "./lib/swipeRelease.js";
@@ -195,6 +194,19 @@ const SetupProgressScreen = ({stage="savingName"}) => {
 };
 
 const IN_BLOC_PAGES = ["today", "activity", "month", "history"];
+
+const applyInBlocPageTransforms = ({ layers, activePage, dragX = 0, dragging = false, width }) => {
+  const activeIndex = IN_BLOC_PAGES.indexOf(activePage);
+  IN_BLOC_PAGES.forEach((pageName,index) => {
+    const el = layers?.[pageName];
+    if (!el) return;
+    const offsetX = (index - activeIndex) * width + dragX;
+    el.style.transform = offsetX ? `translateX(${offsetX}px)` : "none";
+    el.style.transition = dragging ? "none" : "transform .08s ease-out";
+    el.style.boxShadow = pageName === activePage && dragX ? "-18px 0 34px rgba(0,0,0,.24)" : "none";
+    el.style.willChange = dragging || dragX ? "transform" : "auto";
+  });
+};
 const COLD_ONBOARDING_SEEN_KEY = "fero_cold_onboarding_seen";
 const INVITE_HANDOFF_MARKER_KEY = "fero_invite_web_handoff";
 
@@ -1629,7 +1641,14 @@ const App = () => {
     setShowSettings(false);
     pageDragXRef.current = 0;
     cancelSwipeFrame(pageFrameRef);
-    clearInlineSwipeStyles(Object.values(pageLayerRefs.current || {}));
+    // Restore every mounted layer to the selected page's coordinates. Simply
+    // clearing these styles puts all neighboring pages at x=0, and React may
+    // not re-apply an unchanged transform during a rapid active-tab reselect.
+    applyInBlocPageTransforms({
+      layers:pageLayerRefs.current,
+      activePage:nextPage,
+      width:window.innerWidth || 420
+    });
     setPageDragging(false);
     setPageSwipeTarget(null);
     pageSwipeRef.current = {sx:0,sy:0,active:false,mode:null,target:null,priority:null};
@@ -1644,16 +1663,12 @@ const App = () => {
     return IN_BLOC_PAGES[nextIndex] || null;
   },[page]);
   const applyPageTransforms = useCallback((dragX = pageDragXRef.current, dragging = pageDragging) => {
-    const activeIndex = IN_BLOC_PAGES.indexOf(page);
-    const width = window.innerWidth || 420;
-    IN_BLOC_PAGES.forEach((pageName,index) => {
-      const el = pageLayerRefs.current?.[pageName];
-      if (!el) return;
-      const offsetX = (index - activeIndex) * width + dragX;
-      el.style.transform = offsetX ? `translateX(${offsetX}px)` : "none";
-      el.style.transition = dragging ? "none" : "transform .08s ease-out";
-      el.style.boxShadow = pageName === page && dragX ? "-18px 0 34px rgba(0,0,0,.24)" : "none";
-      el.style.willChange = dragging || dragX ? "transform" : "auto";
+    applyInBlocPageTransforms({
+      layers:pageLayerRefs.current,
+      activePage:page,
+      dragX,
+      dragging,
+      width:window.innerWidth || 420
     });
   },[page,pageDragging]);
   const schedulePageTransforms = useCallback((dragX = pageDragXRef.current, dragging = pageDragging) => {
@@ -1679,7 +1694,7 @@ const App = () => {
     if (!t) return;
     if (page === "today" && t.clientX <= 96) return;
     pageSwipeRef.current = {sx:t.clientX, sy:t.clientY, st:performance.now(), active:true, mode:null, target:null,priority:e.target?.closest?.("[data-page-swipe-priority='horizontal-scroll']") ? "horizontal-scroll" : null};
-  },[authStep, logCommentScreen, prorationGroup, showJoinModal, showProfileModal, showSettings, showStream, showTodayLog]);
+  },[authStep, logCommentScreen, page, prorationGroup, showJoinModal, showProfileModal, showSettings, showStream, showTodayLog]);
   const movePageSwipe = useCallback((e) => {
     const s = pageSwipeRef.current;
     const t = e.touches?.[0];
@@ -2776,7 +2791,10 @@ const App = () => {
   },
     IN_BLOC_PAGES.map((pageName,index) => {
       const active = pageName === page;
-      const near = Math.abs(index - pageIndex) <= 1 || pageName === pageSwipeTarget;
+      // Neighboring pages only need to be visible while a page gesture is in
+      // progress. Keeping them visible at rest turns any stale inline offset
+      // into an overlapping screen after a rapid tab reselect.
+      const near = active || pageName === pageSwipeTarget || (pageDragging && Math.abs(index - pageIndex) <= 1);
       const offsetX = (index - pageIndex) * screenWidth + pageDragXRef.current;
       return React.createElement('div',{
         key:pageName,

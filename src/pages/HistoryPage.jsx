@@ -306,7 +306,7 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
       ),
       React.createElement('div',{style:{position:"relative"}},
         React.createElement('div',{style:{position:"absolute",top:0,right:0,bottom:0,width:28,pointerEvents:"none",background:"linear-gradient(to right, rgba(8,15,15,0), #080F0F)",zIndex:1}}),
-        React.createElement('div',{"data-page-swipe-priority":"horizontal-scroll",style:{overflowX:"auto",WebkitOverflowScrolling:"touch",touchAction:"pan-x"}},
+        React.createElement('div',{"data-page-swipe-priority":"horizontal-scroll",style:{overflowX:"auto",WebkitOverflowScrolling:"touch",touchAction:"pan-x pan-y"}},
         React.createElement('div',{style:{minWidth:520,padding:"7px"}},
           React.createElement('div',{style:{display:"grid",gridTemplateColumns:"21px 24px 120px 44px 38px 46px 34px 56px 56px",padding:"6px 8px",borderBottom:"1px solid rgba(255,255,255,.055)",gap:5,fontFamily:"'Outfit', sans-serif",fontSize:8,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".055em",fontWeight:800}},
             ["#","","Name","Total","AVG","Months","Wins",null,null].map((h,i)=>React.createElement('div',{key:i,style:{textAlign:i>2?"right":"left",display:"flex",alignItems:"center",justifyContent:i>2?"flex-end":"flex-start",gap:3}},
