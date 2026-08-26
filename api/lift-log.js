@@ -4956,6 +4956,38 @@ async function ensureProfilePhotosBucket() {
   }
 }
 
+async function ensureWorkoutPhotosBucket() {
+  assertSupabaseConfigured();
+  const existing = await supabaseStorageFetch("/storage/v1/bucket/workout-photos", {
+    method: "GET",
+    headers: { Accept: "application/json" }
+  });
+  if (existing.ok) return;
+  const text = await existing.text();
+  if (!isMissingStorageBucketResponse(existing.status, text)) {
+    const error = new Error(text || "Unable to inspect workout photo bucket");
+    error.status = existing.status;
+    throw error;
+  }
+  const created = await supabaseStorageFetch("/storage/v1/bucket", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({
+      id: "workout-photos",
+      name: "workout-photos",
+      public: true,
+      file_size_limit: 5242880,
+      allowed_mime_types: ["image/jpeg", "image/png", "image/webp"]
+    })
+  });
+  if (!created.ok && created.status !== 409) {
+    const createdText = await created.text();
+    const error = new Error(createdText || "Unable to create workout photo bucket");
+    error.status = created.status;
+    throw error;
+  }
+}
+
 function parseImageDataUrl(dataUrl, maxBytes = 3 * 1024 * 1024) {
   const match = /^data:(image\/(?:jpeg|png|webp));base64,([a-z0-9+/=\s]+)$/i.exec(String(dataUrl || "").trim());
   if (!match) {
@@ -4992,6 +5024,28 @@ async function uploadProfilePhotoToStorage(authUserId, dataUrl) {
     throw error;
   }
   return `${SUPABASE_URL}/storage/v1/object/public/profile-photos/${path}`;
+}
+
+async function uploadWorkoutPhotoToStorage(authUserId, dataUrl) {
+  const { buffer } = parseImageDataUrl(dataUrl);
+  await ensureWorkoutPhotosBucket();
+  const path = `${authUserId}/${Date.now()}-${Math.floor(Math.random() * 1000000).toString().padStart(6, "0")}.jpg`;
+  const response = await supabaseStorageFetch(`/storage/v1/object/workout-photos/${path}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "image/jpeg",
+      "Cache-Control": "max-age=3600",
+      "x-upsert": "false"
+    },
+    body: buffer
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    const error = new Error(text || "Unable to upload workout photo");
+    error.status = response.status;
+    throw error;
+  }
+  return `${SUPABASE_URL}/storage/v1/object/public/workout-photos/${path}`;
 }
 
 function parseAllowedStorageImageUrl(value) {
@@ -8773,6 +8827,12 @@ export default async function handler(req, res) {
         );
         const readableState = await persistAndScopeReadableStateForUser(updated, `profile-photo:${auth.user.id}`, null, auth.user.id);
         return res.status(200).json({ state: readableState, profilePhotoUrl });
+      }
+
+      if (payload?.action === "upload-workout-photo") {
+        const auth = await requireAuthenticatedContext(req, payload, current);
+        const workoutPhotoUrl = await uploadWorkoutPhotoToStorage(auth.user.id, payload?.dataUrl);
+        return res.status(200).json({ workoutPhotoUrl });
       }
 
       if (payload?.action === "join-group") {

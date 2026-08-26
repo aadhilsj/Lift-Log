@@ -51,3 +51,10 @@ The date still represents one active day for day-based consistency measures.
 7. Deleting either workout removes only the selected entry.
 8. Deleting one of two single-Bloc workouts reopens one slot for that date.
 9. Rapid repeated submission cannot intentionally exceed the UI limit.
+
+## Local photo-upload requirement
+
+Workout photos are uploaded through the authenticated app API. This keeps the
+real Supabase Auth flow and the local `@local.test` OTP flow on the same path,
+and allows the local `workout-photos` bucket to be created automatically when
+it is missing.

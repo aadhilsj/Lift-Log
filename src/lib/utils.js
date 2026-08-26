@@ -24,7 +24,8 @@ import {
 } from "./appState.js";
 import {
   isLocalDevEnvironment,
-  getSupabaseAuthClient
+  getSupabaseAuthClient,
+  uploadWorkoutPhotoData
 } from "./api.js";
 
 function getAcceptedWorkoutTypes(group) {
@@ -209,18 +210,12 @@ function estimateDataUrlBytes(dataUrl) {
 }
 
 async function uploadPhotoToStorage(dataUrl) {
-  const userId = ACTIVE_SESSION_USER_ID;
-  if (!userId) throw new Error("Not signed in");
-  // Convert data URL to Blob via fetch (works in all modern browsers)
-  const blob = await (await fetch(dataUrl)).blob();
-  const path = `${userId}/${Date.now()}.jpg`;
-  const client = await getSupabaseAuthClient();
-  const { error } = await client.storage
-    .from("workout-photos")
-    .upload(path, blob, { contentType: "image/jpeg", upsert: false });
-  if (error) throw error;
-  const { data } = client.storage.from("workout-photos").getPublicUrl(path);
-  return data.publicUrl;
+  if (!ACTIVE_SESSION_USER_ID) throw new Error("Not signed in");
+  const result = await uploadWorkoutPhotoData(dataUrl);
+  if (!result.ok || !result.workoutPhotoUrl) {
+    throw new Error(result.error || "Unable to upload workout photo");
+  }
+  return result.workoutPhotoUrl;
 }
 
 async function uploadProfilePhotoToStorage(dataUrl) {
