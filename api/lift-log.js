@@ -4819,6 +4819,17 @@ async function supabaseStorageFetch(path, options = {}) {
   return response;
 }
 
+function isMissingStorageBucketResponse(status, bodyText = "") {
+  if (Number(status) === 404) return true;
+  try {
+    const payload = JSON.parse(String(bodyText || ""));
+    return Number(payload?.statusCode) === 404
+      && String(payload?.message || payload?.error || "").toLowerCase().includes("bucket not found");
+  } catch {
+    return false;
+  }
+}
+
 async function ensureProfilePhotosBucket() {
   assertSupabaseConfigured();
   const existing = await supabaseStorageFetch("/storage/v1/bucket/profile-photos", {
@@ -4826,8 +4837,8 @@ async function ensureProfilePhotosBucket() {
     headers: { Accept: "application/json" }
   });
   if (existing.ok) return;
-  if (existing.status !== 404) {
-    const text = await existing.text();
+  const text = await existing.text();
+  if (!isMissingStorageBucketResponse(existing.status, text)) {
     const error = new Error(text || "Unable to inspect profile photo bucket");
     error.status = existing.status;
     throw error;
@@ -8092,7 +8103,8 @@ export {
   isGroupAdminActor,
   applyJoinGroup,
   applyUpsertProfile,
-  scopeReadableStateForUser
+  scopeReadableStateForUser,
+  isMissingStorageBucketResponse
 };
 
 export default async function handler(req, res) {
@@ -8147,6 +8159,25 @@ export default async function handler(req, res) {
         }
         const exists = authExists || profileExists;
         return res.status(200).json({ ok: true, exists });
+      }
+
+      if (payload?.action === "invite-email-membership") {
+        const normalizedEmail = normalizeEmailAddress(payload.email);
+        if (!normalizedEmail) return res.status(400).json({ error: "Email is required" });
+        const readable = await fetchReadableCurrentState();
+        const inviteContext = await getInviteContextCanonicalFirst(readable, payload);
+        const group = readable.groups?.[inviteContext?.groupId];
+        if (!group) return res.status(404).json({ error: "Bloc invite not found" });
+        const profileEntry = findProfileEntryByEmail(readable.profiles, normalizedEmail);
+        const userId = profileEntry?.[0] || "";
+        const alreadyMember = Boolean(userId && group.memberships?.[userId]?.displayName);
+        return res.status(200).json({
+          ok: true,
+          alreadyMember,
+          groupId: inviteContext.groupId,
+          groupName: inviteContext.groupName || group.name || "",
+          inviteCode: inviteContext.inviteCode || String(payload?.inviteCode || "").trim().toUpperCase()
+        });
       }
 
       let current = null;
@@ -9142,16 +9173,18 @@ export default async function handler(req, res) {
           await syncSeasonToCanonical(soloGroup, soloMonthKey, "open", null, { throwOnError: true });
         }
         if (soloGroup && soloMonthKey && nextRequest) {
-          await upsertSoloRequestInCanonical(payload.groupId, soloMonthKey, canonicalActor, nextRequest, { throwOnError: true });
+          await upsertSoloRequestInCanonical(payload.groupId, soloMonthKey, canonicalActor, nextRequest);
         } else if (soloGroup && soloMonthKey && nextSoloTarget > 0) {
           const soloReason = typeof payload?.reason === "string" ? payload.reason.trim().slice(0, 280) : "";
+          // Solo Mode is still mirrored to the blob state while the canonical
+          // solo schema rolls out. Keep these syncs best-effort so a missing
+          // preview/live RPC does not block the user's Solo Mode action.
           await upsertSeasonMemberSoloInCanonical(
             payload.groupId,
             soloMonthKey,
             canonicalActor,
             auth.user.id,
-            nextSoloTarget,
-            { throwOnError: true }
+            nextSoloTarget
           );
           await insertBlocSystemMomentInCanonical(
             payload.groupId,
@@ -9165,8 +9198,7 @@ export default async function handler(req, res) {
               reason: soloReason
             },
             `solo_started:${payload.groupId}:${soloMonthKey}:${auth.user.id || canonicalActor}`,
-            null,
-            { throwOnError: true }
+            null
           );
         }
         const persisted = await persistState(updated, `solo-request:${payload.groupId}:${canonicalActor || actor || auth.user.id}`);
@@ -9200,15 +9232,16 @@ export default async function handler(req, res) {
           : null;
         if (reviewGroup && payload.monthKey && payload.memberName && reviewedRequest) {
           await syncSeasonToCanonical(reviewGroup, payload.monthKey, "open", null, { throwOnError: true });
-          await upsertSoloRequestInCanonical(payload.groupId, payload.monthKey, payload.memberName, reviewedRequest, { throwOnError: true });
+          await upsertSoloRequestInCanonical(payload.groupId, payload.monthKey, payload.memberName, reviewedRequest);
           if (reviewedRequest.status === "approved") {
+            // Solo-specific canonical writes are best-effort until every
+            // environment has the solo RPCs applied.
             await upsertSeasonMemberSoloInCanonical(
               payload.groupId,
               payload.monthKey,
               payload.memberName,
               reviewedRequest.requestedByUserId || null,
-              reviewedRequest.personalTarget,
-              { throwOnError: true }
+              reviewedRequest.personalTarget
             );
             await insertBlocSystemMomentInCanonical(
               payload.groupId,
@@ -9223,8 +9256,7 @@ export default async function handler(req, res) {
                 reviewerUserId: auth.user.id
               },
               `solo_started:${payload.groupId}:${payload.monthKey}:${reviewedRequest.requestedByUserId || payload.memberName}`,
-              reviewedRequest.decidedAt || null,
-              { throwOnError: true }
+              reviewedRequest.decidedAt || null
             );
           }
         }

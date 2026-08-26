@@ -628,6 +628,27 @@ async function fetchInviteContextData(inviteCode) {
   return { ok:false, error:"Invite not found" };
 }
 
+async function checkInviteEmailMembershipData(inviteCode, email) {
+  try {
+    const res = await fetch("./api/lift-log", {
+      method: "POST",
+      cache: "no-store",
+      headers: { "Content-Type":"application/json" },
+      body: JSON.stringify({ action:"invite-email-membership", inviteCode, email })
+    });
+    const body = await res.json().catch(()=>null);
+    if(!res.ok) return { ok:false, error: body?.details || body?.error || "Unable to check invite" };
+    return {
+      ok:true,
+      alreadyMember:Boolean(body?.alreadyMember),
+      groupId:body?.groupId || "",
+      groupName:body?.groupName || "",
+      inviteCode:body?.inviteCode || ""
+    };
+  } catch(e){ console.error("Invite membership check error:", e); }
+  return { ok:false, error:"Unable to check invite" };
+}
+
 async function kickMemberData(payload) {
   const result = await postApi("kick-member", payload);
   if (!result.ok) return { ok:false, error: result.error || "Unable to remove member" };
@@ -796,6 +817,7 @@ export {
   uploadProfilePhotoData,
   joinGroupData,
   fetchInviteContextData,
+  checkInviteEmailMembershipData,
   kickMemberData,
   leaveBlocData,
   multiLogData,

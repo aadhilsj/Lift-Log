@@ -192,7 +192,7 @@ const ActivityPreview = () => {
   );
 };
 
-const SettlementResultCard = ({tone,month,tag,stat,line,rows}) => {
+const SettlementResultCard = ({tone,tag,stat,line,rows}) => {
   const winner = tone === "winner";
   const heroStyle = winner
     ? {background:"rgba(57,168,90,.11)",border:"1px solid rgba(57,168,90,.24)"}
@@ -210,10 +210,7 @@ const SettlementResultCard = ({tone,month,tag,stat,line,rows}) => {
       boxShadow:"inset 0 1px 0 rgba(255,255,255,.05)"
     }
   },
-    React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"center",gap:8,marginBottom:2}},
-      React.createElement('span',{style:{height:19,padding:"0 8px",borderRadius:999,border:"0.5px solid rgba(143,174,170,.22)",background:"rgba(8,15,15,.42)",display:"inline-flex",alignItems:"center",fontFamily:"'Outfit',sans-serif",fontSize:9,fontWeight:900,letterSpacing:".08em",textTransform:"uppercase",color:"rgba(214,226,224,.66)"}},month),
-      React.createElement('span',{style:{display:"inline-block",fontFamily:"'Outfit',sans-serif",fontSize:10,fontWeight:900,letterSpacing:".08em",textTransform:"uppercase",background:labelGradient,WebkitBackgroundClip:"text",backgroundClip:"text",color:"transparent"}},tag)
-    ),
+    React.createElement('div',{style:{display:"inline-block",fontFamily:"'Outfit',sans-serif",fontSize:10,fontWeight:900,letterSpacing:".08em",textTransform:"uppercase",background:labelGradient,WebkitBackgroundClip:"text",backgroundClip:"text",color:"transparent",marginBottom:2}},tag),
     React.createElement('div',{style:{fontFamily:"'Outfit',sans-serif",fontSize:34,lineHeight:1,fontWeight:900,color:statColor,marginTop:5}},stat),
     React.createElement('div',{style:{fontSize:12,fontWeight:700,color:"rgba(214,226,224,.72)",lineHeight:1.3,marginTop:5}},line),
     React.createElement('div',{style:{width:"44%",height:1,margin:"10px auto 8px",background:"linear-gradient(90deg, transparent, rgba(255,255,255,.18), transparent)"}}),
@@ -234,7 +231,6 @@ const SettlementPreview = () => {
     React.createElement('div',{style:{padding:"12px 14px",display:"grid",gap:12}},
       React.createElement(SettlementResultCard,{
         tone:"winner",
-        month:"June",
         tag:"Winner",
         stat:"+$25",
         line:"Top of the Bloc. Maya and Leo pay you.",
@@ -246,7 +242,6 @@ const SettlementPreview = () => {
       React.createElement('div',{style:{height:1,width:"58%",justifySelf:"center",background:"linear-gradient(90deg, transparent, rgba(143,174,170,.22), transparent)"}}),
       React.createElement(SettlementResultCard,{
         tone:"missed",
-        month:"July",
         tag:"Tough Month",
         stat:"-$20",
         line:"You missed the target. Bounce back next month.",
@@ -261,7 +256,6 @@ const SettlementPreview = () => {
 const BlocStarterPreview = ({blocName,setBlocName}) => {
   return React.createElement('div',{style:{...cardShell,padding:14,boxSizing:"border-box"}},
     React.createElement('label',{style:{display:"block"}},
-      React.createElement('div',{style:{...previewLabel,marginBottom:6}},"BLOC NAME"),
       React.createElement('input',{
         value:blocName,
         onChange:event=>setBlocName(event.target.value),
@@ -378,6 +372,7 @@ const ColdOnboarding = ({onCreate,onJoin,initialIndex=0}) => {
         : React.createElement(BlocStarterPreview,{blocName,setBlocName});
   const moveSubtextBelowPreview = index === 1 || index === 2;
   const headlineFontSize = index === 2 ? "clamp(23px, 7.25vw, 29px)" : 34;
+  const screenLift = [-24, -18, -10, -18][index] || -16;
   const renderSubtext = (options = {}) => React.createElement('p',{
     style:{
       margin:options.below ? "16px 0 0" : "12px 0 0",
@@ -401,7 +396,7 @@ const ColdOnboarding = ({onCreate,onJoin,initialIndex=0}) => {
     style:{
       minHeight:"100vh",
       boxSizing:"border-box",
-      padding:"calc(env(safe-area-inset-top) + 22px) 22px calc(env(safe-area-inset-bottom) + 28px)",
+      padding:"calc(env(safe-area-inset-top) + 20px) 22px calc(env(safe-area-inset-bottom) + 54px)",
       background:"radial-gradient(circle at 72% 12%, rgba(78,205,196,.13), transparent 32%), var(--bg-gradient)",
       backgroundImage:"radial-gradient(circle at 72% 12%, rgba(78,205,196,.13), transparent 32%), var(--bg-gradient)",
       display:"flex",
@@ -410,13 +405,13 @@ const ColdOnboarding = ({onCreate,onJoin,initialIndex=0}) => {
       overflow:"hidden"
     }
   },
-    React.createElement('div',{style:{display:"flex",justifyContent:"flex-start",alignItems:"center",marginBottom:34}},
+    React.createElement('div',{style:{display:"flex",justifyContent:"flex-start",alignItems:"center",marginBottom:20,flexShrink:0}},
       React.createElement(AnteWordmark,{size:32})
     ),
     React.createElement('section',{
       key:index,
       className:"fu",
-      style:{flex:1,minHeight:0,display:"flex",flexDirection:"column",justifyContent:"center",maxWidth:520,width:"100%",margin:"0 auto",animation:"fadeUp .22s ease both"}
+      style:{flex:1,minHeight:0,display:"flex",flexDirection:"column",justifyContent:"center",maxWidth:520,width:"100%",margin:"0 auto",animation:"fadeUp .22s ease both",transform:`translateY(${screenLift}px)`}
     },
       React.createElement('div',{style:{marginBottom:index===0?16:22}},
         React.createElement('h1',{style:{margin:0,textAlign:"center",fontSize:headlineFontSize,lineHeight:1.02,letterSpacing:0,fontWeight:900,color:"#f5f7ff"}},
@@ -464,7 +459,7 @@ const ColdOnboarding = ({onCreate,onJoin,initialIndex=0}) => {
         },"Join an existing Bloc instead")
       )
     ),
-    React.createElement('div',{style:{maxWidth:520,width:"100%",margin:"22px auto 0",flexShrink:0}},
+    React.createElement('div',{style:{maxWidth:520,width:"100%",margin:"12px auto 0",flexShrink:0,transform:"translateY(-16px)"}},
       React.createElement(ProgressControls,{index,onNext:goNext,onPrev:goPrev})
     )
   );

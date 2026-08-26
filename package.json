@@ -9,6 +9,8 @@
     "preview": "vite preview",
     "test:stream-moments": "node scripts/test-bloc-stream-derived-moments.mjs",
     "test:identity": "node scripts/test-display-name-identity.mjs",
+    "test:profile-photo-storage": "node scripts/test-profile-photo-storage.mjs",
+    "test:auth-edge-flows": "node scripts/test-auth-edge-flows.mjs",
     "dev:api": "node scripts/local-dev-server.mjs"
   },
   "dependencies": {

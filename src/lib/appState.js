@@ -87,9 +87,14 @@ const resolveStorageImageUrl = url => {
   if (!raw || raw.startsWith("data:") || raw.startsWith("blob:")) return raw;
   try {
     const parsed = new URL(raw);
-    const allowedHost = "bpvvvqjsfwmmfjvvijkd.supabase.co";
+    const allowedHosts = new Set([
+      "bpvvvqjsfwmmfjvvijkd.supabase.co",
+      "localhost",
+      "127.0.0.1",
+      "[::1]"
+    ]);
     const allowedPath = "/storage/v1/object/public/";
-    if (parsed.hostname === allowedHost && parsed.pathname.startsWith(allowedPath)) {
+    if (allowedHosts.has(parsed.hostname) && parsed.pathname.startsWith(allowedPath)) {
       return `/api/lift-log?image=${encodeURIComponent(raw)}`;
     }
   } catch {}
