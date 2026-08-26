@@ -67,6 +67,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
   const [deleteTarget,setDeleteTarget]=useState(null);
   const [statDetail,setStatDetail]=useState(null);
   const [settlementCardBusy,setSettlementCardBusy]=useState(null);
+  const [settlementClaimPromptCard,setSettlementClaimPromptCard]=useState(null);
   const [settlementConfirmPromptCard,setSettlementConfirmPromptCard]=useState(null);
   const [settlementDisputePromptCard,setSettlementDisputePromptCard]=useState(null);
   const todayRootRef = useRef(null);
@@ -91,9 +92,12 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
       const dx = touch.clientX - startX;
       const dy = touch.clientY - startY;
       if (Math.abs(dx) >= Math.abs(dy)) return;
-      const scrollEl = document.scrollingElement || document.documentElement;
+      const scrollEl = event.target?.closest?.("[data-page-scroll-container='true']") || document.scrollingElement || document.documentElement;
       const atTop = scrollEl.scrollTop <= 0;
-      const atBottom = scrollEl.scrollTop + window.innerHeight >= scrollEl.scrollHeight - 1;
+      const viewportHeight = scrollEl === document.scrollingElement || scrollEl === document.documentElement
+        ? window.innerHeight
+        : scrollEl.clientHeight;
+      const atBottom = scrollEl.scrollTop + viewportHeight >= scrollEl.scrollHeight - 1;
       if ((dy > 0 && atTop) || (dy < 0 && atBottom)) event.preventDefault();
     };
     el.addEventListener("touchstart", handleTouchStart, { passive: true });
@@ -372,6 +376,10 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
     if (!card || !actionKind) return;
     if (actionKind === "dispute") {
       setSettlementDisputePromptCard(card);
+      return;
+    }
+    if (actionKind === "claim") {
+      setSettlementClaimPromptCard(card);
       return;
     }
     if (actionKind === "confirm") {
@@ -834,6 +842,42 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
       )
     )
   );
+  const settlementClaimPrompt = settlementClaimPromptCard && React.createElement('div',{className:"overlay center-mobile",onClick:()=>setSettlementClaimPromptCard(null)},
+    React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{maxWidth:320,padding:"18px 16px",textAlign:"center"}},
+      React.createElement('div',{style:{fontSize:18,fontWeight:800,color:"var(--text)",marginBottom:8}},"Mark as paid?"),
+      React.createElement('div',{style:{fontSize:12,color:"var(--muted)",lineHeight:1.45,fontFamily:"'Outfit', sans-serif",fontWeight:600}},"This tells the receiver you paid them."),
+      React.createElement('div',{style:{display:"flex",gap:10,marginTop:16}},
+        React.createElement('button',{
+          onClick:()=>setSettlementClaimPromptCard(null),
+          style:{
+            flex:1,
+            padding:"10px 12px",
+            borderRadius:12,
+            border:"1px solid var(--border)",
+            background:"var(--s2)",
+            color:"var(--muted)",
+            fontWeight:700
+          }
+        },"Cancel"),
+        React.createElement('button',{
+          onClick:async()=>{
+            const card = settlementClaimPromptCard;
+            setSettlementClaimPromptCard(null);
+            await runSettlementCardAction(card, "claim");
+          },
+          style:{
+            flex:1,
+            padding:"10px 12px",
+            borderRadius:12,
+            border:"1px solid rgba(224,80,32,.34)",
+            background:"rgba(224,80,32,.10)",
+            color:"#F06D43",
+            fontWeight:800
+          }
+        },"Mark Paid")
+      )
+    )
+  );
   const settlementConfirmPrompt = settlementConfirmPromptCard && React.createElement('div',{className:"overlay center-mobile",onClick:()=>setSettlementConfirmPromptCard(null)},
     React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{maxWidth:320,padding:"18px 16px",textAlign:"center"}},
       React.createElement('div',{style:{fontSize:18,fontWeight:800,color:"var(--text)",marginBottom:8}},"Confirm this payment?"),
@@ -1049,15 +1093,16 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
       background:"linear-gradient(135deg,rgba(78,205,196,.12),rgba(8,15,15,.94) 46%,rgba(245,166,35,.08))",
       border:"0.5px solid rgba(78,205,196,.35)",
       boxShadow:"0 12px 28px rgba(0,0,0,.2), inset 0 1px 0 rgba(255,255,255,.05)",
-      textAlign:"left"
+      textAlign:"left",
+      fontFamily:"'Outfit', sans-serif"
     }
   },
     React.createElement('span',{style:{width:42,height:42,borderRadius:999,display:"inline-flex",alignItems:"center",justifyContent:"center",background:"rgba(78,205,196,.1)",border:"0.5px solid rgba(78,205,196,.28)",color:"#4ECDC4"}},
       React.createElement(AppIcon,{name:"settings",size:22,stroke:"#4ECDC4"})
     ),
     React.createElement('span',{style:{minWidth:0}},
-      React.createElement('span',{style:{display:"block",fontSize:15,fontWeight:900,color:"#f5f7ff",lineHeight:1.1}},"Finish setup"),
-      React.createElement('span',{style:{display:"block",fontSize:12,color:"var(--muted)",marginTop:4}},
+      React.createElement('span',{style:{display:"block",fontFamily:"'Outfit', sans-serif",fontSize:15,fontWeight:900,color:"#f5f7ff",lineHeight:1.1}},"Finish setup"),
+      React.createElement('span',{style:{display:"block",fontFamily:"'Outfit', sans-serif",fontSize:12,color:"var(--muted)",marginTop:4}},
         `${setupReviewCount} thing${setupReviewCount === 1 ? "" : "s"} need review`
       )
     ),
@@ -1266,6 +1311,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
     showSolo && visibleSoloMode && React.createElement(SoloModal,{mode:visibleSoloMode,monthName:modalMonthName,minimumTarget:soloMinimumTarget,maximumTarget:effectiveTarget,defaultTarget:Math.max(soloMinimumTarget, Math.ceil(effectiveTarget * .5)),onClose:()=>{setShowSolo(false);setSoloError("");},onSubmit:submitSolo,submitting:soloSubmitting,error:soloError}),
     showSoloLocked && React.createElement(NoticeModal,{title:"Solo Mode is locked",body:"Solo Mode is only available in the first 10 days of the month.",onClose:()=>setShowSoloLocked(false)}),
     settlementDisputePrompt,
+    settlementClaimPrompt,
     settlementConfirmPrompt,
     statDetailOverlay,
     mobileView,

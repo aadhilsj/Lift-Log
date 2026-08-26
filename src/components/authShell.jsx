@@ -1,8 +1,11 @@
 import React from "react";
+import { createPortal } from "react-dom";
 const { useState, useEffect, useMemo, useCallback, useRef } = React;
 import {
   DEFAULT_GROUP_TIME_ZONE,
+  MIN_TARGET,
   avatarColor,
+  getCountedLogCount,
   getCurrentGroupMemberNames
 } from "../lib/appState.js";
 import {
@@ -12,61 +15,137 @@ import {
   isMobile,
   copyToClipboard
 } from "../lib/utils.js";
-import { Avatar, WorkoutTypeIcon, AppIcon, AnteWordmark, PrimaryActionButton } from "../components/primitives.jsx";
+import { Avatar, WorkoutTypeIcon, AppIcon, AnteWordmark, PrimaryActionButton, UploadPhotoIcon } from "../components/primitives.jsx";
 import { GroupCreateModal } from "../modals/modals.jsx";
 
 const previewStatus = (logged, target) => {
-  const safeTarget = Math.max(1, Number(target) || 1);
-  const pct = Number(logged || 0) / safeTarget;
-  if (pct >= 1) return { label:"CLEARED", bg:"linear-gradient(90deg, rgba(203,213,225,.08) 0%, rgba(203,213,225,.35) 100%)", fg:"#E2E8F0", border:"#2a2d31" };
-  if (pct >= 0.65) return { label:"ON TRACK", bg:"rgba(90,191,90,.14)", fg:"#5ABF5A", border:"rgba(90,191,90,.35)" };
-  if (pct >= 0.35) return { label:"AT RISK", bg:"#1E1808", fg:"#D4A843", border:"#3D3010" };
-  return { label:"COOKED", bg:"rgba(212,74,74,.14)", fg:"#D44A4A", border:"#3B1818" };
+  const pct = logged / target;
+  if (pct >= 1)    return { label:"CLEARED",  color:"#E9EEF5", bg:"rgba(233,238,245,.16)", border:"rgba(233,238,245,.18)" };
+  if (pct >= 0.6)  return { label:"ON TRACK", color:"#61D36A", bg:"rgba(97,211,106,.12)", border:"rgba(97,211,106,.18)" };
+  if (pct >= 0.35) return { label:"AT RISK",  color:"var(--amber)", bg:"rgba(255,177,66,.12)", border:"rgba(255,177,66,.18)" };
+  return             { label:"COOKED",   color:"var(--red)", bg:"rgba(255,91,91,.12)", border:"rgba(255,91,91,.18)" };
 };
 
-const PreviewLanding = ({inviteContext,onJoin}) => {
-  const target = Number(inviteContext?.minTarget || inviteContext?.target || 12);
-  const memberCount = Number(inviteContext?.memberCount || 0);
-  const memberLimit = Number(inviteContext?.memberLimit || 20);
-  const isFull = memberCount >= memberLimit;
-  const leaderboardRows = (Array.isArray(inviteContext?.leaderboardRows) ? inviteContext.leaderboardRows : [])
-    .slice()
-    .sort((a,b)=>Number(b.logged||0)-Number(a.logged||0))
-    .slice(0,3);
-  const previewRows = leaderboardRows.map((m,i) => {
-    const logged = Number(m.logged || 0);
-    const rowTarget = Number(m.target || target);
-    const st = previewStatus(logged, rowTarget);
+const containOverlayTouchMove = event => {
+  if (event.target?.closest?.(".modal")) return;
+  if (event.cancelable) event.preventDefault();
+};
+
+function readOnboardingProfilePhoto(file) {
+  return new Promise((resolve, reject) => {
+    if (!file || !/^image\//i.test(file.type || "")) {
+      reject(new Error("Choose an image file"));
+      return;
+    }
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Unable to load photo"));
+    reader.onload = () => {
+      const image = new Image();
+      image.onerror = () => reject(new Error("Unable to load photo"));
+      image.onload = () => {
+        const side = Math.min(image.naturalWidth || 0, image.naturalHeight || 0);
+        if (!side) {
+          reject(new Error("Unable to load photo"));
+          return;
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = 720;
+        canvas.height = 720;
+        const context = canvas.getContext("2d");
+        const sx = Math.max(0, ((image.naturalWidth || side) - side) / 2);
+        const sy = Math.max(0, ((image.naturalHeight || side) - side) / 2);
+        context.drawImage(image, sx, sy, side, side, 0, 0, 720, 720);
+        resolve(canvas.toDataURL("image/jpeg", .84));
+      };
+      image.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+const containOverlayTouch = event => {
+  if (event.target?.closest?.(".modal")) return;
+  event.stopPropagation();
+};
+
+const containOverlayActivation = event => {
+  if (event.target?.closest?.(".modal")) return;
+  event.stopPropagation();
+  if (event.cancelable) event.preventDefault();
+};
+
+const stopModalTouch = event => {
+  event.stopPropagation();
+};
+
+const renderTopLevelOverlay = node => {
+  if (typeof document === "undefined") return node;
+  return createPortal(node, document.body);
+};
+
+
+const PreviewLanding = ({inviteContext,group,profilePhotoByUserId,onJoin,alreadyMemberNotice,onEnterAlreadyMember}) => {
+  const target = Number(group?.settings?.minTarget || inviteContext?.minTarget || MIN_TARGET);
+  const groupName = String(inviteContext?.groupName || group?.name || "Bloc").replace(/^join\s+/i, "").trim() || "Bloc";
+  const liveRows = group
+    ? Object.values(group.memberships || {})
+        .filter(member => String(member?.displayName || "").trim())
+        .map(member => {
+          const count = getCountedLogCount(group.logs?.[member.displayName] || []);
+          return {
+            name: member.displayName,
+            userId: member.userId || "",
+            logged: count,
+            target,
+            photoUrl: profilePhotoByUserId?.[member.userId]?.profilePhotoUrl || ""
+          };
+        })
+        .sort((a,b) => b.logged - a.logged || a.name.localeCompare(b.name))
+        .slice(0, 3)
+    : [];
+  const inviteRows = Array.isArray(inviteContext?.leaderboardRows)
+    ? inviteContext.leaderboardRows
+        .filter(member => String(member?.name || "").trim())
+        .map(member => ({
+          name: String(member.name || "").trim(),
+          userId: member.userId || "",
+          logged: Number(member.logged || 0),
+          target: Number(member.target || target),
+          photoUrl: member.photoUrl || ""
+        }))
+        .slice(0, 3)
+    : [];
+  const rowData = liveRows.length ? liveRows : inviteRows;
+  const memberCount = inviteContext?.memberCount || (group ? getCurrentGroupMemberNames(group).length : 0);
+  const previewRows = rowData.map((m,i) => {
+    const st = previewStatus(m.logged, target);
     return React.createElement('div',{
-      key:m.userId || m.name || i,
+      key:m.userId || m.name,
       style:{
-        minHeight:50,
-        padding:"10px 14px",
-        borderBottom:i<leaderboardRows.length-1?"0.5px solid rgba(22,61,54,.58)":"none",
-        display:"grid",
-        gridTemplateColumns:"24px 34px minmax(0,1fr) auto 30px",
+        padding:"13px 15px",
+        borderBottom:i<rowData.length-1?"1px solid rgba(62,62,82,.45)":"none",
+        display:"flex",
         alignItems:"center",
-        gap:9
+        gap:12
       }
     },
-      React.createElement('div',{style:{fontFamily:"'Outfit',sans-serif",fontWeight:900,fontSize:12,color:"var(--muted)",textAlign:"center",flexShrink:0}},`#${i+1}`),
-      React.createElement('div',{style:{width:34,height:34,borderRadius:"50%",background:avatarColor(m.name || "Fero"),display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Outfit',sans-serif",fontWeight:900,fontSize:12,color:"#fff",flexShrink:0,overflow:"hidden",boxShadow:"inset 0 1px 0 rgba(255,255,255,.12), 0 4px 12px rgba(0,0,0,.18)"}},m.avatarUrl
-        ? React.createElement('img',{src:m.avatarUrl,alt:"",loading:"lazy",referrerPolicy:"no-referrer",style:{width:"100%",height:"100%",objectFit:"cover",display:"block"}})
-        : String(m.name || "?").trim().slice(0,1).toUpperCase()
+      React.createElement('div',{style:{fontWeight:900,fontSize:13,color:"var(--muted)",width:24,textAlign:"right",flexShrink:0}},`#${i+1}`),
+      React.createElement(Avatar,{name:m.name,userId:m.userId,photoUrl:m.photoUrl,size:38}),
+      React.createElement('div',{style:{flex:1,minWidth:0}},
+        React.createElement('div',{style:{fontFamily:"'Raleway', sans-serif",fontWeight:900,fontSize:16,lineHeight:1.18,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",paddingBottom:1}},m.name)
       ),
-      React.createElement('span',{style:{minWidth:0,fontFamily:"'Raleway',sans-serif",fontWeight:900,fontSize:16,lineHeight:1.05,color:"#f5f7ff",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",paddingBottom:2}},m.name || "Member"),
-      React.createElement('span',{style:{display:"inline-flex",alignItems:"center",justifyContent:"center",minWidth:70,padding:"3px 8px",borderRadius:999,background:st.bg,border:`0.5px solid ${st.border}`,color:st.fg,fontFamily:"'Outfit',sans-serif",fontSize:9,fontWeight:900,letterSpacing:".06em",textTransform:"uppercase",whiteSpace:"nowrap"}},st.label),
-      React.createElement('span',{style:{fontFamily:"'Outfit',sans-serif",fontSize:16,fontWeight:900,color:"#4ECDC4",textAlign:"right"}},logged)
+      React.createElement('span',{style:{fontFamily:"'Outfit', sans-serif",fontSize:8.5,fontWeight:900,color:st.color,background:st.bg,border:`0.5px solid ${st.border}`,borderRadius:999,padding:"4px 8px",letterSpacing:".08em",textTransform:"uppercase",lineHeight:1,flexShrink:0}},st.label),
+      React.createElement('div',{style:{fontFamily:"'Raleway', sans-serif",fontWeight:900,fontSize:20,color:"var(--green)",minWidth:24,textAlign:"right",flexShrink:0}},m.logged)
     );
   });
 
   const hero = React.createElement('div',{
     key:"preview-hero",
     className:"fu",
-    style:{textAlign:"center",maxWidth:620,marginBottom:18}
+    style:{textAlign:"center",maxWidth:620,marginBottom:16}
   },
     React.createElement('div',{style:{margin:"0 0 14px"}},React.createElement(AnteWordmark,{size:68})),
-    React.createElement('div',{style:{fontFamily:"'Outfit',sans-serif",fontSize:15,fontWeight:700,color:"#f5f7ff",lineHeight:1.35,margin:"0 auto",maxWidth:360}},
+    React.createElement('div',{style:{fontSize:15,fontWeight:500,color:"#f5f7ff",marginBottom:8}},
       "Welcome to the ",
       React.createElement('span',{style:{color:"#4ECDC4"}},"Bloc"),
       " that keeps you showing up."
@@ -75,34 +154,53 @@ const PreviewLanding = ({inviteContext,onJoin}) => {
 
   const previewHeader = React.createElement('div',{
     key:"preview-header",
-    style:{padding:"14px 16px 12px",borderBottom:"0.5px solid rgba(22,61,54,.72)",display:"grid",gap:5}
+    style:{padding:"13px 16px",borderBottom:"1px solid rgba(62,62,82,.7)",display:"flex",alignItems:"center",justifyContent:"space-between"}
   },
-    React.createElement('div',{style:{fontFamily:"'Raleway',sans-serif",fontWeight:900,fontSize:18,lineHeight:1.05,letterSpacing:0,color:"#f5f7ff",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",paddingBottom:2}},inviteContext?.groupName || "This Bloc"),
-    React.createElement('div',{style:{fontFamily:"'Outfit',sans-serif",fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".12em",fontWeight:800}},`${target} workouts · ${memberCount}/${memberLimit} members`)
+    React.createElement('div',null,
+      React.createElement('div',{style:{fontWeight:900,fontSize:15,letterSpacing:"-.01em"}},groupName),
+      React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontSize:9,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".09em",fontWeight:800,marginTop:2}},`${target} workouts · ${memberCount || "—"}/20 members`)
+    ),
   );
 
   const previewCard = React.createElement('div',{
     key:"preview-card",
     className:"fu2",
-    style:{width:"100%",maxWidth:420,marginBottom:20,background:"radial-gradient(circle at 78% 0%, rgba(78,205,196,.08), transparent 34%), rgba(6,16,14,.96)",border:"0.5px solid rgba(22,61,54,.9)",borderRadius:18,overflow:"hidden",boxShadow:"inset 0 1px 0 rgba(255,255,255,.06), 0 18px 46px rgba(0,0,0,.32), 0 0 0 1px rgba(78,205,196,.025)"}
+    style:{width:"100%",maxWidth:440,marginBottom:20,background:"linear-gradient(180deg,rgba(24,24,31,.98),rgba(17,17,23,.98))",border:"1px solid rgba(62,62,82,.9)",borderRadius:18,overflow:"hidden"}
   }, [previewHeader].concat(previewRows.length
     ? previewRows
-    : React.createElement('div',{key:"empty-preview",style:{padding:"18px 16px",fontFamily:"'Outfit',sans-serif",fontSize:13,fontWeight:700,color:"var(--muted)",textAlign:"center"}},"The leaderboard is ready.")
+    : React.createElement('div',{key:"empty-preview",style:{padding:"18px 16px",fontFamily:"'Outfit', sans-serif",fontSize:13,fontWeight:700,color:"var(--muted)",textAlign:"center"}},"The leaderboard is ready.")
   ));
 
   const actions = React.createElement('div',{
     key:"preview-actions",
     className:"fu4",
-    style:{width:"100%",maxWidth:420,display:"grid",gap:10,justifyContent:"stretch"}
+    style:{display:"flex",gap:10,flexWrap:"wrap",justifyContent:"center"}
   },
-    isFull
-      ? React.createElement('div',{style:{fontFamily:"'Outfit',sans-serif",fontSize:12,fontWeight:800,color:"var(--amber)",padding:"10px 14px",borderRadius:9,background:"var(--amber-bg)",border:"1px solid var(--amber-dim)",textAlign:"center"}},"This Bloc is full. Maximum 20 members allowed.")
+    alreadyMemberNotice
+      ? React.createElement('div',{style:{width:"100%",maxWidth:360,display:"grid",gap:10,padding:13,borderRadius:16,background:"rgba(8,15,15,.9)",border:"0.5px solid rgba(78,205,196,.24)",boxShadow:"0 16px 42px rgba(0,0,0,.24), 0 0 20px rgba(78,205,196,.08)",textAlign:"center"}},
+          React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontSize:14,fontWeight:900,color:"var(--text)"}},"You're already in this Bloc."),
+          React.createElement('button',{type:"button",className:"setup-press",onClick:onEnterAlreadyMember,style:{minHeight:44,borderRadius:13,background:"#4ECDC4",color:"#050909",fontFamily:"'Outfit', sans-serif",fontSize:14,fontWeight:900}},"Enter the Bloc")
+        )
+      : inviteContext && inviteContext.memberCount>=20
+      ? React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontSize:12,fontWeight:700,color:"var(--amber)",padding:"10px 14px",borderRadius:9,background:"var(--amber-bg)",border:"1px solid var(--amber-dim)",textAlign:"center"}},"This Bloc is full. Maximum 20 members allowed.")
       : React.createElement(PrimaryActionButton,{label:"Join this Bloc",onClick:onJoin})
   );
 
   const children = [hero, previewCard, actions];
   return React.createElement('div',{style:{minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"32px 18px",background:"transparent"}},children);
 };
+
+const InvalidInviteScreen = ({message}) => (
+  React.createElement('div',{style:{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:"32px 20px",background:"var(--bg-gradient)",backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)",color:"var(--text)"}},
+    React.createElement('section',{className:"fu",style:{width:"100%",maxWidth:420,display:"grid",gap:18,textAlign:"center",justifyItems:"center",transform:"translateY(-18px)"}},
+      React.createElement(AnteWordmark,{size:76}),
+      React.createElement('div',{style:{display:"grid",gap:9,justifyItems:"center"}},
+        React.createElement('h1',{style:{margin:0,fontFamily:"'Raleway', sans-serif",fontSize:34,fontWeight:900,lineHeight:1.02,letterSpacing:0}},"This invite link doesn't work."),
+        React.createElement('p',{style:{margin:0,fontFamily:"'Outfit', sans-serif",fontSize:15,fontWeight:700,lineHeight:1.45,color:"var(--text-soft)",maxWidth:340}},message || "Ask the Bloc admin for a fresh invite link.")
+      )
+    )
+  )
+);
 
 const SignedOutLanding = ({onCreateAccount,onSignIn}) => (
   React.createElement('div',{style:{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:"32px 20px",background:"var(--bg-gradient)",backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)"}},
@@ -197,42 +295,61 @@ const ProfileModal = ({email,onSignOut,onClose,showDisplayName,currentDisplayNam
 };
 
 
-const JoinGroupModal = ({inviteContext,joinCode,setJoinCode,onClose,onJoin,joining,error,signedIn=false}) => {
+const JoinGroupModal = ({inviteContext,joinCode,setJoinCode,onClose,onJoin,joining,error,signedIn=false,confirmLabel="Join Bloc",pendingLabel="Joining...",helperOverride=""}) => {
   const isFull = inviteContext && inviteContext.memberCount >= 20;
   const canJoin = joinCode.trim() && !joining && !isFull;
-  const helperCopy = inviteContext
+  const helperCopy = helperOverride || (inviteContext
     ? (signedIn
         ? `${inviteContext.groupName} is ready. Confirm the invite code below to join.`
         : `${inviteContext.groupName} is waiting for you. Confirm the invite code below to join.`)
-    : "Enter a Bloc invite code. You can always ask the admin to share the link instead.";
-  return React.createElement('div',{className:"overlay center-mobile",style:{background:"rgba(5,9,9,0.85)"}},
-    React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{maxWidth:380}},
+    : "Enter a Bloc invite code. You can always ask the admin to share the link instead.");
+  return renderTopLevelOverlay(React.createElement('div',{className:"overlay center-mobile",onClick:containOverlayActivation,onMouseDown:containOverlayActivation,onPointerDown:containOverlayActivation,onTouchStart:containOverlayTouch,onTouchMove:containOverlayTouchMove,onTouchEnd:containOverlayTouch,onTouchCancel:containOverlayTouch,style:{background:"rgba(5,9,9,0.85)",touchAction:"none",zIndex:10000,pointerEvents:"auto"}},
+    React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),onTouchStart:stopModalTouch,onTouchMove:stopModalTouch,onTouchEnd:stopModalTouch,onTouchCancel:stopModalTouch,style:{maxWidth:380,touchAction:"auto"}},
       React.createElement('div',{style:{fontFamily:"'Raleway', sans-serif",fontWeight:800,fontSize:22,letterSpacing:0,lineHeight:1.08,marginBottom:6}},inviteContext?"Join this Bloc":"Join a Bloc"),
       React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",color:"var(--muted)",fontSize:13,lineHeight:1.6,marginBottom:16}},helperCopy),
       React.createElement('label',{style:{display:"block",marginBottom:18}},
         React.createElement('span',{style:{display:"block",fontFamily:"'Outfit', sans-serif",fontSize:13,fontWeight:800,color:"var(--text)",marginBottom:5}},"Invite code"),
         React.createElement('input',{value:joinCode,onChange:e=>setJoinCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,8)),placeholder:"XXXXXXX",style:{width:"100%",background:"var(--s2)",border:"1px solid var(--border)",borderRadius:10,padding:"12px 13px",color:"var(--text)",fontFamily:"'Outfit', sans-serif",fontSize:15,outline:"none",textTransform:"uppercase"}})
       ),
-      isFull && React.createElement('div',{style:{fontSize:12,color:"var(--amber)",marginBottom:14,padding:"9px 11px",borderRadius:9,background:"var(--amber-bg)",border:"1px solid var(--amber-dim)"}},"This Bloc is full. Maximum 20 members allowed."),
+      isFull && React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontSize:12,fontWeight:700,color:"var(--amber)",marginBottom:14,padding:"9px 11px",borderRadius:9,background:"var(--amber-bg)",border:"1px solid var(--amber-dim)"}},"This Bloc is full. Maximum 20 members allowed."),
       !isFull && error && React.createElement('div',{style:{fontSize:12,color:"var(--red)",marginBottom:14}},error),
       React.createElement('div',{style:{display:"flex",gap:9}},
         React.createElement('button',{type:"button",className:"setup-press",onClick:onClose,style:{flex:1,background:"transparent",border:"1px solid var(--border)",color:"var(--muted)",padding:"14px",borderRadius:10,fontSize:15,fontWeight:700}},"Cancel"),
-        React.createElement('button',{type:"button",className:"setup-press",disabled:!canJoin,onClick:onJoin,style:{flex:1,background:canJoin?"#4ECDC4":"var(--s3)",color:canJoin?"#050909":"var(--muted2)",padding:"14px",borderRadius:10,fontSize:15,fontWeight:900}},joining?"Joining...":"Join Bloc")
+        React.createElement('button',{type:"button",className:"setup-press",disabled:!canJoin,onClick:onJoin,style:{flex:1,background:canJoin?"#4ECDC4":"var(--s3)",color:canJoin?"#050909":"var(--muted2)",padding:"14px",borderRadius:10,fontSize:15,fontWeight:900}},joining?pendingLabel:confirmLabel)
       )
     )
-  );
+  ));
 };
 
 
-const AuthFlowModal = ({step,mode="signin",email,setEmail,code,setCode,displayName,setDisplayName,onClose,onSendOtp,onVerifyOtp,onSaveProfile,sending,verifying,savingProfile,error,devCode}) => React.createElement('div',{className:"overlay center-mobile",onClick:()=>{}},
-  React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{maxWidth:420}},
-    React.createElement('div',{style:{fontWeight:800,fontSize:20,marginBottom:6}},
-      step==="name" ? "Set your Fero name" : mode==="signup" ? "Create your account" : "Continue with email"
+const authTitle = (step, mode, intent) => {
+  if (step === "existing") return "Account already exists";
+  if (step === "alreadyMember") return "You're already in this Bloc";
+  if (step === "name") return "Choose your Fero name";
+  if (step === "otp") return "Check your email";
+  if (mode === "signup") return "Create your account";
+  if (intent === "create" || intent === "join") return "Sign in first";
+  return "Continue with email";
+};
+
+const authHelper = (step, mode, intent, email) => {
+  if (step === "existing") return `We found a Fero account for ${email}. Sign back into it, or use a different email to create a new account.`;
+  if (step === "alreadyMember") return "Sign in to open the Bloc you're already part of.";
+  if (step === "otp") return `We sent a 6-digit code to ${email}.`;
+  if (step === "name") return "This is the name your Bloc will see.";
+  if (mode === "signup") return "Use a new email. We'll send a one-time code.";
+  if (intent === "create") return "Use your email so your Bloc is saved to your account.";
+  if (intent === "join") return "Use your email so we can add you to the Bloc.";
+  return "Use a one-time code to sign in.";
+};
+
+const AuthFlowModal = ({step,mode="signin",intent="",email,setEmail,code,setCode,displayName,setDisplayName,onClose,onSendOtp,onVerifyOtp,onSaveProfile,onConfirmExistingAccount,onUseDifferentEmail,sending,verifying,savingProfile,error,devCode}) => renderTopLevelOverlay(React.createElement('div',{className:"overlay center-mobile",onClick:containOverlayActivation,onMouseDown:containOverlayActivation,onPointerDown:containOverlayActivation,onTouchStart:containOverlayTouch,onTouchMove:containOverlayTouchMove,onTouchEnd:containOverlayTouch,onTouchCancel:containOverlayTouch,style:{touchAction:"none",zIndex:10000,pointerEvents:"auto"}},
+  React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),onTouchStart:stopModalTouch,onTouchMove:stopModalTouch,onTouchEnd:stopModalTouch,onTouchCancel:stopModalTouch,style:{maxWidth:420,touchAction:"auto"}},
+    React.createElement('div',{style:{fontFamily:"'Raleway', sans-serif",fontWeight:900,fontSize:22,marginBottom:6,lineHeight:1.05,letterSpacing:0}},
+      authTitle(step, mode, intent)
     ),
-    React.createElement('div',{style:{color:"var(--muted)",fontSize:13,lineHeight:1.6,marginBottom:18}},
-      step==="email" ? (mode==="signup" ? "Use a new email. We'll send a one-time code." : "Use a one-time code to sign in.")
-      : step==="otp" ? `We sent a 6-digit code to ${email}.`
-      : "What should your Blocs call you?"
+    React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",color:"var(--muted)",fontSize:13,lineHeight:1.6,marginBottom:18}},
+      authHelper(step, mode, intent, email)
     ),
     step==="email" && React.createElement('label',{style:{display:"block",marginBottom:18}},
       React.createElement('span',{className:"lbl"},"Email"),
@@ -254,13 +371,66 @@ const AuthFlowModal = ({step,mode="signin",email,setEmail,code,setCode,displayNa
     ),
     error && React.createElement('div',{style:{fontSize:12,color:"var(--red)",marginBottom:16,whiteSpace:"pre-wrap"}},error),
     React.createElement('div',{style:{display:"flex",gap:9}},
-      React.createElement('button',{onClick:onClose,style:{flex:1,background:"var(--s2)",border:"1px solid var(--border)",color:"var(--muted)",padding:"14px",borderRadius:10,fontSize:15,fontWeight:600}},"Cancel"),
+      step!=="existing" && step!=="alreadyMember" && React.createElement('button',{onClick:onClose,style:{flex:1,background:"var(--s2)",border:"1px solid var(--border)",color:"var(--muted)",padding:"14px",borderRadius:10,fontFamily:"'Outfit', sans-serif",fontSize:15,fontWeight:700}},"Cancel"),
       step==="email" && React.createElement('button',{disabled:!email.trim()||sending,onClick:onSendOtp,style:{flex:1,background:email.trim()&&!sending?"var(--green)":"var(--s3)",color:email.trim()&&!sending?"#000":"var(--muted2)",padding:"14px",borderRadius:10,fontSize:15,fontWeight:800}},sending?"Sending...":"Send code"),
       step==="otp" && React.createElement('button',{disabled:code.length!==6||verifying,onClick:onVerifyOtp,style:{flex:1,background:code.length===6&&!verifying?"var(--green)":"var(--s3)",color:code.length===6&&!verifying?"#000":"var(--muted2)",padding:"14px",borderRadius:10,fontSize:15,fontWeight:800}},verifying?"Checking...":"Verify"),
-      step==="name" && React.createElement('button',{disabled:!displayName.trim()||savingProfile,onClick:onSaveProfile,style:{flex:1,background:displayName.trim()&&!savingProfile?"var(--green)":"var(--s3)",color:displayName.trim()&&!savingProfile?"#000":"var(--muted2)",padding:"14px",borderRadius:10,fontSize:15,fontWeight:800}},savingProfile?"Saving...":"Continue")
+      step==="name" && React.createElement('button',{disabled:!displayName.trim()||savingProfile,onClick:onSaveProfile,style:{flex:1,background:displayName.trim()&&!savingProfile?"var(--green)":"var(--s3)",color:displayName.trim()&&!savingProfile?"#000":"var(--muted2)",padding:"14px",borderRadius:10,fontSize:15,fontWeight:800}},savingProfile?"Saving...":"Continue"),
+      step==="existing" && React.createElement('button',{onClick:onUseDifferentEmail,style:{flex:1,background:"var(--s2)",border:"1px solid var(--border)",color:"var(--muted)",padding:"14px",borderRadius:10,fontFamily:"'Outfit', sans-serif",fontSize:15,fontWeight:700}},"Use different email"),
+      step==="existing" && React.createElement('button',{disabled:sending,onClick:onConfirmExistingAccount,style:{flex:1,background:!sending?"var(--green)":"var(--s3)",color:!sending?"#000":"var(--muted2)",padding:"14px",borderRadius:10,fontSize:15,fontWeight:800}},sending?"Sending...":"Sign in"),
+      step==="alreadyMember" && React.createElement('button',{onClick:onUseDifferentEmail,style:{flex:1,background:"var(--s2)",border:"1px solid var(--border)",color:"var(--muted)",padding:"14px",borderRadius:10,fontFamily:"'Outfit', sans-serif",fontSize:15,fontWeight:700}},"Use different email"),
+      step==="alreadyMember" && React.createElement('button',{disabled:sending,onClick:onConfirmExistingAccount,style:{flex:1,background:!sending?"var(--green)":"var(--s3)",color:!sending?"#000":"var(--muted2)",padding:"14px",borderRadius:10,fontSize:15,fontWeight:800}},sending?"Sending...":"Enter the Bloc")
     )
   )
-);
+));
+
+const DisplayNameSetupScreen = ({displayName,setDisplayName,onSave,saving,error}) => {
+  const fileInputRef = useRef(null);
+  const [profilePhotoDataUrl,setProfilePhotoDataUrl] = useState("");
+  const [photoError,setPhotoError] = useState("");
+  const [photoBusy,setPhotoBusy] = useState(false);
+  const handlePhotoFile = async event => {
+    const file = event.target?.files?.[0];
+    if (event.target) event.target.value = "";
+    if (!file || photoBusy) return;
+    try {
+      setPhotoBusy(true);
+      setPhotoError("");
+      setProfilePhotoDataUrl(await readOnboardingProfilePhoto(file));
+    } catch (photoLoadError) {
+      setPhotoError(photoLoadError instanceof Error ? photoLoadError.message : "Unable to load photo");
+    } finally {
+      setPhotoBusy(false);
+    }
+  };
+  return React.createElement('main',{style:{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:"32px 20px",background:"var(--bg-gradient)",backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)",color:"var(--text)"}},
+    React.createElement('section',{className:"fu",style:{width:"100%",maxWidth:420,display:"grid",gap:20,textAlign:"center",justifyItems:"center",transform:"translateY(-18px)"}},
+      React.createElement(AnteWordmark,{size:76}),
+      React.createElement('div',{style:{display:"grid",gap:8,justifyItems:"center"}},
+        React.createElement('h1',{style:{margin:0,fontFamily:"'Raleway', sans-serif",fontSize:34,fontWeight:900,lineHeight:1.02,letterSpacing:0}},"What should your Bloc call you?")
+      ),
+      React.createElement('div',{style:{width:"100%",display:"grid",gap:12,padding:14,borderRadius:18,background:"rgba(8,15,15,.84)",border:"0.5px solid rgba(78,205,196,.18)",boxShadow:"0 18px 46px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.035)"}},
+        React.createElement('input',{ref:fileInputRef,type:"file",accept:"image/*",onChange:handlePhotoFile,style:{display:"none"}}),
+        React.createElement('button',{type:"button",disabled:photoBusy||saving,onClick:()=>fileInputRef.current?.click(),className:"setup-press",style:{justifySelf:"center",display:"grid",justifyItems:"center",gap:7,background:"transparent",border:"none",padding:0,color:"var(--muted)",fontFamily:"'Outfit', sans-serif",fontSize:11,fontWeight:800,letterSpacing:0}},
+          React.createElement('span',{style:{position:"relative",display:"inline-flex",width:76,height:76,borderRadius:"50%",alignItems:"center",justifyContent:"center",background:"rgba(18,27,34,.98)",border:"0.5px solid rgba(78,205,196,.34)",boxShadow:"0 0 30px rgba(78,205,196,.11), inset 0 1px 0 rgba(255,255,255,.06)",overflow:"hidden"}},
+            profilePhotoDataUrl
+              ? React.createElement('img',{src:profilePhotoDataUrl,alt:"Profile preview",style:{width:"100%",height:"100%",objectFit:"cover",display:"block"}})
+              : React.createElement(UploadPhotoIcon,{size:30,color:"#4ECDC4"}),
+            profilePhotoDataUrl && React.createElement('span',{style:{position:"absolute",right:0,bottom:0,width:26,height:26,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",background:"#4ECDC4",border:"2px solid #071111",boxShadow:"0 8px 18px rgba(0,0,0,.3)"}},
+              React.createElement(UploadPhotoIcon,{size:14,color:"#050909"})
+            )
+          ),
+          React.createElement('span',null,photoBusy ? "Loading Photo..." : (profilePhotoDataUrl ? "Change Photo" : "Add Photo"))
+        ),
+        photoError && React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontSize:11,fontWeight:700,color:"var(--red)",lineHeight:1.35,textAlign:"center",whiteSpace:"pre-wrap"}},photoError),
+        React.createElement('input',{value:displayName,onChange:event=>setDisplayName(event.target.value),placeholder:"Display name",autoFocus:true,style:{width:"100%",boxSizing:"border-box",height:52,borderRadius:14,background:"rgba(18,27,34,.98)",border:"0.5px solid rgba(78,205,196,.28)",boxShadow:"inset 0 1px 0 rgba(255,255,255,.06)",color:"var(--text)",fontFamily:"'Outfit', sans-serif",fontSize:16,fontWeight:800,outline:"none",padding:"0 14px"}}),
+        error && React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontSize:12,fontWeight:700,color:"var(--red)",lineHeight:1.4,textAlign:"left",whiteSpace:"pre-wrap"}},error),
+        React.createElement('button',{type:"button",className:"setup-press",disabled:!displayName.trim()||saving,onClick:()=>onSave?.({profilePhotoDataUrl}),style:{minHeight:50,borderRadius:14,background:displayName.trim()&&!saving?"#4ECDC4":"var(--s3)",color:displayName.trim()&&!saving?"#050909":"var(--muted2)",fontFamily:"'Outfit', sans-serif",fontSize:15,fontWeight:900}},
+          saving ? "Saving..." : "Continue"
+        )
+      )
+    )
+  );
+};
 
 
 const IdentitySetup = ({members,onSelect}) => (
@@ -326,7 +496,7 @@ const CreatedBlocInviteScreen = ({group,onContinue}) => {
 };
 
 
-const GroupHome = ({groups,currentIdentity,currentEmail,currentUserId="",onOpenProfile,onOpenGroup,onCreateGroup,onJoinGroup,creating,autoOpenCreate=false,initialCreateGroupName="",onAutoOpenHandled,suppressIntro=false}) => {
+const GroupHome = ({groups,currentIdentity,currentEmail,currentUserId="",onOpenProfile,onOpenGroup,onCreateGroup,onJoinGroup,creating,autoOpenCreate=false,initialCreateGroupName="",onAutoOpenHandled,onCreateCancel,suppressIntro=false}) => {
   const [showCreate,setShowCreate]=useState(false);
   const [createInitialGroupName,setCreateInitialGroupName]=useState("");
   const compactMobile = isMobile();
@@ -364,11 +534,11 @@ const GroupHome = ({groups,currentIdentity,currentEmail,currentUserId="",onOpenP
       ),
       groups.length===0
         ? React.createElement('div',{className:"fu",style:{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",textAlign:"center",paddingTop:compactMobile?60:100,paddingBottom:40,animation:suppressIntro?"none":undefined}},
-            React.createElement(AnteWordmark,{size:compactMobile?38:52}),
-            React.createElement('div',{style:{color:"var(--muted)",fontSize:14,fontWeight:500,marginTop:12,marginBottom:32}},"You're not in any Blocs yet."),
+            React.createElement(AnteWordmark,{size:compactMobile?52:68}),
+            React.createElement('div',{style:{color:"var(--muted)",fontSize:15,fontWeight:700,marginTop:14,marginBottom:34}},"You're not in any Blocs yet."),
             React.createElement('div',{style:{display:"flex",gap:10,flexWrap:"wrap",justifyContent:"center"}},
-              React.createElement('button',{onClick:()=>{setCreateInitialGroupName("");setShowCreate(true);},style:{background:"var(--green)",color:"#000",padding:compactMobile?"12px 18px":"12px 20px",borderRadius:10,fontSize:14,fontWeight:800}},"Create Bloc"),
-              React.createElement('button',{onClick:onJoinGroup,style:{background:"var(--green)",color:"#000",padding:compactMobile?"12px 18px":"12px 20px",borderRadius:10,fontSize:14,fontWeight:800}},"Join Existing")
+              React.createElement('button',{onClick:()=>{setCreateInitialGroupName("");setShowCreate(true);},style:{background:"var(--green)",color:"#000",padding:compactMobile?"14px 22px":"14px 24px",borderRadius:12,fontSize:15,fontWeight:900}},"Create Bloc"),
+              React.createElement('button',{onClick:onJoinGroup,style:{background:"var(--green)",color:"#000",padding:compactMobile?"14px 22px":"14px 24px",borderRadius:12,fontSize:15,fontWeight:900}},"Join Existing")
             )
           )
         : React.createElement(React.Fragment,null,
@@ -440,7 +610,7 @@ const GroupHome = ({groups,currentIdentity,currentEmail,currentUserId="",onOpenP
       defaultCreatorName: currentIdentity || "",
       defaultTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || DEFAULT_GROUP_TIME_ZONE,
       lockCreatorName: true,
-      onClose:()=>setShowCreate(false),
+      onClose:()=>{setShowCreate(false); onCreateCancel && onCreateCancel();},
       onCreate:async payload=>{
         const result = await onCreateGroup(payload);
         if (result?.ok) setShowCreate(false);
@@ -523,4 +693,4 @@ const LocalDevImpersonationBar = ({options,value,onChange}) => {
 
 // ─── LOG MODAL ────────────────────────────────────────────────────────────────
 
-export { previewStatus, PreviewLanding, SignedOutLanding, ProfileModal, JoinGroupModal, AuthFlowModal, IdentitySetup, CreatedBlocInviteScreen, GroupHome, WhoAreYou, GroupAccessNotice, LocalDevImpersonationBar };
+export { previewStatus, PreviewLanding, InvalidInviteScreen, SignedOutLanding, ProfileModal, JoinGroupModal, AuthFlowModal, DisplayNameSetupScreen, IdentitySetup, CreatedBlocInviteScreen, GroupHome, WhoAreYou, GroupAccessNotice, LocalDevImpersonationBar };

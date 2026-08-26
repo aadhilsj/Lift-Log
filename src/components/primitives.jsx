@@ -200,13 +200,11 @@ const MedalIcon = ({place=1,size=16}) => {
 
 
 const UploadPhotoIcon = ({size=15,color="currentColor"}) => React.createElement('svg',{
-  width:size,height:size,viewBox:"0 0 24 24",fill:"none",stroke:color,strokeWidth:"1.8",strokeLinecap:"round",strokeLinejoin:"round"
+  width:size,height:size,viewBox:"0 0 24 24",fill:"none",stroke:color,strokeWidth:"1.9",strokeLinecap:"round",strokeLinejoin:"round"
 },
-  React.createElement('rect',{x:"3.5",y:"6.5",width:"17",height:"13",rx:"3"}),
-  React.createElement('path',{d:"M8.5 14.5l2.5-2.5 2.3 2.3 3.2-3.3 2 2"}),
-  React.createElement('circle',{cx:"9",cy:"10",r:"1.2"}),
-  React.createElement('path',{d:"M12 3.5v5"}),
-  React.createElement('path',{d:"M9.8 5.7L12 3.5l2.2 2.2"})
+  React.createElement('path',{d:"M9 6.5l1.2-1.7h3.6L15 6.5h2.6c1.1 0 2 .9 2 2v8.1c0 1.1-.9 2-2 2H6.4c-1.1 0-2-.9-2-2V8.5c0-1.1.9-2 2-2H9z"}),
+  React.createElement('circle',{cx:"12",cy:"12.7",r:"3.2"}),
+  React.createElement('path',{d:"M17 9.2h.01"})
 );
 
 

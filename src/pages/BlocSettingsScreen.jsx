@@ -57,6 +57,29 @@ const ReadOnlyField = ({title,value,review=false,children}) => (
   )
 );
 
+const ReadOnlyWorkoutTypeTile = ({type}) => (
+  React.createElement('div',{
+    style:{
+      minWidth:0,
+      minHeight:46,
+      borderRadius:9,
+      background:"rgba(78,205,196,.07)",
+      border:"0.5px solid rgba(78,205,196,.34)",
+      color:"#4ECDC4",
+      display:"flex",
+      flexDirection:"column",
+      alignItems:"center",
+      justifyContent:"center",
+      gap:2,
+      padding:"5px 2px",
+      fontFamily:UI_FONT
+    }
+  },
+    React.createElement('span',{style:{width:18,height:18,display:"inline-flex",alignItems:"center",justifyContent:"center"}},React.createElement(WorkoutTypeIcon,{type,size:14})),
+    React.createElement('span',{style:{fontSize:7.6,fontWeight:800,lineHeight:1.05,whiteSpace:"nowrap"}},type)
+  )
+);
+
 const ReviewTag = () => (
   React.createElement('span',{style:{display:"inline-flex",alignItems:"center",gap:5,borderRadius:999,padding:"3px 7px",background:"rgba(78,205,196,.08)",border:"0.5px solid rgba(78,205,196,.24)",color:"#4ECDC4",fontFamily:UI_FONT,fontSize:8,fontWeight:800,letterSpacing:".06em",textTransform:"uppercase"}},
     React.createElement('span',{style:{width:5,height:5,borderRadius:999,background:"#4ECDC4",boxShadow:"0 0 10px rgba(78,205,196,.55)"}}),
@@ -64,8 +87,11 @@ const ReviewTag = () => (
   )
 );
 
-const ReviewShell = ({children,review=false}) => (
-  React.createElement('div',{style:review?{borderRadius:12,border:"1px solid rgba(78,205,196,.45)",boxShadow:"0 0 0 1px rgba(78,205,196,.06) inset",padding:"10px 10px 0",margin:"0 -10px 12px"}:{}},children)
+const ReviewShell = ({children,review=false,onDismiss}) => (
+  React.createElement('div',{
+    onPointerDown:review ? onDismiss : undefined,
+    style:review?{borderRadius:12,border:"1px solid rgba(78,205,196,.45)",boxShadow:"0 0 0 1px rgba(78,205,196,.06) inset",padding:"10px 10px 0",margin:"0 -10px 12px"}:{}
+  },children)
 );
 
 const EditableField = ({title,description,children}) => (
@@ -76,7 +102,7 @@ const EditableField = ({title,description,children}) => (
   )
 );
 
-const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,saving,onReviewSetup,onReviewSitOut,onReviewSolo,onKickMember}) => {
+const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,saving,onReviewSetup,onReviewSitOut,onReviewSolo,onKickMember,localDevMode=false}) => {
   const compactMobile = isMobile();
   const [tab,setTab]=useState("rules");
   const [groupName,setGroupName]=useState(group?.name || "");
@@ -86,10 +112,11 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
   const [kickingUserId,setKickingUserId]=useState(null);
   const [dragX,setDragX]=useState(0);
   const [dragging,setDragging]=useState(false);
+  const [dismissedReviewFields,setDismissedReviewFields]=useState({});
   const surfaceRef = useRef(null);
   const swipeRef = useRef({sx:0,sy:0,active:false,mode:null});
   const pendingFields = useMemo(()=>getSetupReviewPendingFields(group),[group]);
-  const pendingSet = useMemo(()=>new Set(pendingFields),[pendingFields]);
+  const pendingSet = useMemo(()=>new Set(pendingFields.filter(field=>!dismissedReviewFields[field])),[dismissedReviewFields,pendingFields]);
   const inviteLink = `${window.location.origin}${window.location.pathname}?invite=${group?.inviteCode || ""}`;
   const pendingSitOuts = Object.values(normalizeSitOutRequests(group?.sitOutRequests)?.[curKey] || {}).filter(request => request.status === "pending");
   const pendingSolos = Object.values(normalizeSoloRequests(group?.soloRequests)?.[curKey] || {}).filter(request => request.status === "pending");
@@ -100,13 +127,8 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
   useEffect(()=>{
     setGroupName(group?.name || "");
     setSettings({...SETTINGS_DEFAULTS,...group?.settings});
+    setDismissedReviewFields({});
   },[group?.id]);
-
-  useEffect(()=>{
-    if (tab !== "rules" || !isAdmin || pendingFields.length === 0 || !onReviewSetup) return undefined;
-    const timer = setTimeout(()=>onReviewSetup(), 250);
-    return ()=>clearTimeout(timer);
-  },[tab,isAdmin,pendingFields.length,onReviewSetup]);
 
   useEffect(() => {
     const el = surfaceRef.current;
@@ -145,7 +167,13 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
   const saveRules = () => {
     setSubmitAttempted(true);
     if (!canSave || escalationStepMissing) return;
-    onSave(groupName.trim(), normalizedSettings);
+    setDismissedReviewFields({});
+    onSave(groupName.trim(), normalizedSettings, { setupReview: { pending: {} }, optimisticClose: true });
+  };
+
+  const dismissReviewField = field => {
+    if (!field) return;
+    setDismissedReviewFields(current => current[field] ? current : { ...current, [field]: true });
   };
 
   const toggleType = type => setSettings(current => ({
@@ -210,17 +238,20 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
 
   const renderRules = () => {
     if (!isAdmin) {
+      const readonlySettings = buildNormalizedSettings(group.settings || {});
+      const readonlyTypes = readonlySettings.acceptedWorkoutTypes?.length ? readonlySettings.acceptedWorkoutTypes : WORKOUT_TYPES;
       return React.createElement('div',null,
         React.createElement(ReadOnlyField,{title:"Bloc Name",value:group.name}),
-        React.createElement(ReadOnlyField,{title:"Monthly Fine Amount",value:`${group.settings?.currency || DEFAULT_CURRENCY} ${group.settings?.fineAmount || DEFAULT_FINE_AMOUNT}`}),
-        React.createElement(ReadOnlyField,{title:"Fine Calculation",value:group.settings?.feeModel === "flat" ? "Flat" : "Escalating",review:pendingSet.has("feeModel")}),
-        React.createElement(ReadOnlyField,{title:"Monthly Workout Target",value:`${group.settings?.minTarget || DEFAULT_MIN_TARGET} workouts`}),
-        React.createElement(ReadOnlyField,{title:"Workout Types That Count",review:pendingSet.has("acceptedWorkoutTypes")},
-          React.createElement('div',{style:{display:"flex",gap:7,flexWrap:"wrap"}},
-            (group.settings?.acceptedWorkoutTypes || WORKOUT_TYPES).map(type=>React.createElement('span',{key:type,style:{fontSize:11,fontWeight:700,color:"#f5f7ff"}},type))
+        React.createElement(ReadOnlyField,{title:"Monthly Penalty Amount",value:`${readonlySettings.currency || DEFAULT_CURRENCY} ${readonlySettings.fineAmount || DEFAULT_FINE_AMOUNT}`}),
+        React.createElement(ReadOnlyField,{title:"Penalty Calculation",value:readonlySettings.feeModel === "flat" ? "Flat" : "Escalating"}),
+        readonlySettings.feeModel === "escalating" && React.createElement(ReadOnlyField,{title:"Penalty Increase Per Miss",value:`${readonlySettings.currency || DEFAULT_CURRENCY} ${readonlySettings.escalationStepAmount || DEFAULT_FINE_AMOUNT}`}),
+        React.createElement(ReadOnlyField,{title:"Monthly Workout Target",value:`${readonlySettings.minTarget || DEFAULT_MIN_TARGET} workouts`}),
+        React.createElement(ReadOnlyField,{title:"Workout Types That Count"},
+          React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(5, minmax(0, 1fr))",gap:7,alignItems:"stretch",width:"100%"}},
+            readonlyTypes.map(type=>React.createElement(ReadOnlyWorkoutTypeTile,{key:type,type}))
           )
         ),
-        React.createElement(ReadOnlyField,{title:"Time Zone",value:group.settings?.timeZone || DEFAULT_GROUP_TIME_ZONE,review:pendingSet.has("timeZone")}),
+        React.createElement(ReadOnlyField,{title:"Time Zone",value:readonlySettings.timeZone || DEFAULT_GROUP_TIME_ZONE}),
         React.createElement('div',{style:{fontSize:11,color:"var(--muted)",lineHeight:1.5,marginTop:14}},"Only the Bloc admin can edit these.")
       );
     }
@@ -257,14 +288,14 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
       React.createElement(EditableField,{title:"Bloc Name"},
         React.createElement('input',{value:groupName,onChange:e=>setGroupName(e.target.value),style:{...inputShellStyle,width:"min(100%, 250px)",fontSize:11.5,padding:"7px 9px",borderRadius:9,textAlign:"center",display:"block"}})
       ),
-      React.createElement(EditableField,{title:"Monthly Fine Amount"},
+      React.createElement(EditableField,{title:"Monthly Penalty Amount"},
         React.createElement('div',{style:{display:"grid",gridTemplateColumns:"68px 96px",gap:7,maxWidth:172}},
           React.createElement('div',{style:{...inputShellStyle,padding:"8px 9px",borderRadius:9,fontSize:11,textAlign:"center",color:"var(--muted)",display:"flex",alignItems:"center",justifyContent:"center"}},settings.currency || DEFAULT_CURRENCY),
           React.createElement('input',{type:"number",min:1,value:settings.fineAmount,onChange:e=>setSettings(current=>({...current,fineAmount:e.target.value})),style:{...inputShellStyle,width:"100%",fontSize:12,padding:"8px 9px",borderRadius:9,textAlign:"center"}})
         )
       ),
-      React.createElement(ReviewShell,{review:pendingSet.has("feeModel")},
-        React.createElement(EditableField,{title:renderRuleTitle("Fine Calculation","feeModel")},
+      React.createElement(ReviewShell,{review:pendingSet.has("feeModel"),onDismiss:()=>dismissReviewField("feeModel")},
+        React.createElement(EditableField,{title:renderRuleTitle("Penalty Calculation","feeModel")},
           React.createElement('div',{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:7,marginBottom:7}},
             ["escalating","flat"].map(value => {
               const active = settings.feeModel === value;
@@ -274,10 +305,10 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
           React.createElement('div',{style:{fontSize:10,color:"var(--muted)",lineHeight:1.35}},
             settings.feeModel === "flat"
               ? "Everyone who misses the target pays the same fixed amount."
-              : "Each extra miss raises the fine for everyone who missed."
+              : "Each extra miss raises the penalty for everyone who missed."
           ),
           settings.feeModel === "escalating" && React.createElement('div',{style:{marginTop:10}},
-            React.createElement('div',{style:{fontSize:10,fontWeight:800,color:"var(--text)",marginBottom:6}},"Fine Increase Per Miss"),
+            React.createElement('div',{style:{fontSize:10,fontWeight:800,color:"var(--text)",marginBottom:6}},"Penalty Increase Per Miss"),
             React.createElement(StepperField,{value:settings.escalationStepAmount,onChange:value=>setSettings(current=>({...current,escalationStepAmount:value})),min:1,compact:true,suffix:settings.currency || DEFAULT_CURRENCY}),
             submitAttempted && escalationStepMissing && React.createElement('div',{style:{fontSize:11,color:"var(--red)",marginTop:7}},"Set a step amount to continue.")
           )
@@ -286,14 +317,14 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
       React.createElement(EditableField,{title:"Monthly Workout Target"},
         React.createElement(StepperField,{value:settings.minTarget,onChange:value=>setSettings(current=>({...current,minTarget:value})),min:6,max:30,compact:true})
       ),
-      React.createElement(ReviewShell,{review:pendingSet.has("acceptedWorkoutTypes")},
+      React.createElement(ReviewShell,{review:pendingSet.has("acceptedWorkoutTypes"),onDismiss:()=>dismissReviewField("acceptedWorkoutTypes")},
         React.createElement(EditableField,{title:renderRuleTitle("Workout Types That Count","acceptedWorkoutTypes")},
           React.createElement('div',{style:{width:"100%"}},
             miniWorkoutTypeSelector
           )
         )
       ),
-      React.createElement(ReviewShell,{review:pendingSet.has("timeZone")},
+      React.createElement(ReviewShell,{review:pendingSet.has("timeZone"),onDismiss:()=>dismissReviewField("timeZone")},
         React.createElement(EditableField,{title:renderRuleTitle("Time Zone","timeZone")},
           React.createElement(SelectField,{value:settings.timeZone,onChange:e=>setSettings(current=>({...current,timeZone:e.target.value})),width:"100%",maxWidth:196,options:TIME_ZONE_OPTIONS.map(option=>({value:option.value,label:`${option.label} · ${option.abbr}`})),compact:true,arrowColor:"#4ECDC4"})
         )
@@ -371,6 +402,7 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
   );
 
   const content = tab === "members" ? renderMembers() : tab === "invite" ? renderInvite() : renderRules();
+  const surfaceHeight = localDevMode ? "calc(100dvh - 130px)" : "calc(100dvh - 64px)";
 
   return React.createElement('div',{
     ref:surfaceRef,
@@ -378,7 +410,7 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
     onTouchMove:moveSwipeBack,
     onTouchEnd:endSwipeBack,
     onTouchCancel:resetSwipe,
-    style:{position:"relative",zIndex:2,height:"calc(100dvh - 64px)",minHeight:"calc(100vh - 64px)",background:"var(--bg-gradient)",backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)",backgroundColor:"#050909",overflowY:"auto",overflowX:"hidden",WebkitOverflowScrolling:"touch",overscrollBehavior:"contain",isolation:"isolate",transform:dragX?`translateX(${dragX}px)`:"translateX(0)",transition:dragging?"none":"transform .08s ease-out",boxShadow:dragX?"-18px 0 34px rgba(0,0,0,.28)":"none",willChange:dragging||dragX?"transform":"auto",touchAction:"pan-y"}
+    style:{position:"relative",zIndex:2,height:surfaceHeight,minHeight:0,background:"var(--bg-gradient)",backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)",backgroundColor:"#050909",overflowY:"auto",overflowX:"hidden",WebkitOverflowScrolling:"touch",overscrollBehavior:"contain",isolation:"isolate",transform:dragX?`translateX(${dragX}px)`:"translateX(0)",transition:dragging?"none":"transform .08s ease-out",boxShadow:dragX?"-18px 0 34px rgba(0,0,0,.28)":"none",willChange:dragging||dragX?"transform":"auto",touchAction:"pan-y"}
   },
     React.createElement('div',{style:{maxWidth:560,margin:"0 auto",padding:compactMobile?"8px 16px calc(env(safe-area-inset-bottom) + 22px)":"16px 18px 34px"}},
       React.createElement('div',{style:{display:"grid",gridTemplateColumns:"38px 1fr 38px",alignItems:"center",minHeight:36,marginBottom:7}},

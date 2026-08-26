@@ -29,6 +29,8 @@ let supabaseAdminClientPromise = null;
 const ENABLE_SETTLEMENT_CONFIRMATIONS = String(process.env.ENABLE_SETTLEMENT_CONFIRMATIONS || "").trim().toLowerCase() === "true";
 const ENABLE_SETTLEMENT_CONFIRMATIONS_PREVIEW = String(process.env.ENABLE_SETTLEMENT_CONFIRMATIONS_PREVIEW || "").trim().toLowerCase() === "true";
 const ENABLE_LOCAL_PREVIEW_AUTH = String(process.env.ENABLE_LOCAL_PREVIEW_AUTH || "").trim().toLowerCase() === "true";
+const ENABLE_LOCAL_DEV_OTP = String(process.env.ENABLE_LOCAL_DEV_OTP || "").trim().toLowerCase() === "true";
+const LOCAL_DEV_OTP_CODE = String(process.env.LOCAL_DEV_OTP_CODE || "000000").trim() || "000000";
 const WRITE_HYDRATION_PARITY_PREVIEW_BRANCH = "codex/create-group-canonical-first";
 const WRITE_HYDRATION_PARITY_DEFAULT_ACTIONS = [
   "update-settings",
@@ -628,7 +630,32 @@ function scopeReadableStateForUser(state, userId) {
   );
 
   const selfProfile = state?.profiles?.[normalizedUserId];
-  const nextProfiles = selfProfile ? { [normalizedUserId]: selfProfile } : {};
+  const visibleProfileIds = new Set([normalizedUserId]);
+  Object.values(nextGroups).forEach(group => {
+    Object.keys(group?.memberships || {}).forEach(memberUserId => {
+      if (memberUserId) visibleProfileIds.add(memberUserId);
+    });
+  });
+  const nextProfiles = Object.fromEntries(
+    [...visibleProfileIds]
+      .map(profileUserId => {
+        const profile = state?.profiles?.[profileUserId];
+        if (!profile) return null;
+        return [
+          profileUserId,
+          profileUserId === normalizedUserId
+            ? profile
+            : {
+                id: profile.id || profileUserId,
+                email: "",
+                displayName: profile.displayName || "",
+                profilePhotoUrl: profile.profilePhotoUrl || "",
+                createdAt: profile.createdAt || null
+              }
+        ];
+      })
+      .filter(Boolean)
+  );
 
   return {
     ...state,
@@ -670,17 +697,43 @@ function normalizeSettlementConfirmations(rows) {
 
 function findProfileEntryByEmail(profiles, email) {
   if (!profiles || !email) return null;
-  return Object.entries(profiles).find(([, profile]) => profile?.email === email) || null;
+  const normalizedEmail = normalizeEmailAddress(email);
+  return Object.entries(profiles).find(([, profile]) => normalizeEmailAddress(profile?.email) === normalizedEmail) || null;
+}
+
+function isUuidLike(value) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(value || "").trim());
+}
+
+// IDENTITY GUARD: a display name is cosmetic and never proof of membership.
+// A legacy membership row may only be backfilled when the group itself already
+// records this *auth user id* against that name — either as the admin user id or
+// in a monthHistory memberAuthUserIds snapshot. Matching `memberOrder` by name
+// alone is NOT evidence: two accounts may legitimately share a display name, and
+// backfilling on a name match would silently mint a real membership (and, when
+// the name matches `adminName`, real admin rights) in a stranger's Bloc.
+function canBackfillLegacyMembership(group, userId, displayName) {
+  if (!group || !userId || !displayName) return false;
+  if (group.memberships?.[userId]) return false;
+  if (!group.memberOrder?.includes(displayName)) return false;
+  // The name must not already be claimed by a different auth user in this Bloc.
+  const claimedByOther = Object.values(group.memberships || {}).some(membership =>
+    membership?.displayName === displayName && membership?.userId !== userId
+  );
+  if (claimedByOther) return false;
+  // Positive auth-id evidence only.
+  if (group.adminUserId && group.adminUserId === userId && group.adminName === displayName) return true;
+  return groupDisplayNameBelongsToUser(group, displayName, userId);
 }
 
 function needsLegacyMembershipBackfill(groups, userId, displayName) {
   return !!displayName && Object.values(groups || {}).some(group =>
-    group.memberOrder?.includes(displayName) && !group.memberships?.[userId]
+    canBackfillLegacyMembership(group, userId, displayName)
   );
 }
 
 function backfillLegacyMembershipForProfile(group, userId, displayName) {
-  if (!group.memberOrder?.includes(displayName) || group.memberships?.[userId]) {
+  if (!canBackfillLegacyMembership(group, userId, displayName)) {
     return group;
   }
   const isAdmin = group.adminName === displayName;
@@ -779,6 +832,9 @@ function migrateAuthIdentity(base, nextUserId, email) {
   if (legacyUserId === normalizedUserId) {
     return { state: base, profile: legacyProfile, changed: false };
   }
+  if (isUuidLike(legacyUserId)) {
+    return { state: base, profile: null, changed: false };
+  }
 
   const nextProfiles = { ...(base.profiles || {}) };
   delete nextProfiles[legacyUserId];
@@ -862,9 +918,13 @@ function getCurrentMemberNamesForMonth(group, monthKey) {
 function isCurrentGroupMember(group, displayName, authUserId = "") {
   const safeDisplayName = String(displayName || "").trim();
   const safeUserId = String(authUserId || "").trim();
+  // IDENTITY GUARD: once an auth user id is in play, membership is decided by
+  // `memberships[userId]` alone. Never fall through to the name-in-memberOrder
+  // check for an authenticated caller — that would let a same-named stranger act
+  // inside the Bloc.
   if (safeUserId) {
     const membership = group?.memberships?.[safeUserId];
-    if (membership?.displayName) return membership.displayName === safeDisplayName;
+    return !!membership?.displayName && membership.displayName === safeDisplayName;
   }
   if (!safeDisplayName) return false;
   const activeNames = Array.isArray(group?.activeMemberOrder) && group.activeMemberOrder.length
@@ -889,7 +949,7 @@ function isGroupDisplayNameForActor(group, displayName, actorUserId = "", actorD
   const safeActorName = String(actorDisplayName || "").trim();
   if (safeUserId) {
     const membership = group?.memberships?.[safeUserId];
-    if (membership?.displayName) return membership.displayName === safeDisplayName;
+    return !!membership?.displayName && membership.displayName === safeDisplayName;
   }
   return !!safeDisplayName && safeDisplayName === safeActorName;
 }
@@ -898,17 +958,26 @@ function resolveMembershipDisplayNameByUserId(group, userId, fallbackDisplayName
   const safeUserId = String(userId || "").trim();
   const safeFallback = String(fallbackDisplayName || "").trim();
   if (!safeUserId) return safeFallback;
+  // IDENTITY GUARD: for an auth user id, only that user's own membership row can
+  // name them. No payload-supplied fallback — that is caller-controlled input.
   return Object.values(group?.memberships || {})
     .find(membership => membership?.userId === safeUserId)
-    ?.displayName || safeFallback;
+    ?.displayName || "";
 }
 
 function isGroupAdminActor(group, actorUserId = "", actorDisplayName = "") {
   const safeUserId = String(actorUserId || "").trim();
   const safeDisplayName = String(actorDisplayName || "").trim();
-  return group?.adminUserId
-    ? group.adminUserId === safeUserId
-    : !!group?.adminName && group.adminName === safeDisplayName;
+  if (safeUserId) {
+    if (group?.adminUserId) return group.adminUserId === safeUserId;
+    // Legacy Bloc with no adminUserId: the caller still has to hold a membership
+    // row under this user id whose name is the admin name.
+    const membership = group?.memberships?.[safeUserId];
+    return !!membership?.displayName
+      && !!group?.adminName
+      && membership.displayName === group.adminName;
+  }
+  return !group?.adminUserId && !!group?.adminName && group.adminName === safeDisplayName;
 }
 
 function canReviewSitOutRequest(group, request, memberName, actorUserId = "", actorDisplayName = "") {
@@ -4802,6 +4871,17 @@ async function supabaseStorageFetch(path, options = {}) {
   return response;
 }
 
+function isMissingStorageBucketResponse(status, bodyText = "") {
+  if (Number(status) === 404) return true;
+  try {
+    const payload = JSON.parse(String(bodyText || ""));
+    return Number(payload?.statusCode) === 404
+      && String(payload?.message || payload?.error || "").toLowerCase().includes("bucket not found");
+  } catch {
+    return false;
+  }
+}
+
 async function ensureProfilePhotosBucket() {
   assertSupabaseConfigured();
   const existing = await supabaseStorageFetch("/storage/v1/bucket/profile-photos", {
@@ -4809,8 +4889,8 @@ async function ensureProfilePhotosBucket() {
     headers: { Accept: "application/json" }
   });
   if (existing.ok) return;
-  if (existing.status !== 404) {
-    const text = await existing.text();
+  const text = await existing.text();
+  if (!isMissingStorageBucketResponse(existing.status, text)) {
     const error = new Error(text || "Unable to inspect profile photo bucket");
     error.status = existing.status;
     throw error;
@@ -4932,7 +5012,9 @@ function getClientAuthConfig() {
   return {
     supabaseUrl: SUPABASE_URL,
     supabaseAnonKey: SUPABASE_ANON_KEY,
-    enableLocalPreviewAuth: ENABLE_LOCAL_PREVIEW_AUTH
+    enableLocalPreviewAuth: ENABLE_LOCAL_PREVIEW_AUTH,
+    enableLocalDevOtp: ENABLE_LOCAL_DEV_OTP,
+    localDevOtpCode: ENABLE_LOCAL_DEV_OTP ? LOCAL_DEV_OTP_CODE : null
   };
 }
 
@@ -4956,6 +5038,42 @@ function slugifyDevIdentity(value) {
   return String(value || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "local";
 }
 
+function hashLocalDevUuidPart(input, salt) {
+  let hash = 2166136261 ^ salt;
+  for (let index = 0; index < input.length; index += 1) {
+    hash ^= input.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(16).padStart(8, "0");
+}
+
+function buildLocalDevUserId(email) {
+  const normalizedEmail = String(email || "").trim().toLowerCase();
+  const source = `fero-local-dev-otp:${normalizedEmail}`;
+  const part1 = hashLocalDevUuidPart(source, 0x1234);
+  const part2 = hashLocalDevUuidPart(source, 0x5678);
+  const part3 = hashLocalDevUuidPart(source, 0x9abc);
+  const part4 = hashLocalDevUuidPart(source, 0xdef0);
+  const variant = ((Number.parseInt(part3.slice(0, 2), 16) & 0x3f) | 0x80).toString(16).padStart(2, "0");
+  return `${part1}-${part2.slice(0, 4)}-4${part2.slice(5, 8)}-${variant}${part3.slice(2, 4)}-${part3.slice(4)}${part4}`;
+}
+
+function parseLocalDevAuthToken(accessToken) {
+  const token = String(accessToken || "").trim();
+  if (!ENABLE_LOCAL_DEV_OTP || !token.startsWith("local-dev:")) return null;
+  try {
+    const email = normalizeEmailAddress(Buffer.from(token.slice("local-dev:".length), "base64url").toString("utf8"));
+    if (!isProbablyEmail(email) || !email.endsWith("@local.test")) return null;
+    return {
+      id: buildLocalDevUserId(email),
+      email,
+      raw: { localDevOtp: true }
+    };
+  } catch {
+    return null;
+  }
+}
+
 function isLocalDevRequest(req) {
   const host = String(req?.headers?.host || req?.headers?.Host || "").trim().toLowerCase();
   return host.startsWith("localhost:")
@@ -4971,6 +5089,8 @@ function isLocalDevRequest(req) {
 }
 
 async function fetchAuthenticatedUser(accessToken) {
+  const localDevUser = parseLocalDevAuthToken(accessToken);
+  if (localDevUser) return localDevUser;
   if (!accessToken) {
     const error = new Error("You need to sign in again");
     error.status = 401;
@@ -5027,12 +5147,38 @@ async function requireAuthenticatedContext(req, payload, current) {
   };
 }
 
+// IDENTITY GUARD: inside a Bloc, the actor's name comes only from
+// `memberships[userId]`. The profile fallback is deliberately NOT applied when a
+// groupId is supplied — otherwise any authenticated user whose profile name
+// happens to match an existing member would resolve to that member and act as
+// them. Returning "" makes downstream membership/admin checks fail closed.
 function resolveDisplayNameForUser(state, groupId, userId, email) {
-  const group = groupId ? state.groups?.[groupId] : null;
-  if (group?.memberships?.[userId]?.displayName) return group.memberships[userId].displayName;
+  if (groupId) {
+    return state.groups?.[groupId]?.memberships?.[userId]?.displayName || "";
+  }
   const profile = state.profiles?.[userId] || findProfileEntryByEmail(state.profiles, email)?.[1] || null;
   if (profile?.displayName) return profile.displayName;
   return "";
+}
+
+// Fails closed for any group-scoped mutation: the authenticated user id must
+// hold a membership row in that Bloc. join-group is the only endpoint allowed to
+// grant membership, and it does so from a valid invite code, not a name.
+function assertGroupMembershipForUser(state, groupId, userId) {
+  const safeGroupId = String(groupId || "").trim();
+  const group = safeGroupId ? state?.groups?.[safeGroupId] : null;
+  if (!group) {
+    const error = new Error("Bloc not found");
+    error.status = 404;
+    throw error;
+  }
+  const membership = group.memberships?.[String(userId || "").trim()];
+  if (!membership?.displayName) {
+    const error = new Error("You are not a member of this Bloc");
+    error.status = 403;
+    throw error;
+  }
+  return membership.displayName;
 }
 
 async function buildCanonicalWritableStateForAuthenticatedMutation(auth, groupId) {
@@ -7329,12 +7475,13 @@ function applyReviewFlag(current, payload) {
   }, "flag-review");
 }
 
+// IDENTITY GUARD: a profile rename may only rewrite name-keyed state in Blocs
+// where this auth user id actually holds a membership. The previous
+// "my profile name appears in memberOrder" fallback let a rename reach into a
+// stranger's Bloc that merely contained a same-named member — and, via
+// renameGroupDisplayNameSurfaces, mint a membership row there.
 function resolveProfileRenameOldName(group, userId, existingDisplayName) {
-  const fromMembership = group.memberships?.[userId]?.displayName || null;
-  if (fromMembership) return fromMembership;
-  return existingDisplayName && group.memberOrder?.includes(existingDisplayName)
-    ? existingDisplayName
-    : null;
+  return group.memberships?.[userId]?.displayName || null;
 }
 
 function collectProfileRenameOldNames(groups, userId, existingDisplayName) {
@@ -7642,6 +7789,17 @@ function applyJoinGroup(current, payload) {
   if (group.memberships?.[userId]) {
     return { state: base, joinedGroupId: group.id };
   }
+  // Bloc state (logs, counts, settlements, targets) is keyed by display name, so
+  // two different accounts cannot hold the same name inside one Bloc without
+  // merging into each other. Names remain free to collide *across* Blocs.
+  const nameTakenByOther = Object.values(group.memberships || {}).some(membership =>
+    membership?.displayName === profile.displayName && membership?.userId !== userId
+  );
+  if (nameTakenByOther) {
+    const error = new Error(`Someone in this Bloc already goes by "${profile.displayName}". Change your display name and try again.`);
+    error.status = 409;
+    throw error;
+  }
   const MAX_MEMBERS = 20;
   const currentMemberCount = Array.isArray(group.activeMemberOrder) && group.activeMemberOrder.length
     ? group.activeMemberOrder.length
@@ -7893,6 +8051,42 @@ function applyDeleteAccount(current, payload) {
   };
 }
 
+function buildInviteLeaderboardRows(current, group, target) {
+  if (!group) return [];
+  const profiles = current?.profiles || {};
+  const activeNames = Array.isArray(group.activeMemberOrder) && group.activeMemberOrder.length
+    ? group.activeMemberOrder
+    : (Array.isArray(group.memberOrder) ? group.memberOrder : []);
+  const activeNameSet = new Set(activeNames);
+  const rows = Object.entries(group.memberships || {})
+    .filter(([, membership]) => {
+      const displayName = String(membership?.displayName || "").trim();
+      return displayName && (!activeNameSet.size || activeNameSet.has(displayName));
+    })
+    .map(([userId, membership]) => {
+      const displayName = String(membership?.displayName || "").trim();
+      return {
+        name: displayName,
+        userId,
+        logged: getCountedLogCount(group.logs?.[displayName] || []),
+        target,
+        photoUrl: profiles?.[userId]?.profilePhotoUrl || ""
+      };
+    })
+    .sort((a, b) => b.logged - a.logged || a.name.localeCompare(b.name));
+  if (rows.length) return rows.slice(0, 3);
+  return activeNames
+    .map(name => ({
+      name,
+      userId: "",
+      logged: getCountedLogCount(group.logs?.[name] || []),
+      target,
+      photoUrl: ""
+    }))
+    .sort((a, b) => b.logged - a.logged || a.name.localeCompare(b.name))
+    .slice(0, 3);
+}
+
 function getInviteContext(current, payload) {
   const group = resolveGroupByInvite(current, payload);
   if (!group) {
@@ -7900,6 +8094,7 @@ function getInviteContext(current, payload) {
     error.status = 404;
     throw error;
   }
+  const target = group.settings?.minTarget || DEFAULT_MIN_TARGET;
   return {
     groupId: group.id,
     groupName: group.name,
@@ -7907,7 +8102,8 @@ function getInviteContext(current, payload) {
     memberCount: Array.isArray(group.activeMemberOrder) && group.activeMemberOrder.length
       ? group.activeMemberOrder.length
       : group.memberOrder.length,
-    minTarget: group.settings?.minTarget || DEFAULT_MIN_TARGET
+    minTarget: target,
+    leaderboardRows: buildInviteLeaderboardRows(current, group, target)
   };
 }
 
@@ -7915,6 +8111,7 @@ async function getInviteContextCanonicalFirst(current, payload) {
   const canonicalBloc = await fetchCanonicalBlocByInviteCode(payload?.inviteCode);
   if (canonicalBloc?.legacy_group_key) {
     const group = current.groups?.[canonicalBloc.legacy_group_key];
+    const target = canonicalBloc.min_target ?? group?.settings?.minTarget ?? DEFAULT_MIN_TARGET;
     return {
       groupId: canonicalBloc.legacy_group_key,
       groupName: canonicalBloc.name || group?.name || "",
@@ -7922,7 +8119,8 @@ async function getInviteContextCanonicalFirst(current, payload) {
       memberCount: Array.isArray(group?.activeMemberOrder) && group.activeMemberOrder.length
         ? group.activeMemberOrder.length
         : (Object.keys(group?.memberships || {}).length || group?.memberOrder?.length || 0),
-      minTarget: canonicalBloc.min_target ?? group?.settings?.minTarget ?? DEFAULT_MIN_TARGET
+      minTarget: target,
+      leaderboardRows: buildInviteLeaderboardRows(current, group, target)
     };
   }
   return getInviteContext(current, payload);
@@ -7948,7 +8146,17 @@ async function readJson(req) {
 
 export {
   buildWorkoutLogDerivedMoments,
-  resolveMemberPaceSnapshotForMonth
+  resolveMemberPaceSnapshotForMonth,
+  // Identity guards — exported for the display-name identity test suite.
+  migrateAuthIdentity,
+  resolveDisplayNameForUser,
+  assertGroupMembershipForUser,
+  isCurrentGroupMember,
+  isGroupAdminActor,
+  applyJoinGroup,
+  applyUpsertProfile,
+  scopeReadableStateForUser,
+  isMissingStorageBucketResponse
 };
 
 export default async function handler(req, res) {
@@ -7994,8 +8202,34 @@ export default async function handler(req, res) {
       }
 
       if (payload?.action === "auth-email-exists") {
-        const exists = await checkSupabaseAuthEmailExists(payload.email);
+        const normalizedEmail = normalizeEmailAddress(payload.email);
+        const authExists = await checkSupabaseAuthEmailExists(normalizedEmail);
+        let profileExists = false;
+        if (!authExists) {
+          const readable = await fetchReadableCurrentState();
+          profileExists = Boolean(findProfileEntryByEmail(readable.profiles, normalizedEmail));
+        }
+        const exists = authExists || profileExists;
         return res.status(200).json({ ok: true, exists });
+      }
+
+      if (payload?.action === "invite-email-membership") {
+        const normalizedEmail = normalizeEmailAddress(payload.email);
+        if (!normalizedEmail) return res.status(400).json({ error: "Email is required" });
+        const readable = await fetchReadableCurrentState();
+        const inviteContext = await getInviteContextCanonicalFirst(readable, payload);
+        const group = readable.groups?.[inviteContext?.groupId];
+        if (!group) return res.status(404).json({ error: "Bloc invite not found" });
+        const profileEntry = findProfileEntryByEmail(readable.profiles, normalizedEmail);
+        const userId = profileEntry?.[0] || "";
+        const alreadyMember = Boolean(userId && group.memberships?.[userId]?.displayName);
+        return res.status(200).json({
+          ok: true,
+          alreadyMember,
+          groupId: inviteContext.groupId,
+          groupName: inviteContext.groupName || group.name || "",
+          inviteCode: inviteContext.inviteCode || String(payload?.inviteCode || "").trim().toUpperCase()
+        });
       }
 
       let current = null;
@@ -8164,7 +8398,7 @@ export default async function handler(req, res) {
             await syncBlocMemberToCanonical(group, authUser.id, membership.role || "member");
           }
         }
-        return res.status(200).json({ ok: true, state, session: synced.session });
+        return res.status(200).json({ ok: true, state: scopeReadableStateForUser(state, authUser.id), session: synced.session });
       }
 
       if (payload?.action === "invite-context") {
@@ -8220,7 +8454,7 @@ export default async function handler(req, res) {
         );
         await bumpCanonicalRevision(`stream-system:settlement-paid:${payload.groupId}:${String(payload?.monthKey || "").trim()}`, null);
         const readable = await fetchReadableCurrentState();
-        return res.status(200).json(readable);
+        return res.status(200).json(scopeReadableStateForUser(readable, auth.user.id));
       }
 
       if (payload?.action === "settlement-confirm-paid") {
@@ -8267,7 +8501,7 @@ export default async function handler(req, res) {
         );
         await bumpCanonicalRevision(`stream-system:settlement-confirmed:${payload.groupId}:${String(payload?.monthKey || "").trim()}`, null);
         const readable = await fetchReadableCurrentState();
-        return res.status(200).json(readable);
+        return res.status(200).json(scopeReadableStateForUser(readable, auth.user.id));
       }
 
       if (payload?.action === "settlement-dispute-paid") {
@@ -8298,7 +8532,7 @@ export default async function handler(req, res) {
           receiverAuthUserId: participants.receiverMembership.userId
         });
         const readable = await fetchReadableCurrentState();
-        return res.status(200).json(readable);
+        return res.status(200).json(scopeReadableStateForUser(readable, auth.user.id));
       }
 
       if (payload?.action === "write-hydration-parity-report") {
@@ -8386,7 +8620,7 @@ export default async function handler(req, res) {
           await syncBlocToCanonical(newGroup, auth.user.id, newGroupSortOrder >= 0 ? newGroupSortOrder : null, { throwOnError: true });
           await syncSeasonToCanonical(newGroup, newGroup?.lastMonth, "open", null, { throwOnError: true });
           await syncBlocMemberToCanonical(newGroup, auth.user.id, "admin", { throwOnError: true });
-          await seedOpenSeasonMemberStatusInCanonical(newGroup, newGroup?.lastMonth, creatorName, auth.user.id, { throwOnError: true });
+          await seedOpenSeasonMemberStatusInCanonical(newGroup, newGroup?.lastMonth, creatorName, auth.user.id);
         }
         const readableState = await persistAndScopeReadableStateForUser(created.state, `create-group:${created.createdGroupId}`, "create-group", auth.user.id);
         return res.status(200).json({ state: readableState, createdGroupId: created.createdGroupId });
@@ -8506,7 +8740,7 @@ export default async function handler(req, res) {
         try {
           applyJoinGroup(auth.state, joinPayload);
         } catch (err) {
-          if (err?.status !== 404) throw err;
+          if (err?.status !== 404 && err?.status !== 403) throw err;
         }
         const canonicalState = await buildCanonicalWritableStateForAuthenticatedGlobalMutation(auth);
         const joined = applyJoinGroup(canonicalState, joinPayload);
@@ -8523,7 +8757,7 @@ export default async function handler(req, res) {
           await syncBlocToCanonical(joinedGroup, joinedGroup.adminUserId || null, joinedGroupSortOrder >= 0 ? joinedGroupSortOrder : null, { throwOnError: true });
           await syncBlocMemberToCanonical(joinedGroup, auth.user.id, "member", { throwOnError: true });
           await syncSeasonToCanonical(joinedGroup, joinedGroup?.lastMonth, "open", null, { throwOnError: true });
-          await seedOpenSeasonMemberStatusInCanonical(joinedGroup, joinedGroup?.lastMonth, joinedDisplayName, auth.user.id, { throwOnError: true });
+          await seedOpenSeasonMemberStatusInCanonical(joinedGroup, joinedGroup?.lastMonth, joinedDisplayName, auth.user.id);
           await insertBlocSystemMomentInCanonical(
             joinedGroup.id,
             "member_joined",
@@ -8535,8 +8769,7 @@ export default async function handler(req, res) {
               joinedMonthKey: joinedGroup.joinedMonthByName?.[joinedDisplayName] || joinedGroup.lastMonth || null
             },
             `member_joined:${joinedGroup.id}:${auth.user.id}`,
-            joinedGroup.memberships?.[auth.user.id]?.joinedAt || null,
-            { throwOnError: true }
+            joinedGroup.memberships?.[auth.user.id]?.joinedAt || null
           );
         }
         const readableState = await persistAndScopeReadableStateForUser(joined.state, `join-group:${joined.joinedGroupId}:${auth.user.id}`, "join-group", auth.user.id);
@@ -8546,9 +8779,14 @@ export default async function handler(req, res) {
       if (payload?.action === "kick-member") {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actorDisplayName = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
-        applyKickMember(auth.state, { ...payload, actorUserId: auth.user.id, actorDisplayName });
+        try {
+          applyKickMember(auth.state, { ...payload, actorUserId: auth.user.id, actorDisplayName });
+        } catch (err) {
+          // Blob shell is a lagging mirror; canonical is the enforcing layer below.
+          if (err?.status !== 404 && err?.status !== 403) throw err;
+        }
         const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
-        const canonicalActorDisplayName = resolveDisplayNameForUser(canonicalState, payload.groupId, auth.user.id, auth.user.email) || actorDisplayName;
+        const canonicalActorDisplayName = assertGroupMembershipForUser(canonicalState, payload.groupId, auth.user.id);
         const updated = applyKickMember(canonicalState, { ...payload, actorUserId: auth.user.id, actorDisplayName: canonicalActorDisplayName });
         // Canonical writable-input cutover for kick-member:
         // 1. authenticate/repair against the blob shell, then compute the
@@ -8584,7 +8822,7 @@ export default async function handler(req, res) {
         try {
           applyLeaveBloc(auth.state, { ...payload, userId: auth.user.id });
         } catch (err) {
-          if (err?.status !== 404) throw err;
+          if (err?.status !== 404 && err?.status !== 403) throw err;
         }
         const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
         const updated = applyLeaveBloc(canonicalState, { ...payload, userId: auth.user.id });
@@ -8638,10 +8876,10 @@ export default async function handler(req, res) {
         try {
           shadowBlobUpdated = applyMultiLog(auth.state, { ...payload, actor, actorUserId: auth.user.id });
         } catch (err) {
-          if (err?.status !== 404) throw err;
+          if (err?.status !== 404 && err?.status !== 403) throw err;
         }
         const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.sourceGroupId);
-        const canonicalActor = resolveDisplayNameForUser(canonicalState, payload.sourceGroupId, auth.user.id, auth.user.email) || actor;
+        const canonicalActor = assertGroupMembershipForUser(canonicalState, payload.sourceGroupId, auth.user.id);
         const beforeLogIdsByGroup = Object.fromEntries(
           allTargetIds.map(groupId => [
             groupId,
@@ -8707,10 +8945,10 @@ export default async function handler(req, res) {
         try {
           shadowBlobUpdated = applyAddLog(auth.state, { ...payload, actor, actorUserId: auth.user.id });
         } catch (err) {
-          if (err?.status !== 404) throw err;
+          if (err?.status !== 404 && err?.status !== 403) throw err;
         }
         const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
-        const canonicalActor = resolveDisplayNameForUser(canonicalState, payload.groupId, auth.user.id, auth.user.email) || actor;
+        const canonicalActor = assertGroupMembershipForUser(canonicalState, payload.groupId, auth.user.id);
         const result = applyAddLog(canonicalState, { ...payload, actor: canonicalActor, actorUserId: auth.user.id });
         const group = result.updated.groups?.[payload.groupId];
         const groupSortOrder = (result.updated.groupOrder || []).indexOf(payload.groupId);
@@ -8750,10 +8988,10 @@ export default async function handler(req, res) {
         try {
           shadowBlobUpdated = applyUpdateSettings(auth.state, { ...payload, actor, actorUserId: auth.user.id });
         } catch (err) {
-          if (err?.status !== 404) throw err;
+          if (err?.status !== 404 && err?.status !== 403) throw err;
         }
         const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
-        const canonicalActor = resolveDisplayNameForUser(canonicalState, payload.groupId, auth.user.id, auth.user.email) || actor;
+        const canonicalActor = assertGroupMembershipForUser(canonicalState, payload.groupId, auth.user.id);
         const updated = applyUpdateSettings(canonicalState, { ...payload, actor: canonicalActor, actorUserId: auth.user.id });
         if (shadowBlobUpdated) {
           await runWriteHydrationParityProbe("update-settings", payload, auth, actor, shadowBlobUpdated, applyUpdateSettings);
@@ -8798,10 +9036,10 @@ export default async function handler(req, res) {
         try {
           shadowBlobUpdated = applySeasonProrationChoice(auth.state, { ...payload, actor, actorUserId: auth.user.id });
         } catch (err) {
-          if (err?.status !== 404) throw err;
+          if (err?.status !== 404 && err?.status !== 403) throw err;
         }
         const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
-        const canonicalActor = resolveDisplayNameForUser(canonicalState, payload.groupId, auth.user.id, auth.user.email) || actor;
+        const canonicalActor = assertGroupMembershipForUser(canonicalState, payload.groupId, auth.user.id);
         const updated = applySeasonProrationChoice(canonicalState, { ...payload, actor: canonicalActor, actorUserId: auth.user.id });
         if (shadowBlobUpdated) {
           await runWriteHydrationParityProbe("season-proration-choice", payload, auth, actor, shadowBlobUpdated, applySeasonProrationChoice);
@@ -8840,10 +9078,10 @@ export default async function handler(req, res) {
         try {
           shadowBlobUpdated = applySitOutRequest(auth.state, { ...payload, actor, actorUserId: auth.user.id });
         } catch (err) {
-          if (err?.status !== 404) throw err;
+          if (err?.status !== 404 && err?.status !== 403) throw err;
         }
         const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
-        const canonicalActor = resolveDisplayNameForUser(canonicalState, payload.groupId, auth.user.id, auth.user.email) || actor;
+        const canonicalActor = assertGroupMembershipForUser(canonicalState, payload.groupId, auth.user.id);
         const updated = applySitOutRequest(canonicalState, { ...payload, actor: canonicalActor, actorUserId: auth.user.id });
         if (shadowBlobUpdated) {
           await runWriteHydrationParityProbe("sitout-request", payload, auth, actor, shadowBlobUpdated, applySitOutRequest);
@@ -8902,12 +9140,12 @@ export default async function handler(req, res) {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
         const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
-        const canonicalActor = resolveDisplayNameForUser(canonicalState, payload.groupId, auth.user.id, auth.user.email) || actor;
+        const canonicalActor = assertGroupMembershipForUser(canonicalState, payload.groupId, auth.user.id);
         let updated = null;
         try {
           updated = applySitOutReview(canonicalState, { ...payload, actor: canonicalActor, actorUserId: auth.user.id });
         } catch (err) {
-          if (err?.status !== 404) throw err;
+          if (err?.status !== 404 && err?.status !== 403) throw err;
         }
         let shadowBlobUpdated = null;
         try {
@@ -8967,10 +9205,10 @@ export default async function handler(req, res) {
         try {
           shadowBlobUpdated = applySoloRequest(auth.state, { ...payload, actor, actorUserId: auth.user.id });
         } catch (err) {
-          if (err?.status !== 404) throw err;
+          if (err?.status !== 404 && err?.status !== 403) throw err;
         }
         const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
-        const canonicalActor = resolveDisplayNameForUser(canonicalState, payload.groupId, auth.user.id, auth.user.email) || actor;
+        const canonicalActor = assertGroupMembershipForUser(canonicalState, payload.groupId, auth.user.id);
         const updated = applySoloRequest(canonicalState, { ...payload, actor: canonicalActor, actorUserId: auth.user.id });
         if (shadowBlobUpdated) {
           await runWriteHydrationParityProbe("solo-request", payload, auth, actor, shadowBlobUpdated, applySoloRequest);
@@ -9023,12 +9261,12 @@ export default async function handler(req, res) {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
         const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
-        const canonicalActor = resolveDisplayNameForUser(canonicalState, payload.groupId, auth.user.id, auth.user.email) || actor;
+        const canonicalActor = assertGroupMembershipForUser(canonicalState, payload.groupId, auth.user.id);
         let updated = null;
         try {
           updated = applySoloReview(canonicalState, { ...payload, actor: canonicalActor, actorUserId: auth.user.id });
         } catch (err) {
-          if (err?.status !== 404) throw err;
+          if (err?.status !== 404 && err?.status !== 403) throw err;
         }
         let shadowBlobUpdated = null;
         try {
@@ -9085,13 +9323,13 @@ export default async function handler(req, res) {
         // and the canonical RPC call use the same key.
         const emoji = String(payload?.emoji || "").trim();
         const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
-        const canonicalActor = resolveDisplayNameForUser(canonicalState, payload.groupId, auth.user.id, auth.user.email) || actor;
+        const canonicalActor = assertGroupMembershipForUser(canonicalState, payload.groupId, auth.user.id);
         const result = applyToggleReaction(canonicalState, { ...payload, actor: canonicalActor, actorUserId: auth.user.id });
         let shadowBlobResult = null;
         try {
           shadowBlobResult = applyToggleReaction(auth.state, { ...payload, actor, actorUserId: auth.user.id });
         } catch (err) {
-          if (err?.status !== 404) throw err;
+          if (err?.status !== 404 && err?.status !== 403) throw err;
         }
         if (shadowBlobResult) {
           await runWriteHydrationParityProbe("reaction", payload, auth, actor, shadowBlobResult.updated, applyToggleReaction);
@@ -9120,13 +9358,13 @@ export default async function handler(req, res) {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
         const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
-        const canonicalActor = resolveDisplayNameForUser(canonicalState, payload.groupId, auth.user.id, auth.user.email) || actor;
+        const canonicalActor = assertGroupMembershipForUser(canonicalState, payload.groupId, auth.user.id);
         const result = applyFlagLog(canonicalState, { ...payload, actor: canonicalActor, actorUserId: auth.user.id });
         let shadowBlobResult = null;
         try {
           shadowBlobResult = applyFlagLog(auth.state, { ...payload, actor, actorUserId: auth.user.id });
         } catch (err) {
-          if (err?.status !== 404) throw err;
+          if (err?.status !== 404 && err?.status !== 403) throw err;
         }
         if (shadowBlobResult) {
           await runWriteHydrationParityProbe("flag", payload, auth, actor, shadowBlobResult.updated, applyFlagLog);
@@ -9144,13 +9382,13 @@ export default async function handler(req, res) {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
         const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
-        const canonicalActor = resolveDisplayNameForUser(canonicalState, payload.groupId, auth.user.id, auth.user.email) || actor;
+        const canonicalActor = assertGroupMembershipForUser(canonicalState, payload.groupId, auth.user.id);
         const result = applyRespondToFlag(canonicalState, { ...payload, actor: canonicalActor, actorUserId: auth.user.id });
         let shadowBlobResult = null;
         try {
           shadowBlobResult = applyRespondToFlag(auth.state, { ...payload, actor, actorUserId: auth.user.id });
         } catch (err) {
-          if (err?.status !== 404) throw err;
+          if (err?.status !== 404 && err?.status !== 403) throw err;
         }
         if (shadowBlobResult) {
           await runWriteHydrationParityProbe("flag-response", payload, auth, actor, shadowBlobResult.updated, applyRespondToFlag);
@@ -9168,13 +9406,13 @@ export default async function handler(req, res) {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
         const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
-        const canonicalActor = resolveDisplayNameForUser(canonicalState, payload.groupId, auth.user.id, auth.user.email) || actor;
+        const canonicalActor = assertGroupMembershipForUser(canonicalState, payload.groupId, auth.user.id);
         const result = applyReviewFlag(canonicalState, { ...payload, actor: canonicalActor, actorUserId: auth.user.id });
         let shadowBlobResult = null;
         try {
           shadowBlobResult = applyReviewFlag(auth.state, { ...payload, actor, actorUserId: auth.user.id });
         } catch (err) {
-          if (err?.status !== 404) throw err;
+          if (err?.status !== 404 && err?.status !== 403) throw err;
         }
         if (shadowBlobResult) {
           await runWriteHydrationParityProbe("flag-review", payload, auth, actor, shadowBlobResult.updated, applyReviewFlag);
@@ -9192,13 +9430,13 @@ export default async function handler(req, res) {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
         const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
-        const canonicalActor = resolveDisplayNameForUser(canonicalState, payload.groupId, auth.user.id, auth.user.email) || actor;
+        const canonicalActor = assertGroupMembershipForUser(canonicalState, payload.groupId, auth.user.id);
         const result = applyDeleteLog(canonicalState, { ...payload, actor: canonicalActor, actorUserId: auth.user.id });
         let shadowBlobResult = null;
         try {
           shadowBlobResult = applyDeleteLog(auth.state, { ...payload, actor, actorUserId: auth.user.id });
         } catch (err) {
-          if (err?.status !== 404) throw err;
+          if (err?.status !== 404 && err?.status !== 403) throw err;
         }
         if (shadowBlobResult) {
           await runWriteHydrationParityProbe("delete-log", payload, auth, actor, shadowBlobResult.updated, applyDeleteLog);

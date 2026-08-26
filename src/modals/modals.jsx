@@ -83,7 +83,7 @@ const GroupSettingsFields = ({settings,setSettings,showAdvanced,setShowAdvanced,
   const needsEscalationStep = settings.feeModel === "escalating";
   const missingEscalationStep = needsEscalationStep && normalizeEscalationStepAmount(settings.escalationStepAmount) === null;
   return React.createElement(React.Fragment,null,
-    React.createElement(SettingsField,{title:"Monthly fine amount",description:"What each person who misses the target owes.",compact},
+    React.createElement(SettingsField,{title:"Monthly penalty amount",description:"What each person who misses the target owes.",compact},
       React.createElement('div',{style:{display:"inline-flex",alignItems:"center",gap:6}},
         lockCurrency
           ? React.createElement('div',{style:{...inputShellStyle,width:fineCurrencyWidth,fontSize:compact?12:15,padding:compact?"7px 9px":inputShellStyle.padding,borderRadius:compact?8:inputShellStyle.borderRadius,textAlign:"center",color:"var(--muted)",display:"inline-flex",alignItems:"center",justifyContent:"center"}},settings.currency || DEFAULT_CURRENCY)
@@ -99,11 +99,11 @@ const GroupSettingsFields = ({settings,setSettings,showAdvanced,setShowAdvanced,
         React.createElement('input',{type:"number",min:1,value:settings.fineAmount,onChange:e=>setSettings(current=>({...current,fineAmount:e.target.value})),style:{...inputShellStyle,width:fineAmountWidth,fontSize:compact?12:15,padding:compact?"7px 9px":inputShellStyle.padding,borderRadius:compact?8:inputShellStyle.borderRadius,textAlign:"center"}})
       )
     ),
-    React.createElement(SettingsField,{title:"How fines are calculated",compact},
+    React.createElement(SettingsField,{title:"How penalties are calculated",compact},
       React.createElement('div',{style:{display:"grid",gap:9,marginTop:6}},
         [
-          {id:"escalating",title:"Escalating",body:"Each additional person who misses the target increases the fine for all losers.",badge:"Recommended"},
-          {id:"flat",title:"Flat fine",body:"Everyone who misses the target pays the same fixed amount."}
+          {id:"escalating",title:"Escalating",body:"Each additional person who misses the target increases the penalty for all losers.",badge:"Recommended"},
+          {id:"flat",title:"Flat penalty",body:"Everyone who misses the target pays the same fixed amount."}
         ].map(option=>{
           const active = settings.feeModel === option.id;
           return React.createElement('button',{key:option.id,type:"button",onClick:()=>setSettings(current=>({...current,feeModel:option.id,escalationStepAmount:option.id==="flat" ? null : current.escalationStepAmount})),style:{
@@ -123,7 +123,7 @@ const GroupSettingsFields = ({settings,setSettings,showAdvanced,setShowAdvanced,
         })
       ),
       needsEscalationStep && React.createElement('div',{style:{marginTop:compact?7:12}},
-        React.createElement('div',{style:{fontWeight:700,fontSize:compact?11:13,color:"var(--text)",marginBottom:3}},"Fine increase per miss"),
+        React.createElement('div',{style:{fontWeight:700,fontSize:compact?11:13,color:"var(--text)",marginBottom:3}},"Penalty increase per miss"),
         React.createElement('div',{style:{fontSize:compact?11:12,color:"#1E4040",lineHeight:1.35,marginBottom:compact?6:10}},"e.g. base 20, step 5 → 2 losers pay 25 each, 3 losers pay 30 each"),
         React.createElement('div',{style:{width:compact?60:75}},
           React.createElement(StepperField,{value:settings.escalationStepAmount,onChange:value=>setSettings(current=>({...current,escalationStepAmount:value})),min:1,compact,suffix:settings.currency||"USD"})
@@ -180,7 +180,7 @@ const GroupSettingsFields = ({settings,setSettings,showAdvanced,setShowAdvanced,
 };
 
 
-const GroupCreateModal = ({onCreate,onClose,creating,defaultCreatorName="",defaultTimeZone=DEFAULT_GROUP_TIME_ZONE,lockCreatorName=false,initialGroupName=""}) => {
+const GroupCreateModal = ({onCreate,onClose,creating,defaultCreatorName="",defaultTimeZone=DEFAULT_GROUP_TIME_ZONE,lockCreatorName=false,initialGroupName="",requireCreatorName=true}) => {
   const compactMobile = isMobile();
   const [groupName,setGroupName]=useState(initialGroupName);
   const [creatorName,setCreatorName]=useState(defaultCreatorName);
@@ -194,7 +194,7 @@ const GroupCreateModal = ({onCreate,onClose,creating,defaultCreatorName="",defau
   const [submitAttempted,setSubmitAttempted]=useState(false);
   const normalizedSettings = buildNormalizedSettings(settings);
   const escalationStepMissing = normalizedSettings.feeModel === "escalating" && normalizedSettings.escalationStepAmount === null;
-  const canCreate = groupName.trim() && creatorName.trim() && normalizedSettings.acceptedWorkoutTypes.length > 0 && !creating;
+  const canCreate = groupName.trim() && (!requireCreatorName || creatorName.trim()) && normalizedSettings.acceptedWorkoutTypes.length > 0 && !creating;
   const createProgressSteps = ["Creating your Bloc", "Doing the final touches", "Almost done", "Opening your Bloc"];
   const [createProgressStep,setCreateProgressStep]=useState(0);
 
@@ -225,7 +225,7 @@ const GroupCreateModal = ({onCreate,onClose,creating,defaultCreatorName="",defau
       React.createElement('div',{style:{fontFamily:UI_FONT,color:"var(--muted)",fontSize:13,lineHeight:1.35,marginBottom:17,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},"Start the Bloc now. Tune the rules after."),
       [
         ["Bloc Name",groupName,setGroupName,"Sunday Runners"],
-        ...(!lockCreatorName ? [["Your Name",creatorName,setCreatorName,"Aadhil"]] : [])
+        ...(!lockCreatorName && requireCreatorName ? [["Your Name",creatorName,setCreatorName,"Aadhil"]] : [])
       ].map(([label,value,setter,placeholder])=>
         React.createElement('label',{key:label,style:{display:"block",marginBottom:14}},
           React.createElement('div',{style:setupFieldTitleStyle},label),
@@ -233,7 +233,7 @@ const GroupCreateModal = ({onCreate,onClose,creating,defaultCreatorName="",defau
         )
       ),
       React.createElement('div',{style:{marginBottom:14}},
-        React.createElement('div',{style:setupFieldTitleStyle},"Monthly Fine Amount"),
+        React.createElement('div',{style:setupFieldTitleStyle},"Monthly Penalty Amount"),
         React.createElement('div',{style:setupFieldHelpStyle},"What each person who misses the target owes."),
         React.createElement('div',{style:{display:"grid",gridTemplateColumns:"108px 1fr",gap:8,alignItems:"stretch"}},
           React.createElement(SelectField,{

@@ -26,6 +26,45 @@ function buildLocalPreviewSession(displayName) {
   };
 }
 
+function hashLocalDevUuidPart(input, salt) {
+  let hash = 2166136261 ^ salt;
+  for (let index = 0; index < input.length; index += 1) {
+    hash ^= input.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(16).padStart(8, "0");
+}
+
+function buildLocalDevUserId(email) {
+  const normalizedEmail = String(email || "").trim().toLowerCase();
+  const source = `fero-local-dev-otp:${normalizedEmail}`;
+  const part1 = hashLocalDevUuidPart(source, 0x1234);
+  const part2 = hashLocalDevUuidPart(source, 0x5678);
+  const part3 = hashLocalDevUuidPart(source, 0x9abc);
+  const part4 = hashLocalDevUuidPart(source, 0xdef0);
+  const variant = ((Number.parseInt(part3.slice(0, 2), 16) & 0x3f) | 0x80).toString(16).padStart(2, "0");
+  return `${part1}-${part2.slice(0, 4)}-4${part2.slice(5, 8)}-${variant}${part3.slice(2, 4)}-${part3.slice(4)}${part4}`;
+}
+
+function buildLocalDevOtpToken(email) {
+  try {
+    return `local-dev:${btoa(String(email || "").trim().toLowerCase()).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "")}`;
+  } catch {
+    return "";
+  }
+}
+
+function buildLocalDevOtpSession(email) {
+  const normalizedEmail = String(email || "").trim().toLowerCase();
+  if (!normalizedEmail) return null;
+  return {
+    userId: buildLocalDevUserId(normalizedEmail),
+    email: normalizedEmail,
+    accessToken: buildLocalDevOtpToken(normalizedEmail),
+    localDevOtp: true
+  };
+}
+
 function isLocalDevHost(hostname) {
   const normalized = String(hostname || "").trim().toLowerCase();
   return normalized === "localhost"
@@ -74,6 +113,9 @@ function readPersistedAuthSession() {
     if (parsed?.localPreview) {
       return buildLocalPreviewSession(parsed?.previewDisplayName || parsed?.displayName || "");
     }
+    if (parsed?.localDevOtp) {
+      return buildLocalDevOtpSession(parsed?.email || "");
+    }
     if (!parsed?.userId) return null;
     return {
       userId: parsed.userId,
@@ -95,6 +137,14 @@ function persistAuthSessionHint(session) {
       localStorage.setItem(PERSISTED_AUTH_SESSION_KEY, JSON.stringify({
         localPreview: true,
         previewDisplayName: session.previewDisplayName || ""
+      }));
+      return;
+    }
+    if (session.localDevOtp) {
+      localStorage.setItem(PERSISTED_AUTH_SESSION_KEY, JSON.stringify({
+        localDevOtp: true,
+        userId: session.userId,
+        email: session.email || ""
       }));
       return;
     }
@@ -158,6 +208,8 @@ async function getSupabaseAuthClient() {
 }
 
 async function getCurrentAuthSession() {
+  const persisted = readPersistedAuthSession();
+  if (persisted?.localDevOtp && persisted?.accessToken) return persisted;
   const client = await getSupabaseAuthClient();
   const { data, error } = await client.auth.getSession();
   if (error) throw error;
@@ -165,6 +217,11 @@ async function getCurrentAuthSession() {
 }
 
 async function signOutAuthSession() {
+  const persisted = readPersistedAuthSession();
+  if (persisted?.localDevOtp) {
+    persistAuthSessionHint(null);
+    return;
+  }
   const client = await getSupabaseAuthClient();
   const { error } = await client.auth.signOut();
   if (error) throw error;
@@ -237,13 +294,13 @@ async function postApi(action, payload = {}, options = {}) {
             body: JSON.stringify({ action, ...payload })
           });
           const retryBody = await retryRes.json().catch(()=>null);
-          if (!retryRes.ok) return { ok:false, error: retryBody?.details || retryBody?.error || "Request failed", body: retryBody };
-          return { ok:true, body: retryBody };
+          if (!retryRes.ok) return { ok:false, status: retryRes.status, error: retryBody?.details || retryBody?.error || "Request failed", body: retryBody };
+          return { ok:true, status: retryRes.status, body: retryBody };
         }
       }
-      return { ok:false, error: body?.details || body?.error || "Request failed", body };
+      return { ok:false, status: res.status, error: body?.details || body?.error || "Request failed", body };
     }
-    return { ok:true, body };
+    return { ok:true, status: res.status, body };
   } catch (e) {
     console.error(`${action} request error:`, e);
   }
@@ -374,8 +431,8 @@ async function updateGroupSettingsData(groupId, actor, actorUserId, groupName, s
   return { ok:true, data: normalizeAppState(result.body) };
 }
 
-async function createGroupData(payload) {
-  const result = await postApi("create-group", payload);
+async function createGroupData(payload, sessionOverride = null) {
+  const result = await postApi("create-group", payload, { sessionOverride });
   if (!result.ok) return { ok:false, error: result.error || "Unable to create Bloc" };
   return { ok:true, state: normalizeAppState(result.body.state), createdGroupId: result.body.createdGroupId };
 }
@@ -418,6 +475,13 @@ async function deleteAccountData(userId) {
 
 async function sendOtpData(email, options = {}) {
   try {
+    const config = await fetchAuthConfig().catch(()=>null);
+    if (isLocalDevEnvironment() && config?.enableLocalDevOtp) {
+      if (!String(email || "").trim().toLowerCase().endsWith("@local.test")) {
+        return { ok:false, error:"Use a @local.test email for local dev OTP testing" };
+      }
+      return { ok:true, devCode:config.localDevOtpCode || "000000" };
+    }
     const client = await getSupabaseAuthClient();
     const shouldCreateUser = options && Object.prototype.hasOwnProperty.call(options, "shouldCreateUser")
       ? Boolean(options.shouldCreateUser)
@@ -443,6 +507,28 @@ async function checkAuthEmailExistsData(email) {
 
 async function verifyOtpData(email, code) {
   try {
+    const config = await fetchAuthConfig().catch(()=>null);
+    if (isLocalDevEnvironment() && config?.enableLocalDevOtp) {
+      if (!String(email || "").trim().toLowerCase().endsWith("@local.test")) {
+        return { ok:false, error:"Use a @local.test email for local dev OTP testing" };
+      }
+      const expectedCode = String(config.localDevOtpCode || "000000").trim();
+      if (String(code || "").trim() !== expectedCode) {
+        return { ok:false, error:"Invalid local dev code" };
+      }
+      const session = buildLocalDevOtpSession(email);
+      if (!session?.accessToken) return { ok:false, error:"Unable to create local dev session" };
+      const synced = await syncAuthSessionData(session);
+      if (!synced.ok) {
+        return {
+          ok:true,
+          state:null,
+          session,
+          syncError: synced.error || "Unable to sync account"
+        };
+      }
+      return { ok:true, state: synced.state, session: { ...synced.session, accessToken: session.accessToken, localDevOtp:true } };
+    }
     const client = await getSupabaseAuthClient();
     const { data, error } = await client.auth.verifyOtp({
       email,
@@ -521,9 +607,9 @@ async function uploadProfilePhotoData(dataUrl) {
   return { ok:false, error:"Unable to save photo" };
 }
 
-async function joinGroupData(payload) {
-  const result = await postApi("join-group", payload);
-  if (!result.ok) return { ok:false, error: result.error || "Unable to join Bloc" };
+async function joinGroupData(payload, sessionOverride = null) {
+  const result = await postApi("join-group", payload, { sessionOverride });
+  if (!result.ok) return { ok:false, status: result.status || 0, error: result.error || "Unable to join Bloc" };
   return { ok:true, state: normalizeAppState(result.body.state), joinedGroupId: result.body.joinedGroupId };
 }
 
@@ -540,6 +626,27 @@ async function fetchInviteContextData(inviteCode) {
     return { ok:true, data: body };
   } catch(e){ console.error("Invite context error:", e); }
   return { ok:false, error:"Invite not found" };
+}
+
+async function checkInviteEmailMembershipData(inviteCode, email) {
+  try {
+    const res = await fetch("./api/lift-log", {
+      method: "POST",
+      cache: "no-store",
+      headers: { "Content-Type":"application/json" },
+      body: JSON.stringify({ action:"invite-email-membership", inviteCode, email })
+    });
+    const body = await res.json().catch(()=>null);
+    if(!res.ok) return { ok:false, error: body?.details || body?.error || "Unable to check invite" };
+    return {
+      ok:true,
+      alreadyMember:Boolean(body?.alreadyMember),
+      groupId:body?.groupId || "",
+      groupName:body?.groupName || "",
+      inviteCode:body?.inviteCode || ""
+    };
+  } catch(e){ console.error("Invite membership check error:", e); }
+  return { ok:false, error:"Unable to check invite" };
 }
 
 async function kickMemberData(payload) {
@@ -710,6 +817,7 @@ export {
   uploadProfilePhotoData,
   joinGroupData,
   fetchInviteContextData,
+  checkInviteEmailMembershipData,
   kickMemberData,
   leaveBlocData,
   multiLogData,

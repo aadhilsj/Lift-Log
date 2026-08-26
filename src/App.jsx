@@ -21,6 +21,7 @@ import {
   syncActiveProfileGlobals,
   getCurrentGroupMemberNames,
   flattenFeedPosts,
+  resolveLogCreatedAt,
   setActiveSessionUserId,
   getSetupReviewPendingCount
 } from "./lib/appState.js";
@@ -58,6 +59,7 @@ import {
   uploadProfilePhotoData,
   joinGroupData,
   fetchInviteContextData,
+  checkInviteEmailMembershipData,
   kickMemberData,
   leaveBlocData,
   multiLogData,
@@ -82,8 +84,8 @@ import {
   releaseSwipeForward
 } from "./lib/swipeRelease.js";
 import { Spinner, InstallBanner, TodayPageErrorBoundary } from "./components/primitives.jsx";
-import { PreviewLanding, SignedOutLanding, ProfileModal, JoinGroupModal, AuthFlowModal, IdentitySetup, CreatedBlocInviteScreen, GroupHome, GroupAccessNotice, LocalDevImpersonationBar } from "./components/authShell.jsx";
-import { ProrationChoiceModal } from "./modals/modals.jsx";
+import { PreviewLanding, InvalidInviteScreen, SignedOutLanding, ProfileModal, JoinGroupModal, AuthFlowModal, DisplayNameSetupScreen, IdentitySetup, CreatedBlocInviteScreen, GroupHome, GroupAccessNotice, LocalDevImpersonationBar } from "./components/authShell.jsx";
+import { GroupCreateModal, ProrationChoiceModal } from "./modals/modals.jsx";
 import { Nav } from "./pages/Nav.jsx";
 import { TodayPage } from "./pages/TodayPage.jsx";
 import { ActivityPage } from "./pages/ActivityPage.jsx";
@@ -103,6 +105,18 @@ const reactionsMatch = (a, b) => {
   const left = normalizeReactionMembers(a);
   const right = normalizeReactionMembers(b);
   return left.length === right.length && left.every((member, index) => member === right[index]);
+};
+
+const getGroupNewestLogMs = group => {
+  let newest = 0;
+  Object.values(group?.logs || {}).forEach(logs => {
+    if (!Array.isArray(logs)) return;
+    logs.forEach(log => {
+      const parsed = Date.parse(resolveLogCreatedAt(log));
+      if (Number.isFinite(parsed) && parsed > newest) newest = parsed;
+    });
+  });
+  return newest;
 };
 
 const preserveKnownProfilePhotos = (current, incoming) => {
@@ -134,8 +148,66 @@ const preserveKnownProfilePhotos = (current, incoming) => {
   return changed ? { ...incoming, profiles: mergedProfiles } : incoming;
 };
 
+const SETUP_PROGRESS_STAGES = {
+  savingName: { labels:["Saving your name...", "Securing your profile..."], min:8, max:34 },
+  settingUpBloc: { labels:["Creating your Bloc...", "Setting things up...", "Final touches...", "Opening your Bloc..."], min:35, max:96 },
+  joiningBloc: { labels:["Joining your Bloc...", "Syncing the leaderboard...", "Final touches...", "Opening your Bloc..."], min:35, max:96 },
+  finalTouches: { labels:["Final touches...", "Opening your Bloc..."], min:75, max:98 },
+  openingBloc: { labels:["Opening your Bloc..."], min:93, max:100 }
+};
+
+const SetupProgressScreen = ({stage="savingName"}) => {
+  const config = SETUP_PROGRESS_STAGES[stage] || SETUP_PROGRESS_STAGES.savingName;
+  const [progress,setProgress]=useState(config.min);
+  const labels = config.labels || [config.label].filter(Boolean);
+  const [labelIndex,setLabelIndex]=useState(0);
+  useEffect(()=>{
+    setProgress(current=>Math.max(current, config.min));
+    setLabelIndex(0);
+    const timer = window.setInterval(()=>{
+      setProgress(current=>{
+        const ceiling = config.max;
+        if (current >= ceiling) return current;
+        const remaining = ceiling - current;
+        const step = remaining > 12 ? 2.2 : remaining > 4 ? 0.9 : 0.28;
+        return Math.min(ceiling, current + step);
+      });
+    },360);
+    return ()=>window.clearInterval(timer);
+  },[config.max, config.min]);
+  useEffect(()=>{
+    if (labels.length <= 1) return undefined;
+    const timer = window.setInterval(()=>{
+      setLabelIndex(current=>Math.min(labels.length - 1, current + 1));
+    },2200);
+    return ()=>window.clearInterval(timer);
+  },[labels.length, stage]);
+  return React.createElement('main',{style:{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",padding:"32px 22px",background:"var(--bg-gradient)",backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)",color:"var(--text)"}},
+    React.createElement('section',{className:"fu",style:{width:"100%",maxWidth:320,display:"grid",gap:10,textAlign:"center",justifyItems:"center",transform:"translateY(-18px)"}},
+      React.createElement('div',{style:{width:"88%",display:"grid",gap:8}},
+        React.createElement('div',{style:{height:8,borderRadius:999,background:"rgba(13,31,30,.9)",border:"0.5px solid rgba(22,61,54,.75)",overflow:"hidden",boxShadow:"inset 0 1px 2px rgba(0,0,0,.35)"}},
+          React.createElement('div',{style:{height:"100%",width:`${progress}%`,borderRadius:999,background:"linear-gradient(90deg,#2fb8ad,#4ECDC4,#8ff3ec)",boxShadow:"0 0 18px rgba(78,205,196,.42)",transition:"width .36s ease-out"}})
+        ),
+        React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontSize:13,fontWeight:800,color:"var(--text-soft)",lineHeight:1.35}},labels[labelIndex] || labels[0] || "")
+      )
+    )
+  );
+};
+
 const IN_BLOC_PAGES = ["today", "activity", "month", "history"];
 const COLD_ONBOARDING_SEEN_KEY = "fero_cold_onboarding_seen";
+const INVITE_HANDOFF_MARKER_KEY = "fero_invite_web_handoff";
+
+const persistInviteWebHandoffMarker = ({userId, groupId, inviteCode}) => {
+  try {
+    localStorage.setItem(INVITE_HANDOFF_MARKER_KEY, JSON.stringify({
+      userId:userId || "",
+      groupId:groupId || "",
+      inviteCode:inviteCode || "",
+      joinedAt:new Date().toISOString()
+    }));
+  } catch {}
+};
 
 const App = () => {
   const cached = readCachedData();
@@ -168,28 +240,51 @@ const App = () => {
   const [authIntent,setAuthIntent]=useState(null);
   const [coldOnboardingSeen,setColdOnboardingSeen]=useState(()=>{try{return localStorage.getItem(COLD_ONBOARDING_SEEN_KEY)==="1";}catch{return false;}});
   const [replayColdOnboarding,setReplayColdOnboarding]=useState(false);
+  const [coldOnboardingInitialIndex,setColdOnboardingInitialIndex]=useState(0);
   const [coldOnboardingPreviewDismissed,setColdOnboardingPreviewDismissed]=useState(false);
   const [authEmail,setAuthEmail]=useState("");
   const [authCode,setAuthCode]=useState("");
   const [authDisplayName,setAuthDisplayName]=useState("");
   const [authError,setAuthError]=useState("");
   const [devOtpCode,setDevOtpCode]=useState("");
+  const [authExistingAccountEmail,setAuthExistingAccountEmail]=useState("");
+  const [authExistingAccountConfirmed,setAuthExistingAccountConfirmed]=useState(false);
+  const [postAuthActionPending,setPostAuthActionPending]=useState(false);
+  const [postAuthProgressStage,setPostAuthProgressStage]=useState("savingName");
   const [sendingOtp,setSendingOtp]=useState(false);
   const [verifyingOtp,setVerifyingOtp]=useState(false);
   const [savingProfile,setSavingProfile]=useState(false);
   const [showJoinModal,setShowJoinModal]=useState(false);
   const [queuedCreate,setQueuedCreate]=useState(false);
   const [queuedCreateGroupName,setQueuedCreateGroupName]=useState("");
+  const [onboardingCreateModalOpen,setOnboardingCreateModalOpen]=useState(false);
+  const [onboardingCreateInitialName,setOnboardingCreateInitialName]=useState("");
+  const [pendingOnboardingCreatePayload,setPendingOnboardingCreatePayload]=useState(null);
+  const [returnToColdOnboardingOnCreateCancel,setReturnToColdOnboardingOnCreateCancel]=useState(false);
+  const [returnToColdOnboardingOnJoinCancel,setReturnToColdOnboardingOnJoinCancel]=useState(false);
   const [pendingJoinAfterProfile,setPendingJoinAfterProfile]=useState(false);
+  // Cold-onboarding join collects the invite code BEFORE auth, so a brand-new
+  // account lands straight in the target Bloc after display-name setup.
+  const [onboardingJoinCodeStep,setOnboardingJoinCodeStep]=useState(false);
+  const [checkingOnboardingInvite,setCheckingOnboardingInvite]=useState(false);
   const [joinCode,setJoinCode]=useState(()=>{
     try {
       const params = new URLSearchParams(window.location.search);
       return String(params.get("invite") || "").trim().toUpperCase();
     } catch { return ""; }
   });
+  const [inviteContextLoading,setInviteContextLoading]=useState(()=>{
+    try {
+      return Boolean(String(new URLSearchParams(window.location.search).get("invite") || "").trim());
+    } catch { return false; }
+  });
   const [inviteContext,setInviteContext]=useState(null);
   const [inviteError,setInviteError]=useState("");
   const [joiningGroup,setJoiningGroup]=useState(false);
+  const [inviteJoinToast,setInviteJoinToast]=useState(null);
+  const [profilePhotoToast,setProfilePhotoToast]=useState(null);
+  const [inviteDownloadPrompt,setInviteDownloadPrompt]=useState(null);
+  const [inviteAlreadyMemberNotice,setInviteAlreadyMemberNotice]=useState(null);
   const [pendingProrationGroupId,setPendingProrationGroupId]=useState(null);
   const [prorationSavingChoice,setProrationSavingChoice]=useState(null);
   const [installPrompt,setInstallPrompt]=useState(null);
@@ -207,6 +302,7 @@ const App = () => {
   const [localPreviewAuthEnabled,setLocalPreviewAuthEnabled]=useState(false);
   const [devImpersonationUserId,setDevImpersonationUserId]=useState(()=>{try{return localStorage.getItem(LOCAL_DEV_IMPERSONATION_KEY)||"";}catch{return ""; }});
   const [blocDragging,setBlocDragging]=useState(false);
+  const [switcherRevealInteractive,setSwitcherRevealInteractive]=useState(false);
   const [pageDragging,setPageDragging]=useState(false);
   const [pageSwipeTarget,setPageSwipeTarget]=useState(null);
   const [suppressSwitcherIntro,setSuppressSwitcherIntro]=useState(false);
@@ -218,6 +314,7 @@ const App = () => {
   const optimisticMutationRef = useRef(null);
   const logMutationQueueRef = useRef(Promise.resolve());
   const reactionMutationQueuesRef = useRef({});
+  const inviteDownloadPromptTimerRef = useRef(null);
   const blocSwipeRef = useRef({sx:0,sy:0,active:false,mode:null});
   const blocSurfaceRef = useRef(null);
   const blocBottomNavRef = useRef(null);
@@ -225,9 +322,61 @@ const App = () => {
   const blocFrameRef = useRef(null);
   const pageSwipeRef = useRef({sx:0,sy:0,active:false,mode:null,target:null,priority:null});
   const pageLayerRefs = useRef({});
+  const pageScrollRefs = useRef({});
   const pageDragXRef = useRef(0);
   const pageFrameRef = useRef(null);
+  const switcherSurfaceRef = useRef(null);
+  const switcherScrollTopRef = useRef(0);
+  const switcherRestoreScrollRef = useRef(null);
   const profileOverlayRef = useRef(null);
+
+  // The display-name step is a full screen rendered inside #root; only modal auth surfaces should inert the app root.
+  const authSurfaceOpen = Boolean((authStep && authStep !== "name") || onboardingJoinCodeStep || showJoinModal);
+
+  useEffect(() => {
+    if (!authSurfaceOpen) return undefined;
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+    const previousBodyTouchAction = document.body.style.touchAction;
+    const previousHtmlTouchAction = document.documentElement.style.touchAction;
+    const previousBodyOverscroll = document.body.style.overscrollBehavior;
+    const previousHtmlOverscroll = document.documentElement.style.overscrollBehavior;
+    const root = document.getElementById("root");
+    const previousRootInert = root ? root.inert : false;
+    const previousRootAriaHidden = root ? root.getAttribute("aria-hidden") : null;
+    const previousRootPointerEvents = root ? root.style.pointerEvents : "";
+    const blockBackgroundTouchMove = event => {
+      if (event.target?.closest?.(".modal")) return;
+      if (event.cancelable) event.preventDefault();
+    };
+    if (root) {
+      root.inert = true;
+      root.setAttribute("aria-hidden", "true");
+      root.style.pointerEvents = "none";
+    }
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+    document.body.style.touchAction = "none";
+    document.documentElement.style.touchAction = "none";
+    document.body.style.overscrollBehavior = "none";
+    document.documentElement.style.overscrollBehavior = "none";
+    document.addEventListener("touchmove", blockBackgroundTouchMove, { passive:false, capture:true });
+    return () => {
+      document.removeEventListener("touchmove", blockBackgroundTouchMove, { capture:true });
+      if (root) {
+        root.inert = previousRootInert;
+        if (previousRootAriaHidden == null) root.removeAttribute("aria-hidden");
+        else root.setAttribute("aria-hidden", previousRootAriaHidden);
+        root.style.pointerEvents = previousRootPointerEvents;
+      }
+      document.body.style.overflow = previousBodyOverflow;
+      document.documentElement.style.overflow = previousHtmlOverflow;
+      document.body.style.touchAction = previousBodyTouchAction;
+      document.documentElement.style.touchAction = previousHtmlTouchAction;
+      document.body.style.overscrollBehavior = previousBodyOverscroll;
+      document.documentElement.style.overscrollBehavior = previousHtmlOverscroll;
+    };
+  }, [authSurfaceOpen]);
 
   const persistGroupSelection = useCallback((groupId) => {
     try {
@@ -257,10 +406,30 @@ const App = () => {
   const resetInviteFlow = useCallback(({ clearUrl=false } = {}) => {
     setInviteContext(null);
     setInviteError("");
+    setInviteAlreadyMemberNotice(null);
     setJoinCode("");
     if (clearUrl) clearInviteParamFromUrl();
   },[clearInviteParamFromUrl]);
 
+  const scheduleInviteDownloadPrompt = useCallback((groupId) => {
+    if (inviteDownloadPromptTimerRef.current) clearTimeout(inviteDownloadPromptTimerRef.current);
+    inviteDownloadPromptTimerRef.current = setTimeout(() => {
+      setInviteDownloadPrompt({ groupId });
+    }, 2200);
+  },[]);
+
+  const completeInviteJoin = useCallback(({groupId, userId, inviteCode, promptDownload=false}) => {
+    if (!groupId) return;
+    persistGroupSelection(groupId);
+    setPage("today");
+    persistInviteWebHandoffMarker({ userId, groupId, inviteCode });
+    const toastId = Date.now();
+    setInviteJoinToast({ id:toastId, groupId });
+    window.setTimeout(() => {
+      setInviteJoinToast(current => current?.id === toastId ? null : current);
+    }, 2000);
+    if (promptDownload) scheduleInviteDownloadPrompt(groupId);
+  },[persistGroupSelection, scheduleInviteDownloadPrompt]);
   const currentGroup = selectedGroupId ? appState.groups?.[selectedGroupId] || null : null;
   const localDevMode = isLocalDevEnvironment();
   const profile = getProfileForSession(appState, authSession);
@@ -380,9 +549,15 @@ const App = () => {
     return () => clearInterval(interval);
   }, []);
 
+  useEffect(() => () => {
+    if (inviteDownloadPromptTimerRef.current) clearTimeout(inviteDownloadPromptTimerRef.current);
+  }, []);
+
   useEffect(() => {
-    window.scrollTo({top:0,left:0,behavior:"auto"});
-  }, [page]);
+    const scrollEl = pageScrollRefs.current?.[page];
+    if (scrollEl) scrollEl.scrollTo({top:0,left:0,behavior:"auto"});
+    else window.scrollTo({top:0,left:0,behavior:"auto"});
+  }, [navResetToken, selectedGroupId]);
 
   useEffect(() => {
     const el = profileOverlayRef.current;
@@ -419,16 +594,45 @@ const App = () => {
       setInviteError("");
       return;
     }
-    fetchInviteContextData(joinCode).then(result => {
-      if (result?.ok) {
-        setInviteContext(result.data);
-        setInviteError("");
-      } else {
-        setInviteContext(null);
-        setInviteError(result?.error || "Invite not found");
-      }
-    });
+    try {
+      const urlInviteCode = String(new URLSearchParams(window.location.search).get("invite") || "").trim().toUpperCase();
+      if (urlInviteCode && String(joinCode || "").trim().toUpperCase() === urlInviteCode) return;
+    } catch {}
+    setInviteContext(null);
+    setInviteError("");
   }, [joinCode]);
+
+  useEffect(() => {
+    let cancelled = false;
+    let inviteCode = "";
+    try {
+      const params = new URLSearchParams(window.location.search);
+      inviteCode = String(params.get("invite") || "").trim().toUpperCase();
+    } catch {}
+    if (!inviteCode) {
+      setInviteContextLoading(false);
+      return undefined;
+    }
+    if (inviteContext?.inviteCode === inviteCode) {
+      setInviteContextLoading(false);
+      return undefined;
+    }
+    setJoinCode(inviteCode);
+    setInviteError("");
+    setInviteContextLoading(true);
+    fetchInviteContextData(inviteCode).then(result => {
+      if (cancelled) return;
+      setInviteContextLoading(false);
+      if (!result?.ok) {
+        setInviteContext(null);
+        setInviteError(result?.error || "Bloc invite not found");
+        return;
+      }
+      setInviteContext(result.data);
+      setJoinCode(String(result.data?.inviteCode || inviteCode).trim().toUpperCase());
+    });
+    return () => { cancelled = true; };
+  }, [inviteContext?.inviteCode]);
 
 
   const applyData = useCallback((data, { optimistic=false, fromMutation=false } = {}) => {
@@ -618,7 +822,12 @@ const App = () => {
           }
         }
         const listener = client.auth.onAuthStateChange(async (event, session) => {
-          const mapped = mapSupabaseSession(session);
+          const mappedSupabaseSession = mapSupabaseSession(session);
+          const persistedSession = readPersistedAuthSession();
+          // Local OTP sessions live in our own persisted session hint rather
+          // than Supabase browser storage. Supabase still emits an initial null
+          // session event, which must not sign the local test user back out.
+          const mapped = mappedSupabaseSession || (persistedSession?.localDevOtp ? persistedSession : null);
           persistSession(mapped);
           if (mapped?.accessToken) {
             const shouldHydrateUi = event === "SIGNED_IN" && !hasCachedShell;
@@ -791,17 +1000,29 @@ const App = () => {
 
   const handleUpdateGroupSettings = useCallback(async(groupName, settings, options = {})=>{
     if(!selectedGroupId || !currentUser) return { ok:false, error:"No Bloc selected" };
+    if (options.optimisticClose && currentGroup) {
+      const optimisticGroup = normalizeGroupState({
+        ...currentGroup,
+        name: groupName,
+        settings,
+        setupReview: options.setupReview ?? currentGroup.setupReview
+      });
+      beginOptimisticMutation();
+      applyData(buildOptimisticState({ groupId:selectedGroupId, group:optimisticGroup }), { optimistic:true });
+      setShowSettings(false);
+    }
     setSavingSettings(true);
     try {
       const result = await updateGroupSettingsData(selectedGroupId, currentUser, authSession?.userId, groupName, settings, options);
       if(result.ok && result.data){
-        const applied = applyData(result.data);
+        const applied = applyData(result.data, { fromMutation: true });
         if (applied) {
           setLastSyncedAt(new Date());
           setSyncError(false);
         }
-        if (options.closeAfterSave !== false) setShowSettings(false);
+        if (!options.optimisticClose && options.closeAfterSave !== false) setShowSettings(false);
       } else {
+        if (options.optimisticClose) clearOptimisticMutation();
         setSyncError(true);
         await refreshNow();
       }
@@ -809,7 +1030,7 @@ const App = () => {
     } finally {
       setSavingSettings(false);
     }
-  },[applyData, currentUser, refreshNow, selectedGroupId, authSession]);
+  },[applyData, beginOptimisticMutation, buildOptimisticState, clearOptimisticMutation, currentGroup, currentUser, refreshNow, selectedGroupId, authSession]);
 
   const handleLogMutation = useCallback(async(payload)=>{
     if (payload.action === "reaction") {
@@ -946,10 +1167,13 @@ const App = () => {
     return result;
   },[applyData, effectiveAuthSession, selectedGroupId]);
 
-  const handleCreateGroup = useCallback(async(payload)=>{
+  const handleCreateGroup = useCallback(async(payload, options = {})=>{
     setCreatingGroup(true);
     try {
-      const result = await createGroupData({ ...payload, actorUserId: authSession?.userId });
+      const result = await createGroupData(
+        { ...payload, actorUserId: options.actorUserId || authSession?.userId },
+        options.sessionOverride || null
+      );
       if(result.ok && result.state){
         applyData(result.state);
         setHiddenLeftGroupIds(current => {
@@ -958,14 +1182,22 @@ const App = () => {
           delete next[result.createdGroupId];
           return next;
         });
-        setCreatedInviteGroupId(result.createdGroupId);
+        if (options.showInviteScreen === false) {
+          setCreatedInviteGroupId(null);
+          persistGroupSelection(result.createdGroupId);
+          setPage("today");
+        } else {
+          setCreatedInviteGroupId(result.createdGroupId);
+        }
         setSuppressSwitcherIntro(true);
+        setReturnToColdOnboardingOnCreateCancel(false);
+        setReturnToColdOnboardingOnJoinCancel(false);
       }
       return result;
     } finally {
       setCreatingGroup(false);
     }
-  },[applyData]);
+  },[applyData, authSession?.userId, persistGroupSelection]);
 
   const handleContinueFromCreatedInvite = useCallback(()=>{
     const createdGroup = appState.groups?.[createdInviteGroupId];
@@ -1144,8 +1376,16 @@ const App = () => {
     }
     persistSession(null);
     persistGroupSelection(null);
+    setPendingAuthSession(null);
+    setAuthDisplayName("");
+    setAuthError("");
     setShowSettings(false);
     setShowProfileModal(false);
+    setReplayColdOnboarding(false);
+    setColdOnboardingInitialIndex(0);
+    setColdOnboardingPreviewDismissed(true);
+    setColdOnboardingSeen(true);
+    try { localStorage.setItem(COLD_ONBOARDING_SEEN_KEY, "1"); } catch {}
   };
   const handleSaveProfileFromModal = async (displayName) => {
     setProfileSaving(true);
@@ -1188,6 +1428,50 @@ const App = () => {
     setSyncError(false);
     return { ok: true, profilePhotoUrl };
   }, [applyData, effectiveAuthSession, effectiveProfile]);
+  const showProfilePhotoUploadNotice = useCallback(message => {
+    const noticeId = Date.now();
+    setProfilePhotoToast({ id:noticeId, message });
+    window.setTimeout(() => {
+      setProfilePhotoToast(current => current?.id === noticeId ? null : current);
+    }, 3200);
+  },[]);
+  const uploadProfilePhotoInBackground = useCallback((dataUrl, session, displayName) => {
+    if (!dataUrl || !session?.userId) return;
+    uploadProfilePhotoData(dataUrl).then(result => {
+      if (!result?.ok) {
+        showProfilePhotoUploadNotice("Photo didn't save. You can add it later from Profile.");
+        return;
+      }
+      const profilePhotoUrl = String(result.profilePhotoUrl || "").trim();
+      if (profilePhotoUrl) {
+        setAppState(current => {
+          const normalized = normalizeAppState(current);
+          const existing = normalized.profiles?.[session.userId] || {};
+          const updated = normalizeAppState({
+            ...normalized,
+            profiles: {
+              ...(normalized.profiles || {}),
+              [session.userId]: {
+                id: session.userId,
+                email: session.email || existing.email || "",
+                displayName: displayName || existing.displayName || "",
+                profilePhotoUrl,
+                createdAt: existing.createdAt || new Date().toISOString()
+              }
+            }
+          });
+          latestRevisionRef.current = Math.max(latestRevisionRef.current, getRevision(updated));
+          writeCachedData(updated);
+          return updated;
+        });
+      }
+      setLastSyncedAt(new Date());
+      setSyncError(false);
+    }).catch(error => {
+      console.error("Onboarding profile photo upload failed:", error);
+      showProfilePhotoUploadNotice("Photo didn't save. You can add it later from Profile.");
+    });
+  },[showProfilePhotoUploadNotice]);
   const handleDeleteAccount = async () => {
     const result = await deleteAccountData(authSession?.userId);
     if (!result?.ok) return result;
@@ -1225,9 +1509,12 @@ const App = () => {
     cancelSwipeFrame(blocFrameRef);
     applyBlocTransforms(0, false);
     setBlocDragging(false);
+    setSwitcherRevealInteractive(false);
   },[applyBlocTransforms]);
   const handleSwitchGroup=()=>{
     setSuppressSwitcherIntro(false);
+    switcherScrollTopRef.current = 0;
+    switcherRestoreScrollRef.current = 0;
     resetBlocSwipe();
     persistGroupSelection(null);
   };
@@ -1263,6 +1550,7 @@ const App = () => {
     const dominantDrag = dx > screenWidth / 2 && Math.abs(dy) < 100 && dx > Math.abs(dy);
     const shouldClose = s.mode === "back" && (fastEdgeFlick || dominantDrag);
     if (shouldClose) {
+      setSwitcherRevealInteractive(true);
       releaseSwipeForward({
         dragRef: blocDragXRef,
         frameRef: blocFrameRef,
@@ -1271,11 +1559,14 @@ const App = () => {
         setDragging: setBlocDragging,
         applyTransform: applyBlocTransforms,
         commit: () => {
+          switcherRestoreScrollRef.current = switcherScrollTopRef.current;
           setSuppressSwitcherIntro(true);
           persistGroupSelection(null);
+          setSwitcherRevealInteractive(false);
         }
       });
     } else {
+      setSwitcherRevealInteractive(false);
       releaseSwipeBack({
         dragRef: blocDragXRef,
         frameRef: blocFrameRef,
@@ -1488,9 +1779,61 @@ const App = () => {
     if (displayName && Array.isArray(group.leftMemberNames) && group.leftMemberNames.includes(displayName)) return false;
     return Boolean(getMembershipForUser(group, effectiveAuthSession, effectiveProfile));
   });
+  const switcherGroups = useMemo(() => {
+    const originalIndex = new Map(visibleGroups.map((group, index) => [group.id, index]));
+    return [...visibleGroups].sort((left, right) => {
+      const rightNewest = getGroupNewestLogMs(right);
+      const leftNewest = getGroupNewestLogMs(left);
+      if (rightNewest !== leftNewest) return rightNewest - leftNewest;
+      return (originalIndex.get(left.id) ?? 0) - (originalIndex.get(right.id) ?? 0);
+    });
+  }, [visibleGroups]);
+  const firstVisibleGroupId = visibleGroups[0]?.id || null;
+  useEffect(() => {
+    if (!authSession?.userId) return;
+    let showWelcomePreview = false;
+    let showDownloadPreview = false;
+    try {
+      const params = new URLSearchParams(window.location.search);
+      showWelcomePreview = params.get("inviteWelcomePreview") === "1";
+      showDownloadPreview = params.get("inviteDownloadPreview") === "1";
+    } catch {}
+    if (!showWelcomePreview && !showDownloadPreview) return;
+    const previewGroupId = (selectedGroupId && appState.groups?.[selectedGroupId])
+      ? selectedGroupId
+      : firstVisibleGroupId;
+    if (!previewGroupId) return;
+    if (showWelcomePreview) {
+      setInviteDownloadPrompt(null);
+      setInviteJoinToast({ id:Date.now(), groupId:previewGroupId });
+    }
+    if (showDownloadPreview) {
+      setInviteDownloadPrompt({ groupId: previewGroupId });
+    }
+  },[appState.groups, authSession?.userId, firstVisibleGroupId, selectedGroupId]);
   const localPreviewMembers = uniqueNames(groups.flatMap(group => getCurrentGroupMemberNames(group)));
   const activityAlertCount = currentGroup && currentUser ? getActivityAlertCount(currentGroup, currentUser) : 0;
   const renderGroupSwitcherSurface = ({ inert=false, suppressIntro=false } = {}) => React.createElement('div',{
+    ref:el=>{
+      if (!el) {
+        switcherSurfaceRef.current = null;
+        return;
+      }
+      switcherSurfaceRef.current = el;
+      if (switcherRestoreScrollRef.current !== null) {
+        const targetScrollTop = Math.max(0, Number(switcherRestoreScrollRef.current) || 0);
+        requestAnimationFrame(() => {
+          el.scrollTop = targetScrollTop;
+          if (!inert) {
+            switcherScrollTopRef.current = targetScrollTop;
+            switcherRestoreScrollRef.current = null;
+          }
+        });
+      }
+    },
+    onScroll:e=>{
+      if (!inert) switcherScrollTopRef.current = e.currentTarget.scrollTop || 0;
+    },
     style:{
       position:"fixed",
       inset:0,
@@ -1505,7 +1848,7 @@ const App = () => {
     }
   },
     React.createElement(GroupHome,{
-      groups: visibleGroups,
+      groups: switcherGroups,
       currentIdentity: profile?.displayName || authSession?.email?.split("@")[0] || effectiveProfile?.displayName || effectiveAuthSession?.email?.split("@")[0] || "",
       currentEmail: authSession?.email || effectiveAuthSession?.email,
       currentUserId: authSession?.userId || effectiveAuthSession?.userId || "",
@@ -1514,7 +1857,8 @@ const App = () => {
       autoOpenCreate: inert ? false : queuedCreate,
       initialCreateGroupName: inert ? "" : queuedCreateGroupName,
       onAutoOpenHandled: inert ? ()=>{} : ()=>{setQueuedCreate(false);setQueuedCreateGroupName("");},
-      onOpenGroup: inert ? ()=>{} : groupId=>{ window.scrollTo({top:0,left:0,behavior:"auto"}); setSuppressSwitcherIntro(false); persistGroupSelection(groupId); setPage("today"); },
+      onCreateCancel: inert ? ()=>{} : handleCreateCancelFromGroupHome,
+      onOpenGroup: inert ? ()=>{} : groupId=>{ switcherRestoreScrollRef.current = switcherScrollTopRef.current; window.scrollTo({top:0,left:0,behavior:"auto"}); setSuppressSwitcherIntro(false); persistGroupSelection(groupId); setPage("today"); },
       onCreateGroup: inert ? ()=>{} : handleCreateGroup,
       onJoinGroup: inert ? ()=>{} : ()=>setShowJoinModal(true),
       suppressIntro
@@ -1529,48 +1873,247 @@ const App = () => {
     setAuthDisplayName("");
     setAuthError("");
     setDevOtpCode("");
+    setAuthExistingAccountEmail("");
+    setAuthExistingAccountConfirmed(false);
+    setPostAuthProgressStage("savingName");
   };
   const completeColdOnboarding = useCallback(() => {
     setReplayColdOnboarding(false);
+    setColdOnboardingInitialIndex(0);
     setColdOnboardingPreviewDismissed(true);
     setColdOnboardingSeen(true);
     try { localStorage.setItem(COLD_ONBOARDING_SEEN_KEY, "1"); } catch {}
   },[]);
   const handleColdOnboardingCreate = useCallback(({ blocName } = {}) => {
     const initialGroupName = String(blocName || "").trim();
-    completeColdOnboarding();
-    setQueuedCreateGroupName(initialGroupName);
+    setOnboardingCreateInitialName(initialGroupName);
+    setOnboardingCreateModalOpen(true);
+    setReturnToColdOnboardingOnCreateCancel(true);
+    setReturnToColdOnboardingOnJoinCancel(false);
+  },[]);
+  const handleOnboardingCreateCancel = useCallback(() => {
+    setOnboardingCreateModalOpen(false);
+    setPendingOnboardingCreatePayload(null);
+    setReturnToColdOnboardingOnCreateCancel(false);
+    setColdOnboardingInitialIndex(3);
+    setColdOnboardingPreviewDismissed(false);
+    setReplayColdOnboarding(true);
+  },[]);
+  const handleOnboardingCreateSubmit = useCallback((payload) => {
+    const createDraft = {
+      ...payload,
+      creatorName: ""
+    };
+    setPendingOnboardingCreatePayload(createDraft);
+    setOnboardingCreateModalOpen(false);
+    setReturnToColdOnboardingOnCreateCancel(true);
+    setReturnToColdOnboardingOnJoinCancel(false);
     if (authSession?.userId) {
-      persistGroupSelection(null);
-      setSuppressSwitcherIntro(true);
-      setQueuedCreate(true);
+      if (String(profile?.displayName || "").trim()) {
+        setPostAuthActionPending(true);
+        setPostAuthProgressStage("settingUpBloc");
+        handleCreateGroup(
+          { ...createDraft, creatorName: profile.displayName },
+          { actorUserId: authSession.userId, showInviteScreen:false }
+        ).then(result => {
+          if (result?.ok) {
+            setPostAuthProgressStage("openingBloc");
+            setPendingOnboardingCreatePayload(null);
+            completeColdOnboarding();
+          }
+        }).finally(() => setPostAuthActionPending(false));
+        return;
+      }
+      setAuthDisplayName("");
+      setAuthError("");
+      setAuthIntent({ type:"create", fromOnboarding:true });
+      setAuthStep("name");
       return;
     }
-    openAuth({ type:"create", initialGroupName });
-  },[authSession?.userId, completeColdOnboarding, persistGroupSelection, openAuth]);
+    openAuth({ type:"create", fromOnboarding:true });
+  },[authSession, completeColdOnboarding, handleCreateGroup, openAuth, profile]);
   const handleColdOnboardingJoin = useCallback(() => {
-    completeColdOnboarding();
+    setReturnToColdOnboardingOnJoinCancel(true);
+    setReturnToColdOnboardingOnCreateCancel(false);
     if (authSession?.userId) {
+      completeColdOnboarding();
       setShowJoinModal(true);
       return;
     }
-    openAuth({ type:"join" });
-  },[authSession?.userId, completeColdOnboarding, openAuth]);
-  const closeAuth = () => {
+    // Signed out: ask for the invite code first, then email → OTP → name → join.
+    setInviteError("");
+    setOnboardingJoinCodeStep(true);
+  },[authSession?.userId, completeColdOnboarding]);
+  const handleOnboardingJoinCodeCancel = useCallback(() => {
+    setOnboardingJoinCodeStep(false);
+    setCheckingOnboardingInvite(false);
+    setInviteError("");
+    setJoinCode("");
+    setReturnToColdOnboardingOnJoinCancel(false);
+    // Cancelling the join always returns to onboarding screen 4, never to an
+    // empty Bloc switcher.
+    setColdOnboardingInitialIndex(3);
+    setColdOnboardingPreviewDismissed(false);
+    setReplayColdOnboarding(true);
+  },[]);
+  const handleOnboardingJoinCodeContinue = useCallback(async () => {
+    const code = String(joinCode || "").trim().toUpperCase();
+    if (!code) return;
+    setCheckingOnboardingInvite(true);
+    setInviteError("");
+    const result = await fetchInviteContextData(code);
+    setCheckingOnboardingInvite(false);
+    if (!result?.ok) {
+      setInviteError(result?.error || "Invite not found");
+      return;
+    }
+    setInviteContext(result.data);
+    if (Number(result.data?.memberCount || 0) >= 20) {
+      setInviteError("This Bloc is full. Maximum 20 members allowed.");
+      return;
+    }
+    setJoinCode(code);
+    setOnboardingJoinCodeStep(false);
+    completeColdOnboarding();
+    openAuth({ type:"join", fromOnboarding:true, inviteCode:code });
+  },[joinCode, completeColdOnboarding, openAuth]);
+  const resetAuthFlow = () => {
     setAuthStep(null);
     setAuthIntent(null);
     setAuthCode("");
+    setAuthDisplayName("");
     setAuthError("");
     setDevOtpCode("");
     setPendingAuthSession(null);
+    setAuthExistingAccountEmail("");
+    setAuthExistingAccountConfirmed(false);
   };
-  const continueAfterAuth = async (nextSession = authSession, nextProfile = effectiveProfile) => {
-    if (authIntent?.type === "create") {
-      setQueuedCreateGroupName(String(authIntent?.initialGroupName || "").trim());
+  const closeAuth = () => {
+    const shouldResumeColdOnboarding = (authIntent?.type === "create" && returnToColdOnboardingOnCreateCancel) || (authIntent?.type === "join" && returnToColdOnboardingOnJoinCancel);
+    const cancelledOnboardingJoin = authIntent?.type === "join" && returnToColdOnboardingOnJoinCancel;
+    const cancelledOnboardingCreate = authIntent?.type === "create" && returnToColdOnboardingOnCreateCancel;
+    resetAuthFlow();
+    setPostAuthActionPending(false);
+    if (cancelledOnboardingCreate) {
+      setPendingOnboardingCreatePayload(null);
+      setOnboardingCreateModalOpen(false);
+      setReturnToColdOnboardingOnCreateCancel(false);
+    }
+    if (cancelledOnboardingJoin) {
+      setOnboardingJoinCodeStep(false);
+      setReturnToColdOnboardingOnJoinCancel(false);
+      resetInviteFlow({ clearUrl:false });
+    }
+    if (shouldResumeColdOnboarding) {
+      setColdOnboardingInitialIndex(3);
+      setColdOnboardingPreviewDismissed(false);
+      setReplayColdOnboarding(true);
+    }
+  };
+  // Single join path shared by the onboarding flow, the invite-link flow and the
+  // signed-in Join modal. Membership is granted by the invite code alone — never
+  // by a display name.
+  const joinWithInviteCode = async (session, rawCode, options = {}) => {
+    const inviteCode = String(rawCode || "").trim().toUpperCase();
+    if (!session?.userId || !inviteCode) return { ok:false, error:"Enter an invite code" };
+    setJoiningGroup(true);
+    setInviteError("");
+    const result = await joinGroupData({ userId: session.userId, inviteCode }, session);
+    setJoiningGroup(false);
+    if (!result?.ok) {
+      setInviteError(result?.error || "Unable to join Bloc");
+      return result || { ok:false, error:"Unable to join Bloc" };
+    }
+    applyData(result.state);
+    setHiddenLeftGroupIds(current => {
+      if (!current[result.joinedGroupId]) return current;
+      const next = { ...current };
+      delete next[result.joinedGroupId];
+      return next;
+    });
+    resetInviteFlow({ clearUrl:true });
+    completeInviteJoin({ groupId: result.joinedGroupId, userId: session.userId, inviteCode, promptDownload:Boolean(options.promptDownload) });
+    setReturnToColdOnboardingOnCreateCancel(false);
+    setReturnToColdOnboardingOnJoinCancel(false);
+    setOnboardingJoinCodeStep(false);
+    setShowJoinModal(false);
+    return result;
+  };
+  const continueAfterAuth = async (nextSession = authSession, nextProfile = effectiveProfile, completedIntent = authIntent, afterCommitted = null) => {
+    if (completedIntent?.type === "join" && completedIntent?.alreadyMemberGroupId) {
+      resetAuthFlow();
+      resetInviteFlow({ clearUrl:true });
+      completeInviteJoin({
+        groupId: completedIntent.alreadyMemberGroupId,
+        userId: nextSession?.userId,
+        inviteCode: completedIntent.alreadyMemberInviteCode || completedIntent.inviteCode || "",
+        promptDownload:false
+      });
+      afterCommitted?.();
+      return;
+    }
+    if (completedIntent?.type === "create") {
+      if (completedIntent?.fromOnboarding && pendingOnboardingCreatePayload) {
+        const creatorName = String(nextProfile?.displayName || authDisplayName || "").trim();
+        if (!creatorName) {
+          setAuthIntent(completedIntent);
+          setPendingAuthSession(nextSession);
+          setAuthDisplayName("");
+          setAuthError("");
+          setAuthStep("name");
+          return;
+        }
+        setPostAuthActionPending(true);
+        setPostAuthProgressStage("settingUpBloc");
+        const result = await handleCreateGroup(
+          { ...pendingOnboardingCreatePayload, creatorName },
+          { actorUserId: nextSession?.userId, sessionOverride:nextSession, showInviteScreen:false }
+        );
+        if (result?.ok) {
+          setPostAuthProgressStage("openingBloc");
+          setPendingOnboardingCreatePayload(null);
+          setReturnToColdOnboardingOnCreateCancel(false);
+          completeColdOnboarding();
+          afterCommitted?.();
+          window.setTimeout(()=>setPostAuthActionPending(false),220);
+        } else {
+          setPostAuthActionPending(false);
+          setAuthError(result?.error || "Unable to create Bloc");
+          setAuthIntent(completedIntent);
+          setPendingAuthSession(nextSession);
+          setAuthStep("name");
+        }
+        return;
+      }
+      setQueuedCreateGroupName(String(completedIntent?.initialGroupName || "").trim());
       setQueuedCreate(true);
       return;
     }
-    if (authIntent?.type === "join") {
+    if (completedIntent?.type === "join") {
+      const pendingCode = String(completedIntent?.inviteCode || joinCode || inviteContext?.inviteCode || "").trim().toUpperCase();
+      const inviteLinkJoin = Boolean(inviteContext?.inviteCode)
+        && pendingCode
+        && pendingCode === String(inviteContext.inviteCode || "").trim().toUpperCase()
+        && !completedIntent?.fromOnboarding;
+      // Onboarding join already collected and validated the code up front, so
+      // finish the join instead of re-asking for it. Invite-link joins also
+      // confirmed the code before auth, so they should land directly in the
+      // Bloc after auth/profile setup.
+      if ((completedIntent?.fromOnboarding || inviteLinkJoin) && pendingCode && nextProfile?.displayName) {
+        setPostAuthActionPending(true);
+        setPostAuthProgressStage("joiningBloc");
+        const result = await joinWithInviteCode(nextSession, pendingCode, { promptDownload: inviteLinkJoin });
+        if (result?.ok) {
+          setPostAuthProgressStage("openingBloc");
+          afterCommitted?.();
+          window.setTimeout(()=>setPostAuthActionPending(false),220);
+          return;
+        }
+        setPostAuthActionPending(false);
+        setShowJoinModal(true);
+        setJoinCode(pendingCode.toUpperCase());
+        return;
+      }
       setShowJoinModal(true);
       if (inviteContext?.inviteCode) setJoinCode(inviteContext.inviteCode);
     }
@@ -1579,6 +2122,30 @@ const App = () => {
     setSendingOtp(true);
     setAuthError("");
     const normalizedEmail = authEmail.trim();
+    setAuthDisplayName("");
+    const pendingAuthInviteCode = String(authIntent?.inviteCode || joinCode || inviteContext?.inviteCode || "").trim().toUpperCase();
+    if (authIntent?.type === "join" && pendingAuthInviteCode && !authExistingAccountConfirmed) {
+      const memberCheck = await checkInviteEmailMembershipData(pendingAuthInviteCode, normalizedEmail);
+      if (!memberCheck?.ok) {
+        setSendingOtp(false);
+        setAuthError(memberCheck?.error || "Unable to check invite");
+        return;
+      }
+      if (memberCheck.alreadyMember) {
+        setSendingOtp(false);
+        setAuthExistingAccountEmail(normalizedEmail);
+        setAuthIntent(current => ({
+          ...(current || {}),
+          type:"join",
+          inviteCode: memberCheck.inviteCode || pendingAuthInviteCode,
+          alreadyMemberGroupId: memberCheck.groupId,
+          alreadyMemberInviteCode: memberCheck.inviteCode || pendingAuthInviteCode
+        }));
+        setAuthStep("alreadyMember");
+        return;
+      }
+    }
+    const onboardingAccountAction = Boolean(authIntent?.fromOnboarding) && (authIntent?.type === "create" || authIntent?.type === "join");
     if (authIntent?.type === "signup") {
       const existingAccount = await checkAuthEmailExistsData(normalizedEmail);
       if (!existingAccount?.ok) {
@@ -1588,11 +2155,27 @@ const App = () => {
       }
       if (existingAccount.exists) {
         setSendingOtp(false);
-        setAuthError("There is already a Fero account with this email. Create a new account with a different email.");
+        setAuthExistingAccountEmail(normalizedEmail);
+        setAuthStep("existing");
         return;
       }
     }
-    const result = await sendOtpData(normalizedEmail, { shouldCreateUser: authIntent?.type !== "signin" });
+    if (onboardingAccountAction && !authExistingAccountConfirmed) {
+      const existingAccount = await checkAuthEmailExistsData(normalizedEmail);
+      if (!existingAccount?.ok) {
+        setSendingOtp(false);
+        setAuthError(existingAccount?.error || "Unable to check email");
+        return;
+      }
+      if (existingAccount.exists) {
+        setSendingOtp(false);
+        setAuthExistingAccountEmail(normalizedEmail);
+        setAuthStep("existing");
+        return;
+      }
+    }
+    const shouldCreateUser = authIntent?.type !== "signin" && !(onboardingAccountAction && authExistingAccountConfirmed);
+    const result = await sendOtpData(normalizedEmail, { shouldCreateUser });
     setSendingOtp(false);
     if (!result?.ok) {
       setAuthError(authIntent?.type === "signin" ? "No Fero account found for that email. Create a new account instead." : (result?.error || "Unable to send code"));
@@ -1600,6 +2183,34 @@ const App = () => {
     }
     setDevOtpCode(result.devCode || "");
     setAuthStep("otp");
+  };
+  const handleConfirmExistingAccount = async () => {
+    const normalizedEmail = String(authExistingAccountEmail || authEmail || "").trim();
+    if (!normalizedEmail) return;
+    setAuthExistingAccountConfirmed(true);
+    // The user explicitly chose Sign in from the duplicate-account prompt.
+    // Carry that decision through OTP verification instead of re-running the
+    // duplicate-signup rejection after the code succeeds.
+    setAuthIntent(current => current?.type === "signup" ? { ...current, type:"signin" } : current);
+    setAuthEmail(normalizedEmail);
+    setSendingOtp(true);
+    setAuthError("");
+    const result = await sendOtpData(normalizedEmail, { shouldCreateUser:false });
+    setSendingOtp(false);
+    if (!result?.ok) {
+      setAuthError(result?.error || "Unable to send code");
+      return;
+    }
+    setDevOtpCode(result.devCode || "");
+    setAuthStep("otp");
+  };
+  const handleUseDifferentEmail = () => {
+    setAuthExistingAccountEmail("");
+    setAuthExistingAccountConfirmed(false);
+    setAuthEmail("");
+    setAuthCode("");
+    setAuthError("");
+    setAuthStep("email");
   };
   const handleVerifyOtp = async () => {
     setVerifyingOtp(true);
@@ -1613,9 +2224,10 @@ const App = () => {
     const nextSession = {
       userId: result.session.userId,
       email: result.session.email,
-      accessToken: result.session.accessToken || authSession?.accessToken || null
+      accessToken: result.session.accessToken || authSession?.accessToken || null,
+      localDevOtp: Boolean(result.session.localDevOtp)
     };
-    const syncedState = result.state || appState;
+    const syncedState = result.state || (nextSession.userId === authSession?.userId ? appState : null);
     let nextProfile = getProfileForSession(syncedState, nextSession);
     const hasExistingFeroAccount = authIntent?.type === "signup" && (
       Boolean(nextProfile?.displayName)
@@ -1630,39 +2242,60 @@ const App = () => {
       setAuthError("This email already has a Fero account. Sign in instead.");
       return;
     }
-    if (result.state) applyData(result.state);
-    persistSession(nextSession);
-    setPendingAuthSession(nextSession);
-    let needsProfileSetup = typeof result.session.needsProfileSetup === "boolean"
-      ? result.session.needsProfileSetup
-      : !nextProfile?.displayName;
+    const needsProfileSetup = syncedState
+      ? (typeof result.session.needsProfileSetup === "boolean"
+          ? result.session.needsProfileSetup
+          : !nextProfile?.displayName)
+      : true;
 
-    if (needsProfileSetup && authIntent?.type !== "join") {
-      const freshData = await fetchData();
-      if (freshData) {
-        applyData(freshData);
-        const freshProfile = getProfileForSession(freshData, nextSession);
-        if (freshProfile?.displayName) {
-          needsProfileSetup = false;
-          nextProfile = freshProfile;
-        }
-      }
+    // Brand-new accounts created from the Welcome Back screen should see the
+    // pitch before profile setup. Profile setup is collected later, once they
+    // actually create or join a Bloc from onboarding screen 4.
+    if (authIntent?.type === "signup" && needsProfileSetup) {
+      if (result.state) applyData(result.state);
+      persistSession(nextSession);
+      setPendingAuthSession(null);
+      resetAuthFlow();
+      setColdOnboardingPreviewDismissed(false);
+      setColdOnboardingInitialIndex(0);
+      setReplayColdOnboarding(true);
+      return;
     }
 
-    if (needsProfileSetup && authIntent?.type !== "join") {
+    // Move to the display-name screen BEFORE the session is persisted for
+    // create/join flows, so the app never renders an empty Bloc switcher in the
+    // gap between OTP success and profile setup. auth-sync already resolved
+    // needsProfileSetup against the migrated server state, so no pre-fetch is
+    // needed here.
+    if (needsProfileSetup) {
       setShowJoinModal(false);
       setAuthDisplayName("");
       setAuthStep("name");
       setAuthError("");
-      return;
     }
-    closeAuth();
-    continueAfterAuth(nextSession, nextProfile);
+    if (result.state) applyData(result.state);
+    persistSession(nextSession);
+    setPendingAuthSession(nextSession);
+    if (needsProfileSetup) return;
+    resetAuthFlow();
+    continueAfterAuth(nextSession, nextProfile, authIntent);
   };
-  const handleSaveProfile = async () => {
+  const handleSaveProfile = async ({ profilePhotoDataUrl = "" } = {}) => {
     setSavingProfile(true);
     setAuthError("");
+    const completedIntentObj = authIntent;
     const completedIntent = authIntent?.type || "";
+    const onboardingPostAuthAction = Boolean(completedIntentObj?.fromOnboarding) && (completedIntent === "create" || completedIntent === "join");
+    const pendingInviteCode = String(completedIntentObj?.inviteCode || joinCode || inviteContext?.inviteCode || "").trim().toUpperCase();
+    const inviteLinkPostAuthJoin = Boolean(inviteContext?.inviteCode)
+      && pendingInviteCode
+      && pendingInviteCode === String(inviteContext.inviteCode || "").trim().toUpperCase()
+      && completedIntent === "join";
+    const profilePostAuthAction = onboardingPostAuthAction || inviteLinkPostAuthJoin;
+    if (profilePostAuthAction) {
+      setPostAuthProgressStage("savingName");
+      setPostAuthActionPending(true);
+    }
     const activeSession = pendingAuthSession || authSession || await getCurrentAuthSession();
     const result = await upsertProfileData(
       { userId: activeSession?.userId, email: activeSession?.email, displayName: authDisplayName.trim() },
@@ -1670,47 +2303,69 @@ const App = () => {
     );
     setSavingProfile(false);
     if (!result?.ok) {
+      setPostAuthActionPending(false);
       setAuthError(result?.error || "Unable to save profile");
       return;
     }
     if (activeSession?.userId) persistSession(activeSession);
+    const savedDisplayName = authDisplayName.trim();
+    const uploadSavedProfilePhoto = () => uploadProfilePhotoInBackground(profilePhotoDataUrl, activeSession, savedDisplayName);
+    // Auto-join only where the code was already collected as part of that flow:
+    // the onboarding join, the invite-link join, or a signed-in join that
+    // detoured through name setup.
+    const shouldAutoJoin = Boolean(activeSession?.userId)
+      && Boolean(pendingInviteCode)
+      && (pendingJoinAfterProfile || Boolean(completedIntentObj?.fromOnboarding) || inviteLinkPostAuthJoin);
+    if (profilePostAuthAction) {
+      setPostAuthProgressStage(shouldAutoJoin ? "joiningBloc" : "settingUpBloc");
+    }
     const applied = result.data ? applyData(result.data) : false;
-    if (!applied) {
+    // The profile write is the gate for joining (the server refuses a join
+    // without a saved display name), so only skip the extra refetch — never the
+    // save itself. When we already have the state back, the extra round trip is
+    // pure latency between the name screen and the target Bloc.
+    if (!applied && !shouldAutoJoin) {
       await refreshNow();
     }
-    closeAuth();
-    if (completedIntent === "signup") {
+    resetAuthFlow();
+    if (completedIntent === "signup" && !shouldAutoJoin) {
+      uploadSavedProfilePhoto();
       setColdOnboardingPreviewDismissed(false);
+      setColdOnboardingInitialIndex(0);
       setReplayColdOnboarding(true);
       return;
     }
-    if (pendingJoinAfterProfile && activeSession?.userId) {
+    if (shouldAutoJoin) {
       setPendingJoinAfterProfile(false);
-      setShowJoinModal(true);
-      setJoiningGroup(true);
-      setInviteError("");
-      const joinResult = await joinGroupData({ userId: activeSession.userId, inviteCode: joinCode.trim().toUpperCase() });
-      setJoiningGroup(false);
+      const joinResult = await joinWithInviteCode(activeSession, pendingInviteCode, { promptDownload:inviteLinkPostAuthJoin });
+      if (joinResult?.ok) {
+        setPostAuthProgressStage("openingBloc");
+        uploadSavedProfilePhoto();
+      }
+      setPostAuthActionPending(false);
       if (!joinResult?.ok) {
-        setInviteError(joinResult?.error || "Unable to join Bloc");
+        if (joinResult?.status === 409) {
+          setAuthIntent(completedIntentObj);
+          setPendingAuthSession(activeSession);
+          setAuthDisplayName(savedDisplayName);
+          setAuthStep("name");
+          setAuthError(joinResult.error || "That display name is already used in this Bloc. Pick another one.");
+          return;
+        }
+        // Keep the user on the join step with the code they entered rather than
+        // dropping them into an empty switcher.
         setShowJoinModal(true);
-        if (inviteContext?.inviteCode) setJoinCode(inviteContext.inviteCode);
+        setJoinCode(pendingInviteCode);
         return;
       }
-      applyData(joinResult.state);
-      setHiddenLeftGroupIds(current => {
-        if (!current[joinResult.joinedGroupId]) return current;
-        const next = { ...current };
-        delete next[joinResult.joinedGroupId];
-        return next;
-      });
-      resetInviteFlow({ clearUrl:true });
-      persistGroupSelection(joinResult.joinedGroupId);
-      setPage("today");
-      setShowJoinModal(false);
       return;
     }
-    continueAfterAuth(activeSession, getProfileForSession(result.data || appState, activeSession));
+    continueAfterAuth(
+      activeSession,
+      getProfileForSession(result.data || appState, activeSession) || { id: activeSession?.userId, email: activeSession?.email, displayName: savedDisplayName },
+      { ...(completedIntentObj || {}), type: completedIntent, initialGroupName: completedIntentObj?.initialGroupName || "" },
+      uploadSavedProfilePhoto
+    );
   };
   const handleJoinGroup = async () => {
     if (!authSession?.userId) {
@@ -1725,26 +2380,157 @@ const App = () => {
       setAuthStep("name");
       return;
     }
-    setJoiningGroup(true);
-    setInviteError("");
-    const result = await joinGroupData({ userId: authSession.userId, inviteCode: joinCode.trim().toUpperCase() });
-    setJoiningGroup(false);
-    if (!result?.ok) {
-      setInviteError(result?.error || "Unable to join Bloc");
-      return;
-    }
-    applyData(result.state);
-    setHiddenLeftGroupIds(current => {
-      if (!current[result.joinedGroupId]) return current;
-      const next = { ...current };
-      delete next[result.joinedGroupId];
-      return next;
-    });
-    resetInviteFlow({ clearUrl:true });
-    persistGroupSelection(result.joinedGroupId);
-    setPage("today");
-    setShowJoinModal(false);
+    await joinWithInviteCode(authSession, joinCode, { promptDownload:Boolean(inviteContext?.inviteCode) });
   };
+
+  const dismissInviteDownloadPrompt = useCallback(() => {
+    if (inviteDownloadPromptTimerRef.current) clearTimeout(inviteDownloadPromptTimerRef.current);
+    setInviteDownloadPrompt(null);
+  },[]);
+
+  const renderAuthFlowModal = () => React.createElement(AuthFlowModal,{
+    step:authStep,
+    mode:authIntent?.type === "signup" ? "signup" : "signin",
+    intent:authIntent?.type || "",
+    email:authEmail,
+    setEmail:setAuthEmail,
+    code:authCode,
+    setCode:setAuthCode,
+    displayName:authDisplayName,
+    setDisplayName:setAuthDisplayName,
+    onClose:closeAuth,
+    onSendOtp:handleSendOtp,
+    onVerifyOtp:handleVerifyOtp,
+    onSaveProfile:handleSaveProfile,
+    onConfirmExistingAccount:handleConfirmExistingAccount,
+    onUseDifferentEmail:handleUseDifferentEmail,
+    sending:sendingOtp,
+    verifying:verifyingOtp,
+    savingProfile,
+    error:authError,
+    devCode:devOtpCode
+  });
+
+  const renderInviteDownloadPrompt = () => {
+    if (!inviteDownloadPrompt) return null;
+    const promptGroup = appState.groups?.[inviteDownloadPrompt.groupId] || currentGroup;
+    return React.createElement('div',{
+      style:{
+        position:"fixed",
+        left:16,
+        right:16,
+        bottom:"calc(106px + env(safe-area-inset-bottom))",
+        zIndex:410,
+        pointerEvents:"auto",
+        borderRadius:18,
+        background:"rgba(8,15,15,.96)",
+        border:"0.5px solid rgba(78,205,196,.24)",
+        boxShadow:"0 22px 64px rgba(0,0,0,.42), 0 0 30px rgba(78,205,196,.08)",
+        padding:14,
+        display:"grid",
+        gap:12
+      }
+    },
+      React.createElement('div',{style:{display:"flex",alignItems:"flex-start",gap:12}},
+        React.createElement('div',{style:{width:34,height:34,borderRadius:12,background:"rgba(78,205,196,.12)",border:"0.5px solid rgba(78,205,196,.28)",display:"flex",alignItems:"center",justifyContent:"center",color:"#4ECDC4",fontFamily:"'Outfit', sans-serif",fontWeight:900,fontSize:18,flexShrink:0}},"F"),
+        React.createElement('div',{style:{flex:1,minWidth:0}},
+          React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontSize:15,fontWeight:900,color:"var(--text)",lineHeight:1.2}},"Log workouts from your phone. Get the app."),
+          React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontSize:12,fontWeight:700,color:"var(--text-soft)",lineHeight:1.35,marginTop:3}},
+            `You can keep using ${promptGroup?.name || "your Bloc"} here.`
+          )
+        ),
+        React.createElement('button',{type:"button",onClick:dismissInviteDownloadPrompt,style:{width:28,height:28,borderRadius:999,background:"transparent",border:"0.5px solid rgba(78,205,196,.18)",color:"#4ECDC4",fontSize:18,lineHeight:1,flexShrink:0}},"×")
+      ),
+      React.createElement('div',{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}},
+        React.createElement('button',{type:"button",className:"setup-press",style:{minHeight:40,borderRadius:12,background:"#4ECDC4",color:"#050909",fontFamily:"'Outfit', sans-serif",fontSize:13,fontWeight:900}},"App Store"),
+        React.createElement('button',{type:"button",className:"setup-press",style:{minHeight:40,borderRadius:12,background:"rgba(78,205,196,.1)",border:"0.5px solid rgba(78,205,196,.22)",color:"#4ECDC4",fontFamily:"'Outfit', sans-serif",fontSize:13,fontWeight:900}},"Play Store")
+      )
+    );
+  };
+
+  const renderInviteJoinToast = () => {
+    if (!inviteJoinToast) return null;
+    return React.createElement('div',{
+      style:{
+        position:"fixed",
+        left:16,
+        right:16,
+        top:"calc(env(safe-area-inset-top, 0px) + 18px)",
+        zIndex:3500,
+        display:"flex",
+        justifyContent:"center",
+        pointerEvents:"none"
+      }
+    },
+      React.createElement('div',{
+        style:{
+          maxWidth:360,
+          width:"fit-content",
+          border:"0.5px solid rgba(78,205,196,.28)",
+          borderRadius:999,
+          padding:"10px 14px",
+          background:"rgba(8,15,15,.94)",
+          color:"var(--text)",
+          fontFamily:"'Outfit', sans-serif",
+          fontSize:13,
+          fontWeight:800,
+          boxShadow:"0 18px 46px rgba(0,0,0,.32), 0 0 22px rgba(78,205,196,.12)"
+        }
+      },"You're in")
+    );
+  };
+  const renderProfilePhotoToast = () => {
+    if (!profilePhotoToast?.message) return null;
+    return React.createElement('div',{
+      style:{
+        position:"fixed",
+        left:16,
+        right:16,
+        top:"calc(env(safe-area-inset-top, 0px) + 18px)",
+        zIndex:3600,
+        display:"flex",
+        justifyContent:"center",
+        pointerEvents:"none"
+      }
+    },
+      React.createElement('div',{
+        style:{
+          maxWidth:360,
+          width:"fit-content",
+          border:"0.5px solid rgba(255,91,91,.24)",
+          borderRadius:999,
+          padding:"10px 14px",
+          background:"rgba(8,15,15,.95)",
+          color:"var(--text)",
+          fontFamily:"'Outfit', sans-serif",
+          fontSize:12.5,
+          fontWeight:800,
+          lineHeight:1.25,
+          boxShadow:"0 18px 46px rgba(0,0,0,.32)"
+        }
+      },profilePhotoToast.message)
+    );
+  };
+
+  const resumeColdOnboardingAtActionScreen = useCallback(() => {
+    setColdOnboardingInitialIndex(3);
+    setReplayColdOnboarding(true);
+  },[]);
+
+  const handleJoinModalClose = useCallback(() => {
+    setShowJoinModal(false);
+    if (returnToColdOnboardingOnJoinCancel && visibleGroups.length === 0) {
+      setReturnToColdOnboardingOnJoinCancel(false);
+      resumeColdOnboardingAtActionScreen();
+    }
+  },[resumeColdOnboardingAtActionScreen, returnToColdOnboardingOnJoinCancel, visibleGroups.length]);
+
+  const handleCreateCancelFromGroupHome = useCallback(() => {
+    if (returnToColdOnboardingOnCreateCancel && visibleGroups.length === 0) {
+      setReturnToColdOnboardingOnCreateCancel(false);
+      resumeColdOnboardingAtActionScreen();
+    }
+  },[resumeColdOnboardingAtActionScreen, returnToColdOnboardingOnCreateCancel, visibleGroups.length]);
 
   const handleSelectLocalPreviewIdentity = useCallback((displayName) => {
     const session = buildLocalPreviewSession(displayName);
@@ -1756,21 +2542,123 @@ const App = () => {
     }
   },[groups, persistGroupSelection, persistSession]);
 
-  const hasInviteEntry = Boolean(String(joinCode || "").trim()) || Boolean(inviteContext?.inviteCode);
+  const urlInviteCode = (() => {
+    try {
+      return String(new URLSearchParams(window.location.search).get("invite") || "").trim().toUpperCase();
+    } catch { return ""; }
+  })();
+  const hasInviteEntry = Boolean(urlInviteCode) || Boolean(String(joinCode || "").trim()) || Boolean(inviteContext?.inviteCode);
+  const invitePreviewGroup = inviteContext?.groupId ? appState.groups?.[inviteContext.groupId] || null : null;
+  const handleInvitePreviewJoin = () => {
+    if (!inviteContext?.inviteCode) return;
+    const group = inviteContext.groupId ? appState.groups?.[inviteContext.groupId] || null : null;
+    if (authSession?.userId && group?.memberships?.[authSession.userId]?.displayName) {
+      setInviteAlreadyMemberNotice({
+        groupId: inviteContext.groupId,
+        groupName: inviteContext.groupName || group.name || "this Bloc",
+        inviteCode: inviteContext.inviteCode
+      });
+      return;
+    }
+    setInviteAlreadyMemberNotice(null);
+    setJoinCode(String(inviteContext.inviteCode || "").trim().toUpperCase());
+    if (authSession?.userId) {
+      setShowJoinModal(true);
+      return;
+    }
+    openAuth({ type:"join", inviteCode:inviteContext.inviteCode });
+  };
+  const handleEnterAlreadyMemberBloc = () => {
+    const groupId = inviteAlreadyMemberNotice?.groupId || inviteContext?.groupId || "";
+    if (authSession?.userId && groupId) {
+      resetInviteFlow({ clearUrl:true });
+      persistGroupSelection(groupId);
+      setPage("today");
+      return;
+    }
+    openAuth({
+      type:"join",
+      inviteCode:inviteAlreadyMemberNotice?.inviteCode || inviteContext?.inviteCode || joinCode || "",
+      alreadyMemberGroupId:groupId,
+      alreadyMemberInviteCode:inviteAlreadyMemberNotice?.inviteCode || inviteContext?.inviteCode || joinCode || ""
+    });
+  };
   const forceColdOnboardingPreview = (() => {
     try {
       const params = new URLSearchParams(window.location.search);
       return params.get("onboarding") === "1" && !hasInviteEntry && !coldOnboardingPreviewDismissed;
     } catch { return false; }
   })();
-  const shouldShowColdOnboarding = forceColdOnboardingPreview || replayColdOnboarding || (!authSession?.userId && !localPreviewAuthEnabled && !hasInviteEntry && !coldOnboardingSeen && !authStep);
+  const shouldShowColdOnboarding = !authStep && (
+    forceColdOnboardingPreview
+    || replayColdOnboarding
+    || (!authSession?.userId && !localPreviewAuthEnabled && !hasInviteEntry && !coldOnboardingSeen)
+  );
 
-  if(loading || !authReady || authHydrating) return React.createElement(Spinner,{label:"Opening Fero..."});
-  if(shouldShowColdOnboarding) {
-    return React.createElement(ColdOnboarding,{
-      onCreate:handleColdOnboardingCreate,
-      onJoin:handleColdOnboardingJoin
+  if(loading || !authReady || (authHydrating && !authStep)) return React.createElement(Spinner,{label:"Opening Fero..."});
+  if(postAuthActionPending) return React.createElement(SetupProgressScreen,{stage:postAuthProgressStage});
+  if(inviteContextLoading && !inviteContext) return React.createElement(Spinner,{label:"Loading invite..."});
+  if(!authStep && urlInviteCode && inviteError && !inviteContext) {
+    return React.createElement(InvalidInviteScreen,{
+      message:inviteError || "Ask the Bloc admin for a fresh invite link."
     });
+  }
+  if(authStep === "name") {
+    const nameSession = pendingAuthSession || authSession || {};
+    return React.createElement(DisplayNameSetupScreen,{
+      email:authEmail || nameSession.email || "",
+      displayName:authDisplayName,
+      setDisplayName:setAuthDisplayName,
+      onSave:handleSaveProfile,
+      saving:savingProfile,
+      error:authError,
+    });
+  }
+  if(authStep) return React.createElement(React.Fragment,null,renderAuthFlowModal());
+  // Onboarding join, step 1: invite code, collected before any auth. Onboarding
+  // screen 4 stays behind the sheet so Cancel lands back exactly where it began.
+  if(onboardingJoinCodeStep && !authSession?.userId && !authStep) {
+    return React.createElement(React.Fragment,null,
+      React.createElement(ColdOnboarding,{
+        key:"cold-onboarding-join-code",
+        initialIndex:3,
+        onCreate:handleColdOnboardingCreate,
+        onJoin:handleColdOnboardingJoin
+      }),
+      React.createElement(JoinGroupModal,{
+        inviteContext,
+        joinCode,
+        setJoinCode,
+        onClose:handleOnboardingJoinCodeCancel,
+        onJoin:handleOnboardingJoinCodeContinue,
+        joining:checkingOnboardingInvite,
+        error:inviteError,
+        signedIn:false,
+        confirmLabel:"Continue",
+        pendingLabel:"Checking...",
+        helperOverride:"Enter the invite code for the Bloc you're joining. We'll set up your account next."
+      })
+    );
+  }
+  if(shouldShowColdOnboarding) {
+    return React.createElement(React.Fragment,null,
+      React.createElement(ColdOnboarding,{
+        key:`cold-onboarding-${coldOnboardingInitialIndex}`,
+        initialIndex:coldOnboardingInitialIndex,
+        onCreate:handleColdOnboardingCreate,
+        onJoin:handleColdOnboardingJoin
+      }),
+      onboardingCreateModalOpen && React.createElement(GroupCreateModal,{
+        creating:creatingGroup,
+        initialGroupName:onboardingCreateInitialName,
+        defaultCreatorName:"",
+        defaultTimeZone:Intl.DateTimeFormat().resolvedOptions().timeZone || "Europe/Oslo",
+        lockCreatorName:true,
+        requireCreatorName:false,
+        onClose:handleOnboardingCreateCancel,
+        onCreate:handleOnboardingCreateSubmit
+      })
+    );
   }
   if(localPreviewAuthEnabled && !authSession?.userId) {
     return React.createElement(IdentitySetup,{
@@ -1778,65 +2666,54 @@ const App = () => {
       onSelect: handleSelectLocalPreviewIdentity
     });
   }
+  const localFullInvitePreview = (() => {
+    try {
+      return localDevMode && new URLSearchParams(window.location.search).get("full") === "1";
+    } catch { return false; }
+  })();
+  const renderedInviteContext = inviteContext && localFullInvitePreview
+    ? { ...inviteContext, memberCount:20 }
+    : inviteContext;
+  if(authSession?.userId && inviteContext && !authStep) {
+    return React.createElement(React.Fragment,null,
+      React.createElement(PreviewLanding,{
+        inviteContext:renderedInviteContext,
+        group:invitePreviewGroup,
+        profilePhotoByUserId:appState.profiles,
+        onJoin:handleInvitePreviewJoin,
+        alreadyMemberNotice:inviteAlreadyMemberNotice,
+        onEnterAlreadyMember:handleEnterAlreadyMemberBloc
+      }),
+      showJoinModal && React.createElement(JoinGroupModal,{inviteContext,joinCode,setJoinCode,onClose:handleJoinModalClose,onJoin:handleJoinGroup,joining:joiningGroup,error:inviteError,signedIn:true})
+    );
+  }
   if(!authSession?.userId) {
     return React.createElement(React.Fragment,null,
       inviteContext
         ? React.createElement(PreviewLanding,{
-            inviteContext,
-            onCreate:()=>openAuth({ type:"create" }),
-            onJoin:()=>openAuth({ type:"join" }),
-            onSignIn:()=>openAuth({ type:"signin" })
+            inviteContext:renderedInviteContext,
+            group:invitePreviewGroup,
+            profilePhotoByUserId:appState.profiles,
+            onJoin:handleInvitePreviewJoin,
+            alreadyMemberNotice:inviteAlreadyMemberNotice,
+            onEnterAlreadyMember:handleEnterAlreadyMemberBloc
           })
         : React.createElement(SignedOutLanding,{
             onCreateAccount:()=>openAuth({ type:"signup" }),
             onSignIn:()=>openAuth({ type:"signin" }),
           }),
-      authStep && React.createElement(AuthFlowModal,{
-        step:authStep,
-        mode:authIntent?.type === "signup" ? "signup" : "signin",
-        email:authEmail,
-        setEmail:setAuthEmail,
-        code:authCode,
-        setCode:setAuthCode,
-        displayName:authDisplayName,
-        setDisplayName:setAuthDisplayName,
-        onClose:closeAuth,
-        onSendOtp:handleSendOtp,
-        onVerifyOtp:handleVerifyOtp,
-        onSaveProfile:handleSaveProfile,
-        sending:sendingOtp,
-        verifying:verifyingOtp,
-        savingProfile,
-        error:authError,
-        devCode:devOtpCode
-      })
+      authStep && renderAuthFlowModal()
     );
   }
-  if(authStep === "name") {
-    return React.createElement(AuthFlowModal,{
-      step:"name",
-      mode:authIntent?.type === "signup" ? "signup" : "signin",
-      email:authEmail || authSession.email || "",
-      setEmail:setAuthEmail,
-      code:authCode,
-      setCode:setAuthCode,
-      displayName:authDisplayName,
-      setDisplayName:setAuthDisplayName,
-      onClose:closeAuth,
-      onSendOtp:handleSendOtp,
-      onVerifyOtp:handleVerifyOtp,
-      onSaveProfile:handleSaveProfile,
-      sending:sendingOtp,
-      verifying:verifyingOtp,
-      savingProfile,
-      error:authError,
-      devCode:devOtpCode
-    });
+  // An in-flight join must never flash the empty Bloc switcher between the
+  // display-name save and landing in the joined Bloc.
+  if(joiningGroup && !showJoinModal && !visibleGroups.some(group => group.id === selectedGroupId)) {
+    return React.createElement(Spinner,{label:"Joining your Bloc..."});
   }
   if(!selectedGroupId || !currentGroup || !visibleGroups.some(group => group.id === selectedGroupId)) {
     const createdInviteGroup = createdInviteGroupId ? appState.groups?.[createdInviteGroupId] : null;
     return React.createElement(React.Fragment,null,
-      showJoinModal && !authStep && React.createElement(JoinGroupModal,{inviteContext,joinCode,setJoinCode,onClose:()=>setShowJoinModal(false),onJoin:handleJoinGroup,joining:joiningGroup,error:inviteError,signedIn:true}),
+      showJoinModal && !authStep && React.createElement(JoinGroupModal,{inviteContext,joinCode,setJoinCode,onClose:handleJoinModalClose,onJoin:handleJoinGroup,joining:joiningGroup,error:inviteError,signedIn:true}),
       showProfileModal && React.createElement(ProfileModal,{email:authSession?.email,onSignOut:handleSwitchUser,onClose:()=>{setProfileError("");setShowProfileModal(false);},currentDisplayName:profile?.displayName||"",onSaveDisplayName:handleSaveProfileFromModal,saving:profileSaving,saveError:profileError,onDeleteAccount:handleDeleteAccount}),
       createdInviteGroup
         ? React.createElement(CreatedBlocInviteScreen,{group:createdInviteGroup,onContinue:handleContinueFromCreatedInvite})
@@ -1880,6 +2757,7 @@ const App = () => {
 
   const pageIndex = Math.max(0, IN_BLOC_PAGES.indexOf(page));
   const screenWidth = typeof window !== "undefined" ? (window.innerWidth || 420) : 420;
+  const inBlocViewportHeight = "calc(100dvh - 64px)";
   const activePageLayer = React.createElement('div',{
     onTouchStart:startPageSwipe,
     onTouchMove:movePageSwipe,
@@ -1888,7 +2766,9 @@ const App = () => {
     style:{
       position:"relative",
       zIndex:2,
-      minHeight:"calc(100vh - 64px)",
+      height:inBlocViewportHeight,
+      minHeight:0,
+      overflow:"hidden",
       transition:pageDragging?"none":"transform .08s ease-out",
       willChange:pageDragging?"transform":"auto",
       touchAction:"pan-y"
@@ -1901,15 +2781,26 @@ const App = () => {
       return React.createElement('div',{
         key:pageName,
         ref:el=>{
-          if (el) pageLayerRefs.current[pageName] = el;
-          else delete pageLayerRefs.current[pageName];
+          if (el) {
+            pageLayerRefs.current[pageName] = el;
+            pageScrollRefs.current[pageName] = el;
+          } else {
+            delete pageLayerRefs.current[pageName];
+            delete pageScrollRefs.current[pageName];
+          }
         },
         style:{
           position:active?"relative":"absolute",
           top:0,
           left:0,
           width:"100%",
-          minHeight:"calc(100vh - 64px)",
+          height:inBlocViewportHeight,
+          minHeight:0,
+          overflowY:active?"auto":"hidden",
+          overflowX:"hidden",
+          WebkitOverflowScrolling:"touch",
+          overscrollBehavior:"contain",
+          overscrollBehaviorY:"contain",
           zIndex:active?2:1,
           pointerEvents:active?"auto":"none",
           visibility:near?"visible":"hidden",
@@ -1917,7 +2808,8 @@ const App = () => {
           transition:pageDragging?"none":"transform .08s ease-out",
           boxShadow:active&&pageDragXRef.current?"-18px 0 34px rgba(0,0,0,.24)":"none",
           willChange:pageDragging||pageDragXRef.current?"transform":"auto"
-        }
+        },
+        "data-page-scroll-container": active ? "true" : undefined
       }, renderInBlocPage(pageName,{swipePreview:!active}));
     })
   );
@@ -1931,13 +2823,15 @@ const App = () => {
     style:{
       position:"relative",
       zIndex:1,
-      minHeight:"100vh",
+      height:"100dvh",
+      minHeight:0,
       background:"var(--bg-gradient)",
       backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)",
       backgroundColor:"#070C0C",
       overflow:"hidden",
       overscrollBehavior:"none",
       isolation:"isolate",
+      pointerEvents:switcherRevealInteractive?"none":"auto",
       transform:blocDragXRef.current?`translateX(${blocDragXRef.current}px)`:"none",
       transition:blocDragging?"none":"transform .08s ease-out",
       boxShadow:blocDragXRef.current?"-18px 0 34px rgba(0,0,0,.28)":"none",
@@ -1947,10 +2841,10 @@ const App = () => {
   },
     React.createElement(Nav,{page,setPage:handleNavSelect,user:currentUser,currentUserId:effectiveAuthSession?.userId||"",profilePhotoUrl:effectiveProfile?.profilePhotoUrl||"",groupName:currentGroup.name,canEditGroup:isGroupAdmin,onOpenSettings:()=>setShowSettings(true),onOpenProfile:()=>{setProfileError("");setShowProfileModal(true);},onOpenStream:handleOpenStream,streamUnreadCount,onSwitchUser:handleSwitchUser,onSwitchGroup:handleSwitchGroup,onOpenLog:()=>{setPage("today");setShowTodayLog(true);},syncing,lastSyncedAt,syncError,onRefresh:refreshNow,showJustSynced,activityAlertCount,hideMobileBottomNav:true}),
     localDevMode && React.createElement(LocalDevImpersonationBar,{options:devImpersonationOptions,value:effectiveAuthSession?.devImpersonationActive?effectiveAuthSession.userId:"",onChange:handleSelectDevImpersonation}),
-    React.createElement('div',{style:{position:"relative",overflow:"hidden",minHeight:"calc(100vh - 64px)"}},
+    React.createElement('div',{style:{position:"relative",overflow:"hidden",height:inBlocViewportHeight,minHeight:0}},
       showSettings && React.createElement('div',{style:{position:"absolute",inset:"0 0 auto 0",zIndex:1,pointerEvents:"none"}},renderInBlocPage(page,{swipePreview:true})),
       showSettings
-        ? React.createElement(BlocSettingsScreen,{group:currentGroup,actor:currentUser,actorUserId:authSession?.userId,isAdmin:isGroupAdmin,onSave:handleUpdateGroupSettings,onClose:()=>setShowSettings(false),saving:savingSettings,onReviewSetup:isGroupAdmin?handleReviewSetupDefaults:null,onReviewSitOut:isGroupAdmin?handleSitOutReview:null,onReviewSolo:isGroupAdmin?handleSoloReview:null,onKickMember:isGroupAdmin?handleKickMember:null})
+        ? React.createElement(BlocSettingsScreen,{group:currentGroup,actor:currentUser,actorUserId:authSession?.userId,isAdmin:isGroupAdmin,onSave:handleUpdateGroupSettings,onClose:()=>setShowSettings(false),saving:savingSettings,onReviewSetup:isGroupAdmin?handleReviewSetupDefaults:null,onReviewSitOut:isGroupAdmin?handleSitOutReview:null,onReviewSolo:isGroupAdmin?handleSoloReview:null,onKickMember:isGroupAdmin?handleKickMember:null,localDevMode})
         : activePageLayer
     ),
     showInstallBanner && React.createElement(InstallBanner,{
@@ -1962,7 +2856,7 @@ const App = () => {
   );
 
   return React.createElement(React.Fragment,null,
-    showJoinModal && !authStep && React.createElement(JoinGroupModal,{inviteContext,joinCode,setJoinCode,onClose:()=>setShowJoinModal(false),onJoin:handleJoinGroup,joining:joiningGroup,error:inviteError,signedIn:true}),
+    showJoinModal && !authStep && React.createElement(JoinGroupModal,{inviteContext,joinCode,setJoinCode,onClose:handleJoinModalClose,onJoin:handleJoinGroup,joining:joiningGroup,error:inviteError,signedIn:true}),
     showProfileModal && React.createElement(ProfileModal,{email:authSession?.email,onSignOut:handleSwitchUser,onClose:()=>setShowProfileModal(false),showDisplayName:true,currentDisplayName:currentUser,onSaveDisplayName:handleSaveProfileFromModal,saving:profileSaving,saveError:profileError,onLeaveBloc:handleLeaveBloc,onDeleteAccount:handleDeleteAccount}),
     React.createElement(BlocStream,{open:showStream,groupName:currentGroup.name,blocId:currentGroup.id,initialBlocId:streamFocusBlocId,initialScrollTop:streamReturnScrollTop,initialUnreadCount:streamUnreadCount,currentUserId:effectiveAuthSession?.userId,members:Object.values(currentGroup.memberships||{}).map(m=>({id:m.userId,name:m.displayName,photoUrl:appState.profiles?.[m.userId]?.profilePhotoUrl||""})),streamBlocs:visibleGroups.map(group=>({id:group.id,name:group.name,members:Object.values(group.memberships||{}).map(m=>({id:m.userId,name:m.displayName,photoUrl:appState.profiles?.[m.userId]?.profilePhotoUrl||""}))})),onSeasonClosedTap:handleStreamSeasonClosedTap,onUnreadCountChange:(groupId,count)=>{if(groupId===currentGroup.id)setStreamUnreadCount(Number(count)||0);},onOpenLogComments:handleOpenLogComments,onClose:()=>{setShowStream(false);setStreamFocusBlocId(null);setStreamReturnScrollTop(null);refreshStreamUnreadCount(currentGroup.id);}}),
     prorationGroup && React.createElement(ProrationChoiceModal,{
@@ -1978,6 +2872,9 @@ const App = () => {
     page==="today"&&(blocDragging||Math.abs(Number(blocDragXRef.current)||0)>0)&&renderGroupSwitcherSurface({ inert:true, suppressIntro:true }),
     activeBlocSurface,
     !showSettings && React.createElement(Nav,{onlyMobileBottomNav:true,page,setPage:handleNavSelect,user:currentUser,currentUserId:effectiveAuthSession?.userId||"",profilePhotoUrl:effectiveProfile?.profilePhotoUrl||"",groupName:currentGroup.name,canEditGroup:isGroupAdmin,onOpenSettings:()=>setShowSettings(true),onOpenProfile:()=>{setProfileError("");setShowProfileModal(true);},onOpenStream:handleOpenStream,streamUnreadCount,onSwitchUser:handleSwitchUser,onSwitchGroup:handleSwitchGroup,onOpenLog:()=>{setPage("today");setShowTodayLog(true);},syncing,lastSyncedAt,syncError,onRefresh:refreshNow,showJustSynced,activityAlertCount,mobileBottomDragX:blocDragXRef.current,mobileBottomNavRef:blocBottomNavRef,mobileBottomDragging:blocDragging}),
+    renderInviteJoinToast(),
+    renderProfilePhotoToast(),
+    renderInviteDownloadPrompt(),
     logCommentScreen && React.createElement('div',{
       style:{position:"fixed",inset:0,zIndex:520,overflow:"hidden",pointerEvents:"auto",background:"transparent"}
     },

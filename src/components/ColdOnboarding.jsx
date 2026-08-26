@@ -210,9 +210,7 @@ const SettlementResultCard = ({tone,tag,stat,line,rows}) => {
       boxShadow:"inset 0 1px 0 rgba(255,255,255,.05)"
     }
   },
-    React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"center",marginBottom:2}},
-      React.createElement('span',{style:{display:"inline-block",fontFamily:"'Outfit',sans-serif",fontSize:10,fontWeight:900,letterSpacing:".08em",textTransform:"uppercase",background:labelGradient,WebkitBackgroundClip:"text",backgroundClip:"text",color:"transparent"}},tag)
-    ),
+    React.createElement('div',{style:{display:"inline-block",fontFamily:"'Outfit',sans-serif",fontSize:10,fontWeight:900,letterSpacing:".08em",textTransform:"uppercase",background:labelGradient,WebkitBackgroundClip:"text",backgroundClip:"text",color:"transparent",marginBottom:2}},tag),
     React.createElement('div',{style:{fontFamily:"'Outfit',sans-serif",fontSize:34,lineHeight:1,fontWeight:900,color:statColor,marginTop:5}},stat),
     React.createElement('div',{style:{fontSize:12,fontWeight:700,color:"rgba(214,226,224,.72)",lineHeight:1.3,marginTop:5}},line),
     React.createElement('div',{style:{width:"44%",height:1,margin:"10px auto 8px",background:"linear-gradient(90deg, transparent, rgba(255,255,255,.18), transparent)"}}),
@@ -256,7 +254,7 @@ const SettlementPreview = () => {
 };
 
 const BlocStarterPreview = ({blocName,setBlocName}) => {
-  return React.createElement('div',{style:{...cardShell,padding:16,boxSizing:"border-box"}},
+  return React.createElement('div',{style:{...cardShell,padding:14,boxSizing:"border-box"}},
     React.createElement('label',{style:{display:"block"}},
       React.createElement('input',{
         value:blocName,
@@ -265,17 +263,17 @@ const BlocStarterPreview = ({blocName,setBlocName}) => {
         style:{
           width:"100%",
           boxSizing:"border-box",
-          height:50,
-          borderRadius:16,
+          height:46,
+          borderRadius:14,
           background:"linear-gradient(180deg, rgba(18,27,34,.98), rgba(12,22,24,.98))",
           border:"0.5px solid rgba(78,205,196,.52)",
-          boxShadow:"0 0 0 3px rgba(78,205,196,.1), inset 0 1px 0 rgba(255,255,255,.08), 0 12px 24px rgba(0,0,0,.2)",
+          boxShadow:"0 0 0 3px rgba(78,205,196,.08), inset 0 1px 0 rgba(255,255,255,.08), 0 10px 20px rgba(0,0,0,.18)",
           color:"#f5f7ff",
           caretColor:"#4ECDC4",
-          fontSize:17,
+          fontSize:16,
           fontWeight:800,
           outline:"none",
-          padding:"0 15px"
+          padding:"0 14px"
         }
       })
     )
@@ -323,8 +321,8 @@ const ProgressControls = ({index,onNext,onPrev}) => React.createElement('div',{
   React.createElement(RoundNavButton,{direction:"next",onClick:onNext,hidden:index>=ONBOARDING_SCREENS.length-1})
 );
 
-const ColdOnboarding = ({onCreate,onJoin}) => {
-  const [index,setIndex] = useState(0);
+const ColdOnboarding = ({onCreate,onJoin,initialIndex=0}) => {
+  const [index,setIndex] = useState(() => Math.max(0, Math.min(ONBOARDING_SCREENS.length - 1, Number(initialIndex) || 0)));
   const [blocName,setBlocName] = useState("");
   const touchRef = useRef({sx:0,sy:0,active:false});
   const suppressTapRef = useRef(false);
@@ -374,6 +372,7 @@ const ColdOnboarding = ({onCreate,onJoin}) => {
         : React.createElement(BlocStarterPreview,{blocName,setBlocName});
   const moveSubtextBelowPreview = index === 1 || index === 2;
   const headlineFontSize = index === 2 ? "clamp(23px, 7.25vw, 29px)" : 34;
+  const screenLift = [-24, -18, -10, -18][index] || -16;
   const renderSubtext = (options = {}) => React.createElement('p',{
     style:{
       margin:options.below ? "16px 0 0" : "12px 0 0",
@@ -397,7 +396,7 @@ const ColdOnboarding = ({onCreate,onJoin}) => {
     style:{
       minHeight:"100vh",
       boxSizing:"border-box",
-      padding:"calc(env(safe-area-inset-top) + 22px) 22px calc(env(safe-area-inset-bottom) + 28px)",
+      padding:"calc(env(safe-area-inset-top) + 20px) 22px calc(env(safe-area-inset-bottom) + 54px)",
       background:"radial-gradient(circle at 72% 12%, rgba(78,205,196,.13), transparent 32%), var(--bg-gradient)",
       backgroundImage:"radial-gradient(circle at 72% 12%, rgba(78,205,196,.13), transparent 32%), var(--bg-gradient)",
       display:"flex",
@@ -406,13 +405,13 @@ const ColdOnboarding = ({onCreate,onJoin}) => {
       overflow:"hidden"
     }
   },
-    React.createElement('div',{style:{display:"flex",justifyContent:"flex-start",alignItems:"center",marginBottom:34}},
+    React.createElement('div',{style:{display:"flex",justifyContent:"flex-start",alignItems:"center",marginBottom:20,flexShrink:0}},
       React.createElement(AnteWordmark,{size:32})
     ),
     React.createElement('section',{
       key:index,
       className:"fu",
-      style:{flex:1,minHeight:0,display:"flex",flexDirection:"column",justifyContent:"center",maxWidth:520,width:"100%",margin:"0 auto",animation:"fadeUp .22s ease both"}
+      style:{flex:1,minHeight:0,display:"flex",flexDirection:"column",justifyContent:"center",maxWidth:520,width:"100%",margin:"0 auto",animation:"fadeUp .22s ease both",transform:`translateY(${screenLift}px)`}
     },
       React.createElement('div',{style:{marginBottom:index===0?16:22}},
         React.createElement('h1',{style:{margin:0,textAlign:"center",fontSize:headlineFontSize,lineHeight:1.02,letterSpacing:0,fontWeight:900,color:"#f5f7ff"}},
@@ -460,7 +459,7 @@ const ColdOnboarding = ({onCreate,onJoin}) => {
         },"Join an existing Bloc instead")
       )
     ),
-    React.createElement('div',{style:{maxWidth:520,width:"100%",margin:"22px auto 0",flexShrink:0}},
+    React.createElement('div',{style:{maxWidth:520,width:"100%",margin:"12px auto 0",flexShrink:0,transform:"translateY(-16px)"}},
       React.createElement(ProgressControls,{index,onNext:goNext,onPrev:goPrev})
     )
   );
