@@ -194,15 +194,16 @@ const SetupProgressScreen = ({stage="savingName"}) => {
 };
 
 const IN_BLOC_PAGES = ["today", "activity", "month", "history"];
+const PAGE_TAP_TRANSITION_MS = 180;
 
-const applyInBlocPageTransforms = ({ layers, activePage, dragX = 0, dragging = false, width }) => {
+const applyInBlocPageTransforms = ({ layers, activePage, dragX = 0, dragging = false, animate = true, width }) => {
   const activeIndex = IN_BLOC_PAGES.indexOf(activePage);
   IN_BLOC_PAGES.forEach((pageName,index) => {
     const el = layers?.[pageName];
     if (!el) return;
     const offsetX = (index - activeIndex) * width + dragX;
     el.style.transform = offsetX ? `translateX(${offsetX}px)` : "none";
-    el.style.transition = dragging ? "none" : "transform .08s ease-out";
+    el.style.transition = dragging || !animate ? "none" : "transform .08s ease-out";
     el.style.boxShadow = pageName === activePage && dragX ? "-18px 0 34px rgba(0,0,0,.24)" : "none";
     el.style.willChange = dragging || dragX ? "transform" : "auto";
   });
@@ -317,6 +318,7 @@ const App = () => {
   const [switcherRevealInteractive,setSwitcherRevealInteractive]=useState(false);
   const [pageDragging,setPageDragging]=useState(false);
   const [pageSwipeTarget,setPageSwipeTarget]=useState(null);
+  const [pageTapTransition,setPageTapTransition]=useState(null);
   const [suppressSwitcherIntro,setSuppressSwitcherIntro]=useState(false);
   const [streamUnreadCount,setStreamUnreadCount]=useState(0);
   const [hiddenLeftGroupIds,setHiddenLeftGroupIds]=useState({});
@@ -337,6 +339,9 @@ const App = () => {
   const pageScrollRefs = useRef({});
   const pageDragXRef = useRef(0);
   const pageFrameRef = useRef(null);
+  const pageTapTransitionFrameRef = useRef(null);
+  const pageTapTransitionTimerRef = useRef(null);
+  const pageTapTransitionIdRef = useRef(0);
   const switcherSurfaceRef = useRef(null);
   const switcherScrollTopRef = useRef(0);
   const switcherRestoreScrollRef = useRef(null);
@@ -563,6 +568,8 @@ const App = () => {
 
   useEffect(() => () => {
     if (inviteDownloadPromptTimerRef.current) clearTimeout(inviteDownloadPromptTimerRef.current);
+    if (pageTapTransitionFrameRef.current) cancelAnimationFrame(pageTapTransitionFrameRef.current);
+    if (pageTapTransitionTimerRef.current) clearTimeout(pageTapTransitionTimerRef.current);
   }, []);
 
   useEffect(() => {
@@ -1641,12 +1648,17 @@ const App = () => {
     setShowSettings(false);
     pageDragXRef.current = 0;
     cancelSwipeFrame(pageFrameRef);
-    // Restore every mounted layer to the selected page's coordinates. Simply
-    // clearing these styles puts all neighboring pages at x=0, and React may
-    // not re-apply an unchanged transform during a rapid active-tab reselect.
+    if (pageTapTransitionFrameRef.current) cancelAnimationFrame(pageTapTransitionFrameRef.current);
+    if (pageTapTransitionTimerRef.current) clearTimeout(pageTapTransitionTimerRef.current);
+    pageTapTransitionFrameRef.current = null;
+    pageTapTransitionTimerRef.current = null;
+    pageTapTransitionIdRef.current += 1;
+    setPageTapTransition(null);
+    // Normalize any interrupted gesture or tap transition without animating.
     applyInBlocPageTransforms({
       layers:pageLayerRefs.current,
-      activePage:nextPage,
+      activePage:page,
+      animate:false,
       width:window.innerWidth || 420
     });
     setPageDragging(false);
@@ -1654,7 +1666,30 @@ const App = () => {
     pageSwipeRef.current = {sx:0,sy:0,active:false,mode:null,target:null,priority:null};
     setMonthInitialIdx(null);
     setNavResetToken(value=>value+1);
+    if (nextPage === page) {
+      return;
+    }
+
+    const currentIndex = IN_BLOC_PAGES.indexOf(page);
+    const nextIndex = IN_BLOC_PAGES.indexOf(nextPage);
+    const direction = nextIndex > currentIndex ? 1 : -1;
+    const transitionId = pageTapTransitionIdRef.current;
+    setPageTapTransition({id:transitionId,from:page,to:nextPage,direction,phase:"staged"});
     setPage(nextPage);
+
+    // First render both pages at stable one-screen positions with transitions
+    // disabled. Start the motion on the following frame, then hide the source
+    // only after the incoming page has reached x=0.
+    pageTapTransitionFrameRef.current = requestAnimationFrame(() => {
+      pageTapTransitionFrameRef.current = requestAnimationFrame(() => {
+        pageTapTransitionFrameRef.current = null;
+        setPageTapTransition(current => current?.id === transitionId ? {...current,phase:"running"} : current);
+        pageTapTransitionTimerRef.current = window.setTimeout(() => {
+          pageTapTransitionTimerRef.current = null;
+          setPageTapTransition(current => current?.id === transitionId ? null : current);
+        }, PAGE_TAP_TRANSITION_MS + 40);
+      });
+    });
   },[page, showTodayLog]);
   const adjacentInBlocPage = useCallback((direction) => {
     const index = IN_BLOC_PAGES.indexOf(page);
@@ -1688,13 +1723,13 @@ const App = () => {
     setPageSwipeTarget(null);
   },[applyPageTransforms]);
   const startPageSwipe = useCallback((e) => {
-    if (showSettings || showTodayLog || showProfileModal || showStream || showJoinModal || authStep || prorationGroup || logCommentScreen) return;
+    if (pageTapTransition || showSettings || showTodayLog || showProfileModal || showStream || showJoinModal || authStep || prorationGroup || logCommentScreen) return;
     if (e.target?.closest?.(".in-bloc-profile-layer,input,textarea,select,[contenteditable='true']")) return;
     const t = e.touches?.[0];
     if (!t) return;
     if (page === "today" && t.clientX <= 96) return;
     pageSwipeRef.current = {sx:t.clientX, sy:t.clientY, st:performance.now(), active:true, mode:null, target:null,priority:e.target?.closest?.("[data-page-swipe-priority='horizontal-scroll']") ? "horizontal-scroll" : null};
-  },[authStep, logCommentScreen, page, prorationGroup, showJoinModal, showProfileModal, showSettings, showStream, showTodayLog]);
+  },[authStep, logCommentScreen, page, pageTapTransition, prorationGroup, showJoinModal, showProfileModal, showSettings, showStream, showTodayLog]);
   const movePageSwipe = useCallback((e) => {
     const s = pageSwipeRef.current;
     const t = e.touches?.[0];
@@ -2791,11 +2826,20 @@ const App = () => {
   },
     IN_BLOC_PAGES.map((pageName,index) => {
       const active = pageName === page;
+      const tapTransitionParticipant = pageTapTransition && (pageName === pageTapTransition.from || pageName === pageTapTransition.to);
       // Neighboring pages only need to be visible while a page gesture is in
       // progress. Keeping them visible at rest turns any stale inline offset
       // into an overlapping screen after a rapid tab reselect.
-      const near = active || pageName === pageSwipeTarget || (pageDragging && Math.abs(index - pageIndex) <= 1);
+      const near = active || tapTransitionParticipant || pageName === pageSwipeTarget || (pageDragging && Math.abs(index - pageIndex) <= 1);
       const offsetX = (index - pageIndex) * screenWidth + pageDragXRef.current;
+      const tapTransform = pageName === pageTapTransition?.from
+        ? (pageTapTransition.phase === "staged" ? "none" : `translateX(${-pageTapTransition.direction * screenWidth}px)`)
+        : pageName === pageTapTransition?.to
+          ? (pageTapTransition.phase === "staged" ? `translateX(${pageTapTransition.direction * screenWidth}px)` : "none")
+          : null;
+      const tapTransitionStyle = tapTransitionParticipant
+        ? (pageTapTransition.phase === "staged" ? "none" : `transform ${PAGE_TAP_TRANSITION_MS}ms cubic-bezier(.22,.61,.36,1)`)
+        : null;
       return React.createElement('div',{
         key:pageName,
         ref:el=>{
@@ -2819,13 +2863,13 @@ const App = () => {
           WebkitOverflowScrolling:"touch",
           overscrollBehavior:"contain",
           overscrollBehaviorY:"contain",
-          zIndex:active?2:1,
-          pointerEvents:active?"auto":"none",
+          zIndex:pageName===pageTapTransition?.to?3:active||pageName===pageTapTransition?.from?2:1,
+          pointerEvents:active&&!pageTapTransition?"auto":"none",
           visibility:near?"visible":"hidden",
-          transform:offsetX ? `translateX(${offsetX}px)` : "none",
-          transition:pageDragging?"none":"transform .08s ease-out",
+          transform:tapTransitionParticipant ? tapTransform : offsetX ? `translateX(${offsetX}px)` : "none",
+          transition:tapTransitionParticipant ? tapTransitionStyle : pageDragging?"none":"transform .08s ease-out",
           boxShadow:active&&pageDragXRef.current?"-18px 0 34px rgba(0,0,0,.24)":"none",
-          willChange:pageDragging||pageDragXRef.current?"transform":"auto"
+          willChange:tapTransitionParticipant||pageDragging||pageDragXRef.current?"transform":"auto"
         },
         "data-page-scroll-container": active ? "true" : undefined
       }, renderInBlocPage(pageName,{swipePreview:!active}));

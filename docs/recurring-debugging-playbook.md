@@ -35,8 +35,9 @@ Implementation rules:
 
 Mounted-page rules:
 - Main tab pages are rendered in the same swipe track so adjacent pages can be visible during drag.
-- At rest, only the active main-tab page is visible. Reveal an adjacent page only after it becomes the current swipe target; otherwise a stale inline transform can make multiple pages overlap after an active-tab reselect.
+- At rest, only the active main-tab page is visible. Reveal another page only when it becomes the current swipe target or a staged tab-tap transition participant; otherwise a stale inline transform can make multiple pages overlap after an active-tab reselect.
 - Active-tab reselect must restore every mounted layer to the selected page's coordinates. Do not blank every layer's transform: React may see unchanged style props and leave the blanked DOM styles in place.
+- Tab taps and finger swipes have different motion lifecycles. A tab tap must stage source and target with transitions disabled, move them a single viewport with both visible, and hide the source only after the target reaches `x=0`. Never animate a non-adjacent tab through multiple viewport widths.
 - Do not key active and preview versions differently in a way that remounts a page on arrival.
 - Do not let `swipePreview` drive component identity. It can disable interaction for inactive pages, but it must not create a new page instance on release.
 - Keep Activity/History/Month data derivation tied to actual data changes, not tab activation.

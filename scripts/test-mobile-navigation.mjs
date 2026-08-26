@@ -108,12 +108,54 @@ try {
   const scrollTopAfter = await historyScroller.evaluate(el => el.scrollTop);
   assert.ok(scrollTopAfter > scrollTopBefore, "Vertical leaderboard drag must scroll History");
 
+  // A non-adjacent tab tap must keep the viewport covered throughout a
+  // deliberate one-screen transition. This catches the former blank/shake
+  // where History disappeared while Today animated in from three screens away.
+  const tapFrames = await page.evaluate(async () => {
+    const active = document.querySelector("[data-page-scroll-container='true']");
+    const track = active.parentElement;
+    const centerX = window.innerWidth / 2;
+    const frames = [];
+    const sample = () => {
+      const layers = [...track.children].map((layer,index) => {
+        const rect = layer.getBoundingClientRect();
+        const style = getComputedStyle(layer);
+        return {index,left:rect.left,right:rect.right,visibility:style.visibility,active:layer.dataset.pageScrollContainer === "true"};
+      });
+      frames.push({
+        layers,
+        centerCovered:layers.some(layer => layer.visibility !== "hidden" && layer.left <= centerX && layer.right >= centerX)
+      });
+    };
+    sample();
+    [...document.querySelectorAll(".mobile-tab")].find(button => button.innerText.trim() === "Today")?.click();
+    sample();
+    await new Promise(resolve => {
+      let count = 0;
+      const tick = () => {
+        sample();
+        count += 1;
+        if (count >= 16) resolve();
+        else requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    });
+    return frames;
+  });
+  assert.ok(tapFrames.every(frame => frame.centerCovered), "Tab-tap transition must never expose a blank viewport frame");
+  const visibleTodayPositions = tapFrames.flatMap(frame => frame.layers.filter(layer => layer.index === 0 && layer.visibility !== "hidden").map(layer => layer.left));
+  assert.ok(visibleTodayPositions.every(left => Math.abs(left) <= 391), "Non-adjacent Today tap must travel no more than one viewport width");
+  assert.ok(visibleTodayPositions.some(left => Math.abs(left) > 20 && Math.abs(left) < 370), "Tab tap must include a visible eased transition frame, not an abrupt swap");
+  assert.equal(await activeTab(), "Today", "History-to-Today tap transition must finish on Today");
+
   console.log(JSON.stringify({
     ok:true,
     activeTabReselect:"passed",
     reversePageSwipes:"passed",
     leaderboardHorizontalContainment:"passed",
-    leaderboardVerticalScroll:"passed"
+    leaderboardVerticalScroll:"passed",
+    blankFrameFreeTabTransition:"passed",
+    singleScreenTabTravel:"passed"
   }, null, 2));
 } finally {
   await context.close();
