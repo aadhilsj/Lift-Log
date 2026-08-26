@@ -10,3 +10,4 @@ migration-output/
 supabase-local/
 node_modules/
 dist/
+.gstack/
