@@ -1,5 +1,7 @@
 # Handover - 2026-07-19 Merge And App Store Readiness
 
+> Superseded on 2026-08-26 by `docs/handover-2026-08-17-banana-berry-onboarding-invite.md` and `docs/current-plan-2026-08-01-merge-to-app-store.md`. Keep this file only for its backend migration history and safety constraints; its branch names and commit references are historical.
+
 Project: `/Users/opera_user/Documents/Codex Space/Lift Log`
 
 This is the current handover for any new Codex/Claude chat that picks up after

@@ -26,9 +26,9 @@ Operational specifications:
 
 ## Current Branch State
 
-Date captured: 2026-08-01, Europe/Oslo.
+Updated: 2026-08-26, Europe/Oslo.
 
-Banana Berry closed on 2026-08-26. The branch snapshot below is the final pre-reconciliation state.
+Banana Berry closed on 2026-08-26. Preview was deliberately reconciled onto current main in `codex/banana-berry-reconcile-main` at merge commit `f842e4e`.
 
 - Live branch: `main`
 - Live remote commit before reconciliation: `588abfd` - `Fix live Solo Mode fallback`
@@ -37,9 +37,15 @@ Banana Berry closed on 2026-08-26. The branch snapshot below is the final pre-re
 - Merge base observed: `124d9a`
 - Preview was 36 commits ahead of the merge base and 11 commits behind current `origin/main` immediately before reconciliation.
 
-Rule: do not merge preview into live wholesale. `main` currently contains critical live data-correctness fixes that preview does not have. Preview contains onboarding/product work that live does not have. The next merge should be a deliberate reconciliation from current `main`.
+Reconciliation result:
 
-## What Live Has That Preview Does Not
+- Live canonical readable-state, rollover, stale-member, stale-mutation, switcher, and Solo Mode fixes were preserved.
+- Approved onboarding, auth, invite, profile-photo, settings, reaction-picker, and switcher-order work was brought forward.
+- The obsolete full-screen `InviteWelcomeScreen` remained deleted.
+- Main's rollover audit and recurring debugging playbook remained intact.
+- Fake invite-preview member fallbacks were removed.
+
+## Live Fixes Preserved During Reconciliation
 
 These are production fixes on `main` that must survive the next reconciliation:
 
@@ -61,7 +67,7 @@ These are production fixes on `main` that must survive the next reconciliation:
 - Invite-flow rollback:
   - unfinished invite welcome work was reverted from live and should not be restored blindly.
 
-## What Preview Has That Live Does Not
+## Preview Work Brought Forward
 
 These are useful preview changes that should be brought forward carefully:
 
@@ -102,20 +108,20 @@ These are useful preview changes that should be brought forward carefully:
 
 Preview invite/onboarding work passed the complete Banana Berry checklist on 2026-08-26, including profile-photo persistence, signed-in already-member entry, and accidental signup-to-sign-in recovery. It is approved for deliberate reconciliation onto current main.
 
-## Merge Plan
+## Completed Reconciliation Plan
 
-1. Create a fresh reconciliation branch from current `main`.
-2. Bring over preview changes selectively, not as a blind merge.
-3. Preserve `main` versions of data-correctness logic first, especially:
+1. Created a fresh reconciliation branch from current `main`.
+2. Brought over preview changes selectively, not as a blind merge.
+3. Preserved `main` versions of data-correctness logic first, especially:
    - `api/lift-log.js`
    - rollover/read-state paths
    - closed-month member filtering
    - stale mutation guards
-4. Re-apply preview onboarding/auth/product changes deliberately on top.
-5. Bring over the approved invite-link web flow while keeping the retired full-screen `YOU'RE IN` component out of live.
-6. Build and test locally.
-7. Push preview and smoke-test on device.
-8. Merge to `main` only after onboarding, existing-account handling, and rollover parity all pass.
+4. Re-applied preview onboarding/auth/product changes deliberately on top.
+5. Brought over the approved invite-link web flow while keeping the retired full-screen `YOU'RE IN` component out of live.
+6. Passed the merged production build and local regression suite.
+7. Passed a merged-source browser smoke test and the two automated auth edge flows.
+8. Merge the verified reconciliation commit to `main`.
 
 ## Immediate Work Before The Next Main Merge
 

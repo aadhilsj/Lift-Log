@@ -364,6 +364,12 @@ Banana Berry is complete and user-approved on the local preview. The user manual
 
 The matching identity, profile-photo storage, auth-edge, Bloc Stream moment, and production-build checks passed. Do not reopen Banana Berry as unfinished unless a regression is reproduced. Native universal/deep-link handoff remains separate App Store work.
 
+Reconciliation status:
+
+- Approved preview work was reconciled onto current live/main fixes in `codex/banana-berry-reconcile-main` at merge commit `f842e4e`.
+- The merged-source build, identity, profile-photo storage, Bloc Stream moment, auth-edge, and browser smoke checks passed.
+- The next product tweaks should be based on merged `main`, not the old preview worktree.
+
 Before sending the checklist, make sure the local server is running. If Safari says it cannot connect, start it:
 
 ```bash

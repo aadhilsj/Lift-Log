@@ -2,9 +2,11 @@
 
 Branch: `codex/reconcile-chat-with-backend`
 
+Status: historical preview plan. Banana Berry was approved and this branch was reconciled into `codex/banana-berry-reconcile-main` at merge commit `f842e4e` on 2026-08-26. Use `docs/current-plan-2026-08-01-merge-to-app-store.md` for current work.
+
 This is the working source-of-truth plan for the current preview branch. Keep this file updated whenever a substantial product, backend, migration, or App Store-readiness decision changes.
 
-## Current Focus
+## Completed Preview Focus
 
 - Finish and verify all pre-Bloc flows before the next merge:
   - cold first-open onboarding
