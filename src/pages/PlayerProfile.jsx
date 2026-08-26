@@ -44,6 +44,7 @@ const profileMonthOptionLabel = month => month ? `${MONTH_NAMES[month.month]} '$
 const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChange,groupSettings,onDeleteLog,initialMonthKey}) => {
   const compactMobile = isMobile();
   const [deleteTarget,setDeleteTarget]=useState(null);
+  const [deleteChoices,setDeleteChoices]=useState(null);
   const [sparkDetailKey,setSparkDetailKey]=useState(null);
   const [dragging,setDragging]=useState(false);
   const swipeRef=useRef({sx:0,sy:0,active:false,mode:null});
@@ -205,7 +206,7 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
   const logsByDay={};
   selLogs.forEach(l=>{
     const d = Number(String(l?.date || "").split("-")[2]);
-    if (Number.isFinite(d)) logsByDay[d]=l;
+    if (Number.isFinite(d)) logsByDay[d]=[...(logsByDay[d] || []),l];
   });
   const selLabel=isCurMonth?`${MONTH_NAMES[CUR_MONTH]} ${CUR_YEAR}`:profileMonthLabel(selHistMonth);
 
@@ -393,6 +394,22 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
 
   return React.createElement('div',{ref:surfaceRef,onTouchStart:startSwipeBack,onTouchMove:moveSwipeBack,onTouchEnd:endSwipeBack,onTouchCancel:e=>{e.stopPropagation();swipeRef.current={sx:0,sy:0,active:false,mode:null};onSwipeRevealChange?.(false);setDragging(false);resetSwipeTransform();},style:{minHeight:"100dvh",background:"var(--bg-gradient)",backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)",transform:dragXRef.current?`translateX(${dragXRef.current}px)`:"translateX(0)",transition:dragging?"none":"transform .08s ease-out",boxShadow:dragXRef.current?"-18px 0 34px rgba(0,0,0,.28)":"none",willChange:dragging||dragXRef.current?"transform":"auto",touchAction:"pan-y",overscrollBehavior:"contain"}},
     deleteTarget && React.createElement(DeleteModal,{log:deleteTarget,onClose:()=>setDeleteTarget(null),onConfirm:async()=>{ const log = deleteTarget; setDeleteTarget(null); await onDeleteLog(log); }}),
+    deleteChoices && React.createElement('div',{className:"overlay center-mobile",onClick:()=>setDeleteChoices(null)},
+      React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{textAlign:"center",maxWidth:300,padding:"15px 14px"}},
+        React.createElement('div',{style:{fontWeight:800,fontSize:14,marginBottom:4}},"Choose a workout"),
+        React.createElement('div',{style:{color:"var(--muted)",fontSize:10.5,marginBottom:11}},"Select the workout you want to delete."),
+        React.createElement('div',{style:{display:"grid",gap:7}},
+          deleteChoices.map((log,index)=>React.createElement('button',{key:log.id,type:"button",onClick:()=>{setDeleteChoices(null);setDeleteTarget(log);},style:{width:"100%",display:"flex",alignItems:"center",gap:9,textAlign:"left",background:"var(--s2)",border:"1px solid var(--border)",borderRadius:9,padding:"9px 10px",color:"var(--text)"}},
+            React.createElement('span',{style:{width:25,height:25,borderRadius:999,display:"inline-flex",alignItems:"center",justifyContent:"center",background:"rgba(78,205,196,.08)",color:"#4ECDC4",flexShrink:0}},React.createElement(WorkoutTypeIcon,{type:log.type,size:15})),
+            React.createElement('span',{style:{display:"grid",gap:2,minWidth:0}},
+              React.createElement('span',{style:{fontSize:12,fontWeight:800}},`${index+1}. ${log.type}`),
+              log.note && React.createElement('span',{style:{fontSize:10,color:"var(--muted)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},log.note)
+            )
+          ))
+        ),
+        React.createElement('button',{type:"button",onClick:()=>setDeleteChoices(null),style:{width:"100%",marginTop:9,background:"transparent",border:"1px solid var(--border)",color:"var(--muted)",padding:"8px",borderRadius:8,fontSize:11,fontWeight:700}},"Cancel")
+      )
+    ),
     React.createElement('div',{style:{maxWidth:740,margin:"0 auto",padding:"16px",display:"flex",flexDirection:"column",gap:12}},
     // Header row
 		    React.createElement('div',{className:"fu",style:{display:"grid",gridTemplateColumns:"96px minmax(0,1fr) 96px",alignItems:"center",gap:8}},
@@ -431,9 +448,9 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
 	      React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2}},
 	        calDays.map((day,i)=>{
 	          if(!day) return React.createElement('div',{key:`e${i}`});
-	          const isToday=isCurMonth&&day===DAY_OF_MON,log=logsByDay[day],isFuture=isCurMonth&&day>DAY_OF_MON;
-	          const canDelete = !!log && isCurMonth && !!onDeleteLog;
-	          return React.createElement('div',{key:day, onClick: canDelete ? ()=>setDeleteTarget(log) : undefined, style:{aspectRatio:"1",display:"flex",alignItems:"center",justifyContent:"center",borderRadius:5,fontSize:log?11:9,fontFamily:log?"inherit":"'JetBrains Mono',monospace",fontWeight:log?700:400,background:log?"#1A2E4A":isToday?"var(--s2)":"transparent",color:log?"#4ECDC4":isFuture?"var(--muted2)":isToday?"var(--text)":"var(--muted)",border:isToday&&!log?"1px solid var(--border2)":"1px solid transparent",cursor:canDelete?"pointer":"default"}},log?React.createElement(WorkoutTypeIcon,{type:log.type,size:15}):day);
+	          const isToday=isCurMonth&&day===DAY_OF_MON,dayLogs=logsByDay[day]||[],log=dayLogs[0]||null,isFuture=isCurMonth&&day>DAY_OF_MON;
+	          const canDelete = dayLogs.length > 0 && isCurMonth && !!onDeleteLog;
+	          return React.createElement('div',{key:day, onClick: canDelete ? ()=>dayLogs.length===1?setDeleteTarget(log):setDeleteChoices(dayLogs) : undefined, style:{aspectRatio:"1",display:"flex",alignItems:"center",justifyContent:"center",borderRadius:5,fontSize:log?11:9,fontFamily:log?"inherit":"'JetBrains Mono',monospace",fontWeight:log?700:400,background:log?"#1A2E4A":isToday?"var(--s2)":"transparent",color:log?"#4ECDC4":isFuture?"var(--muted2)":isToday?"var(--text)":"var(--muted)",border:isToday&&!log?"1px solid var(--border2)":"1px solid transparent",cursor:canDelete?"pointer":"default"}},log?React.createElement('span',{style:{position:"relative",width:19,height:19,display:"inline-flex",alignItems:"center",justifyContent:"center"}},React.createElement(WorkoutTypeIcon,{type:log.type,size:15}),dayLogs.length>1&&React.createElement('span',{style:{position:"absolute",right:-5,top:-5,minWidth:12,height:12,padding:"0 2px",borderRadius:999,display:"inline-flex",alignItems:"center",justifyContent:"center",background:"#4ECDC4",border:"1px solid #1A2E4A",color:"#071010",fontFamily:"'Outfit',sans-serif",fontSize:7.5,fontWeight:900,lineHeight:1}},Math.min(dayLogs.length,2))):day);
 	        })
 	      )
 	      )

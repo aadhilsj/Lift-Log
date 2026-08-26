@@ -2,6 +2,7 @@ import React from "react";
 const { useState, useEffect, useMemo, useCallback, useRef } = React;
 import {
   WORKOUT_TYPES,
+  MAX_WORKOUTS_PER_DAY,
   DEFAULT_MIN_TARGET,
   DEFAULT_GROUP_TIME_ZONE,
   DEFAULT_FINE_AMOUNT,
@@ -24,7 +25,8 @@ import {
   normalizeEscalationStepAmount,
   buildNormalizedSettings,
   getMonthKeyFromISO,
-  getCurrentGroupMemberNames
+  getCurrentGroupMemberNames,
+  getDistinctWorkoutCountForDate
 } from "../lib/appState.js";
 import {
   getAcceptedWorkoutTypes,
@@ -557,7 +559,7 @@ const CropModal = ({imageSrc, onConfirm, onCancel}) => {
 };
 
 
-const LogModal = ({user,currentGroupId,groups,onConfirm,onClose}) => {
+const LogModal = ({user,currentUserId,currentGroupId,groups,onConfirm,onClose}) => {
   const compactMobile = isMobile();
   const [wType,setWType]=useState(null);
   const [selDate,setSelDate]=useState(TODAY_ISO);
@@ -571,23 +573,25 @@ const LogModal = ({user,currentGroupId,groups,onConfirm,onClose}) => {
   const currentGroup = groups.find(group => group.id === currentGroupId) || null;
   const visibleWorkoutTypes = getAcceptedWorkoutTypes(currentGroup);
   const timeContext = currentGroup ? getTimeContextForGroup(currentGroup) : getTimeContextForGroup(null);
-  const currentLogs = currentGroup?.logs?.[user] || [];
   const isCurrentMonthSelection = getMonthKeyFromISO(selDate) === timeContext.monthKey;
-  const loggedISO=useMemo(()=>{const s=new Set();currentLogs.forEach(l=>s.add(l.date));return s;},[currentLogs]);
-  const alreadyLogged=loggedISO.has(selDate);
+  const workoutsLoggedForDate = useMemo(
+    () => getDistinctWorkoutCountForDate(groups, currentUserId, user, selDate),
+    [groups, currentUserId, user, selDate]
+  );
+  const loggingAnotherWorkout = workoutsLoggedForDate === 1;
+  const alreadyLogged = workoutsLoggedForDate >= MAX_WORKOUTS_PER_DAY;
   const eligibleGroups = useMemo(() => {
     if (!wType || !isCurrentMonthSelection) return [];
     return groups
       .filter(group => group.id !== currentGroupId && getCurrentGroupMemberNames(group).includes(user) && groupCountsWorkoutType(group, wType))
       .map(group => {
-        const alreadyLoggedHere = (group.logs?.[user] || []).some(log => log.date === selDate);
         return {
           id: group.id,
           name: group.name,
           acceptsType: true,
-          alreadyLogged: alreadyLoggedHere,
-          disabled: alreadyLoggedHere,
-          helper: alreadyLoggedHere ? "Already logged" : ""
+          alreadyLogged: false,
+          disabled: false,
+          helper: ""
         };
       });
   }, [groups, isCurrentMonthSelection, selDate, user, wType]);
@@ -676,13 +680,13 @@ const LogModal = ({user,currentGroupId,groups,onConfirm,onClose}) => {
     React.createElement('div',{className:"log-workout-modal",onClick:e=>e.stopPropagation(),style:modalFrameStyle},
       React.createElement('div',{style:{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:10,marginBottom:compactMobile?9:14}},
         React.createElement('div',{style:{minWidth:0}},
-          React.createElement('div',{style:{fontFamily:DISPLAY_FONT,fontWeight:800,fontSize:compactMobile?18:20,letterSpacing:0,lineHeight:1.08}},"Log a workout")
+          React.createElement('div',{style:{fontFamily:DISPLAY_FONT,fontWeight:800,fontSize:compactMobile?18:20,letterSpacing:0,lineHeight:1.08}},loggingAnotherWorkout?"Log another workout":"Log a workout")
         )
       ),
       React.createElement('span',{style:logFieldLabelStyle},"Date"),
       React.createElement('input',{type:"date",value:selDate,min:timeContext.earliestIso,max:timeContext.todayIso,onChange:handleDateChange,
         style:{width:"100%",maxWidth:"100%",minWidth:0,display:"block",height:34,background:"var(--s1)",border:`1px solid ${alreadyLogged?"var(--red)":"rgba(13,31,30,.8)"}`,borderRadius:10,padding:"7px 10px",color:"#9BA6B5",fontSize:13,lineHeight:"18px",marginBottom:alreadyLogged?4:(compactMobile?7:10),outline:"none",boxSizing:"border-box",appearance:"none",WebkitAppearance:"none",opacity:0.92,fontFamily:UI_FONT}}),
-      alreadyLogged&&React.createElement('div',{style:{color:"var(--red)",fontSize:compactMobile?11:12,fontFamily:UI_FONT,fontWeight:700,marginBottom:compactMobile?7:10}},"Already logged for this date"),
+      alreadyLogged&&React.createElement('div',{style:{color:"var(--red)",fontSize:compactMobile?11:12,fontFamily:UI_FONT,fontWeight:700,marginBottom:compactMobile?7:10}},"Already logged 2 workouts for this date"),
       React.createElement('span',{style:logFieldLabelStyle},"Workout type"),
       React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(5,minmax(0,1fr))",gap:compactMobile?5:6,marginBottom:compactMobile?8:12}},
         visibleWorkoutTypes.map(t=>React.createElement('button',{key:t,onClick:()=>setWType(t),type:"button",

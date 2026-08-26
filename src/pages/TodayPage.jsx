@@ -401,7 +401,9 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
     const map = new Map();
     Object.entries(logs || {}).forEach(([memberName, memberLogs]) => {
       (memberLogs || []).forEach(log => {
-        if (log?.date) map.set(`${memberName}:${log.date}`, log);
+        if (!log?.date) return;
+        const key = `${memberName}:${log.date}`;
+        map.set(key, [...(map.get(key) || []), log]);
       });
     });
     return map;
@@ -576,14 +578,15 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
   const targetCardMeta = (currentMonthOverride?.prorated || myTarget !== MIN_TARGET) ? "prorated" : null;
 
   const blocMonthCount = Object.values(logs || {}).reduce((total, memberLogs) => total + getCountedLogCount(memberLogs), 0);
-  const getMemberLogForIso = (memberName, isoDate) => {
-    if (!memberName || !isoDate) return null;
-    const currentMonthMatch = currentMonthLogMap.get(`${memberName}:${isoDate}`);
-    if (currentMonthMatch) return currentMonthMatch;
+  const getMemberLogsForIso = (memberName, isoDate) => {
+    if (!memberName || !isoDate) return [];
+    const currentMonthMatches = currentMonthLogMap.get(`${memberName}:${isoDate}`);
+    if (currentMonthMatches?.length) return currentMonthMatches;
     const month = monthHistoryByKey.get(getMonthKeyFromISO(isoDate));
-    if (!month?.logsByUser?.[memberName]) return null;
-    return (month.logsByUser[memberName] || []).find(log => log?.date === isoDate) || null;
+    if (!month?.logsByUser?.[memberName]) return [];
+    return (month.logsByUser[memberName] || []).filter(log => log?.date === isoDate);
   };
+  const getMemberLogForIso = (memberName, isoDate) => getMemberLogsForIso(memberName, isoDate)[0] || null;
   const weeklySourceNames = currentGroup ? getCurrentGroupMemberNames(currentGroup) : Object.keys(logs || {});
   const weeklyCounts = weeklySourceNames.map(memberName => ({
     name: memberName,
@@ -610,7 +613,9 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
       React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(7,minmax(0,1fr))",gap:6,marginTop:8}},
         ["M","T","W","T","F","S","S"].map((d, i)=>React.createElement('div',{key:`${memberName}-head-${d}-${i}`,className:"mono",style:{fontSize:10,color:"var(--muted)",textAlign:"center"}},d)),
         calDays.map((day,index)=>{
-          const log = day ? logsByDay[day] : null;
+          const dayLogsValue = day ? logsByDay[day] : null;
+          const dayLogs = Array.isArray(dayLogsValue) ? dayLogsValue : (dayLogsValue ? [dayLogsValue] : []);
+          const log = dayLogs[0] || null;
           const isToday = year === CUR_YEAR && monthIndex === CUR_MONTH && day === DAY_OF_MON;
           return React.createElement('div',{key:`${memberName}-day-${index}`,style:{
             aspectRatio:"1 / 1",
@@ -628,7 +633,10 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
             !day
               ? null
               : log
-                ? React.createElement(WorkoutTypeIcon,{type:log.type,size:16})
+                ? React.createElement('span',{style:{position:"relative",width:20,height:20,display:"inline-flex",alignItems:"center",justifyContent:"center"}},
+                    React.createElement(WorkoutTypeIcon,{type:log.type,size:16}),
+                    dayLogs.length > 1 && React.createElement('span',{style:{position:"absolute",right:-5,top:-5,minWidth:13,height:13,padding:"0 2px",borderRadius:999,display:"inline-flex",alignItems:"center",justifyContent:"center",background:"#4ECDC4",border:"1px solid #1A2E4A",color:"#071010",fontFamily:"'Outfit',sans-serif",fontSize:8,fontWeight:900,lineHeight:1}},Math.min(dayLogs.length,2))
+                  )
                 : day
           );
         })
@@ -641,8 +649,8 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
         name: leader.name,
         logsByIso: currentWeekDays.reduce((acc, date) => {
           const iso = toISODate(date);
-          const log = getMemberLogForIso(leader.name, iso);
-          if (log) acc[iso] = log;
+          const dayLogs = getMemberLogsForIso(leader.name, iso);
+          if (dayLogs.length) acc[iso] = dayLogs;
           return acc;
         }, {})
       }));
@@ -749,7 +757,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
   const desktopLogsByDay = {};
   (logs[user] || []).forEach(log => {
     const day = Number(String(log.date || "").split("-")[2]);
-    if (Number.isFinite(day)) desktopLogsByDay[day] = log;
+    if (Number.isFinite(day)) desktopLogsByDay[day] = [...(desktopLogsByDay[day] || []), log];
   });
   const desktopCalendarCard = !isExcused && renderMonthLogCalendar({
     memberName: user,
@@ -916,7 +924,9 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
   const renderWeeklyStrip = (memberName, logsByIso) => React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(7,minmax(0,1fr))",gap:4,marginTop:4}},
     currentWeekDays.map((date, index) => {
       const iso = toISODate(date);
-      const log = logsByIso?.[iso] || null;
+      const dayLogsValue = logsByIso?.[iso] || null;
+      const dayLogs = Array.isArray(dayLogsValue) ? dayLogsValue : (dayLogsValue ? [dayLogsValue] : []);
+      const log = dayLogs[0] || null;
       const isToday = iso === TODAY_ISO;
       return React.createElement('div',{key:`${memberName}-${iso}`,style:{display:"grid",gap:4,justifyItems:"center"}},
         React.createElement('span',{className:"mono",style:{fontSize:8,color:isToday ? "#4ECDC4" : "var(--muted2)"}},["M","T","W","T","F","S","S"][index]),
@@ -937,7 +947,10 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
                 boxShadow:isToday ? "0 0 0 1px rgba(78,205,196,.08) inset" : "none"
               }},
                 React.createElement('span',{className:"mono",style:{fontSize:8,color:isToday ? "#8EE7DF" : "var(--muted)",lineHeight:1}},date.getDate()),
-                React.createElement('span',{style:{width:16,height:16,display:"inline-flex",alignItems:"center",justifyContent:"center",color:"#4ECDC4"}},React.createElement(WorkoutTypeIcon,{type:log.type,size:13}))
+                React.createElement('span',{style:{position:"relative",width:16,height:16,display:"inline-flex",alignItems:"center",justifyContent:"center",color:"#4ECDC4"}},
+                  React.createElement(WorkoutTypeIcon,{type:log.type,size:13}),
+                  dayLogs.length > 1 && React.createElement('span',{style:{position:"absolute",right:-5,top:-5,minWidth:12,height:12,padding:"0 2px",borderRadius:999,display:"inline-flex",alignItems:"center",justifyContent:"center",background:"#4ECDC4",border:"1px solid #0B1B1A",color:"#071010",fontFamily:"'Outfit',sans-serif",fontSize:7.5,fontWeight:900,lineHeight:1}},Math.min(dayLogs.length,2))
+                )
               )
             : React.createElement('div',{style:{
                 width:30,
@@ -1305,7 +1318,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
   );
 
   const todayContent = React.createElement('div',{ref:todayRootRef,style:{position:"relative",minHeight:"calc(100vh - 44px)",backgroundColor:"#070C0C",background:"var(--bg-gradient)",backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)",overscrollBehavior:"contain",overscrollBehaviorY:"contain",overflowX:"hidden",isolation:"isolate"}},
-    showLog&&React.createElement(LogModal,{user,currentGroupId,groups,onConfirm:doLog,onClose:()=>setShowLog(false)}),
+    showLog&&React.createElement(LogModal,{user,currentUserId,currentGroupId,groups,onConfirm:doLog,onClose:()=>setShowLog(false)}),
     deleteTarget && React.createElement(DeleteModal,{log:deleteTarget,onClose:()=>setDeleteTarget(null),onConfirm:async()=>{ const logId = deleteTarget.id; setDeleteTarget(null); await onLogMutation({action:"delete-log",groupId:currentGroupId,actor:user,owner:user,logId}); }}),
     showExcuse && sitOutMode && React.createElement(SitOutModal,{mode:sitOutMode,monthName:modalMonthName,onClose:()=>{setShowExcuse(false);setSitOutError("");},onSubmit:submitSitOut,submitting:sitOutSubmitting,error:sitOutError}),
     showSolo && visibleSoloMode && React.createElement(SoloModal,{mode:visibleSoloMode,monthName:modalMonthName,minimumTarget:soloMinimumTarget,maximumTarget:effectiveTarget,defaultTarget:Math.max(soloMinimumTarget, Math.ceil(effectiveTarget * .5)),onClose:()=>{setShowSolo(false);setSoloError("");},onSubmit:submitSolo,submitting:soloSubmitting,error:soloError}),

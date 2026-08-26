@@ -1,5 +1,6 @@
 const DEFAULT_MIN_TARGET = 12;
 const WORKOUT_TYPES = ["Gym", "Run", "Sports", "Pilates", "Other"];
+const MAX_WORKOUTS_PER_DAY = 2;
 const WORKOUT_TYPE_ALIASES = { Sport: "Sports", Hike: "Other", Hiking: "Other" };
 const DEFAULT_GROUP_TIME_ZONE = "Europe/Oslo";
 const LEAGUE_CUTOFF_HOUR = 3;
@@ -1337,6 +1338,47 @@ function normalizeLogEntry(log) {
     decisionBy: typeof log?.decisionBy === "string" ? log.decisionBy : null,
     decisionAt: typeof log?.decisionAt === "string" ? log.decisionAt : null
   };
+}
+
+function getWorkoutSessionKey(log) {
+  const id = String(log?.id || "").trim();
+  if (!id) return "";
+  const multiLogMatch = id.match(/^(\d{10,})(?:-|$)/);
+  return multiLogMatch ? multiLogMatch[1] : id;
+}
+
+function getDistinctWorkoutCountForDate(state, actor, actorUserId, date) {
+  const sessionKeys = new Set();
+  const safeActor = String(actor || "").trim();
+  const safeActorUserId = String(actorUserId || "").trim();
+  const safeDate = String(date || "").trim();
+  if (!safeDate) return 0;
+
+  Object.values(state?.groups || {}).forEach(group => {
+    const membershipName = safeActorUserId
+      ? String(group?.memberships?.[safeActorUserId]?.displayName || "").trim()
+      : "";
+    const ownerName = membershipName || safeActor;
+    if (!ownerName) return;
+    (group?.logs?.[ownerName] || []).forEach(log => {
+      if (log?.date !== safeDate) return;
+      const key = getWorkoutSessionKey(log);
+      if (key) sessionKeys.add(key);
+    });
+  });
+
+  return sessionKeys.size;
+}
+
+function assertWorkoutSlotAvailable(state, actor, actorUserId, date) {
+  if (getDistinctWorkoutCountForDate(state, actor, actorUserId, date) < MAX_WORKOUTS_PER_DAY) return;
+  const error = new Error("Already logged 2 workouts for this date");
+  error.status = 409;
+  throw error;
+}
+
+function createWorkoutSessionId() {
+  return `${Date.now()}${Math.floor(Math.random() * 1000).toString().padStart(3, "0")}`;
 }
 
 function normalizeDeletedCurrentLogIds(value) {
@@ -5465,7 +5507,8 @@ function applyMultiLog(current, payload) {
   }
 
   const base = rolloverStateIfNeeded(current);
-  const logId = Date.now();
+  assertWorkoutSlotAvailable(base, actor, actorUserId, date);
+  const logId = createWorkoutSessionId();
   const updatedGroups = { ...base.groups };
 
   // Always include the source group — targetGroupIds only contains the additional blocs.
@@ -5478,14 +5521,13 @@ function applyMultiLog(current, payload) {
     if (!accepted.includes(workoutType)) continue;
 
     const existingLogs = group.logs?.[actor] || [];
-    if (existingLogs.some(log => log?.date === date)) continue;
 
     updatedGroups[groupId] = normalizeGroup({
       ...group,
       logs: {
         ...group.logs,
         [actor]: [...existingLogs, {
-          id: groupId === sourceGroupId ? String(logId) : `${logId}-${groupId}`,
+          id: groupId === sourceGroupId ? logId : `${logId}-${groupId}`,
           date,
           type: workoutType,
           note,
@@ -6882,8 +6924,10 @@ function applyAddLog(current, payload) {
     throw error;
   }
 
+  assertWorkoutSlotAvailable(base, actor, actorUserId, date);
+
   const log = normalizeLogEntry({
-    id: String(Date.now()),
+    id: createWorkoutSessionId(),
     date,
     type: workoutType,
     note,
@@ -8153,6 +8197,10 @@ export {
   assertGroupMembershipForUser,
   isCurrentGroupMember,
   isGroupAdminActor,
+  getWorkoutSessionKey,
+  getDistinctWorkoutCountForDate,
+  applyAddLog,
+  applyMultiLog,
   applyJoinGroup,
   applyUpsertProfile,
   scopeReadableStateForUser,
