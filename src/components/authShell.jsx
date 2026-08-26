@@ -15,104 +15,92 @@ import {
 import { Avatar, WorkoutTypeIcon, AppIcon, AnteWordmark, PrimaryActionButton } from "../components/primitives.jsx";
 import { GroupCreateModal } from "../modals/modals.jsx";
 
-const PREVIEW_MEMBERS = [
-  { name:"Kai",   logged:11, target:12, color:"#C17F5A" },
-  { name:"Jonah", logged:9,  target:12, color:"#7A9CC7" },
-  { name:"Priya", logged:7,  target:12, color:"#9B7BB0" },
-  { name:"Tariq", logged:5,  target:12, color:"#6BAA8E" },
-  { name:"Sofía", logged:2,  target:12, color:"#B07A8A" },
-];
-
 const previewStatus = (logged, target) => {
-  const pct = logged / target;
-  if (pct >= 1)    return { label:"Done",     color:"#5ABF5A" };
-  if (pct >= 0.6)  return { label:"On track",  color:"#5ABF5A" };
-  if (pct >= 0.35) return { label:"At risk",   color:"var(--amber)" };
-  return             { label:"Behind",     color:"var(--red)" };
+  const safeTarget = Math.max(1, Number(target) || 1);
+  const pct = Number(logged || 0) / safeTarget;
+  if (pct >= 1) return { label:"CLEARED", bg:"linear-gradient(90deg, rgba(203,213,225,.08) 0%, rgba(203,213,225,.35) 100%)", fg:"#E2E8F0", border:"#2a2d31" };
+  if (pct >= 0.65) return { label:"ON TRACK", bg:"rgba(90,191,90,.14)", fg:"#5ABF5A", border:"rgba(90,191,90,.35)" };
+  if (pct >= 0.35) return { label:"AT RISK", bg:"#1E1808", fg:"#D4A843", border:"#3D3010" };
+  return { label:"COOKED", bg:"rgba(212,74,74,.14)", fg:"#D44A4A", border:"#3B1818" };
 };
 
-
-const PreviewLanding = ({inviteContext,onCreate,onJoin,onSignIn}) => {
-  const previewRows = PREVIEW_MEMBERS.map((m,i) => {
-    const st = previewStatus(m.logged, m.target);
-    const pct = Math.min(1, m.logged / m.target);
+const PreviewLanding = ({inviteContext,onJoin}) => {
+  const target = Number(inviteContext?.minTarget || inviteContext?.target || 12);
+  const memberCount = Number(inviteContext?.memberCount || 0);
+  const memberLimit = Number(inviteContext?.memberLimit || 20);
+  const isFull = memberCount >= memberLimit;
+  const leaderboardRows = (Array.isArray(inviteContext?.leaderboardRows) ? inviteContext.leaderboardRows : [])
+    .slice()
+    .sort((a,b)=>Number(b.logged||0)-Number(a.logged||0))
+    .slice(0,3);
+  const previewRows = leaderboardRows.map((m,i) => {
+    const logged = Number(m.logged || 0);
+    const rowTarget = Number(m.target || target);
+    const st = previewStatus(logged, rowTarget);
     return React.createElement('div',{
-      key:m.name,
+      key:m.userId || m.name || i,
       style:{
-        padding:"12px 16px",
-        borderBottom:i<PREVIEW_MEMBERS.length-1?"1px solid rgba(62,62,82,.45)":"none",
-        display:"flex",
+        minHeight:50,
+        padding:"10px 14px",
+        borderBottom:i<leaderboardRows.length-1?"0.5px solid rgba(22,61,54,.58)":"none",
+        display:"grid",
+        gridTemplateColumns:"24px 34px minmax(0,1fr) auto 30px",
         alignItems:"center",
-        gap:12
+        gap:9
       }
     },
-      React.createElement('div',{style:{fontWeight:700,fontSize:12,color:"var(--muted)",width:16,textAlign:"right",flexShrink:0}},i+1),
-      React.createElement('div',{style:{width:32,height:32,borderRadius:"50%",background:m.color,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Outfit',sans-serif",fontWeight:800,fontSize:12,color:"#fff",flexShrink:0}},m.name[0]),
-      React.createElement('div',{style:{flex:1,minWidth:0}},
-        React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:5}},
-          React.createElement('span',{style:{fontWeight:700,fontSize:14}},m.name),
-          React.createElement('span',{className:"mono",style:{fontSize:10,color:st.color,letterSpacing:".06em",textTransform:"uppercase"}},st.label)
-        ),
-        React.createElement('div',{style:{height:4,borderRadius:999,background:"rgba(62,62,82,.6)",overflow:"hidden"}},
-          React.createElement('div',{style:{height:"100%",width:`${pct*100}%`,borderRadius:999,background:pct>=1?"var(--green)":pct>=0.6?"var(--green)":pct>=0.35?"var(--amber)":"var(--red)",transition:"width .4s ease"}})
-        )
+      React.createElement('div',{style:{fontFamily:"'Outfit',sans-serif",fontWeight:900,fontSize:12,color:"var(--muted)",textAlign:"center",flexShrink:0}},`#${i+1}`),
+      React.createElement('div',{style:{width:34,height:34,borderRadius:"50%",background:avatarColor(m.name || "Fero"),display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Outfit',sans-serif",fontWeight:900,fontSize:12,color:"#fff",flexShrink:0,overflow:"hidden",boxShadow:"inset 0 1px 0 rgba(255,255,255,.12), 0 4px 12px rgba(0,0,0,.18)"}},m.avatarUrl
+        ? React.createElement('img',{src:m.avatarUrl,alt:"",loading:"lazy",referrerPolicy:"no-referrer",style:{width:"100%",height:"100%",objectFit:"cover",display:"block"}})
+        : String(m.name || "?").trim().slice(0,1).toUpperCase()
       ),
-      React.createElement('div',{style:{textAlign:"right",flexShrink:0}},
-        React.createElement('div',{style:{fontWeight:800,fontSize:15}},m.logged),
-        React.createElement('div',{style:{fontSize:11,color:"var(--muted)"}},"/ "+m.target)
-      )
+      React.createElement('span',{style:{minWidth:0,fontFamily:"'Raleway',sans-serif",fontWeight:900,fontSize:16,lineHeight:1.05,color:"#f5f7ff",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",paddingBottom:2}},m.name || "Member"),
+      React.createElement('span',{style:{display:"inline-flex",alignItems:"center",justifyContent:"center",minWidth:70,padding:"3px 8px",borderRadius:999,background:st.bg,border:`0.5px solid ${st.border}`,color:st.fg,fontFamily:"'Outfit',sans-serif",fontSize:9,fontWeight:900,letterSpacing:".06em",textTransform:"uppercase",whiteSpace:"nowrap"}},st.label),
+      React.createElement('span',{style:{fontFamily:"'Outfit',sans-serif",fontSize:16,fontWeight:900,color:"#4ECDC4",textAlign:"right"}},logged)
     );
   });
 
   const hero = React.createElement('div',{
     key:"preview-hero",
     className:"fu",
-    style:{textAlign:"center",maxWidth:620,marginBottom:24}
+    style:{textAlign:"center",maxWidth:620,marginBottom:18}
   },
     React.createElement('div',{style:{margin:"0 0 14px"}},React.createElement(AnteWordmark,{size:68})),
-    React.createElement('div',{style:{fontSize:15,fontWeight:500,color:"#f5f7ff",marginBottom:8}},
-      "For the ",
+    React.createElement('div',{style:{fontFamily:"'Outfit',sans-serif",fontSize:15,fontWeight:700,color:"#f5f7ff",lineHeight:1.35,margin:"0 auto",maxWidth:360}},
+      "Welcome to the ",
       React.createElement('span',{style:{color:"#4ECDC4"}},"Bloc"),
       " that keeps you showing up."
-    ),
-    React.createElement('div',{style:{color:"#2A5555",fontSize:13,lineHeight:1.5,maxWidth:540,margin:"0 auto"}},"See how Fero works")
+    )
   );
 
   const previewHeader = React.createElement('div',{
     key:"preview-header",
-    style:{padding:"13px 16px",borderBottom:"1px solid rgba(62,62,82,.7)",display:"flex",alignItems:"center",justifyContent:"space-between"}
+    style:{padding:"14px 16px 12px",borderBottom:"0.5px solid rgba(22,61,54,.72)",display:"grid",gap:5}
   },
-    React.createElement('div',null,
-      React.createElement('div',{style:{fontWeight:900,fontSize:15,letterSpacing:"-.01em"}},"Sunday Runners Bloc"),
-      React.createElement('div',{className:"mono",style:{fontSize:9,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".1em",marginTop:2}},"12 workouts · June")
-    ),
+    React.createElement('div',{style:{fontFamily:"'Raleway',sans-serif",fontWeight:900,fontSize:18,lineHeight:1.05,letterSpacing:0,color:"#f5f7ff",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",paddingBottom:2}},inviteContext?.groupName || "This Bloc"),
+    React.createElement('div',{style:{fontFamily:"'Outfit',sans-serif",fontSize:10,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".12em",fontWeight:800}},`${target} workouts · ${memberCount}/${memberLimit} members`)
   );
 
   const previewCard = React.createElement('div',{
     key:"preview-card",
     className:"fu2",
-    style:{width:"100%",maxWidth:440,marginBottom:20,background:"linear-gradient(180deg,rgba(24,24,31,.98),rgba(17,17,23,.98))",border:"1px solid rgba(62,62,82,.9)",borderRadius:18,overflow:"hidden"}
-  }, [previewHeader].concat(previewRows));
+    style:{width:"100%",maxWidth:420,marginBottom:20,background:"radial-gradient(circle at 78% 0%, rgba(78,205,196,.08), transparent 34%), rgba(6,16,14,.96)",border:"0.5px solid rgba(22,61,54,.9)",borderRadius:18,overflow:"hidden",boxShadow:"inset 0 1px 0 rgba(255,255,255,.06), 0 18px 46px rgba(0,0,0,.32), 0 0 0 1px rgba(78,205,196,.025)"}
+  }, [previewHeader].concat(previewRows.length
+    ? previewRows
+    : React.createElement('div',{key:"empty-preview",style:{padding:"18px 16px",fontFamily:"'Outfit',sans-serif",fontSize:13,fontWeight:700,color:"var(--muted)",textAlign:"center"}},"The leaderboard is ready.")
+  ));
 
   const actions = React.createElement('div',{
     key:"preview-actions",
     className:"fu4",
-    style:{display:"flex",gap:10,flexWrap:"wrap",justifyContent:"center"}
+    style:{width:"100%",maxWidth:420,display:"grid",gap:10,justifyContent:"stretch"}
   },
-    React.createElement(PrimaryActionButton,{label:"Create a Bloc",onClick:onCreate}),
-    inviteContext && inviteContext.memberCount>=20
-      ? React.createElement('div',{style:{fontSize:12,color:"var(--amber)",padding:"10px 14px",borderRadius:9,background:"var(--amber-bg)",border:"1px solid var(--amber-dim)",textAlign:"center"}},"This Bloc is full. Maximum 20 members allowed.")
-      : React.createElement(PrimaryActionButton,{label:inviteContext?"Join this Bloc":"Join a Bloc",onClick:onJoin,secondary:true})
+    isFull
+      ? React.createElement('div',{style:{fontFamily:"'Outfit',sans-serif",fontSize:12,fontWeight:800,color:"var(--amber)",padding:"10px 14px",borderRadius:9,background:"var(--amber-bg)",border:"1px solid var(--amber-dim)",textAlign:"center"}},"This Bloc is full. Maximum 20 members allowed.")
+      : React.createElement(PrimaryActionButton,{label:"Join this Bloc",onClick:onJoin})
   );
 
-  const signInLink = React.createElement('button',{
-    key:"preview-signin",
-    type:"button",
-    onClick:onSignIn,
-    style:{background:"transparent",padding:0,marginTop:10,color:"rgba(78,205,196,.9)",fontSize:13,fontWeight:500,textAlign:"center",textDecoration:"underline",textUnderlineOffset:"2px"}
-  },"Already have an account? Sign in");
-
-  const children = [hero, previewCard, actions, signInLink];
+  const children = [hero, previewCard, actions];
   return React.createElement('div',{style:{minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"32px 18px",background:"transparent"}},children);
 };
 
@@ -535,4 +523,4 @@ const LocalDevImpersonationBar = ({options,value,onChange}) => {
 
 // ─── LOG MODAL ────────────────────────────────────────────────────────────────
 
-export { PREVIEW_MEMBERS, previewStatus, PreviewLanding, SignedOutLanding, ProfileModal, JoinGroupModal, AuthFlowModal, IdentitySetup, CreatedBlocInviteScreen, GroupHome, WhoAreYou, GroupAccessNotice, LocalDevImpersonationBar };
+export { previewStatus, PreviewLanding, SignedOutLanding, ProfileModal, JoinGroupModal, AuthFlowModal, IdentitySetup, CreatedBlocInviteScreen, GroupHome, WhoAreYou, GroupAccessNotice, LocalDevImpersonationBar };

@@ -192,7 +192,7 @@ const ActivityPreview = () => {
   );
 };
 
-const SettlementResultCard = ({tone,month,tag,stat,line,rows}) => {
+const SettlementResultCard = ({tone,tag,stat,line,rows}) => {
   const winner = tone === "winner";
   const heroStyle = winner
     ? {background:"rgba(57,168,90,.11)",border:"1px solid rgba(57,168,90,.24)"}
@@ -210,8 +210,7 @@ const SettlementResultCard = ({tone,month,tag,stat,line,rows}) => {
       boxShadow:"inset 0 1px 0 rgba(255,255,255,.05)"
     }
   },
-    React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"center",gap:8,marginBottom:2}},
-      React.createElement('span',{style:{height:19,padding:"0 8px",borderRadius:999,border:"0.5px solid rgba(143,174,170,.22)",background:"rgba(8,15,15,.42)",display:"inline-flex",alignItems:"center",fontFamily:"'Outfit',sans-serif",fontSize:9,fontWeight:900,letterSpacing:".08em",textTransform:"uppercase",color:"rgba(214,226,224,.66)"}},month),
+    React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"center",marginBottom:2}},
       React.createElement('span',{style:{display:"inline-block",fontFamily:"'Outfit',sans-serif",fontSize:10,fontWeight:900,letterSpacing:".08em",textTransform:"uppercase",background:labelGradient,WebkitBackgroundClip:"text",backgroundClip:"text",color:"transparent"}},tag)
     ),
     React.createElement('div',{style:{fontFamily:"'Outfit',sans-serif",fontSize:34,lineHeight:1,fontWeight:900,color:statColor,marginTop:5}},stat),
@@ -234,7 +233,6 @@ const SettlementPreview = () => {
     React.createElement('div',{style:{padding:"12px 14px",display:"grid",gap:12}},
       React.createElement(SettlementResultCard,{
         tone:"winner",
-        month:"June",
         tag:"Winner",
         stat:"+$25",
         line:"Top of the Bloc. Maya and Leo pay you.",
@@ -246,7 +244,6 @@ const SettlementPreview = () => {
       React.createElement('div',{style:{height:1,width:"58%",justifySelf:"center",background:"linear-gradient(90deg, transparent, rgba(143,174,170,.22), transparent)"}}),
       React.createElement(SettlementResultCard,{
         tone:"missed",
-        month:"July",
         tag:"Tough Month",
         stat:"-$20",
         line:"You missed the target. Bounce back next month.",
@@ -260,8 +257,7 @@ const SettlementPreview = () => {
 
 const BlocStarterPreview = ({blocName,setBlocName}) => {
   return React.createElement('div',{style:{...cardShell,padding:16,boxSizing:"border-box"}},
-    React.createElement('label',{style:{display:"block",marginBottom:16}},
-      React.createElement('div',{style:{...previewLabel,marginBottom:8}},"BLOC NAME"),
+    React.createElement('label',{style:{display:"block"}},
       React.createElement('input',{
         value:blocName,
         onChange:event=>setBlocName(event.target.value),
@@ -282,29 +278,6 @@ const BlocStarterPreview = ({blocName,setBlocName}) => {
           padding:"0 15px"
         }
       })
-    ),
-    React.createElement('div',{style:{...previewLabel,marginBottom:10}},"INVITE SLOTS"),
-    React.createElement('div',{style:{display:"flex",alignItems:"center",gap:10}},
-      [0,1,2,3,4].map(index=>React.createElement('div',{
-        key:index,
-        style:{
-          width:44,
-          height:44,
-          borderRadius:999,
-          display:"inline-flex",
-          alignItems:"center",
-          justifyContent:"center",
-          flexShrink:0,
-          background:index===0?"rgba(78,205,196,.16)":"rgba(8,15,15,.42)",
-          border:index===0?"0.5px solid rgba(78,205,196,.5)":"0.5px dashed rgba(143,174,170,.28)",
-          color:index===0?"#4ECDC4":"rgba(143,174,170,.42)",
-          fontFamily:"'Outfit',sans-serif",
-          fontSize:index===0?10:14,
-          fontWeight:900,
-          letterSpacing:index===0?".06em":0,
-          pointerEvents:"none"
-        }
-      }, index===0?"YOU":React.createElement('span',{style:{transform:"translateY(-1px)",opacity:.62}},"+")))
     )
   );
 };
