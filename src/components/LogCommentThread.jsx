@@ -11,6 +11,13 @@ import { formatShortDate } from "../lib/utils.js";
 
 const logCommentThreadCache = new Map();
 
+function resizeComposer(input) {
+  if (!input) return;
+  input.style.height = "auto";
+  input.style.height = `${Math.min(input.scrollHeight, 120)}px`;
+  input.style.overflowY = input.scrollHeight > 120 ? "auto" : "hidden";
+}
+
 function normalizeComment(comment) {
   return {
     id: String(comment?.id || ""),
@@ -152,6 +159,10 @@ function LogCommentThread({ groupId, log, currentUserId, currentUserName, onClos
     const id = window.setInterval(refresh, 3000);
     return () => window.clearInterval(id);
   }, [groupId, logId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    resizeComposer(inputRef.current);
+  }, [draft]);
 
   const submit = async () => {
     const body = draft.trim();
@@ -429,11 +440,14 @@ function LogCommentThread({ groupId, log, currentUserId, currentUserName, onClos
               })
             )
       ),
-      React.createElement('form', { onSubmit: event => { event.preventDefault(); submit(); }, style: { flexShrink: 0, minHeight: 62, display: "flex", alignItems: "center", gap: 8, padding: "10px 12px calc(10px + env(safe-area-inset-bottom))", borderTop: "1px solid rgba(22,61,54,.72)", background: "rgba(5,9,10,.96)", backdropFilter: "blur(8px)", boxSizing: "border-box" } },
+      React.createElement('form', { onSubmit: event => { event.preventDefault(); submit(); }, style: { flexShrink: 0, display: "flex", alignItems: "flex-end", gap: 8, padding: "10px 12px calc(14px + env(safe-area-inset-bottom))", borderTop: "1px solid rgba(22,61,54,.72)", background: "rgba(5,9,10,.96)", backdropFilter: "blur(8px)", boxSizing: "border-box" } },
         React.createElement('textarea', {
           ref: inputRef,
           value: draft,
-          onChange: event => setDraft(event.target.value),
+          onChange: event => {
+            setDraft(event.target.value);
+            resizeComposer(event.currentTarget);
+          },
           onKeyDown: event => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); submit(); } },
           placeholder: "Add a comment",
           rows: 1,
