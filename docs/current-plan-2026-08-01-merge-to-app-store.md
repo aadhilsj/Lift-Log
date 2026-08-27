@@ -123,44 +123,143 @@ Preview invite/onboarding work passed the complete Banana Berry checklist on 202
 7. Passed a merged-source browser smoke test and the two automated auth edge flows.
 8. Merge the verified reconciliation commit to `main`.
 
+## Verified Complete In Live `main` (2026-08-27 code audit)
+
+These were finished during the Banana Berry work but were never struck from the
+plan, so they were being re-reported as outstanding. Each was re-verified
+against the live `main` source, not against commit messages alone. Do not
+re-open these without new evidence.
+
+### Bloc Switcher return interaction — DONE
+
+- Fixed by `0a70bba` (`Fix switcher reveal interaction handoff`), confirmed an
+  ancestor of `main`.
+- Mechanism: a `switcherRevealInteractive` state in `src/App.jsx` is set the
+  moment a closing swipe is committed. While it is true, the Today surface gets
+  `pointerEvents:"none"` and the switcher is rendered with `inert:false`, so the
+  first tap and first scroll land on the switcher instead of being swallowed by
+  the outgoing Today layer. The flag is cleared on commit and on swipe reset.
+- Related and also in `main`: `d1d5def` (`Preserve switcher scroll on swipe
+  return`), `4b460e1` (inert switcher render guard), and `4b013a4`
+  (`fix: stabilize mobile tab gestures`).
+
+### First-Bloc setup review — DONE, all three sub-items
+
+- Fixed by `fb2a73e` (`Fix onboarding account handoff and setup review`), plus a
+  later `optimisticClose` addition. Confirmed an ancestor of `main`.
+- Highlights clear when touched: `ReviewShell`
+  (`src/pages/BlocSettingsScreen.jsx:90`) fires `onDismiss` on `onPointerDown`,
+  wired to `dismissReviewField` for `feeModel`, `acceptedWorkoutTypes`, and
+  `timeZone`. Dismissed fields are filtered out of `pendingSet`.
+- Save Rules dismisses immediately: `saveRules` passes `optimisticClose: true`,
+  and `src/App.jsx:1022` closes the sheet up front and reconciles the mutation
+  in the background.
+- Card disappears even if unchanged: `saveRules` always sends
+  `setupReview: { pending: {} }` regardless of whether any value changed.
+
+### Cold-download onboarding — DONE, all six sub-items
+
+Verified in live `main` on 2026-08-27 by reading the render gate in
+`src/App.jsx` (~line 2645 onward), not by commit message.
+
+- No empty Bloc Switcher flash after OTP: `postAuthActionPending` returns
+  `SetupProgressScreen` *before* any switcher surface can render, and
+  `authStep === "name"` returns `DisplayNameSetupScreen` directly. There is no
+  window in which an empty switcher can paint.
+- New users land directly on display-name setup when required: same gate.
+- Create and join flow sequences: both are wired through `handleColdOnboarding
+  Create` / `handleColdOnboardingJoin` with the documented stage order. The
+  join path collects the invite code *before* auth via a dedicated
+  `onboardingJoinCodeStep` branch that keeps onboarding screen 4 mounted behind
+  the sheet so Cancel returns exactly where it began.
+- Existing-account email path: `checkAuthEmailExistsData` runs before OTP send
+  on both the `signup` intent and the onboarding create/join intents, routing to
+  `authStep = "existing"` rather than silently creating a duplicate account.
+- Setup progress never feels stuck: `SETUP_PROGRESS_STAGES` defines five stages
+  with rotating labels advancing every 2200ms over a continuously animating
+  progress bar, so no static state persists past roughly 3 seconds.
+- Also shipped and in `main`: `be5b537` (`Keep cold onboarding actions out of
+  empty switcher`).
+
+### Invite flow — MOSTLY DONE; only native handoff outstanding
+
+Previously tracked as entirely preview-only. In live `main`:
+
+- Unauthenticated web preview: `PreviewLanding` in `src/components/authShell.jsx:87`
+  renders the real Bloc name, target, member count, and leaderboard rows.
+- Web auth/join: `JoinGroupModal` (`src/components/authShell.jsx:298`) with
+  signed-in and signed-out paths and an already-member entry path.
+- Invalid/expired/full invite states: dedicated invalid-invite screen and a
+  `memberCount >= 20` full-Bloc branch.
+- Non-blocking download prompt: `renderInviteDownloadPrompt` in `src/App.jsx:2464`,
+  explicitly non-blocking ("You can keep using your Bloc here").
+- The one-screen "YOU'RE IN" welcome was **deliberately retired**, not left
+  undone. Do not rebuild it.
+- **Still outstanding:** reliable native app handoff via a chosen
+  deep-link/session mechanism. This is the only remaining invite work.
+
+### Local dev OTP harness — SAFE, guard verified
+
+The plan required confirming the bypass cannot reach production. Verified in
+`api/lift-log.js`:
+
+- `ENABLE_LOCAL_DEV_OTP` (line 33) defaults to false and requires the literal
+  string `true`.
+- `.env.example` ships `ENABLE_LOCAL_DEV_OTP=false`.
+- `parseLocalDevAuthToken` (line 5193) additionally requires the token prefix
+  `local-dev:` **and** an `@local.test` email domain.
+- The RPC-fallback path additionally requires the Supabase hostname to be
+  `127.0.0.1`, `localhost`, or `::1` (line 3194).
+
+Four independent conditions. Still re-confirm the env var is unset on the
+production/native build before submission, but the code fails closed.
+
+### Fero naming audit — NEARLY DONE
+
+- Clean: `index.html` (`<title>Fero`, `apple-mobile-web-app-title` Fero) and
+  `public/manifest.webmanifest` (`name` and `short_name` both Fero).
+- **Outstanding residue:**
+  - `public/sw.js:1` — `const CACHE_NAME = "firo-v51"`
+  - `api/lift-log.js:9667` — user-facing error string `"Anté sync proxy failed"`
+  - `package.json` — `"name": "firo"`
+- **Cannot be audited from the repo:** the OTP/sign-in email sender and copy are
+  Supabase-hosted templates with no source in this codebase. Check them in the
+  Supabase dashboard.
+
 ## Immediate Work Before The Next Main Merge
 
-- Finish cold-download onboarding:
-  - no empty Bloc Switcher flash after OTP
-  - new users land directly on display-name setup when required
-  - create flow: onboarding -> Create Bloc modal -> auth -> display name -> setup progress -> Bloc Today
-  - join flow: onboarding -> code -> auth -> display name -> joined Bloc Today
-  - existing-account email path clearly offers sign-in or a new email
-  - setup progress should not feel stuck; no static loading state longer than roughly 3 seconds
-- Finish first-Bloc setup review:
-  - review highlights clear when touched or when rules are saved
-  - Save Rules should dismiss immediately and persist in the background where safe
-  - setup card disappears after Save Rules even if unchanged
-- Finish invite flow later, still preview-only:
-  - unauthenticated web preview
-  - web auth/join
-  - one-screen "YOU'RE IN" welcome
-  - functional web Bloc view
-  - non-blocking download prompt
+> Cold-download onboarding and the web half of the invite flow moved to
+> **Verified Complete In Live `main`** on 2026-08-27. Only the items below are
+> genuinely outstanding.
+
+- Invite flow — remaining piece only:
   - reliable native app handoff via a chosen deep-link/session mechanism
-- Add or verify perfect-month Bloc Stream system moment:
-  - renderer exists conceptually, but backend generation is not yet proven
-  - should be idempotent and generated only after month finalization rules are satisfied
-- Tighten the Bloc Switcher return interaction:
-  - after swiping Today back to the Bloc Switcher, first tap and first scroll must register immediately
-  - no gesture lock, transition guard, or invisible overlay should remain active after the switcher is visible
+  - everything else in this flow is shipped; the "YOU'RE IN" screen was
+    deliberately retired and must not be rebuilt
+- Add perfect-month Bloc Stream system moment (CONFIRMED NOT IMPLEMENTED, 2026-08-27 audit):
+  - the renderer is fully present: `src/pages/BlocStream.jsx:49` registers the
+    `perfect_bloc_month` system kind and `src/pages/BlocStream.jsx:388` renders
+    the `perfect_month` UI kind
+  - the only producer is fixture/demo data at `src/lib/blocStream.js:102`
+  - `perfect_bloc_month` appears nowhere in `api/`, `scripts/`, or `supabase/`;
+    the backend emits only `target_hit`, `cooked`, `comeback`, `member_joined`,
+    `member_left`, and `member_removed`
+  - a real Bloc can therefore have a perfect month and no card is ever created
+  - remaining work is backend generation only; it must be idempotent and run
+    only after month finalization rules are satisfied
 - Use the local dev OTP harness while polishing onboarding/invite flows:
   - local only, never live/main
   - run local API + Vite from the preview worktree
   - set `ENABLE_LOCAL_DEV_OTP=true` and `LOCAL_DEV_OTP_CODE=000000` in local env
   - use fake emails like `flow1@local.test`
   - reserve real Supabase OTP for the final end-to-end pass after the flow is stable
-- Complete the Fero rebrand audit:
-  - browser tab title currently still needs checking/updating
-  - PWA manifest name/short name needs checking/updating
-  - install prompt/home-screen name needs checking/updating
-  - OTP/sign-in email sender/copy still needs checking/updating
-  - search for old `Firo`, `Anté`, and `NT` naming before App Store submission
+- Complete the Fero rebrand audit — three known residues remain:
+  - `public/sw.js:1` — `const CACHE_NAME = "firo-v51"`
+  - `api/lift-log.js:9667` — user-facing string `"Anté sync proxy failed"`
+  - `package.json` — `"name": "firo"`
+  - OTP/sign-in email sender/copy: Supabase-hosted template, must be checked in
+    the Supabase dashboard; there is no source for it in this repo
+  - browser tab title and PWA manifest are already correct; do not re-check
 - Keep `docs/recurring-debugging-playbook.md` updated for recurring bugs and exact fixes.
 
 ## Blob Retirement And Canonical Readiness
@@ -171,6 +270,47 @@ App Store readiness should now be blocked on one of these outcomes:
 
 - fully retire the remaining blob compatibility paths, or
 - prove with fresh audits that every remaining blob dependency is inert and cannot affect live UI, settlement, membership, auth/profile, or month history.
+
+### Existing Blob Audit Tooling (found 2026-08-27 — read this first)
+
+The plan described blob retirement as an unscoped audit. It is not. Substantial
+machinery already exists in `api/lift-log.js` and was never referenced here:
+
+- `BLOB_MIRROR_DEPENDENCY_AUDIT` (generated 2026-07-13) already classifies every
+  action into `trueBlobInputAuthorities`, `canonicalInputMutations` (18 actions),
+  `readableOrCanonicalOnlyActions`, and `disabledLegacyActions`.
+- `BLOB_MIRROR_RETIREMENT_READINESS` already records `mirrorSkipCandidates` with
+  per-family status, `blockedActionFamilies` with named blockers, and a
+  `requiredBeforeFirstSkip` checklist.
+- A runtime kill switch already exists: `BLOB_MIRROR_SKIP_ACTIONS`, an env var
+  parsed at line 91 and filtered against `BLOB_MIRROR_SKIP_ALLOWED_ACTIONS`.
+  **13 actions are already wired** for mirror-skip (`create-group`, `join-group`,
+  `kick-member`, `leave-bloc`, `update-settings`, `season-proration-choice`,
+  `add-log`, `multi-log`, `reaction`, `flag`, `flag-response`, `flag-review`,
+  `delete-log`).
+- The env var is **not set in `.env.example`, `.env.local`, or `vercel.json`**,
+  so it currently defaults to empty and every blob write is still on. The
+  mechanism is built and switched off.
+- Two admin-pinned diagnostic endpoints already exist and can be called against
+  a live environment: POST actions `blob-mirror-dependency-report` and
+  `blob-mirror-retirement-readiness-report`.
+
+The audit's own conclusions on the four items this plan flagged as unknown:
+
+| Item | Recorded status |
+| --- | --- |
+| `auth-sync` | True blob input authority; **blocked**. Legacy identity repair must see blob gaps canonical projections hide. |
+| `repair-display-name` | True blob input authority; quarantined legacy path, explicitly not a proving ground. |
+| `upsert-profile` | Canonical-input, but **blocked** on identity-rename historical shell scope. |
+| `delete-account` | Canonical-input, but **blocked** on destructive stale-blob cleanup scope. |
+| `sitout-request` / `sitout-review` / `settlement` | Canonical-input, **blocked** on historical closed-month scope. |
+
+Practical consequence: this is a staged rollout, not a research project. The
+next step is the `requiredBeforeFirstSkip` checklist (apply the revision-clock
+RPC everywhere, confirm `canonicalRevisionAvailable=true`, then enable
+`BLOB_MIRROR_SKIP_ACTIONS` for one narrow family and soak it), not a fresh
+investigation. Run the two report endpoints against production before planning
+further.
 
 ### Blob Retirement Work Still To Audit
 
@@ -278,3 +418,5 @@ Do this after the current product/data readiness work is stable:
 - 2026-08-17: Added `docs/handover-2026-08-17-banana-berry-onboarding-invite.md` as the current long-thread handover for Banana Berry onboarding/invite QA, preview/main reconciliation, and pending App Store blockers. Start there when resuming this work in a new chat.
 - 2026-08-24: Added `docs/onboarding-evaluation-2026-08-24.md` to preserve the post-launch onboarding hypotheses derived from the three external growth/App Store articles. Revisit only after Banana Berry is stable and activation instrumentation exists.
 - 2026-08-26: Banana Berry passed final manual review. Profile photos, signed-in already-member entry, and accidental signup-to-sign-in recovery are approved. Began deliberate reconciliation of preview onto current main.
+- 2026-08-27: Code audit of live `main` confirmed the Bloc Switcher return interaction and all three first-Bloc setup-review sub-items are implemented and shipped; both were removed from outstanding work and recorded under Verified Complete with their commits and mechanisms. The same audit confirmed the perfect-month system moment is genuinely not implemented: the renderer and system-kind registration exist, but no backend code path ever emits `perfect_bloc_month`.
+- 2026-08-27: Full audit of every remaining "Immediate Work" item against live `main`. Cold-download onboarding (all six sub-items) confirmed shipped. Invite flow confirmed mostly shipped; only native handoff remains. Local dev OTP guard confirmed to fail closed behind four independent conditions. Naming audit confirmed nearly complete with three specific residues plus a Supabase-hosted OTP email template that cannot be audited from the repo. Discovered pre-existing blob-retirement audit tooling, a 13-action mirror-skip allowlist, and two diagnostic endpoints that this plan had never referenced; blob retirement is a staged rollout that is built and switched off, not an unscoped investigation.
