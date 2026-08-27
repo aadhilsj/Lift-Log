@@ -11,9 +11,13 @@ import {
   fmtCurrency,
   isSoloForMonth,
   ordinal,
-  workoutsLabel
+  workoutsLabel,
+  getCountedLogs,
+  getMonthPartsFromKey
 } from "../lib/appState.js";
 import { Avatar, TrophyIcon } from "../components/primitives.jsx";
+import { ShareSticker } from "../components/ShareSticker.jsx";
+import { buildStickerData } from "../lib/shareSticker.js";
 
 const FULL_MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
@@ -21,6 +25,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
   const [settlementBusy, setSettlementBusy] = React.useState(null);
   const [showStandings, setShowStandings] = React.useState(false);
   const [claimPrompt, setClaimPrompt] = React.useState(null);
+  const [showSticker, setShowSticker] = React.useState(false);
   const ledgerRef = React.useRef(null);
 
   const relevantNames = Object.keys(month.counts || {});
@@ -349,19 +354,29 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
     })
   );
 
-  const shareText = outcome === "missed"
-    ? `Taking the L this month — ${userCount}/${mas} workouts. Owe ${fmtCurrency(userOwes, currency)}. Back next month. #Fero`
-    : userIsWinner
-      ? `Won ${month.label} with ${workoutsLabel(userCount)}. #Fero`
-      : `Hit target — ${workoutsLabel(userCount)} in ${month.label}. #Fero`;
+  // Sticker data for the signed-in member's month. getCountedLogs is the same rule the
+  // rest of the app counts by — it drops rejected logs — so the number on the sticker can
+  // never disagree with the number on this screen.
+  const stickerData = React.useMemo(() => {
+    const counted = getCountedLogs(month.logsByUser?.[currentUser] || []);
+    if (!counted.length) return null;
+    const parts = getMonthPartsFromKey(month.key);
+    const year = parts?.year ?? month.year;
+    const monthIndex = parts?.monthIndex ?? month.month;
+    if (!Number.isFinite(year) || !Number.isFinite(monthIndex)) return null;
+    return buildStickerData(counted, year, monthIndex);
+  }, [month.logsByUser, month.key, month.year, month.month, currentUser]);
+
+  const stickerMonthLabel = `${selectedMonthName} ${stickerData?.year ?? ""}`.trim();
 
   const handleShare = () => {
+    // Preserved from the text-only share this replaced: a missed month sends you to the
+    // ledger instead, because what you need then is what you owe, not a trophy.
     if (outcome === "missed") {
       ledgerRef.current?.scrollIntoView({behavior:"smooth", block:"center"});
       return;
     }
-    if (navigator.share) navigator.share({text: shareText}).catch(()=>{});
-    else navigator.clipboard?.writeText(shareText).then(()=>window.alert("Copied to clipboard!")).catch(()=>{});
+    setShowSticker(true);
   };
 
   const heroStatSize = String(hero.stat).includes("workouts")
@@ -409,12 +424,17 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
       showStandings&&renderLeaderboard()
     ),
     React.createElement('div',{style:{display:"flex",gap:8,paddingTop:2}},
-      React.createElement('button',{onClick:handleShare,style:{flex:1,padding:"13px",borderRadius:10,background:"var(--s2)",border:"1px solid var(--border)",color:"var(--text)",fontSize:13,fontWeight:800}},
+      React.createElement('button',{onClick:handleShare,disabled:outcome!=="missed"&&!stickerData,style:{flex:1,padding:"13px",borderRadius:10,background:"var(--s2)",border:"1px solid var(--border)",color:"var(--text)",fontSize:13,fontWeight:800,opacity:(outcome!=="missed"&&!stickerData)?.5:1}},
         outcome === "missed" ? "View the settlement" : "Share this month"
       )
     )
     ),
-    claimConfirmation
+    claimConfirmation,
+    showSticker && stickerData && React.createElement(ShareSticker,{
+      data: stickerData,
+      monthLabel: stickerMonthLabel,
+      onClose: () => setShowSticker(false)
+    })
   );
 };
 
