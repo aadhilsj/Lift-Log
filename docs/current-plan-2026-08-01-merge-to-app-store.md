@@ -214,14 +214,20 @@ The plan required confirming the bypass cannot reach production. Verified in
 Four independent conditions. Still re-confirm the env var is unset on the
 production/native build before submission, but the code fails closed.
 
-### Fero naming audit — NEARLY DONE
+### Fero naming audit — CODE SIDE DONE
 
 - Clean: `index.html` (`<title>Fero`, `apple-mobile-web-app-title` Fero) and
   `public/manifest.webmanifest` (`name` and `short_name` both Fero).
-- **Outstanding residue:**
-  - `public/sw.js:1` — `const CACHE_NAME = "firo-v51"`
-  - `api/lift-log.js:9667` — user-facing error string `"Anté sync proxy failed"`
-  - `package.json` — `"name": "firo"`
+- **Fixed 2026-08-27:**
+  - `public/sw.js:1` — `firo-v51` -> `fero-v52`. The version was bumped as well
+    as the name so the rename actually ships; the existing `activate` handler
+    deletes every cache whose key is not the current `CACHE_NAME`, so the old
+    `firo-v51` cache is cleaned up automatically on first load after deploy.
+  - `api/lift-log.js:9667` — `"Anté sync proxy failed"` -> `"Fero sync proxy failed"`
+  - `package.json` — `"name": "firo"` -> `"fero"`
+  - A full sweep of `src/`, `api/`, `public/`, `scripts/`, `index.html`,
+    `package.json`, and `vercel.json` for `Firo`/`Anté` now returns nothing.
+  - Production build passes and `dist/` carries all three fixes.
 - **Cannot be audited from the repo:** the OTP/sign-in email sender and copy are
   Supabase-hosted templates with no source in this codebase. Check them in the
   Supabase dashboard.
@@ -253,13 +259,12 @@ production/native build before submission, but the code fails closed.
   - set `ENABLE_LOCAL_DEV_OTP=true` and `LOCAL_DEV_OTP_CODE=000000` in local env
   - use fake emails like `flow1@local.test`
   - reserve real Supabase OTP for the final end-to-end pass after the flow is stable
-- Complete the Fero rebrand audit — three known residues remain:
-  - `public/sw.js:1` — `const CACHE_NAME = "firo-v51"`
-  - `api/lift-log.js:9667` — user-facing string `"Anté sync proxy failed"`
-  - `package.json` — `"name": "firo"`
-  - OTP/sign-in email sender/copy: Supabase-hosted template, must be checked in
-    the Supabase dashboard; there is no source for it in this repo
-  - browser tab title and PWA manifest are already correct; do not re-check
+- Complete the Fero rebrand audit — **code side DONE 2026-08-27**, one item left:
+  - OTP/sign-in email sender and copy: Supabase-hosted template with no source
+    in this repo. Must be checked in the Supabase dashboard. **This is the only
+    remaining naming item, and it is the one users actually see.**
+  - Note: the `ante_core` Postgres schema name is internal and deliberately not
+    renamed. It is never user-visible and renaming it would be a data migration.
 - Keep `docs/recurring-debugging-playbook.md` updated for recurring bugs and exact fixes.
 
 ## Blob Retirement And Canonical Readiness
@@ -420,3 +425,4 @@ Do this after the current product/data readiness work is stable:
 - 2026-08-26: Banana Berry passed final manual review. Profile photos, signed-in already-member entry, and accidental signup-to-sign-in recovery are approved. Began deliberate reconciliation of preview onto current main.
 - 2026-08-27: Code audit of live `main` confirmed the Bloc Switcher return interaction and all three first-Bloc setup-review sub-items are implemented and shipped; both were removed from outstanding work and recorded under Verified Complete with their commits and mechanisms. The same audit confirmed the perfect-month system moment is genuinely not implemented: the renderer and system-kind registration exist, but no backend code path ever emits `perfect_bloc_month`.
 - 2026-08-27: Full audit of every remaining "Immediate Work" item against live `main`. Cold-download onboarding (all six sub-items) confirmed shipped. Invite flow confirmed mostly shipped; only native handoff remains. Local dev OTP guard confirmed to fail closed behind four independent conditions. Naming audit confirmed nearly complete with three specific residues plus a Supabase-hosted OTP email template that cannot be audited from the repo. Discovered pre-existing blob-retirement audit tooling, a 13-action mirror-skip allowlist, and two diagnostic endpoints that this plan had never referenced; blob retirement is a staged rollout that is built and switched off, not an unscoped investigation.
+- 2026-08-27: Fixed the three code-side naming residues (service worker cache name bumped to `fero-v52`, sync proxy error string, package name). Full sweep now clean; production build verified. The Supabase-hosted OTP email template remains the only outstanding naming item.
