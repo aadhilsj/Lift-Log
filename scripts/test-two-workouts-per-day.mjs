@@ -7,8 +7,21 @@ import {
   getWorkoutSessionKey
 } from "../api/lift-log.js";
 import {
-  getDistinctWorkoutCountForDate as getFrontendWorkoutCount
+  getDistinctWorkoutCountForDate as getFrontendWorkoutCount,
+  countWorkoutsInDayMap
 } from "../src/lib/appState.js";
+
+// Week's MVP counts workouts, not merely occupied calendar dates. Its display
+// map still accepts the legacy singleton shape alongside two-workout arrays.
+assert.equal(countWorkoutsInDayMap({
+  "2026-08-24": [{ id: "morning" }, { id: "evening" }],
+  "2026-08-25": { id: "legacy-singleton" },
+  "2026-08-26": [],
+  "2026-08-27": null
+}), 3);
+assert.equal(countWorkoutsInDayMap({ "2026-08-24": [{ id: "same-type-one", type: "Gym" }, { id: "same-type-two", type: "Gym" }] }), 2);
+assert.equal(countWorkoutsInDayMap({}), 0);
+assert.equal(countWorkoutsInDayMap(null), 0);
 
 assert.equal(
   isMissingLocalCanonicalWorkoutRpcError(
@@ -19,8 +32,8 @@ assert.equal(
     "upsert_ante_core_workout_log",
     { enableLocalDevOtp:true, supabaseUrl:"http://127.0.0.1:54321" }
   ),
-  true,
-  "local preview tolerates a missing canonical workout write RPC and uses the blob mirror"
+  false,
+  "local preview must not bypass the atomic limit when the canonical write RPC is missing"
 );
 assert.equal(
   isMissingLocalCanonicalWorkoutRpcError(
@@ -108,6 +121,32 @@ function addLog(current, groupId, workoutType = "Gym") {
     note: "Two-workout test",
     photoUrl: "https://example.com/workout.jpg"
   }).updated;
+}
+
+// A same-named person in an unrelated Bloc must not consume this account's
+// slots. The backend reads the global state before canonical hydration, while
+// the frontend helper must apply the same authenticated-identity boundary.
+{
+  const OTHER_USER_ID = "22222222-2222-4222-8222-222222222222";
+  const current = state();
+  current.groups["bloc-a"].logs[USER] = [{ id: "mine-one", date: TODAY, type: "Gym" }];
+  current.groups["bloc-b"].memberships = {
+    [OTHER_USER_ID]: { userId: OTHER_USER_ID, displayName: USER, role: "admin", joinedAt: null }
+  };
+  current.groups["bloc-b"].adminUserId = OTHER_USER_ID;
+  current.groups["bloc-b"].logs[USER] = [
+    { id: "theirs-one", date: TODAY, type: "Gym" },
+    { id: "theirs-two", date: TODAY, type: "Gym" }
+  ];
+  current.profiles[OTHER_USER_ID] = { id: OTHER_USER_ID, email: "other@example.com", displayName: USER };
+  assert.equal(getDistinctWorkoutCountForDate(current, USER, USER_ID, TODAY), 1,
+    "another authenticated account's same-name logs must not consume my slots");
+  assert.equal(getFrontendWorkoutCount(current.groups, USER_ID, USER, TODAY), 1,
+    "the modal must count only this authenticated account's memberships");
+  const updated = addLog(current, "bloc-a", "Run");
+  assert.equal(updated.groups["bloc-a"].logs[USER].length, 2);
+  assert.equal(updated.groups["bloc-b"].logs[USER].length, 2,
+    "logging must leave the other same-named person's workouts unchanged");
 }
 
 // Two genuine workouts on the same date count separately, including the same type.

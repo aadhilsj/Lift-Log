@@ -35,6 +35,7 @@ import {
   buildNormalizedSettings,
   getCountedLogs,
   getCountedLogCount,
+  countWorkoutsInDayMap,
   getMonthKeyFromISO,
   isJoinedForMonth,
   getCurrentGroupMemberNames,
@@ -586,13 +587,12 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
     if (!month?.logsByUser?.[memberName]) return [];
     return (month.logsByUser[memberName] || []).filter(log => log?.date === isoDate);
   };
-  const getMemberLogForIso = (memberName, isoDate) => getMemberLogsForIso(memberName, isoDate)[0] || null;
   const weeklySourceNames = currentGroup ? getCurrentGroupMemberNames(currentGroup) : Object.keys(logs || {});
   const weeklyCounts = weeklySourceNames.map(memberName => ({
     name: memberName,
     count: currentWeekDays.reduce((total, date) => {
       const iso = toISODate(date);
-      return total + (getMemberLogForIso(memberName, iso) ? 1 : 0);
+      return total + getMemberLogsForIso(memberName, iso).length;
     }, 0)
   }));
   const topWeeklyCount = weeklyCounts.reduce((max, member) => Math.max(max, member.count), 0);
@@ -680,7 +680,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
           name: memberName,
           count: bucketDays.reduce((total, date) => {
             const iso = toISODate(date);
-            return total + (getMemberLogForIso(memberName, iso) ? 1 : 0);
+            return total + getMemberLogsForIso(memberName, iso).length;
           }, 0)
         }));
         const topCount = counts.reduce((max, entry) => Math.max(max, entry.count), 0);
@@ -1016,7 +1016,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
                 React.createElement('div',{style:{display:"grid",justifyItems:"center",gap:2,marginBottom:6}},
                   React.createElement('div',{style:{fontSize:15,fontWeight:700,color:"var(--text)",fontFamily:"'Outfit',sans-serif",textAlign:"center"}},entry.name),
                   React.createElement('div',{style:{fontSize:12,fontWeight:500,color:"#4ECDC4",opacity:.85,fontFamily:"'Outfit',sans-serif",textAlign:"center"}},
-                    `${Object.keys(entry.logsByIso || {}).length} workout${Object.keys(entry.logsByIso || {}).length === 1 ? "" : "s"} this week`
+                    `${countWorkoutsInDayMap(entry.logsByIso)} workout${countWorkoutsInDayMap(entry.logsByIso) === 1 ? "" : "s"} this week`
                   )
                 ),
                 renderWeeklyStrip(entry.name, entry.logsByIso)

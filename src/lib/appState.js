@@ -1178,6 +1178,12 @@ function normalizeLogEntry(log) {
   };
 }
 
+function countWorkoutsInDayMap(logsByDay) {
+  return Object.values(logsByDay || {}).reduce((total, logs) => (
+    total + (Array.isArray(logs) ? logs.length : logs ? 1 : 0)
+  ), 0);
+}
+
 function getWorkoutSessionKey(log) {
   const id = String(log?.id || "").trim();
   if (!id) return "";
@@ -1193,6 +1199,7 @@ function getDistinctWorkoutCountForDate(groups, userId, fallbackDisplayName, iso
   if (!safeDate) return 0;
 
   (Array.isArray(groups) ? groups : Object.values(groups || {})).forEach(group => {
+    if (safeUserId && !group?.memberships?.[safeUserId]) return;
     const memberName = safeUserId
       ? String(group?.memberships?.[safeUserId]?.displayName || "").trim()
       : "";
@@ -2086,6 +2093,7 @@ export {
   resolveLogCreatedAt,
   normalizeLogEntry,
   getWorkoutSessionKey,
+  countWorkoutsInDayMap,
   getDistinctWorkoutCountForDate,
   normalizeAcceptedWorkoutTypes,
   normalizeFeeModel,

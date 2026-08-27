@@ -1355,6 +1355,9 @@ function getDistinctWorkoutCountForDate(state, actor, actorUserId, date) {
   if (!safeDate) return 0;
 
   Object.values(state?.groups || {}).forEach(group => {
+    // Another account with the same display name in an unrelated Bloc must
+    // not consume this authenticated member's daily workout allowance.
+    if (safeActorUserId && !group?.memberships?.[safeActorUserId]) return;
     const membershipName = safeActorUserId
       ? String(group?.memberships?.[safeActorUserId]?.displayName || "").trim()
       : "";
@@ -3174,6 +3177,9 @@ async function deleteWorkoutLogFromCanonical(logId, options = {}) {
 }
 
 function isMissingLocalCanonicalWorkoutRpcError(error, rpcName, options = {}) {
+  // Inserts must fail closed everywhere: the database RPC enforces the cap
+  // across concurrent requests. A blob-only fallback bypasses that protection.
+  if (rpcName !== "delete_ante_core_workout_log") return false;
   const localDevOtpEnabled = Object.prototype.hasOwnProperty.call(options, "enableLocalDevOtp")
     ? Boolean(options.enableLocalDevOtp)
     : ENABLE_LOCAL_DEV_OTP;
@@ -4868,6 +4874,13 @@ async function supabaseFetch(path, options = {}) {
     const text = await response.text();
     const error = new Error(text || "Supabase request failed");
     error.status = response.status;
+    try {
+      const body = JSON.parse(text);
+      if (response.status === 409 && body.code === "PT409"
+          && body.message === "Already logged 2 workouts for this date") {
+        error.message = body.message;
+      }
+    } catch { /* Keep the original upstream error for all other failures. */ }
     throw error;
   }
   return response;

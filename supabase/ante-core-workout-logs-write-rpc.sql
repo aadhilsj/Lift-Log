@@ -9,7 +9,7 @@
 -- Identity model:
 -- - profile_id is the real identity when auth_user_id can be resolved
 -- - owner_display_name is retained as a rendering/history snapshot only
--- - missing or unresolvable auth_user_id is tolerated; profile_id becomes null
+-- - missing or unresolvable auth_user_id is tolerated only for existing legacy rows
 --
 -- Access: service_role only. anon, authenticated, and PUBLIC are explicitly denied.
 
@@ -42,6 +42,9 @@
 -- If the bloc or season is missing, the function exits silently (best-effort).
 -- profile_id is resolved from profiles.auth_user_id; null if not found or not supplied.
 -- Conflict resolution is on (id). created_at is preserved on conflict.
+-- New workouts require a resolved profile. The daily cap is serialized per
+-- profile/date across ALL Blocs, including calls from separate app instances.
+-- Apply this RPC replacement to Supabase BEFORE deploying two-workout support.
 
 create or replace function public.upsert_ante_core_workout_log(
   p_id                 text,
@@ -71,6 +74,8 @@ declare
   v_bloc_id    uuid;
   v_season_id  uuid;
   v_profile_id uuid;
+  v_session_key text;
+  v_session_keys text[];
 begin
   -- Validate required inputs.
   if p_id is null or trim(p_id) = '' then
@@ -117,7 +122,7 @@ begin
     return;
   end if;
 
-  -- Resolve profile_id from auth_user_id — best-effort; null is acceptable.
+  -- Resolve profile_id from auth_user_id; new workouts must resolve an identity.
   if p_owner_auth_user_id is not null and trim(p_owner_auth_user_id) <> '' then
     begin
       select id into v_profile_id
@@ -126,6 +131,35 @@ begin
     exception when others then
       v_profile_id := null;
     end;
+  end if;
+
+  if v_profile_id is null then
+    -- Legacy moderation remains possible, but an unidentified new workout must
+    -- not bypass the authenticated member's daily cap.
+    if not exists (select 1 from ante_core.workout_logs where id = trim(p_id)) then
+      raise sqlstate 'PT400' using message = 'A resolved profile is required to log a workout';
+    end if;
+  else
+    -- Transaction-scoped: automatically released on success OR rollback.
+    -- Take the lock in its own statement before reading the count so a waiting
+    -- READ COMMITTED request sees the preceding writer's committed rows.
+    perform pg_advisory_xact_lock(hashtextextended(
+      'workout-day:' || v_profile_id::text || ':' || p_workout_date::text, 0
+    ));
+    -- Same session-key convention as getWorkoutSessionKey in the app: copies
+    -- share a numeric prefix; non-numeric legacy IDs are independent sessions.
+    v_session_key := coalesce(substring(trim(p_id) from '^([0-9]{10,})(?:-|$)'), trim(p_id));
+    select array_agg(distinct coalesce(substring(id from '^([0-9]{10,})(?:-|$)'), id))
+      into v_session_keys
+      from ante_core.workout_logs
+      where profile_id = v_profile_id and workout_date = p_workout_date;
+
+    -- Existing sessions may be retried, moderated or copied even at the cap.
+    -- Existing over-limit historical data is neither deleted nor rewritten.
+    if not (v_session_key = any(coalesce(v_session_keys, array[]::text[])))
+       and coalesce(cardinality(v_session_keys), 0) >= 2 then
+      raise sqlstate 'PT409' using message = 'Already logged 2 workouts for this date';
+    end if;
   end if;
 
   insert into ante_core.workout_logs (
