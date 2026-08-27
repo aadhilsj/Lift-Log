@@ -1,7 +1,7 @@
 {
-  "name": "Firo",
-  "short_name": "Firo",
-  "description": "Track workouts, monthly targets, standings, and history with Firo.",
+  "name": "Fero",
+  "short_name": "Fero",
+  "description": "Track workouts, monthly targets, standings, and history with Fero.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
