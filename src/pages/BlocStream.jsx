@@ -702,6 +702,18 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, 
   const activeBlocIdRef = useRef(blocId);
   const streamPullRef = useRef({sx:0,sy:0,active:false,mode:null});
 
+  const resizeComposer = () => {
+    const input = inputRef.current;
+    if (!input) return;
+    input.style.height = "auto";
+    input.style.height = `${Math.min(input.scrollHeight, 120)}px`;
+    input.style.overflowY = input.scrollHeight > 120 ? "auto" : "hidden";
+  };
+
+  useEffect(() => {
+    resizeComposer();
+  }, [draft]);
+
   const fallbackBlocs = blocId ? [{ id: blocId, name: groupName, members }] : [];
   const availableBlocs = (streamBlocs.length ? streamBlocs : fallbackBlocs).filter(group => group?.id);
   const activeBloc = availableBlocs.find(group => group.id === viewedBlocId) || availableBlocs.find(group => group.id === blocId) || fallbackBlocs[0] || null;
@@ -1310,7 +1322,7 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, 
       React.createElement('div', {
         style: {
           position: "relative", flexShrink: 0, display: "flex", flexDirection: "column",
-          padding: "10px 12px calc(10px + env(safe-area-inset-bottom))", borderTop: "1px solid var(--border)", background: "rgba(5,9,10,0.55)", backdropFilter: "blur(8px)"
+          padding: "10px 12px calc(14px + env(safe-area-inset-bottom))", borderTop: "1px solid var(--border)", background: "rgba(5,9,10,0.55)", backdropFilter: "blur(8px)"
         }
       },
         // Reply banner
@@ -1341,11 +1353,12 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, 
             "aria-label": "Suggest an event",
             style: { flexShrink: 0, width: 36, height: 36, borderRadius: 999, background: C.inputBg, border: `1px solid ${C.inputBorder}`, color: C.accent, lineHeight: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }
           }, React.createElement(AppIcon, { name: "calendar-plus", size: 17, stroke: C.accent })),
-          React.createElement('input', {
+          React.createElement('textarea', {
             ref: inputRef, value: draft, onChange: onDraftChange,
             onKeyDown: e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } },
             placeholder: "Message your Bloc",
-            style: { flex: 1, minWidth: 0, background: C.inputBg, border: `1px solid ${C.inputBorder}`, borderRadius: 20, padding: "10px 14px", color: "var(--text)", fontSize: 14.5, fontFamily: "'Outfit', sans-serif", outline: "none" }
+            rows: 1,
+            style: { flex: 1, minWidth: 0, minHeight: 42, maxHeight: 120, boxSizing: "border-box", display: "block", resize: "none", overflowY: "hidden", background: C.inputBg, border: `1px solid ${C.inputBorder}`, borderRadius: 20, padding: "10px 14px", color: "var(--text)", fontSize: 14.5, lineHeight: 1.25, fontFamily: "'Outfit', sans-serif", outline: "none" }
           }),
           React.createElement('button', {
             onClick: handleSend, disabled: !draft.trim(),
