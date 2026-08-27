@@ -5,15 +5,19 @@ const parts = new Intl.DateTimeFormat("en-CA", {
   timeZone: "Europe/Oslo",
   year: "numeric",
   month: "2-digit",
-  day: "2-digit"
+  day: "2-digit",
+  hour: "2-digit",
+  hour12: false
 }).formatToParts(new Date()).reduce((acc, part) => {
   acc[part.type] = part.value;
   return acc;
 }, {});
 
-const currentYear = Number(parts.year);
-const currentMonth = Number(parts.month) - 1;
-const currentDay = Number(parts.day);
+const leagueDate = new Date(Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day)));
+if (Number(parts.hour) < 3) leagueDate.setUTCDate(leagueDate.getUTCDate() - 1);
+const currentYear = leagueDate.getUTCFullYear();
+const currentMonth = leagueDate.getUTCMonth();
+const currentDay = leagueDate.getUTCDate();
 const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
 const daysLeft = Math.max(1, daysInMonth - currentDay + 1);
 const currentMonthKey = `${currentYear}-${currentMonth}`;

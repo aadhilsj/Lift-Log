@@ -3138,6 +3138,7 @@ async function upsertWorkoutLogToCanonical(group, monthKey, ownerDisplayName, ow
       })
     });
   } catch (err) {
+    if (isMissingLocalCanonicalWorkoutRpcError(err, "upsert_ante_core_workout_log")) return;
     if (throwOnError) throw err;
     console.error("Canonical workout log sync failed:", err?.message || err);
   }
@@ -3166,9 +3167,29 @@ async function deleteWorkoutLogFromCanonical(logId, options = {}) {
       body: JSON.stringify({ p_id: String(logId) })
     });
   } catch (err) {
+    if (isMissingLocalCanonicalWorkoutRpcError(err, "delete_ante_core_workout_log")) return;
     if (throwOnError) throw err;
     console.error("Canonical workout log delete failed:", err?.message || err);
   }
+}
+
+function isMissingLocalCanonicalWorkoutRpcError(error, rpcName, options = {}) {
+  const localDevOtpEnabled = Object.prototype.hasOwnProperty.call(options, "enableLocalDevOtp")
+    ? Boolean(options.enableLocalDevOtp)
+    : ENABLE_LOCAL_DEV_OTP;
+  const supabaseUrl = String(options.supabaseUrl ?? SUPABASE_URL).trim();
+  if (!localDevOtpEnabled || !supabaseUrl) return false;
+  let hostname = "";
+  try {
+    hostname = new URL(supabaseUrl).hostname;
+  } catch {
+    return false;
+  }
+  if (!["127.0.0.1", "localhost", "::1"].includes(hostname)) return false;
+  const message = String(error?.message || error || "");
+  return Number(error?.status) === 404
+    && message.includes("PGRST202")
+    && message.includes(String(rpcName || ""));
 }
 
 function findAuthUserIdForDisplayName(group, displayName) {
@@ -8253,6 +8274,7 @@ export {
   isGroupAdminActor,
   getWorkoutSessionKey,
   getDistinctWorkoutCountForDate,
+  isMissingLocalCanonicalWorkoutRpcError,
   applyAddLog,
   applyMultiLog,
   applyJoinGroup,

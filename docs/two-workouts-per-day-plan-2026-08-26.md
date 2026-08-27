@@ -58,3 +58,10 @@ Workout photos are uploaded through the authenticated app API. This keeps the
 real Supabase Auth flow and the local `@local.test` OTP flow on the same path,
 and allows the local `workout-photos` bucket to be created automatically when
 it is missing.
+
+The local preview also tolerates a missing canonical workout write/delete RPC
+and falls back to the existing blob mirror. That exception is restricted to a
+localhost Supabase runtime with local dev OTP enabled; production continues to
+fail closed when canonical workout persistence is unavailable. The active
+local Supabase fixture has the canonical workout RPCs and current-log comment
+dependencies applied so it exercises the same canonical path as production.

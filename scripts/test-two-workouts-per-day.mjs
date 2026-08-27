@@ -3,11 +3,34 @@ import {
   applyAddLog,
   applyMultiLog,
   getDistinctWorkoutCountForDate,
+  isMissingLocalCanonicalWorkoutRpcError,
   getWorkoutSessionKey
 } from "../api/lift-log.js";
 import {
   getDistinctWorkoutCountForDate as getFrontendWorkoutCount
 } from "../src/lib/appState.js";
+
+assert.equal(
+  isMissingLocalCanonicalWorkoutRpcError(
+    {
+      status: 404,
+      message: '{"code":"PGRST202","message":"Could not find the function public.upsert_ante_core_workout_log"}'
+    },
+    "upsert_ante_core_workout_log",
+    { enableLocalDevOtp:true, supabaseUrl:"http://127.0.0.1:54321" }
+  ),
+  true,
+  "local preview tolerates a missing canonical workout write RPC and uses the blob mirror"
+);
+assert.equal(
+  isMissingLocalCanonicalWorkoutRpcError(
+    { status:404, message:'{"code":"PGRST202","message":"Could not find the function public.upsert_ante_core_workout_log"}' },
+    "upsert_ante_core_workout_log",
+    { enableLocalDevOtp:true, supabaseUrl:"https://example.supabase.co" }
+  ),
+  false,
+  "production Supabase must never suppress a missing canonical workout RPC"
+);
 
 const USER_ID = "11111111-1111-4111-8111-111111111111";
 const USER = "Aadhil";

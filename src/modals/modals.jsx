@@ -26,7 +26,8 @@ import {
   buildNormalizedSettings,
   getMonthKeyFromISO,
   getCurrentGroupMemberNames,
-  getDistinctWorkoutCountForDate
+  getDistinctWorkoutCountForDate,
+  resolveStorageImageUrl
 } from "../lib/appState.js";
 import {
   getAcceptedWorkoutTypes,
@@ -708,7 +709,7 @@ const LogModal = ({user,currentUserId,currentGroupId,groups,onConfirm,onClose}) 
       photoUrl && React.createElement('div',{style:{display:"grid",gap:5,marginBottom:7}},
         React.createElement('label',{style:{display:"block",cursor:"pointer"}},
           React.createElement('div',{style:{minHeight:compactMobile?72:114,borderRadius:14,border:"1px dashed rgba(31,206,101,.35)",background:"rgba(31,206,101,.04)",display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden"}},
-            React.createElement('img',{src:photoUrl,alt:"Workout preview",style:{display:"block",width:"100%",maxHeight:compactMobile?104:176,objectFit:"cover"}})
+            React.createElement('img',{src:resolveStorageImageUrl(photoUrl),alt:"Workout preview",style:{display:"block",width:"100%",maxHeight:compactMobile?104:176,objectFit:"cover"}})
           )
         ),
         React.createElement('div',{style:{display:"flex",justifyContent:"center",gap:5}},
