@@ -183,3 +183,7 @@ permissions were not changed as part of this fix. Production catalog checks on
 2026-08-27 confirmed RLS is enabled on `lift_log_state` and `lift_log_backups`;
 `season_close_log` is not present there. The local finding does not describe the
 live database.
+
+## Final release update — 2026-08-27
+
+The two-workout-per-day release is complete: production SQL was applied and verified, PR #1 was merged, Vercel production smoke checks passed, and local `main` is synchronized with `origin/main` at `7a29c93b07a257208cdb1885314e41baa5596ada`. See `docs/handover-2026-08-27-post-merge.md` for continuation context.
