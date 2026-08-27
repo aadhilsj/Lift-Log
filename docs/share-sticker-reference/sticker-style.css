@@ -1,0 +1,125 @@
+/* Fero share sticker — shared visual definition (mockup + PNG export).
+   Always chromeless: no card, no plate, no vignette. */
+/* Fero share sticker — shared visual definition (mockup + PNG export).
+   Always chromeless: no card, no plate, no vignette, no shadows.
+   Three styles on one axis of presence: solid → grid → bare. */
+:root{ --cyan:#4ECDC4; --red:#E04A4A; }
+
+.sticker{
+  --copy:#FFFFFF;
+  --accent:#FFFFFF;              /* the O */
+  /* Boxes are meant to be sensed, not seen. Faint enough that a dense month reads like
+     bare, while a sparse month still has a spine — and on a busy photo they wash out
+     entirely, which is the behaviour we want anyway. */
+  --rest-edge:rgba(255,255,255,.28);
+  --rest-fill:transparent;
+  --rest-ring:rgba(0,0,0,.05);
+}
+/* Solid needs a firmer edge — it is the style for noisy photos. */
+.sticker.s-solid{ --rest-edge:rgba(255,255,255,.5); --rest-ring:rgba(0,0,0,.1); }
+
+.sticker{width:320px;position:relative;padding:2px;text-align:center;
+  font-family:'Outfit',-apple-system,BlinkMacSystemFont,'Helvetica Neue',sans-serif;
+  color:var(--copy);
+  /* Hairline outline on the glyphs themselves — not a shadow, nothing behind the text.
+     paint-order puts the stroke under the fill so letterforms keep their full weight
+     instead of being eaten into. Authored at 0.4px, ~1.3px once scaled for export. */
+  /* Base hairline. NOTE this is an absolute width, so it does not scale with type size —
+     the 44px count was getting the same 0.28px outline as 17px copy, which is why it
+     looked bare by comparison. Larger and smaller type both get explicit overrides below. */
+  -webkit-text-stroke:0.28px rgba(2,26,24,.42);
+  paint-order:stroke fill;
+}
+
+/* No shadows and no backing plates of any kind — every element sits flat on the
+   photo, fully transparent behind. */
+
+/* ── Layout A: one header line, calendar, brand ── */
+/* Month and count share a single centred line: "July 2026 : 22 SESSIONS". The count is
+   the loudest thing on it but not so large that the month beside it reads as a caption
+   that wandered into a headline — 44px is the size where the line still holds together
+   as one object, and it leaves width for a longer month like September. */
+.s-head{display:flex;align-items:center;justify-content:center;gap:10px;
+  margin-bottom:17px}
+.s-month{font-size:17px;font-weight:800;line-height:1;white-space:nowrap}
+.s-month .yr{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:10px;
+  font-weight:500;opacity:.72;letter-spacing:.16em;margin-left:4px}
+/* A second, much smaller hit of cyan — beside the count, nowhere near the logo. */
+.s-head .sep{font-size:17px;font-weight:600;line-height:1;color:var(--cyan);opacity:.85}
+/* SESSIONS centres against the number's mid-height rather than sitting on its baseline —
+   on a single line, baseline-sitting makes the word look like it has fallen to the floor. */
+.s-count{display:flex;align-items:center;gap:8px}
+.s-count .n{font-size:44px;font-weight:900;line-height:.9;letter-spacing:-.035em;
+  color:var(--cyan);
+  /* Proportional to 44px what 0.28px is to 17px — the count now carries the same
+     visual weight of outline as everything else instead of a third of it. */
+  -webkit-text-stroke:0.75px rgba(2,26,24,.5)}
+.s-count .u{font-size:12px;font-weight:700;opacity:.88;letter-spacing:.15em;
+  text-transform:uppercase;line-height:1;
+  /* Small letterspaced caps need proportionally MORE outline, not less, to hold. */
+  -webkit-text-stroke:0.4px rgba(2,26,24,.5)}
+
+.mark{font-size:20px;font-weight:900;letter-spacing:.09em;line-height:1;margin-top:12px}
+.mark .o{color:var(--accent)}
+
+/* ── calendar ── */
+.wd{display:grid;grid-template-columns:repeat(7,1fr);gap:7px;margin-bottom:7px}
+.wd span{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:8.5px;font-weight:500;
+  opacity:.85;text-align:center;letter-spacing:.04em;
+  justify-self:center;
+  /* The weekday row defines the columns — in Bare it is the only thing doing that job,
+     so it cannot be the first element to disappear on a bright photo. */
+  -webkit-text-stroke:0.34px rgba(2,26,24,.5)}
+.grid{display:grid;grid-template-columns:repeat(7,1fr);gap:7px}
+.cell{aspect-ratio:1/1;border-radius:10px;position:relative}
+.cell.pad{visibility:hidden}
+/* One colour for every logged day — the icon inside carries the workout type. */
+.cell.on{display:flex;align-items:center;justify-content:center}
+.cell.on svg{display:block}
+/* Multi-activity badge. Cyan because cyan already means quantity here — it is on the
+   count and on the colon, so this is the same language rather than a new one. */
+.cell.on .ic{position:relative;display:block;line-height:0}
+.cell.on .mult{position:absolute;top:-7px;right:-9px;font-style:normal;
+  font-size:10px;font-weight:800;line-height:1;color:var(--cyan);
+  -webkit-text-stroke:0.4px rgba(2,26,24,.55)}
+/* Bare has no cell border, so the badge can sit out at the glyph's shoulder. Grid and
+   Solid do — and at the Bare offset the badge lands exactly on that border line. Pull it
+   in over the icon's corner and drop a size so it reads as part of the mark, not the box. */
+.sticker.s-grid .cell.on .mult,
+.sticker.s-solid .cell.on .mult{top:-4px;right:-4px;font-size:8.5px}
+/* Solid is the only style where the badge sits on a KNOWN background — the white tile —
+   so it can use the same navy ink as the icon and get ~12:1 contrast instead of cyan's
+   2:1. Cyan is the right tool for Grid and Bare, where the backdrop is an unknown photo.
+   Nudged out one more pixel so two navy shapes never overlap and merge, and the hairline
+   is dropped: it exists to define light glyphs on unknown backdrops and here it only
+   thickens an 8.5px numeral that already has all the contrast it needs. */
+.sticker.s-solid .cell.on .mult{color:#1A2E4A;top:-5px;right:-5px;-webkit-text-stroke-width:0}
+/* A rest day keeps its outline and stays empty — it must read as a HOLE, not a filled
+   block. A light wash plus a two-tone edge (dark ring outside, light stroke inside)
+   defines it on any backdrop. */
+/* Barely any tint inside — the outline does the work of saying "day, unused". */
+.cell.off{border:1.5px solid var(--rest-edge);background:var(--rest-fill);
+  outline:1px solid var(--rest-ring);outline-offset:-1px}
+/* White theme has no day fill — every box is identical and the silver icon is the only
+   thing marking a logged day, so a logged cell wears the rest-day box exactly. */
+.sticker.s-grid .cell.on{border:1.5px solid var(--rest-edge);background:var(--rest-fill);
+  outline:1px solid var(--rest-ring);outline-offset:-1px}
+/* Bare: no scaffolding at all. Only the icons remain, held in place by the column grid
+   and the weekday header — the Strava principle of marks that are purely signal. */
+.sticker.s-bare .cell.on,
+.sticker.s-bare .cell.off{border:none;background:none;outline:none;box-shadow:none}
+
+/* ── bloc roster ── */
+.roster{display:flex;flex-direction:column;gap:11px;margin-top:2px;text-align:left}
+.rrow{display:flex;align-items:center;gap:10px}
+.mini{display:grid;grid-template-columns:repeat(11,1fr);gap:2.5px;flex:1;min-width:0}
+.mini i{aspect-ratio:1/1;border-radius:2.5px;display:block;box-shadow:0 1px 2px rgba(0,0,0,.3)}
+/* Roster rest days: outline only. The box itself stays essentially transparent so a
+   sparse row reads as empty space rather than as a block of dark squares. */
+.mini i.off{background:rgba(0,0,0,.035);box-shadow:none;
+  border:1px solid rgba(255,255,255,.4);outline:1px solid rgba(0,0,0,.16);outline-offset:-1px}
+.rname{font-size:12px;font-weight:800;width:56px;flex-shrink:0;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rcount{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:12.5px;font-weight:700;
+  width:26px;text-align:right;flex-shrink:0}
+.medal{width:14px;flex-shrink:0;font-size:11px;text-align:center}
