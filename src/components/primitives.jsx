@@ -9,6 +9,7 @@ import {
 import {
   isMobile
 } from "../lib/utils.js";
+import { getWorkoutIcon } from "../lib/workoutIcons.js";
 import { PlayerProfile } from "../pages/PlayerProfile.jsx";
 import { TodayPage } from "../pages/TodayPage.jsx";
 import { App } from "../App.jsx";
@@ -42,70 +43,23 @@ const Avatar = ({name,size=32,muted=false,userId="",photoUrl=""}) => {
 
 
 const CategoryIcon = ({category,size=22,color="#4ECDC4"}) => {
-  const props = { width:size, height:size, fill:color, viewBox:"0 0 256 256", xmlns:"http://www.w3.org/2000/svg" };
-  switch (category?.toLowerCase()) {
-    case "gym":
-      return React.createElement('svg',{
-        width:size,
-        height:size,
-        viewBox:"0 0 24 24",
-        fill:"none",
-        stroke:color,
-        strokeWidth:"2.1",
-        strokeLinecap:"round",
-        strokeLinejoin:"round",
-        xmlns:"http://www.w3.org/2000/svg"
-      },
-        React.createElement('path',{d:"M2.5 9.5v5"}),
-        React.createElement('path',{d:"M5.5 8.2v7.6"}),
-        React.createElement('path',{d:"M8.2 10.1v3.8"}),
-        React.createElement('path',{d:"M15.8 10.1v3.8"}),
-        React.createElement('path',{d:"M18.5 8.2v7.6"}),
-        React.createElement('path',{d:"M21.5 9.5v5"}),
-        React.createElement('path',{d:"M8.2 12h7.6"})
-      );
-    case "run":
-      return React.createElement('svg',{
-        width:size,height:size,viewBox:"-1 0 24 24",
-        fill:color,xmlns:"http://www.w3.org/2000/svg"
-      },
-        React.createElement('path',{d:"M13.5,5.5C14.59,5.5 15.5,4.58 15.5,3.5C15.5,2.38 14.59,1.5 13.5,1.5C12.39,1.5 11.5,2.38 11.5,3.5C11.5,4.58 12.39,5.5 13.5,5.5M9.89,19.38L10.89,15L13,17V23H15V15.5L12.89,13.5L13.5,10.5C14.79,12 16.79,13 19,13V11C17.09,11 15.5,10 14.69,8.58L13.69,7C13.29,6.38 12.69,6 12,6C11.69,6 11.5,6.08 11.19,6.08L6,8.28V13H8V9.58L9.79,8.88L8.19,17L3.29,16L2.89,18L9.89,19.38Z"})
-      );
-    case "pilates":
-      return React.createElement('svg',{
-        width:size,height:size,viewBox:"0 0 399.421 399.421",
-        fill:color,xmlns:"http://www.w3.org/2000/svg"
-      },
-        React.createElement('path',{d:"M390.421,90.522h-25.905c-0.123-0.003-0.249-0.003-0.372,0h-25.901c-4.971,0-9,4.029-9,9s4.029,9,9,9h17.087v19.085l-170.319,64.885H95.949l-22.765-31.203h14.013c4.971,0,9-4.029,9-9s-4.029-9-9-9H55.684c-0.144-0.004-0.287-0.004-0.431,0H35.021c-4.971,0-9,4.029-9,9s4.029,9,9,9h15.882l22.765,31.203H9c-4.971,0-9,4.029-9,9v98.409c0,4.971,4.029,9,9,9h42.09c4.971,0,9-4.029,9-9v-47.32h253.151v47.32c0,4.971,4.029,9,9,9h42.09c4.971,0,9-4.029,9-9v-98.409c0-0.063,0-0.127-0.002-0.191v-67.284c0.003-0.139,0.003-0.278,0-0.418v-25.076h17.091c4.971,0,9-4.029,9-9S395.392,90.522,390.421,90.522z M355.33,146.869v45.623H235.572L355.33,146.869z M42.09,290.901H18v-38.32h24.09V290.901z M355.332,290.901h-24.09v-38.32h24.09V290.901z M355.332,234.581h-33.09H18v-24.089h73.28c0.068,0.001,0.135,0.001,0.203,0h94.981c0.137,0.003,0.273,0.003,0.41,0h168.458V234.581z"})
-      );
-    case "sports":
-      return React.createElement('svg',{
-        width:size,height:size,viewBox:"0 0 24 24",fill:"none",
-        stroke:color,strokeWidth:"1.5",strokeLinecap:"round",strokeLinejoin:"round",
-        xmlns:"http://www.w3.org/2000/svg"
-      },
-        React.createElement('path',{d:"M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0"}),
-        React.createElement('path',{d:"M12 7l4.76 3.45l-1.76 5.55h-6l-1.76 -5.55l4.76 -3.45"}),
-        React.createElement('path',{d:"M12 7v-4m3 13l2.5 3m-.74 -8.55l3.74 -1.45m-11.44 7.05l-2.56 2.95m.74 -8.55l-3.74 -1.45"})
-      );
-    case "other":
-      return React.createElement('svg',{
-        width:size,height:size,viewBox:"0 0 256 256",
-        fill:color,xmlns:"http://www.w3.org/2000/svg"
-      },
-        React.createElement('circle',{cx:"60",cy:"60",r:"22"}),
-        React.createElement('circle',{cx:"128",cy:"60",r:"22"}),
-        React.createElement('circle',{cx:"196",cy:"60",r:"22"}),
-        React.createElement('circle',{cx:"60",cy:"128",r:"22"}),
-        React.createElement('circle',{cx:"128",cy:"128",r:"22"}),
-        React.createElement('circle',{cx:"196",cy:"128",r:"22"}),
-        React.createElement('circle',{cx:"60",cy:"196",r:"22"}),
-        React.createElement('circle',{cx:"128",cy:"196",r:"22"}),
-        React.createElement('circle',{cx:"196",cy:"196",r:"22"})
-      );
-    default:
-      return null;
-  }
+  // Artwork comes from the shared table in lib/workoutIcons.js, which the share sticker
+  // renders from too. Adding a workout type means adding one entry there — this component
+  // needs no change. (These used to be two hand-maintained copies, and they had drifted.)
+  const spec = getWorkoutIcon(category);
+  if (!spec) return null;
+  const [minX,minY,vbW,vbH] = spec.vb;
+  const shape = (sh,i) => sh.circle
+    ? React.createElement('circle',{key:i,cx:sh.circle[0],cy:sh.circle[1],r:sh.circle[2]})
+    : React.createElement('path',{key:i,d:sh.d});
+  const props = spec.kind === "stroke"
+    ? { fill:"none", stroke:color, strokeWidth:String(spec.w), strokeLinecap:"round", strokeLinejoin:"round" }
+    : { fill:color };
+  return React.createElement('svg',Object.assign({
+    width:size, height:size,
+    viewBox:`${minX} ${minY} ${vbW} ${vbH}`,
+    xmlns:"http://www.w3.org/2000/svg"
+  },props), spec.shapes.map(shape));
 };
 
 
