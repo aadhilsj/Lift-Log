@@ -440,7 +440,7 @@ function LogCommentThread({ groupId, log, currentUserId, currentUserName, onClos
               })
             )
       ),
-      React.createElement('form', { onSubmit: event => { event.preventDefault(); submit(); }, style: { flexShrink: 0, display: "flex", alignItems: "flex-end", gap: 8, padding: "10px 12px calc(28px + env(safe-area-inset-bottom))", borderTop: "1px solid rgba(78,205,196,.18)", borderLeft: "1px solid rgba(78,205,196,.22)", borderRight: "1px solid rgba(78,205,196,.22)", borderBottom: "1px solid rgba(78,205,196,.18)", background: "rgba(5,9,10,.96)", backdropFilter: "blur(8px)", boxSizing: "border-box" } },
+      React.createElement('form', { onSubmit: event => { event.preventDefault(); submit(); }, style: { flexShrink: 0, display: "flex", alignItems: "flex-end", gap: 8, padding: "10px 12px calc(28px + env(safe-area-inset-bottom))", borderTop: "1px solid rgba(78,205,196,.18)", background: "rgba(5,9,10,.96)", backdropFilter: "blur(8px)", boxSizing: "border-box" } },
         React.createElement('textarea', {
           ref: inputRef,
           value: draft,
