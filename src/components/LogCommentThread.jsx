@@ -440,7 +440,7 @@ function LogCommentThread({ groupId, log, currentUserId, currentUserName, onClos
               })
             )
       ),
-      React.createElement('form', { onSubmit: event => { event.preventDefault(); submit(); }, style: { flexShrink: 0, display: "flex", alignItems: "flex-end", gap: 8, padding: "10px 12px calc(28px + env(safe-area-inset-bottom))", borderTop: "1px solid rgba(22,61,54,.72)", background: "rgba(5,9,10,.96)", backdropFilter: "blur(8px)", boxSizing: "border-box" } },
+      React.createElement('form', { onSubmit: event => { event.preventDefault(); submit(); }, style: { flexShrink: 0, display: "flex", alignItems: "flex-end", gap: 8, padding: "10px 12px calc(28px + env(safe-area-inset-bottom))", borderTop: "1px solid rgba(22,61,54,.72)", borderLeft: "1px solid rgba(22,61,54,.72)", borderRight: "1px solid rgba(22,61,54,.72)", background: "rgba(5,9,10,.96)", backdropFilter: "blur(8px)", boxSizing: "border-box" } },
         React.createElement('textarea', {
           ref: inputRef,
           value: draft,
@@ -450,6 +450,10 @@ function LogCommentThread({ groupId, log, currentUserId, currentUserName, onClos
           },
           onKeyDown: event => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); submit(); } },
           placeholder: "Add a comment",
+          enterKeyHint: "send",
+          autoComplete: "off",
+          autoCorrect: "off",
+          spellCheck: false,
           rows: 1,
           style: inputStyle
         }),
