@@ -12,6 +12,7 @@
     "test:identity": "node scripts/test-display-name-identity.mjs",
     "test:profile-photo-storage": "node scripts/test-profile-photo-storage.mjs",
     "test:auth-edge-flows": "node scripts/test-auth-edge-flows.mjs",
+    "test:two-workouts": "node scripts/test-two-workouts-per-day.mjs",
     "test:mobile-navigation": "node scripts/test-mobile-navigation.mjs",
     "dev:api": "node scripts/local-dev-server.mjs"
   },

@@ -3,6 +3,7 @@ const LEGACY_GROUP_ID = "legacy-group";
 const DEFAULT_GROUP_NAME = "Fero OG";
 const DEFAULT_NAMES = ["Aadhil","Isira","Rahul","Kisal","Rishane","Deyhan","Aysha","Nishara","Abhishek"];
 const WORKOUT_TYPES = ["Gym","Run","Sports","Pilates","Other"];
+const MAX_WORKOUTS_PER_DAY = 2;
 const DEFAULT_MIN_TARGET = 12;
 const DEFAULT_GROUP_TIME_ZONE = "Europe/Oslo";
 const LEAGUE_CUTOFF_HOUR = 3;
@@ -1177,6 +1178,43 @@ function normalizeLogEntry(log) {
   };
 }
 
+function countWorkoutsInDayMap(logsByDay) {
+  return Object.values(logsByDay || {}).reduce((total, logs) => (
+    total + (Array.isArray(logs) ? logs.length : logs ? 1 : 0)
+  ), 0);
+}
+
+function getWorkoutSessionKey(log) {
+  const id = String(log?.id || "").trim();
+  if (!id) return "";
+  const multiLogMatch = id.match(/^(\d{10,})(?:-|$)/);
+  return multiLogMatch ? multiLogMatch[1] : id;
+}
+
+function getDistinctWorkoutCountForDate(groups, userId, fallbackDisplayName, isoDate) {
+  const sessionKeys = new Set();
+  const safeUserId = String(userId || "").trim();
+  const safeFallbackName = String(fallbackDisplayName || "").trim();
+  const safeDate = String(isoDate || "").trim();
+  if (!safeDate) return 0;
+
+  (Array.isArray(groups) ? groups : Object.values(groups || {})).forEach(group => {
+    if (safeUserId && !group?.memberships?.[safeUserId]) return;
+    const memberName = safeUserId
+      ? String(group?.memberships?.[safeUserId]?.displayName || "").trim()
+      : "";
+    const ownerName = memberName || safeFallbackName;
+    if (!ownerName) return;
+    (group?.logs?.[ownerName] || []).forEach(log => {
+      if (log?.date !== safeDate) return;
+      const key = getWorkoutSessionKey(log);
+      if (key) sessionKeys.add(key);
+    });
+  });
+
+  return sessionKeys.size;
+}
+
 function normalizeDeletedCurrentLogIds(value) {
   return uniqueNames(Array.isArray(value) ? value.map(id => String(id || "")) : []).slice(-200);
 }
@@ -1921,6 +1959,7 @@ export {
   DEFAULT_GROUP_NAME,
   DEFAULT_NAMES,
   WORKOUT_TYPES,
+  MAX_WORKOUTS_PER_DAY,
   DEFAULT_MIN_TARGET,
   DEFAULT_GROUP_TIME_ZONE,
   LEAGUE_CUTOFF_HOUR,
@@ -2053,6 +2092,9 @@ export {
   getActivityAlertCount,
   resolveLogCreatedAt,
   normalizeLogEntry,
+  getWorkoutSessionKey,
+  countWorkoutsInDayMap,
+  getDistinctWorkoutCountForDate,
   normalizeAcceptedWorkoutTypes,
   normalizeFeeModel,
   clampFineAmount,

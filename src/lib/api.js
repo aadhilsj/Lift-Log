@@ -607,6 +607,19 @@ async function uploadProfilePhotoData(dataUrl) {
   return { ok:false, error:"Unable to save photo" };
 }
 
+async function uploadWorkoutPhotoData(dataUrl) {
+  try {
+    const result = await postApi("upload-workout-photo", { dataUrl });
+    if (!result.ok) return { ok:false, error: result.error || "Unable to upload workout photo" };
+    const workoutPhotoUrl = String(result.body?.workoutPhotoUrl || "").trim();
+    if (!workoutPhotoUrl) return { ok:false, error:"Workout photo upload did not return a saved URL" };
+    return { ok:true, workoutPhotoUrl };
+  } catch (error) {
+    console.error("Workout photo upload error:", error);
+  }
+  return { ok:false, error:"Unable to upload workout photo" };
+}
+
 async function joinGroupData(payload, sessionOverride = null) {
   const result = await postApi("join-group", payload, { sessionOverride });
   if (!result.ok) return { ok:false, status: result.status || 0, error: result.error || "Unable to join Bloc" };
@@ -815,6 +828,7 @@ export {
   upsertProfileData,
   updateProfilePhotoData,
   uploadProfilePhotoData,
+  uploadWorkoutPhotoData,
   joinGroupData,
   fetchInviteContextData,
   checkInviteEmailMembershipData,

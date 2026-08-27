@@ -1,5 +1,6 @@
 const DEFAULT_MIN_TARGET = 12;
 const WORKOUT_TYPES = ["Gym", "Run", "Sports", "Pilates", "Other"];
+const MAX_WORKOUTS_PER_DAY = 2;
 const WORKOUT_TYPE_ALIASES = { Sport: "Sports", Hike: "Other", Hiking: "Other" };
 const DEFAULT_GROUP_TIME_ZONE = "Europe/Oslo";
 const LEAGUE_CUTOFF_HOUR = 3;
@@ -1337,6 +1338,50 @@ function normalizeLogEntry(log) {
     decisionBy: typeof log?.decisionBy === "string" ? log.decisionBy : null,
     decisionAt: typeof log?.decisionAt === "string" ? log.decisionAt : null
   };
+}
+
+function getWorkoutSessionKey(log) {
+  const id = String(log?.id || "").trim();
+  if (!id) return "";
+  const multiLogMatch = id.match(/^(\d{10,})(?:-|$)/);
+  return multiLogMatch ? multiLogMatch[1] : id;
+}
+
+function getDistinctWorkoutCountForDate(state, actor, actorUserId, date) {
+  const sessionKeys = new Set();
+  const safeActor = String(actor || "").trim();
+  const safeActorUserId = String(actorUserId || "").trim();
+  const safeDate = String(date || "").trim();
+  if (!safeDate) return 0;
+
+  Object.values(state?.groups || {}).forEach(group => {
+    // Another account with the same display name in an unrelated Bloc must
+    // not consume this authenticated member's daily workout allowance.
+    if (safeActorUserId && !group?.memberships?.[safeActorUserId]) return;
+    const membershipName = safeActorUserId
+      ? String(group?.memberships?.[safeActorUserId]?.displayName || "").trim()
+      : "";
+    const ownerName = membershipName || safeActor;
+    if (!ownerName) return;
+    (group?.logs?.[ownerName] || []).forEach(log => {
+      if (log?.date !== safeDate) return;
+      const key = getWorkoutSessionKey(log);
+      if (key) sessionKeys.add(key);
+    });
+  });
+
+  return sessionKeys.size;
+}
+
+function assertWorkoutSlotAvailable(state, actor, actorUserId, date) {
+  if (getDistinctWorkoutCountForDate(state, actor, actorUserId, date) < MAX_WORKOUTS_PER_DAY) return;
+  const error = new Error("Already logged 2 workouts for this date");
+  error.status = 409;
+  throw error;
+}
+
+function createWorkoutSessionId() {
+  return `${Date.now()}${Math.floor(Math.random() * 1000).toString().padStart(3, "0")}`;
 }
 
 function normalizeDeletedCurrentLogIds(value) {
@@ -3096,6 +3141,7 @@ async function upsertWorkoutLogToCanonical(group, monthKey, ownerDisplayName, ow
       })
     });
   } catch (err) {
+    if (isMissingLocalCanonicalWorkoutRpcError(err, "upsert_ante_core_workout_log")) return;
     if (throwOnError) throw err;
     console.error("Canonical workout log sync failed:", err?.message || err);
   }
@@ -3124,9 +3170,32 @@ async function deleteWorkoutLogFromCanonical(logId, options = {}) {
       body: JSON.stringify({ p_id: String(logId) })
     });
   } catch (err) {
+    if (isMissingLocalCanonicalWorkoutRpcError(err, "delete_ante_core_workout_log")) return;
     if (throwOnError) throw err;
     console.error("Canonical workout log delete failed:", err?.message || err);
   }
+}
+
+function isMissingLocalCanonicalWorkoutRpcError(error, rpcName, options = {}) {
+  // Inserts must fail closed everywhere: the database RPC enforces the cap
+  // across concurrent requests. A blob-only fallback bypasses that protection.
+  if (rpcName !== "delete_ante_core_workout_log") return false;
+  const localDevOtpEnabled = Object.prototype.hasOwnProperty.call(options, "enableLocalDevOtp")
+    ? Boolean(options.enableLocalDevOtp)
+    : ENABLE_LOCAL_DEV_OTP;
+  const supabaseUrl = String(options.supabaseUrl ?? SUPABASE_URL).trim();
+  if (!localDevOtpEnabled || !supabaseUrl) return false;
+  let hostname = "";
+  try {
+    hostname = new URL(supabaseUrl).hostname;
+  } catch {
+    return false;
+  }
+  if (!["127.0.0.1", "localhost", "::1"].includes(hostname)) return false;
+  const message = String(error?.message || error || "");
+  return Number(error?.status) === 404
+    && message.includes("PGRST202")
+    && message.includes(String(rpcName || ""));
 }
 
 function findAuthUserIdForDisplayName(group, displayName) {
@@ -4805,6 +4874,13 @@ async function supabaseFetch(path, options = {}) {
     const text = await response.text();
     const error = new Error(text || "Supabase request failed");
     error.status = response.status;
+    try {
+      const body = JSON.parse(text);
+      if (response.status === 409 && body.code === "PT409"
+          && body.message === "Already logged 2 workouts for this date") {
+        error.message = body.message;
+      }
+    } catch { /* Keep the original upstream error for all other failures. */ }
     throw error;
   }
   return response;
@@ -4914,6 +4990,38 @@ async function ensureProfilePhotosBucket() {
   }
 }
 
+async function ensureWorkoutPhotosBucket() {
+  assertSupabaseConfigured();
+  const existing = await supabaseStorageFetch("/storage/v1/bucket/workout-photos", {
+    method: "GET",
+    headers: { Accept: "application/json" }
+  });
+  if (existing.ok) return;
+  const text = await existing.text();
+  if (!isMissingStorageBucketResponse(existing.status, text)) {
+    const error = new Error(text || "Unable to inspect workout photo bucket");
+    error.status = existing.status;
+    throw error;
+  }
+  const created = await supabaseStorageFetch("/storage/v1/bucket", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({
+      id: "workout-photos",
+      name: "workout-photos",
+      public: true,
+      file_size_limit: 5242880,
+      allowed_mime_types: ["image/jpeg", "image/png", "image/webp"]
+    })
+  });
+  if (!created.ok && created.status !== 409) {
+    const createdText = await created.text();
+    const error = new Error(createdText || "Unable to create workout photo bucket");
+    error.status = created.status;
+    throw error;
+  }
+}
+
 function parseImageDataUrl(dataUrl, maxBytes = 3 * 1024 * 1024) {
   const match = /^data:(image\/(?:jpeg|png|webp));base64,([a-z0-9+/=\s]+)$/i.exec(String(dataUrl || "").trim());
   if (!match) {
@@ -4950,6 +5058,28 @@ async function uploadProfilePhotoToStorage(authUserId, dataUrl) {
     throw error;
   }
   return `${SUPABASE_URL}/storage/v1/object/public/profile-photos/${path}`;
+}
+
+async function uploadWorkoutPhotoToStorage(authUserId, dataUrl) {
+  const { buffer } = parseImageDataUrl(dataUrl);
+  await ensureWorkoutPhotosBucket();
+  const path = `${authUserId}/${Date.now()}-${Math.floor(Math.random() * 1000000).toString().padStart(6, "0")}.jpg`;
+  const response = await supabaseStorageFetch(`/storage/v1/object/workout-photos/${path}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "image/jpeg",
+      "Cache-Control": "max-age=3600",
+      "x-upsert": "false"
+    },
+    body: buffer
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    const error = new Error(text || "Unable to upload workout photo");
+    error.status = response.status;
+    throw error;
+  }
+  return `${SUPABASE_URL}/storage/v1/object/public/workout-photos/${path}`;
 }
 
 function parseAllowedStorageImageUrl(value) {
@@ -5465,7 +5595,8 @@ function applyMultiLog(current, payload) {
   }
 
   const base = rolloverStateIfNeeded(current);
-  const logId = Date.now();
+  assertWorkoutSlotAvailable(base, actor, actorUserId, date);
+  const logId = createWorkoutSessionId();
   const updatedGroups = { ...base.groups };
 
   // Always include the source group — targetGroupIds only contains the additional blocs.
@@ -5478,14 +5609,13 @@ function applyMultiLog(current, payload) {
     if (!accepted.includes(workoutType)) continue;
 
     const existingLogs = group.logs?.[actor] || [];
-    if (existingLogs.some(log => log?.date === date)) continue;
 
     updatedGroups[groupId] = normalizeGroup({
       ...group,
       logs: {
         ...group.logs,
         [actor]: [...existingLogs, {
-          id: groupId === sourceGroupId ? String(logId) : `${logId}-${groupId}`,
+          id: groupId === sourceGroupId ? logId : `${logId}-${groupId}`,
           date,
           type: workoutType,
           note,
@@ -6882,8 +7012,10 @@ function applyAddLog(current, payload) {
     throw error;
   }
 
+  assertWorkoutSlotAvailable(base, actor, actorUserId, date);
+
   const log = normalizeLogEntry({
-    id: String(Date.now()),
+    id: createWorkoutSessionId(),
     date,
     type: workoutType,
     note,
@@ -8153,6 +8285,11 @@ export {
   assertGroupMembershipForUser,
   isCurrentGroupMember,
   isGroupAdminActor,
+  getWorkoutSessionKey,
+  getDistinctWorkoutCountForDate,
+  isMissingLocalCanonicalWorkoutRpcError,
+  applyAddLog,
+  applyMultiLog,
   applyJoinGroup,
   applyUpsertProfile,
   scopeReadableStateForUser,
@@ -8725,6 +8862,12 @@ export default async function handler(req, res) {
         );
         const readableState = await persistAndScopeReadableStateForUser(updated, `profile-photo:${auth.user.id}`, null, auth.user.id);
         return res.status(200).json({ state: readableState, profilePhotoUrl });
+      }
+
+      if (payload?.action === "upload-workout-photo") {
+        const auth = await requireAuthenticatedContext(req, payload, current);
+        const workoutPhotoUrl = await uploadWorkoutPhotoToStorage(auth.user.id, payload?.dataUrl);
+        return res.status(200).json({ workoutPhotoUrl });
       }
 
       if (payload?.action === "join-group") {
