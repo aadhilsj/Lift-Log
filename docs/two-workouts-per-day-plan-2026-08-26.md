@@ -1,9 +1,9 @@
 # Two Workouts Per Day
 
-Status (2026-08-27): user acceptance passed on `codex/two-workouts-per-day`.
-The pre-merge race fix is implemented and verified locally. Its production RPC
-migration was applied and verified with explicit user authorization on
-2026-08-27. Application code is not merged or deployed; no pull request exists yet.
+Status (2026-08-27): merged into `main` and deployed to production through
+[PR #1](https://github.com/aadhilsj/Lift-Log/pull/1), merge commit `5316e64`.
+User acceptance, local regression/full-flow tests, production RPC verification,
+Vercel deployment checks and the production smoke check passed.
 
 ## Product rule
 
@@ -124,7 +124,7 @@ Verified locally:
    daily-cap check. Confirm `anon` and `authenticated` cannot execute it, while
    `service_role` can. **Verified.** Do not run the local fixture script against production.
 4. Resume the branch merge, CI/deployment verification and production smoke
-   check only after that prerequisite is confirmed.
+   check only after that prerequisite is confirmed. **Complete.**
 
 The project keeps canonical RPC definitions in standalone SQL files, rather
 than relying on the incomplete, gitignored local Supabase migration history.
@@ -153,9 +153,27 @@ Deploying application code alone does not install this RPC update.
 - Production security advisor: no errors; existing INFO notices for RLS-enabled
   server-only tables without client policies, and one existing warning about
   [leaked-password protection](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection).
-- Merge preflight: GitHub authentication works, but no PR exists for
-  `codex/two-workouts-per-day`. The land-and-deploy workflow stopped at that gate;
-  application commit/push/PR/merge and deployment verification remain pending.
+- Initial merge preflight paused because no PR existed. On explicit instruction
+  to complete the merge without routine pauses, the changes were committed and
+  pushed, PR #1 was created, both Vercel checks passed, and the PR was merged at
+  `2026-08-27T11:45:16Z`.
+
+### Application deployment verification — 2026-08-27
+
+- Merge SHA: `5316e64697bc62521daadfa7615b818ad8daadc5`.
+- Production deployment: `dpl_FCweeKzWEhfm2xzvSEYhitrnro5A`, `READY`, exact merge
+  SHA verified behind [the live app](https://lift-log-nu.vercel.app).
+- Live browser smoke: HTTP 200, real content rendered, 1.706-second navigation,
+  no console errors or error overlays, new two-workout UI present in the served
+  asset. Screenshot: `/tmp/fero-two-workouts-production.png` (temporary local evidence).
+- Live API: correct production Supabase project, local OTP/preview auth disabled,
+  unauthenticated and fake-local-token data requests rejected with HTTP 401.
+- No error/fatal runtime logs found for the new deployment in the immediate
+  post-merge verification window. This is a smoke check, not extended monitoring.
+- Authenticated upload/save/delete mutation tests ran against local Supabase;
+  no real users' production workouts were changed for verification.
+- Local `main` synchronized with `origin/main`; feature branch deleted locally
+  and remotely after merge. Unrelated untracked workspace documents preserved.
 
 Separate security follow-up: direct local catalog checks found RLS disabled and
 anonymous SELECT/UPDATE grants on `public.lift_log_state`,
