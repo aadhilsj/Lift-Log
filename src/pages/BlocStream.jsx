@@ -1322,7 +1322,7 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, 
       React.createElement('div', {
         style: {
           position: "relative", flexShrink: 0, display: "flex", flexDirection: "column",
-          padding: "10px 12px calc(14px + env(safe-area-inset-bottom))", borderTop: "1px solid var(--border)", background: "rgba(5,9,10,0.55)", backdropFilter: "blur(8px)"
+          padding: "10px 12px calc(28px + env(safe-area-inset-bottom))", borderTop: "1px solid var(--border)", background: "rgba(5,9,10,0.55)", backdropFilter: "blur(8px)"
         }
       },
         // Reply banner
