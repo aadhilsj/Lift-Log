@@ -83,8 +83,7 @@ const FounderDashboard = ({onClose}) => {
     React.createElement("main", {style:{width:"100%",maxWidth:760,margin:"0 auto",textAlign:"center"}},
       React.createElement("header", {style:{position:"relative",display:"flex",alignItems:"center",justifyContent:"center",gap:12,padding:"4px 0 20px"}},
         React.createElement("div", {style:{textAlign:"center"}},
-          React.createElement("div", {style:{fontSize:10,fontWeight:900,letterSpacing:".13em",color:"#4ECDC4",textTransform:"uppercase"}}, "Private"),
-          React.createElement("h1", {style:{margin:"4px 0 0",fontSize:27,lineHeight:1,fontWeight:900,letterSpacing:"-.04em"}}, "Founder Dashboard")
+          React.createElement("h1", {style:{margin:0,fontSize:27,lineHeight:1,fontWeight:900,letterSpacing:"-.04em"}}, "Founder Dashboard")
         ),
         React.createElement("button", {type:"button",onClick:onClose,style:{position:"absolute",right:0,top:4,border:"1px solid var(--border)",borderRadius:99,width:38,height:38,background:"var(--s2)",color:"var(--text)",fontSize:24,lineHeight:1,cursor:"pointer"},"aria-label":"Close founder dashboard"}, "×")
       ),
@@ -94,7 +93,6 @@ const FounderDashboard = ({onClose}) => {
         React.createElement("button", {type:"button",onClick:load,style:{border:0,borderRadius:9,padding:"10px 13px",fontWeight:800,background:"#4ECDC4",color:"#061010",cursor:"pointer"}}, "Try again")
       ),
       status === "ready" && React.createElement(React.Fragment,null,
-        React.createElement("p", {style:{margin:"0 0 18px",fontSize:12,lineHeight:1.5,color:"var(--muted)"}}, `All figures use ${range.timeZone || "Europe/Oslo"} calendar boundaries. A person counts once per day after opening Fero while signed in.`),
         React.createElement("section", {style:{marginBottom:20}},
           React.createElement(MetricGroup,{title:"Total Active Users"},
             React.createElement(Metric,{label:"Daily",value:dashboard?.activeUsers?.today,detail:"Today"}),
@@ -127,8 +125,7 @@ const FounderDashboard = ({onClose}) => {
             React.createElement(Metric,{label:"Total Users",value:dashboard?.accounts?.total}),
             React.createElement(Metric,{label:"New Users",value:dashboard?.accounts?.newLast30Days,detail:"Joined in the last 30 days"})
           ),
-          React.createElement(AccountRoster,{label:"New Account Names",profiles:dashboard?.accounts?.newProfiles}),
-          React.createElement(AccountRoster,{label:"All Account Names",profiles:dashboard?.accounts?.allProfiles})
+          React.createElement(AccountRoster,{label:"New Account Names",profiles:dashboard?.accounts?.newProfiles})
         ),
         React.createElement("section", {style:{marginBottom:20}},
           React.createElement("h2", {style:{fontSize:13,margin:"0 0 9px",fontWeight:900}}, "Active Blocs"),
@@ -139,7 +136,17 @@ const FounderDashboard = ({onClose}) => {
         ),
         React.createElement("section", {style:{padding:"15px 14px",borderRadius:14,border:"1px solid rgba(78,205,196,.17)",background:"rgba(11,27,26,.92)"}},
           React.createElement("div", {style:{fontSize:13,fontWeight:900}}, "Activity Trend"),
-          React.createElement("div", {style:{marginTop:4,fontSize:11,lineHeight:1.45,color:"var(--muted)"}}, "Daily totals from the last 30 days. Teal: signed-in users who opened Fero · Purple: unique workout uploads"),
+          React.createElement("div", {style:{marginTop:5,fontSize:11,lineHeight:1.45,color:"var(--muted)",textAlign:"left"}},
+            React.createElement("div", null, "Daily totals from the last 30 days."),
+            React.createElement("div", {style:{display:"flex",alignItems:"center",gap:6}},
+              React.createElement("span", {"aria-hidden":true,style:{width:8,height:8,borderRadius:2,background:"#4ECDC4",flex:"0 0 auto"}}),
+              "Signed-in users who opened Fero"
+            ),
+            React.createElement("div", {style:{display:"flex",alignItems:"center",gap:6}},
+              React.createElement("span", {"aria-hidden":true,style:{width:8,height:8,borderRadius:2,background:"#8f78ff",flex:"0 0 auto"}}),
+              "Unique workout uploads"
+            )
+          ),
           React.createElement(Trend,{points:dashboard?.trend?.daily})
         )
       )

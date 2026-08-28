@@ -68,9 +68,15 @@ const dashboardUi = fs.readFileSync(new URL("../src/pages/FounderDashboard.jsx",
   "Unique User Accounts",
   "Active-user tracking began",
   "Joined in the last 30 days",
+  "New Account Names",
   "Qualifying Blocs",
-  "Activity Trend"
+  "Activity Trend",
+  "Daily totals from the last 30 days.",
+  "Signed-in users who opened Fero",
+  "Unique workout uploads"
 ].forEach(fragment => assert.ok(dashboardUi.includes(fragment), `dashboard UI label is missing: ${fragment}`));
 assert.ok(!dashboardUi.includes('subtitle:"All-time average"'), "dashboard UI should not repeat the all-time average helper text");
+assert.ok(!dashboardUi.includes('"Private"'), "dashboard UI should not show the private header");
+assert.ok(!dashboardUi.includes('All Account Names'), "dashboard UI should not show the all-account roster");
 
 console.log("Founder dashboard contract checks passed.");
