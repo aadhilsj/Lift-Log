@@ -96,13 +96,12 @@ const FounderDashboard = ({onClose}) => {
       status === "ready" && React.createElement(React.Fragment,null,
         React.createElement("p", {style:{margin:"0 0 18px",fontSize:12,lineHeight:1.5,color:"var(--muted)"}}, `All figures use ${range.timeZone || "Europe/Oslo"} calendar boundaries. A person counts once per day after opening Fero while signed in.`),
         React.createElement("section", {style:{marginBottom:20}},
-          React.createElement("h2", {style:{fontSize:13,margin:"0 0 9px",fontWeight:900}}, "Active Users"),
           React.createElement(MetricGroup,{title:"Total Active Users"},
             React.createElement(Metric,{label:"Daily",value:dashboard?.activeUsers?.today,detail:"Today"}),
             React.createElement(Metric,{label:"Weekly",value:dashboard?.activeUsers?.week,detail:weekOf(range.weekStarts)}),
             React.createElement(Metric,{label:"Monthly",value:dashboard?.activeUsers?.month,detail:monthOf(range.monthStarts)})
           ),
-          React.createElement(MetricGroup,{title:"Average Active Users",subtitle:"All-time average"},
+          React.createElement(MetricGroup,{title:"Average Active Users"},
             React.createElement(Metric,{label:"Daily",value:dashboard?.activeUsers?.averages?.daily,formatValue:average}),
             React.createElement(Metric,{label:"Weekly",value:dashboard?.activeUsers?.averages?.weekly,formatValue:average}),
             React.createElement(Metric,{label:"Monthly",value:dashboard?.activeUsers?.averages?.monthly,formatValue:average})
@@ -110,21 +109,20 @@ const FounderDashboard = ({onClose}) => {
           activeTrackingStarted && React.createElement("p", {style:{margin:"9px 0 0",fontSize:10,lineHeight:1.4,color:"var(--text-faint)"}}, `Active-user tracking began ${activeTrackingStarted}.`)
         ),
         React.createElement("section", {style:{marginBottom:20}},
-          React.createElement("h2", {style:{fontSize:13,margin:"0 0 9px",fontWeight:900}}, "Workout Uploads"),
           React.createElement(MetricGroup,{title:"Total Workout Uploads",columns:2},
             React.createElement(Metric,{label:"Daily",value:dashboard?.workoutUploads?.today,detail:"Today"}),
             React.createElement(Metric,{label:"Weekly",value:dashboard?.workoutUploads?.week,detail:weekOf(range.weekStarts)}),
             React.createElement(Metric,{label:"Monthly",value:dashboard?.workoutUploads?.month,detail:monthOf(range.monthStarts)}),
             React.createElement(Metric,{label:"All Time",value:dashboard?.workoutUploads?.allTime})
           ),
-          React.createElement(MetricGroup,{title:"Average Workout Uploads",subtitle:"All-time average"},
+          React.createElement(MetricGroup,{title:"Average Workout Uploads"},
             React.createElement(Metric,{label:"Daily",value:dashboard?.workoutUploads?.averages?.daily,formatValue:average}),
             React.createElement(Metric,{label:"Weekly",value:dashboard?.workoutUploads?.averages?.weekly,formatValue:average}),
             React.createElement(Metric,{label:"Monthly",value:dashboard?.workoutUploads?.averages?.monthly,formatValue:average})
           )
         ),
         React.createElement("section", {style:{marginBottom:20}},
-          React.createElement("h2", {style:{fontSize:13,margin:"0 0 9px",fontWeight:900}}, "Users"),
+          React.createElement("h2", {style:{fontSize:13,margin:"0 0 9px",fontWeight:900}}, "Unique User Accounts"),
           React.createElement("div", {style:{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:8}},
             React.createElement(Metric,{label:"Total Users",value:dashboard?.accounts?.total}),
             React.createElement(Metric,{label:"New Users",value:dashboard?.accounts?.newLast30Days,detail:"Joined in the last 30 days"})

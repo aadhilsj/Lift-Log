@@ -61,16 +61,16 @@ const sql = fs.readFileSync(new URL("../supabase/ante-core-founder-dashboard.sql
 const dashboardUi = fs.readFileSync(new URL("../src/pages/FounderDashboard.jsx", import.meta.url), "utf8");
 [
   "Founder Dashboard",
-  "Active Users",
-  "Workout Uploads",
   "Total Active Users",
   "Average Active Users",
   "Total Workout Uploads",
   "Average Workout Uploads",
+  "Unique User Accounts",
   "Active-user tracking began",
   "Joined in the last 30 days",
   "Qualifying Blocs",
   "Activity Trend"
 ].forEach(fragment => assert.ok(dashboardUi.includes(fragment), `dashboard UI label is missing: ${fragment}`));
+assert.ok(!dashboardUi.includes('subtitle:"All-time average"'), "dashboard UI should not repeat the all-time average helper text");
 
 console.log("Founder dashboard contract checks passed.");
