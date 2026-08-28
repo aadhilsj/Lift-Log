@@ -14,10 +14,10 @@ const weekOf = value => {
 };
 const monthOf = value => calendarDate(value, {month:"long",year:"numeric"}) || "This Month";
 const usageLabels = {
-  today_opened:"Today screen", activity_opened:"Activity screen", month_opened:"Month screen", history_opened:"History screen",
-  own_profile_opened:"Own profile", other_profile_opened:"Other profiles", mvp_card_opened:"Week's MVP card",
-  bloc_month_opened:"Bloc month card", settings_opened:"Settings", bloc_stream_opened:"Bloc Stream",
-  comment_composer_opened:"Comment composer", reaction_picker_opened:"Reaction picker"
+  today_opened:"Today Screen", activity_opened:"Activity Screen", month_opened:"Month Screen", history_opened:"History Screen",
+  own_profile_opened:"Own Profile", other_profile_opened:"Other Profiles", mvp_card_opened:"Week's MVP Card",
+  bloc_month_opened:"Bloc Month Card", settings_opened:"Settings", bloc_stream_opened:"Bloc Stream",
+  comment_composer_opened:"Comment Composer", reaction_picker_opened:"Reaction Picker"
 };
 
 const Metric = ({label,value,detail,formatValue=number}) => React.createElement("article", {
@@ -186,14 +186,14 @@ const FounderDashboard = ({onClose}) => {
         tab === "usage" && React.createElement("section", {style:{marginBottom:20}},
           React.createElement("p", {style:{margin:"0 0 12px",fontSize:11,lineHeight:1.45,color:"var(--muted)"}}, "Unique users counts people once. Total uses counts every open or tap."),
           React.createElement("div", {style:{display:"grid",gridTemplateColumns:"repeat(4,minmax(0,1fr))",gap:5,marginBottom:10}},
-            ["daily","weekly","monthly","allTime"].map(period=>React.createElement("button", {type:"button",key:period,onClick:()=>setUsagePeriod(period),style:{border:"1px solid rgba(78,205,196,.18)",borderRadius:8,padding:"8px 4px",background:usagePeriod===period?"rgba(78,205,196,.16)":"transparent",color:usagePeriod===period?"var(--text)":"var(--muted)",fontSize:10,fontWeight:900,cursor:"pointer"}}, period === "allTime" ? "All time" : period))
+            ["daily","weekly","monthly","allTime"].map(period=>React.createElement("button", {type:"button",key:period,onClick:()=>setUsagePeriod(period),style:{border:"1px solid rgba(78,205,196,.18)",borderRadius:8,padding:"8px 4px",background:usagePeriod===period?"rgba(78,205,196,.16)":"transparent",color:usagePeriod===period?"var(--text)":"var(--muted)",fontSize:10,fontWeight:900,cursor:"pointer"}}, period === "allTime" ? "All Time" : period.charAt(0).toUpperCase() + period.slice(1)))
           ),
           React.createElement("div", {style:{display:"grid",gap:7}}, Object.entries(usageLabels).map(([eventName,label])=>{
             const metric = usageEvents?.[eventName]?.[usagePeriod] || {};
             return React.createElement("article", {key:eventName,style:{display:"grid",gridTemplateColumns:"minmax(0,1fr) auto auto",alignItems:"center",gap:8,padding:"10px 12px",borderRadius:11,border:"1px solid rgba(78,205,196,.14)",background:"rgba(11,27,26,.92)",textAlign:"left"}},
               React.createElement("div", {style:{fontSize:12,fontWeight:800,color:"var(--text)"}}, label),
-              React.createElement("div", {style:{textAlign:"right"}}, React.createElement("div", {style:{fontSize:17,fontWeight:900,color:"var(--text)"}}, number(metric.users)), React.createElement("div", {style:{fontSize:9,color:"var(--text-faint)"}}, "users")),
-              React.createElement("div", {style:{textAlign:"right",minWidth:42}}, React.createElement("div", {style:{fontSize:17,fontWeight:900,color:"var(--text)"}}, number(metric.total)), React.createElement("div", {style:{fontSize:9,color:"var(--text-faint)"}}, "uses"))
+              React.createElement("div", {style:{textAlign:"right"}}, React.createElement("div", {style:{fontSize:17,fontWeight:900,color:"var(--text)"}}, number(metric.users)), React.createElement("div", {style:{fontSize:9,color:"var(--text-faint)"}}, "Users")),
+              React.createElement("div", {style:{textAlign:"right",minWidth:42}}, React.createElement("div", {style:{fontSize:17,fontWeight:900,color:"var(--text)"}}, number(metric.total)), React.createElement("div", {style:{fontSize:9,color:"var(--text-faint)"}}, "Uses"))
             );
           }))
         )
