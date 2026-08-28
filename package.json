@@ -14,6 +14,7 @@
     "test:auth-edge-flows": "node scripts/test-auth-edge-flows.mjs",
     "test:two-workouts": "node scripts/test-two-workouts-per-day.mjs",
     "test:mobile-navigation": "node scripts/test-mobile-navigation.mjs",
+    "test:founder-dashboard": "node scripts/test-founder-dashboard.mjs",
     "dev:api": "node scripts/local-dev-server.mjs"
   },
   "dependencies": {

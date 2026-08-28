@@ -247,7 +247,8 @@ async function syncAuthSessionData(sessionOverride) {
     return {
       ok:true,
       state: normalizeAppState(body.state),
-      session: body.session || session
+      session: body.session || session,
+      founderDashboardAvailable: body.founderDashboardAvailable === true
     };
   } catch (e) {
     console.error("Auth sync error:", e);
@@ -305,6 +306,16 @@ async function postApi(action, payload = {}, options = {}) {
     console.error(`${action} request error:`, e);
   }
   return { ok:false, error:"Request failed" };
+}
+
+async function fetchFounderDashboardData() {
+  const result = await postApi("founder-dashboard");
+  if (!result.ok) return { ok:false, status:result.status, error:result.error || "Unable to load dashboard" };
+  const dashboard = result.body?.dashboard;
+  if (!dashboard || typeof dashboard !== "object" || Array.isArray(dashboard)) {
+    return { ok:false, error:"The dashboard returned invalid data" };
+  }
+  return { ok:true, dashboard };
 }
 
 async function fetchData() {
@@ -808,6 +819,7 @@ export {
   syncAuthSessionData,
   refreshAuthSession,
   postApi,
+  fetchFounderDashboardData,
   fetchData,
   fetchRevision,
   addLogData,
