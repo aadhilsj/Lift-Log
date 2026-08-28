@@ -62,7 +62,7 @@ const dashboardUi = fs.readFileSync(new URL("../src/pages/FounderDashboard.jsx",
 const appUi = fs.readFileSync(new URL("../src/App.jsx", import.meta.url), "utf8");
 const authShell = fs.readFileSync(new URL("../src/components/authShell.jsx", import.meta.url), "utf8");
 [
-  "Founder Dashboard",
+  "Dashboard",
   "Total Active Users",
   "Average Active Users",
   "Total Workout Uploads",
@@ -84,7 +84,7 @@ assert.ok(appUi.includes('showFounderDashboard: !inert && founderDashboardAvaila
 assert.ok(appUi.includes('FOUNDER_DASHBOARD_AVAILABILITY_PREFIX'), "founder dashboard availability should be cached per account");
 assert.ok(appUi.includes('useState(()=>readFounderDashboardAvailability(initialPersistedSession?.userId))'), "founder dashboard entry should render from the persisted availability hint");
 assert.ok(appUi.includes('persistFounderDashboardAvailability(initialSession.userId, available)'), "fresh founder dashboard permission should update the local hint");
-assert.ok(authShell.includes('"Founder Dashboard"'), "bloc switcher should use a labelled founder dashboard entry");
+assert.ok(authShell.includes('"Dashboard"'), "bloc switcher should use a labelled dashboard entry");
 assert.ok(!authShell.includes('"Open founder dashboard"'), "profile should not duplicate the founder dashboard entry");
 
 console.log("Founder dashboard contract checks passed.");
