@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { fetchFounderDashboardData } from "../lib/api.js";
 
 const number = value => new Intl.NumberFormat("en-GB").format(Math.max(0, Number(value) || 0));
+const average = value => new Intl.NumberFormat("en-GB", {minimumFractionDigits:1,maximumFractionDigits:1}).format(Math.max(0, Number(value) || 0));
 
 const Metric = ({label,value,detail}) => React.createElement("article", {
   style:{padding:"15px 14px",borderRadius:14,border:"1px solid rgba(78,205,196,.17)",background:"rgba(11,27,26,.92)",minWidth:0,textAlign:"center"}
@@ -66,7 +67,7 @@ const FounderDashboard = ({onClose}) => {
       React.createElement("header", {style:{position:"relative",display:"flex",alignItems:"center",justifyContent:"center",gap:12,padding:"4px 0 20px"}},
         React.createElement("div", {style:{textAlign:"center"}},
           React.createElement("div", {style:{fontSize:10,fontWeight:900,letterSpacing:".13em",color:"#4ECDC4",textTransform:"uppercase"}}, "Private"),
-          React.createElement("h1", {style:{margin:"4px 0 0",fontSize:27,lineHeight:1,fontWeight:900,letterSpacing:"-.04em"}}, "Founder dashboard")
+          React.createElement("h1", {style:{margin:"4px 0 0",fontSize:27,lineHeight:1,fontWeight:900,letterSpacing:"-.04em"}}, "Founder Dashboard")
         ),
         React.createElement("button", {type:"button",onClick:onClose,style:{position:"absolute",right:0,top:4,border:"1px solid var(--border)",borderRadius:99,width:38,height:38,background:"var(--s2)",color:"var(--text)",fontSize:24,lineHeight:1,cursor:"pointer"},"aria-label":"Close founder dashboard"}, "×")
       ),
@@ -78,30 +79,30 @@ const FounderDashboard = ({onClose}) => {
       status === "ready" && React.createElement(React.Fragment,null,
         React.createElement("p", {style:{margin:"0 0 18px",fontSize:12,lineHeight:1.5,color:"var(--muted)"}}, `All figures use ${range.timeZone || "Europe/Oslo"} calendar boundaries. A person counts once per day after opening Fero while signed in.`),
         React.createElement("section", {style:{marginBottom:20}},
-          React.createElement("h2", {style:{fontSize:13,margin:"0 0 9px",fontWeight:900}}, "Active users"),
+          React.createElement("h2", {style:{fontSize:13,margin:"0 0 9px",fontWeight:900}}, "Active Users"),
           React.createElement("div", {style:{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:8}},
-            React.createElement(Metric,{label:"Today",value:dashboard?.activeUsers?.today}),
-            React.createElement(Metric,{label:"This week",value:dashboard?.activeUsers?.week}),
-            React.createElement(Metric,{label:"Last 30 days",value:dashboard?.activeUsers?.month})
+            React.createElement(Metric,{label:"Daily Active Users",value:dashboard?.activeUsers?.today,detail:`30-day avg: ${average(dashboard?.activeUsers?.averages?.daily)}`}),
+            React.createElement(Metric,{label:"Weekly Active Users",value:dashboard?.activeUsers?.week,detail:`4-week avg: ${average(dashboard?.activeUsers?.averages?.weekly)}`}),
+            React.createElement(Metric,{label:"Monthly Active Users",value:dashboard?.activeUsers?.month,detail:`3-month avg: ${average(dashboard?.activeUsers?.averages?.monthly)}`})
           )
         ),
         React.createElement("section", {style:{marginBottom:20}},
-          React.createElement("h2", {style:{fontSize:13,margin:"0 0 9px",fontWeight:900}}, "Workout uploads"),
+          React.createElement("h2", {style:{fontSize:13,margin:"0 0 9px",fontWeight:900}}, "Workout Uploads"),
           React.createElement("div", {style:{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:8}},
-            React.createElement(Metric,{label:"Today",value:dashboard?.workoutUploads?.today}),
-            React.createElement(Metric,{label:"This week",value:dashboard?.workoutUploads?.week}),
-            React.createElement(Metric,{label:"This month",value:dashboard?.workoutUploads?.month}),
-            React.createElement(Metric,{label:"All time",value:dashboard?.workoutUploads?.allTime,detail:"Canonical database"})
+            React.createElement(Metric,{label:"Daily Workout Uploads",value:dashboard?.workoutUploads?.today,detail:`30-day avg: ${average(dashboard?.workoutUploads?.averages?.daily)}`}),
+            React.createElement(Metric,{label:"Weekly Workout Uploads",value:dashboard?.workoutUploads?.week,detail:`4-week avg: ${average(dashboard?.workoutUploads?.averages?.weekly)}`}),
+            React.createElement(Metric,{label:"Monthly Workout Uploads",value:dashboard?.workoutUploads?.month,detail:`3-month avg: ${average(dashboard?.workoutUploads?.averages?.monthly)}`}),
+            React.createElement(Metric,{label:"All-Time",value:dashboard?.workoutUploads?.allTime,detail:"Canonical Database"})
           )
         ),
         React.createElement("section", {style:{marginBottom:20}},
           React.createElement("h2", {style:{fontSize:13,margin:"0 0 9px",fontWeight:900}}, "Users"),
           React.createElement("div", {style:{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:8}},
             React.createElement(Metric,{label:"Total",value:dashboard?.accounts?.total}),
-            React.createElement(Metric,{label:"New in 30 days",value:dashboard?.accounts?.newLast30Days})
+            React.createElement(Metric,{label:"New in 30 Days",value:dashboard?.accounts?.newLast30Days})
           ),
-          React.createElement(AccountRoster,{label:"New account names",profiles:dashboard?.accounts?.newProfiles}),
-          React.createElement(AccountRoster,{label:"All account names",profiles:dashboard?.accounts?.allProfiles})
+          React.createElement(AccountRoster,{label:"New Account Names",profiles:dashboard?.accounts?.newProfiles}),
+          React.createElement(AccountRoster,{label:"All Account Names",profiles:dashboard?.accounts?.allProfiles})
         ),
         React.createElement("section", {style:{marginBottom:20}},
           React.createElement("h2", {style:{fontSize:13,margin:"0 0 9px",fontWeight:900}}, "Active Blocs"),
@@ -111,7 +112,7 @@ const FounderDashboard = ({onClose}) => {
           )
         ),
         React.createElement("section", {style:{padding:"15px 14px",borderRadius:14,border:"1px solid rgba(78,205,196,.17)",background:"rgba(11,27,26,.92)"}},
-          React.createElement("div", {style:{fontSize:13,fontWeight:900}}, "Last 30 days"),
+          React.createElement("div", {style:{fontSize:13,fontWeight:900}}, "Last 30 Days"),
           React.createElement("div", {style:{marginTop:4,fontSize:11,color:"var(--muted)"}}, "Teal: active users · Purple: workout uploads"),
           React.createElement(Trend,{points:dashboard?.trend?.daily})
         )
