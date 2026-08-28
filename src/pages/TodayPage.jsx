@@ -142,9 +142,10 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
     requestAnimationFrame(()=>profileLayerRef.current?.scrollTo?.({top:0,left:0,behavior:"auto"}));
   },[viewPlayer]);
   const openPlayerProfile = useCallback(name => {
+    if (name && name !== user) onTrackUsage?.("other_profile_opened");
     setProfileRevealActive(false);
     setViewPlayer(name);
-  },[]);
+  },[onTrackUsage, user]);
   const closePlayerProfile = useCallback(() => {
     setProfileRevealActive(false);
     setViewPlayer(null);
