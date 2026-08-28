@@ -112,6 +112,7 @@ declare
   v_active_today bigint;
   v_active_week bigint;
   v_active_month bigint;
+  v_active_tracking_started date;
   v_active_average_daily numeric;
   v_active_average_weekly numeric;
   v_active_average_monthly numeric;
@@ -119,6 +120,7 @@ declare
   v_upload_week bigint;
   v_upload_month bigint;
   v_upload_all_time bigint;
+  v_upload_tracking_started date;
   v_upload_average_daily numeric;
   v_upload_average_weekly numeric;
   v_upload_average_monthly numeric;
@@ -139,21 +141,28 @@ begin
   select count(distinct profile_id) into v_active_week
   from ante_core.app_daily_activity where activity_date between v_week_start and v_today;
   select count(distinct profile_id) into v_active_month
-  from ante_core.app_daily_activity where activity_date between v_thirty_day_start and v_today;
+  from ante_core.app_daily_activity where activity_date between v_month_start and v_today;
+
+  select min(activity_date) into v_active_tracking_started
+  from ante_core.app_daily_activity;
 
   -- Averages use comparable trailing periods: 30 days, four seven-day
   -- periods, and three 30-day periods. Empty days/periods count as zero.
   select coalesce(round(avg(coalesce(activity.total, 0))::numeric, 1), 0) into v_active_average_daily
-  from generate_series(v_today - 29, v_today, interval '1 day') as period_start(activity_date)
+  from generate_series(coalesce(v_active_tracking_started, v_today), v_today, interval '1 day') as period_start(activity_date)
   left join (
     select activity_date, count(distinct profile_id)::bigint as total
     from ante_core.app_daily_activity
-    where activity_date between v_today - 29 and v_today
+    where activity_date between coalesce(v_active_tracking_started, v_today) and v_today
     group by activity_date
   ) activity on activity.activity_date = period_start.activity_date::date;
 
   select coalesce(round(avg(coalesce(activity.total, 0))::numeric, 1), 0) into v_active_average_weekly
-  from generate_series(v_today - 27, v_today - 6, interval '7 days') as period_start(activity_date)
+  from generate_series(
+    date_trunc('week', coalesce(v_active_tracking_started, v_today)::timestamp)::date,
+    v_week_start,
+    interval '7 days'
+  ) as period_start(activity_date)
   left join lateral (
     select count(distinct profile_id)::bigint as total
     from ante_core.app_daily_activity
@@ -161,11 +170,16 @@ begin
   ) activity on true;
 
   select coalesce(round(avg(coalesce(activity.total, 0))::numeric, 1), 0) into v_active_average_monthly
-  from generate_series(v_today - 89, v_today - 29, interval '30 days') as period_start(activity_date)
+  from generate_series(
+    date_trunc('month', coalesce(v_active_tracking_started, v_today)::timestamp)::date,
+    v_month_start,
+    interval '1 month'
+  ) as period_start(activity_date)
   left join lateral (
     select count(distinct profile_id)::bigint as total
     from ante_core.app_daily_activity
-    where activity_date between period_start.activity_date::date and (period_start.activity_date::date + 29)
+    where activity_date >= period_start.activity_date::date
+      and activity_date < (period_start.activity_date::date + interval '1 month')::date
   ) activity on true;
 
   -- A workout copied into another Bloc remains one user upload. This mirrors
@@ -178,8 +192,11 @@ begin
   into v_upload_today, v_upload_week, v_upload_month, v_upload_all_time
   from ante_core.workout_logs;
 
+  select min((created_at at time zone 'Europe/Oslo')::date) into v_upload_tracking_started
+  from ante_core.workout_logs;
+
   select coalesce(round(avg(coalesce(uploads.total, 0))::numeric, 1), 0) into v_upload_average_daily
-  from generate_series(v_today - 29, v_today, interval '1 day') as period_start(activity_date)
+  from generate_series(coalesce(v_upload_tracking_started, v_today), v_today, interval '1 day') as period_start(activity_date)
   left join lateral (
     select count(distinct coalesce(substring(id from '^([0-9]{10,})(?:-|$)'), id))::bigint as total
     from ante_core.workout_logs
@@ -187,7 +204,11 @@ begin
   ) uploads on true;
 
   select coalesce(round(avg(coalesce(uploads.total, 0))::numeric, 1), 0) into v_upload_average_weekly
-  from generate_series(v_today - 27, v_today - 6, interval '7 days') as period_start(activity_date)
+  from generate_series(
+    date_trunc('week', coalesce(v_upload_tracking_started, v_today)::timestamp)::date,
+    v_week_start,
+    interval '7 days'
+  ) as period_start(activity_date)
   left join lateral (
     select count(distinct coalesce(substring(id from '^([0-9]{10,})(?:-|$)'), id))::bigint as total
     from ante_core.workout_logs
@@ -195,11 +216,16 @@ begin
   ) uploads on true;
 
   select coalesce(round(avg(coalesce(uploads.total, 0))::numeric, 1), 0) into v_upload_average_monthly
-  from generate_series(v_today - 89, v_today - 29, interval '30 days') as period_start(activity_date)
+  from generate_series(
+    date_trunc('month', coalesce(v_upload_tracking_started, v_today)::timestamp)::date,
+    v_month_start,
+    interval '1 month'
+  ) as period_start(activity_date)
   left join lateral (
     select count(distinct coalesce(substring(id from '^([0-9]{10,})(?:-|$)'), id))::bigint as total
     from ante_core.workout_logs
-    where (created_at at time zone 'Europe/Oslo')::date between period_start.activity_date::date and (period_start.activity_date::date + 29)
+    where (created_at at time zone 'Europe/Oslo')::date >= period_start.activity_date::date
+      and (created_at at time zone 'Europe/Oslo')::date < (period_start.activity_date::date + interval '1 month')::date
   ) uploads on true;
 
   select count(*) into v_accounts_total from ante_core.profiles;
@@ -228,7 +254,7 @@ begin
   ) uploads on uploads.activity_date = series.activity_date::date;
 
   return jsonb_build_object(
-    'range', jsonb_build_object('timeZone', 'Europe/Oslo', 'today', v_today::text, 'weekStarts', v_week_start::text, 'monthStarts', v_month_start::text),
+    'range', jsonb_build_object('timeZone', 'Europe/Oslo', 'today', v_today::text, 'weekStarts', v_week_start::text, 'monthStarts', v_month_start::text, 'activeUserTrackingStarted', v_active_tracking_started::text, 'workoutUploadTrackingStarted', v_upload_tracking_started::text),
     'activeUsers', jsonb_build_object('today', v_active_today, 'week', v_active_week, 'month', v_active_month, 'averages', jsonb_build_object('daily', v_active_average_daily, 'weekly', v_active_average_weekly, 'monthly', v_active_average_monthly)),
     'workoutUploads', jsonb_build_object('today', v_upload_today, 'week', v_upload_week, 'month', v_upload_month, 'allTime', v_upload_all_time, 'averages', jsonb_build_object('daily', v_upload_average_daily, 'weekly', v_upload_average_weekly, 'monthly', v_upload_average_monthly)),
     'accounts', jsonb_build_object('total', v_accounts_total, 'newLast30Days', v_accounts_new_last_30_days),

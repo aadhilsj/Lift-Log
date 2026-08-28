@@ -3,13 +3,29 @@ import { fetchFounderDashboardData } from "../lib/api.js";
 
 const number = value => new Intl.NumberFormat("en-GB").format(Math.max(0, Number(value) || 0));
 const average = value => new Intl.NumberFormat("en-GB", {minimumFractionDigits:1,maximumFractionDigits:1}).format(Math.max(0, Number(value) || 0));
+const calendarDate = (value, options) => {
+  if (!value) return "";
+  const date = new Date(`${value}T12:00:00Z`);
+  return Number.isNaN(date.getTime()) ? "" : new Intl.DateTimeFormat("en-GB", {timeZone:"Europe/Oslo", ...options}).format(date);
+};
+const weekOf = value => {
+  const date = calendarDate(value, {day:"numeric",month:"short"});
+  return date ? `Week of ${date}` : "This Week";
+};
+const monthOf = value => calendarDate(value, {month:"long",year:"numeric"}) || "This Month";
 
-const Metric = ({label,value,detail}) => React.createElement("article", {
+const Metric = ({label,value,detail,formatValue=number}) => React.createElement("article", {
   style:{padding:"15px 14px",borderRadius:14,border:"1px solid rgba(78,205,196,.17)",background:"rgba(11,27,26,.92)",minWidth:0,textAlign:"center"}
 },
   React.createElement("div", {style:{fontSize:10,fontWeight:900,letterSpacing:".1em",textTransform:"uppercase",color:"var(--muted)",lineHeight:1.3}}, label),
-  React.createElement("div", {style:{marginTop:6,fontSize:26,fontWeight:900,letterSpacing:"-.035em",color:"#f5f7ff",lineHeight:1}}, number(value)),
+  React.createElement("div", {style:{marginTop:6,fontSize:26,fontWeight:900,letterSpacing:"-.035em",color:"#f5f7ff",lineHeight:1}}, formatValue(value)),
   detail && React.createElement("div", {style:{marginTop:7,fontSize:11,lineHeight:1.35,color:"var(--text-faint)"}}, detail)
+);
+
+const MetricGroup = ({title,subtitle,columns=3,children}) => React.createElement("section", {style:{marginTop:12}},
+  React.createElement("div", {style:{margin:"0 0 7px",fontSize:11,fontWeight:900,letterSpacing:".06em",textTransform:"uppercase",color:"var(--text-soft)"}}, title),
+  subtitle && React.createElement("div", {style:{margin:"-2px 0 7px",fontSize:10,lineHeight:1.35,color:"var(--text-faint)"}}, subtitle),
+  React.createElement("div", {style:{display:"grid",gridTemplateColumns:`repeat(${columns},minmax(0,1fr))`,gap:8}}, children)
 );
 
 const Trend = ({points=[]}) => {
@@ -62,6 +78,7 @@ const FounderDashboard = ({onClose}) => {
   },[]);
   useEffect(()=>{ load(); },[load]);
   const range = useMemo(()=>dashboard?.range || {},[dashboard]);
+  const activeTrackingStarted = calendarDate(range.activeUserTrackingStarted, {day:"numeric",month:"long",year:"numeric"});
   return React.createElement("div", {style:{position:"fixed",inset:0,zIndex:1200,overflowY:"auto",background:"#070c0c",color:"var(--text)",padding:"max(18px, env(safe-area-inset-top)) 16px max(28px, env(safe-area-inset-bottom))",boxSizing:"border-box"}},
     React.createElement("main", {style:{width:"100%",maxWidth:760,margin:"0 auto",textAlign:"center"}},
       React.createElement("header", {style:{position:"relative",display:"flex",alignItems:"center",justifyContent:"center",gap:12,padding:"4px 0 20px"}},
@@ -80,40 +97,51 @@ const FounderDashboard = ({onClose}) => {
         React.createElement("p", {style:{margin:"0 0 18px",fontSize:12,lineHeight:1.5,color:"var(--muted)"}}, `All figures use ${range.timeZone || "Europe/Oslo"} calendar boundaries. A person counts once per day after opening Fero while signed in.`),
         React.createElement("section", {style:{marginBottom:20}},
           React.createElement("h2", {style:{fontSize:13,margin:"0 0 9px",fontWeight:900}}, "Active Users"),
-          React.createElement("div", {style:{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:8}},
-            React.createElement(Metric,{label:"Daily Active Users",value:dashboard?.activeUsers?.today,detail:`30-day avg: ${average(dashboard?.activeUsers?.averages?.daily)}`}),
-            React.createElement(Metric,{label:"Weekly Active Users",value:dashboard?.activeUsers?.week,detail:`4-week avg: ${average(dashboard?.activeUsers?.averages?.weekly)}`}),
-            React.createElement(Metric,{label:"Monthly Active Users",value:dashboard?.activeUsers?.month,detail:`3-month avg: ${average(dashboard?.activeUsers?.averages?.monthly)}`})
-          )
+          React.createElement(MetricGroup,{title:"Total Active Users"},
+            React.createElement(Metric,{label:"Daily",value:dashboard?.activeUsers?.today,detail:"Today"}),
+            React.createElement(Metric,{label:"Weekly",value:dashboard?.activeUsers?.week,detail:weekOf(range.weekStarts)}),
+            React.createElement(Metric,{label:"Monthly",value:dashboard?.activeUsers?.month,detail:monthOf(range.monthStarts)})
+          ),
+          React.createElement(MetricGroup,{title:"Average Active Users",subtitle:"All-time average"},
+            React.createElement(Metric,{label:"Daily",value:dashboard?.activeUsers?.averages?.daily,formatValue:average}),
+            React.createElement(Metric,{label:"Weekly",value:dashboard?.activeUsers?.averages?.weekly,formatValue:average}),
+            React.createElement(Metric,{label:"Monthly",value:dashboard?.activeUsers?.averages?.monthly,formatValue:average})
+          ),
+          activeTrackingStarted && React.createElement("p", {style:{margin:"9px 0 0",fontSize:10,lineHeight:1.4,color:"var(--text-faint)"}}, `Active-user tracking began ${activeTrackingStarted}.`)
         ),
         React.createElement("section", {style:{marginBottom:20}},
           React.createElement("h2", {style:{fontSize:13,margin:"0 0 9px",fontWeight:900}}, "Workout Uploads"),
-          React.createElement("div", {style:{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:8}},
-            React.createElement(Metric,{label:"Daily Workout Uploads",value:dashboard?.workoutUploads?.today,detail:`30-day avg: ${average(dashboard?.workoutUploads?.averages?.daily)}`}),
-            React.createElement(Metric,{label:"Weekly Workout Uploads",value:dashboard?.workoutUploads?.week,detail:`4-week avg: ${average(dashboard?.workoutUploads?.averages?.weekly)}`}),
-            React.createElement(Metric,{label:"Monthly Workout Uploads",value:dashboard?.workoutUploads?.month,detail:`3-month avg: ${average(dashboard?.workoutUploads?.averages?.monthly)}`}),
-            React.createElement(Metric,{label:"All-Time",value:dashboard?.workoutUploads?.allTime,detail:"Canonical Database"})
+          React.createElement(MetricGroup,{title:"Total Workout Uploads",columns:2},
+            React.createElement(Metric,{label:"Daily",value:dashboard?.workoutUploads?.today,detail:"Today"}),
+            React.createElement(Metric,{label:"Weekly",value:dashboard?.workoutUploads?.week,detail:weekOf(range.weekStarts)}),
+            React.createElement(Metric,{label:"Monthly",value:dashboard?.workoutUploads?.month,detail:monthOf(range.monthStarts)}),
+            React.createElement(Metric,{label:"All Time",value:dashboard?.workoutUploads?.allTime})
+          ),
+          React.createElement(MetricGroup,{title:"Average Workout Uploads",subtitle:"All-time average"},
+            React.createElement(Metric,{label:"Daily",value:dashboard?.workoutUploads?.averages?.daily,formatValue:average}),
+            React.createElement(Metric,{label:"Weekly",value:dashboard?.workoutUploads?.averages?.weekly,formatValue:average}),
+            React.createElement(Metric,{label:"Monthly",value:dashboard?.workoutUploads?.averages?.monthly,formatValue:average})
           )
         ),
         React.createElement("section", {style:{marginBottom:20}},
           React.createElement("h2", {style:{fontSize:13,margin:"0 0 9px",fontWeight:900}}, "Users"),
           React.createElement("div", {style:{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:8}},
-            React.createElement(Metric,{label:"Total",value:dashboard?.accounts?.total}),
-            React.createElement(Metric,{label:"New in 30 Days",value:dashboard?.accounts?.newLast30Days})
+            React.createElement(Metric,{label:"Total Users",value:dashboard?.accounts?.total}),
+            React.createElement(Metric,{label:"New Users",value:dashboard?.accounts?.newLast30Days,detail:"Joined in the last 30 days"})
           ),
           React.createElement(AccountRoster,{label:"New Account Names",profiles:dashboard?.accounts?.newProfiles}),
           React.createElement(AccountRoster,{label:"All Account Names",profiles:dashboard?.accounts?.allProfiles})
         ),
         React.createElement("section", {style:{marginBottom:20}},
           React.createElement("h2", {style:{fontSize:13,margin:"0 0 9px",fontWeight:900}}, "Active Blocs"),
-          React.createElement("p", {style:{margin:"0 0 9px",fontSize:11,lineHeight:1.45,color:"var(--muted)"}}, `With five-plus workouts in the last ${number(dashboard?.activeBlocs?.periodDays || 30)} days.`),
+          React.createElement("p", {style:{margin:"0 0 9px",fontSize:11,lineHeight:1.45,color:"var(--muted)"}}, `Logged five or more workouts in the last ${number(dashboard?.activeBlocs?.periodDays || 30)} days.`),
           React.createElement("div", {style:{display:"grid",gridTemplateColumns:"minmax(0,1fr)",gap:8}},
-            React.createElement(Metric,{label:"Five-plus workouts",value:dashboard?.activeBlocs?.fivePlus})
+            React.createElement(Metric,{label:"Qualifying Blocs",value:dashboard?.activeBlocs?.fivePlus})
           )
         ),
         React.createElement("section", {style:{padding:"15px 14px",borderRadius:14,border:"1px solid rgba(78,205,196,.17)",background:"rgba(11,27,26,.92)"}},
-          React.createElement("div", {style:{fontSize:13,fontWeight:900}}, "Last 30 Days"),
-          React.createElement("div", {style:{marginTop:4,fontSize:11,color:"var(--muted)"}}, "Teal: active users · Purple: workout uploads"),
+          React.createElement("div", {style:{fontSize:13,fontWeight:900}}, "Activity Trend"),
+          React.createElement("div", {style:{marginTop:4,fontSize:11,lineHeight:1.45,color:"var(--muted)"}}, "Daily totals from the last 30 days. Teal: signed-in users who opened Fero · Purple: unique workout uploads"),
           React.createElement(Trend,{points:dashboard?.trend?.daily})
         )
       )
