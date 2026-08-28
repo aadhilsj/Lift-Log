@@ -14,24 +14,14 @@ assert.equal(api.isFounderDashboardUser("someone-else"), false, "unlisted user i
 const originalFetch = globalThis.fetch;
 globalThis.fetch = async url => {
   const path = String(url);
-  const body = path.includes("/profiles?")
-    ? [
-        { display_name:"Older", created_at:"2026-07-28T22:00:00.000Z" },
-        { display_name:"Newer", created_at:"2026-08-28T10:00:00.000Z" }
-      ]
-    : [
-        { bloc_id:"bloc-three", created_at:"2026-08-03T12:00:00.000Z" },
-        { bloc_id:"bloc-three", created_at:"2026-08-04T12:00:00.000Z" },
-        { bloc_id:"bloc-three", created_at:"2026-08-05T12:00:00.000Z" },
-        { bloc_id:"bloc-five", created_at:"2026-08-03T12:00:00.000Z" },
-        { bloc_id:"bloc-five", created_at:"2026-08-04T12:00:00.000Z" },
-        { bloc_id:"bloc-five", created_at:"2026-08-05T12:00:00.000Z" },
-        { bloc_id:"bloc-five", created_at:"2026-08-06T12:00:00.000Z" },
-        { bloc_id:"bloc-five", created_at:"2026-08-07T12:00:00.000Z" }
-      ];
+  assert.ok(path.includes("/rest/v1/rpc/read_ante_core_founder_dashboard_details"), "roster details must use the private server RPC, never a private PostgREST schema");
+  const body = {
+    accounts:{newProfiles:[{displayName:"Newer"}],allProfiles:[{displayName:"Newer"},{displayName:"Older"}]},
+    activeBlocs:{threePlus:2,fivePlus:1,periodDays:30}
+  };
   return new Response(JSON.stringify(body), { status:200, headers:{"Content-Type":"application/json"} });
 };
-const rosterAndBlocs = await api.readFounderRosterAndActiveBlocs("2026-08-28");
+const rosterAndBlocs = await api.readFounderRosterAndActiveBlocs();
 globalThis.fetch = originalFetch;
 assert.deepEqual(rosterAndBlocs.accounts.newProfiles, [{ displayName:"Newer" }], "new-account roster uses the Oslo 30-day period");
 assert.deepEqual(rosterAndBlocs.accounts.allProfiles, [{ displayName:"Newer" }, { displayName:"Older" }], "account roster contains display names only");
@@ -50,6 +40,8 @@ const sql = fs.readFileSync(new URL("../supabase/ante-core-founder-dashboard.sql
   "revoke all on table ante_core.app_daily_activity from anon",
   "revoke execute on function public.read_ante_core_founder_dashboard(timestamptz) from public, anon, authenticated",
   "grant execute on function public.read_ante_core_founder_dashboard(timestamptz) to service_role",
+  "read_ante_core_founder_dashboard_details",
+  "grant execute on function public.read_ante_core_founder_dashboard_details(timestamptz) to service_role",
   "v_thirty_day_start := v_today - 29",
   "Europe/Oslo",
   "purge_ante_core_daily_app_activity"

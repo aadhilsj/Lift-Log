@@ -180,11 +180,66 @@ begin
 end;
 $$;
 
+-- Owner-dashboard detail payload. This is an RPC rather than a direct
+-- PostgREST read because ante_core is deliberately not an exposed API schema.
+-- The application applies its founder allowlist before it invokes this
+-- service-role-only function.
+create or replace function public.read_ante_core_founder_dashboard_details(
+  p_now timestamptz default now()
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ante_core, public
+as $$
+declare
+  v_today date := (coalesce(p_now, now()) at time zone 'Europe/Oslo')::date;
+  v_thirty_day_start date;
+  v_thirty_day_start_at timestamptz;
+  v_active_blocs_three_plus bigint;
+  v_active_blocs_five_plus bigint;
+  v_new_profiles jsonb;
+  v_all_profiles jsonb;
+begin
+  v_thirty_day_start := v_today - 29;
+  v_thirty_day_start_at := v_thirty_day_start::timestamp at time zone 'Europe/Oslo';
+
+  select coalesce(jsonb_agg(jsonb_build_object('displayName', display_name) order by created_at desc, id), '[]'::jsonb)
+  into v_new_profiles
+  from ante_core.profiles
+  where created_at >= v_thirty_day_start_at;
+
+  select coalesce(jsonb_agg(jsonb_build_object('displayName', display_name) order by lower(display_name), id), '[]'::jsonb)
+  into v_all_profiles
+  from ante_core.profiles;
+
+  -- Count each Bloc's own log rows. A shared workout means that both Blocs
+  -- were active communities, so it intentionally counts in each Bloc.
+  select
+    count(*) filter (where recent_logs >= 3),
+    count(*) filter (where recent_logs >= 5)
+  into v_active_blocs_three_plus, v_active_blocs_five_plus
+  from (
+    select bloc_id, count(*) as recent_logs
+    from ante_core.workout_logs
+    where created_at >= v_thirty_day_start_at
+    group by bloc_id
+  ) active_blocs;
+
+  return jsonb_build_object(
+    'accounts', jsonb_build_object('newProfiles', v_new_profiles, 'allProfiles', v_all_profiles),
+    'activeBlocs', jsonb_build_object('threePlus', v_active_blocs_three_plus, 'fivePlus', v_active_blocs_five_plus, 'periodDays', 30)
+  );
+end;
+$$;
+
 -- Every function starts executable by PUBLIC in PostgreSQL. Keep these private:
 -- the app server authenticates the caller and enforces the founder allowlist.
 revoke execute on function public.record_ante_core_daily_app_activity(text, timestamptz) from public, anon, authenticated;
 revoke execute on function public.purge_ante_core_daily_app_activity(integer) from public, anon, authenticated;
 revoke execute on function public.read_ante_core_founder_dashboard(timestamptz) from public, anon, authenticated;
+revoke execute on function public.read_ante_core_founder_dashboard_details(timestamptz) from public, anon, authenticated;
 grant execute on function public.record_ante_core_daily_app_activity(text, timestamptz) to service_role;
 grant execute on function public.purge_ante_core_daily_app_activity(integer) to service_role;
 grant execute on function public.read_ante_core_founder_dashboard(timestamptz) to service_role;
+grant execute on function public.read_ante_core_founder_dashboard_details(timestamptz) to service_role;
