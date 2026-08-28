@@ -10,6 +10,17 @@
 // hosts below ever become clickable. Anything else degrades to copy-only, so a
 // pasted phishing URL cannot borrow the Pay affordance.
 
+// Brand marks. Path data from Simple Icons (https://simpleicons.org), which
+// publishes brand SVGs under CC0. Inlined rather than fetched: Fero is a PWA
+// and must not request assets at runtime. Rendered with fill="currentColor" so
+// each mark inherits the chip's foreground colour.
+//
+// Vipps is not in Simple Icons, so it has no logo and falls back to its text
+// label. To add it, take the official SVG from Vipps MobilePay's own brand
+// page and paste its markup as REVOLUT_MARK/PAYPAL_MARK are below.
+const REVOLUT_MARK = '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" focusable="false" aria-hidden="true" width="100%" height="100%"><path fill="currentColor" d="M20.9133 6.9566C20.9133 3.1208 17.7898 0 13.9503 0H2.424v3.8605h10.9782c1.7376 0 3.177 1.3651 3.2087 3.043.016.84-.2994 1.633-.8878 2.2324-.5886.5998-1.375.9303-2.2144.9303H9.2322a.2756.2756 0 0 0-.2755.2752v3.431c0 .0585.018.1142.052.1612L16.2646 24h5.3114l-7.2727-10.094c3.6625-.1838 6.61-3.2612 6.61-6.9494zM6.8943 5.9229H2.424V24h4.4704z"/></svg>';
+const PAYPAL_MARK = '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" focusable="false" aria-hidden="true" width="100%" height="100%"><path fill="currentColor" d="M15.607 4.653H8.941L6.645 19.251H1.82L4.862 0h7.995c3.754 0 6.375 2.294 6.473 5.513-.648-.478-2.105-.86-3.722-.86m6.57 5.546c0 3.41-3.01 6.853-6.958 6.853h-2.493L11.595 24H6.74l1.845-11.538h3.592c4.208 0 7.346-3.634 7.153-6.949a5.24 5.24 0 0 1 2.848 4.686M9.653 5.546h6.408c.907 0 1.942.222 2.363.541-.195 2.741-2.655 5.483-6.441 5.483H8.714Z"/></svg>';
+
 // TO ADD OFFICIAL LOGOS
 // ---------------------
 // Each provider below has a `logo` slot, currently null, which renders the
@@ -32,6 +43,7 @@ const PAYMENT_PROVIDER_DEFS = [
     label: "Revolut",
     brand: "#0666EB",
     onBrand: "#FFFFFF",
+    logo: REVOLUT_MARK,
     placeholder: "username",
     hint: "Your Revolut username, without the @.",
     host: "revolut.me",
@@ -42,6 +54,7 @@ const PAYMENT_PROVIDER_DEFS = [
     label: "PayPal",
     brand: "#003087",
     onBrand: "#FFFFFF",
+    logo: PAYPAL_MARK,
     placeholder: "paypal.me name",
     hint: "Your PayPal.Me name.",
     host: "paypal.me",

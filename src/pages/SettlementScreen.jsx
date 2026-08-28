@@ -270,14 +270,17 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
       border:`1px solid color-mix(in srgb, ${brand} 45%, transparent)`,
       color:brand
     };
+    // With a mark the button reads "[icon] Pay"; without one it spells out the
+    // provider so the payer still knows which app to open.
     const mark = target.logo
-      ? React.createElement('span',{key:"mark","aria-hidden":true,style:{display:"inline-flex",width:10,height:10,alignItems:"center",justifyContent:"center"},dangerouslySetInnerHTML:{__html:target.logo}})
+      ? React.createElement('span',{key:"mark","aria-hidden":true,style:{display:"inline-flex",width:11,height:11,alignItems:"center",justifyContent:"center",flexShrink:0},dangerouslySetInnerHTML:{__html:target.logo}})
       : null;
     if (target.mode === "link") {
       return React.createElement('a',{
         key:`${key}:pay`, href:target.url, target:"_blank", rel:"noopener noreferrer",
-        style:{...base,textDecoration:"none"}
-      }, mark, `Pay with ${target.label}`);
+        style:{...base,textDecoration:"none"},
+        "aria-label":`Pay with ${target.label}`
+      }, mark, mark ? "Pay" : `Pay with ${target.label}`);
     }
     return React.createElement('button',{
       key:`${key}:pay`, type:"button",
@@ -286,7 +289,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
         catch { setCopiedKey(null); }
       },
       style:base
-    }, mark, copiedKey===key ? "Copied" : `Copy ${target.label} details`);
+    }, mark, copiedKey===key ? "Copied" : (mark ? "Copy details" : `Copy ${target.label} details`));
   };
 
   const statusForPair = pair => {

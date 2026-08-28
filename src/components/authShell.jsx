@@ -253,10 +253,14 @@ const renderPaymentHandleSection = ({
     border: active ? `1px solid ${provider.brand}` : "1px solid var(--border)",
     color: active ? (provider.onBrand || "#fff") : "var(--muted)"
   });
+  // A provider with a mark renders icon-only: these logos are recognisable
+  // enough to stand alone and it keeps three chips comfortable on a narrow
+  // screen. Anything without a mark keeps its text label, so the row stays
+  // legible while Vipps has no official asset.
   const renderProviderMark = (provider, active) => provider.logo
     ? React.createElement('span',{
         "aria-hidden":true,
-        style:{display:"inline-flex",width:16,height:16,alignItems:"center",justifyContent:"center",color:active?(provider.onBrand||"#fff"):"var(--muted)"},
+        style:{display:"inline-flex",width:19,height:19,alignItems:"center",justifyContent:"center",color:active?(provider.onBrand||"#fff"):"var(--muted)"},
         dangerouslySetInnerHTML:{__html:provider.logo}
       })
     : null;
@@ -270,10 +274,11 @@ const renderPaymentHandleSection = ({
         key:provider.id, type:"button",
         onClick:()=>{ const next = payProvider===provider.id ? "" : provider.id; setPayProvider(next); if(!next) setPayHandle(""); },
         style:chipStyle(provider, payProvider===provider.id),
-        "aria-pressed":payProvider===provider.id
+        "aria-pressed":payProvider===provider.id,
+        "aria-label":provider.label,
+        title:provider.label
       },
-        renderProviderMark(provider, payProvider===provider.id),
-        provider.label
+        renderProviderMark(provider, payProvider===provider.id) || provider.label
       ))
     ),
     payProvider && React.createElement(React.Fragment,null,
