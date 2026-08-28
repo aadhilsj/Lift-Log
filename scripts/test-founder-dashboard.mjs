@@ -43,8 +43,30 @@ const sql = fs.readFileSync(new URL("../supabase/ante-core-founder-dashboard.sql
   "read_ante_core_founder_dashboard_details",
   "grant execute on function public.read_ante_core_founder_dashboard_details(timestamptz) to service_role",
   "v_thirty_day_start := v_today - 29",
+  "v_active_average_daily",
+  "v_active_average_weekly",
+  "v_active_average_monthly",
+  "v_upload_average_daily",
+  "v_upload_average_weekly",
+  "v_upload_average_monthly",
   "Europe/Oslo",
   "purge_ante_core_daily_app_activity"
 ].forEach(fragment => assert.ok(sql.includes(fragment), `dashboard privacy/metric contract is missing: ${fragment}`));
+
+const dashboardUi = fs.readFileSync(new URL("../src/pages/FounderDashboard.jsx", import.meta.url), "utf8");
+[
+  "Founder Dashboard",
+  "Active Users",
+  "Workout Uploads",
+  "Daily Active Users",
+  "Weekly Active Users",
+  "Monthly Active Users",
+  "Daily Workout Uploads",
+  "Weekly Workout Uploads",
+  "Monthly Workout Uploads",
+  "30-day avg:",
+  "4-week avg:",
+  "3-month avg:"
+].forEach(fragment => assert.ok(dashboardUi.includes(fragment), `dashboard UI label is missing: ${fragment}`));
 
 console.log("Founder dashboard contract checks passed.");
