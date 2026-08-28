@@ -4,6 +4,20 @@ Last updated: 2026-08-24, Europe/Oslo.
 
 Purpose: define what healthy growth means before optimizing onboarding, organic content, monetization, or paid acquisition. This is an instrumentation specification; it does not mean the listed events are implemented.
 
+## Implemented Founder Dashboard Measurement
+
+The founder dashboard records only a signed-in person's daily presence: one
+canonical profile ID and one Europe/Oslo calendar date, with first/last open
+timestamps. It deliberately does not record email addresses, display names,
+messages, workout content, device identifiers, IP addresses, precise location,
+or third-party analytics data.
+
+Daily presence is used only for first-party active-user totals. The raw rows are
+deleted after 90 days by a protected production retention job; account deletion
+cascades to any remaining daily-presence rows. The dashboard is available only
+to explicit server-side founder account IDs and returns aggregate counts, never
+per-person activity records.
+
 ## North-Star Unit
 
 Measure **activated Blocs**, not downloads alone.

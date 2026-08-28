@@ -26,6 +26,13 @@ const DEFAULT_JOINED_MONTH_BY_NAME = { Abhishek: "2026-4" };
 const SUPABASE_URL = process.env.SUPABASE_URL || "";
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_PUBLISHABLE_KEY || "";
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+// Server-only allowlist. Do not expose this through getClientAuthConfig or a VITE_ variable.
+const FOUNDER_DASHBOARD_USER_IDS = new Set(
+  String(process.env.FOUNDER_DASHBOARD_USER_IDS || "")
+    .split(",")
+    .map(value => value.trim())
+    .filter(Boolean)
+);
 let supabaseAdminClientPromise = null;
 const ENABLE_SETTLEMENT_CONFIRMATIONS = String(process.env.ENABLE_SETTLEMENT_CONFIRMATIONS || "").trim().toLowerCase() === "true";
 const ENABLE_SETTLEMENT_CONFIRMATIONS_PREVIEW = String(process.env.ENABLE_SETTLEMENT_CONFIRMATIONS_PREVIEW || "").trim().toLowerCase() === "true";
@@ -4886,6 +4893,45 @@ async function supabaseFetch(path, options = {}) {
   return response;
 }
 
+// These RPCs are intentionally service-role-only. The client never receives
+// raw activity rows; it can only request the aggregate after server-side owner
+// authorization succeeds.
+async function recordCanonicalDailyAppActivity(authUserId, openedAt = new Date().toISOString()) {
+  if (!authUserId) return;
+  try {
+    await supabaseFetch("/rest/v1/rpc/record_ante_core_daily_app_activity", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ p_auth_user_id: String(authUserId), p_opened_at: openedAt })
+    });
+  } catch (error) {
+    // Analytics must never prevent a member from opening Fero. Deployment is
+    // still gated on installing the RPC, so this only protects compatibility
+    // paths and a temporary partial rollout.
+    console.error("Daily app activity record failed:", error?.message || error);
+  }
+}
+
+async function readCanonicalFounderDashboard() {
+  const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_founder_dashboard", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({})
+  });
+  const body = await response.json();
+  return body && typeof body === "object" && !Array.isArray(body) ? body : {};
+}
+
+async function purgeCanonicalDailyAppActivity() {
+  const response = await supabaseFetch("/rest/v1/rpc/purge_ante_core_daily_app_activity", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({})
+  });
+  const body = await response.json();
+  return Math.max(0, Number(body) || 0);
+}
+
 async function getSupabaseAdminClient() {
   assertSupabaseConfigured();
   if (!supabaseAdminClientPromise) {
@@ -5155,6 +5201,17 @@ function readBearerToken(req, payload) {
   }
   const token = typeof payload?.accessToken === "string" ? payload.accessToken.trim() : "";
   return token || "";
+}
+
+function isFounderDashboardUser(userId) {
+  return FOUNDER_DASHBOARD_USER_IDS.has(String(userId || "").trim());
+}
+
+function assertFounderDashboardUser(userId) {
+  if (isFounderDashboardUser(userId)) return;
+  const error = new Error("You are not authorised to view the founder dashboard");
+  error.status = 403;
+  throw error;
 }
 
 function readDevImpersonationUserId(req) {
@@ -8287,6 +8344,7 @@ export {
   isGroupAdminActor,
   getWorkoutSessionKey,
   getDistinctWorkoutCountForDate,
+  isFounderDashboardUser,
   isMissingLocalCanonicalWorkoutRpcError,
   applyAddLog,
   applyMultiLog,
@@ -8509,6 +8567,13 @@ export default async function handler(req, res) {
         return res.status(200).json({ ok: true });
       }
 
+      if (payload?.action === "founder-dashboard") {
+        const authUser = await fetchAuthenticatedUser(readBearerToken(req, payload));
+        assertFounderDashboardUser(authUser.id);
+        const dashboard = await readCanonicalFounderDashboard();
+        return res.status(200).json({ ok:true, dashboard });
+      }
+
       if (payload?.action === "auth-sync") {
         const authUser = await fetchAuthenticatedUser(readBearerToken(req, payload));
         const current = await getCurrent();
@@ -8535,7 +8600,13 @@ export default async function handler(req, res) {
             await syncBlocMemberToCanonical(group, authUser.id, membership.role || "member");
           }
         }
-        return res.status(200).json({ ok: true, state: scopeReadableStateForUser(state, authUser.id), session: synced.session });
+        await recordCanonicalDailyAppActivity(authUser.id);
+        return res.status(200).json({
+          ok: true,
+          state: scopeReadableStateForUser(state, authUser.id),
+          session: synced.session,
+          founderDashboardAvailable: isFounderDashboardUser(authUser.id)
+        });
       }
 
       if (payload?.action === "invite-context") {
@@ -8808,6 +8879,7 @@ export default async function handler(req, res) {
           const memberRole = group.memberships[auth.user.id].role || "member";
           await syncBlocMemberToCanonical(group, auth.user.id, memberRole, { throwOnError: true });
         }
+        await recordCanonicalDailyAppActivity(auth.user.id);
         const readableState = await persistAndScopeReadableStateForUser(updated, `profile:${auth.user.id}`, "upsert-profile", auth.user.id);
         return res.status(200).json(readableState);
       }
