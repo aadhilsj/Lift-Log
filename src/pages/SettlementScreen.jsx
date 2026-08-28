@@ -273,7 +273,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
     // With a mark the button reads "[icon] Pay"; without one it spells out the
     // provider so the payer still knows which app to open.
     const mark = target.logo
-      ? React.createElement('span',{key:"mark","aria-hidden":true,style:{display:"inline-flex",width:11,height:11,alignItems:"center",justifyContent:"center",flexShrink:0},dangerouslySetInnerHTML:{__html:target.logo}})
+      ? React.createElement('span',{key:"mark","aria-hidden":true,style:{display:"inline-flex",height:10,width:10*(target.logoAspect||1),alignItems:"center",justifyContent:"center",flexShrink:0},dangerouslySetInnerHTML:{__html:target.logo}})
       : null;
     if (target.mode === "link") {
       return React.createElement('a',{

@@ -260,7 +260,7 @@ const renderPaymentHandleSection = ({
   const renderProviderMark = (provider, active) => provider.logo
     ? React.createElement('span',{
         "aria-hidden":true,
-        style:{display:"inline-flex",width:19,height:19,alignItems:"center",justifyContent:"center",color:active?(provider.onBrand||"#fff"):"var(--muted)"},
+        style:{display:"inline-flex",height:17,width:17*(provider.logoAspect||1),maxWidth:"100%",alignItems:"center",justifyContent:"center",color:active?(provider.onBrand||"#fff"):"var(--muted)"},
         dangerouslySetInnerHTML:{__html:provider.logo}
       })
     : null;

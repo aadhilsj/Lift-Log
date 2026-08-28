@@ -15,10 +15,15 @@
 // and must not request assets at runtime. Rendered with fill="currentColor" so
 // each mark inherits the chip's foreground colour.
 //
-// Vipps is not in Simple Icons, so it has no logo and falls back to its text
-// label. To add it, take the official SVG from Vipps MobilePay's own brand
-// page and paste its markup as REVOLUT_MARK/PAYPAL_MARK are below.
+// The Vipps mark is a wordmark, not a square glyph: its content box is
+// 3.93:1, so providers carry a logoAspect and the render sites size width
+// from height. Converted from a supplied SVG by keeping only the five visible
+// paths, dropping the four fill:none template leftovers, discarding the
+// <style> block (its generic .st0/.st1 class names would leak into the page)
+// and setting fill=currentColor. viewBox is cropped to the measured content
+// bounds rather than the original heavily padded canvas.
 const REVOLUT_MARK = '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" focusable="false" aria-hidden="true" width="100%" height="100%"><path fill="currentColor" d="M20.9133 6.9566C20.9133 3.1208 17.7898 0 13.9503 0H2.424v3.8605h10.9782c1.7376 0 3.177 1.3651 3.2087 3.043.016.84-.2994 1.633-.8878 2.2324-.5886.5998-1.375.9303-2.2144.9303H9.2322a.2756.2756 0 0 0-.2755.2752v3.431c0 .0585.018.1142.052.1612L16.2646 24h5.3114l-7.2727-10.094c3.6625-.1838 6.61-3.2612 6.61-6.9494zM6.8943 5.9229H2.424V24h4.4704z"/></svg>';
+const VIPPS_MARK = '<svg viewBox="20 19.4 123.4 34.4" xmlns="http://www.w3.org/2000/svg" focusable="false" aria-hidden="true" width="100%" height="100%"><path fill="currentColor" d="M28 22l5.1 14.9 5-14.9H44l-8.8 22.1h-4.4L22 22z"/><path fill="currentColor" d="M57.3 40.6c3.7 0 5.8-1.8 7.8-4.4 1.1-1.4 2.5-1.7 3.5-.9 1 .8 1.1 2.3 0 3.7-2.9 3.8-6.6 6.1-11.3 6.1-5.1 0-9.6-2.8-12.7-7.7-.9-1.3-.7-2.7.3-3.4 1-.7 2.5-.4 3.4 1 2.2 3.3 5.2 5.6 9 5.6zm6.9-12.3c0 1.8-1.4 3-3 3s-3-1.2-3-3 1.4-3 3-3 3 1.3 3 3z"/><path fill="currentColor" d="M78.3 22v3c1.5-2.1 3.8-3.6 7.2-3.6 4.3 0 9.3 3.6 9.3 11.3 0 8.1-4.8 12-9.8 12-2.6 0-5-1-6.8-3.5v10.6h-5.4V22zm0 11c0 4.5 2.6 6.9 5.5 6.9 2.8 0 5.6-2.2 5.6-6.9 0-4.6-2.8-6.8-5.6-6.8s-5.5 2.1-5.5 6.8z"/><path fill="currentColor" d="M104.3 22v3c1.5-2.1 3.8-3.6 7.2-3.6 4.3 0 9.3 3.6 9.3 11.3 0 8.1-4.8 12-9.8 12-2.6 0-5-1-6.8-3.5v10.6h-5.4V22zm0 11c0 4.5 2.6 6.9 5.5 6.9 2.8 0 5.6-2.2 5.6-6.9 0-4.6-2.8-6.8-5.6-6.8-2.9 0-5.5 2.1-5.5 6.8z"/><path fill="currentColor" d="M132.3 21.4c4.5 0 7.7 2.1 9.1 7.3l-4.9.8c-.1-2.6-1.7-3.5-4.1-3.5-1.8 0-3.2.8-3.2 2.1 0 1 .7 2 2.8 2.4l3.7.7c3.6.7 5.6 3.1 5.6 6.3 0 4.8-4.3 7.2-8.4 7.2-4.3 0-9.1-2.2-9.8-7.6l4.9-.8c.3 2.8 2 3.8 4.8 3.8 2.1 0 3.5-.8 3.5-2.1 0-1.2-.7-2.1-3-2.5l-3.4-.6c-3.6-.7-5.8-3.2-5.8-6.4.1-5 4.6-7.1 8.2-7.1z"/></svg>';
 const PAYPAL_MARK = '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" focusable="false" aria-hidden="true" width="100%" height="100%"><path fill="currentColor" d="M15.607 4.653H8.941L6.645 19.251H1.82L4.862 0h7.995c3.754 0 6.375 2.294 6.473 5.513-.648-.478-2.105-.86-3.722-.86m6.57 5.546c0 3.41-3.01 6.853-6.958 6.853h-2.493L11.595 24H6.74l1.845-11.538h3.592c4.208 0 7.346-3.634 7.153-6.949a5.24 5.24 0 0 1 2.848 4.686M9.653 5.546h6.408c.907 0 1.942.222 2.363.541-.195 2.741-2.655 5.483-6.441 5.483H8.714Z"/></svg>';
 
 // TO ADD OFFICIAL LOGOS
@@ -65,6 +70,8 @@ const PAYMENT_PROVIDER_DEFS = [
     label: "Vipps",
     brand: "#FF5B24",
     onBrand: "#FFFFFF",
+    logo: VIPPS_MARK,
+    logoAspect: 3.93,
     placeholder: "Vipps QR link or phone number",
     // Vipps has no public person-to-person deep link. A personal Vipps QR
     // resolves to a qr.vipps.no URL, which we can open directly. A phone
@@ -77,8 +84,8 @@ const PAYMENT_PROVIDER_DEFS = [
 
 const ALLOWED_LINK_HOSTS = new Set(["revolut.me", "paypal.me", "qr.vipps.no"]);
 
-const PAYMENT_PROVIDERS = PAYMENT_PROVIDER_DEFS.map(({ id, label, placeholder, hint, brand, onBrand, logo = null }) => ({
-  id, label, placeholder, hint, brand, onBrand, logo
+const PAYMENT_PROVIDERS = PAYMENT_PROVIDER_DEFS.map(({ id, label, placeholder, hint, brand, onBrand, logo = null, logoAspect = 1 }) => ({
+  id, label, placeholder, hint, brand, onBrand, logo, logoAspect
 }));
 
 const PAYMENT_PROVIDER_IDS = new Set(PAYMENT_PROVIDER_DEFS.map(def => def.id));
@@ -155,19 +162,19 @@ function buildPaymentTarget(profile) {
   // A handle that is itself an allowlisted URL is opened as-is.
   const asUrl = parseAllowedUrl(normalized);
   if (asUrl) {
-    return { mode: "link", url: asUrl.toString(), copyText: asUrl.toString(), label: def.label, brand: def.brand, onBrand: def.onBrand, logo: def.logo || null };
+    return { mode: "link", url: asUrl.toString(), copyText: asUrl.toString(), label: def.label, brand: def.brand, onBrand: def.onBrand, logo: def.logo || null, logoAspect: def.logoAspect || 1 };
   }
 
   const built = SAFE_HANDLE_PATTERN.test(normalized) ? def.build(normalized) : "";
   if (built) {
     const verified = parseAllowedUrl(built);
     if (verified) {
-      return { mode: "link", url: verified.toString(), copyText: normalized, label: def.label, brand: def.brand, onBrand: def.onBrand, logo: def.logo || null };
+      return { mode: "link", url: verified.toString(), copyText: normalized, label: def.label, brand: def.brand, onBrand: def.onBrand, logo: def.logo || null, logoAspect: def.logoAspect || 1 };
     }
   }
 
   // Vipps phone numbers and anything else we will not open.
-  return { mode: "copy", url: "", copyText: normalized, label: def.label, brand: def.brand, onBrand: def.onBrand, logo: def.logo || null };
+  return { mode: "copy", url: "", copyText: normalized, label: def.label, brand: def.brand, onBrand: def.onBrand, logo: def.logo || null, logoAspect: def.logoAspect || 1 };
 }
 
 function describePaymentHandle(profile) {
