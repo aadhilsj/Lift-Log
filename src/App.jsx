@@ -95,6 +95,7 @@ import { ProfilePage } from "./pages/ProfilePage.jsx";
 import { BlocSettingsScreen } from "./pages/BlocSettingsScreen.jsx";
 import { LogCommentThread } from "./components/LogCommentThread.jsx";
 import { ColdOnboarding } from "./components/ColdOnboarding.jsx";
+import { FounderDashboard } from "./pages/FounderDashboard.jsx";
 
 const normalizeReactionMembers = (members) => Array.isArray(members)
   ? Array.from(new Set(members.filter(Boolean))).sort()
@@ -239,6 +240,8 @@ const App = () => {
   const [paymentSaving,setPaymentSaving]=useState(false);
   const [paymentError,setPaymentError]=useState("");
   const [showProfile,setShowProfile]=useState(false);
+  const [showFounderDashboard,setShowFounderDashboard]=useState(false);
+  const [founderDashboardAvailable,setFounderDashboardAvailable]=useState(false);
   const [showStream,setShowStream]=useState(false);
   const [streamFocusBlocId,setStreamFocusBlocId]=useState(null);
   const [streamReturnScrollTop,setStreamReturnScrollTop]=useState(null);
@@ -838,6 +841,7 @@ const App = () => {
           try {
             const synced = await syncAuthSessionData(initialSession);
             if (active && synced?.ok && synced.state) applyData(synced.state);
+            if (active) setFounderDashboardAvailable(synced?.founderDashboardAvailable === true);
           } finally {
             if (active && shouldHydrateUi) setAuthHydrating(false);
           }
@@ -856,6 +860,7 @@ const App = () => {
             try {
               const synced = await syncAuthSessionData(mapped);
               if (active && synced?.ok && synced.state) applyData(synced.state);
+              if (active) setFounderDashboardAvailable(synced?.founderDashboardAvailable === true);
             } finally {
               if (active && shouldHydrateUi) setAuthHydrating(false);
             }
@@ -2784,7 +2789,7 @@ const App = () => {
     const createdInviteGroup = createdInviteGroupId ? appState.groups?.[createdInviteGroupId] : null;
     return React.createElement(React.Fragment,null,
       showJoinModal && !authStep && React.createElement(JoinGroupModal,{inviteContext,joinCode,setJoinCode,onClose:handleJoinModalClose,onJoin:handleJoinGroup,joining:joiningGroup,error:inviteError,signedIn:true}),
-      showProfileModal && React.createElement(ProfileModal,{email:authSession?.email,onSignOut:handleSwitchUser,onClose:()=>{setProfileError("");setShowProfileModal(false);},currentDisplayName:profile?.displayName||"",onSaveDisplayName:handleSaveProfileFromModal,saving:profileSaving,saveError:profileError,onDeleteAccount:handleDeleteAccount,currentPaymentProvider:profile?.paymentProvider||"",currentPaymentHandle:profile?.paymentHandle||"",onSavePayment:handleSavePaymentHandle,savingPayment:paymentSaving,paymentError:paymentError}),
+      showProfileModal && React.createElement(ProfileModal,{email:authSession?.email,onSignOut:handleSwitchUser,onClose:()=>{setProfileError("");setShowProfileModal(false);},currentDisplayName:profile?.displayName||"",onSaveDisplayName:handleSaveProfileFromModal,saving:profileSaving,saveError:profileError,onDeleteAccount:handleDeleteAccount,currentPaymentProvider:profile?.paymentProvider||"",currentPaymentHandle:profile?.paymentHandle||"",onSavePayment:handleSavePaymentHandle,savingPayment:paymentSaving,paymentError:paymentError,showFounderDashboard:founderDashboardAvailable,onOpenFounderDashboard:()=>{setShowProfileModal(false);setShowFounderDashboard(true);}}),
       createdInviteGroup
         ? React.createElement(CreatedBlocInviteScreen,{group:createdInviteGroup,onContinue:handleContinueFromCreatedInvite})
         : renderGroupSwitcherSurface({ suppressIntro:suppressSwitcherIntro }),
@@ -2804,6 +2809,7 @@ const App = () => {
           onDeleteAccount:handleDeleteAccount
         })
       )
+      ,showFounderDashboard && React.createElement(FounderDashboard,{onClose:()=>setShowFounderDashboard(false)})
     );
   }
   if(!currentUser || !getMembershipForUser(currentGroup, effectiveAuthSession, effectiveProfile)) {
@@ -2939,7 +2945,7 @@ const App = () => {
 
   return React.createElement(React.Fragment,null,
     showJoinModal && !authStep && React.createElement(JoinGroupModal,{inviteContext,joinCode,setJoinCode,onClose:handleJoinModalClose,onJoin:handleJoinGroup,joining:joiningGroup,error:inviteError,signedIn:true}),
-    showProfileModal && React.createElement(ProfileModal,{email:authSession?.email,onSignOut:handleSwitchUser,onClose:()=>setShowProfileModal(false),showDisplayName:true,currentDisplayName:currentUser,onSaveDisplayName:handleSaveProfileFromModal,saving:profileSaving,saveError:profileError,onLeaveBloc:handleLeaveBloc,onDeleteAccount:handleDeleteAccount,currentPaymentProvider:effectiveProfile?.paymentProvider||"",currentPaymentHandle:effectiveProfile?.paymentHandle||"",onSavePayment:handleSavePaymentHandle,savingPayment:paymentSaving,paymentError:paymentError}),
+    showProfileModal && React.createElement(ProfileModal,{email:authSession?.email,onSignOut:handleSwitchUser,onClose:()=>setShowProfileModal(false),showDisplayName:true,currentDisplayName:currentUser,onSaveDisplayName:handleSaveProfileFromModal,saving:profileSaving,saveError:profileError,onLeaveBloc:handleLeaveBloc,onDeleteAccount:handleDeleteAccount,currentPaymentProvider:effectiveProfile?.paymentProvider||"",currentPaymentHandle:effectiveProfile?.paymentHandle||"",onSavePayment:handleSavePaymentHandle,savingPayment:paymentSaving,paymentError:paymentError,showFounderDashboard:founderDashboardAvailable,onOpenFounderDashboard:()=>{setShowProfileModal(false);setShowFounderDashboard(true);}}),
     React.createElement(BlocStream,{open:showStream,groupName:currentGroup.name,blocId:currentGroup.id,initialBlocId:streamFocusBlocId,initialScrollTop:streamReturnScrollTop,initialUnreadCount:streamUnreadCount,currentUserId:effectiveAuthSession?.userId,members:Object.values(currentGroup.memberships||{}).map(m=>({id:m.userId,name:m.displayName,photoUrl:appState.profiles?.[m.userId]?.profilePhotoUrl||""})),streamBlocs:visibleGroups.map(group=>({id:group.id,name:group.name,members:Object.values(group.memberships||{}).map(m=>({id:m.userId,name:m.displayName,photoUrl:appState.profiles?.[m.userId]?.profilePhotoUrl||""}))})),onSeasonClosedTap:handleStreamSeasonClosedTap,onUnreadCountChange:(groupId,count)=>{if(groupId===currentGroup.id)setStreamUnreadCount(Number(count)||0);},onOpenLogComments:handleOpenLogComments,onClose:()=>{setShowStream(false);setStreamFocusBlocId(null);setStreamReturnScrollTop(null);refreshStreamUnreadCount(currentGroup.id);}}),
     prorationGroup && React.createElement(ProrationChoiceModal,{
       monthName: getCurrentMonthSummary(prorationGroup).monthName,
@@ -2957,6 +2963,7 @@ const App = () => {
     renderInviteJoinToast(),
     renderProfilePhotoToast(),
     renderInviteDownloadPrompt(),
+    showFounderDashboard && React.createElement(FounderDashboard,{onClose:()=>setShowFounderDashboard(false)}),
     logCommentScreen && React.createElement('div',{
       style:{position:"fixed",inset:0,zIndex:520,overflow:"hidden",pointerEvents:"auto",background:"transparent"}
     },

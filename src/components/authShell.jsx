@@ -283,7 +283,7 @@ const renderPaymentHandleSection = ({
   );
 };
 
-const ProfileModal = ({email,onSignOut,onClose,showDisplayName,currentDisplayName,onSaveDisplayName,saving,saveError,onLeaveBloc,onDeleteAccount,currentPaymentProvider="",currentPaymentHandle="",onSavePayment,savingPayment=false,paymentError=""}) => {
+const ProfileModal = ({email,onSignOut,onClose,showDisplayName,currentDisplayName,onSaveDisplayName,saving,saveError,onLeaveBloc,onDeleteAccount,currentPaymentProvider="",currentPaymentHandle="",onSavePayment,savingPayment=false,paymentError="",showFounderDashboard,onOpenFounderDashboard}) => {
   const [name,setName]=React.useState(currentDisplayName||"");
   const [payProvider,setPayProvider]=React.useState(currentPaymentProvider||"");
   const [payHandle,setPayHandle]=React.useState(currentPaymentHandle||"");
@@ -309,6 +309,7 @@ const ProfileModal = ({email,onSignOut,onClose,showDisplayName,currentDisplayNam
         currentPaymentProvider, currentPaymentHandle,
         onSavePayment, savingPayment, paymentError
       }),
+      showFounderDashboard && !showLeaveConfirm && !showDeleteConfirm && React.createElement('button',{type:"button",onClick:onOpenFounderDashboard,style:{width:"100%",margin:"0 0 14px",padding:"11px 12px",borderRadius:10,border:"1px solid rgba(78,205,196,.35)",background:"rgba(78,205,196,.08)",color:"#4ECDC4",fontSize:12,fontWeight:900,cursor:"pointer"}},"Open founder dashboard"),
       showDisplayName
         ? React.createElement(React.Fragment,null,
             showLeaveConfirm
