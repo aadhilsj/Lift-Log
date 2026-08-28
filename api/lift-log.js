@@ -4925,8 +4925,31 @@ async function recordCanonicalDailyAppActivity(authUserId, openedAt = new Date()
   }
 }
 
+async function recordCanonicalMonthlyFeatureUsage(authUserId, feature, usedAt = new Date().toISOString()) {
+  if (!authUserId) return;
+  try {
+    await supabaseFetch("/rest/v1/rpc/record_ante_core_monthly_feature_usage", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ p_auth_user_id: String(authUserId), p_feature: feature, p_used_at: usedAt })
+    });
+  } catch (error) {
+    console.error("Monthly feature usage record failed:", error?.message || error);
+  }
+}
+
 async function readFounderRosterAndActiveBlocs() {
   const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_founder_dashboard_details", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({})
+  });
+  const body = await response.json();
+  return body && typeof body === "object" && !Array.isArray(body) ? body : {};
+}
+
+async function readCanonicalFounderDashboardGrowth() {
+  const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_founder_dashboard_growth", {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     body: JSON.stringify({})
@@ -4943,11 +4966,12 @@ async function readCanonicalFounderDashboard() {
   });
   const body = await response.json();
   if (!body || typeof body !== "object" || Array.isArray(body)) return {};
-  const rosterAndBlocMetrics = await readFounderRosterAndActiveBlocs();
+  const [rosterAndBlocMetrics, growth] = await Promise.all([readFounderRosterAndActiveBlocs(), readCanonicalFounderDashboardGrowth()]);
   return {
     ...body,
     accounts: { ...(body.accounts || {}), ...rosterAndBlocMetrics.accounts },
-    activeBlocs: rosterAndBlocMetrics.activeBlocs
+    activeBlocs: rosterAndBlocMetrics.activeBlocs,
+    growth
   };
 }
 
@@ -8500,6 +8524,7 @@ export default async function handler(req, res) {
         const messages = await readBlocStreamFromCanonical(payload.groupId, authUser.id, {
           limit: payload.limit
         });
+        await recordCanonicalMonthlyFeatureUsage(authUser.id, "bloc_stream");
         return res.status(200).json({ ok: true, messages: Array.isArray(messages) ? messages : [] });
       }
 
@@ -8551,6 +8576,7 @@ export default async function handler(req, res) {
           payload.emoji,
           payload.isAdding
         );
+        await recordCanonicalMonthlyFeatureUsage(authUser.id, "reaction");
         await bumpCanonicalRevision(`stream-reaction:${payload.groupId}:${payload.messageId}:${authUser.id}:${payload.emoji}`, null);
         return res.status(200).json({ ok: true });
       }
@@ -8599,6 +8625,7 @@ export default async function handler(req, res) {
         if (!isCurrentGroupMember(group, canonicalActor, auth.user.id)) return res.status(403).json({ error: "Only Bloc members can comment" });
         await syncOpenWorkoutLogSnapshotToCanonical(group, owner, log, { throwOnError: true });
         const result = await insertWorkoutLogCommentInCanonical(payload.groupId, auth.user.id, logId, payload.body);
+        await recordCanonicalMonthlyFeatureUsage(auth.user.id, "comment");
         await bumpCanonicalRevision(`log-comment:${payload.groupId}:${logId}:${auth.user.id}`, null);
         return res.status(200).json({
           ok: true,
@@ -8620,6 +8647,7 @@ export default async function handler(req, res) {
           emoji,
           payload.isAdding
         );
+        await recordCanonicalMonthlyFeatureUsage(authUser.id, "reaction");
         await bumpCanonicalRevision(`log-comment-reaction:${payload.groupId}:${commentId}:${authUser.id}:${emoji}`, null);
         return res.status(200).json({ ok: true });
       }

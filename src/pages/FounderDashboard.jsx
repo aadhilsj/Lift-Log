@@ -64,6 +64,7 @@ const FounderDashboard = ({onClose}) => {
   const [status,setStatus] = useState("loading");
   const [dashboard,setDashboard] = useState(null);
   const [error,setError] = useState("");
+  const [tab,setTab] = useState("overview");
   const load = useCallback(async()=>{
     setStatus("loading");
     setError("");
@@ -93,6 +94,10 @@ const FounderDashboard = ({onClose}) => {
         React.createElement("button", {type:"button",onClick:load,style:{border:0,borderRadius:9,padding:"10px 13px",fontWeight:800,background:"#4ECDC4",color:"#061010",cursor:"pointer"}}, "Try again")
       ),
       status === "ready" && React.createElement(React.Fragment,null,
+        React.createElement("div", {style:{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:6,padding:4,margin:"0 0 14px",borderRadius:11,background:"rgba(255,255,255,.045)"}},
+          ["overview","growth"].map(item=>React.createElement("button", {type:"button",key:item,onClick:()=>setTab(item),style:{border:0,borderRadius:8,padding:"9px 8px",background:tab===item?"#4ECDC4":"transparent",color:tab===item?"#061010":"var(--muted)",fontSize:11,fontWeight:900,cursor:"pointer",textTransform:"capitalize"}}, item))
+        ),
+        tab === "overview" && React.createElement(React.Fragment,null,
         React.createElement("section", {style:{marginBottom:20}},
           React.createElement(MetricGroup,{title:"Total Active Users"},
             React.createElement(Metric,{label:"Daily",value:dashboard?.activeUsers?.today,detail:"Today"}),
@@ -148,6 +153,25 @@ const FounderDashboard = ({onClose}) => {
             )
           ),
           React.createElement(Trend,{points:dashboard?.trend?.daily})
+        ),
+        ),
+        tab === "growth" && React.createElement("section", {style:{marginBottom:20}},
+          React.createElement("p", {style:{margin:"0 0 12px",fontSize:11,lineHeight:1.45,color:"var(--muted)"}}, "Active user = a signed-in person who opened Fero at least once in the selected period."),
+          React.createElement(MetricGroup,{title:"Activation Rate",columns:1},
+            React.createElement(Metric,{label:"New users who logged a workout",value:dashboard?.growth?.activation?.rate,formatValue:value=>`${average(value)}%`,detail:`${number(dashboard?.growth?.activation?.activatedAccounts)} of ${number(dashboard?.growth?.activation?.eligibleAccounts)} eligible accounts logged their first workout within 7 days`})
+          ),
+          React.createElement(MetricGroup,{title:"Retention",columns:2},
+            React.createElement(Metric,{label:"Weekly Retention",value:dashboard?.growth?.retention?.weekly?.rate,formatValue:value=>`${average(value)}%`,detail:`${number(dashboard?.growth?.retention?.weekly?.returningUsers)} of ${number(dashboard?.growth?.retention?.weekly?.activeUsers)} active this week were active last week`}),
+            React.createElement(Metric,{label:"Monthly Retention",value:dashboard?.growth?.retention?.monthly?.rate,formatValue:value=>`${average(value)}%`,detail:`${number(dashboard?.growth?.retention?.monthly?.returningUsers)} of ${number(dashboard?.growth?.retention?.monthly?.activeUsers)} active this month were active last month`})
+          ),
+          React.createElement(MetricGroup,{title:"Workouts Per Active User",columns:1},
+            React.createElement(Metric,{label:"This month",value:dashboard?.growth?.workoutsPerActiveUser?.value,formatValue:average,detail:`${number(dashboard?.growth?.workoutsPerActiveUser?.uploads)} uploads from ${number(dashboard?.growth?.workoutsPerActiveUser?.activeUsers)} active users`})
+          ),
+          React.createElement(MetricGroup,{title:"Feature Engagement This Month",columns:3},
+            React.createElement(Metric,{label:"Bloc Stream",value:dashboard?.growth?.featureEngagement?.blocStreamUsers,detail:`of ${number(dashboard?.growth?.featureEngagement?.activeUsers)} active`}),
+            React.createElement(Metric,{label:"Comments",value:dashboard?.growth?.featureEngagement?.commentUsers,detail:`of ${number(dashboard?.growth?.featureEngagement?.activeUsers)} active`}),
+            React.createElement(Metric,{label:"Reactions",value:dashboard?.growth?.featureEngagement?.reactionUsers,detail:`of ${number(dashboard?.growth?.featureEngagement?.activeUsers)} active`})
+          )
         )
       )
     )
