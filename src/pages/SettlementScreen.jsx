@@ -18,10 +18,12 @@ import {
 import { Avatar, TrophyIcon } from "../components/primitives.jsx";
 import { ShareSticker } from "../components/ShareSticker.jsx";
 import { buildStickerData } from "../lib/shareSticker.js";
+import { buildPaymentTarget } from "../lib/paymentLinks.js";
 
 const FULL_MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
-const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistory, onSettlementClaimPaid, onSettlementConfirmPaid, onStartNextMonth, onViewProfileMonth}) => {
+const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistory, profiles, onSettlementClaimPaid, onSettlementConfirmPaid, onStartNextMonth, onViewProfileMonth}) => {
+  const [copiedKey, setCopiedKey] = React.useState(null);
   const [settlementBusy, setSettlementBusy] = React.useState(null);
   const [showStandings, setShowStandings] = React.useState(false);
   const [claimPrompt, setClaimPrompt] = React.useState(null);
@@ -240,6 +242,45 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
     ))
   );
 
+  // Resolve a member's payment handle by display name. Membership is the
+  // authoritative display-name record, so go name -> userId -> profile rather
+  // than matching on profile display names, which are not unique.
+  const paymentTargetFor = displayName => {
+    const name = String(displayName || "").trim();
+    if (!name || !profiles) return null;
+    const entry = Object.entries(group?.memberships || {})
+      .find(([, membership]) => String(membership?.displayName || "").trim() === name);
+    if (!entry) return null;
+    return buildPaymentTarget(profiles[entry[0]]);
+  };
+
+  // Opening a payment link never changes settlement state. Fero does not know
+  // whether the transfer happened; only the payer and receiver do.
+  const renderPayControl = (pair, key) => {
+    const target = paymentTargetFor(pair.receiverDisplayName);
+    if (!target) return null;
+    const base = {
+      display:"inline-flex",alignItems:"center",justifyContent:"center",
+      fontSize:8,fontWeight:800,lineHeight:1,padding:"4px 6px",borderRadius:999,
+      whiteSpace:"nowrap",fontFamily:"'Outfit', sans-serif",
+      background:"rgba(78,205,196,.05)",border:"1px solid rgba(78,205,196,.2)",color:"rgba(78,205,196,.8)"
+    };
+    if (target.mode === "link") {
+      return React.createElement('a',{
+        key:`${key}:pay`, href:target.url, target:"_blank", rel:"noopener noreferrer",
+        style:{...base,textDecoration:"none"}
+      }, `Pay with ${target.label}`);
+    }
+    return React.createElement('button',{
+      key:`${key}:pay`, type:"button",
+      onClick:async()=>{
+        try { await navigator.clipboard.writeText(target.copyText); setCopiedKey(key); setTimeout(()=>setCopiedKey(null),1600); }
+        catch { setCopiedKey(null); }
+      },
+      style:base
+    }, copiedKey===key ? "Copied" : `Copy ${target.label} details`);
+  };
+
   const statusForPair = pair => {
     const state = buildSettlementPairState(group, month.key, pair.payerDisplayName, pair.receiverDisplayName, currentUserId, currentUser);
     return {
@@ -280,6 +321,9 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
               disabled:settlementBusy===key,
               style:{display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:8,fontWeight:800,lineHeight:1,padding:"4px 6px",borderRadius:999,background:"rgba(224,80,32,.035)",border:"1px solid rgba(224,80,32,.12)",color:"rgba(240,109,67,.68)",whiteSpace:"nowrap",fontFamily:"'Outfit', sans-serif"}
             }, settlementBusy===key ? "Saving..." : "Mark as paid");
+        const payControl = outcome !== "winner" && !state.confirmed && !state.pending
+          ? renderPayControl(pair, key)
+          : null;
         return outcome==="winner"
           ? React.createElement(React.Fragment,{key:key},
               index>0&&React.createElement('div',{style:{height:1,width:"34%",margin:"2px auto",background:"linear-gradient(90deg, transparent, rgba(255,255,255,.12), transparent)"}}),
@@ -297,7 +341,8 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
                   React.createElement('div',{style:{fontSize:12,fontWeight:900,color:totalColor,whiteSpace:"nowrap"}},`-${fmtCurrency(pair.amount, currency)}`)
                 ),
                 action && React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"flex-end"}},action)
-              )
+              ),
+              payControl && React.createElement('div',{style:{display:"flex",justifyContent:"center",paddingBottom:3}},payControl)
             );
       }),
       soloNames.length > 0 && React.createElement('div',{style:{display:"grid",gap:3,marginTop:rows.length?7:0,paddingTop:rows.length?7:0,borderTop:rows.length?"1px solid rgba(78,205,196,.12)":"none"}},
