@@ -59,6 +59,8 @@ const sql = fs.readFileSync(new URL("../supabase/ante-core-founder-dashboard.sql
 ].forEach(fragment => assert.ok(sql.includes(fragment), `dashboard privacy/metric contract is missing: ${fragment}`));
 
 const dashboardUi = fs.readFileSync(new URL("../src/pages/FounderDashboard.jsx", import.meta.url), "utf8");
+const appUi = fs.readFileSync(new URL("../src/App.jsx", import.meta.url), "utf8");
+const authShell = fs.readFileSync(new URL("../src/components/authShell.jsx", import.meta.url), "utf8");
 [
   "Founder Dashboard",
   "Total Active Users",
@@ -78,5 +80,8 @@ const dashboardUi = fs.readFileSync(new URL("../src/pages/FounderDashboard.jsx",
 assert.ok(!dashboardUi.includes('subtitle:"All-time average"'), "dashboard UI should not repeat the all-time average helper text");
 assert.ok(!dashboardUi.includes('"Private"'), "dashboard UI should not show the private header");
 assert.ok(!dashboardUi.includes('All Account Names'), "dashboard UI should not show the all-account roster");
+assert.ok(appUi.includes('showFounderDashboard: !inert && founderDashboardAvailable'), "founder dashboard entry should be available from the bloc switcher");
+assert.ok(authShell.includes('"Founder Dashboard"'), "bloc switcher should use a labelled founder dashboard entry");
+assert.ok(!authShell.includes('"Open founder dashboard"'), "profile should not duplicate the founder dashboard entry");
 
 console.log("Founder dashboard contract checks passed.");
