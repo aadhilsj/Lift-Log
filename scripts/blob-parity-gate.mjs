@@ -36,18 +36,20 @@ if (!fixtureDir && (!supabaseUrl || !serviceRoleKey)) {
   process.exit(1);
 }
 
-const [liveState, monthHistory, blocs, blocMembers] = fixtureDir
+const [liveState, monthHistory, blocs, blocMembers, seasonOverrides] = fixtureDir
   ? [
       readFixture("live_state.json"),
       readFixture("month_history.json"),
       readFixture("blocs.json"),
-      readFixture("bloc_members.json")
+      readFixture("bloc_members.json"),
+      readFixture("season_overrides.json")
     ]
   : await Promise.all([
       fetchLiveBlobState(),
       fetchRpcArray("read_ante_core_month_history"),
       fetchRpcArray("read_ante_core_blocs"),
-      fetchRpcArray("read_ante_core_bloc_members")
+      fetchRpcArray("read_ante_core_bloc_members"),
+      fetchRpcArray("read_ante_core_season_overrides")
     ]);
 
 const blobState = liveState.state || {};
@@ -67,6 +69,7 @@ const checks = [
   checkHistoricalWorkoutCounts(),
   checkHistoricalReactionCoverage(),
   checkHistoricalSettlements(),
+  checkSeasonOverrideParity(),
   checkBlocSortOrder(),
   checkMemberSortOrder(),
   describeOpenSeasonScope()
@@ -229,6 +232,75 @@ function checkHistoricalSettlements() {
   };
 }
 
+// Season override parity — the documented drift risk the six audit areas do
+// not cover. Blob stores group.seasonOverrides[monthKey]; canonical rows come
+// from read_ante_core_season_overrides. Substantive fields (prorated,
+// proratedMas) and presence on both sides gate the run; chosenBy is a
+// display-name field with documented historical noise, so name diffs are
+// surfaced as a warning rather than a failure.
+function checkSeasonOverrideParity() {
+  const mismatches = [];
+  const nameDiffs = [];
+  const canonicalByKey = new Map(
+    seasonOverrides.map(row => [`${row.legacy_group_key}:${row.month_key}`, row])
+  );
+  const seen = new Set();
+
+  for (const [groupId, group] of Object.entries(blobGroups)) {
+    for (const [monthKey, override] of Object.entries(group?.seasonOverrides || {})) {
+      if (!override) continue;
+      const key = `${groupId}:${monthKey}`;
+      seen.add(key);
+      const row = canonicalByKey.get(key);
+      if (!row) {
+        mismatches.push({ group: groupId, monthKey, issue: "missing-canonical" });
+        continue;
+      }
+      const blobMas = normalizeMas(override.proratedMas);
+      const canonicalMas = normalizeMas(row.prorated_mas);
+      if (Boolean(override.prorated) !== Boolean(row.prorated) || blobMas !== canonicalMas) {
+        mismatches.push({
+          group: groupId,
+          monthKey,
+          issue: "field-drift",
+          blob: { prorated: Boolean(override.prorated), proratedMas: blobMas },
+          canonical: { prorated: Boolean(row.prorated), proratedMas: canonicalMas }
+        });
+      } else if ((override.chosenBy || null) !== (row.chosen_by || null)) {
+        nameDiffs.push({
+          group: groupId,
+          monthKey,
+          blobChosenBy: override.chosenBy || null,
+          canonicalChosenBy: row.chosen_by || null
+        });
+      }
+    }
+  }
+  for (const [key, row] of canonicalByKey) {
+    if (!seen.has(key)) {
+      mismatches.push({
+        group: row.legacy_group_key,
+        monthKey: row.month_key,
+        issue: "missing-blob"
+      });
+    }
+  }
+  return {
+    name: "season-override-parity",
+    ok: mismatches.length === 0,
+    ...(mismatches.length === 0 && nameDiffs.length ? { status: "warning" } : {}),
+    details: {
+      note: "prorated/proratedMas and presence gate the run; chosenBy diffs warn only (display-name noise).",
+      blobOverrides: seen.size,
+      canonicalOverrides: canonicalByKey.size,
+      mismatchCount: mismatches.length,
+      mismatches: mismatches.slice(0, SAMPLE_LIMIT),
+      chosenByDiffCount: nameDiffs.length,
+      chosenByDiffs: nameDiffs.slice(0, SAMPLE_LIMIT)
+    }
+  };
+}
+
 // Audit area 4. Null sort_order blocks canonical groupOrder authority. The
 // documented pass condition scopes to ACTIVE blocs — a bloc with no active
 // members appears in nobody's group list, so its ordering is moot. Dead blocs
@@ -298,6 +370,13 @@ function readFixture(name) {
 
 function isRejected(log) {
   return String(log?.flag_status || "").trim().toLowerCase() === "rejected";
+}
+
+// Mirrors normalizeSeasonOverrides() in api/lift-log.js: non-finite becomes
+// null, otherwise clamped to a minimum of 1 and rounded.
+function normalizeMas(value) {
+  const num = Number(value);
+  return Number.isFinite(num) ? Math.max(1, Math.round(num)) : null;
 }
 
 // Both sides shape reactions as { emoji: [reactorName, ...] }.

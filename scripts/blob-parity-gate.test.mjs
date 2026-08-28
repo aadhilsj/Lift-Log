@@ -34,6 +34,9 @@ function cleanFixture() {
         groups: {
           "alpha-abc123": {
             name: "Alpha",
+            seasonOverrides: {
+              "2026-07": { prorated: true, proratedMas: 8, chosenAt: "2026-07-02T10:00:00Z", chosenBy: "Ana", chosenByUserId: "u-ana" }
+            },
             monthHistory: [{
               key: "2026-07",
               logsByUser: {
@@ -69,6 +72,9 @@ function cleanFixture() {
     bloc_members: [
       { legacy_group_key: "alpha-abc123", display_name: "Ana", sort_order: 1 },
       { legacy_group_key: "alpha-abc123", display_name: "Ben", sort_order: 2 }
+    ],
+    season_overrides: [
+      { legacy_group_key: "alpha-abc123", month_key: "2026-07", prorated: true, prorated_mas: 8, chosen_at: "2026-07-02T10:00:00+00:00", chosen_by: "Ana", chosen_by_user_id: "u-ana" }
     ]
   };
 }
@@ -80,6 +86,7 @@ function runGate(fixture, label) {
   fs.writeFileSync(path.join(dir, "month_history.json"), JSON.stringify(fixture.month_history));
   fs.writeFileSync(path.join(dir, "blocs.json"), JSON.stringify(fixture.blocs));
   fs.writeFileSync(path.join(dir, "bloc_members.json"), JSON.stringify(fixture.bloc_members));
+  fs.writeFileSync(path.join(dir, "season_overrides.json"), JSON.stringify(fixture.season_overrides));
   try {
     const stdout = execFileSync("node", [gateScript, "--fixture-dir", dir, "--output-dir", dir], { encoding: "utf8" });
     return { exitCode: 0, ...JSON.parse(stdout) };
@@ -140,6 +147,36 @@ const scenarios = [
     },
     expectFailed: ["historical-settlement-parity"],
     expectWarned: []
+  },
+  {
+    label: "override-field-drift",
+    note: "canonical proratedMas disagrees with blob",
+    mutate: fixture => { fixture.season_overrides[0].prorated_mas = 12; },
+    expectFailed: ["season-override-parity"],
+    expectWarned: []
+  },
+  {
+    label: "override-missing-canonical",
+    note: "blob override with no canonical row would vanish at retirement",
+    mutate: fixture => { fixture.season_overrides = []; },
+    expectFailed: ["season-override-parity"],
+    expectWarned: []
+  },
+  {
+    label: "override-missing-blob",
+    note: "canonical override the blob mirror never received",
+    mutate: fixture => {
+      delete fixture.live_state.state.groups["alpha-abc123"].seasonOverrides["2026-07"];
+    },
+    expectFailed: ["season-override-parity"],
+    expectWarned: []
+  },
+  {
+    label: "override-chosen-by-noise-warns",
+    note: "display-name diff on chosenBy warns without failing",
+    mutate: fixture => { fixture.season_overrides[0].chosen_by = "Ana R"; },
+    expectFailed: [],
+    expectWarned: ["season-override-parity"]
   },
   {
     label: "active-bloc-null-sort-order",
