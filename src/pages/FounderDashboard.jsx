@@ -13,6 +13,12 @@ const weekOf = value => {
   return date ? `Week of ${date}` : "This Week";
 };
 const monthOf = value => calendarDate(value, {month:"long",year:"numeric"}) || "This Month";
+const usageLabels = {
+  today_opened:"Today screen", activity_opened:"Activity screen", month_opened:"Month screen", history_opened:"History screen",
+  own_profile_opened:"Own profile", other_profile_opened:"Other profiles", mvp_card_opened:"Week's MVP card",
+  bloc_month_opened:"Bloc month card", settings_opened:"Settings", bloc_stream_opened:"Bloc Stream",
+  comment_composer_opened:"Comment composer", reaction_picker_opened:"Reaction picker"
+};
 
 const Metric = ({label,value,detail,formatValue=number}) => React.createElement("article", {
   style:{padding:"15px 14px",borderRadius:14,border:"1px solid rgba(78,205,196,.17)",background:"rgba(11,27,26,.92)",minWidth:0,textAlign:"center"}
@@ -65,6 +71,7 @@ const FounderDashboard = ({onClose}) => {
   const [dashboard,setDashboard] = useState(null);
   const [error,setError] = useState("");
   const [tab,setTab] = useState("overview");
+  const [usagePeriod,setUsagePeriod] = useState("monthly");
   const load = useCallback(async()=>{
     setStatus("loading");
     setError("");
@@ -82,6 +89,7 @@ const FounderDashboard = ({onClose}) => {
   const activeTrackingStarted = calendarDate(range.activeUserTrackingStarted, {day:"numeric",month:"long",year:"numeric"});
   const weeklyRetentionAvailable = !!(range.activeUserTrackingStarted && range.previousWeekStarts && range.activeUserTrackingStarted <= range.previousWeekStarts);
   const monthlyRetentionAvailable = !!(range.activeUserTrackingStarted && range.previousMonthStarts && range.activeUserTrackingStarted <= range.previousMonthStarts);
+  const usageEvents = dashboard?.usage?.events || {};
   return React.createElement("div", {style:{position:"fixed",inset:0,zIndex:1200,overflowY:"auto",background:"#070c0c",color:"var(--text)",padding:"max(18px, env(safe-area-inset-top)) 16px max(28px, env(safe-area-inset-bottom))",boxSizing:"border-box"}},
     React.createElement("main", {style:{width:"100%",maxWidth:760,margin:"0 auto",textAlign:"center"}},
       React.createElement("header", {style:{position:"relative",display:"flex",alignItems:"center",justifyContent:"center",gap:12,padding:"4px 0 20px"}},
@@ -97,7 +105,7 @@ const FounderDashboard = ({onClose}) => {
       ),
       status === "ready" && React.createElement(React.Fragment,null,
         React.createElement("div", {style:{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:6,padding:4,margin:"0 0 14px",borderRadius:11,background:"rgba(255,255,255,.045)"}},
-          ["overview","growth"].map(item=>React.createElement("button", {type:"button",key:item,onClick:()=>setTab(item),style:{border:0,borderRadius:8,padding:"9px 8px",background:tab===item?"#4ECDC4":"transparent",color:tab===item?"#061010":"var(--muted)",fontSize:11,fontWeight:900,cursor:"pointer",textTransform:"capitalize"}}, item))
+          ["overview","growth","usage"].map(item=>React.createElement("button", {type:"button",key:item,onClick:()=>setTab(item),style:{border:0,borderRadius:8,padding:"9px 8px",background:tab===item?"#4ECDC4":"transparent",color:tab===item?"#061010":"var(--muted)",fontSize:11,fontWeight:900,cursor:"pointer",textTransform:"capitalize"}}, item))
         ),
         tab === "overview" && React.createElement(React.Fragment,null,
         React.createElement("section", {style:{marginBottom:20}},
@@ -174,6 +182,20 @@ const FounderDashboard = ({onClose}) => {
             React.createElement(Metric,{label:"Comments",value:dashboard?.growth?.featureEngagement?.commentUsers,detail:`of ${number(dashboard?.growth?.featureEngagement?.activeUsers)} active`}),
             React.createElement(Metric,{label:"Reactions",value:dashboard?.growth?.featureEngagement?.reactionUsers,detail:`of ${number(dashboard?.growth?.featureEngagement?.activeUsers)} active`})
           )
+        ),
+        tab === "usage" && React.createElement("section", {style:{marginBottom:20}},
+          React.createElement("p", {style:{margin:"0 0 12px",fontSize:11,lineHeight:1.45,color:"var(--muted)"}}, "Unique users counts people once. Total uses counts every open or tap."),
+          React.createElement("div", {style:{display:"grid",gridTemplateColumns:"repeat(4,minmax(0,1fr))",gap:5,marginBottom:10}},
+            ["daily","weekly","monthly","allTime"].map(period=>React.createElement("button", {type:"button",key:period,onClick:()=>setUsagePeriod(period),style:{border:"1px solid rgba(78,205,196,.18)",borderRadius:8,padding:"8px 4px",background:usagePeriod===period?"rgba(78,205,196,.16)":"transparent",color:usagePeriod===period?"var(--text)":"var(--muted)",fontSize:10,fontWeight:900,cursor:"pointer"}}, period === "allTime" ? "All time" : period))
+          ),
+          React.createElement("div", {style:{display:"grid",gap:7}}, Object.entries(usageLabels).map(([eventName,label])=>{
+            const metric = usageEvents?.[eventName]?.[usagePeriod] || {};
+            return React.createElement("article", {key:eventName,style:{display:"grid",gridTemplateColumns:"minmax(0,1fr) auto auto",alignItems:"center",gap:8,padding:"10px 12px",borderRadius:11,border:"1px solid rgba(78,205,196,.14)",background:"rgba(11,27,26,.92)",textAlign:"left"}},
+              React.createElement("div", {style:{fontSize:12,fontWeight:800,color:"var(--text)"}}, label),
+              React.createElement("div", {style:{textAlign:"right"}}, React.createElement("div", {style:{fontSize:17,fontWeight:900,color:"var(--text)"}}, number(metric.users)), React.createElement("div", {style:{fontSize:9,color:"var(--text-faint)"}}, "users")),
+              React.createElement("div", {style:{textAlign:"right",minWidth:42}}, React.createElement("div", {style:{fontSize:17,fontWeight:900,color:"var(--text)"}}, number(metric.total)), React.createElement("div", {style:{fontSize:9,color:"var(--text-faint)"}}, "uses"))
+            );
+          }))
         )
       )
     )

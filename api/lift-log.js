@@ -4938,6 +4938,19 @@ async function recordCanonicalMonthlyFeatureUsage(authUserId, feature, usedAt = 
   }
 }
 
+async function recordCanonicalUsageEvent(authUserId, eventName, occurredAt = new Date().toISOString()) {
+  if (!authUserId || !eventName) return;
+  try {
+    await supabaseFetch("/rest/v1/rpc/record_ante_core_usage_event", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ p_auth_user_id: String(authUserId), p_event_name: String(eventName), p_occurred_at: occurredAt })
+    });
+  } catch (error) {
+    console.error("Usage event record failed:", error?.message || error);
+  }
+}
+
 async function readFounderRosterAndActiveBlocs() {
   const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_founder_dashboard_details", {
     method: "POST",
@@ -4958,6 +4971,16 @@ async function readCanonicalFounderDashboardGrowth() {
   return body && typeof body === "object" && !Array.isArray(body) ? body : {};
 }
 
+async function readCanonicalFounderDashboardUsage() {
+  const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_founder_dashboard_usage", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({})
+  });
+  const body = await response.json();
+  return body && typeof body === "object" && !Array.isArray(body) ? body : {};
+}
+
 async function readCanonicalFounderDashboard() {
   const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_founder_dashboard", {
     method: "POST",
@@ -4966,12 +4989,13 @@ async function readCanonicalFounderDashboard() {
   });
   const body = await response.json();
   if (!body || typeof body !== "object" || Array.isArray(body)) return {};
-  const [rosterAndBlocMetrics, growth] = await Promise.all([readFounderRosterAndActiveBlocs(), readCanonicalFounderDashboardGrowth()]);
+  const [rosterAndBlocMetrics, growth, usage] = await Promise.all([readFounderRosterAndActiveBlocs(), readCanonicalFounderDashboardGrowth(), readCanonicalFounderDashboardUsage()]);
   return {
     ...body,
     accounts: { ...(body.accounts || {}), ...rosterAndBlocMetrics.accounts },
     activeBlocs: rosterAndBlocMetrics.activeBlocs,
-    growth
+    growth,
+    usage
   };
 }
 
@@ -8525,7 +8549,14 @@ export default async function handler(req, res) {
           limit: payload.limit
         });
         await recordCanonicalMonthlyFeatureUsage(authUser.id, "bloc_stream");
+        await recordCanonicalUsageEvent(authUser.id, "bloc_stream_opened");
         return res.status(200).json({ ok: true, messages: Array.isArray(messages) ? messages : [] });
+      }
+
+      if (payload?.action === "usage-event") {
+        const authUser = await fetchAuthenticatedUser(readBearerToken(req, payload));
+        await recordCanonicalUsageEvent(authUser.id, payload?.eventName);
+        return res.status(204).end();
       }
 
       if (payload?.action === "stream-unread-count") {

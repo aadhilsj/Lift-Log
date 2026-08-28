@@ -318,6 +318,11 @@ async function fetchFounderDashboardData() {
   return { ok:true, dashboard };
 }
 
+// Usage analytics are best-effort: a tracking failure must never block the app.
+function trackUsageEvent(eventName) {
+  return postApi("usage-event", { eventName }).catch(() => null);
+}
+
 async function fetchData() {
   try {
     const session = await getCurrentAuthSession();
@@ -820,6 +825,7 @@ export {
   refreshAuthSession,
   postApi,
   fetchFounderDashboardData,
+  trackUsageEvent,
   fetchData,
   fetchRevision,
   addLogData,
