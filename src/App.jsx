@@ -211,6 +211,25 @@ const applyInBlocPageTransforms = ({ layers, activePage, dragX = 0, dragging = f
 };
 const COLD_ONBOARDING_SEEN_KEY = "fero_cold_onboarding_seen";
 const INVITE_HANDOFF_MARKER_KEY = "fero_invite_web_handoff";
+const FOUNDER_DASHBOARD_AVAILABILITY_PREFIX = "fero_founder_dashboard_available:";
+
+const readFounderDashboardAvailability = userId => {
+  if (!userId) return false;
+  try {
+    return localStorage.getItem(`${FOUNDER_DASHBOARD_AVAILABILITY_PREFIX}${userId}`) === "1";
+  } catch {
+    return false;
+  }
+};
+
+const persistFounderDashboardAvailability = (userId, available) => {
+  if (!userId) return;
+  try {
+    const key = `${FOUNDER_DASHBOARD_AVAILABILITY_PREFIX}${userId}`;
+    if (available) localStorage.setItem(key, "1");
+    else localStorage.removeItem(key);
+  } catch {}
+};
 
 const persistInviteWebHandoffMarker = ({userId, groupId, inviteCode}) => {
   try {
@@ -241,7 +260,7 @@ const App = () => {
   const [paymentError,setPaymentError]=useState("");
   const [showProfile,setShowProfile]=useState(false);
   const [showFounderDashboard,setShowFounderDashboard]=useState(false);
-  const [founderDashboardAvailable,setFounderDashboardAvailable]=useState(false);
+  const [founderDashboardAvailable,setFounderDashboardAvailable]=useState(()=>readFounderDashboardAvailability(initialPersistedSession?.userId));
   const [showStream,setShowStream]=useState(false);
   const [streamFocusBlocId,setStreamFocusBlocId]=useState(null);
   const [streamReturnScrollTop,setStreamReturnScrollTop]=useState(null);
@@ -412,6 +431,7 @@ const App = () => {
     const nextSession = session?.userId ? session : null;
     persistLocalPreviewSession(nextSession);
     persistAuthSessionHint(nextSession);
+    setFounderDashboardAvailable(readFounderDashboardAvailability(nextSession?.userId));
     setAuthSession(nextSession);
   },[]);
 
@@ -841,7 +861,11 @@ const App = () => {
           try {
             const synced = await syncAuthSessionData(initialSession);
             if (active && synced?.ok && synced.state) applyData(synced.state);
-            if (active) setFounderDashboardAvailable(synced?.founderDashboardAvailable === true);
+            if (active && synced?.ok) {
+              const available = synced.founderDashboardAvailable === true;
+              persistFounderDashboardAvailability(initialSession.userId, available);
+              setFounderDashboardAvailable(available);
+            }
           } finally {
             if (active && shouldHydrateUi) setAuthHydrating(false);
           }
@@ -860,11 +884,16 @@ const App = () => {
             try {
               const synced = await syncAuthSessionData(mapped);
               if (active && synced?.ok && synced.state) applyData(synced.state);
-              if (active) setFounderDashboardAvailable(synced?.founderDashboardAvailable === true);
+              if (active && synced?.ok) {
+                const available = synced.founderDashboardAvailable === true;
+                persistFounderDashboardAvailability(mapped.userId, available);
+                setFounderDashboardAvailable(available);
+              }
             } finally {
               if (active && shouldHydrateUi) setAuthHydrating(false);
             }
           } else if (active) {
+            setFounderDashboardAvailable(false);
             setAuthHydrating(false);
           }
         });

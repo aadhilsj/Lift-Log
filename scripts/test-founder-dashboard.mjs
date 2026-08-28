@@ -81,6 +81,9 @@ assert.ok(!dashboardUi.includes('subtitle:"All-time average"'), "dashboard UI sh
 assert.ok(!dashboardUi.includes('"Private"'), "dashboard UI should not show the private header");
 assert.ok(!dashboardUi.includes('All Account Names'), "dashboard UI should not show the all-account roster");
 assert.ok(appUi.includes('showFounderDashboard: !inert && founderDashboardAvailable'), "founder dashboard entry should be available from the bloc switcher");
+assert.ok(appUi.includes('FOUNDER_DASHBOARD_AVAILABILITY_PREFIX'), "founder dashboard availability should be cached per account");
+assert.ok(appUi.includes('useState(()=>readFounderDashboardAvailability(initialPersistedSession?.userId))'), "founder dashboard entry should render from the persisted availability hint");
+assert.ok(appUi.includes('persistFounderDashboardAvailability(initialSession.userId, available)'), "fresh founder dashboard permission should update the local hint");
 assert.ok(authShell.includes('"Founder Dashboard"'), "bloc switcher should use a labelled founder dashboard entry");
 assert.ok(!authShell.includes('"Open founder dashboard"'), "profile should not duplicate the founder dashboard entry");
 

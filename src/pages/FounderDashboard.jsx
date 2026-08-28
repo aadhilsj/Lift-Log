@@ -83,7 +83,7 @@ const FounderDashboard = ({onClose}) => {
     React.createElement("main", {style:{width:"100%",maxWidth:760,margin:"0 auto",textAlign:"center"}},
       React.createElement("header", {style:{position:"relative",display:"flex",alignItems:"center",justifyContent:"center",gap:12,padding:"4px 0 20px"}},
         React.createElement("div", {style:{textAlign:"center"}},
-          React.createElement("h1", {style:{margin:0,fontSize:24,lineHeight:1,fontWeight:900,letterSpacing:"-.04em"}}, "Founder Dashboard")
+          React.createElement("h1", {style:{margin:0,fontSize:20,lineHeight:1,fontWeight:900,letterSpacing:"-.04em"}}, "Founder Dashboard")
         ),
         React.createElement("button", {type:"button",onClick:onClose,style:{position:"absolute",right:0,top:4,border:"1px solid var(--border)",borderRadius:99,width:38,height:38,background:"var(--s2)",color:"var(--text)",fontSize:24,lineHeight:1,cursor:"pointer"},"aria-label":"Close founder dashboard"}, "×")
       ),
