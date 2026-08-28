@@ -242,26 +242,31 @@ const renderPaymentHandleSection = ({
   const preview = payProvider && trimmedHandle
     ? buildPaymentTarget({ paymentProvider: payProvider, paymentHandle: trimmedHandle })
     : null;
-  // Selected chip takes the provider's own brand colour so the row reads as
-  // Revolut/PayPal/Vipps at a glance. Unselected stays neutral so three brand
-  // colours never compete for attention at once.
+  // Each provider is rendered as its own app icon: a rounded square filled
+  // with the provider's icon background and the glyph reversed out in white,
+  // the way it looks on a phone home screen. Selection is shown by a ring and
+  // full opacity rather than by changing the icon, so the tile always reads as
+  // that app.
+  const ICON_SIZE = 54;
   const chipStyle = (provider, active) => ({
-    flex:1, padding:"8px 6px", borderRadius:9, fontSize:12, fontWeight:800, cursor:"pointer",
-    fontFamily:"'Outfit', sans-serif",
-    display:"flex", alignItems:"center", justifyContent:"center", gap:5, minHeight:32,
-    background: active ? provider.brand : "var(--s2)",
-    border: active ? `1px solid ${provider.brand}` : "1px solid var(--border)",
-    color: active ? (provider.onBrand || "#fff") : "var(--muted)"
+    width:ICON_SIZE, height:ICON_SIZE, padding:0, flexShrink:0,
+    borderRadius:ICON_SIZE * 0.225,
+    background: provider.iconBg || provider.brand,
+    border:"none",
+    cursor:"pointer",
+    display:"flex", alignItems:"center", justifyContent:"center",
+    opacity: active ? 1 : 0.42,
+    boxShadow: active
+      ? `0 0 0 2px var(--s1, #080F0F), 0 0 0 4px ${provider.brand}, 0 6px 14px rgba(0,0,0,.35)`
+      : "0 2px 6px rgba(0,0,0,.25)",
+    transition:"opacity .16s ease, box-shadow .16s ease",
+    WebkitTapHighlightColor:"transparent"
   });
-  // A provider with a mark renders icon-only: these logos are recognisable
-  // enough to stand alone and it keeps three chips comfortable on a narrow
-  // screen. Anything without a mark keeps its text label, so the row stays
-  // legible while Vipps has no official asset.
-  const renderProviderMark = (provider, active) => provider.logo
+  const renderProviderMark = provider => provider.appIcon
     ? React.createElement('span',{
         "aria-hidden":true,
-        style:{display:"inline-flex",height:17,width:17*(provider.logoAspect||1),maxWidth:"100%",alignItems:"center",justifyContent:"center",color:active?(provider.onBrand||"#fff"):"var(--muted)"},
-        dangerouslySetInnerHTML:{__html:provider.logo}
+        style:{display:"inline-flex",width:"58%",height:"58%",alignItems:"center",justifyContent:"center",color:"#FFFFFF"},
+        dangerouslySetInnerHTML:{__html:provider.appIcon}
       })
     : null;
   return React.createElement('div',{style:{marginBottom:14}},
@@ -269,7 +274,7 @@ const renderPaymentHandleSection = ({
     React.createElement('div',{style:{fontSize:11,color:"var(--text-faint)",lineHeight:1.45,marginBottom:8}},
       "Optional. Shown only to Bloc members who owe you after a month closes. Fero never handles the money."
     ),
-    React.createElement('div',{style:{display:"flex",gap:6,marginBottom:8}},
+    React.createElement('div',{style:{display:"flex",gap:12,marginBottom:10,alignItems:"center"}},
       PAYMENT_PROVIDERS.map(provider => React.createElement('button',{
         key:provider.id, type:"button",
         onClick:()=>{ const next = payProvider===provider.id ? "" : provider.id; setPayProvider(next); if(!next) setPayHandle(""); },
@@ -278,7 +283,7 @@ const renderPaymentHandleSection = ({
         "aria-label":provider.label,
         title:provider.label
       },
-        renderProviderMark(provider, payProvider===provider.id) || provider.label
+        renderProviderMark(provider) || provider.label
       ))
     ),
     payProvider && React.createElement(React.Fragment,null,

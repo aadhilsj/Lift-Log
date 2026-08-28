@@ -264,16 +264,26 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
     const brand = target.brand || "#4ECDC4";
     const base = {
       display:"inline-flex",alignItems:"center",justifyContent:"center",gap:4,
-      fontSize:8,fontWeight:800,lineHeight:1,padding:"4px 7px",borderRadius:999,
+      fontSize:8,fontWeight:800,lineHeight:1,padding:"3px 8px 3px 3px",borderRadius:999,
       whiteSpace:"nowrap",fontFamily:"'Outfit', sans-serif",
       background:`color-mix(in srgb, ${brand} 12%, transparent)`,
       border:`1px solid color-mix(in srgb, ${brand} 45%, transparent)`,
       color:brand
     };
-    // With a mark the button reads "[icon] Pay"; without one it spells out the
-    // provider so the payer still knows which app to open.
-    const mark = target.logo
-      ? React.createElement('span',{key:"mark","aria-hidden":true,style:{display:"inline-flex",height:10,width:10*(target.logoAspect||1),alignItems:"center",justifyContent:"center",flexShrink:0},dangerouslySetInnerHTML:{__html:target.logo}})
+    // A miniature of the provider's app icon, so the payer sees the app they
+    // are about to open. Falls back to the spelled-out provider name when a
+    // provider has no icon.
+    const mark = target.appIcon
+      ? React.createElement('span',{
+          key:"mark","aria-hidden":true,
+          style:{
+            display:"inline-flex",width:13,height:13,flexShrink:0,
+            alignItems:"center",justifyContent:"center",
+            borderRadius:3.5,background:target.iconBg||brand,color:"#FFFFFF"
+          }
+        },
+          React.createElement('span',{style:{display:"inline-flex",width:"60%",height:"60%",alignItems:"center",justifyContent:"center"},dangerouslySetInnerHTML:{__html:target.appIcon}})
+        )
       : null;
     if (target.mode === "link") {
       return React.createElement('a',{
