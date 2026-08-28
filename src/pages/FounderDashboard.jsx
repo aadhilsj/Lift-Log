@@ -80,6 +80,8 @@ const FounderDashboard = ({onClose}) => {
   useEffect(()=>{ load(); },[load]);
   const range = useMemo(()=>dashboard?.range || {},[dashboard]);
   const activeTrackingStarted = calendarDate(range.activeUserTrackingStarted, {day:"numeric",month:"long",year:"numeric"});
+  const weeklyRetentionAvailable = !!(range.activeUserTrackingStarted && range.previousWeekStarts && range.activeUserTrackingStarted <= range.previousWeekStarts);
+  const monthlyRetentionAvailable = !!(range.activeUserTrackingStarted && range.previousMonthStarts && range.activeUserTrackingStarted <= range.previousMonthStarts);
   return React.createElement("div", {style:{position:"fixed",inset:0,zIndex:1200,overflowY:"auto",background:"#070c0c",color:"var(--text)",padding:"max(18px, env(safe-area-inset-top)) 16px max(28px, env(safe-area-inset-bottom))",boxSizing:"border-box"}},
     React.createElement("main", {style:{width:"100%",maxWidth:760,margin:"0 auto",textAlign:"center"}},
       React.createElement("header", {style:{position:"relative",display:"flex",alignItems:"center",justifyContent:"center",gap:12,padding:"4px 0 20px"}},
@@ -161,8 +163,8 @@ const FounderDashboard = ({onClose}) => {
             React.createElement(Metric,{label:"New users who logged a workout",value:dashboard?.growth?.activation?.rate,formatValue:value=>`${average(value)}%`,detail:`${number(dashboard?.growth?.activation?.activatedAccounts)} of ${number(dashboard?.growth?.activation?.eligibleAccounts)} eligible accounts logged their first workout within 7 days`})
           ),
           React.createElement(MetricGroup,{title:"Retention",columns:2},
-            React.createElement(Metric,{label:"Weekly Retention",value:dashboard?.growth?.retention?.weekly?.rate,formatValue:value=>`${average(value)}%`,detail:`${number(dashboard?.growth?.retention?.weekly?.returningUsers)} of ${number(dashboard?.growth?.retention?.weekly?.activeUsers)} active this week were active last week`}),
-            React.createElement(Metric,{label:"Monthly Retention",value:dashboard?.growth?.retention?.monthly?.rate,formatValue:value=>`${average(value)}%`,detail:`${number(dashboard?.growth?.retention?.monthly?.returningUsers)} of ${number(dashboard?.growth?.retention?.monthly?.activeUsers)} active this month were active last month`})
+            React.createElement(Metric,{label:"Weekly Retention",value:dashboard?.growth?.retention?.weekly?.rate,formatValue:value=>weeklyRetentionAvailable?`${average(value)}%`:"—",detail:weeklyRetentionAvailable?`${number(dashboard?.growth?.retention?.weekly?.returningUsers)} of ${number(dashboard?.growth?.retention?.weekly?.activeUsers)} active this week were active last week`:"Available after a full prior week of tracking"}),
+            React.createElement(Metric,{label:"Monthly Retention",value:dashboard?.growth?.retention?.monthly?.rate,formatValue:value=>monthlyRetentionAvailable?`${average(value)}%`:"—",detail:monthlyRetentionAvailable?`${number(dashboard?.growth?.retention?.monthly?.returningUsers)} of ${number(dashboard?.growth?.retention?.monthly?.activeUsers)} active this month were active last month`:"Available after a full prior month of tracking"})
           ),
           React.createElement(MetricGroup,{title:"Workouts Per Active User",columns:1},
             React.createElement(Metric,{label:"This month",value:dashboard?.growth?.workoutsPerActiveUser?.value,formatValue:average,detail:`${number(dashboard?.growth?.workoutsPerActiveUser?.uploads)} uploads from ${number(dashboard?.growth?.workoutsPerActiveUser?.activeUsers)} active users`})
