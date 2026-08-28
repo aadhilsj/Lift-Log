@@ -13,16 +13,33 @@ const Metric = ({label,value,detail}) => React.createElement("article", {
 
 const Trend = ({points=[]}) => {
   const safePoints = Array.isArray(points) ? points : [];
+  const [selectedIndex,setSelectedIndex] = useState(Math.max(0, safePoints.length - 1));
   const max = Math.max(1, ...safePoints.flatMap(point=>[Number(point?.activeUsers)||0, Number(point?.workoutUploads)||0]));
-  return React.createElement("div", {style:{display:"grid",gridTemplateColumns:`repeat(${Math.max(1,safePoints.length)}, minmax(2px,1fr))`,gap:3,alignItems:"end",height:108,marginTop:14}},
+  const selected = safePoints[Math.min(selectedIndex, Math.max(0, safePoints.length - 1))] || {};
+  return React.createElement(React.Fragment,null,
+    React.createElement("div", {style:{marginTop:12,padding:"9px 10px",borderRadius:10,background:"rgba(255,255,255,.035)",fontSize:11,lineHeight:1.4,color:"var(--text-soft)"}},
+      React.createElement("strong", {style:{color:"var(--text)"}}, selected?.date || "Select a day"),
+      ` · ${number(selected?.activeUsers)} active · ${number(selected?.workoutUploads)} uploads`,
+      React.createElement("div", {style:{marginTop:2,color:"var(--text-faint)",fontSize:10}}, `Scale: 0–${number(max)} uploads · tap a day to read its values`)
+    ),
+    React.createElement("div", {style:{display:"grid",gridTemplateColumns:`repeat(${Math.max(1,safePoints.length)}, minmax(2px,1fr))`,gap:3,alignItems:"end",height:108,marginTop:10}},
     safePoints.map((point,index)=>{
       const activeHeight = Math.max(3, Math.round(((Number(point?.activeUsers)||0) / max) * 92));
       const workoutHeight = Math.max(3, Math.round(((Number(point?.workoutUploads)||0) / max) * 92));
-      return React.createElement("div", {key:point?.date || index,title:`${point?.date || ""}: ${number(point?.activeUsers)} active, ${number(point?.workoutUploads)} uploads`,style:{height:"100%",display:"flex",alignItems:"flex-end",gap:1,minWidth:0}},
+      return React.createElement("button", {type:"button",key:point?.date || index,onClick:()=>setSelectedIndex(index),"aria-label":`${point?.date || ""}: ${number(point?.activeUsers)} active, ${number(point?.workoutUploads)} uploads`,"aria-pressed":selectedIndex===index,style:{height:"100%",display:"flex",alignItems:"flex-end",gap:1,minWidth:0,padding:0,border:0,borderBottom:selectedIndex===index?"2px solid #f5f7ff":"2px solid transparent",background:"transparent",cursor:"pointer"}},
         React.createElement("span", {style:{display:"block",width:"50%",height:activeHeight,borderRadius:"3px 3px 1px 1px",background:"#4ECDC4"}}),
         React.createElement("span", {style:{display:"block",width:"50%",height:workoutHeight,borderRadius:"3px 3px 1px 1px",background:"#8f78ff"}})
       );
     })
+    )
+  );
+};
+
+const AccountRoster = ({label,profiles=[]}) => {
+  const names = (Array.isArray(profiles) ? profiles : []).map(profile=>String(profile?.displayName || "").trim()).filter(Boolean);
+  return React.createElement("details", {style:{marginTop:10,padding:"11px 12px",borderRadius:11,border:"1px solid rgba(78,205,196,.14)",background:"rgba(255,255,255,.025)"}},
+    React.createElement("summary", {style:{cursor:"pointer",fontSize:12,fontWeight:800,color:"var(--text-soft)"}}, `${label} (${number(names.length)})`),
+    React.createElement("div", {style:{display:"flex",flexWrap:"wrap",gap:6,marginTop:10}}, names.map((name,index)=>React.createElement("span", {key:`${name}-${index}`,style:{padding:"5px 7px",borderRadius:99,background:"rgba(78,205,196,.1)",color:"var(--text-soft)",fontSize:10,fontWeight:800}}, name)))
   );
 };
 
@@ -82,6 +99,16 @@ const FounderDashboard = ({onClose}) => {
           React.createElement("div", {style:{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:8}},
             React.createElement(Metric,{label:"Total",value:dashboard?.accounts?.total}),
             React.createElement(Metric,{label:"New in 30 days",value:dashboard?.accounts?.newLast30Days})
+          ),
+          React.createElement(AccountRoster,{label:"New account names",profiles:dashboard?.accounts?.newProfiles}),
+          React.createElement(AccountRoster,{label:"All account names",profiles:dashboard?.accounts?.allProfiles})
+        ),
+        React.createElement("section", {style:{marginBottom:20}},
+          React.createElement("h2", {style:{fontSize:13,margin:"0 0 9px",fontWeight:900}}, "Active Blocs"),
+          React.createElement("p", {style:{margin:"0 0 9px",fontSize:11,lineHeight:1.45,color:"var(--muted)"}}, `Blocs with logged workouts in the last ${number(dashboard?.activeBlocs?.periodDays || 30)} days.`),
+          React.createElement("div", {style:{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:8}},
+            React.createElement(Metric,{label:"3+ workouts",value:dashboard?.activeBlocs?.threePlus}),
+            React.createElement(Metric,{label:"5+ workouts",value:dashboard?.activeBlocs?.fivePlus})
           )
         ),
         React.createElement("section", {style:{padding:"15px 14px",borderRadius:14,border:"1px solid rgba(78,205,196,.17)",background:"rgba(11,27,26,.92)"}},

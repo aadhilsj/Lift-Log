@@ -4894,8 +4894,8 @@ async function supabaseFetch(path, options = {}) {
 }
 
 // These RPCs are intentionally service-role-only. The client never receives
-// raw activity rows; it can only request the aggregate after server-side owner
-// authorization succeeds.
+// raw activity rows; it can only request owner-authorized dashboard data after
+// the server-side founder allowlist check succeeds.
 async function recordCanonicalDailyAppActivity(authUserId, openedAt = new Date().toISOString()) {
   if (!authUserId) return;
   try {
@@ -4912,6 +4912,61 @@ async function recordCanonicalDailyAppActivity(authUserId, openedAt = new Date()
   }
 }
 
+function osloCalendarDay(value) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Oslo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).formatToParts(new Date(value));
+  const field = type => parts.find(part => part.type === type)?.value || "";
+  return `${field("year")}-${field("month")}-${field("day")}`;
+}
+
+function subtractCalendarDays(isoDay, days) {
+  const [year, month, day] = String(isoDay || "").split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day - days));
+  return date.toISOString().slice(0, 10);
+}
+
+async function readFounderRosterAndActiveBlocs(today) {
+  const thirtyDayStart = subtractCalendarDays(today, 29);
+  // Fetch one additional day to make the boundary comparison in Oslo exactly,
+  // rather than assuming a fixed UTC offset across daylight-saving changes.
+  const queryStart = `${subtractCalendarDays(today, 30)}T00:00:00.000Z`;
+  const privateHeaders = { Accept: "application/json", "Accept-Profile": "ante_core" };
+  const [profilesResponse, logsResponse] = await Promise.all([
+    supabaseFetch("/rest/v1/profiles?select=display_name,created_at&order=created_at.desc", { headers: privateHeaders }),
+    supabaseFetch(`/rest/v1/workout_logs?select=bloc_id,created_at&created_at=gte.${encodeURIComponent(queryStart)}`, { headers: privateHeaders })
+  ]);
+  const profiles = await profilesResponse.json();
+  const logs = await logsResponse.json();
+  const safeProfiles = Array.isArray(profiles) ? profiles : [];
+  const safeLogs = Array.isArray(logs) ? logs : [];
+  const allProfiles = safeProfiles
+    .map(profile => ({ displayName: String(profile?.display_name || "").trim() }))
+    .filter(profile => profile.displayName)
+    .sort((left, right) => left.displayName.localeCompare(right.displayName, "en", { sensitivity: "base" }));
+  const newProfiles = safeProfiles
+    .filter(profile => profile?.created_at && osloCalendarDay(profile.created_at) >= thirtyDayStart)
+    .map(profile => ({ displayName: String(profile?.display_name || "").trim() }))
+    .filter(profile => profile.displayName);
+  const logsByBloc = new Map();
+  safeLogs.forEach(log => {
+    if (!log?.bloc_id || !log?.created_at || osloCalendarDay(log.created_at) < thirtyDayStart) return;
+    logsByBloc.set(log.bloc_id, (logsByBloc.get(log.bloc_id) || 0) + 1);
+  });
+  const counts = [...logsByBloc.values()];
+  return {
+    accounts: { allProfiles, newProfiles },
+    activeBlocs: {
+      threePlus: counts.filter(count => count >= 3).length,
+      fivePlus: counts.filter(count => count >= 5).length,
+      periodDays: 30
+    }
+  };
+}
+
 async function readCanonicalFounderDashboard() {
   const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_founder_dashboard", {
     method: "POST",
@@ -4919,7 +4974,13 @@ async function readCanonicalFounderDashboard() {
     body: JSON.stringify({})
   });
   const body = await response.json();
-  return body && typeof body === "object" && !Array.isArray(body) ? body : {};
+  if (!body || typeof body !== "object" || Array.isArray(body)) return {};
+  const rosterAndBlocMetrics = await readFounderRosterAndActiveBlocs(body?.range?.today);
+  return {
+    ...body,
+    accounts: { ...(body.accounts || {}), ...rosterAndBlocMetrics.accounts },
+    activeBlocs: rosterAndBlocMetrics.activeBlocs
+  };
 }
 
 async function purgeCanonicalDailyAppActivity() {
@@ -8345,6 +8406,7 @@ export {
   getWorkoutSessionKey,
   getDistinctWorkoutCountForDate,
   isFounderDashboardUser,
+  readFounderRosterAndActiveBlocs,
   isMissingLocalCanonicalWorkoutRpcError,
   applyAddLog,
   applyMultiLog,

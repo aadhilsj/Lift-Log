@@ -2,12 +2,40 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 
 process.env.FOUNDER_DASHBOARD_USER_IDS = "founder-one, founder-two";
+process.env.SUPABASE_URL = "https://example.supabase.co";
+process.env.SUPABASE_SERVICE_ROLE_KEY = "test-service-role";
 const api = await import(`../api/lift-log.js?founder-dashboard-test=${Date.now()}`);
 
 assert.equal(api.isFounderDashboardUser("founder-one"), true, "exact allowed founder id is accepted");
 assert.equal(api.isFounderDashboardUser(" founder-two "), true, "surrounding caller whitespace cannot change an exact id");
 assert.equal(api.isFounderDashboardUser("founder"), false, "partial founder id is denied");
 assert.equal(api.isFounderDashboardUser("someone-else"), false, "unlisted user is denied");
+
+const originalFetch = globalThis.fetch;
+globalThis.fetch = async url => {
+  const path = String(url);
+  const body = path.includes("/profiles?")
+    ? [
+        { display_name:"Older", created_at:"2026-07-28T22:00:00.000Z" },
+        { display_name:"Newer", created_at:"2026-08-28T10:00:00.000Z" }
+      ]
+    : [
+        { bloc_id:"bloc-three", created_at:"2026-08-03T12:00:00.000Z" },
+        { bloc_id:"bloc-three", created_at:"2026-08-04T12:00:00.000Z" },
+        { bloc_id:"bloc-three", created_at:"2026-08-05T12:00:00.000Z" },
+        { bloc_id:"bloc-five", created_at:"2026-08-03T12:00:00.000Z" },
+        { bloc_id:"bloc-five", created_at:"2026-08-04T12:00:00.000Z" },
+        { bloc_id:"bloc-five", created_at:"2026-08-05T12:00:00.000Z" },
+        { bloc_id:"bloc-five", created_at:"2026-08-06T12:00:00.000Z" },
+        { bloc_id:"bloc-five", created_at:"2026-08-07T12:00:00.000Z" }
+      ];
+  return new Response(JSON.stringify(body), { status:200, headers:{"Content-Type":"application/json"} });
+};
+const rosterAndBlocs = await api.readFounderRosterAndActiveBlocs("2026-08-28");
+globalThis.fetch = originalFetch;
+assert.deepEqual(rosterAndBlocs.accounts.newProfiles, [{ displayName:"Newer" }], "new-account roster uses the Oslo 30-day period");
+assert.deepEqual(rosterAndBlocs.accounts.allProfiles, [{ displayName:"Newer" }, { displayName:"Older" }], "account roster contains display names only");
+assert.deepEqual(rosterAndBlocs.activeBlocs, { threePlus:2, fivePlus:1, periodDays:30 }, "active Bloc thresholds count actual recent Bloc logs");
 
 const config = JSON.parse(fs.readFileSync(new URL("../vercel.json", import.meta.url), "utf8"));
 assert.deepEqual(config.crons, [{

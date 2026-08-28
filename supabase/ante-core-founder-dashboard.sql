@@ -9,10 +9,10 @@
 --
 -- Privacy model:
 -- - one row per authenticated canonical profile per Europe/Oslo calendar day
--- - no email, display name, device ID, IP address, content or third-party data
+-- - no email, device ID, IP address, content or third-party data
 -- - profile deletion cascades to this table
--- - daily rows are purged after 90 days; aggregate dashboard output contains
---   counts only and is available only through the server-side founder allowlist
+-- - daily rows are purged after 90 days; the founder-only dashboard may show
+--   existing profile display names, but never emails or per-person activity
 
 create table if not exists ante_core.app_daily_activity (
   profile_id uuid not null references ante_core.profiles(id) on delete cascade,
