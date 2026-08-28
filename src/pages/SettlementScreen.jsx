@@ -259,17 +259,25 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
   const renderPayControl = (pair, key) => {
     const target = paymentTargetFor(pair.receiverDisplayName);
     if (!target) return null;
+    // Tinted with the provider's brand colour rather than filled with it: this
+    // sits inside a dense ledger row and a solid brand block would shout.
+    const brand = target.brand || "#4ECDC4";
     const base = {
-      display:"inline-flex",alignItems:"center",justifyContent:"center",
-      fontSize:8,fontWeight:800,lineHeight:1,padding:"4px 6px",borderRadius:999,
+      display:"inline-flex",alignItems:"center",justifyContent:"center",gap:4,
+      fontSize:8,fontWeight:800,lineHeight:1,padding:"4px 7px",borderRadius:999,
       whiteSpace:"nowrap",fontFamily:"'Outfit', sans-serif",
-      background:"rgba(78,205,196,.05)",border:"1px solid rgba(78,205,196,.2)",color:"rgba(78,205,196,.8)"
+      background:`color-mix(in srgb, ${brand} 12%, transparent)`,
+      border:`1px solid color-mix(in srgb, ${brand} 45%, transparent)`,
+      color:brand
     };
+    const mark = target.logo
+      ? React.createElement('span',{key:"mark","aria-hidden":true,style:{display:"inline-flex",width:10,height:10,alignItems:"center",justifyContent:"center"},dangerouslySetInnerHTML:{__html:target.logo}})
+      : null;
     if (target.mode === "link") {
       return React.createElement('a',{
         key:`${key}:pay`, href:target.url, target:"_blank", rel:"noopener noreferrer",
         style:{...base,textDecoration:"none"}
-      }, `Pay with ${target.label}`);
+      }, mark, `Pay with ${target.label}`);
     }
     return React.createElement('button',{
       key:`${key}:pay`, type:"button",
@@ -278,7 +286,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
         catch { setCopiedKey(null); }
       },
       style:base
-    }, copiedKey===key ? "Copied" : `Copy ${target.label} details`);
+    }, mark, copiedKey===key ? "Copied" : `Copy ${target.label} details`);
   };
 
   const statusForPair = pair => {
