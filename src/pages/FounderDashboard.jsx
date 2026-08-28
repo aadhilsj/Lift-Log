@@ -178,7 +178,7 @@ const FounderDashboard = ({onClose}) => {
             React.createElement(Metric,{label:"This month",value:dashboard?.growth?.workoutsPerActiveUser?.value,formatValue:average,detail:`${number(dashboard?.growth?.workoutsPerActiveUser?.uploads)} uploads from ${number(dashboard?.growth?.workoutsPerActiveUser?.activeUsers)} active users`})
           ),
           React.createElement(MetricGroup,{title:"Feature Engagement This Month",columns:3},
-            React.createElement(Metric,{label:"Bloc Stream",value:dashboard?.growth?.featureEngagement?.blocStreamUsers,detail:`of ${number(dashboard?.growth?.featureEngagement?.activeUsers)} active`}),
+            React.createElement(Metric,{label:"Bloc Stream",value:dashboard?.growth?.featureEngagement?.blocStreamUsers,formatValue:value=>Number(value)>0?number(value):"—",detail:Number(dashboard?.growth?.featureEngagement?.blocStreamUsers)>0?`of ${number(dashboard?.growth?.featureEngagement?.activeUsers)} active`:"No recorded opens yet"}),
             React.createElement(Metric,{label:"Comments",value:dashboard?.growth?.featureEngagement?.commentUsers,detail:`of ${number(dashboard?.growth?.featureEngagement?.activeUsers)} active`}),
             React.createElement(Metric,{label:"Reactions",value:dashboard?.growth?.featureEngagement?.reactionUsers,detail:`of ${number(dashboard?.growth?.featureEngagement?.activeUsers)} active`})
           )
