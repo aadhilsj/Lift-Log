@@ -10,10 +10,28 @@
 // hosts below ever become clickable. Anything else degrades to copy-only, so a
 // pasted phishing URL cannot borrow the Pay affordance.
 
+// TO ADD OFFICIAL LOGOS
+// ---------------------
+// Each provider below has a `logo` slot, currently null, which renders the
+// text label instead. To use a real mark, download the official SVG from the
+// provider's own brand/press page and paste its markup as a string here, e.g.
+//
+//   logo: '<svg viewBox="0 0 24 24" ...>...</svg>'
+//
+// Requirements:
+//  - Inline SVG only. Fero is a PWA and must not fetch logos at runtime.
+//  - Use the official asset, not a redrawn approximation.
+//  - Follow each provider's brand guidelines for clear space and minimum size.
+//  - Prefer a monochrome/white mark: it is rendered on the brand colour below.
+//
+// Until then `brand` supplies the provider's colour so the chips still read as
+// that provider at a glance.
 const PAYMENT_PROVIDER_DEFS = [
   {
     id: "revolut",
     label: "Revolut",
+    brand: "#0666EB",
+    onBrand: "#FFFFFF",
     placeholder: "username",
     hint: "Your Revolut username, without the @.",
     host: "revolut.me",
@@ -22,6 +40,8 @@ const PAYMENT_PROVIDER_DEFS = [
   {
     id: "paypal",
     label: "PayPal",
+    brand: "#003087",
+    onBrand: "#FFFFFF",
     placeholder: "paypal.me name",
     hint: "Your PayPal.Me name.",
     host: "paypal.me",
@@ -30,6 +50,8 @@ const PAYMENT_PROVIDER_DEFS = [
   {
     id: "vipps",
     label: "Vipps",
+    brand: "#FF5B24",
+    onBrand: "#FFFFFF",
     placeholder: "Vipps QR link or phone number",
     // Vipps has no public person-to-person deep link. A personal Vipps QR
     // resolves to a qr.vipps.no URL, which we can open directly. A phone
@@ -42,8 +64,8 @@ const PAYMENT_PROVIDER_DEFS = [
 
 const ALLOWED_LINK_HOSTS = new Set(["revolut.me", "paypal.me", "qr.vipps.no"]);
 
-const PAYMENT_PROVIDERS = PAYMENT_PROVIDER_DEFS.map(({ id, label, placeholder, hint }) => ({
-  id, label, placeholder, hint
+const PAYMENT_PROVIDERS = PAYMENT_PROVIDER_DEFS.map(({ id, label, placeholder, hint, brand, onBrand, logo = null }) => ({
+  id, label, placeholder, hint, brand, onBrand, logo
 }));
 
 const PAYMENT_PROVIDER_IDS = new Set(PAYMENT_PROVIDER_DEFS.map(def => def.id));
@@ -120,19 +142,19 @@ function buildPaymentTarget(profile) {
   // A handle that is itself an allowlisted URL is opened as-is.
   const asUrl = parseAllowedUrl(normalized);
   if (asUrl) {
-    return { mode: "link", url: asUrl.toString(), copyText: asUrl.toString(), label: def.label };
+    return { mode: "link", url: asUrl.toString(), copyText: asUrl.toString(), label: def.label, brand: def.brand, onBrand: def.onBrand, logo: def.logo || null };
   }
 
   const built = SAFE_HANDLE_PATTERN.test(normalized) ? def.build(normalized) : "";
   if (built) {
     const verified = parseAllowedUrl(built);
     if (verified) {
-      return { mode: "link", url: verified.toString(), copyText: normalized, label: def.label };
+      return { mode: "link", url: verified.toString(), copyText: normalized, label: def.label, brand: def.brand, onBrand: def.onBrand, logo: def.logo || null };
     }
   }
 
   // Vipps phone numbers and anything else we will not open.
-  return { mode: "copy", url: "", copyText: normalized, label: def.label };
+  return { mode: "copy", url: "", copyText: normalized, label: def.label, brand: def.brand, onBrand: def.onBrand, logo: def.logo || null };
 }
 
 function describePaymentHandle(profile) {

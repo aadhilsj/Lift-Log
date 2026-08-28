@@ -242,13 +242,24 @@ const renderPaymentHandleSection = ({
   const preview = payProvider && trimmedHandle
     ? buildPaymentTarget({ paymentProvider: payProvider, paymentHandle: trimmedHandle })
     : null;
-  const chipStyle = active => ({
+  // Selected chip takes the provider's own brand colour so the row reads as
+  // Revolut/PayPal/Vipps at a glance. Unselected stays neutral so three brand
+  // colours never compete for attention at once.
+  const chipStyle = (provider, active) => ({
     flex:1, padding:"8px 6px", borderRadius:9, fontSize:12, fontWeight:800, cursor:"pointer",
     fontFamily:"'Outfit', sans-serif",
-    background: active ? "rgba(78,205,196,.12)" : "var(--s2)",
-    border: active ? "1px solid rgba(78,205,196,.45)" : "1px solid var(--border)",
-    color: active ? "#4ECDC4" : "var(--muted)"
+    display:"flex", alignItems:"center", justifyContent:"center", gap:5, minHeight:32,
+    background: active ? provider.brand : "var(--s2)",
+    border: active ? `1px solid ${provider.brand}` : "1px solid var(--border)",
+    color: active ? (provider.onBrand || "#fff") : "var(--muted)"
   });
+  const renderProviderMark = (provider, active) => provider.logo
+    ? React.createElement('span',{
+        "aria-hidden":true,
+        style:{display:"inline-flex",width:16,height:16,alignItems:"center",justifyContent:"center",color:active?(provider.onBrand||"#fff"):"var(--muted)"},
+        dangerouslySetInnerHTML:{__html:provider.logo}
+      })
+    : null;
   return React.createElement('div',{style:{marginBottom:14}},
     React.createElement('span',{className:"lbl",style:{marginBottom:6,display:"block"}},"How people pay you"),
     React.createElement('div',{style:{fontSize:11,color:"var(--text-faint)",lineHeight:1.45,marginBottom:8}},
@@ -258,8 +269,12 @@ const renderPaymentHandleSection = ({
       PAYMENT_PROVIDERS.map(provider => React.createElement('button',{
         key:provider.id, type:"button",
         onClick:()=>{ const next = payProvider===provider.id ? "" : provider.id; setPayProvider(next); if(!next) setPayHandle(""); },
-        style:chipStyle(payProvider===provider.id)
-      }, provider.label))
+        style:chipStyle(provider, payProvider===provider.id),
+        "aria-pressed":payProvider===provider.id
+      },
+        renderProviderMark(provider, payProvider===provider.id),
+        provider.label
+      ))
     ),
     payProvider && React.createElement(React.Fragment,null,
       React.createElement('input',{
