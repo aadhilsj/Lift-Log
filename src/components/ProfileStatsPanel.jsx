@@ -7,6 +7,8 @@ const { useState, useRef, useEffect } = React;
 
 const REG = 400, MED = 500;
 const WD_SHORT = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+const FULL_MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+const isoOf = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
 
 // The all-time stats panel: stat cards, heatmap, hit rate, workouts by day and
 // workout mix. Extracted from ProfilePage so the in-Bloc member profile renders
@@ -15,13 +17,16 @@ const WD_SHORT = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
 // `groups` must already be scoped by the caller. ProfilePage passes every Bloc
 // the viewer is in; the in-Bloc member profile passes only the Blocs shared
 // with that member, because readable state never contains anyone else's Blocs.
-const ProfileStatsPanel = ({ groups = [], userId, ownerName = "" }) => {
+const ProfileStatsPanel = ({ groups = [], userId, ownerName = "", accountCreatedAt = null }) => {
   // Section headings are possessive: they read as the viewer's own on the
   // account profile, and as the member's name when viewing someone else.
   const owns = ownerName
     ? `${ownerName}${/s$/i.test(ownerName) ? "'" : "'s"}`
     : "Your";
   const { myGroups, agg } = buildProfileStats({ groups, userId });
+  // Where the heatmap starts. Defined here rather than by the caller: the
+  // heatmap lives in this component, so the value it depends on must too.
+  const profileStartTs = agg.earliestWorkout || agg.earliestJoined || Date.parse(accountCreatedAt || "") || null;
   const [sel, setSel] = useState(null); // tapped heatmap day { iso, count }
   const heatScrollRef = useRef(null);
   // Open the heatmap scrolled to today (data's most relevant end).
