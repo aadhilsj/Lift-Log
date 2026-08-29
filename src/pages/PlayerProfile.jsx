@@ -281,14 +281,13 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
         userId:memberUserId,
         ownerName:name,
         serverStats:feroStats,
-        // Once server stats arrive the figures span every Bloc this member is
-        // in. Until then they are the shared-Bloc fallback, and the note says
-        // so rather than overclaiming.
+        // Skeleton until the real figures land. Showing the shared-Bloc
+        // fallback first would print a smaller, different number and then
+        // correct itself.
+        loading: !feroStats && feroStatsState !== "error",
         scopeNote: feroStats
           ? `Across all ${feroStats.blocCount === 1 ? "1 Bloc" : `${feroStats.blocCount} Blocs`} ${name} is in.`
-          : feroStatsState === "error"
-            ? `Couldn't load ${name}'s full history, so this counts only the ${sharedGroups.length === 1 ? "Bloc" : `${sharedGroups.length} Blocs`} you share.`
-            : "Loading full history..."
+          : `Couldn't load ${name}'s full history, so this counts only the ${sharedGroups.length === 1 ? "Bloc" : `${sharedGroups.length} Blocs`} you share.`
       })
     : React.createElement(Card,{style:{padding:"18px 16px",textAlign:"center",color:"var(--muted)",fontSize:12,fontFamily:"'Outfit',sans-serif"}},"All-time stats aren't available for this member.");
 

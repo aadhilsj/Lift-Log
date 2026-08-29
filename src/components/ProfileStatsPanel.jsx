@@ -58,7 +58,47 @@ function mergeServerStats(localAgg, stats) {
   };
 }
 
-const ProfileStatsPanel = ({ groups = [], userId, ownerName = "", accountCreatedAt = null, scopeNote = "", serverStats = null }) => {
+// Skeleton shown while a member's cross-Bloc stats load. It mirrors the real
+// layout — three stat cards, heatmap, hit rate, day rows, mix bars — so the
+// page does not jump when the numbers arrive.
+//
+// Deliberately used instead of showing the local shared-Bloc figures first:
+// those are a genuinely different, smaller number, so rendering them would
+// state something wrong confidently and then silently correct itself.
+const ProfileStatsSkeleton = ({ ownerName = "" }) => {
+  const bar = (w, h = 10, extra = {}) => React.createElement('div', { className: "skel", style: { width: w, height: h, ...extra } });
+  const card = children => React.createElement(Card, { style: { padding: "12px 13px", display: "grid", gap: 9, justifyItems: "center" } }, children);
+  return React.createElement(React.Fragment, null,
+    React.createElement('div', { style: { display: "grid", gap: 6, justifyItems: "center", marginBottom: 2 } },
+      bar(150, 11),
+      bar(210, 9)
+    ),
+    React.createElement('div', { style: { display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 6 } },
+      [0, 1, 2].map(i => React.createElement(Card, { key: i, style: { padding: "12px 8px", display: "grid", gap: 7, justifyItems: "center" } },
+        bar(46, 8), bar(30, 16)
+      ))
+    ),
+    card(React.createElement(React.Fragment, null, bar(96, 12), bar("100%", 74, { borderRadius: 8 }))),
+    card(React.createElement(React.Fragment, null, bar(46, 46, { borderRadius: 999 }), bar(150, 10))),
+    React.createElement(Card, { style: { padding: "12px 13px", display: "grid", gap: 8 } },
+      bar(120, 12, { justifySelf: "center", marginBottom: 2 }),
+      [72, 54, 88, 40, 64, 30, 78].map((w, i) => React.createElement('div', { key: i, style: { display: "flex", alignItems: "center", gap: 10 } },
+        bar(26, 9), React.createElement('div', { style: { flex: 1 } }, bar(`${w}%`, 8, { borderRadius: 4 }))
+      ))
+    ),
+    React.createElement(Card, { style: { padding: "12px 13px", display: "grid", gap: 10 } },
+      bar(110, 12, { justifySelf: "center" }),
+      React.createElement('div', { style: { display: "flex", gap: 8, alignItems: "flex-end", height: 60 } },
+        [38, 56, 24, 44, 30].map((h, i) => React.createElement('div', { key: i, style: { flex: 1 } }, bar("100%", h, { borderRadius: 4 })))
+      )
+    ),
+    React.createElement('span', { style: { position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" } },
+      ownerName ? `Loading ${ownerName}'s history` : "Loading history"
+    )
+  );
+};
+
+const ProfileStatsPanel = ({ groups = [], userId, ownerName = "", accountCreatedAt = null, scopeNote = "", serverStats = null, loading = false }) => {
   // Section headings are possessive: they read as the viewer's own on the
   // account profile, and as the member's name when viewing someone else.
   const owns = ownerName
@@ -156,6 +196,9 @@ const ProfileStatsPanel = ({ groups = [], userId, ownerName = "", accountCreated
   // 'On Fero since' line in its header, and that one is derived differently,
   // so showing both would print two different dates for the same thing.
   const joinedLabel = ownerName ? sinceLabel(agg.earliestJoined) : null;
+
+  // Nothing partial: while the real figures are in flight, show structure only.
+  if (loading) return React.createElement(ProfileStatsSkeleton, { ownerName });
 
   return React.createElement(React.Fragment, null,
     // Every figure below is computed from the `groups` the caller passed, so
