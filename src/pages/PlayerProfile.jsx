@@ -231,31 +231,33 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
   const olderIdx = selMonthIdx === null ? (visibleHistoryMonths.length ? 0 : null) : (selMonthIdx + 1 < visibleHistoryMonths.length ? selMonthIdx + 1 : null);
   const newerIdx = selMonthIdx === null ? undefined : (selMonthIdx === 0 ? null : selMonthIdx - 1);
   const stepMonth = target => { if (target !== undefined) setSelMonthIdx(target); };
-  const monthArrow = (direction, target, label) => React.createElement('button',{
-    type:"button",
-    onClick:()=>stepMonth(target),
-    disabled:target === undefined,
-    "aria-label":label,
-    style:{
-      // A real tap target rather than a bare glyph: 28px square with a visible
-      // surface, so it reads as a button and is comfortable on a phone.
-      width:28,height:28,flexShrink:0,
-      display:"inline-flex",alignItems:"center",justifyContent:"center",
-      borderRadius:8,padding:0,
-      background: target === undefined ? "transparent" : "rgba(78,205,196,.1)",
-      border: target === undefined ? "1px solid transparent" : "1px solid rgba(78,205,196,.28)",
-      color: target === undefined ? "rgba(120,150,145,.3)" : "#4ECDC4",
-      cursor: target === undefined ? "default" : "pointer",
-      fontFamily:"'Outfit',sans-serif",fontSize:15,fontWeight:800,lineHeight:1,
-      WebkitTapHighlightColor:"transparent"
-    }
-  }, direction);
-  const monthSelector = React.createElement('div',{style:{display:"inline-flex",alignItems:"center",gap:6,justifySelf:"end"}},
+  const monthArrow = (direction, target, label) => {
+    const disabled = target === undefined;
+    return React.createElement('button',{
+      type:"button",
+      onClick:()=>stepMonth(target),
+      disabled,
+      "aria-label":label,
+      style:{
+        // Small and tight to the label. Both sides keep the same shape when
+        // disabled and only grey out, so the control never looks half-missing
+        // at the ends of the range.
+        width:20,height:20,flexShrink:0,
+        display:"inline-flex",alignItems:"center",justifyContent:"center",
+        borderRadius:6,padding:0,
+        background: disabled ? "rgba(255,255,255,.035)" : "rgba(78,205,196,.12)",
+        border: disabled ? "1px solid rgba(255,255,255,.07)" : "1px solid rgba(78,205,196,.3)",
+        color: disabled ? "rgba(140,165,160,.35)" : "#4ECDC4",
+        cursor: disabled ? "default" : "pointer",
+        fontFamily:"'Outfit',sans-serif",fontSize:12,fontWeight:800,lineHeight:1,
+        WebkitTapHighlightColor:"transparent"
+      }
+    }, direction);
+  };
+  const monthSelector = React.createElement('div',{style:{display:"inline-flex",alignItems:"center",gap:4,justifySelf:"end"}},
     monthArrow("\u2039", olderIdx === null ? undefined : olderIdx, "Previous month"),
-    // Sized to the longest label rather than padded out, so the arrows sit
-    // beside the month instead of drifting away from it.
     React.createElement('span',{style:{
-      textAlign:"center",fontFamily:"'Outfit',sans-serif",fontSize:12.5,fontWeight:800,
+      textAlign:"center",fontFamily:"'Outfit',sans-serif",fontSize:11.5,fontWeight:700,
       color:"var(--text)",whiteSpace:"nowrap"
     }}, isCurMonth ? "This Month" : profileMonthOptionLabel(selHistMonth)),
     monthArrow("\u203a", newerIdx, "Next month")
