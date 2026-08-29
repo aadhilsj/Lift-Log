@@ -144,7 +144,11 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
     requestAnimationFrame(()=>profileLayerRef.current?.scrollTo?.({top:0,left:0,behavior:"auto"}));
   },[viewPlayer]);
   const openPlayerProfile = useCallback(name => {
-    if (name && name !== user) onTrackUsage?.("other_profile_opened");
+    // Mirrors other_profile_opened. own_block_profile_opened used to fire from
+    // the in-Bloc account icon in the nav bar; that icon was removed when
+    // account settings moved to the Bloc Switcher, so without this the metric
+    // would sit permanently at zero.
+    if (name) onTrackUsage?.(name === user ? "own_block_profile_opened" : "other_profile_opened");
     setProfileRevealActive(false);
     setViewPlayer(name);
   },[onTrackUsage, user]);

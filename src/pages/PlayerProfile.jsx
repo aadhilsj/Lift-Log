@@ -28,7 +28,7 @@ import {
 import {
   isMobile
 } from "../lib/utils.js";
-import { Avatar, WorkoutTypeIcon, Bar, Card, SelectField, TargetHitHexIcon, AppIcon } from "../components/primitives.jsx";
+import { Avatar, WorkoutTypeIcon, Bar, Card, TargetHitHexIcon, AppIcon } from "../components/primitives.jsx";
 import { DeleteModal } from "../modals/modals.jsx";
 import { ProfileStatsPanel } from "../components/ProfileStatsPanel.jsx";
 import { fetchProfileStatsData } from "../lib/api.js";
@@ -221,19 +221,33 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
   });
   const selLabel=isCurMonth?`${MONTH_NAMES[CUR_MONTH]} ${CUR_YEAR}`:profileMonthLabel(selHistMonth);
 
-  const monthSelector = React.createElement(SelectField,{
-    value:selMonthIdx??"",
-    onChange:e=>setSelMonthIdx(e.target.value===""?null:Number(e.target.value)),
-    width:96,
-    compact:true,
-    arrowColor:"#4ECDC4",
-    textAlign:"center",
-    inputStyle:{background:"rgba(8,15,15,.48)",border:"1px solid rgba(78,205,196,.18)",color:"var(--text)",fontFamily:"'Outfit',sans-serif",fontSize:10.5,fontWeight:700,letterSpacing:0,padding:"6px 20px 6px 8px",textAlign:"center",boxShadow:"none"},
-    options:[
-      {value:"",label:"This Month"},
-      ...visibleHistoryMonths.map((m,i)=>({value:i,label:profileMonthOptionLabel(m)}))
-    ]
-  });
+  // Months step one tap at a time rather than through a dropdown, which took
+  // two. visibleHistoryMonths is newest-first and null is the current month,
+  // so older means a higher index and newer means a lower one.
+  const olderIdx = selMonthIdx === null ? (visibleHistoryMonths.length ? 0 : null) : (selMonthIdx + 1 < visibleHistoryMonths.length ? selMonthIdx + 1 : null);
+  const newerIdx = selMonthIdx === null ? undefined : (selMonthIdx === 0 ? null : selMonthIdx - 1);
+  const stepMonth = target => { if (target !== undefined) setSelMonthIdx(target); };
+  const monthArrow = (direction, target, label) => React.createElement('button',{
+    type:"button",
+    onClick:()=>stepMonth(target),
+    disabled:target === undefined,
+    "aria-label":label,
+    style:{
+      width:22,height:22,flexShrink:0,display:"inline-flex",alignItems:"center",justifyContent:"center",
+      borderRadius:7,border:"none",background:"transparent",padding:0,
+      color: target === undefined ? "rgba(120,150,145,.28)" : "#4ECDC4",
+      cursor: target === undefined ? "default" : "pointer",
+      fontFamily:"'Outfit',sans-serif",fontSize:15,fontWeight:700,lineHeight:1
+    }
+  }, direction);
+  const monthSelector = React.createElement('div',{style:{display:"inline-flex",alignItems:"center",gap:2,justifySelf:"end"}},
+    monthArrow("\u2039", olderIdx === null ? undefined : olderIdx, "Previous month"),
+    React.createElement('span',{style:{
+      minWidth:74,textAlign:"center",fontFamily:"'Outfit',sans-serif",fontSize:11.5,fontWeight:700,
+      color:"var(--text)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"
+    }}, isCurMonth ? "This Month" : profileMonthOptionLabel(selHistMonth)),
+    monthArrow("\u203a", newerIdx, "Next month")
+  );
 
   const sitOutBanner = isExcusedThisMonth
     ? React.createElement('div',{style:{background:"rgba(101,101,122,.12)",border:"1px solid var(--border2)",borderRadius:10,padding:"12px 16px",display:"flex",alignItems:"center",gap:10}},
@@ -326,10 +340,7 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
             userId:memberUserId,
             ownerName:name,
             serverStats:feroStats,
-            loading: !feroStats,
-            scopeNote: feroStats
-              ? `Across all ${feroStats.blocCount === 1 ? "1 Bloc" : `${feroStats.blocCount} Blocs`} ${name} is in.`
-              : ""
+            loading: !feroStats
           });
 
   const startSwipeBack=e=>{
