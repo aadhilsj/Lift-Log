@@ -561,7 +561,12 @@ async function fetchProfileStatsData(subjectUserId) {
   const cached = readCachedProfileStats(subjectUserId);
   if (cached) return { ok:true, stats: cached, cached:true };
   const result = await postApi("profile-stats", { subjectUserId });
-  if (!result.ok) return { ok:false, error: result.error || "Unable to load profile stats" };
+  if (!result.ok) {
+    // Surfaced in the console so a failure on a real device is diagnosable
+    // without guessing; the UI stays a plain "couldn't load".
+    console.error("profile-stats failed:", result.status || "", result.error || result.body || "");
+    return { ok:false, error: result.error || "Unable to load profile stats" };
+  }
   cacheProfileStats(result.body);
   return { ok:true, stats: result.body || null };
 }

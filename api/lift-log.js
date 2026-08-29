@@ -8797,7 +8797,9 @@ export default async function handler(req, res) {
       // subject. Requesting a stranger returns 403, so this cannot be used to
       // enumerate arbitrary users. A caller may always request themselves.
       if (payload?.action === "profile-stats") {
-        const auth = await requireAuthenticatedContext(req, payload, current);
+        // `current` is lazily populated and is still null here, so resolve the
+        // readable state explicitly, as the other read actions do.
+        const auth = await requireAuthenticatedContext(req, payload, await getReadableCurrent());
         // Accepts one subject or many. The batch form lets a client warm every
         // member of a Bloc in a single round trip when the leaderboard opens.
         const requested = Array.isArray(payload?.subjectUserIds)
