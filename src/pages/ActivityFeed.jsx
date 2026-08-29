@@ -35,7 +35,7 @@ const reactionSortIndex = emoji => {
   return index === -1 ? QUICK_REACTIONS.length : index;
 };
 
-const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,onReview,clockTick,reactionOverrides,setReactionOverrides,commentCountOverrides = {},onCommentCountsLoaded,onOpenLogComments}) => {
+const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,onReview,clockTick,reactionOverrides,setReactionOverrides,commentCountOverrides = {},onCommentCountsLoaded,onOpenLogComments,onTrackUsage}) => {
   const [flagTarget,setFlagTarget]=useState(null);
   const [flagReason,setFlagReason]=useState("");
   const [responseTarget,setResponseTarget]=useState(null);
@@ -299,7 +299,7 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
         );
       }),
       React.createElement('div',{"data-reaction-picker-root":"true",ref:reactionTarget===post.id?reactionPickerRef:null,style:{position:centered?"static":"relative",display:"inline-flex"}},
-        React.createElement('button',{type:"button",onClick:()=>setReactionTarget(reactionTarget===post.id?null:post.id),style:{height:compact?20:22,padding:compact?"0 6px":"0 7px",borderRadius:999,background:"var(--s1)",border:"1px solid var(--border)",fontSize:10.5,color:"var(--muted)"}},"＋"),
+        React.createElement('button',{type:"button",onClick:()=>{if(reactionTarget!==post.id) onTrackUsage?.("reaction_picker_opened"); setReactionTarget(reactionTarget===post.id?null:post.id)},style:{height:compact?20:22,padding:compact?"0 6px":"0 7px",borderRadius:999,background:"var(--s1)",border:"1px solid var(--border)",fontSize:10.5,color:"var(--muted)"}},"＋"),
         !suppressFloating && renderReactionPicker(post, centered)
       ),
       !centered && !post.photoUrl && renderCommentChip(post, compact)

@@ -102,6 +102,7 @@ They have repeatedly been asked to test something that was never going to work.
 
 ## 4. Deployment rules
 
+- **Ask at the start of every implementation session:** should this change go to a preview branch first, or directly to `main`? Context matters; the founder's answer for that session controls the release workflow.
 - **Preview first, then they promote.** Build on a branch, push a Vercel preview,
   let them test, and let them promote to production. Never push straight to
   production unless they explicitly say to.

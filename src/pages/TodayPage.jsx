@@ -58,7 +58,7 @@ import { prefetchProfileStatsData } from "../lib/api.js";
 
 const FULL_MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
-const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCreatedAt,logs,excused,monthHistory,saving,onSave,onMultiLog,onLogMutation,clockTick,onViewLastMonth,onSitOutRequest,onSoloRequest,onSettlementClaimPaid,onSettlementConfirmPaid,onSettlementDisputePaid,onOpenSetupReview,navResetToken,showLog,setShowLog}) => {
+const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCreatedAt,logs,excused,monthHistory,saving,onSave,onMultiLog,onLogMutation,clockTick,onViewLastMonth,onSitOutRequest,onSoloRequest,onSettlementClaimPaid,onSettlementConfirmPaid,onSettlementDisputePaid,onOpenSetupReview,navResetToken,showLog,setShowLog,onTrackUsage}) => {
   const [showExcuse,setShowExcuse]=useState(false);
   const [sitOutSubmitting,setSitOutSubmitting]=useState(false);
   const [sitOutError,setSitOutError]=useState("");
@@ -144,9 +144,10 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
     requestAnimationFrame(()=>profileLayerRef.current?.scrollTo?.({top:0,left:0,behavior:"auto"}));
   },[viewPlayer]);
   const openPlayerProfile = useCallback(name => {
+    if (name && name !== user) onTrackUsage?.("other_profile_opened");
     setProfileRevealActive(false);
     setViewPlayer(name);
-  },[]);
+  },[onTrackUsage, user]);
   const closePlayerProfile = useCallback(() => {
     setProfileRevealActive(false);
     setViewPlayer(null);
@@ -1192,7 +1193,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
     lastMonthBanner,
     setupReviewBanner,
 !isExcused&&React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(4,minmax(0,1fr))",gap:6,paddingBottom:2}},
-  statCards.map(s=>React.createElement(Card,{key:s.label,onClick:()=>setStatDetail({kind:s.kind}),style:mobileStatCardStyle},
+  statCards.map(s=>React.createElement(Card,{key:s.label,onClick:()=>{if(s.kind==="week-mvp") onTrackUsage?.("mvp_card_opened"); if(s.kind==="bloc-month") onTrackUsage?.("bloc_month_opened"); setStatDetail({kind:s.kind})},style:mobileStatCardStyle},
     React.createElement('span',{className:"lbl",style:mobileStatLabelStyle},s.label),
     React.createElement('div',{style:{width:"100%",display:"flex",flexDirection:"column",alignItems:"center",paddingTop:8}},
       React.createElement('div',{style:Object.assign({fontSize:16,fontWeight:800,color:s.color || "#4ECDC4",lineHeight:1,minHeight:16,display:"flex",alignItems:"center",justifyContent:"center",textAlign:"center",whiteSpace:"nowrap",width:"100%",fontFamily:"'Outfit', sans-serif"}, s.valueStyle || {})},s.valueNode || s.val),
@@ -1278,7 +1279,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
     lastMonthBanner,
     setupReviewBanner,
 !isExcused&&React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}},
-  statCards.map(s=>React.createElement(Card,{key:s.label,onClick:()=>setStatDetail({kind:s.kind}),style:desktopStatCardStyle,
+  statCards.map(s=>React.createElement(Card,{key:s.label,onClick:()=>{if(s.kind==="week-mvp") onTrackUsage?.("mvp_card_opened"); if(s.kind==="bloc-month") onTrackUsage?.("bloc_month_opened"); setStatDetail({kind:s.kind})},style:desktopStatCardStyle,
     onMouseEnter:e=>e.currentTarget.style.transform="translateY(-1px)",
     onMouseLeave:e=>e.currentTarget.style.transform="translateY(0)"},
     React.createElement('span',{className:"lbl",style:desktopStatLabelStyle},s.label),

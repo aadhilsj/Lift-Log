@@ -1,0 +1,386 @@
+{"kind":"deck","id":"pr/9rp7dz","name":"Deck"}
+{"kind":"layout","layoutId":"733743af-cfa2-449d-9fe1-fe05a5cc6cc4","name":"Master","type":"master"}
+{"kind":"layout","layoutId":"220415d8-8172-48e9-a753-834a34f74668","name":"Title Slide","type":"title"}
+{"kind":"slide","id":"sl/fek5gf","slide":1,"title":"FERO","textShapes":4}
+{"kind":"textbox","id":"sh/2pkzido7","slide":1,"text":"FERO","textPreview":"FERO","textChars":4,"textLines":1,"bbox":[88,88,240,76]}
+{"kind":"textbox","id":"sh/psbydsny","slide":1,"text":"Onboarding & Invite User Journeys","textPreview":"Onboarding & Invite User Journeys","textChars":33,"textLines":1,"bbox":[88,244,880,88]}
+{"kind":"textbox","id":"sh/or2hkn6d","slide":1,"text":"Real preview-app captures for team review. Backend data is fixture-driven only for repeatable screenshots.","textPreview":"Real preview-app captures for team review. Backend data is fixture-driven only for repeatable screenshots.","textChars":106,"textLines":1,"bbox":[92,360,850,86]}
+{"kind":"textbox","id":"sh/butgf25o","slide":1,"text":"Generated 13 Aug 2026","textPreview":"Generated 13 Aug 2026","textChars":21,"textLines":1,"bbox":[92,586,300,32]}
+{"kind":"notes","id":"nt/fek5gf","slide":1,"text":""}
+{"kind":"slide","id":"sl/n2qu47","slide":2,"title":"FERO USER JOURNEY","textShapes":4}
+{"kind":"shape","id":"sh/7ilgrqhs","slide":2,"bbox":[64,72,1152,576]}
+{"kind":"textbox","id":"sh/8jux0vid","slide":2,"text":"FERO USER JOURNEY","textPreview":"FERO USER JOURNEY","textChars":17,"textLines":1,"bbox":[108,126,360,26]}
+{"kind":"textbox","id":"sh/9k3yt0zi","slide":2,"text":"Cold User: Create a Bloc","textPreview":"Cold User: Create a Bloc","textChars":24,"textLines":1,"bbox":[108,220,840,82]}
+{"kind":"textbox","id":"sh/ulcf2503","slide":2,"text":"First install -> onboarding -> create Bloc -> auth -> display name/photo -> lands inside Bloc","textPreview":"First install -> onboarding -> create Bloc -> auth -> display name/photo -> lands inside Bloc","textChars":93,"textLines":1,"bbox":[112,322,820,80]}
+{"kind":"textbox","id":"sh/v6lgvqho","slide":2,"text":"1 / 5","textPreview":"1 / 5","textChars":5,"textLines":1,"bbox":[1052,526,90,36]}
+{"kind":"notes","id":"nt/n2qu47","slide":2,"text":""}
+{"kind":"slide","id":"sl/4zb671","slide":3,"title":"FERO","textShapes":5}
+{"kind":"textbox","id":"sh/4z2hwjud","slide":3,"text":"FERO","textPreview":"FERO","textChars":4,"textLines":1,"bbox":[44,30,150,52]}
+{"kind":"textbox","id":"sh/jytg3ets","slide":3,"text":"COLD USER: CREATE A BLOC","textPreview":"COLD USER: CREATE A BLOC","textChars":24,"textLines":1,"bbox":[44,96,360,24]}
+{"kind":"textbox","id":"sh/ixkzu9c7","slide":3,"text":"01 Onboarding Leaderboard","textPreview":"01 Onboarding Leaderboard","textChars":25,"textLines":1,"bbox":[44,124,390,86]}
+{"kind":"textbox","id":"sh/hwby1obm","slide":3,"text":"1 of 12","textPreview":"1 of 12","textChars":7,"textLines":1,"bbox":[44,628,160,28]}
+{"kind":"shape","id":"sh/wv2hsju1","slide":3,"bbox":[486.67,25,326.66,672]}
+{"kind":"textbox","id":"sh/u9kzq9cv","slide":3,"text":"Captured from the real preview app UI","textPreview":"Captured from the real preview app UI","textChars":37,"textLines":1,"bbox":[890,610,300,42]}
+{"kind":"image","id":"im/uhkr2d8n","slide":3,"name":"","geometry":"roundRect","alt":"Cold User: Create a Bloc - Onboarding Leaderboard","bbox":[501.67,40,296.66,642]}
+{"kind":"notes","id":"nt/4zb671","slide":3,"text":""}
+{"kind":"slide","id":"sl/dxzf3p","slide":4,"title":"FERO","textShapes":5}
+{"kind":"textbox","id":"sh/3q5cr2ps","slide":4,"text":"FERO","textPreview":"FERO","textChars":4,"textLines":1,"bbox":[44,30,150,52]}
+{"kind":"textbox","id":"sh/4rydk7qd","slide":4,"text":"COLD USER: CREATE A BLOC","textPreview":"COLD USER: CREATE A BLOC","textChars":24,"textLines":1,"bbox":[44,96,360,24]}
+{"kind":"textbox","id":"sh/pc7utc7y","slide":4,"text":"02 Onboarding Activity","textPreview":"02 Onboarding Activity","textChars":22,"textLines":1,"bbox":[44,124,390,86]}
+{"kind":"textbox","id":"sh/qdgvmh8j","slide":4,"text":"2 of 12","textPreview":"2 of 12","textChars":7,"textLines":1,"bbox":[44,628,160,28]}
+{"kind":"shape","id":"sh/repcv2p4","slide":4,"bbox":[486.67,25,326.66,672]}
+{"kind":"textbox","id":"sh/dg7exc7a","slide":4,"text":"Captured from the real preview app UI","textPreview":"Captured from the real preview app UI","textChars":37,"textLines":1,"bbox":[890,610,300,42]}
+{"kind":"image","id":"im/14zil8ja","slide":4,"name":"","geometry":"roundRect","alt":"Cold User: Create a Bloc - Onboarding Activity","bbox":[501.67,40,296.66,642]}
+{"kind":"notes","id":"nt/dxzf3p","slide":4,"text":""}
+{"kind":"slide","id":"sl/3pd1fw","slide":5,"title":"FERO","textShapes":5}
+{"kind":"textbox","id":"sh/f6x8za9w","slide":5,"text":"FERO","textPreview":"FERO","textChars":4,"textLines":1,"bbox":[44,30,150,52]}
+{"kind":"textbox","id":"sh/0rqpsfah","slide":5,"text":"COLD USER: CREATE A BLOC","textPreview":"COLD USER: CREATE A BLOC","textChars":24,"textLines":1,"bbox":[44,96,360,24]}
+{"kind":"textbox","id":"sh/1szq1krm","slide":5,"text":"03 Onboarding Settlement","textPreview":"03 Onboarding Settlement","textChars":24,"textLines":1,"bbox":[44,124,390,86]}
+{"kind":"textbox","id":"sh/q1o7m5sz","slide":5,"text":"3 of 12","textPreview":"3 of 12","textChars":7,"textLines":1,"bbox":[44,628,160,28]}
+{"kind":"shape","id":"sh/r2x8va9k","slide":5,"bbox":[486.67,25,326.66,672]}
+{"kind":"textbox","id":"sh/d4fqx0rq","slide":5,"text":"Captured from the real preview app UI","textPreview":"Captured from the real preview app UI","textChars":37,"textLines":1,"bbox":[890,610,300,42]}
+{"kind":"image","id":"im/t0z25wji","slide":5,"name":"","geometry":"roundRect","alt":"Cold User: Create a Bloc - Onboarding Settlement","bbox":[501.67,40,296.66,642]}
+{"kind":"notes","id":"nt/3pd1fw","slide":5,"text":""}
+{"kind":"slide","id":"sl/hwxchd","slide":6,"title":"FERO","textShapes":5}
+{"kind":"textbox","id":"sh/qhkvi5cb","slide":6,"text":"FERO","textPreview":"FERO","textChars":4,"textLines":1,"bbox":[44,30,150,52]}
+{"kind":"textbox","id":"sh/d4bedkb2","slide":6,"text":"COLD USER: CREATE A BLOC","textPreview":"COLD USER: CREATE A BLOC","textChars":24,"textLines":1,"bbox":[44,96,360,24]}
+{"kind":"textbox","id":"sh/c32dkfuh","slide":6,"text":"04 Onboarding Create Entry","textPreview":"04 Onboarding Create Entry","textChars":26,"textLines":1,"bbox":[44,124,390,86]}
+{"kind":"textbox","id":"sh/z6twfat8","slide":6,"text":"4 of 12","textPreview":"4 of 12","textChars":7,"textLines":1,"bbox":[44,628,160,28]}
+{"kind":"shape","id":"sh/y5kvmpcn","slide":6,"bbox":[486.67,25,326.66,672]}
+{"kind":"textbox","id":"sh/072dofut","slide":6,"text":"Captured from the real preview app UI","textPreview":"Captured from the real preview app UI","textChars":37,"textLines":1,"bbox":[890,610,300,42]}
+{"kind":"image","id":"im/knatk3ux","slide":6,"name":"","geometry":"roundRect","alt":"Cold User: Create a Bloc - Onboarding Create Entry","bbox":[501.67,40,296.66,642]}
+{"kind":"notes","id":"nt/hwxchd","slide":6,"text":""}
+{"kind":"slide","id":"sl/mrsxur","slide":7,"title":"FERO","textShapes":5}
+{"kind":"textbox","id":"sh/bul0r2d8","slide":7,"text":"FERO","textPreview":"FERO","textChars":4,"textLines":1,"bbox":[44,30,150,52]}
+{"kind":"textbox","id":"sh/cvu107et","slide":7,"text":"COLD USER: CREATE A BLOC","textPreview":"COLD USER: CREATE A BLOC","textChars":24,"textLines":1,"bbox":[44,96,360,24]}
+{"kind":"textbox","id":"sh/xw3itcvy","slide":7,"text":"05 Onboarding Create Entry Filled","textPreview":"05 Onboarding Create Entry Filled","textChars":33,"textLines":1,"bbox":[44,124,390,86]}
+{"kind":"textbox","id":"sh/25szuxwb","slide":7,"text":"5 of 12","textPreview":"5 of 12","textChars":7,"textLines":1,"bbox":[44,628,160,28]}
+{"kind":"shape","id":"sh/n610nidw","slide":7,"bbox":[486.67,25,326.66,672]}
+{"kind":"textbox","id":"sh/p8jipsv2","slide":7,"text":"Captured from the real preview app UI","textPreview":"Captured from the real preview app UI","textChars":37,"textLines":1,"bbox":[890,610,300,42]}
+{"kind":"image","id":"im/t07e9g3i","slide":7,"name":"","geometry":"roundRect","alt":"Cold User: Create a Bloc - Onboarding Create Entry Filled","bbox":[501.67,40,296.66,642]}
+{"kind":"notes","id":"nt/mrsxur","slide":7,"text":""}
+{"kind":"slide","id":"sl/1jl7gm","slide":8,"title":"FERO","textShapes":5}
+{"kind":"textbox","id":"sh/s7qtcra9","slide":8,"text":"FERO","textPreview":"FERO","textChars":4,"textLines":1,"bbox":[44,30,150,52]}
+{"kind":"textbox","id":"sh/76hsjm9o","slide":8,"text":"COLD USER: CREATE A BLOC","textPreview":"COLD USER: CREATE A BLOC","textChars":24,"textLines":1,"bbox":[44,96,360,24]}
+{"kind":"textbox","id":"sh/658bahs3","slide":8,"text":"06 Create Bloc Modal","textPreview":"06 Create Bloc Modal","textChars":20,"textLines":1,"bbox":[44,124,390,86]}
+{"kind":"textbox","id":"sh/54zahcri","slide":8,"text":"6 of 12","textPreview":"6 of 12","textChars":7,"textLines":1,"bbox":[44,628,160,28]}
+{"kind":"shape","id":"sh/k36t87ax","slide":8,"bbox":[486.67,25,326.66,672]}
+{"kind":"textbox","id":"sh/i1ob6hs7","slide":8,"text":"Captured from the real preview app UI","textPreview":"Captured from the real preview app UI","textChars":37,"textLines":1,"bbox":[890,610,300,42]}
+{"kind":"image","id":"im/2h0zqhkz","slide":8,"name":"","geometry":"roundRect","alt":"Cold User: Create a Bloc - Create Bloc Modal","bbox":[501.67,40,296.66,642]}
+{"kind":"notes","id":"nt/1jl7gm","slide":8,"text":""}
+{"kind":"slide","id":"sl/3809g0","slide":9,"title":"FERO","textShapes":5}
+{"kind":"textbox","id":"sh/zadc3i5g","slide":9,"text":"FERO","textPreview":"FERO","textChars":4,"textLines":1,"bbox":[44,30,150,52]}
+{"kind":"textbox","id":"sh/0bmdwnm1","slide":9,"text":"COLD USER: CREATE A BLOC","textPreview":"COLD USER: CREATE A BLOC","textChars":24,"textLines":1,"bbox":[44,96,360,24]}
+{"kind":"textbox","id":"sh/1cfu5snm","slide":9,"text":"07 Sign In First Email","textPreview":"07 Sign In First Email","textChars":22,"textLines":1,"bbox":[44,124,390,86]}
+{"kind":"textbox","id":"sh/mdovyx47","slide":9,"text":"7 of 12","textPreview":"7 of 12","textChars":7,"textLines":1,"bbox":[44,628,160,28]}
+{"kind":"shape","id":"sh/nexc725s","slide":9,"bbox":[486.67,25,326.66,672]}
+{"kind":"textbox","id":"sh/9gfu9sni","slide":9,"text":"Captured from the real preview app UI","textPreview":"Captured from the real preview app UI","textChars":37,"textLines":1,"bbox":[890,610,300,42]}
+{"kind":"image","id":"im/tkbad03m","slide":9,"name":"","geometry":"roundRect","alt":"Cold User: Create a Bloc - Sign In First Email","bbox":[501.67,40,296.66,642]}
+{"kind":"notes","id":"nt/3809g0","slide":9,"text":""}
+{"kind":"slide","id":"sl/59z7fs","slide":10,"title":"FERO","textShapes":5}
+{"kind":"textbox","id":"sh/s3elsjyt","slide":10,"text":"FERO","textPreview":"FERO","textChars":4,"textLines":1,"bbox":[44,30,150,52]}
+{"kind":"textbox","id":"sh/725kjyh8","slide":10,"text":"COLD USER: CREATE A BLOC","textPreview":"COLD USER: CREATE A BLOC","textChars":24,"textLines":1,"bbox":[44,96,360,24]}
+{"kind":"textbox","id":"sh/61w3qtgn","slide":10,"text":"08 Otp Code","textPreview":"08 Otp Code","textChars":11,"textLines":1,"bbox":[44,124,390,86]}
+{"kind":"textbox","id":"sh/h8nmp8za","slide":10,"text":"8 of 12","textPreview":"8 of 12","textChars":7,"textLines":1,"bbox":[44,628,160,28]}
+{"kind":"shape","id":"sh/g7elw3yp","slide":10,"bbox":[486.67,25,326.66,672]}
+{"kind":"textbox","id":"sh/u5w3utgj","slide":10,"text":"Captured from the real preview app UI","textPreview":"Captured from the real preview app UI","textChars":37,"textLines":1,"bbox":[890,610,300,42]}
+{"kind":"image","id":"im/aponix4f","slide":10,"name":"","geometry":"roundRect","alt":"Cold User: Create a Bloc - Otp Code","bbox":[501.67,40,296.66,642]}
+{"kind":"notes","id":"nt/59z7fs","slide":10,"text":""}
+{"kind":"slide","id":"sl/roe9dx","slide":11,"title":"FERO","textShapes":5}
+{"kind":"textbox","id":"sh/p8fi183y","slide":11,"text":"FERO","textPreview":"FERO","textChars":4,"textLines":1,"bbox":[44,30,150,52]}
+{"kind":"textbox","id":"sh/2loz6tkn","slide":11,"text":"COLD USER: CREATE A BLOC","textPreview":"COLD USER: CREATE A BLOC","textChars":24,"textLines":1,"bbox":[44,96,360,24]}
+{"kind":"textbox","id":"sh/nmxgzyl8","slide":11,"text":"09 Display Name Photo Empty","textPreview":"09 Display Name Photo Empty","textChars":27,"textLines":1,"bbox":[44,124,390,86]}
+{"kind":"textbox","id":"sh/cbqhc32p","slide":11,"text":"9 of 12","textPreview":"9 of 12","textChars":7,"textLines":1,"bbox":[44,628,160,28]}
+{"kind":"shape","id":"sh/xczi583a","slide":11,"bbox":[486.67,25,326.66,672]}
+{"kind":"textbox","id":"sh/bah03il4","slide":11,"text":"Captured from the real preview app UI","textPreview":"Captured from the real preview app UI","textChars":37,"textLines":1,"bbox":[890,610,300,42]}
+{"kind":"image","id":"im/fmh03ix0","slide":11,"name":"","geometry":"roundRect","alt":"Cold User: Create a Bloc - Display Name Photo Empty","bbox":[501.67,40,296.66,642]}
+{"kind":"notes","id":"nt/roe9dx","slide":11,"text":""}
+{"kind":"slide","id":"sl/ma8esc","slide":12,"title":"FERO","textShapes":5}
+{"kind":"textbox","id":"sh/ve14z6dc","slide":12,"text":"FERO","textPreview":"FERO","textChars":4,"textLines":1,"bbox":[44,30,150,52]}
+{"kind":"textbox","id":"sh/wfal8buh","slide":12,"text":"COLD USER: CREATE A BLOC","textPreview":"COLD USER: CREATE A BLOC","textChars":24,"textLines":1,"bbox":[44,96,360,24]}
+{"kind":"textbox","id":"sh/hgjm1gv2","slide":12,"text":"10 Display Name Photo Filled","textPreview":"10 Display Name Photo Filled","textChars":28,"textLines":1,"bbox":[44,124,390,86]}
+{"kind":"textbox","id":"sh/ihs3alcn","slide":12,"text":"10 of 12","textPreview":"10 of 12","textChars":8,"textLines":1,"bbox":[44,628,160,28]}
+{"kind":"shape","id":"sh/jil43qd8","slide":12,"bbox":[486.67,25,326.66,672]}
+{"kind":"textbox","id":"sh/5k3m50ve","slide":12,"text":"Captured from the real preview app UI","textPreview":"Captured from the real preview app UI","textChars":37,"textLines":1,"bbox":[890,610,300,42]}
+{"kind":"image","id":"im/twfytobu","slide":12,"name":"","geometry":"roundRect","alt":"Cold User: Create a Bloc - Display Name Photo Filled","bbox":[501.67,40,296.66,642]}
+{"kind":"notes","id":"nt/ma8esc","slide":12,"text":""}
+{"kind":"slide","id":"sl/4f22tc","slide":13,"title":"FERO","textShapes":5}
+{"kind":"textbox","id":"sh/nyd8ba9s","slide":13,"text":"FERO","textPreview":"FERO","textChars":4,"textLines":1,"bbox":[44,30,150,52]}
+{"kind":"textbox","id":"sh/ozmp4fqd","slide":13,"text":"COLD USER: CREATE A BLOC","textPreview":"COLD USER: CREATE A BLOC","textChars":24,"textLines":1,"bbox":[44,96,360,24]}
+{"kind":"textbox","id":"sh/90vqdkry","slide":13,"text":"11 Progress Creating","textPreview":"11 Progress Creating","textChars":20,"textLines":1,"bbox":[44,124,390,86]}
+{"kind":"textbox","id":"sh/etk7y58b","slide":13,"text":"11 of 12","textPreview":"11 of 12","textChars":8,"textLines":1,"bbox":[44,628,160,28]}
+{"kind":"shape","id":"sh/zut87a9g","slide":13,"bbox":[486.67,25,326.66,672]}
+{"kind":"textbox","id":"sh/1wvq90rm","slide":13,"text":"Captured from the real preview app UI","textPreview":"Captured from the real preview app UI","textChars":37,"textLines":1,"bbox":[890,610,300,42]}
+{"kind":"image","id":"im/lgf69wv2","slide":13,"name":"","geometry":"roundRect","alt":"Cold User: Create a Bloc - Progress Creating","bbox":[501.67,40,296.66,642]}
+{"kind":"notes","id":"nt/4f22tc","slide":13,"text":""}
+{"kind":"slide","id":"sl/ze8mp3","slide":14,"title":"FERO","textShapes":5}
+{"kind":"textbox","id":"sh/3idsrepo","slide":14,"text":"FERO","textPreview":"FERO","textChars":4,"textLines":1,"bbox":[44,30,150,52]}
+{"kind":"textbox","id":"sh/4jm9kj6t","slide":14,"text":"COLD USER: CREATE A BLOC","textPreview":"COLD USER: CREATE A BLOC","textChars":24,"textLines":1,"bbox":[44,96,360,24]}
+{"kind":"textbox","id":"sh/5kvato7e","slide":14,"text":"12 Landed In New Bloc","textPreview":"12 Landed In New Bloc","textChars":21,"textLines":1,"bbox":[44,124,390,86]}
+{"kind":"textbox","id":"sh/ql4rmtoz","slide":14,"text":"12 of 12","textPreview":"12 of 12","textChars":8,"textLines":1,"bbox":[44,628,160,28]}
+{"kind":"shape","id":"sh/rmdsvypk","slide":14,"bbox":[486.67,25,326.66,672]}
+{"kind":"textbox","id":"sh/d8fax87q","slide":14,"text":"Captured from the real preview app UI","textPreview":"Captured from the real preview app UI","textChars":37,"textLines":1,"bbox":[890,610,300,42]}
+{"kind":"image","id":"im/tszu9g3i","slide":14,"name":"","geometry":"roundRect","alt":"Cold User: Create a Bloc - Landed In New Bloc","bbox":[501.67,40,296.66,642]}
+{"kind":"notes","id":"nt/ze8mp3","slide":14,"text":""}
+{"kind":"slide","id":"sl/v4bhjt","slide":15,"title":"FERO USER JOURNEY","textShapes":4}
+{"kind":"shape","id":"sh/snylsvad","slide":15,"bbox":[64,72,1152,576]}
+{"kind":"textbox","id":"sh/rmpkzqts","slide":15,"text":"FERO USER JOURNEY","textPreview":"FERO USER JOURNEY","textChars":17,"textLines":1,"bbox":[108,126,360,26]}
+{"kind":"textbox","id":"sh/qlg3qls7","slide":15,"text":"Cold User: Join by Code","textPreview":"Cold User: Join by Code","textChars":23,"textLines":1,"bbox":[108,220,840,82]}
+{"kind":"textbox","id":"sh/1sr250bu","slide":15,"text":"First install -> onboarding -> invite code -> auth -> display name/photo -> lands inside Bloc","textPreview":"First install -> onboarding -> invite code -> auth -> display name/photo -> lands inside Bloc","textChars":93,"textLines":1,"bbox":[112,322,820,80]}
+{"kind":"textbox","id":"sh/0rilwvap","slide":15,"text":"2 / 5","textPreview":"2 / 5","textChars":5,"textLines":1,"bbox":[1052,526,90,36]}
+{"kind":"notes","id":"nt/v4bhjt","slide":15,"text":""}
+{"kind":"slide","id":"sl/aakkha","slide":16,"title":"FERO","textShapes":5}
+{"kind":"textbox","id":"sh/rq9g76d8","slide":16,"text":"FERO","textPreview":"FERO","textChars":4,"textLines":1,"bbox":[44,30,150,52]}
+{"kind":"textbox","id":"sh/cr2xgbet","slide":16,"text":"COLD USER: JOIN BY CODE","textPreview":"COLD USER: JOIN BY CODE","textChars":23,"textLines":1,"bbox":[44,96,360,24]}
+{"kind":"textbox","id":"sh/dsby9gve","slide":16,"text":"01 Onboarding Join Entry","textPreview":"01 Onboarding Join Entry","textChars":24,"textLines":1,"bbox":[44,124,390,86]}
+{"kind":"textbox","id":"sh/edkfilcj","slide":16,"text":"1 of 8","textPreview":"1 of 8","textChars":6,"textLines":1,"bbox":[44,628,160,28]}
+{"kind":"shape","id":"sh/zetgbqd4","slide":16,"bbox":[486.67,25,326.66,672]}
+{"kind":"textbox","id":"sh/1gbyd0va","slide":16,"text":"Captured from the real preview app UI","textPreview":"Captured from the real preview app UI","textChars":37,"textLines":1,"bbox":[890,610,300,42]}
+{"kind":"image","id":"im/dsvi5gb6","slide":16,"name":"","geometry":"roundRect","alt":"Cold User: Join by Code - Onboarding Join Entry","bbox":[501.67,40,296.66,642]}
+{"kind":"notes","id":"nt/aakkha","slide":16,"text":""}
+{"kind":"slide","id":"sl/3ucc6q","slide":17,"title":"FERO","textShapes":5}
+{"kind":"textbox","id":"sh/jihgn2h8","slide":17,"text":"FERO","textPreview":"FERO","textChars":4,"textLines":1,"bbox":[44,30,150,52]}
+{"kind":"textbox","id":"sh/kjqhg7yt","slide":17,"text":"COLD USER: JOIN BY CODE","textPreview":"COLD USER: JOIN BY CODE","textChars":23,"textLines":1,"bbox":[44,96,360,24]}
+{"kind":"textbox","id":"sh/lkzy9cze","slide":17,"text":"02 Invite Code","textPreview":"02 Invite Code","textChars":14,"textLines":1,"bbox":[44,124,390,86]}
+{"kind":"textbox","id":"sh/6l8zihgj","slide":17,"text":"2 of 8","textPreview":"2 of 8","textChars":6,"textLines":1,"bbox":[44,628,160,28]}
+{"kind":"shape","id":"sh/7mh0bmh4","slide":17,"bbox":[486.67,25,326.66,672]}
+{"kind":"textbox","id":"sh/tozidcfa","slide":17,"text":"Captured from the real preview app UI","textPreview":"Captured from the real preview app UI","textChars":37,"textLines":1,"bbox":[890,610,300,42]}
+{"kind":"image","id":"im/lo3ad0v6","slide":17,"name":"","geometry":"roundRect","alt":"Cold User: Join by Code - Invite Code","bbox":[501.67,40,296.66,642]}
+{"kind":"notes","id":"nt/3ucc6q","slide":17,"text":""}
+{"kind":"slide","id":"sl/93fhy8","slide":18,"title":"FERO","textShapes":5}
+{"kind":"textbox","id":"sh/jupkz618","slide":18,"text":"FERO","textPreview":"FERO","textChars":4,"textLines":1,"bbox":[44,30,150,52]}
+{"kind":"textbox","id":"sh/kfylsrit","slide":18,"text":"COLD USER: JOIN BY CODE","textPreview":"COLD USER: JOIN BY CODE","textChars":23,"textLines":1,"bbox":[44,96,360,24]}
+{"kind":"textbox","id":"sh/lg721wje","slide":18,"text":"03 Sign In First Email","textPreview":"03 Sign In First Email","textChars":22,"textLines":1,"bbox":[44,124,390,86]}
+{"kind":"textbox","id":"sh/6h03u10z","slide":18,"text":"3 of 8","textPreview":"3 of 8","textChars":6,"textLines":1,"bbox":[44,628,160,28]}
+{"kind":"shape","id":"sh/7i9k361k","slide":18,"bbox":[486.67,25,326.66,672]}
+{"kind":"textbox","id":"sh/tkrm5gzq","slide":18,"text":"Captured from the real preview app UI","textPreview":"Captured from the real preview app UI","textChars":37,"textLines":1,"bbox":[890,610,300,42]}
+{"kind":"image","id":"im/lw7m1ony","slide":18,"name":"","geometry":"roundRect","alt":"Cold User: Join by Code - Sign In First Email","bbox":[501.67,40,296.66,642]}
+{"kind":"notes","id":"nt/93fhy8","slide":18,"text":""}
+{"kind":"slide","id":"sl/syrkxo","slide":19,"title":"FERO","textShapes":5}
+{"kind":"textbox","id":"sh/ona5knqp","slide":19,"text":"FERO","textPreview":"FERO","textChars":4,"textLines":1,"bbox":[44,30,150,52]}
+{"kind":"textbox","id":"sh/n214ri94","slide":19,"text":"COLD USER: JOIN BY CODE","textPreview":"COLD USER: JOIN BY CODE","textChars":23,"textLines":1,"bbox":[44,96,360,24]}
+{"kind":"textbox","id":"sh/2183ix8j","slide":19,"text":"04 Otp Code","textPreview":"04 Otp Code","textChars":11,"textLines":1,"bbox":[44,124,390,86]}
+{"kind":"textbox","id":"sh/xsjmxcr6","slide":19,"text":"4 of 8","textPreview":"4 of 8","textChars":6,"textLines":1,"bbox":[44,628,160,28]}
+{"kind":"shape","id":"sh/cra5o7q1","slide":19,"bbox":[486.67,25,326.66,672]}
+{"kind":"textbox","id":"sh/apsnmx8v","slide":19,"text":"Captured from the real preview app UI","textPreview":"Captured from the real preview app UI","textChars":37,"textLines":1,"bbox":[890,610,300,42]}
+{"kind":"image","id":"im/yp8jepg7","slide":19,"name":"","geometry":"roundRect","alt":"Cold User: Join by Code - Otp Code","bbox":[501.67,40,296.66,642]}
+{"kind":"notes","id":"nt/syrkxo","slide":19,"text":""}
+{"kind":"slide","id":"sl/i3dti5","slide":20,"title":"FERO","textShapes":5}
+{"kind":"textbox","id":"sh/03e983ml","slide":20,"text":"FERO","textPreview":"FERO","textChars":4,"textLines":1,"bbox":[44,30,150,52]}
+{"kind":"textbox","id":"sh/z258fy50","slide":20,"text":"COLD USER: JOIN BY CODE","textPreview":"COLD USER: JOIN BY CODE","textChars":23,"textLines":1,"bbox":[44,96,360,24]}
+{"kind":"textbox","id":"sh/y1wr6t4v","slide":20,"text":"05 Display Name Photo Empty","textPreview":"05 Display Name Photo Empty","textChars":27,"textLines":1,"bbox":[44,124,390,86]}
+{"kind":"textbox","id":"sh/d0nqd8na","slide":20,"text":"5 of 8","textPreview":"5 of 8","textChars":6,"textLines":1,"bbox":[44,628,160,28]}
+{"kind":"shape","id":"sh/czu943mp","slide":20,"bbox":[486.67,25,326.66,672]}
+{"kind":"textbox","id":"sh/qxcr2t4j","slide":20,"text":"Captured from the real preview app UI","textPreview":"Captured from the real preview app UI","textChars":37,"textLines":1,"bbox":[890,610,300,42]}
+{"kind":"image","id":"im/a543ut87","slide":20,"name":"","geometry":"roundRect","alt":"Cold User: Join by Code - Display Name Photo Empty","bbox":[501.67,40,296.66,642]}
+{"kind":"notes","id":"nt/i3dti5","slide":20,"text":""}
+{"kind":"slide","id":"sl/ac50e3","slide":21,"title":"FERO","textShapes":5}
+{"kind":"textbox","id":"sh/lsn6xwj6","slide":21,"text":"FERO","textPreview":"FERO","textChars":4,"textLines":1,"bbox":[44,30,150,52]}
+{"kind":"textbox","id":"sh/epc721kf","slide":21,"text":"COLD USER: JOIN BY CODE","textPreview":"COLD USER: JOIN BY CODE","textChars":23,"textLines":1,"bbox":[44,96,360,24]}
+{"kind":"textbox","id":"sh/zqlov610","slide":21,"text":"06 Display Name Photo Filled","textPreview":"06 Display Name Photo Filled","textChars":28,"textLines":1,"bbox":[44,124,390,86]}
+{"kind":"textbox","id":"sh/cnup0r29","slide":21,"text":"6 of 8","textPreview":"6 of 8","textChars":6,"textLines":1,"bbox":[44,628,160,28]}
+{"kind":"shape","id":"sh/do36twju","slide":21,"bbox":[486.67,25,326.66,672]}
+{"kind":"textbox","id":"sh/rmlorm1o","slide":21,"text":"Captured from the real preview app UI","textPreview":"Captured from the real preview app UI","textChars":37,"textLines":1,"bbox":[890,610,300,42]}
+{"kind":"image","id":"im/bu503qls","slide":21,"name":"","geometry":"roundRect","alt":"Cold User: Join by Code - Display Name Photo Filled","bbox":[501.67,40,296.66,642]}
+{"kind":"notes","id":"nt/ac50e3","slide":21,"text":""}
+{"kind":"slide","id":"sl/tlcgcj","slide":22,"title":"FERO","textShapes":5}
+{"kind":"textbox","id":"sh/j29s7a9o","slide":22,"text":"FERO","textPreview":"FERO","textChars":4,"textLines":1,"bbox":[44,30,150,52]}
+{"kind":"textbox","id":"sh/k3i90fat","slide":22,"text":"COLD USER: JOIN BY CODE","textPreview":"COLD USER: JOIN BY CODE","textChars":23,"textLines":1,"bbox":[44,96,360,24]}
+{"kind":"textbox","id":"sh/l4ra9kre","slide":22,"text":"07 Progress Joining","textPreview":"07 Progress Joining","textChars":19,"textLines":1,"bbox":[44,124,390,86]}
+{"kind":"textbox","id":"sh/adgru5sr","slide":22,"text":"7 of 8","textPreview":"7 of 8","textChars":6,"textLines":1,"bbox":[44,628,160,28]}
+{"kind":"shape","id":"sh/bep83a9c","slide":22,"bbox":[486.67,25,326.66,672]}
+{"kind":"textbox","id":"sh/xg7q50ri","slide":22,"text":"Captured from the real preview app UI","textPreview":"Captured from the real preview app UI","textChars":37,"textLines":1,"bbox":[890,610,300,42]}
+{"kind":"image","id":"im/h4nmtoru","slide":22,"name":"","geometry":"roundRect","alt":"Cold User: Join by Code - Progress Joining","bbox":[501.67,40,296.66,642]}
+{"kind":"notes","id":"nt/tlcgcj","slide":22,"text":""}
+{"kind":"slide","id":"sl/43wc7f","slide":23,"title":"FERO","textShapes":5}
+{"kind":"textbox","id":"sh/orap0z6t","slide":23,"text":"FERO","textPreview":"FERO","textChars":4,"textLines":1,"bbox":[44,30,150,52]}
+{"kind":"textbox","id":"sh/nq18ru58","slide":23,"text":"COLD USER: JOIN BY CODE","textPreview":"COLD USER: JOIN BY CODE","textChars":23,"textLines":1,"bbox":[44,96,360,24]}
+{"kind":"textbox","id":"sh/2p87ypon","slide":23,"text":"08 Landed In Joined Bloc","textPreview":"08 Landed In Joined Bloc","textChars":24,"textLines":1,"bbox":[44,124,390,86]}
+{"kind":"textbox","id":"sh/1ozqpk72","slide":23,"text":"8 of 8","textPreview":"8 of 8","textChars":6,"textLines":1,"bbox":[44,628,160,28]}
+{"kind":"shape","id":"sh/0nqpwz6h","slide":23,"bbox":[486.67,25,326.66,672]}
+{"kind":"textbox","id":"sh/el87upob","slide":23,"text":"Captured from the real preview app UI","textPreview":"Captured from the real preview app UI","textChars":37,"textLines":1,"bbox":[890,610,300,42]}
+{"kind":"image","id":"im/utkradgf","slide":23,"name":"","geometry":"roundRect","alt":"Cold User: Join by Code - Landed In Joined Bloc","bbox":[501.67,40,296.66,642]}
+{"kind":"notes","id":"nt/43wc7f","slide":23,"text":""}
+{"kind":"slide","id":"sl/titv03","slide":24,"title":"FERO USER JOURNEY","textShapes":4}
+{"kind":"shape","id":"sh/ets72p0j","slide":24,"bbox":[64,72,1152,576]}
+{"kind":"textbox","id":"sh/1wj6d4ja","slide":24,"text":"FERO USER JOURNEY","textPreview":"FERO USER JOURNEY","textChars":17,"textLines":1,"bbox":[108,126,360,26]}
+{"kind":"textbox","id":"sh/gvap4zip","slide":24,"text":"Invite Link: New User","textPreview":"Invite Link: New User","textChars":21,"textLines":1,"bbox":[108,220,840,82]}
+{"kind":"textbox","id":"sh/rqho7a18","slide":24,"text":"Invite preview -> auth -> display name/photo -> lands inside invited Bloc","textPreview":"Invite preview -> auth -> display name/photo -> lands inside invited Bloc","textChars":73,"textLines":1,"bbox":[112,322,820,80]}
+{"kind":"textbox","id":"sh/6p8ny50n","slide":24,"text":"3 / 5","textPreview":"3 / 5","textChars":5,"textLines":1,"bbox":[1052,526,90,36]}
+{"kind":"notes","id":"nt/titv03","slide":24,"text":""}
+{"kind":"slide","id":"sl/o45o8y","slide":25,"title":"FERO","textShapes":5}
+{"kind":"textbox","id":"sh/ep87i5sr","slide":25,"text":"FERO","textPreview":"FERO","textChars":4,"textLines":1,"bbox":[44,30,150,52]}
+{"kind":"textbox","id":"sh/1czqt0r2","slide":25,"text":"INVITE LINK: NEW USER","textPreview":"INVITE LINK: NEW USER","textChars":21,"textLines":1,"bbox":[44,96,360,24]}
+{"kind":"textbox","id":"sh/0bqpkfax","slide":25,"text":"01 Invite Preview","textPreview":"01 Invite Preview","textChars":17,"textLines":1,"bbox":[44,124,390,86]}
+{"kind":"textbox","id":"sh/rmxonq90","slide":25,"text":"1 of 7","textPreview":"1 of 7","textChars":6,"textLines":1,"bbox":[44,628,160,28]}
+{"kind":"shape","id":"sh/qlo7elsf","slide":25,"bbox":[486.67,25,326.66,672]}
+{"kind":"textbox","id":"sh/cn6pgval","slide":25,"text":"Captured from the real preview app UI","textPreview":"Captured from the real preview app UI","textChars":37,"textLines":1,"bbox":[890,610,300,42]}
+{"kind":"image","id":"im/4jqx4nu9","slide":25,"name":"","geometry":"roundRect","alt":"Invite Link: New User - Invite Preview","bbox":[501.67,40,296.66,642]}
+{"kind":"notes","id":"nt/o45o8y","slide":25,"text":""}
+{"kind":"slide","id":"sl/rg4g01","slide":26,"title":"FERO","textShapes":5}
+{"kind":"textbox","id":"sh/1gv258va","slide":26,"text":"FERO","textPreview":"FERO","textChars":4,"textLines":1,"bbox":[44,30,150,52]}
+{"kind":"textbox","id":"sh/ed4jutwj","slide":26,"text":"INVITE LINK: NEW USER","textPreview":"INVITE LINK: NEW USER","textChars":21,"textLines":1,"bbox":[44,96,360,24]}
+{"kind":"textbox","id":"sh/fedk3yd4","slide":26,"text":"02 Sign In First Email","textPreview":"02 Sign In First Email","textChars":22,"textLines":1,"bbox":[44,124,390,86]}
+{"kind":"textbox","id":"sh/sbm1s3ed","slide":26,"text":"2 of 7","textPreview":"2 of 7","textChars":6,"textLines":1,"bbox":[44,628,160,28]}
+{"kind":"shape","id":"sh/dcv21ovy","slide":26,"bbox":[486.67,25,326.66,672]}
+{"kind":"textbox","id":"sh/ratkzyds","slide":26,"text":"Captured from the real preview app UI","textPreview":"Captured from the real preview app UI","textChars":37,"textLines":1,"bbox":[890,610,300,42]}
+{"kind":"image","id":"im/v6t0ru9o","slide":26,"name":"","geometry":"roundRect","alt":"Invite Link: New User - Sign In First Email","bbox":[501.67,40,296.66,642]}
+{"kind":"notes","id":"nt/rg4g01","slide":26,"text":""}
+{"kind":"slide","id":"sl/7aiawc","slide":27,"title":"FERO","textShapes":5}
+{"kind":"textbox","id":"sh/u50b69s3","slide":27,"text":"FERO","textPreview":"FERO","textChars":4,"textLines":1,"bbox":[44,30,150,52]}
+{"kind":"textbox","id":"sh/h8buh4re","slide":27,"text":"INVITE LINK: NEW USER","textPreview":"INVITE LINK: NEW USER","textChars":21,"textLines":1,"bbox":[44,96,360,24]}
+{"kind":"textbox","id":"sh/g7it8jat","slide":27,"text":"03 Otp Code","textPreview":"03 Otp Code","textChars":11,"textLines":1,"bbox":[44,124,390,86]}
+{"kind":"textbox","id":"sh/729sbu9c","slide":27,"text":"3 of 7","textPreview":"3 of 7","textChars":6,"textLines":1,"bbox":[44,628,160,28]}
+{"kind":"shape","id":"sh/610b2psr","slide":27,"bbox":[486.67,25,326.66,672]}
+{"kind":"textbox","id":"sh/83it4zax","slide":27,"text":"Captured from the real preview app UI","textPreview":"Captured from the real preview app UI","textChars":37,"textLines":1,"bbox":[890,610,300,42]}
+{"kind":"image","id":"im/0j6lw76d","slide":27,"name":"","geometry":"roundRect","alt":"Invite Link: New User - Otp Code","bbox":[501.67,40,296.66,642]}
+{"kind":"notes","id":"nt/7aiawc","slide":27,"text":""}
+{"kind":"slide","id":"sl/n54dbt","slide":28,"title":"FERO","textShapes":5}
+{"kind":"textbox","id":"sh/zu9cbeto","slide":28,"text":"FERO","textPreview":"FERO","textChars":4,"textLines":1,"bbox":[44,30,150,52]}
+{"kind":"textbox","id":"sh/0vidkja9","slide":28,"text":"INVITE LINK: NEW USER","textPreview":"INVITE LINK: NEW USER","textChars":21,"textLines":1,"bbox":[44,96,360,24]}
+{"kind":"textbox","id":"sh/lwred4bu","slide":28,"text":"04 Display Name Photo Empty","textPreview":"04 Display Name Photo Empty","textChars":27,"textLines":1,"bbox":[44,124,390,86]}
+{"kind":"textbox","id":"sh/qpgveps7","slide":28,"text":"4 of 7","textPreview":"4 of 7","textChars":6,"textLines":1,"bbox":[44,628,160,28]}
+{"kind":"shape","id":"sh/bqpc7uts","slide":28,"bbox":[486.67,25,326.66,672]}
+{"kind":"textbox","id":"sh/dsru94bi","slide":28,"text":"Captured from the real preview app UI","textPreview":"Captured from the real preview app UI","textChars":37,"textLines":1,"bbox":[890,610,300,42]}
+{"kind":"image","id":"im/lwva947e","slide":28,"name":"","geometry":"roundRect","alt":"Invite Link: New User - Display Name Photo Empty","bbox":[501.67,40,296.66,642]}
+{"kind":"notes","id":"nt/n54dbt","slide":28,"text":""}
+{"kind":"slide","id":"sl/sg4ty7","slide":29,"title":"FERO","textShapes":5}
+{"kind":"textbox","id":"sh/0zqlobih","slide":29,"text":"FERO","textPreview":"FERO","textChars":4,"textLines":1,"bbox":[44,30,150,52]}
+{"kind":"textbox","id":"sh/zyxkf61w","slide":29,"text":"INVITE LINK: NEW USER","textPreview":"INVITE LINK: NEW USER","textChars":21,"textLines":1,"bbox":[44,96,360,24]}
+{"kind":"textbox","id":"sh/yxo3m10b","slide":29,"text":"05 Display Name Photo Filled","textPreview":"05 Display Name Photo Filled","textChars":28,"textLines":1,"bbox":[44,124,390,86]}
+{"kind":"textbox","id":"sh/dwf2twj6","slide":29,"text":"5 of 7","textPreview":"5 of 7","textChars":6,"textLines":1,"bbox":[44,628,160,28]}
+{"kind":"shape","id":"sh/cv6lkril","slide":29,"bbox":[486.67,25,326.66,672]}
+{"kind":"textbox","id":"sh/qto3i10f","slide":29,"text":"Captured from the real preview app UI","textPreview":"Captured from the real preview app UI","textChars":37,"textLines":1,"bbox":[890,610,300,42]}
+{"kind":"image","id":"im/qhwfu9w3","slide":29,"name":"","geometry":"roundRect","alt":"Invite Link: New User - Display Name Photo Filled","bbox":[501.67,40,296.66,642]}
+{"kind":"notes","id":"nt/sg4ty7","slide":29,"text":""}
+{"kind":"slide","id":"sl/vku0kb","slide":30,"title":"FERO","textShapes":5}
+{"kind":"textbox","id":"sh/3edc7qlk","slide":30,"text":"FERO","textPreview":"FERO","textChars":4,"textLines":1,"bbox":[44,30,150,52]}
+{"kind":"textbox","id":"sh/ofmdgv25","slide":30,"text":"INVITE LINK: NEW USER","textPreview":"INVITE LINK: NEW USER","textChars":21,"textLines":1,"bbox":[44,96,360,24]}
+{"kind":"textbox","id":"sh/pgfe903a","slide":30,"text":"06 Progress Joining","textPreview":"06 Progress Joining","textChars":19,"textLines":1,"bbox":[44,124,390,86]}
+{"kind":"textbox","id":"sh/qhovi5kv","slide":30,"text":"6 of 7","textPreview":"6 of 7","textChars":6,"textLines":1,"bbox":[44,628,160,28]}
+{"kind":"shape","id":"sh/bixwbqlg","slide":30,"bbox":[486.67,25,326.66,672]}
+{"kind":"textbox","id":"sh/d4fed03m","slide":30,"text":"Captured from the real preview app UI","textPreview":"Captured from the real preview app UI","textChars":37,"textLines":1,"bbox":[890,610,300,42]}
+{"kind":"image","id":"im/9g3694nm","slide":30,"name":"","geometry":"roundRect","alt":"Invite Link: New User - Progress Joining","bbox":[501.67,40,296.66,642]}
+{"kind":"notes","id":"nt/vku0kb","slide":30,"text":""}
+{"kind":"slide","id":"sl/jneqpw","slide":31,"title":"FERO","textShapes":5}
+{"kind":"textbox","id":"sh/fapcbi50","slide":31,"text":"FERO","textPreview":"FERO","textChars":4,"textLines":1,"bbox":[44,30,150,52]}
+{"kind":"textbox","id":"sh/0bytkn6l","slide":31,"text":"INVITE LINK: NEW USER","textPreview":"INVITE LINK: NEW USER","textChars":21,"textLines":1,"bbox":[44,96,360,24]}
+{"kind":"textbox","id":"sh/1c7udsn6","slide":31,"text":"07 Landed With Toast","textPreview":"07 Landed With Toast","textChars":20,"textLines":1,"bbox":[44,124,390,86]}
+{"kind":"textbox","id":"sh/q5wbedoj","slide":31,"text":"7 of 7","textPreview":"7 of 7","textChars":6,"textLines":1,"bbox":[44,628,160,28]}
+{"kind":"shape","id":"sh/r65s7i54","slide":31,"bbox":[486.67,25,326.66,672]}
+{"kind":"textbox","id":"sh/d87u9sna","slide":31,"text":"Captured from the real preview app UI","textPreview":"Captured from the real preview app UI","textChars":37,"textLines":1,"bbox":[890,610,300,42]}
+{"kind":"image","id":"im/90ripsn2","slide":31,"name":"","geometry":"roundRect","alt":"Invite Link: New User - Landed With Toast","bbox":[501.67,40,296.66,642]}
+{"kind":"notes","id":"nt/jneqpw","slide":31,"text":""}
+{"kind":"slide","id":"sl/862fct","slide":32,"title":"FERO USER JOURNEY","textShapes":4}
+{"kind":"shape","id":"sh/5kjipozi","slide":32,"bbox":[64,72,1152,576]}
+{"kind":"textbox","id":"sh/ixszet0r","slide":32,"text":"FERO USER JOURNEY","textPreview":"FERO USER JOURNEY","textChars":17,"textLines":1,"bbox":[108,126,360,26]}
+{"kind":"textbox","id":"sh/3y10nyhc","slide":32,"text":"Welcome Back: Create New Account","textPreview":"Welcome Back: Create New Account","textChars":32,"textLines":1,"bbox":[108,220,840,82]}
+{"kind":"textbox","id":"sh/cnu1k3it","slide":32,"text":"Signed-out welcome -> create account -> onboarding -> create Bloc -> lands inside Bloc","textPreview":"Signed-out welcome -> create account -> onboarding -> create Bloc -> lands inside Bloc","textChars":86,"textLines":1,"bbox":[112,322,820,80]}
+{"kind":"textbox","id":"sh/do3it8ze","slide":32,"text":"4 / 5","textPreview":"4 / 5","textChars":5,"textLines":1,"bbox":[1052,526,90,36]}
+{"kind":"notes","id":"nt/862fct","slide":32,"text":""}
+{"kind":"slide","id":"sl/se6mpr","slide":33,"title":"FERO","textShapes":5}
+{"kind":"textbox","id":"sh/v29grqhk","slide":33,"text":"FERO","textPreview":"FERO","textChars":4,"textLines":1,"bbox":[44,30,150,52]}
+{"kind":"textbox","id":"sh/w3ix0vy5","slide":33,"text":"WELCOME BACK: CREATE NEW ACCOUNT","textPreview":"WELCOME BACK: CREATE NEW ACCOUNT","textChars":32,"textLines":1,"bbox":[44,96,360,24]}
+{"kind":"textbox","id":"sh/h4ryt0zq","slide":33,"text":"01 Welcome Back","textPreview":"01 Welcome Back","textChars":15,"textLines":1,"bbox":[44,124,390,86]}
+{"kind":"textbox","id":"sh/mdgfu1g3","slide":33,"text":"1 of 9","textPreview":"1 of 9","textChars":6,"textLines":1,"bbox":[44,628,160,28]}
+{"kind":"shape","id":"sh/7epgn6h8","slide":33,"bbox":[486.67,25,326.66,672]}
+{"kind":"textbox","id":"sh/90rypgze","slide":33,"text":"Captured from the real preview app UI","textPreview":"Captured from the real preview app UI","textChars":37,"textLines":1,"bbox":[890,610,300,42]}
+{"kind":"image","id":"im/l87mlo7a","slide":33,"name":"","geometry":"roundRect","alt":"Welcome Back: Create New Account - Welcome Back","bbox":[501.67,40,296.66,642]}
+{"kind":"notes","id":"nt/se6mpr","slide":33,"text":""}
+{"kind":"slide","id":"sl/wtwovb","slide":34,"title":"FERO","textShapes":5}
+{"kind":"textbox","id":"sh/1szm5gz2","slide":34,"text":"FERO","textPreview":"FERO","textChars":4,"textLines":1,"bbox":[44,30,150,52]}
+{"kind":"textbox","id":"sh/epo3a1gb","slide":34,"text":"WELCOME BACK: CREATE NEW ACCOUNT","textPreview":"WELCOME BACK: CREATE NEW ACCOUNT","textChars":32,"textLines":1,"bbox":[44,96,360,24]}
+{"kind":"textbox","id":"sh/fqx436hw","slide":34,"text":"02 Create Account Email","textPreview":"02 Create Account Email","textChars":23,"textLines":1,"bbox":[44,124,390,86]}
+{"kind":"textbox","id":"sh/ovqlgvyd","slide":34,"text":"2 of 9","textPreview":"2 of 9","textChars":6,"textLines":1,"bbox":[44,628,160,28]}
+{"kind":"shape","id":"sh/pwzm9gzy","slide":34,"bbox":[486.67,25,326.66,672]}
+{"kind":"textbox","id":"sh/nuh47qh8","slide":34,"text":"Captured from the real preview app UI","textPreview":"Captured from the real preview app UI","textChars":37,"textLines":1,"bbox":[890,610,300,42]}
+{"kind":"image","id":"im/bm90ryhc","slide":34,"name":"","geometry":"roundRect","alt":"Welcome Back: Create New Account - Create Account Email","bbox":[501.67,40,296.66,642]}
+{"kind":"notes","id":"nt/wtwovb","slide":34,"text":""}
+{"kind":"slide","id":"sl/wewyud","slide":35,"title":"FERO","textShapes":5}
+{"kind":"textbox","id":"sh/t8j29wbm","slide":35,"text":"FERO","textPreview":"FERO","textChars":4,"textLines":1,"bbox":[44,30,150,52]}
+{"kind":"textbox","id":"sh/65s3ehcb","slide":35,"text":"WELCOME BACK: CREATE NEW ACCOUNT","textPreview":"WELCOME BACK: CREATE NEW ACCOUNT","textChars":32,"textLines":1,"bbox":[44,96,360,24]}
+{"kind":"textbox","id":"sh/761k7mtw","slide":35,"text":"03 Otp Code","textPreview":"03 Otp Code","textChars":11,"textLines":1,"bbox":[44,124,390,86]}
+{"kind":"textbox","id":"sh/gbalkbud","slide":35,"text":"3 of 9","textPreview":"3 of 9","textChars":6,"textLines":1,"bbox":[44,628,160,28]}
+{"kind":"shape","id":"sh/hcj2dgby","slide":35,"bbox":[486.67,25,326.66,672]}
+{"kind":"textbox","id":"sh/va1kb6ts","slide":35,"text":"Captured from the real preview app UI","textPreview":"Captured from the real preview app UI","textChars":37,"textLines":1,"bbox":[890,610,300,42]}
+{"kind":"image","id":"im/jm54nmps","slide":35,"name":"","geometry":"roundRect","alt":"Welcome Back: Create New Account - Otp Code","bbox":[501.67,40,296.66,642]}
+{"kind":"notes","id":"nt/wewyud","slide":35,"text":""}
+{"kind":"slide","id":"sl/p9hg5s","slide":36,"title":"FERO","textShapes":5}
+{"kind":"textbox","id":"sh/0v6h4rmx","slide":36,"text":"FERO","textPreview":"FERO","textChars":4,"textLines":1,"bbox":[44,30,150,52]}
+{"kind":"textbox","id":"sh/fuxgbmlc","slide":36,"text":"WELCOME BACK: CREATE NEW ACCOUNT","textPreview":"WELCOME BACK: CREATE NEW ACCOUNT","textChars":32,"textLines":1,"bbox":[44,96,360,24]}
+{"kind":"textbox","id":"sh/etoz2h4r","slide":36,"text":"04 Onboarding Start After Account","textPreview":"04 Onboarding Start After Account","textChars":33,"textLines":1,"bbox":[44,124,390,86]}
+{"kind":"textbox","id":"sh/dsfy9w36","slide":36,"text":"4 of 9","textPreview":"4 of 9","textChars":6,"textLines":1,"bbox":[44,628,160,28]}
+{"kind":"shape","id":"sh/srmh0rml","slide":36,"bbox":[486.67,25,326.66,672]}
+{"kind":"textbox","id":"sh/qp4zyh4v","slide":36,"text":"Captured from the real preview app UI","textPreview":"Captured from the real preview app UI","textChars":37,"textLines":1,"bbox":[890,610,300,42]}
+{"kind":"image","id":"im/e58n21kv","slide":36,"name":"","geometry":"roundRect","alt":"Welcome Back: Create New Account - Onboarding Start After Account","bbox":[501.67,40,296.66,642]}
+{"kind":"notes","id":"nt/p9hg5s","slide":36,"text":""}
+{"kind":"slide","id":"sl/4gvdgg","slide":37,"title":"FERO","textShapes":5}
+{"kind":"textbox","id":"sh/pw32d0ru","slide":37,"text":"FERO","textPreview":"FERO","textChars":4,"textLines":1,"bbox":[44,30,150,52]}
+{"kind":"textbox","id":"sh/29cjil83","slide":37,"text":"WELCOME BACK: CREATE NEW ACCOUNT","textPreview":"WELCOME BACK: CREATE NEW ACCOUNT","textChars":32,"textLines":1,"bbox":[44,96,360,24]}
+{"kind":"textbox","id":"sh/nulkbq9o","slide":37,"text":"05 Onboarding Create Entry","textPreview":"05 Onboarding Create Entry","textChars":26,"textLines":1,"bbox":[44,124,390,86]}
+{"kind":"textbox","id":"sh/g7u1gvqx","slide":37,"text":"5 of 9","textPreview":"5 of 9","textChars":6,"textLines":1,"bbox":[44,628,160,28]}
+{"kind":"shape","id":"sh/18329gri","slide":37,"bbox":[486.67,25,326.66,672]}
+{"kind":"textbox","id":"sh/f6lk7q9s","slide":37,"text":"Captured from the real preview app UI","textPreview":"Captured from the real preview app UI","textChars":37,"textLines":1,"bbox":[890,610,300,42]}
+{"kind":"image","id":"im/z2hsnuhg","slide":37,"name":"","geometry":"roundRect","alt":"Welcome Back: Create New Account - Onboarding Create Entry","bbox":[501.67,40,296.66,642]}
+{"kind":"notes","id":"nt/4gvdgg","slide":37,"text":""}
+{"kind":"slide","id":"sl/rjvetr","slide":38,"title":"FERO","textShapes":5}
+{"kind":"textbox","id":"sh/fu1knud0","slide":38,"text":"FERO","textPreview":"FERO","textChars":4,"textLines":1,"bbox":[44,30,150,52]}
+{"kind":"textbox","id":"sh/gvalgzul","slide":38,"text":"WELCOME BACK: CREATE NEW ACCOUNT","textPreview":"WELCOME BACK: CREATE NEW ACCOUNT","textChars":32,"textLines":1,"bbox":[44,96,360,24]}
+{"kind":"textbox","id":"sh/1wj2p4v6","slide":38,"text":"06 Create Bloc Modal","textPreview":"06 Create Bloc Modal","textChars":20,"textLines":1,"bbox":[44,124,390,86]}
+{"kind":"textbox","id":"sh/2xc3i9cr","slide":38,"text":"6 of 9","textPreview":"6 of 9","textChars":6,"textLines":1,"bbox":[44,628,160,28]}
+{"kind":"shape","id":"sh/3ylkredc","slide":38,"bbox":[486.67,25,326.66,672]}
+{"kind":"textbox","id":"sh/p032tov2","slide":38,"text":"Captured from the real preview app UI","textPreview":"Captured from the real preview app UI","textChars":37,"textLines":1,"bbox":[890,610,300,42]}
+{"kind":"image","id":"im/d83y9ona","slide":38,"name":"","geometry":"roundRect","alt":"Welcome Back: Create New Account - Create Bloc Modal","bbox":[501.67,40,296.66,642]}
+{"kind":"notes","id":"nt/rjvetr","slide":38,"text":""}
+{"kind":"slide","id":"sl/uyfezp","slide":39,"title":"FERO","textShapes":5}
+{"kind":"textbox","id":"sh/1sfqt4ne","slide":39,"text":"FERO","textPreview":"FERO","textChars":4,"textLines":1,"bbox":[44,30,150,52]}
+{"kind":"textbox","id":"sh/ep47ipon","slide":39,"text":"WELCOME BACK: CREATE NEW ACCOUNT","textPreview":"WELCOME BACK: CREATE NEW ACCOUNT","textChars":32,"textLines":1,"bbox":[44,96,360,24]}
+{"kind":"textbox","id":"sh/zqd8ru58","slide":39,"text":"07 Display Name Photo Filled","textPreview":"07 Display Name Photo Filled","textChars":28,"textLines":1,"bbox":[44,124,390,86]}
+{"kind":"textbox","id":"sh/cnmpgf6x","slide":39,"text":"7 of 9","textPreview":"7 of 9","textChars":6,"textLines":1,"bbox":[44,628,160,28]}
+{"kind":"shape","id":"sh/dovqpkn2","slide":39,"bbox":[486.67,25,326.66,672]}
+{"kind":"textbox","id":"sh/rmd8na5c","slide":39,"text":"Captured from the real preview app UI","textPreview":"Captured from the real preview app UI","textChars":37,"textLines":1,"bbox":[890,610,300,42]}
+{"kind":"image","id":"im/jytkz6pc","slide":39,"name":"","geometry":"roundRect","alt":"Welcome Back: Create New Account - Display Name Photo Filled","bbox":[501.67,40,296.66,642]}
+{"kind":"notes","id":"nt/uyfezp","slide":39,"text":""}
+{"kind":"slide","id":"sl/o81kgm","slide":40,"title":"FERO","textShapes":5}
+{"kind":"textbox","id":"sh/byxgfylc","slide":40,"text":"FERO","textPreview":"FERO","textChars":4,"textLines":1,"bbox":[44,30,150,52]}
+{"kind":"textbox","id":"sh/wz6x832x","slide":40,"text":"WELCOME BACK: CREATE NEW ACCOUNT","textPreview":"WELCOME BACK: CREATE NEW ACCOUNT","textChars":32,"textLines":1,"bbox":[44,96,360,24]}
+{"kind":"textbox","id":"sh/xkzyh8ji","slide":40,"text":"08 Progress Creating","textPreview":"08 Progress Creating","textChars":20,"textLines":1,"bbox":[44,124,390,86]}
+{"kind":"textbox","id":"sh/mtof29kv","slide":40,"text":"8 of 9","textPreview":"8 of 9","textChars":6,"textLines":1,"bbox":[44,628,160,28]}
+{"kind":"shape","id":"sh/nuxgbelg","slide":40,"bbox":[486.67,25,326.66,672]}
+{"kind":"textbox","id":"sh/9wfydo36","slide":40,"text":"Captured from the real preview app UI","textPreview":"Captured from the real preview app UI","textChars":37,"textLines":1,"bbox":[890,610,300,42]}
+{"kind":"image","id":"im/90butg3u","slide":40,"name":"","geometry":"roundRect","alt":"Welcome Back: Create New Account - Progress Creating","bbox":[501.67,40,296.66,642]}
+{"kind":"notes","id":"nt/o81kgm","slide":40,"text":""}
+{"kind":"slide","id":"sl/j1m2m5","slide":41,"title":"FERO","textShapes":5}
+{"kind":"textbox","id":"sh/qhcr650v","slide":41,"text":"FERO","textPreview":"FERO","textChars":4,"textLines":1,"bbox":[44,30,150,52]}
+{"kind":"textbox","id":"sh/dk3qhkjm","slide":41,"text":"WELCOME BACK: CREATE NEW ACCOUNT","textPreview":"WELCOME BACK: CREATE NEW ACCOUNT","textChars":32,"textLines":1,"bbox":[44,96,360,24]}
+{"kind":"textbox","id":"sh/sju98fi1","slide":41,"text":"09 Landed In New Bloc","textPreview":"09 Landed In New Bloc","textChars":21,"textLines":1,"bbox":[44,124,390,86]}
+{"kind":"textbox","id":"sh/3el8ba14","slide":41,"text":"9 of 9","textPreview":"9 of 9","textChars":6,"textLines":1,"bbox":[44,628,160,28]}
+{"kind":"shape","id":"sh/idsr250z","slide":41,"bbox":[486.67,25,326.66,672]}
+{"kind":"textbox","id":"sh/4fu94fip","slide":41,"text":"Captured from the real preview app UI","textPreview":"Captured from the real preview app UI","textChars":37,"textLines":1,"bbox":[890,610,300,42]}
+{"kind":"image","id":"im/cfal8ve5","slide":41,"name":"","geometry":"roundRect","alt":"Welcome Back: Create New Account - Landed In New Bloc","bbox":[501.67,40,296.66,642]}
+{"kind":"notes","id":"nt/j1m2m5","slide":41,"text":""}
+{"kind":"slide","id":"sl/qmn0jm","slide":42,"title":"FERO USER JOURNEY","textShapes":4}
+{"kind":"shape","id":"sh/9ojy50ze","slide":42,"bbox":[64,72,1152,576]}
+{"kind":"textbox","id":"sh/mlszul03","slide":42,"text":"FERO USER JOURNEY","textPreview":"FERO USER JOURNEY","textChars":17,"textLines":1,"bbox":[108,126,360,26]}
+{"kind":"textbox","id":"sh/nm1g3qho","slide":42,"text":"Edge States","textPreview":"Edge States","textChars":11,"textLines":1,"bbox":[108,220,840,82]}
+{"kind":"textbox","id":"sh/wruh0fi5","slide":42,"text":"Invalid invite and already-member handling frames","textPreview":"Invalid invite and already-member handling frames","textChars":49,"textLines":1,"bbox":[112,322,820,80]}
+{"kind":"textbox","id":"sh/xs3y90zq","slide":42,"text":"5 / 5","textPreview":"5 / 5","textChars":5,"textLines":1,"bbox":[1052,526,90,36]}
+{"kind":"notes","id":"nt/qmn0jm","slide":42,"text":""}
+{"kind":"slide","id":"sl/vf3cns","slide":43,"title":"FERO","textShapes":5}
+{"kind":"textbox","id":"sh/h0zy503e","slide":43,"text":"FERO","textPreview":"FERO","textChars":4,"textLines":1,"bbox":[44,30,150,52]}
+{"kind":"textbox","id":"sh/uxoza54n","slide":43,"text":"EDGE STATES","textPreview":"EDGE STATES","textChars":11,"textLines":1,"bbox":[44,96,360,24]}
+{"kind":"textbox","id":"sh/vyhg3al8","slide":43,"text":"01 Invalid Invite","textPreview":"01 Invalid Invite","textChars":17,"textLines":1,"bbox":[44,124,390,86]}
+{"kind":"textbox","id":"sh/43qhgfmp","slide":43,"text":"1 of 2","textPreview":"1 of 2","textChars":6,"textLines":1,"bbox":[44,628,160,28]}
+{"kind":"shape","id":"sh/54zi9k3a","slide":43,"bbox":[486.67,25,326.66,672]}
+{"kind":"textbox","id":"sh/32h07alk","slide":43,"text":"Captured from the real preview app UI","textPreview":"Captured from the real preview app UI","textChars":37,"textLines":1,"bbox":[890,610,300,42]}
+{"kind":"image","id":"im/3yp4jylc","slide":43,"name":"","geometry":"roundRect","alt":"Edge States - Invalid Invite","bbox":[501.67,40,296.66,642]}
+{"kind":"notes","id":"nt/vf3cns","slide":43,"text":""}
+{"kind":"slide","id":"sl/07505b","slide":44,"title":"FERO","textShapes":5}
+{"kind":"textbox","id":"sh/3ud8nq5g","slide":44,"text":"FERO","textPreview":"FERO","textChars":4,"textLines":1,"bbox":[44,30,150,52]}
+{"kind":"textbox","id":"sh/ovm9gvm1","slide":44,"text":"EDGE STATES","textPreview":"EDGE STATES","textChars":11,"textLines":1,"bbox":[44,96,360,24]}
+{"kind":"textbox","id":"sh/pwvqp0nm","slide":44,"text":"02 Already Member Or Otp","textPreview":"02 Already Member Or Otp","textChars":24,"textLines":1,"bbox":[44,124,390,86]}
+{"kind":"textbox","id":"sh/ax4ri547","slide":44,"text":"2 of 2","textPreview":"2 of 2","textChars":6,"textLines":1,"bbox":[44,628,160,28]}
+{"kind":"shape","id":"sh/byx8ra5s","slide":44,"bbox":[486.67,25,326.66,672]}
+{"kind":"textbox","id":"sh/x0fqtkni","slide":44,"text":"Captured from the real preview app UI","textPreview":"Captured from the real preview app UI","textChars":37,"textLines":1,"bbox":[890,610,300,42]}
+{"kind":"image","id":"im/pkvqlofa","slide":44,"name":"","geometry":"roundRect","alt":"Edge States - Already Member Or Otp","bbox":[501.67,40,296.66,642]}
+{"kind":"notes","id":"nt/07505b","slide":44,"text":""}

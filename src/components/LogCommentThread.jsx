@@ -99,7 +99,7 @@ function LogHeader({ log }) {
   );
 }
 
-function LogCommentThread({ groupId, log, currentUserId, currentUserName, onClose, onCommentCountChange }) {
+function LogCommentThread({ groupId, log, currentUserId, currentUserName, onClose, onCommentCountChange, onTrackUsage }) {
   const [comments, setComments] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [draft, setDraft] = useState("");
@@ -256,6 +256,7 @@ function LogCommentThread({ groupId, log, currentUserId, currentUserName, onClos
     const point = event.touches?.[0] || event;
     reactionTimerRef.current = window.setTimeout(() => {
       try { window.getSelection?.()?.removeAllRanges?.(); } catch {}
+      onTrackUsage?.("reaction_picker_opened");
       setReactionTarget({ id: comment.id, isOwn, y: point?.clientY || 180 });
     }, 330);
   };
@@ -444,6 +445,7 @@ function LogCommentThread({ groupId, log, currentUserId, currentUserName, onClos
         React.createElement('textarea', {
           ref: inputRef,
           value: draft,
+          onFocus: () => onTrackUsage?.("comment_composer_opened"),
           onChange: event => {
             setDraft(event.target.value);
             resizeComposer(event.currentTarget);

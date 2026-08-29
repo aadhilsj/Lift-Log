@@ -22,7 +22,7 @@ import { buildPaymentTarget, buildPaymentTargets } from "../lib/paymentLinks.js"
 
 const FULL_MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
-const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistory, profiles, onOpenAccount, onSettlementClaimPaid, onSettlementConfirmPaid, onStartNextMonth, onViewProfileMonth}) => {
+const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistory, profiles, onOpenAccount, onSettlementClaimPaid, onSettlementConfirmPaid, onStartNextMonth, onViewProfileMonth, onTrackUsage}) => {
   const [copiedKey, setCopiedKey] = React.useState(null);
   const [settlementBusy, setSettlementBusy] = React.useState(null);
   const [showStandings, setShowStandings] = React.useState(false);
@@ -454,6 +454,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
   const stickerMonthLabel = `${selectedMonthName} ${stickerData?.year ?? ""}`.trim();
 
   const handleShare = () => {
+    onTrackUsage?.("share_month_clicked");
     // Preserved from the text-only share this replaced: a missed month sends you to the
     // ledger instead, because what you need then is what you owe, not a trophy.
     if (outcome === "missed") {
@@ -501,7 +502,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
     renderAwards(),
     sectionSeparator,
     React.createElement('div',{style:{border:"1px solid rgba(78,205,196,.15)",borderRadius:10,overflow:"hidden",background:"linear-gradient(135deg, rgba(78,205,196,.045), rgba(8,15,15,.78) 52%, rgba(255,255,255,.018))",boxShadow:"inset 0 1px 0 rgba(255,255,255,.03), 0 10px 26px rgba(78,205,196,.035)"}},
-      React.createElement('button',{type:"button",onClick:()=>setShowStandings(v=>!v),style:{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"13px 15px",background:"transparent",border:"none",color:"var(--text)",fontSize:13,fontWeight:800,cursor:"pointer"}},
+      React.createElement('button',{type:"button",onClick:()=>{onTrackUsage?.("monthly_summary_card_clicked");setShowStandings(v=>!v)},style:{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"13px 15px",background:"transparent",border:"none",color:"var(--text)",fontSize:13,fontWeight:800,cursor:"pointer"}},
         React.createElement('span',null,"Month Summary"),
         React.createElement('span',{style:{color:"var(--muted)",fontSize:16}},showStandings?"−":"+")
       ),

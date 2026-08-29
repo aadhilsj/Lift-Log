@@ -49,24 +49,42 @@ const sql = fs.readFileSync(new URL("../supabase/ante-core-founder-dashboard.sql
   "v_upload_average_daily",
   "v_upload_average_weekly",
   "v_upload_average_monthly",
+  "v_active_tracking_started",
+  "v_upload_tracking_started",
+  "activeUserTrackingStarted",
+  "date_trunc('week'",
+  "date_trunc('month'",
   "Europe/Oslo",
   "purge_ante_core_daily_app_activity"
 ].forEach(fragment => assert.ok(sql.includes(fragment), `dashboard privacy/metric contract is missing: ${fragment}`));
 
 const dashboardUi = fs.readFileSync(new URL("../src/pages/FounderDashboard.jsx", import.meta.url), "utf8");
+const appUi = fs.readFileSync(new URL("../src/App.jsx", import.meta.url), "utf8");
+const authShell = fs.readFileSync(new URL("../src/components/authShell.jsx", import.meta.url), "utf8");
 [
-  "Founder Dashboard",
-  "Active Users",
-  "Workout Uploads",
-  "Daily Active Users",
-  "Weekly Active Users",
-  "Monthly Active Users",
-  "Daily Workout Uploads",
-  "Weekly Workout Uploads",
-  "Monthly Workout Uploads",
-  "30-day avg:",
-  "4-week avg:",
-  "3-month avg:"
+  "Dashboard",
+  "Total Active Users",
+  "Average Active Users",
+  "Total Workout Uploads",
+  "Average Workout Uploads",
+  "Unique User Accounts",
+  "Active-user tracking began",
+  "Joined in the last 30 days",
+  "New Account Names",
+  "Qualifying Blocs",
+  "Activity Trend",
+  "Daily totals from the last 30 days.",
+  "Signed-in users who opened Fero",
+  "Unique workout uploads"
 ].forEach(fragment => assert.ok(dashboardUi.includes(fragment), `dashboard UI label is missing: ${fragment}`));
+assert.ok(!dashboardUi.includes('subtitle:"All-time average"'), "dashboard UI should not repeat the all-time average helper text");
+assert.ok(!dashboardUi.includes('"Private"'), "dashboard UI should not show the private header");
+assert.ok(!dashboardUi.includes('All Account Names'), "dashboard UI should not show the all-account roster");
+assert.ok(appUi.includes('showFounderDashboard: !inert && founderDashboardAvailable'), "founder dashboard entry should be available from the bloc switcher");
+assert.ok(appUi.includes('FOUNDER_DASHBOARD_AVAILABILITY_PREFIX'), "founder dashboard availability should be cached per account");
+assert.ok(appUi.includes('useState(()=>readFounderDashboardAvailability(initialPersistedSession?.userId))'), "founder dashboard entry should render from the persisted availability hint");
+assert.ok(appUi.includes('persistFounderDashboardAvailability(initialSession.userId, available)'), "fresh founder dashboard permission should update the local hint");
+assert.ok(authShell.includes('"Dashboard"'), "bloc switcher should use a labelled dashboard entry");
+assert.ok(!authShell.includes('"Open founder dashboard"'), "profile should not duplicate the founder dashboard entry");
 
 console.log("Founder dashboard contract checks passed.");

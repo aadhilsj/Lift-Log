@@ -4923,12 +4923,80 @@ async function recordCanonicalDailyAppActivity(authUserId, openedAt = new Date()
   }
 }
 
+async function recordCanonicalMonthlyFeatureUsage(authUserId, feature, usedAt = new Date().toISOString()) {
+  if (!authUserId) return;
+  try {
+    await supabaseFetch("/rest/v1/rpc/record_ante_core_monthly_feature_usage", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ p_auth_user_id: String(authUserId), p_feature: feature, p_used_at: usedAt })
+    });
+  } catch (error) {
+    console.error("Monthly feature usage record failed:", error?.message || error);
+  }
+}
+
+async function recordCanonicalUsageEvent(authUserId, eventName, occurredAt = new Date().toISOString()) {
+  if (!authUserId || !eventName) return;
+  try {
+    await supabaseFetch("/rest/v1/rpc/record_ante_core_usage_event", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ p_auth_user_id: String(authUserId), p_event_name: String(eventName), p_occurred_at: occurredAt })
+    });
+  } catch (error) {
+    console.error("Usage event record failed:", error?.message || error);
+  }
+}
+
 async function readFounderRosterAndActiveBlocs() {
   const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_founder_dashboard_details", {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     body: JSON.stringify({})
   });
+  const body = await response.json();
+  return body && typeof body === "object" && !Array.isArray(body) ? body : {};
+}
+
+async function readCanonicalFounderDashboardGrowth() {
+  const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_founder_dashboard_growth", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({})
+  });
+  const body = await response.json();
+  return body && typeof body === "object" && !Array.isArray(body) ? body : {};
+}
+
+async function readCanonicalFounderDashboardUsage() {
+  const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_founder_dashboard_usage", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({})
+  });
+  const body = await response.json();
+  return body && typeof body === "object" && !Array.isArray(body) ? body : {};
+}
+
+async function readCanonicalFounderDashboardUsageAverages() {
+  const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_founder_dashboard_usage_averages", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({})
+  });
+  const body = await response.json();
+  return body && typeof body === "object" && !Array.isArray(body) ? body : {};
+}
+
+async function readCanonicalFounderDashboardBlockProfileUsage() {
+  const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_founder_dashboard_block_profile_usage", { method:"POST", headers:{"Content-Type":"application/json",Accept:"application/json"}, body:JSON.stringify({}) });
+  const body = await response.json();
+  return body && typeof body === "object" && !Array.isArray(body) ? body : {};
+}
+
+async function readCanonicalFounderDashboardMonthlyActions() {
+  const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_founder_dashboard_monthly_actions", { method:"POST", headers:{"Content-Type":"application/json",Accept:"application/json"}, body:JSON.stringify({}) });
   const body = await response.json();
   return body && typeof body === "object" && !Array.isArray(body) ? body : {};
 }
@@ -4941,11 +5009,13 @@ async function readCanonicalFounderDashboard() {
   });
   const body = await response.json();
   if (!body || typeof body !== "object" || Array.isArray(body)) return {};
-  const rosterAndBlocMetrics = await readFounderRosterAndActiveBlocs();
+  const [rosterAndBlocMetrics, growth, usage, usageAverages, blockProfileUsage, monthlyActions] = await Promise.all([readFounderRosterAndActiveBlocs(), readCanonicalFounderDashboardGrowth(), readCanonicalFounderDashboardUsage(), readCanonicalFounderDashboardUsageAverages(), readCanonicalFounderDashboardBlockProfileUsage(), readCanonicalFounderDashboardMonthlyActions()]);
   return {
     ...body,
     accounts: { ...(body.accounts || {}), ...rosterAndBlocMetrics.accounts },
-    activeBlocs: rosterAndBlocMetrics.activeBlocs
+    activeBlocs: rosterAndBlocMetrics.activeBlocs,
+    growth,
+    usage: { ...usage, events: { ...(usage.events || {}), own_block_profile_opened: blockProfileUsage.events?.own_block_profile_opened || {} }, averages: { ...usageAverages, own_block_profile_opened: blockProfileUsage.averages?.own_block_profile_opened || {} }, monthlyActions: monthlyActions.events || {} }
   };
 }
 
@@ -8628,7 +8698,15 @@ export default async function handler(req, res) {
         const messages = await readBlocStreamFromCanonical(payload.groupId, authUser.id, {
           limit: payload.limit
         });
+        await recordCanonicalMonthlyFeatureUsage(authUser.id, "bloc_stream");
+        await recordCanonicalUsageEvent(authUser.id, "bloc_stream_opened");
         return res.status(200).json({ ok: true, messages: Array.isArray(messages) ? messages : [] });
+      }
+
+      if (payload?.action === "usage-event") {
+        const authUser = await fetchAuthenticatedUser(readBearerToken(req, payload));
+        await recordCanonicalUsageEvent(authUser.id, payload?.eventName);
+        return res.status(204).end();
       }
 
       if (payload?.action === "stream-unread-count") {
@@ -8679,6 +8757,7 @@ export default async function handler(req, res) {
           payload.emoji,
           payload.isAdding
         );
+        await recordCanonicalMonthlyFeatureUsage(authUser.id, "reaction");
         await bumpCanonicalRevision(`stream-reaction:${payload.groupId}:${payload.messageId}:${authUser.id}:${payload.emoji}`, null);
         return res.status(200).json({ ok: true });
       }
@@ -8727,6 +8806,7 @@ export default async function handler(req, res) {
         if (!isCurrentGroupMember(group, canonicalActor, auth.user.id)) return res.status(403).json({ error: "Only Bloc members can comment" });
         await syncOpenWorkoutLogSnapshotToCanonical(group, owner, log, { throwOnError: true });
         const result = await insertWorkoutLogCommentInCanonical(payload.groupId, auth.user.id, logId, payload.body);
+        await recordCanonicalMonthlyFeatureUsage(auth.user.id, "comment");
         await bumpCanonicalRevision(`log-comment:${payload.groupId}:${logId}:${auth.user.id}`, null);
         return res.status(200).json({
           ok: true,
@@ -8748,6 +8828,7 @@ export default async function handler(req, res) {
           emoji,
           payload.isAdding
         );
+        await recordCanonicalMonthlyFeatureUsage(authUser.id, "reaction");
         await bumpCanonicalRevision(`log-comment-reaction:${payload.groupId}:${commentId}:${authUser.id}:${emoji}`, null);
         return res.status(200).json({ ok: true });
       }

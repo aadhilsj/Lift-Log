@@ -71,7 +71,8 @@ import {
   writeCachedData,
   readPersistedAuthSession,
   persistAuthSessionHint,
-  getRevision
+  getRevision,
+  trackUsageEvent
 } from "./lib/api.js";
 import {
   isMobile,
@@ -213,6 +214,25 @@ const applyInBlocPageTransforms = ({ layers, activePage, dragX = 0, dragging = f
 };
 const COLD_ONBOARDING_SEEN_KEY = "fero_cold_onboarding_seen";
 const INVITE_HANDOFF_MARKER_KEY = "fero_invite_web_handoff";
+const FOUNDER_DASHBOARD_AVAILABILITY_PREFIX = "fero_founder_dashboard_available:";
+
+const readFounderDashboardAvailability = userId => {
+  if (!userId) return false;
+  try {
+    return localStorage.getItem(`${FOUNDER_DASHBOARD_AVAILABILITY_PREFIX}${userId}`) === "1";
+  } catch {
+    return false;
+  }
+};
+
+const persistFounderDashboardAvailability = (userId, available) => {
+  if (!userId) return;
+  try {
+    const key = `${FOUNDER_DASHBOARD_AVAILABILITY_PREFIX}${userId}`;
+    if (available) localStorage.setItem(key, "1");
+    else localStorage.removeItem(key);
+  } catch {}
+};
 
 const persistInviteWebHandoffMarker = ({userId, groupId, inviteCode}) => {
   try {
@@ -243,7 +263,7 @@ const App = () => {
   const [paymentError,setPaymentError]=useState("");
   const [showProfile,setShowProfile]=useState(false);
   const [showFounderDashboard,setShowFounderDashboard]=useState(false);
-  const [founderDashboardAvailable,setFounderDashboardAvailable]=useState(false);
+  const [founderDashboardAvailable,setFounderDashboardAvailable]=useState(()=>readFounderDashboardAvailability(initialPersistedSession?.userId));
   const [showStream,setShowStream]=useState(false);
   const [streamFocusBlocId,setStreamFocusBlocId]=useState(null);
   const [streamReturnScrollTop,setStreamReturnScrollTop]=useState(null);
@@ -414,6 +434,7 @@ const App = () => {
     const nextSession = session?.userId ? session : null;
     persistLocalPreviewSession(nextSession);
     persistAuthSessionHint(nextSession);
+    setFounderDashboardAvailable(readFounderDashboardAvailability(nextSession?.userId));
     setAuthSession(nextSession);
   },[]);
 
@@ -847,7 +868,11 @@ const App = () => {
           try {
             const synced = await syncAuthSessionData(initialSession);
             if (active && synced?.ok && synced.state) applyData(synced.state);
-            if (active) setFounderDashboardAvailable(synced?.founderDashboardAvailable === true);
+            if (active && synced?.ok) {
+              const available = synced.founderDashboardAvailable === true;
+              persistFounderDashboardAvailability(initialSession.userId, available);
+              setFounderDashboardAvailable(available);
+            }
           } finally {
             if (active && shouldHydrateUi) setAuthHydrating(false);
           }
@@ -866,11 +891,16 @@ const App = () => {
             try {
               const synced = await syncAuthSessionData(mapped);
               if (active && synced?.ok && synced.state) applyData(synced.state);
-              if (active) setFounderDashboardAvailable(synced?.founderDashboardAvailable === true);
+              if (active && synced?.ok) {
+                const available = synced.founderDashboardAvailable === true;
+                persistFounderDashboardAvailability(mapped.userId, available);
+                setFounderDashboardAvailable(available);
+              }
             } finally {
               if (active && shouldHydrateUi) setAuthHydrating(false);
             }
           } else if (active) {
+            setFounderDashboardAvailable(false);
             setAuthHydrating(false);
           }
         });
@@ -1651,6 +1681,7 @@ const App = () => {
     setStreamReturnScrollTop(null);
     setShowStream(true);
   },[]);
+  const trackUsage = useCallback(eventName => { void trackUsageEvent(eventName); },[]);
   const handleOpenLogComments = useCallback(({ groupId, log, source, returnScrollTop }) => {
     if (!groupId || !log?.id) return;
     if (source === "stream" && !showStream) {
@@ -1674,6 +1705,7 @@ const App = () => {
     refreshStreamUnreadCount();
   }, [appState?.meta?.revision, refreshStreamUnreadCount, selectedGroupId, showStream]);
   const handleNavSelect = useCallback((nextPage)=>{
+    if (nextPage && nextPage !== page) void trackUsageEvent(`${nextPage}_opened`);
     if (showTodayLog && nextPage === page) {
       setShowTodayLog(false);
       return;
@@ -1936,7 +1968,9 @@ const App = () => {
       currentIdentity: profile?.displayName || authSession?.email?.split("@")[0] || effectiveProfile?.displayName || effectiveAuthSession?.email?.split("@")[0] || "",
       currentEmail: authSession?.email || effectiveAuthSession?.email,
       currentUserId: authSession?.userId || effectiveAuthSession?.userId || "",
-      onOpenProfile:inert?()=>{}:()=>setShowProfile(true),
+      onOpenProfile:inert?()=>{}:()=>{trackUsage("own_profile_opened");setShowProfile(true)},
+      showFounderDashboard: !inert && founderDashboardAvailable,
+      onOpenFounderDashboard: inert ? ()=>{} : ()=>setShowFounderDashboard(true),
       creating: inert ? false : creatingGroup,
       autoOpenCreate: inert ? false : queuedCreate,
       initialCreateGroupName: inert ? "" : queuedCreateGroupName,
@@ -2798,7 +2832,7 @@ const App = () => {
     const createdInviteGroup = createdInviteGroupId ? appState.groups?.[createdInviteGroupId] : null;
     return React.createElement(React.Fragment,null,
       showJoinModal && !authStep && React.createElement(JoinGroupModal,{inviteContext,joinCode,setJoinCode,onClose:handleJoinModalClose,onJoin:handleJoinGroup,joining:joiningGroup,error:inviteError,signedIn:true}),
-      showProfileModal && React.createElement(ProfileModal,{email:authSession?.email,onSignOut:handleSwitchUser,onClose:()=>{setProfileError("");setShowProfileModal(false);},currentDisplayName:profile?.displayName||"",onSaveDisplayName:handleSaveProfileFromModal,saving:profileSaving,saveError:profileError,onDeleteAccount:handleDeleteAccount,currentPaymentMethods:profile?.paymentMethods||[],onSavePayment:handleSavePaymentHandle,savingPayment:paymentSaving,paymentError:paymentError,showFounderDashboard:founderDashboardAvailable,onOpenFounderDashboard:()=>{setShowProfileModal(false);setShowFounderDashboard(true);}}),
+      showProfileModal && React.createElement(ProfileModal,{email:authSession?.email,onSignOut:handleSwitchUser,onClose:()=>{setProfileError("");setShowProfileModal(false);},currentDisplayName:profile?.displayName||"",onSaveDisplayName:handleSaveProfileFromModal,saving:profileSaving,saveError:profileError,onDeleteAccount:handleDeleteAccount,currentPaymentMethods:profile?.paymentMethods||[],onSavePayment:handleSavePaymentHandle,savingPayment:paymentSaving,paymentError:paymentError}),
       createdInviteGroup
         ? React.createElement(CreatedBlocInviteScreen,{group:createdInviteGroup,onContinue:handleContinueFromCreatedInvite})
         : renderGroupSwitcherSurface({ suppressIntro:suppressSwitcherIntro }),
@@ -2837,10 +2871,10 @@ const App = () => {
     style:{paddingBottom:isMobileView?"calc(108px + env(safe-area-inset-bottom))":0}
   },
     pageName==="today"  &&React.createElement(TodayPageErrorBoundary,{resetKey:`${selectedGroupId}:${navResetToken}:${currentUser}`},
-      React.createElement(TodayPage,  {user:currentUser,currentUserId:effectiveAuthSession?.userId,currentGroupId:selectedGroupId,groups,profiles:appState?.profiles||{},accountCreatedAt:profile?.createdAt,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,saving,onSave:handleSave,onMultiLog:handleMultiLog,onLogMutation:handleLogMutation,clockTick,onViewLastMonth:()=>{setMonthInitialIdx(0);setPage("month");},onSitOutRequest:handleSitOutRequest,onSoloRequest:handleSoloRequest,onSettlementClaimPaid:handleSettlementClaimPaid,onSettlementConfirmPaid:handleSettlementConfirmPaid,onSettlementDisputePaid:handleSettlementDisputePaid,onOpenSetupReview:()=>setShowSettings(true),navResetToken,showLog:showTodayLog,setShowLog:setShowTodayLog})
+      React.createElement(TodayPage,  {user:currentUser,currentUserId:effectiveAuthSession?.userId,currentGroupId:selectedGroupId,groups,profiles:appState?.profiles||{},accountCreatedAt:profile?.createdAt,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,saving,onSave:handleSave,onMultiLog:handleMultiLog,onLogMutation:handleLogMutation,clockTick,onViewLastMonth:()=>{setMonthInitialIdx(0);setPage("month");},onSitOutRequest:handleSitOutRequest,onSoloRequest:handleSoloRequest,onSettlementClaimPaid:handleSettlementClaimPaid,onSettlementConfirmPaid:handleSettlementConfirmPaid,onSettlementDisputePaid:handleSettlementDisputePaid,onOpenSetupReview:()=>setShowSettings(true),navResetToken,showLog:showTodayLog,setShowLog:setShowTodayLog,onTrackUsage:trackUsage})
     ),
-    pageName==="activity"&&React.createElement(ActivityPage,{group:currentGroup,currentUser,currentUserId:effectiveAuthSession?.userId,onLogMutation:handleLogMutation,clockTick,reactionOverrides,setReactionOverrides,commentCountOverrides:logCommentCountOverrides,onCommentCountsLoaded:setLogCommentCountOverrides,onOpenLogComments:handleOpenLogComments}),
-    pageName==="month"  &&React.createElement(MonthPage,  {key:`${selectedGroupId}:${navResetToken}:${monthInitialIdx ?? "current"}`,group:currentGroup,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,groupSettings:currentGroup.settings,currentUser,currentUserId:effectiveAuthSession?.userId,initialSelIdx:monthInitialIdx,onStartNextMonth:()=>{setMonthInitialIdx(null);setPage("today");},onOpenToday:()=>setPage("today"),onSettlementClaimPaid:handleSettlementClaimPaid,onSettlementConfirmPaid:handleSettlementConfirmPaid,profiles:appState?.profiles||{},onOpenAccount:()=>{persistGroupSelection(null);setShowProfile(true);},navResetToken}),
+    pageName==="activity"&&React.createElement(ActivityPage,{group:currentGroup,currentUser,currentUserId:effectiveAuthSession?.userId,onLogMutation:handleLogMutation,clockTick,reactionOverrides,setReactionOverrides,commentCountOverrides:logCommentCountOverrides,onCommentCountsLoaded:setLogCommentCountOverrides,onOpenLogComments:handleOpenLogComments,onTrackUsage:trackUsage}),
+    pageName==="month"  &&React.createElement(MonthPage,  {key:`${selectedGroupId}:${navResetToken}:${monthInitialIdx ?? "current"}`,group:currentGroup,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,groupSettings:currentGroup.settings,currentUser,currentUserId:effectiveAuthSession?.userId,initialSelIdx:monthInitialIdx,onStartNextMonth:()=>{setMonthInitialIdx(null);setPage("today");},onOpenToday:()=>setPage("today"),onSettlementClaimPaid:handleSettlementClaimPaid,onSettlementConfirmPaid:handleSettlementConfirmPaid,profiles:appState?.profiles||{},onOpenAccount:()=>{persistGroupSelection(null);setShowProfile(true);},navResetToken,onTrackUsage:trackUsage}),
     pageName==="history"&&React.createElement(HistoryPage,{group:currentGroup,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,groupSettings:currentGroup.settings,navResetToken,currentUser})
   );
 
@@ -2940,7 +2974,7 @@ const App = () => {
       touchAction:"pan-y"
     }
   },
-    React.createElement(Nav,{page,setPage:handleNavSelect,user:currentUser,currentUserId:effectiveAuthSession?.userId||"",profilePhotoUrl:effectiveProfile?.profilePhotoUrl||"",groupName:currentGroup.name,canEditGroup:isGroupAdmin,onOpenSettings:()=>setShowSettings(true),onOpenProfile:()=>{setProfileError("");setShowProfileModal(true);},onOpenStream:handleOpenStream,streamUnreadCount,onSwitchUser:handleSwitchUser,onSwitchGroup:handleSwitchGroup,onOpenLog:()=>{setPage("today");setShowTodayLog(true);},syncing,lastSyncedAt,syncError,onRefresh:refreshNow,showJustSynced,activityAlertCount,hideMobileBottomNav:true}),
+    React.createElement(Nav,{page,setPage:handleNavSelect,user:currentUser,currentUserId:effectiveAuthSession?.userId||"",profilePhotoUrl:effectiveProfile?.profilePhotoUrl||"",groupName:currentGroup.name,canEditGroup:isGroupAdmin,onOpenSettings:()=>{trackUsage("settings_opened");setShowSettings(true)},onOpenProfile:()=>{trackUsage("own_block_profile_opened");setProfileError("");setShowProfileModal(true);},onOpenStream:handleOpenStream,streamUnreadCount,onSwitchUser:handleSwitchUser,onSwitchGroup:handleSwitchGroup,onOpenLog:()=>{setPage("today");setShowTodayLog(true);},syncing,lastSyncedAt,syncError,onRefresh:refreshNow,showJustSynced,activityAlertCount,hideMobileBottomNav:true}),
     localDevMode && React.createElement(LocalDevImpersonationBar,{options:devImpersonationOptions,value:effectiveAuthSession?.devImpersonationActive?effectiveAuthSession.userId:"",onChange:handleSelectDevImpersonation}),
     React.createElement('div',{style:{position:"relative",overflow:"hidden",height:inBlocViewportHeight,minHeight:0}},
       showSettings && React.createElement('div',{style:{position:"absolute",inset:"0 0 auto 0",zIndex:1,pointerEvents:"none"}},renderInBlocPage(page,{swipePreview:true})),
@@ -2958,7 +2992,7 @@ const App = () => {
 
   return React.createElement(React.Fragment,null,
     showJoinModal && !authStep && React.createElement(JoinGroupModal,{inviteContext,joinCode,setJoinCode,onClose:handleJoinModalClose,onJoin:handleJoinGroup,joining:joiningGroup,error:inviteError,signedIn:true}),
-    showProfileModal && React.createElement(ProfileModal,{email:authSession?.email,onSignOut:handleSwitchUser,onClose:()=>setShowProfileModal(false),showDisplayName:true,currentDisplayName:currentUser,onSaveDisplayName:handleSaveProfileFromModal,saving:profileSaving,saveError:profileError,onLeaveBloc:handleLeaveBloc,onDeleteAccount:handleDeleteAccount,currentPaymentMethods:effectiveProfile?.paymentMethods||[],onSavePayment:handleSavePaymentHandle,savingPayment:paymentSaving,paymentError:paymentError,showFounderDashboard:founderDashboardAvailable,onOpenFounderDashboard:()=>{setShowProfileModal(false);setShowFounderDashboard(true);}}),
+    showProfileModal && React.createElement(ProfileModal,{email:authSession?.email,onSignOut:handleSwitchUser,onClose:()=>setShowProfileModal(false),showDisplayName:true,currentDisplayName:currentUser,onSaveDisplayName:handleSaveProfileFromModal,saving:profileSaving,saveError:profileError,onLeaveBloc:handleLeaveBloc,onDeleteAccount:handleDeleteAccount,currentPaymentMethods:effectiveProfile?.paymentMethods||[],onSavePayment:handleSavePaymentHandle,savingPayment:paymentSaving,paymentError:paymentError}),
     React.createElement(BlocStream,{open:showStream,groupName:currentGroup.name,blocId:currentGroup.id,initialBlocId:streamFocusBlocId,initialScrollTop:streamReturnScrollTop,initialUnreadCount:streamUnreadCount,currentUserId:effectiveAuthSession?.userId,members:Object.values(currentGroup.memberships||{}).map(m=>({id:m.userId,name:m.displayName,photoUrl:appState.profiles?.[m.userId]?.profilePhotoUrl||""})),streamBlocs:visibleGroups.map(group=>({id:group.id,name:group.name,members:Object.values(group.memberships||{}).map(m=>({id:m.userId,name:m.displayName,photoUrl:appState.profiles?.[m.userId]?.profilePhotoUrl||""}))})),onSeasonClosedTap:handleStreamSeasonClosedTap,onUnreadCountChange:(groupId,count)=>{if(groupId===currentGroup.id)setStreamUnreadCount(Number(count)||0);},onOpenLogComments:handleOpenLogComments,onClose:()=>{setShowStream(false);setStreamFocusBlocId(null);setStreamReturnScrollTop(null);refreshStreamUnreadCount(currentGroup.id);}}),
     prorationGroup && React.createElement(ProrationChoiceModal,{
       monthName: getCurrentMonthSummary(prorationGroup).monthName,
@@ -2972,7 +3006,7 @@ const App = () => {
     }),
     page==="today"&&(blocDragging||Math.abs(Number(blocDragXRef.current)||0)>0)&&renderGroupSwitcherSurface({ inert:true, suppressIntro:true }),
     activeBlocSurface,
-    !showSettings && React.createElement(Nav,{onlyMobileBottomNav:true,page,setPage:handleNavSelect,user:currentUser,currentUserId:effectiveAuthSession?.userId||"",profilePhotoUrl:effectiveProfile?.profilePhotoUrl||"",groupName:currentGroup.name,canEditGroup:isGroupAdmin,onOpenSettings:()=>setShowSettings(true),onOpenProfile:()=>{setProfileError("");setShowProfileModal(true);},onOpenStream:handleOpenStream,streamUnreadCount,onSwitchUser:handleSwitchUser,onSwitchGroup:handleSwitchGroup,onOpenLog:()=>{setPage("today");setShowTodayLog(true);},syncing,lastSyncedAt,syncError,onRefresh:refreshNow,showJustSynced,activityAlertCount,mobileBottomDragX:blocDragXRef.current,mobileBottomNavRef:blocBottomNavRef,mobileBottomDragging:blocDragging}),
+    !showSettings && React.createElement(Nav,{onlyMobileBottomNav:true,page,setPage:handleNavSelect,user:currentUser,currentUserId:effectiveAuthSession?.userId||"",profilePhotoUrl:effectiveProfile?.profilePhotoUrl||"",groupName:currentGroup.name,canEditGroup:isGroupAdmin,onOpenSettings:()=>{trackUsage("settings_opened");setShowSettings(true)},onOpenProfile:()=>{trackUsage("own_block_profile_opened");setProfileError("");setShowProfileModal(true);},onOpenStream:handleOpenStream,streamUnreadCount,onSwitchUser:handleSwitchUser,onSwitchGroup:handleSwitchGroup,onOpenLog:()=>{setPage("today");setShowTodayLog(true);},syncing,lastSyncedAt,syncError,onRefresh:refreshNow,showJustSynced,activityAlertCount,mobileBottomDragX:blocDragXRef.current,mobileBottomNavRef:blocBottomNavRef,mobileBottomDragging:blocDragging}),
     renderInviteJoinToast(),
     renderProfilePhotoToast(),
     renderInviteDownloadPrompt(),
@@ -2986,7 +3020,8 @@ const App = () => {
         currentUserId:effectiveAuthSession?.userId,
         currentUserName:currentUser,
         onClose:handleCloseLogComments,
-        onCommentCountChange:handleLogCommentCountChange
+        onCommentCountChange:handleLogCommentCountChange,
+        onTrackUsage:trackUsage
       })
     )
   );
