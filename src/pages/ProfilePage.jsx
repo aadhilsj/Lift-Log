@@ -6,6 +6,7 @@ import {
   calcPenalties,
   getCountedLogs,
 } from "../lib/appState.js";
+import { PaymentHandleSection } from "../components/PaymentHandleSection.jsx";
 import { Avatar, Card, AppIcon, WorkoutTypeIcon } from "../components/primitives.jsx";
 import {
   cancelSwipeFrame,
@@ -199,7 +200,7 @@ const ProfilePhotoCropModal = ({ imageSrc, onCancel, onConfirm }) => {
   );
 };
 
-const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, accountCreatedAt, profilePhotoUrl = "", onBack, onSwipeRevealChange, onEditName, onUpdateProfilePhoto, onSignOut, onDeleteAccount }) => {
+const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, accountCreatedAt, profilePhotoUrl = "", onBack, onSwipeRevealChange, onEditName, onUpdateProfilePhoto, onSignOut, onDeleteAccount, currentPaymentProvider = "", currentPaymentHandle = "", onSavePayment, savingPayment = false, paymentError = "" }) => {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
@@ -372,10 +373,12 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
   const mixTotal = WORKOUT_TYPES.reduce((s, t) => s + (agg.typeMix[t] || 0), 0);
   const mixMax = Math.max(...WORKOUT_TYPES.map(t => agg.typeMix[t] || 0), 1);
 
+  // Delete Account is deliberately not in this list. It sits in its own
+  // separated danger area below, so an irreversible action never looks like a
+  // sibling of a harmless one.
   const accountRows = [
     { label: "Email", value: email || "—", kind: "display" },
-    { label: "Sign Out", kind: "action", tone: "muted", onClick: onSignOut },
-    { label: "Delete Account", kind: "action", tone: "red", onClick: () => { setDeleteError(""); setConfirmDelete(true); } }
+    { label: "Sign Out", kind: "action", tone: "muted", onClick: onSignOut }
   ];
   const handlePhotoFile = async event => {
     const file = event.target?.files?.[0];
@@ -636,20 +639,23 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
           )
     ),
 
+    // How people pay you — account-level, not per Bloc, so it lives here
+    // rather than inside any single Bloc's screens.
+    onSavePayment ? React.createElement('div', { style: { marginTop: 4 } },
+      React.createElement('div', { style: { fontSize: 10, fontWeight: MED, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".1em", marginBottom: 8, paddingLeft: 2 } }, "Payments"),
+      React.createElement(Card, { style: { padding: "13px 15px" } },
+        React.createElement(PaymentHandleSection, {
+          currentPaymentProvider, currentPaymentHandle,
+          onSavePayment, savingPayment, paymentError
+        })
+      )
+    ) : null,
+
     // Account section
     React.createElement('div', { style: { marginTop: 4 } },
       React.createElement('div', { style: { fontSize: 10, fontWeight: MED, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".1em", marginBottom: 8, paddingLeft: 2 } }, "Account"),
       React.createElement(Card, { style: { overflow: "hidden" } },
-        confirmDelete
-          ? React.createElement('div', { style: { padding: "13px 15px" } },
-              React.createElement('div', { style: { fontSize: 12.5, fontWeight: REG, color: "rgba(220,170,170,.85)", marginBottom: 12, lineHeight: 1.55 } }, "This will permanently delete your account and remove you from all Blocs. This cannot be undone."),
-              deleteError ? React.createElement('div', { style: { fontSize: 11, fontWeight: REG, color: "var(--red)", marginBottom: 8 } }, deleteError) : null,
-              React.createElement('div', { style: { display: "flex", gap: 8 } },
-                React.createElement('button', { type: "button", onClick: () => { setConfirmDelete(false); setDeleteError(""); }, style: { flex: 1, background: "var(--s2)", border: "1px solid var(--border)", color: "var(--muted)", padding: "10px", borderRadius: 9, fontSize: 12, fontWeight: MED, cursor: "pointer" } }, "Cancel"),
-                React.createElement('button', { type: "button", disabled: deleting, onClick: async () => { setDeleting(true); setDeleteError(""); const r = await onDeleteAccount?.(); if (r && !r.ok) { setDeleteError(r.error || "Unable to delete account"); setDeleting(false); } }, style: { flex: 1, background: "var(--red-dim)", border: "1px solid rgba(212,74,74,.35)", color: "var(--red)", padding: "10px", borderRadius: 9, fontSize: 12, fontWeight: MED, cursor: "pointer" } }, deleting ? "Deleting..." : "Delete Account")
-              )
-            )
-          : accountRows.map((row, i) => {
+        accountRows.map((row, i) => {
               const border = i < accountRows.length - 1 ? "1px solid rgba(255,255,255,.055)" : "none";
               const valueColor = row.tone === "red" ? "rgba(212,74,74,.9)" : row.tone === "muted" ? "rgba(220,100,100,.7)" : "var(--muted)";
               if (row.kind === "display") {
@@ -663,6 +669,30 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
                 React.createElement(AppIcon, { name: "chevron-right", size: 14, stroke: "var(--muted2)" })
               );
             })
+      )
+    )
+    ,
+    // Danger area. Kept visually and structurally apart from Sign Out so an
+    // irreversible action is never one mis-tap from a harmless one. Apple
+    // requires in-app account deletion to be findable, so it stays plainly
+    // labelled rather than hidden behind a submenu.
+    React.createElement('div', { style: { marginTop: 18, paddingTop: 14, borderTop: "1px solid rgba(212,74,74,.16)" } },
+      React.createElement('div', { style: { fontSize: 10, fontWeight: MED, color: "rgba(212,74,74,.72)", textTransform: "uppercase", letterSpacing: ".1em", marginBottom: 8, paddingLeft: 2 } }, "Danger zone"),
+      React.createElement(Card, { style: { padding: "13px 15px", background: "rgba(60,10,10,.22)", border: "1px solid rgba(212,74,74,.2)" } },
+        React.createElement('div', { style: { fontSize: 11.5, fontWeight: REG, color: "var(--muted)", lineHeight: 1.5, marginBottom: 10 } },
+          "Deleting your account removes you from every Bloc and erases your workouts, photos and payment details. This cannot be undone."
+        ),
+        deleteError ? React.createElement('div', { style: { fontSize: 11, fontWeight: REG, color: "var(--red)", marginBottom: 8 } }, deleteError) : null,
+        confirmDelete
+          ? React.createElement('div', { style: { display: "flex", gap: 8 } },
+              React.createElement('button', { type: "button", onClick: () => { setConfirmDelete(false); setDeleteError(""); }, style: { flex: 1, background: "var(--s2)", border: "1px solid var(--border)", color: "var(--muted)", padding: "11px", borderRadius: 9, fontSize: 12.5, fontWeight: REG, cursor: "pointer" } }, "Cancel"),
+              React.createElement('button', { type: "button", disabled: deleting, onClick: async () => { setDeleting(true); setDeleteError(""); const r = await onDeleteAccount?.(); if (r && !r.ok) { setDeleteError(r.error || "Unable to delete account"); setDeleting(false); } }, style: { flex: 1, background: "var(--red-dim)", border: "1px solid rgba(212,74,74,.35)", color: "var(--red)", padding: "11px", borderRadius: 9, fontSize: 12.5, fontWeight: MED, cursor: "pointer" } }, deleting ? "Deleting..." : "Yes, delete")
+            )
+          : React.createElement('button', {
+              type: "button",
+              onClick: () => { setDeleteError(""); setConfirmDelete(true); },
+              style: { width: "100%", background: "var(--red-dim)", border: "1px solid rgba(212,74,74,.35)", color: "var(--red)", padding: "11px", borderRadius: 9, fontSize: 12.5, fontWeight: MED, cursor: "pointer" }
+            }, "Delete Account")
       )
     )
   );

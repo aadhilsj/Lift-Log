@@ -2806,7 +2806,12 @@ const App = () => {
           onEditName:()=>setShowProfileModal(true),
           onUpdateProfilePhoto:handleUpdateProfilePhoto,
           onSignOut:handleSwitchUser,
-          onDeleteAccount:handleDeleteAccount
+          onDeleteAccount:handleDeleteAccount,
+          currentPaymentProvider: effectiveProfile?.paymentProvider || profile?.paymentProvider || "",
+          currentPaymentHandle: effectiveProfile?.paymentHandle || profile?.paymentHandle || "",
+          onSavePayment: handleSavePaymentHandle,
+          savingPayment: paymentSaving,
+          paymentError: paymentError
         })
       )
       ,showFounderDashboard && React.createElement(FounderDashboard,{onClose:()=>setShowFounderDashboard(false)})
@@ -2932,7 +2937,7 @@ const App = () => {
     React.createElement('div',{style:{position:"relative",overflow:"hidden",height:inBlocViewportHeight,minHeight:0}},
       showSettings && React.createElement('div',{style:{position:"absolute",inset:"0 0 auto 0",zIndex:1,pointerEvents:"none"}},renderInBlocPage(page,{swipePreview:true})),
       showSettings
-        ? React.createElement(BlocSettingsScreen,{group:currentGroup,actor:currentUser,actorUserId:authSession?.userId,isAdmin:isGroupAdmin,onSave:handleUpdateGroupSettings,onClose:()=>setShowSettings(false),saving:savingSettings,onReviewSetup:isGroupAdmin?handleReviewSetupDefaults:null,onReviewSitOut:isGroupAdmin?handleSitOutReview:null,onReviewSolo:isGroupAdmin?handleSoloReview:null,onKickMember:isGroupAdmin?handleKickMember:null,localDevMode})
+        ? React.createElement(BlocSettingsScreen,{group:currentGroup,actor:currentUser,actorUserId:authSession?.userId,isAdmin:isGroupAdmin,onSave:handleUpdateGroupSettings,onClose:()=>setShowSettings(false),saving:savingSettings,onReviewSetup:isGroupAdmin?handleReviewSetupDefaults:null,onReviewSitOut:isGroupAdmin?handleSitOutReview:null,onReviewSolo:isGroupAdmin?handleSoloReview:null,onKickMember:isGroupAdmin?handleKickMember:null,onLeaveBloc:handleLeaveBloc,localDevMode})
         : activePageLayer
     ),
     showInstallBanner && React.createElement(InstallBanner,{
