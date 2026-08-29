@@ -1,13 +1,10 @@
 import React from "react";
 const { useState, useRef, useEffect } = React;
 import {
-  DEFAULT_CURRENCY,
   MIN_TARGET,
   WORKOUT_TYPES,
   calcPenalties,
-  getLoserAmount,
   getCountedLogs,
-  fmtCurrency
 } from "../lib/appState.js";
 import { Avatar, Card, AppIcon, WorkoutTypeIcon } from "../components/primitives.jsx";
 import {
@@ -224,13 +221,13 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
 
   const myGroups = (visibleGroups || []).map(g => {
     const mem = Object.values(g.memberships || {}).find(m => m.userId === currentUserId);
-    return mem ? { group: g, myName: mem.displayName, joinedAt: mem.joinedAt, currency: g.settings?.currency || DEFAULT_CURRENCY } : null;
+    return mem ? { group: g, myName: mem.displayName, joinedAt: mem.joinedAt } : null;
   }).filter(Boolean);
 
   const agg = (() => {
     let blocWins = 0, earliestJoined = null, earliestWorkout = null, targetHitMonths = 0, targetEligibleMonths = 0;
-    const pnlByCurrency = {}, dayTypeMax = {};
-    myGroups.forEach(({ group, myName, currency, joinedAt }) => {
+    const dayTypeMax = {};
+    myGroups.forEach(({ group, myName, joinedAt }) => {
       const jt = Date.parse(joinedAt || "");
       if (Number.isFinite(jt) && (earliestJoined === null || jt < earliestJoined)) earliestJoined = jt;
       // Per-day, per-type counts WITHIN this Bloc (real workouts, incl. 2-a-days).
@@ -245,7 +242,6 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
       });
       const curLogs = getCountedLogs(group.logs?.[myName] || []);
       tally(curLogs);
-      let groupNet = 0;
       (group.monthHistory || []).forEach(m => {
         const histLogs = getCountedLogs(m.logsByUser?.[myName] || []);
         tally(histLogs);
@@ -261,8 +257,7 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
           .filter(n => !m.excused?.[n])
           .map(n => ({ name: n, count: Number(m.counts[n] || 0), target: m.memberTargets?.[n] || m.settings?.minTarget || MIN_TARGET }));
         const penalties = calcPenalties(activeCounts, m.settings || {});
-        if (penalties.winners.find(w => w.name === myName)) { blocWins += 1; groupNet += penalties.perWinner; }
-        if (penalties.losers.find(l => l.name === myName)) { groupNet -= getLoserAmount(penalties, myName); }
+        if (penalties.winners.find(w => w.name === myName)) blocWins += 1;
       });
       // Merge into the cross-Bloc max: the same session logged in several Blocs
       // collapses (max), while genuine multiple workouts on a day survive.
@@ -270,7 +265,6 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
         if (!dayTypeMax[iso]) dayTypeMax[iso] = {};
         Object.entries(types).forEach(([t, c]) => { dayTypeMax[iso][t] = Math.max(dayTypeMax[iso][t] || 0, c); });
       });
-      pnlByCurrency[currency] = (pnlByCurrency[currency] || 0) + groupNet;
     });
 
     const logsByDate = {}, monthTotals = {}, weekday = [0,0,0,0,0,0,0], typeMix = {};
@@ -296,7 +290,7 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
       count: bestMonthEntry[1],
       label: FULL_MONTH_NAMES[Number(bestMonthEntry[0].slice(5, 7)) - 1]
     } : null;
-    return { workoutsLogged, blocWins, earliestJoined, earliestWorkout, targetHitMonths, targetEligibleMonths, bestMonth, pnlByCurrency, weekday,
+    return { workoutsLogged, blocWins, earliestJoined, earliestWorkout, targetHitMonths, targetEligibleMonths, bestMonth, weekday,
       bestIdx, worstIdx, typeMix, logsByDate, anyLogs };
   })();
 
@@ -372,13 +366,6 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
     valNode
   );
 
-  // ── lifetime take (hero; per-currency, no FX blend, no zero amounts) ────────
-  const money = (net, cur) => fmtCurrency(Math.abs(net), cur);
-  const moneyColor = net => net > 0 ? "var(--green)" : net < 0 ? "var(--red)" : "var(--text)";
-  const pnlNonzero = Object.entries(agg.pnlByCurrency).filter(([, n]) => n !== 0).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]));
-  const hasPnl = pnlNonzero.length > 0;
-  const [primCur, primNet] = hasPnl ? pnlNonzero[0] : [null, 0];
-  const secondaryPnl = pnlNonzero.slice(1);
 
   // ── workout mix (all-time, cross-Bloc) ─────────────────────────────────────
   const mixSorted = [...WORKOUT_TYPES].sort((a, b) => (agg.typeMix[b] || 0) - (agg.typeMix[a] || 0) || WORKOUT_TYPES.indexOf(a) - WORKOUT_TYPES.indexOf(b));
@@ -531,20 +518,15 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
       statCard("Wins", React.createElement('div', { style: statVal({ color: "var(--text)" }) }, agg.blocWins || 0), null, { elevated: true, icon: React.createElement(AppIcon, { name: "trophy", size: 12, stroke: "currentColor" }) })
     ),
 
-    // Lifetime balance — free card
-    React.createElement(Card, { style: { padding: "10px 12px" } },
-      React.createElement('span', { style: { display: "block", fontSize: 8.5, fontWeight: MED, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 5, textAlign: "center" } }, "Accountability Score"),
-      hasPnl
-        ? React.createElement('div', { style: { fontSize: 14, fontWeight: REG, color: "var(--text)", lineHeight: 1.25, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", textAlign: "center" } },
-            primNet > 0
-              ? React.createElement(React.Fragment, null, "Won ", React.createElement('span', { style: { color: moneyColor(primNet), fontWeight: MED } }, money(primNet, primCur)), " all-time from your blocmates.")
-              : React.createElement(React.Fragment, null, "Lost ", React.createElement('span', { style: { color: moneyColor(primNet), fontWeight: MED } }, money(primNet, primCur)), " all-time to your blocmates."),
-            secondaryPnl.length
-              ? React.createElement('div', { style: { fontSize: 11, fontWeight: REG, color: "var(--muted2)", marginTop: 5, lineHeight: 1.35 } }, secondaryPnl.map(([c, n]) => `${n > 0 ? "Won" : "Lost"} ${money(n, c)}`).join(" · "))
-              : null
-          )
-        : React.createElement('div', { style: { fontSize: 14, fontWeight: REG, color: "var(--text)", lineHeight: 1.25, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", textAlign: "center" } }, "Dead even all-time with your blocmates.")
-    ),
+    // The lifetime money balance used to sit here, labelled "Accountability
+    // Score". It was removed deliberately:
+    //  - it summed nothing meaningful across Blocs in different currencies;
+    //  - profiles are becoming visible to other members, and a public
+    //    lifetime-loss figure punishes exactly the people the app is meant to
+    //    help;
+    //  - money is the commitment mechanism, not the achievement.
+    // Per-Bloc settlement figures remain on the settlement and month screens,
+    // where the currency and context are unambiguous.
 
     // ── Premium block (PROFILE_PREMIUM_GATE) — all built & visible now ─────────
     React.createElement('div', { style: { display: "flex", alignItems: "center", gap: 8, marginTop: 4 } },
@@ -605,7 +587,7 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
           ),
           React.createElement('div', { style: { position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: MED, color: "var(--text)" } }, `${hitRatePct}%`)
         ),
-        React.createElement('div', { style: { minWidth: 0, fontSize: 12, fontWeight: REG, color: "var(--text)", lineHeight: 1.3 } }, `Hit target in ${hitRatePct}% of your Blocs.`)
+        React.createElement('div', { style: { minWidth: 0, fontSize: 12, fontWeight: REG, color: "var(--text)", lineHeight: 1.3 } }, `Hit target in ${agg.targetHitMonths} of ${agg.targetEligibleMonths} months.`)
       )
     ),
 
