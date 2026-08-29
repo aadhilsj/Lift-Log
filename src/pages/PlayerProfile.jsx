@@ -30,6 +30,7 @@ import {
 } from "../lib/utils.js";
 import { Avatar, WorkoutTypeIcon, Bar, Card, SelectField, TargetHitHexIcon, AppIcon } from "../components/primitives.jsx";
 import { DeleteModal } from "../modals/modals.jsx";
+import { buildProfileStats } from "../lib/profileStats.js";
 import {
   cancelSwipeFrame,
   releaseSwipeBack,
@@ -41,7 +42,7 @@ const FULL_MONTH_NAMES = ["January","February","March","April","May","June","Jul
 const profileMonthLabel = month => month ? `${FULL_MONTH_NAMES[month.month] || MONTH_NAMES[month.month]} ${month.year}` : "—";
 const profileMonthOptionLabel = month => month ? `${MONTH_NAMES[month.month]} '${String(month.year).slice(2)}` : "—";
 
-const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChange,groupSettings,onDeleteLog,initialMonthKey}) => {
+const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChange,groupSettings,onDeleteLog,initialMonthKey,memberUserId,visibleGroups,profilePhotoUrl}) => {
   const compactMobile = isMobile();
   const [deleteTarget,setDeleteTarget]=useState(null);
   const [deleteChoices,setDeleteChoices]=useState(null);
@@ -53,6 +54,7 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
   const frameRef=useRef(null);
   const currency = groupSettings?.currency || DEFAULT_CURRENCY;
   const [selMonthIdx,setSelMonthIdx]=useState(null); // null = current month
+  const [profileTab,setProfileTab]=useState("bloc");
   const appliedInitialMonthKeyRef = useRef(null);
   const histReversed=[...monthHistory].reverse();
   const historicalNames=useMemo(
@@ -244,8 +246,56 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
     {label:"Target",valueNode:needed===0?React.createElement(TargetHitHexIcon,{size:22}):needed,sub:needed===0?"target hit!":`more to go`,subNote:isCurMonth&&currentTargetInfo?.prorationSource==="member"?"joined mid-month":isCurMonth&&currentMonthOverride?.prorated?"prorated":null,color:"#4ECDC4"},
     {label:"Perfect Months",val:perfectMonthStats.count||"—",sub:null,color:"var(--text)"},
     {label:"Months Won",val:hasHistory?(closedStats.wins||"—"):"—",sub:null,color:hasHistory&&closedStats.wins>0?"var(--gold)":"var(--muted)"},
-    {label:"Accountability Score",val:hasHistory?(netPL===0?fmtCurrency(0,currency):`${netPL>0?"+":"-"}${fmtCurrency(Math.abs(netPL),currency)}`):"—",sub:null,color:hasHistory?(netPL>0?"var(--green)":netPL<0?"var(--red)":"var(--muted)"):"var(--muted)"},
+    {label:"Net",val:hasHistory?(netPL===0?fmtCurrency(0,currency):`${netPL>0?"+":"-"}${fmtCurrency(Math.abs(netPL),currency)}`):"—",sub:null,color:hasHistory?(netPL>0?"var(--green)":netPL<0?"var(--red)":"var(--muted)"):"var(--muted)"},
   ];
+  // All-time panel.
+  //
+  // SCOPE: readable state is scoped per viewer, so the client only holds the
+  // viewer's own Blocs. These numbers therefore cover the Blocs the viewer
+  // SHARES with this member, not that member's whole history. For your own
+  // profile that is every Bloc you are in, which matches the account profile.
+  //
+  // PRIVACY: aggregate numbers only. The Bloc count is shown; Bloc names are
+  // never rendered here, because naming them would expose a member's social
+  // graph to people who are not in those Blocs.
+  const sharedGroups = (visibleGroups || []).filter(g =>
+    memberUserId
+      ? Object.values(g.memberships || {}).some(m => m.userId === memberUserId)
+      : false
+  );
+  const allTime = memberUserId ? buildProfileStats({ groups: sharedGroups, userId: memberUserId }) : null;
+  const allTimeHitPct = allTime?.agg?.targetEligibleMonths
+    ? Math.round((allTime.agg.targetHitMonths / allTime.agg.targetEligibleMonths) * 100)
+    : 0;
+  const allTimeCard = (label, value, sub) => React.createElement(Card,{key:label,style:{padding:"11px 10px",display:"grid",gap:3,justifyItems:"center",textAlign:"center"}},
+    React.createElement('div',{style:{fontSize:8.5,fontWeight:700,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".06em",fontFamily:"'Outfit',sans-serif"}},label),
+    React.createElement('div',{style:{fontSize:19,fontWeight:800,color:"var(--text)",fontFamily:"'Outfit',sans-serif",lineHeight:1.1}},value),
+    sub?React.createElement('div',{style:{fontSize:9.5,fontWeight:600,color:"var(--muted2)",fontFamily:"'Outfit',sans-serif"}},sub):null
+  );
+  const allTimePanel = !allTime
+    ? React.createElement(Card,{style:{padding:"18px 16px",textAlign:"center",color:"var(--muted)",fontSize:12,fontFamily:"'Outfit',sans-serif"}},"All-time stats aren't available for this member.")
+    : React.createElement(React.Fragment,null,
+        React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6}},
+          allTimeCard("Workouts", allTime.agg.workoutsLogged || 0),
+          allTimeCard("Blocs", allTime.myGroups.length),
+          allTimeCard("Wins", allTime.agg.blocWins || 0)
+        ),
+        React.createElement(Card,{style:{padding:"13px 14px",display:"grid",gap:6,justifyItems:"center"}},
+          React.createElement('div',{style:{fontSize:8.5,fontWeight:700,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".06em",fontFamily:"'Outfit',sans-serif"}},"Target hit"),
+          React.createElement('div',{style:{fontSize:22,fontWeight:800,color:"#58EBE1",fontFamily:"'Outfit',sans-serif",lineHeight:1}},`${allTimeHitPct}%`),
+          React.createElement('div',{style:{fontSize:11,fontWeight:600,color:"var(--muted)",fontFamily:"'Outfit',sans-serif"}},
+            `Hit target in ${allTime.agg.targetHitMonths} of ${allTime.agg.targetEligibleMonths} months`
+          )
+        ),
+        allTime.agg.bestMonth ? React.createElement(Card,{style:{padding:"12px 14px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:10}},
+          React.createElement('span',{style:{fontSize:11.5,fontWeight:600,color:"var(--muted)",fontFamily:"'Outfit',sans-serif"}},"Best month"),
+          React.createElement('span',{style:{fontSize:12.5,fontWeight:800,color:"var(--text)",fontFamily:"'Outfit',sans-serif"}},`${allTime.agg.bestMonth.label} · ${allTime.agg.bestMonth.count} workouts`)
+        ) : null,
+        React.createElement('div',{style:{fontSize:9.5,color:"var(--muted2)",textAlign:"center",lineHeight:1.4,fontFamily:"'Outfit',sans-serif",padding:"0 8px"}},
+          "Across Blocs you share."
+        )
+      );
+
   const startSwipeBack=e=>{
     e.stopPropagation();
     const t=e.touches?.[0];
@@ -420,6 +470,18 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
 	      ),
 	      React.createElement('div',{style:{justifySelf:"end"}},monthSelector)
 	    ),
+	    // Bloc / All time tabs. The Bloc tab is this Bloc's month view; All time
+	    // shows the cross-Bloc stats that used to be reachable only from the
+	    // account profile outside a Bloc.
+	    React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:5,padding:3,borderRadius:12,background:"rgba(8,20,19,.76)",border:"0.5px solid rgba(22,61,54,.72)"}},
+	      [["bloc","This Bloc"],["alltime","All time"]].map(([value,label])=>React.createElement('button',{
+	        key:value,type:"button",onClick:()=>setProfileTab(value),
+	        style:{minHeight:31,borderRadius:9,border:"none",cursor:"pointer",background:profileTab===value?"rgba(78,205,196,.12)":"transparent",color:profileTab===value?"#4ECDC4":"var(--muted)",fontFamily:"'Outfit',sans-serif",fontSize:9.5,fontWeight:900,textTransform:"uppercase",letterSpacing:".055em"}
+	      },label))
+	    ),
+	    profileTab==="alltime"
+	      ? allTimePanel
+	      : React.createElement(React.Fragment,null,
 	    // Sit out banner
 	    notJoinedBanner || sitOutBanner,
 	    // Stats — always show summary cards
@@ -456,6 +518,7 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
 	      )
 	    ),
 	    premiumSection
+	      )
 	  ));
 };
 

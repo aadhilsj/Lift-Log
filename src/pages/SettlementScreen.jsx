@@ -22,7 +22,7 @@ import { buildPaymentTarget } from "../lib/paymentLinks.js";
 
 const FULL_MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
-const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistory, profiles, onSettlementClaimPaid, onSettlementConfirmPaid, onStartNextMonth, onViewProfileMonth}) => {
+const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistory, profiles, onOpenAccount, onSettlementClaimPaid, onSettlementConfirmPaid, onStartNextMonth, onViewProfileMonth}) => {
   const [copiedKey, setCopiedKey] = React.useState(null);
   const [settlementBusy, setSettlementBusy] = React.useState(null);
   const [showStandings, setShowStandings] = React.useState(false);
@@ -314,6 +314,24 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
     };
   };
 
+  // Signpost: payment setup lives on the account surface, but the moment you
+  // realise you need it is here. Only shown to someone who owes and has not
+  // set a handle.
+  const renderPaymentSetupHint = () => {
+    if (!onOpenAccount || outcome === "winner" || !outgoingRows.length) return null;
+    const mine = currentUserId ? profiles?.[currentUserId] : null;
+    if (buildPaymentTarget(mine)) return null;
+    return React.createElement('button',{
+      type:"button", onClick:onOpenAccount,
+      style:{
+        display:"block",margin:"6px auto 0",background:"transparent",border:"none",
+        color:"rgba(78,205,196,.7)",fontSize:9,fontWeight:700,cursor:"pointer",
+        textDecoration:"underline",textUnderlineOffset:"2px",
+        fontFamily:"'Outfit', sans-serif"
+      }
+    },"Set up how people pay you");
+  };
+
   const renderLedger = () => {
     if (isBlocPerfect && soloNames.length === 0) return null;
     if (!incomingRows.length && !outgoingRows.length && soloNames.length === 0) return null;
@@ -366,6 +384,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
               payControl && React.createElement('div',{style:{display:"flex",justifyContent:"center",paddingBottom:3}},payControl)
             );
       }),
+      renderPaymentSetupHint(),
       soloNames.length > 0 && React.createElement('div',{style:{display:"grid",gap:3,marginTop:rows.length?7:0,paddingTop:rows.length?7:0,borderTop:rows.length?"1px solid rgba(78,205,196,.12)":"none"}},
         soloNames.map(name => React.createElement('div',{key:`solo-${name}`,style:{fontSize:10,color:"var(--muted)",fontWeight:700,textAlign:"center",lineHeight:1.35}},
           `${name} — not in stakes this month.`
