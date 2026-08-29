@@ -22,15 +22,18 @@ import {
   getSoloTargetForMonth,
   fmtCurrency,
   getCountedLogs,
+  getMonthPartsFromKey,
   getCountedLogCount,
   isJoinedForMonth
 } from "../lib/appState.js";
 import {
   isMobile
 } from "../lib/utils.js";
-import { Avatar, WorkoutTypeIcon, Bar, Card, SelectField, TargetHitHexIcon, AppIcon } from "../components/primitives.jsx";
+import { Avatar, WorkoutTypeIcon, Bar, Card, TargetHitHexIcon, AppIcon } from "../components/primitives.jsx";
 import { DeleteModal } from "../modals/modals.jsx";
 import { ProfileStatsPanel } from "../components/ProfileStatsPanel.jsx";
+import { ShareSticker } from "../components/ShareSticker.jsx";
+import { buildStickerData } from "../lib/shareSticker.js";
 import { fetchProfileStatsData } from "../lib/api.js";
 import {
   cancelSwipeFrame,
@@ -56,6 +59,7 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
   const currency = groupSettings?.currency || DEFAULT_CURRENCY;
   const [selMonthIdx,setSelMonthIdx]=useState(null); // null = current month
   const [profileTab,setProfileTab]=useState("bloc");
+  const [showShareSticker,setShowShareSticker]=useState(false);
   const [feroStats,setFeroStats]=useState(null);
   const [feroStatsState,setFeroStatsState]=useState("idle"); // idle | loading | ready | error
   const [feroStatsAttempt,setFeroStatsAttempt]=useState(0);
@@ -221,19 +225,33 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
   });
   const selLabel=isCurMonth?`${MONTH_NAMES[CUR_MONTH]} ${CUR_YEAR}`:profileMonthLabel(selHistMonth);
 
-  const monthSelector = React.createElement(SelectField,{
-    value:selMonthIdx??"",
-    onChange:e=>setSelMonthIdx(e.target.value===""?null:Number(e.target.value)),
-    width:96,
-    compact:true,
-    arrowColor:"#4ECDC4",
-    textAlign:"center",
-    inputStyle:{background:"rgba(8,15,15,.48)",border:"1px solid rgba(78,205,196,.18)",color:"var(--text)",fontFamily:"'Outfit',sans-serif",fontSize:10.5,fontWeight:700,letterSpacing:0,padding:"6px 20px 6px 8px",textAlign:"center",boxShadow:"none"},
-    options:[
-      {value:"",label:"This Month"},
-      ...visibleHistoryMonths.map((m,i)=>({value:i,label:profileMonthOptionLabel(m)}))
-    ]
-  });
+  // Months step one tap at a time rather than through a dropdown, which took
+  // two. visibleHistoryMonths is newest-first and null is the current month,
+  // so older means a higher index and newer means a lower one.
+  const olderIdx = selMonthIdx === null ? (visibleHistoryMonths.length ? 0 : null) : (selMonthIdx + 1 < visibleHistoryMonths.length ? selMonthIdx + 1 : null);
+  const newerIdx = selMonthIdx === null ? undefined : (selMonthIdx === 0 ? null : selMonthIdx - 1);
+  const stepMonth = target => { if (target !== undefined) setSelMonthIdx(target); };
+  const monthArrow = (direction, target, label) => React.createElement('button',{
+    type:"button",
+    onClick:()=>stepMonth(target),
+    disabled:target === undefined,
+    "aria-label":label,
+    style:{
+      width:22,height:22,flexShrink:0,display:"inline-flex",alignItems:"center",justifyContent:"center",
+      borderRadius:7,border:"none",background:"transparent",padding:0,
+      color: target === undefined ? "rgba(120,150,145,.28)" : "#4ECDC4",
+      cursor: target === undefined ? "default" : "pointer",
+      fontFamily:"'Outfit',sans-serif",fontSize:15,fontWeight:700,lineHeight:1
+    }
+  }, direction);
+  const monthSelector = React.createElement('div',{style:{display:"inline-flex",alignItems:"center",gap:2,justifySelf:"end"}},
+    monthArrow("\u2039", olderIdx === null ? undefined : olderIdx, "Previous month"),
+    React.createElement('span',{style:{
+      minWidth:74,textAlign:"center",fontFamily:"'Outfit',sans-serif",fontSize:11.5,fontWeight:700,
+      color:"var(--text)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"
+    }}, isCurMonth ? "This Month" : profileMonthOptionLabel(selHistMonth)),
+    monthArrow("\u203a", newerIdx, "Next month")
+  );
 
   const sitOutBanner = isExcusedThisMonth
     ? React.createElement('div',{style:{background:"rgba(101,101,122,.12)",border:"1px solid var(--border2)",borderRadius:10,padding:"12px 16px",display:"flex",alignItems:"center",gap:10}},
@@ -326,11 +344,20 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
             userId:memberUserId,
             ownerName:name,
             serverStats:feroStats,
-            loading: !feroStats,
-            scopeNote: feroStats
-              ? `Across all ${feroStats.blocCount === 1 ? "1 Bloc" : `${feroStats.blocCount} Blocs`} ${name} is in.`
-              : ""
+            loading: !feroStats
           });
+
+  // Share is offered on your own closed months only. The sticker is a record of
+  // a finished month, and it is your own record to share.
+  const canShareMonth = isSelf && !isCurMonth && !!selHistMonth;
+  const shareStickerData = React.useMemo(() => {
+    if (!canShareMonth) return null;
+    const counted = getCountedLogs(selHistMonth?.logsByUser?.[name] || []);
+    if (!counted.length) return null;
+    const parts = getMonthPartsFromKey(selHistMonth.key);
+    if (!parts) return null;
+    return buildStickerData(counted, parts.year, parts.monthIndex);
+  }, [canShareMonth, selHistMonth, name]);
 
   const startSwipeBack=e=>{
     e.stopPropagation();
@@ -479,6 +506,11 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
   );
 
   return React.createElement('div',{ref:surfaceRef,onTouchStart:startSwipeBack,onTouchMove:moveSwipeBack,onTouchEnd:endSwipeBack,onTouchCancel:e=>{e.stopPropagation();swipeRef.current={sx:0,sy:0,active:false,mode:null};onSwipeRevealChange?.(false);setDragging(false);resetSwipeTransform();},style:{minHeight:"100dvh",background:"var(--bg-gradient)",backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)",transform:dragXRef.current?`translateX(${dragXRef.current}px)`:"translateX(0)",transition:dragging?"none":"transform .08s ease-out",boxShadow:dragXRef.current?"-18px 0 34px rgba(0,0,0,.28)":"none",willChange:dragging||dragXRef.current?"transform":"auto",touchAction:"pan-y",overscrollBehavior:"contain"}},
+    showShareSticker && shareStickerData && React.createElement(ShareSticker,{
+      data:shareStickerData,
+      monthLabel:selLabel,
+      onClose:()=>setShowShareSticker(false)
+    }),
     deleteTarget && React.createElement(DeleteModal,{log:deleteTarget,onClose:()=>setDeleteTarget(null),onConfirm:async()=>{ const log = deleteTarget; setDeleteTarget(null); await onDeleteLog(log); }}),
     deleteChoices && React.createElement('div',{className:"overlay center-mobile",onClick:()=>setDeleteChoices(null)},
       React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{textAlign:"center",maxWidth:300,padding:"15px 14px"}},
@@ -525,7 +557,19 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
 	      stats.map(renderStatCard)
 	    ),
 		    isJoinedThisMonth&&!isExcusedThisMonth&&React.createElement(Card,{className:"fu4",style:{padding:"13px 14px",background:"radial-gradient(circle at 12% 0%, rgba(255,255,255,.032), transparent 34%), radial-gradient(circle at 88% 100%, rgba(78,205,196,.052), transparent 42%), linear-gradient(180deg, rgba(10,19,19,.98), rgba(7,14,14,.98))",boxShadow:"inset 0 1px 0 rgba(255,255,255,.035), 0 7px 16px rgba(0,0,0,.12)"}},
-	      React.createElement('div',{style:{fontWeight:800,fontSize:14,marginBottom:12}},`${selLabel} · Log`),
+	      React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,marginBottom:12}},
+	        React.createElement('div',{style:{fontWeight:800,fontSize:14}},`${selLabel} · Log`),
+	        shareStickerData ? React.createElement('button',{
+	          type:"button",
+	          onClick:()=>setShowShareSticker(true),
+	          "aria-label":`Share ${selLabel}`,
+	          title:"Share this month",
+	          style:{display:"inline-flex",alignItems:"center",gap:5,flexShrink:0,padding:"6px 11px",borderRadius:999,cursor:"pointer",background:"rgba(78,205,196,.1)",border:"1px solid rgba(78,205,196,.32)",color:"#4ECDC4",fontSize:11,fontWeight:800,fontFamily:"'Outfit',sans-serif"}
+	        },
+	          React.createElement(AppIcon,{name:"share",size:12,stroke:"#4ECDC4"}),
+	          "Share"
+	        ) : null
+	      ),
 	      React.createElement('div',{style:{maxWidth:compactMobile?318:380,margin:"0 auto"}},
 	      React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:2,marginBottom:4}},
 	        ["M","T","W","T","F","S","S"].map((d,i)=>React.createElement('div',{key:i,className:"mono",style:{textAlign:"center",fontSize:9,color:"var(--muted2)",padding:"1px 0"}},d))

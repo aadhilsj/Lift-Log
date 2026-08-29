@@ -185,7 +185,7 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
       ),
       React.createElement(SettlementScreen,{
         group, month:selMonth, currentUser, currentUserId, monthHistory, profiles, onOpenAccount, onSettlementClaimPaid, onSettlementConfirmPaid, onTrackUsage,
-        onViewProfileMonth: (name, monthKey)=>{if(name && name !== currentUser) onTrackUsage?.("other_profile_opened"); setViewPlayer({name, monthKey})},
+        onViewProfileMonth: (name, monthKey)=>{if(name) onTrackUsage?.(name === currentUser ? "own_block_profile_opened" : "other_profile_opened"); setViewPlayer({name, monthKey})},
         onStartNextMonth: onStartNextMonth ? ()=>{ setSelIdx(null); onStartNextMonth(); } : null
       })
     );

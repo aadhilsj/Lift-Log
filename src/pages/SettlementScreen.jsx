@@ -17,6 +17,7 @@ import {
 } from "../lib/appState.js";
 import { Avatar, TrophyIcon } from "../components/primitives.jsx";
 import { ShareSticker } from "../components/ShareSticker.jsx";
+import { MonthCalendarCard } from "../components/MonthCalendarCard.jsx";
 import { buildStickerData } from "../lib/shareSticker.js";
 import { buildPaymentTarget, buildPaymentTargets } from "../lib/paymentLinks.js";
 
@@ -396,11 +397,49 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
   const mvpNames = sortedActive.filter(member => member.count === mvpCount && mvpCount > 0).map(member => member.name);
   const behindRows = activeCounts.map(member => ({...member, miss: Math.max(0, member.target - member.count)})).sort((a,b) => b.miss - a.miss || a.name.localeCompare(b.name));
   const furthestBehind = behindRows[0]?.miss > 0 ? behindRows[0] : null;
-  const fallbackAwardNames = sortedActive.map(member => member.name).filter(Boolean);
+  // Most Diverse: how many different kinds of training someone did, not how
+  // much. Replaces "Most Consistent", which was never computed — it simply
+  // named whoever came second on workout count, which is why it always went
+  // to the same person.
+  const mostDiverse = (() => {
+    const scored = activeCounts.map(member => {
+      const types = new Set(
+        getCountedLogs(month.logsByUser?.[member.name] || [])
+          .map(log => String(log?.type || "").trim())
+          .filter(Boolean)
+      );
+      return { name: member.name, variety: types.size, count: member.count };
+    }).filter(member => member.variety > 1);
+    // A single type is not variety, so nobody wins by default. Ties break on
+    // total workouts, then name, so the result is stable between renders.
+    return scored.sort((a, b) => b.variety - a.variety || b.count - a.count || a.name.localeCompare(b.name))[0] || null;
+  })();
+
+  // Biggest Turnaround: the largest improvement on the member's own previous
+  // month. Also previously uncomputed — it named whoever came third.
+  const biggestTurnaround = (() => {
+    const ordered = [...(monthHistory || [])]
+      .filter(m => m?.key)
+      .sort((a, b) => monthOrder(a.key) - monthOrder(b.key));
+    const index = ordered.findIndex(m => m.key === month.key);
+    const previous = index > 0 ? ordered[index - 1] : null;
+    if (!previous) return null;
+    const gains = activeCounts
+      .map(member => {
+        // Only members present and counted last month can have improved on it.
+        if (previous.excused?.[member.name]) return null;
+        const before = Number(previous.counts?.[member.name] ?? NaN);
+        if (!Number.isFinite(before)) return null;
+        return { name: member.name, gain: member.count - before, before, after: member.count };
+      })
+      .filter(entry => entry && entry.gain > 0);
+    return gains.sort((a, b) => b.gain - a.gain || a.name.localeCompare(b.name))[0] || null;
+  })();
+
   const awardCards = [
     {title:"Bloc Champ", name:mvpNames.length ? mvpNames.join(" & ") : "No winner", detail:mvpNames.length ? workoutsLabel(mvpCount) : "No workouts", tone:"gold", gradient:"linear-gradient(135deg, rgba(245,166,35,.13), rgba(255,224,132,.048))"},
-    {title:"Most Consistent", name:fallbackAwardNames[1] || fallbackAwardNames[0] || "Isira", detail:"Steady all month", tone:"violet", gradient:"linear-gradient(135deg, rgba(135,113,255,.13), rgba(78,112,205,.056))"},
-    {title:"Biggest Turnaround", name:fallbackAwardNames[2] || fallbackAwardNames[0] || "Rahul", detail:"Finished strong", tone:"cyan", gradient:"linear-gradient(135deg, rgba(78,205,196,.115), rgba(71,118,230,.048))"},
+    {title:"Most Diverse", name:mostDiverse ? mostDiverse.name : "No one", detail:mostDiverse ? `${mostDiverse.variety} kinds of training` : "One kind of training", tone:"violet", gradient:"linear-gradient(135deg, rgba(135,113,255,.13), rgba(78,112,205,.056))"},
+    {title:"Biggest Turnaround", name:biggestTurnaround ? biggestTurnaround.name : "No one", detail:biggestTurnaround ? `${biggestTurnaround.before} to ${biggestTurnaround.after} workouts` : "No previous month", tone:"cyan", gradient:"linear-gradient(135deg, rgba(78,205,196,.115), rgba(71,118,230,.048))"},
     {title:"Furthest Behind", name:furthestBehind ? furthestBehind.name : "No one", detail:furthestBehind ? `${furthestBehind.miss} short of target` : "Everyone hit target", tone:furthestBehind ? "red" : "silver", gradient:"linear-gradient(135deg, rgba(185,50,50,.115), rgba(245,166,35,.045))"}
   ];
 
@@ -452,6 +491,26 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
   }, [month.logsByUser, month.key, month.year, month.month, currentUser]);
 
   const stickerMonthLabel = `${selectedMonthName} ${stickerData?.year ?? ""}`.trim();
+
+  // The report's own calendar, from the same counted logs the sticker draws,
+  // so the share button sits beside a preview of what it shares rather than
+  // asking someone to share something unseen.
+  const reportCalendar = React.useMemo(() => {
+    if (!stickerData) return null;
+    const logsByDay = {};
+    for (const log of getCountedLogs(month.logsByUser?.[currentUser] || [])) {
+      const day = Number(String(log?.date || "").split("-")[2]);
+      if (!Number.isFinite(day)) continue;
+      logsByDay[day] = [...(logsByDay[day] || []), log];
+    }
+    const year = stickerData.year;
+    const monthIndex = stickerData.monthIndex;
+    const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+    // Monday-first grid, matching the calendar elsewhere in the app.
+    const firstWeekdayOffset = (new Date(year, monthIndex, 1).getDay() + 6) % 7;
+    return { logsByDay, year, monthIndex, daysInMonth, firstWeekdayOffset };
+  }, [stickerData, month.logsByUser, currentUser]);
+
 
   const handleShare = () => {
     onTrackUsage?.("share_month_clicked");
@@ -508,6 +567,16 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
       ),
       showStandings&&renderLeaderboard()
     ),
+    reportCalendar ? React.createElement(MonthCalendarCard,{
+      title:`${stickerMonthLabel} · Your month`,
+      logsByDay:reportCalendar.logsByDay,
+      year:reportCalendar.year,
+      monthIndex:reportCalendar.monthIndex,
+      daysInMonth:reportCalendar.daysInMonth,
+      firstWeekdayOffset:reportCalendar.firstWeekdayOffset,
+      compact:true,
+      onShare:handleShare
+    }) : null,
     React.createElement('div',{style:{display:"flex",gap:8,paddingTop:2}},
       React.createElement('button',{onClick:handleShare,disabled:outcome!=="missed"&&!stickerData,style:{flex:1,padding:"13px",borderRadius:10,background:"var(--s2)",border:"1px solid var(--border)",color:"var(--text)",fontSize:13,fontWeight:800,opacity:(outcome!=="missed"&&!stickerData)?.5:1}},
         outcome === "missed" ? "View the settlement" : "Share this month"

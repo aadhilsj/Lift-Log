@@ -15,7 +15,7 @@ const weekOf = value => {
 const monthOf = value => calendarDate(value, {month:"long",year:"numeric"}) || "This Month";
 const usageLabels = {
   today_opened:"Today Screen", activity_opened:"Activity Screen", month_opened:"Month Screen", history_opened:"History Screen",
-  own_profile_opened:"Own Main Profile", own_block_profile_opened:"Own Bloc Profile", other_profile_opened:"Other Profiles", mvp_card_opened:"Week's MVP Card",
+  own_profile_opened:"User Settings", own_block_profile_opened:"Profile Screen", other_profile_opened:"Other Profiles", mvp_card_opened:"Week's MVP Card",
   bloc_month_opened:"Bloc Month Card", settings_opened:"Settings", bloc_stream_opened:"Bloc Stream",
   comment_composer_opened:"Comment Composer", reaction_picker_opened:"Reaction Picker",
   share_month_clicked:"Share This Month", monthly_summary_card_clicked:"Monthly Summary Card"

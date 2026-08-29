@@ -177,6 +177,12 @@ const AppIcon = ({name,size=18,stroke="currentColor"}) => {
     React.createElement('path',{d:"M7 8l5-5 5 5"}),
     React.createElement('path',{d:"M7 16l5 5 5-5"})
   );
+  // Share: a sheet with an arrow leaving it, matching the platform idiom.
+  if (name==="share") return React.createElement('svg',common,
+    React.createElement('path',{d:"M12 15V4"}),
+    React.createElement('path',{d:"M8.5 7.5L12 4l3.5 3.5"}),
+    React.createElement('path',{d:"M5 13v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5"})
+  );
   if (name==="activity") return React.createElement('svg',common,
     React.createElement('path',{d:"M4 15h3l2-6 4 10 2-6h5"})
   );
