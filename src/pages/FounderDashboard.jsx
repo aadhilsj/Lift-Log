@@ -104,7 +104,7 @@ const FounderDashboard = ({onClose}) => {
         React.createElement("button", {type:"button",onClick:load,style:{border:0,borderRadius:9,padding:"10px 13px",fontWeight:800,background:"#4ECDC4",color:"#061010",cursor:"pointer"}}, "Try again")
       ),
       status === "ready" && React.createElement(React.Fragment,null,
-        React.createElement("div", {style:{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:6,padding:4,margin:"0 0 14px",borderRadius:11,background:"rgba(255,255,255,.045)"}},
+        React.createElement("div", {style:{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:6,padding:4,margin:"0 0 14px",borderRadius:11,background:"rgba(255,255,255,.045)"}},
           ["overview","growth","usage"].map(item=>React.createElement("button", {type:"button",key:item,onClick:()=>setTab(item),style:{border:0,borderRadius:8,padding:"9px 8px",background:tab===item?"#4ECDC4":"transparent",color:tab===item?"#061010":"var(--muted)",fontSize:11,fontWeight:900,cursor:"pointer",textTransform:"capitalize"}}, item))
         ),
         tab === "overview" && React.createElement(React.Fragment,null,
@@ -185,20 +185,19 @@ const FounderDashboard = ({onClose}) => {
         ),
         tab === "usage" && React.createElement("section", {style:{marginBottom:20}},
           React.createElement("p", {style:{margin:"0 0 12px",fontSize:11,lineHeight:1.45,color:"var(--muted)"}}, "Unique users counts people once. Total uses counts every open or tap."),
-          React.createElement(MetricGroup,{title:"Average Users",columns:3,subtitle:"Across all tracked calendar periods."},
-            React.createElement(Metric,{label:"Average Daily Users",value:dashboard?.usage?.averages?.daily,formatValue:average}),
-            React.createElement(Metric,{label:"Average Weekly Users",value:dashboard?.usage?.averages?.weekly,formatValue:average}),
-            React.createElement(Metric,{label:"Average Monthly Users",value:dashboard?.usage?.averages?.monthly,formatValue:average})
-          ),
           React.createElement("div", {style:{display:"grid",gridTemplateColumns:"repeat(4,minmax(0,1fr))",gap:5,marginBottom:10}},
             ["daily","weekly","monthly","allTime"].map(period=>React.createElement("button", {type:"button",key:period,onClick:()=>setUsagePeriod(period),style:{border:"1px solid rgba(78,205,196,.18)",borderRadius:8,padding:"8px 4px",background:usagePeriod===period?"rgba(78,205,196,.16)":"transparent",color:usagePeriod===period?"var(--text)":"var(--muted)",fontSize:10,fontWeight:900,cursor:"pointer"}}, period === "allTime" ? "All Time" : period.charAt(0).toUpperCase() + period.slice(1)))
           ),
           React.createElement("div", {style:{display:"grid",gap:7}}, Object.entries(usageLabels).map(([eventName,label])=>{
             const metric = usageEvents?.[eventName]?.[usagePeriod] || {};
-            return React.createElement("article", {key:eventName,style:{display:"grid",gridTemplateColumns:"minmax(0,1fr) auto auto",alignItems:"center",gap:8,padding:"10px 12px",borderRadius:11,border:"1px solid rgba(78,205,196,.14)",background:"rgba(11,27,26,.92)",textAlign:"left"}},
+            const averageUsers = dashboard?.usage?.averages?.[eventName]?.[usagePeriod]?.users;
+            const averageUses = dashboard?.usage?.averages?.[eventName]?.[usagePeriod]?.uses;
+            return React.createElement("article", {key:eventName,style:{display:"grid",gridTemplateColumns:"minmax(0,1fr) auto auto auto auto",alignItems:"center",gap:8,padding:"10px 12px",borderRadius:11,border:"1px solid rgba(78,205,196,.14)",background:"rgba(11,27,26,.92)",textAlign:"left"}},
               React.createElement("div", {style:{fontSize:12,fontWeight:800,color:"var(--text)"}}, label),
               React.createElement("div", {style:{textAlign:"right"}}, React.createElement("div", {style:{fontSize:17,fontWeight:900,color:"var(--text)"}}, number(metric.users)), React.createElement("div", {style:{fontSize:9,color:"var(--text-faint)"}}, "Users")),
-              React.createElement("div", {style:{textAlign:"right",minWidth:42}}, React.createElement("div", {style:{fontSize:17,fontWeight:900,color:"var(--text)"}}, number(metric.total)), React.createElement("div", {style:{fontSize:9,color:"var(--text-faint)"}}, "Uses"))
+              React.createElement("div", {style:{textAlign:"right",minWidth:42}}, React.createElement("div", {style:{fontSize:17,fontWeight:900,color:"var(--text)"}}, number(metric.total)), React.createElement("div", {style:{fontSize:9,color:"var(--text-faint)"}}, "Uses")),
+              React.createElement("div", {style:{textAlign:"right",minWidth:52}}, React.createElement("div", {style:{fontSize:17,fontWeight:900,color:"var(--text)"}}, average(averageUsers)), React.createElement("div", {style:{fontSize:9,color:"var(--text-faint)"}}, "Avg Users")),
+              React.createElement("div", {style:{textAlign:"right",minWidth:52}}, React.createElement("div", {style:{fontSize:17,fontWeight:900,color:"var(--text)"}}, average(averageUses)), React.createElement("div", {style:{fontSize:9,color:"var(--text-faint)"}}, "Avg Uses"))
             );
           }))
         )
