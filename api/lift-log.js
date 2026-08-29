@@ -4981,6 +4981,16 @@ async function readCanonicalFounderDashboardUsage() {
   return body && typeof body === "object" && !Array.isArray(body) ? body : {};
 }
 
+async function readCanonicalFounderDashboardUsageAverages() {
+  const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_founder_dashboard_usage_averages", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({})
+  });
+  const body = await response.json();
+  return body && typeof body === "object" && !Array.isArray(body) ? body : {};
+}
+
 async function readCanonicalFounderDashboard() {
   const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_founder_dashboard", {
     method: "POST",
@@ -4989,13 +4999,13 @@ async function readCanonicalFounderDashboard() {
   });
   const body = await response.json();
   if (!body || typeof body !== "object" || Array.isArray(body)) return {};
-  const [rosterAndBlocMetrics, growth, usage] = await Promise.all([readFounderRosterAndActiveBlocs(), readCanonicalFounderDashboardGrowth(), readCanonicalFounderDashboardUsage()]);
+  const [rosterAndBlocMetrics, growth, usage, usageAverages] = await Promise.all([readFounderRosterAndActiveBlocs(), readCanonicalFounderDashboardGrowth(), readCanonicalFounderDashboardUsage(), readCanonicalFounderDashboardUsageAverages()]);
   return {
     ...body,
     accounts: { ...(body.accounts || {}), ...rosterAndBlocMetrics.accounts },
     activeBlocs: rosterAndBlocMetrics.activeBlocs,
     growth,
-    usage
+    usage: { ...usage, averages: usageAverages }
   };
 }
 

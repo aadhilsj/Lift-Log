@@ -185,6 +185,11 @@ const FounderDashboard = ({onClose}) => {
         ),
         tab === "usage" && React.createElement("section", {style:{marginBottom:20}},
           React.createElement("p", {style:{margin:"0 0 12px",fontSize:11,lineHeight:1.45,color:"var(--muted)"}}, "Unique users counts people once. Total uses counts every open or tap."),
+          React.createElement(MetricGroup,{title:"Average Users",columns:3,subtitle:"Across all tracked calendar periods."},
+            React.createElement(Metric,{label:"Average Daily Users",value:dashboard?.usage?.averages?.daily,formatValue:average}),
+            React.createElement(Metric,{label:"Average Weekly Users",value:dashboard?.usage?.averages?.weekly,formatValue:average}),
+            React.createElement(Metric,{label:"Average Monthly Users",value:dashboard?.usage?.averages?.monthly,formatValue:average})
+          ),
           React.createElement("div", {style:{display:"grid",gridTemplateColumns:"repeat(4,minmax(0,1fr))",gap:5,marginBottom:10}},
             ["daily","weekly","monthly","allTime"].map(period=>React.createElement("button", {type:"button",key:period,onClick:()=>setUsagePeriod(period),style:{border:"1px solid rgba(78,205,196,.18)",borderRadius:8,padding:"8px 4px",background:usagePeriod===period?"rgba(78,205,196,.16)":"transparent",color:usagePeriod===period?"var(--text)":"var(--muted)",fontSize:10,fontWeight:900,cursor:"pointer"}}, period === "allTime" ? "All Time" : period.charAt(0).toUpperCase() + period.slice(1)))
           ),
