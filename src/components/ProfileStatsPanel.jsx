@@ -22,13 +22,54 @@ const isoOf = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}
 // `groups` must already be scoped by the caller. ProfilePage passes every Bloc
 // the viewer is in; the in-Bloc member profile passes only the Blocs shared
 // with that member, because readable state never contains anyone else's Blocs.
-const ProfileStatsPanel = ({ groups = [], userId, ownerName = "", accountCreatedAt = null, scopeNote = "" }) => {
+// The server returns raw aggregates; the panel also needs a few derived values
+// the client aggregation computes. Rebuild them here so both paths render
+// identically.
+function mergeServerStats(localAgg, stats) {
+  const weekday = Array.isArray(stats.weekday) && stats.weekday.length === 7 ? stats.weekday : localAgg.weekday;
+  const counts = weekday.map(Number);
+  const max = Math.max(...counts);
+  const min = Math.min(...counts);
+  const bestIdx = max > 0 ? counts.indexOf(max) : -1;
+  const worstIdx = max > 0 && min !== max ? counts.indexOf(min) : -1;
+  const logsByDate = stats.logsByDate && typeof stats.logsByDate === "object" ? stats.logsByDate : localAgg.logsByDate;
+  const bestMonth = stats.bestMonth
+    ? {
+        key: stats.bestMonth.key,
+        count: stats.bestMonth.count,
+        label: FULL_MONTH_NAMES[Number(String(stats.bestMonth.key).slice(5, 7)) - 1] || ""
+      }
+    : null;
+  return {
+    ...localAgg,
+    workoutsLogged: Number(stats.workoutsLogged || 0),
+    blocWins: Number(stats.blocWins || 0),
+    targetHitMonths: Number(stats.targetHitMonths || 0),
+    targetEligibleMonths: Number(stats.targetEligibleMonths || 0),
+    earliestJoined: stats.earliestJoined ?? localAgg.earliestJoined,
+    earliestWorkout: stats.earliestWorkout ?? localAgg.earliestWorkout,
+    weekday: counts,
+    typeMix: stats.typeMix && typeof stats.typeMix === "object" ? stats.typeMix : localAgg.typeMix,
+    logsByDate,
+    anyLogs: Object.keys(logsByDate).length > 0,
+    bestIdx,
+    worstIdx,
+    bestMonth
+  };
+}
+
+const ProfileStatsPanel = ({ groups = [], userId, ownerName = "", accountCreatedAt = null, scopeNote = "", serverStats = null }) => {
   // Section headings are possessive: they read as the viewer's own on the
   // account profile, and as the member's name when viewing someone else.
   const owns = ownerName
     ? `${ownerName}${/s$/i.test(ownerName) ? "'" : "'s"}`
     : "Your";
-  const { myGroups, agg } = buildProfileStats({ groups, userId });
+  // Prefer server-computed stats: they span every Bloc the member is in, which
+  // a client cannot see. The local aggregation stays as the fallback for the
+  // account profile and for any moment the request has not resolved.
+  const local = buildProfileStats({ groups, userId });
+  const myGroups = local.myGroups;
+  const agg = serverStats ? mergeServerStats(local.agg, serverStats) : local.agg;
   // Where the heatmap starts. Defined here rather than by the caller: the
   // heatmap lives in this component, so the value it depends on must too.
   const profileStartTs = agg.earliestWorkout || agg.earliestJoined || Date.parse(accountCreatedAt || "") || null;
@@ -129,7 +170,7 @@ const ProfileStatsPanel = ({ groups = [], userId, ownerName = "", accountCreated
     // Free tier — three stat cards, single row
     React.createElement('div', { style: { display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 6 } },
       statCard("Workouts", React.createElement('div', { style: statVal({ color: "#4ECDC4" }) }, agg.workoutsLogged || 0), null, { elevated: true, icon: React.createElement(WorkoutTypeIcon, { type: "Gym", size: 12 }) }),
-      statCard("Blocs", React.createElement('div', { style: statVal({ color: "var(--text)" }) }, myGroups.length), null, { elevated: true, icon: React.createElement(AppIcon, { name: "group", size: 12, stroke: "currentColor" }) }),
+      statCard("Blocs", React.createElement('div', { style: statVal({ color: "var(--text)" }) }, serverStats ? Number(serverStats.blocCount || 0) : myGroups.length), null, { elevated: true, icon: React.createElement(AppIcon, { name: "group", size: 12, stroke: "currentColor" }) }),
       statCard("Wins", React.createElement('div', { style: statVal({ color: "var(--text)" }) }, agg.blocWins || 0), null, { elevated: true, icon: React.createElement(AppIcon, { name: "trophy", size: 12, stroke: "currentColor" }) })
     ),
 

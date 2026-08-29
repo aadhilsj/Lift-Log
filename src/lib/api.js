@@ -510,6 +510,15 @@ async function sendOtpData(email, options = {}) {
   return { ok:false, error:"Unable to send code" };
 }
 
+// Cross-Bloc profile stats for one member, computed server-side. The client
+// cannot derive these itself: readable state only ever contains the viewer's
+// own Blocs, so a local aggregation silently shrinks to the shared ones.
+async function fetchProfileStatsData(subjectUserId) {
+  const result = await postApi("profile-stats", { subjectUserId });
+  if (!result.ok) return { ok:false, error: result.error || "Unable to load profile stats" };
+  return { ok:true, stats: result.body || null };
+}
+
 async function checkAuthEmailExistsData(email) {
   const result = await postApi("auth-email-exists", { email }, { auth:false });
   if (!result.ok) return { ok:false, error: result.error || "Unable to check email" };
@@ -800,6 +809,7 @@ function setSupabaseAuthClientPromise(value) {
 }
 
 export {
+  fetchProfileStatsData,
   setSupabaseAuthClientPromise,
   supabaseAuthConfigPromise,
   supabaseAuthClientPromise,

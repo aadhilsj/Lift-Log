@@ -31,6 +31,7 @@ import {
 import { Avatar, WorkoutTypeIcon, Bar, Card, SelectField, TargetHitHexIcon, AppIcon } from "../components/primitives.jsx";
 import { DeleteModal } from "../modals/modals.jsx";
 import { ProfileStatsPanel } from "../components/ProfileStatsPanel.jsx";
+import { fetchProfileStatsData } from "../lib/api.js";
 import {
   cancelSwipeFrame,
   releaseSwipeBack,
@@ -55,6 +56,8 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
   const currency = groupSettings?.currency || DEFAULT_CURRENCY;
   const [selMonthIdx,setSelMonthIdx]=useState(null); // null = current month
   const [profileTab,setProfileTab]=useState("bloc");
+  const [feroStats,setFeroStats]=useState(null);
+  const [feroStatsState,setFeroStatsState]=useState("idle"); // idle | loading | ready | error
   const appliedInitialMonthKeyRef = useRef(null);
   const histReversed=[...monthHistory].reverse();
   const historicalNames=useMemo(
@@ -248,6 +251,20 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
     {label:"Months Won",val:hasHistory?(closedStats.wins||"—"):"—",sub:null,color:hasHistory&&closedStats.wins>0?"var(--gold)":"var(--muted)"},
     {label:"Net",val:hasHistory?(netPL===0?fmtCurrency(0,currency):`${netPL>0?"+":"-"}${fmtCurrency(Math.abs(netPL),currency)}`):"—",sub:null,color:hasHistory?(netPL>0?"var(--green)":netPL<0?"var(--red)":"var(--muted)"):"var(--muted)"},
   ];
+  // Fetch the member's genuine cross-Bloc stats when the tab is first opened.
+  // Deferred rather than fetched on mount so opening a profile stays cheap.
+  useEffect(() => {
+    if (profileTab !== "alltime" || !memberUserId || feroStatsState !== "idle") return undefined;
+    let cancelled = false;
+    setFeroStatsState("loading");
+    fetchProfileStatsData(memberUserId).then(result => {
+      if (cancelled) return;
+      if (result?.ok && result.stats?.ok) { setFeroStats(result.stats); setFeroStatsState("ready"); }
+      else setFeroStatsState("error");
+    }).catch(() => { if (!cancelled) setFeroStatsState("error"); });
+    return () => { cancelled = true; };
+  }, [profileTab, memberUserId, feroStatsState]);
+
   // All-time panel — the exact same component the account profile renders, so
   // the two never diverge visually.
   //
@@ -263,9 +280,15 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
         groups:sharedGroups,
         userId:memberUserId,
         ownerName:name,
-        // Stated once at the top because it governs every figure in the panel,
-        // not just the Blocs count.
-        scopeNote:`Every figure here counts only the ${sharedGroups.length === 1 ? "Bloc" : `${sharedGroups.length} Blocs`} you and ${name} are both in.`
+        serverStats:feroStats,
+        // Once server stats arrive the figures span every Bloc this member is
+        // in. Until then they are the shared-Bloc fallback, and the note says
+        // so rather than overclaiming.
+        scopeNote: feroStats
+          ? `Across all ${feroStats.blocCount === 1 ? "1 Bloc" : `${feroStats.blocCount} Blocs`} ${name} is in.`
+          : feroStatsState === "error"
+            ? `Couldn't load ${name}'s full history, so this counts only the ${sharedGroups.length === 1 ? "Bloc" : `${sharedGroups.length} Blocs`} you share.`
+            : "Loading full history..."
       })
     : React.createElement(Card,{style:{padding:"18px 16px",textAlign:"center",color:"var(--muted)",fontSize:12,fontFamily:"'Outfit',sans-serif"}},"All-time stats aren't available for this member.");
 
