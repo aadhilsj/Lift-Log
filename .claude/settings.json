@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"$CLAUDE_PROJECT_DIR\" && for f in $CLAUDE_FILE_PATHS; do case \"$f\" in *.js|*.jsx|*.mjs) npx --no-install eslint \"$f\" 2>&1 | head -30 ;; esac; done; exit 0"
+          }
+        ]
+      }
+    ]
+  }
+}
