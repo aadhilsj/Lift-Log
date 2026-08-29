@@ -53,10 +53,11 @@ import {
 import { Avatar, WorkoutTypeIcon, ChevronRightIcon, TargetHitHexIcon, StatusBadge, RankIcon, Bar, Card, AppIcon, PlayerProfileErrorBoundary } from "../components/primitives.jsx";
 import { LogModal, DeleteModal, SitOutModal, SoloModal, NoticeModal } from "../modals/modals.jsx";
 import { PlayerProfile } from "../pages/PlayerProfile.jsx";
+import { buildPaymentTarget } from "../lib/paymentLinks.js";
 
 const FULL_MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
-const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthHistory,saving,onSave,onMultiLog,onLogMutation,clockTick,onViewLastMonth,onSitOutRequest,onSoloRequest,onSettlementClaimPaid,onSettlementConfirmPaid,onSettlementDisputePaid,onOpenSetupReview,navResetToken,showLog,setShowLog}) => {
+const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,logs,excused,monthHistory,saving,onSave,onMultiLog,onLogMutation,clockTick,onViewLastMonth,onSitOutRequest,onSoloRequest,onSettlementClaimPaid,onSettlementConfirmPaid,onSettlementDisputePaid,onOpenSetupReview,navResetToken,showLog,setShowLog}) => {
   const [showExcuse,setShowExcuse]=useState(false);
   const [sitOutSubmitting,setSitOutSubmitting]=useState(false);
   const [sitOutError,setSitOutError]=useState("");
@@ -766,6 +767,34 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
     monthIndex: CUR_MONTH,
     logsByDay: desktopLogsByDay
   });
+  // Pay affordance on a reminder: resolve the receiver's payment target by
+  // auth user id, so the payer can settle at the moment they are reminded
+  // instead of navigating into the month view. Opening it never changes
+  // settlement state; claim/confirm stay manual.
+  const reminderPayControl = card => {
+    if (!card?.isPayer || card.pending) return null;
+    const receiverId = card.receiverAuthUserId;
+    if (!receiverId || !profiles) return null;
+    const target = buildPaymentTarget(profiles[receiverId]);
+    if (!target || target.mode !== "link") return null;
+    return React.createElement('a',{
+      key:`${card.key}:pay`,
+      href:target.url,
+      target:"_blank",
+      rel:"noopener noreferrer",
+      onClick:e=>e.stopPropagation(),
+      "aria-label":`Pay ${card.receiverDisplayName} with ${target.label}`,
+      title:`Pay with ${target.label}`,
+      style:{
+        display:"inline-flex",alignItems:"center",justifyContent:"center",
+        width:20,height:20,borderRadius:5,flexShrink:0,
+        background:target.iconBg||target.brand,color:"#FFFFFF",
+        textDecoration:"none",boxShadow:"0 1px 4px rgba(0,0,0,.3)"
+      }
+    },
+      React.createElement('span',{style:{display:"inline-flex",width:"58%",height:"58%",alignItems:"center",justifyContent:"center"},dangerouslySetInnerHTML:{__html:target.appIcon}})
+    );
+  };
   const settlementReminderSlot = showSettlementReminderSlot && React.createElement(Card,{style:{padding:"9px 10px",display:"flex",flexDirection:"column",gap:6,background:"#0A1412",border:"0.5px solid #163d36",boxShadow:"inset 0 1px 0 rgba(78,205,196,.03)"}},
     React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}},
       React.createElement('span',{className:"lbl",style:{fontSize:8,marginBottom:0,color:"#7DB8B1",fontFamily:"'Outfit', sans-serif",fontWeight:700}},"Settlement reminders"),
@@ -780,6 +809,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,logs,excused,monthH
       React.createElement('div',{style:{minWidth:0,flex:1,fontSize:11,color:"var(--text)",lineHeight:1.25,fontFamily:"'Outfit', sans-serif",fontWeight:500}},card.body),
       React.createElement('div',{style:{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",display:"flex",alignItems:"center",gap:8,flexShrink:0}},
         React.createElement('div',{style:{fontSize:12,fontWeight:600,color:card.amountColor,whiteSpace:"nowrap",fontFamily:"'Outfit', sans-serif"}},fmtCurrency(card.amount, card.currency)),
+        reminderPayControl(card),
         card.secondaryAction && React.createElement('button',{
           onClick:()=>handleSettlementCardAction(card, card.secondaryAction.kind),
           disabled:settlementCardBusy===card.key,

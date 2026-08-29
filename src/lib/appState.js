@@ -854,6 +854,9 @@ function buildSettlementReminderCards(group, currentUserId, currentUserName) {
         receiverDisplayName: pair.receiverDisplayName,
         payerAuthUserId,
         receiverAuthUserId,
+        // Surfaced so Today can offer a Pay affordance only to the person who
+        // actually owes; the receiver must never see a pay button.
+        isPayer,
         amount: pair.amount,
         currency: group?.settings?.currency || pair.currency,
         pending,

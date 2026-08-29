@@ -119,7 +119,13 @@ function isSupportedPaymentProvider(provider) {
 // Parse a handle that is already a URL. Returns the URL only when it is https
 // and on an allowlisted host; otherwise null.
 function parseAllowedUrl(value) {
-  const raw = String(value || "").trim();
+  let raw = String(value || "").trim();
+  // Share sheets and manual copies often drop the scheme. Restore it only for
+  // hosts already on the allowlist, so this cannot widen what becomes a link.
+  if (raw && !/^[a-z][a-z0-9+.-]*:/i.test(raw)) {
+    const host = raw.replace(/^www\./i, "").split(/[/?#]/)[0].toLowerCase();
+    if (ALLOWED_LINK_HOSTS.has(host)) raw = `https://${raw}`;
+  }
   if (!/^https?:\/\//i.test(raw)) return null;
   let url;
   try {

@@ -1,6 +1,6 @@
 import React from "react";
 import { createPortal } from "react-dom";
-import { PAYMENT_PROVIDERS, buildPaymentTarget } from "../lib/paymentLinks.js";
+import { PAYMENT_PROVIDERS, buildPaymentTarget, normalizePaymentHandle } from "../lib/paymentLinks.js";
 const { useState, useEffect, useMemo, useCallback, useRef } = React;
 import {
   DEFAULT_GROUP_TIME_ZONE,
@@ -232,7 +232,8 @@ const SignedOutLanding = ({onCreateAccount,onSignIn}) => (
 const renderPaymentHandleSection = ({
   payProvider, setPayProvider, payHandle, setPayHandle,
   currentPaymentProvider, currentPaymentHandle,
-  onSavePayment, savingPayment, paymentError
+  onSavePayment, savingPayment, paymentError,
+  pasteNotice, onPasteFromClipboard
 }) => {
   const activeDef = PAYMENT_PROVIDERS.find(provider => provider.id === payProvider) || null;
   const trimmedHandle = payHandle.trim();
@@ -294,7 +295,26 @@ const renderPaymentHandleSection = ({
         autoCapitalize:"none", autoCorrect:"off", spellCheck:false,
         style:{width:"100%",background:"var(--s2)",border:"1px solid var(--border)",borderRadius:10,padding:"11px 13px",color:"var(--text)",fontSize:14,outline:"none",boxSizing:"border-box"}
       }),
-      activeDef?.hint && React.createElement('div',{style:{fontSize:10.5,color:"var(--text-faint)",lineHeight:1.4,marginTop:6}},activeDef.hint),
+      // Most people have to leave Fero to fetch their link. Rather than make
+      // them retype it, offer a one-tap paste of whatever they copied.
+      React.createElement('div',{style:{display:"flex",alignItems:"center",gap:8,marginTop:7}},
+        React.createElement('button',{
+          type:"button",
+          onClick:onPasteFromClipboard,
+          style:{
+            display:"inline-flex",alignItems:"center",gap:5,
+            padding:"6px 10px",borderRadius:8,cursor:"pointer",
+            background:"var(--s2)",border:"1px solid var(--border)",
+            color:"var(--text-soft)",fontSize:11,fontWeight:800,
+            fontFamily:"'Outfit', sans-serif"
+          }
+        }, "Paste copied link"),
+        pasteNotice && React.createElement('span',{style:{fontSize:10.5,color:pasteNotice.tone==="error"?"var(--red)":"var(--text-faint)",lineHeight:1.35}},pasteNotice.text)
+      ),
+      React.createElement('div',{style:{fontSize:10.5,color:"var(--text-faint)",lineHeight:1.4,marginTop:6}},
+        `Copy your ${activeDef?.label || "payment"} link in their app, come back, and tap Paste.`
+      ),
+      activeDef?.hint && React.createElement('div',{style:{fontSize:10.5,color:"var(--text-faint)",lineHeight:1.4,marginTop:4}},activeDef.hint),
       preview && preview.mode==="copy" && React.createElement('div',{style:{fontSize:10.5,color:"var(--amber)",lineHeight:1.4,marginTop:6}},
         "This will be shown for copying rather than as a one-tap link."
       )
@@ -312,6 +332,23 @@ const ProfileModal = ({email,onSignOut,onClose,showDisplayName,currentDisplayNam
   const [name,setName]=React.useState(currentDisplayName||"");
   const [payProvider,setPayProvider]=React.useState(currentPaymentProvider||"");
   const [payHandle,setPayHandle]=React.useState(currentPaymentHandle||"");
+  const [pasteNotice,setPasteNotice]=React.useState(null);
+  // Clipboard reads can be refused (permission, insecure context, older
+  // browsers). Failure must never look like a bug: fall back to telling the
+  // user to paste into the field themselves, which always works.
+  const handlePasteFromClipboard = async () => {
+    setPasteNotice(null);
+    try {
+      const text = (await navigator.clipboard.readText() || "").trim();
+      if (!text) { setPasteNotice({tone:"error",text:"Clipboard is empty"}); return; }
+      const cleaned = normalizePaymentHandle(payProvider, text);
+      if (!cleaned) { setPasteNotice({tone:"error",text:"That doesn't look like a link"}); return; }
+      setPayHandle(cleaned);
+      setPasteNotice({tone:"ok",text:"Pasted"});
+    } catch {
+      setPasteNotice({tone:"error",text:"Paste into the field above instead"});
+    }
+  };
   const [showLeaveConfirm,setShowLeaveConfirm]=React.useState(false);
   const [leaving,setLeaving]=React.useState(false);
   const [showDeleteConfirm,setShowDeleteConfirm]=React.useState(false);
@@ -332,7 +369,8 @@ const ProfileModal = ({email,onSignOut,onClose,showDisplayName,currentDisplayNam
       onSavePayment && renderPaymentHandleSection({
         payProvider, setPayProvider, payHandle, setPayHandle,
         currentPaymentProvider, currentPaymentHandle,
-        onSavePayment, savingPayment, paymentError
+        onSavePayment, savingPayment, paymentError,
+        pasteNotice, onPasteFromClipboard: handlePasteFromClipboard
       }),
       showFounderDashboard && !showLeaveConfirm && !showDeleteConfirm && React.createElement('button',{type:"button",onClick:onOpenFounderDashboard,style:{width:"100%",margin:"0 0 14px",padding:"11px 12px",borderRadius:10,border:"1px solid rgba(78,205,196,.35)",background:"rgba(78,205,196,.08)",color:"#4ECDC4",fontSize:12,fontWeight:900,cursor:"pointer"}},"Open founder dashboard"),
       showDisplayName
