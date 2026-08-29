@@ -203,6 +203,46 @@ function buildPaymentTarget(profile) {
   return { mode: "copy", url: "", copyText: normalized, label: def.label, brand: def.brand, onBrand: def.onBrand, logo: def.logo || null, logoAspect: def.logoAspect || 1, appIcon: def.appIcon || null, iconBg: def.iconBg || def.brand || null };
 }
 
+const MAX_PAYMENT_METHODS = 8;
+
+// A profile now carries a list: people hold different apps in different
+// markets, and the payer picks whichever suits them. Normalises whatever the
+// server or an older client supplies, including the retired single
+// provider/handle pair, into one shape.
+function normalizePaymentMethods(profile) {
+  const raw = Array.isArray(profile?.paymentMethods) ? profile.paymentMethods : [];
+  const seen = new Set();
+  const methods = [];
+  for (const entry of raw) {
+    const provider = String(entry?.provider || "").trim().toLowerCase();
+    if (!isSupportedPaymentProvider(provider) || seen.has(provider)) continue;
+    const handle = normalizePaymentHandle(provider, entry?.handle);
+    if (!handle) continue;
+    seen.add(provider);
+    methods.push({ provider, handle });
+    if (methods.length >= MAX_PAYMENT_METHODS) break;
+  }
+  // Legacy single-method profiles keep working until their next save.
+  if (!methods.length) {
+    const provider = String(profile?.paymentProvider || "").trim().toLowerCase();
+    const handle = normalizePaymentHandle(provider, profile?.paymentHandle);
+    if (isSupportedPaymentProvider(provider) && handle) methods.push({ provider, handle });
+  }
+  return methods;
+}
+
+// Every way this person can be paid, in the provider order defined above so
+// the payer sees a stable list.
+function buildPaymentTargets(profile) {
+  const methods = normalizePaymentMethods(profile);
+  const order = PAYMENT_PROVIDER_DEFS.map(def => def.id);
+  return methods
+    .slice()
+    .sort((a, b) => order.indexOf(a.provider) - order.indexOf(b.provider))
+    .map(method => buildPaymentTarget({ paymentProvider: method.provider, paymentHandle: method.handle }))
+    .filter(Boolean);
+}
+
 function describePaymentHandle(profile) {
   const target = buildPaymentTarget(profile);
   if (!target) return "";
@@ -211,6 +251,9 @@ function describePaymentHandle(profile) {
 
 export {
   PAYMENT_PROVIDERS,
+  MAX_PAYMENT_METHODS,
+  normalizePaymentMethods,
+  buildPaymentTargets,
   isSupportedPaymentProvider,
   normalizePaymentHandle,
   buildPaymentTarget,

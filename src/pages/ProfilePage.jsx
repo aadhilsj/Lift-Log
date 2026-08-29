@@ -196,7 +196,7 @@ const ProfilePhotoCropModal = ({ imageSrc, onCancel, onConfirm }) => {
   );
 };
 
-const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, accountCreatedAt, profilePhotoUrl = "", onBack, onSwipeRevealChange, onEditName, onUpdateProfilePhoto, onSignOut, onDeleteAccount, currentPaymentProvider = "", currentPaymentHandle = "", onSavePayment, savingPayment = false, paymentError = "" }) => {
+const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, accountCreatedAt, profilePhotoUrl = "", onBack, onSwipeRevealChange, onEditName, onUpdateProfilePhoto, onSignOut, onDeleteAccount, currentPaymentMethods = [], onSavePayment, savingPayment = false, paymentError = "" }) => {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
@@ -227,7 +227,7 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
   // sibling of a harmless one.
   const accountRows = [
     { label: "Email", value: email || "—", kind: "display" },
-    { label: "Sign Out", kind: "action", tone: "muted", onClick: onSignOut }
+    { label: "Sign out", kind: "action", onClick: onSignOut }
   ];
   const handlePhotoFile = async event => {
     const file = event.target?.files?.[0];
@@ -374,7 +374,7 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
       React.createElement('div', { style: { fontSize: 10, fontWeight: MED, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".1em", marginBottom: 8, paddingLeft: 2 } }, "Payments"),
       React.createElement(Card, { style: { padding: "13px 15px" } },
         React.createElement(PaymentHandleSection, {
-          currentPaymentProvider, currentPaymentHandle,
+          currentPaymentMethods,
           onSavePayment, savingPayment, paymentError
         })
       )
@@ -386,7 +386,9 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
       React.createElement(Card, { style: { overflow: "hidden" } },
         accountRows.map((row, i) => {
               const border = i < accountRows.length - 1 ? "1px solid rgba(255,255,255,.055)" : "none";
-              const valueColor = row.tone === "red" ? "rgba(212,74,74,.9)" : row.tone === "muted" ? "rgba(220,100,100,.7)" : "var(--muted)";
+              // Sign Out is safe and immediate, so it reads as ordinary text
+              // rather than a warning. Only genuinely destructive rows are red.
+              const valueColor = row.tone === "red" ? "rgba(212,74,74,.9)" : "var(--text)";
               if (row.kind === "display") {
                 return React.createElement('div', { key: row.label, style: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "12px 15px", borderBottom: border } },
                   React.createElement('span', { style: { fontSize: 12.5, color: "var(--muted)", fontWeight: MED } }, row.label),
@@ -394,35 +396,33 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
                 );
               }
               return React.createElement('button', { key: row.label, type: "button", onClick: row.onClick, style: { width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "13px 15px", borderBottom: border, background: "transparent", border: "none", cursor: "pointer", textAlign: "left" } },
-                React.createElement('span', { style: { fontSize: 13, color: valueColor, fontWeight: MED } }, row.label),
-                React.createElement(AppIcon, { name: "chevron-right", size: 14, stroke: "var(--muted2)" })
+                React.createElement('span', { style: { fontSize: 13, color: valueColor, fontWeight: MED } }, row.label)
               );
             })
       )
-    )
-    ,
-    // Danger area. Kept visually and structurally apart from Sign Out so an
-    // irreversible action is never one mis-tap from a harmless one. Apple
-    // requires in-app account deletion to be findable, so it stays plainly
-    // labelled rather than hidden behind a submenu.
-    React.createElement('div', { style: { marginTop: 18, paddingTop: 14, borderTop: "1px solid rgba(212,74,74,.16)" } },
-      React.createElement('div', { style: { fontSize: 10, fontWeight: MED, color: "rgba(212,74,74,.72)", textTransform: "uppercase", letterSpacing: ".1em", marginBottom: 8, paddingLeft: 2 } }, "Danger zone"),
-      React.createElement(Card, { style: { padding: "13px 15px", background: "rgba(60,10,10,.22)", border: "1px solid rgba(212,74,74,.2)" } },
-        React.createElement('div', { style: { fontSize: 11.5, fontWeight: REG, color: "var(--muted)", lineHeight: 1.5, marginBottom: 10 } },
-          "Deleting your account removes you from every Bloc and erases your workouts, photos and payment details. This cannot be undone."
-        ),
-        deleteError ? React.createElement('div', { style: { fontSize: 11, fontWeight: REG, color: "var(--red)", marginBottom: 8 } }, deleteError) : null,
-        confirmDelete
-          ? React.createElement('div', { style: { display: "flex", gap: 8 } },
-              React.createElement('button', { type: "button", onClick: () => { setConfirmDelete(false); setDeleteError(""); }, style: { flex: 1, background: "var(--s2)", border: "1px solid var(--border)", color: "var(--muted)", padding: "11px", borderRadius: 9, fontSize: 12.5, fontWeight: REG, cursor: "pointer" } }, "Cancel"),
-              React.createElement('button', { type: "button", disabled: deleting, onClick: async () => { setDeleting(true); setDeleteError(""); const r = await onDeleteAccount?.(); if (r && !r.ok) { setDeleteError(r.error || "Unable to delete account"); setDeleting(false); } }, style: { flex: 1, background: "var(--red-dim)", border: "1px solid rgba(212,74,74,.35)", color: "var(--red)", padding: "11px", borderRadius: 9, fontSize: 12.5, fontWeight: MED, cursor: "pointer" } }, deleting ? "Deleting..." : "Yes, delete")
+    ),
+    // Deleting is quiet by default. A loud red "Danger zone" block shouts at
+    // everyone every visit to guard against something almost nobody does, and
+    // it sat oddly next to Sign Out, which is harmless. The consequences are
+    // explained at the point of decision instead. Apple requires in-app
+    // deletion to be findable, so it stays plainly labelled and unhidden.
+    React.createElement('div', { style: { marginTop: 22, display: "grid", justifyItems: "center", gap: 10 } },
+      confirmDelete
+        ? React.createElement(Card, { style: { width: "100%", padding: "14px 15px", display: "grid", gap: 11, background: "rgba(60,10,10,.2)", border: "1px solid rgba(212,74,74,.22)" } },
+            React.createElement('div', { style: { fontSize: 12.5, fontWeight: REG, color: "rgba(220,170,170,.9)", lineHeight: 1.55 } },
+              "This removes you from every Bloc and erases your workouts, photos and payment details. It cannot be undone."
+            ),
+            deleteError ? React.createElement('div', { style: { fontSize: 11, fontWeight: REG, color: "var(--red)" } }, deleteError) : null,
+            React.createElement('div', { style: { display: "flex", gap: 8 } },
+              React.createElement('button', { type: "button", onClick: () => { setConfirmDelete(false); setDeleteError(""); }, style: { flex: 1, background: "var(--s2)", border: "1px solid var(--border)", color: "var(--text-soft)", padding: "11px", borderRadius: 9, fontSize: 12.5, fontWeight: MED, cursor: "pointer" } }, "Keep my account"),
+              React.createElement('button', { type: "button", disabled: deleting, onClick: async () => { setDeleting(true); setDeleteError(""); const r = await onDeleteAccount?.(); if (r && !r.ok) { setDeleteError(r.error || "Unable to delete account"); setDeleting(false); } }, style: { flex: 1, background: "var(--red-dim)", border: "1px solid rgba(212,74,74,.35)", color: "var(--red)", padding: "11px", borderRadius: 9, fontSize: 12.5, fontWeight: MED, cursor: "pointer" } }, deleting ? "Deleting..." : "Delete forever")
             )
-          : React.createElement('button', {
-              type: "button",
-              onClick: () => { setDeleteError(""); setConfirmDelete(true); },
-              style: { width: "100%", background: "var(--red-dim)", border: "1px solid rgba(212,74,74,.35)", color: "var(--red)", padding: "11px", borderRadius: 9, fontSize: 12.5, fontWeight: MED, cursor: "pointer" }
-            }, "Delete Account")
-      )
+          )
+        : React.createElement('button', {
+            type: "button",
+            onClick: () => { setDeleteError(""); setConfirmDelete(true); },
+            style: { background: "transparent", border: "none", padding: "6px 4px", color: "var(--text-faint)", fontSize: 11.5, fontWeight: REG, cursor: "pointer", textDecoration: "underline", textDecorationColor: "rgba(255,255,255,.14)", textUnderlineOffset: "3px" }
+          }, "Delete account")
     )
   );
 };

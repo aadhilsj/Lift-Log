@@ -589,8 +589,7 @@ function normalizeProfiles(profiles) {
           email,
           displayName: String(profile?.displayName || "").trim(),
           profilePhotoUrl: String(profile?.profilePhotoUrl || "").trim(),
-          paymentProvider: String(profile?.paymentProvider || "").trim().toLowerCase(),
-          paymentHandle: String(profile?.paymentHandle || "").trim(),
+          paymentMethods: normalizePaymentMethodsInput(profile?.paymentMethods) || [],
           createdAt: profile?.createdAt || new Date().toISOString()
         }];
       })
@@ -2225,7 +2224,7 @@ async function syncProfileToCanonical(userId, email, displayName, profilePhotoUr
   const normalizedOptions = profilePhotoUrlOrOptions && typeof profilePhotoUrlOrOptions === "object"
     ? profilePhotoUrlOrOptions
     : options;
-  const { throwOnError = false, paymentProvider = null, paymentHandle = null } = normalizedOptions;
+  const { throwOnError = false, paymentMethods = null } = normalizedOptions;
   try {
     const body = {
       p_auth_user_id: userId,
@@ -2235,14 +2234,11 @@ async function syncProfileToCanonical(userId, email, displayName, profilePhotoUr
     if (profilePhotoUrl !== null) {
       body.p_profile_photo_url = String(profilePhotoUrl || "").trim();
     }
-    // Null means "leave untouched" on the SQL side, so only send these when a
-    // caller explicitly supplies them. Callers that predate payment handles
-    // therefore cannot blank a stored handle.
-    if (paymentProvider !== null) {
-      body.p_payment_provider = String(paymentProvider || "").trim().toLowerCase();
-    }
-    if (paymentHandle !== null) {
-      body.p_payment_handle = String(paymentHandle || "").trim();
+    // Null means "leave untouched" on the SQL side, so only send this when a
+    // caller explicitly supplies it. Callers that predate payment methods
+    // therefore cannot blank a stored list.
+    if (paymentMethods !== null) {
+      body.p_payment_methods = normalizePaymentMethodsInput(paymentMethods) || [];
     }
     await supabaseFetch("/rest/v1/rpc/upsert_ante_core_profile", {
       method: "POST",
@@ -3402,8 +3398,7 @@ async function fetchAnteProfiles() {
         email:       row.email,
         displayName: row.display_name,
         profilePhotoUrl: row.profile_photo_url || "",
-        paymentProvider: row.payment_provider || "",
-        paymentHandle:   row.payment_handle || "",
+        paymentMethods:  Array.isArray(row.payment_methods) ? row.payment_methods : [],
         createdAt:   row.created_at
       }])
     );
@@ -7831,14 +7826,26 @@ function resolveKickTarget(group, targetUserId, targetDisplayName) {
 // never be treated as trusted just because it round-tripped the database.
 const SUPPORTED_PAYMENT_PROVIDERS = new Set(["revolut", "paypal", "vipps"]);
 const MAX_PAYMENT_HANDLE_LENGTH = 200;
+const MAX_PAYMENT_METHODS = 8;
 
-function normalizePaymentProviderInput(value) {
-  const provider = String(value || "").trim().toLowerCase();
-  return SUPPORTED_PAYMENT_PROVIDERS.has(provider) ? provider : "";
-}
-
-function normalizePaymentHandleInput(value) {
-  return String(value || "").trim().slice(0, MAX_PAYMENT_HANDLE_LENGTH);
+// A profile carries a list of methods. The server stores and bounds them; it
+// never resolves a handle to a URL. Link construction and host allowlisting
+// happen at render time in src/lib/paymentLinks.js, so a stored value is never
+// trusted merely because it round-tripped the database.
+function normalizePaymentMethodsInput(value) {
+  if (!Array.isArray(value)) return null;
+  const seen = new Set();
+  const methods = [];
+  for (const entry of value) {
+    const provider = String(entry?.provider || "").trim().toLowerCase();
+    if (!SUPPORTED_PAYMENT_PROVIDERS.has(provider) || seen.has(provider)) continue;
+    const handle = String(entry?.handle || "").trim().slice(0, MAX_PAYMENT_HANDLE_LENGTH);
+    if (!handle) continue;
+    seen.add(provider);
+    methods.push({ provider, handle });
+    if (methods.length >= MAX_PAYMENT_METHODS) break;
+  }
+  return methods;
 }
 
 function applyUpsertProfile(current, payload) {
@@ -7892,15 +7899,12 @@ function applyUpsertProfile(current, payload) {
         email,
         displayName,
         profilePhotoUrl: existing.profilePhotoUrl || "",
-        // Payment handle is optional and independent of the rename path. An
-        // absent key preserves the stored value; an explicit empty string
-        // clears it, which is how the user removes their handle.
-        paymentProvider: normalizePaymentProviderInput(
-          payload?.paymentProvider === undefined ? existing.paymentProvider : payload.paymentProvider
-        ),
-        paymentHandle: normalizePaymentHandleInput(
-          payload?.paymentHandle === undefined ? existing.paymentHandle : payload.paymentHandle
-        ),
+        // Payment methods are optional and independent of the rename path. An
+        // absent key preserves the stored list; an empty array clears it,
+        // which is how the user removes every method.
+        paymentMethods: payload?.paymentMethods === undefined
+          ? (Array.isArray(existing.paymentMethods) ? existing.paymentMethods : [])
+          : (normalizePaymentMethodsInput(payload.paymentMethods) || []),
         createdAt: existing.createdAt || new Date().toISOString()
       }
     },
@@ -7932,8 +7936,7 @@ function applyUpdateProfilePhoto(current, payload) {
         email,
         displayName,
         profilePhotoUrl,
-        paymentProvider: existing.paymentProvider || "",
-        paymentHandle: existing.paymentHandle || "",
+        paymentMethods: Array.isArray(existing.paymentMethods) ? existing.paymentMethods : [],
         createdAt: existing.createdAt || new Date().toISOString()
       }
     },
@@ -9090,12 +9093,9 @@ export default async function handler(req, res) {
             throwOnError: true,
             // Only forward when the client actually sent the key, so a client
             // that predates payment handles cannot blank a stored one.
-            ...(payload?.paymentProvider === undefined
+            ...(payload?.paymentMethods === undefined
               ? {}
-              : { paymentProvider: normalizePaymentProviderInput(payload.paymentProvider) }),
-            ...(payload?.paymentHandle === undefined
-              ? {}
-              : { paymentHandle: normalizePaymentHandleInput(payload.paymentHandle) })
+              : { paymentMethods: normalizePaymentMethodsInput(payload.paymentMethods) || [] })
           }
         );
         for (const [groupId, oldName] of displayNameRepairs) {

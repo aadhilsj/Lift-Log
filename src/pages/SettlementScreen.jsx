@@ -18,7 +18,7 @@ import {
 import { Avatar, TrophyIcon } from "../components/primitives.jsx";
 import { ShareSticker } from "../components/ShareSticker.jsx";
 import { buildStickerData } from "../lib/shareSticker.js";
-import { buildPaymentTarget } from "../lib/paymentLinks.js";
+import { buildPaymentTarget, buildPaymentTargets } from "../lib/paymentLinks.js";
 
 const FULL_MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
@@ -251,55 +251,54 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
     const entry = Object.entries(group?.memberships || {})
       .find(([, membership]) => String(membership?.displayName || "").trim() === name);
     if (!entry) return null;
-    return buildPaymentTarget(profiles[entry[0]]);
+    return buildPaymentTargets(profiles[entry[0]]);
   };
 
   // Opening a payment link never changes settlement state. Fero does not know
   // whether the transfer happened; only the payer and receiver do.
+  // One tappable app icon per method the receiver accepts, so the payer picks
+  // whichever they can actually use. Opening a link never changes settlement
+  // state: only the payer and receiver know whether money moved.
   const renderPayControl = (pair, key) => {
-    const target = paymentTargetFor(pair.receiverDisplayName);
-    if (!target) return null;
-    // Tinted with the provider's brand colour rather than filled with it: this
-    // sits inside a dense ledger row and a solid brand block would shout.
-    const brand = target.brand || "#4ECDC4";
-    const base = {
-      display:"inline-flex",alignItems:"center",justifyContent:"center",gap:4,
-      fontSize:8,fontWeight:800,lineHeight:1,padding:"3px 8px 3px 3px",borderRadius:999,
-      whiteSpace:"nowrap",fontFamily:"'Outfit', sans-serif",
-      background:`color-mix(in srgb, ${brand} 12%, transparent)`,
-      border:`1px solid color-mix(in srgb, ${brand} 45%, transparent)`,
-      color:brand
-    };
-    // A miniature of the provider's app icon, so the payer sees the app they
-    // are about to open. Falls back to the spelled-out provider name when a
-    // provider has no icon.
-    const mark = target.appIcon
-      ? React.createElement('span',{
-          key:"mark","aria-hidden":true,
-          style:{
-            display:"inline-flex",width:13,height:13,flexShrink:0,
-            alignItems:"center",justifyContent:"center",
-            borderRadius:3.5,background:target.iconBg||brand,color:"#FFFFFF"
-          }
+    const targets = paymentTargetFor(pair.receiverDisplayName) || [];
+    if (!targets.length) return null;
+    const tile = (target, index) => {
+      const brand = target.brand || "#4ECDC4";
+      const label = target.mode === "link"
+        ? `Pay ${pair.receiverDisplayName} with ${target.label}`
+        : `Copy ${pair.receiverDisplayName}'s ${target.label} details`;
+      const style = {
+        display:"inline-flex",alignItems:"center",justifyContent:"center",
+        width:19,height:19,borderRadius:5,flexShrink:0,
+        background:target.iconBg||brand,color:"#FFFFFF",
+        border:"none",padding:0,cursor:"pointer",textDecoration:"none",
+        boxShadow:"0 1px 4px rgba(0,0,0,.28)"
+      };
+      const glyph = React.createElement('span',{
+        "aria-hidden":true,
+        style:{display:"inline-flex",width:"58%",height:"58%",alignItems:"center",justifyContent:"center"},
+        dangerouslySetInnerHTML:{__html:target.appIcon}
+      });
+      if (target.mode === "link") {
+        return React.createElement('a',{
+          key:`${key}:pay:${index}`, href:target.url, target:"_blank", rel:"noopener noreferrer",
+          "aria-label":label, title:label, style
+        }, glyph);
+      }
+      const copyKey = `${key}:${index}`;
+      return React.createElement('button',{
+        key:`${key}:pay:${index}`, type:"button", "aria-label":label,
+        title: copiedKey === copyKey ? "Copied" : label,
+        onClick:async()=>{
+          try { await navigator.clipboard.writeText(target.copyText); setCopiedKey(copyKey); setTimeout(()=>setCopiedKey(null),1600); }
+          catch { setCopiedKey(null); }
         },
-          React.createElement('span',{style:{display:"inline-flex",width:"60%",height:"60%",alignItems:"center",justifyContent:"center"},dangerouslySetInnerHTML:{__html:target.appIcon}})
-        )
-      : null;
-    if (target.mode === "link") {
-      return React.createElement('a',{
-        key:`${key}:pay`, href:target.url, target:"_blank", rel:"noopener noreferrer",
-        style:{...base,textDecoration:"none"},
-        "aria-label":`Pay with ${target.label}`
-      }, mark, mark ? "Pay" : `Pay with ${target.label}`);
-    }
-    return React.createElement('button',{
-      key:`${key}:pay`, type:"button",
-      onClick:async()=>{
-        try { await navigator.clipboard.writeText(target.copyText); setCopiedKey(key); setTimeout(()=>setCopiedKey(null),1600); }
-        catch { setCopiedKey(null); }
-      },
-      style:base
-    }, mark, copiedKey===key ? "Copied" : (mark ? "Copy details" : `Copy ${target.label} details`));
+        style:{...style, opacity: copiedKey === copyKey ? 0.55 : 1}
+      }, glyph);
+    };
+    return React.createElement('span',{key:`${key}:pay`,style:{display:"inline-flex",alignItems:"center",gap:5}},
+      targets.map(tile)
+    );
   };
 
   const statusForPair = pair => {

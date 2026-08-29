@@ -1606,8 +1606,7 @@ function normalizeProfiles(profiles) {
           email,
           displayName: String(profile?.displayName || "").trim(),
           profilePhotoUrl: String(profile?.profilePhotoUrl || "").trim(),
-          paymentProvider: String(profile?.paymentProvider || "").trim().toLowerCase(),
-          paymentHandle: String(profile?.paymentHandle || "").trim(),
+          paymentMethods: Array.isArray(profile?.paymentMethods) ? profile.paymentMethods : [],
           createdAt: profile?.createdAt || null
         }];
       })

@@ -53,7 +53,7 @@ import {
 import { Avatar, WorkoutTypeIcon, ChevronRightIcon, TargetHitHexIcon, StatusBadge, RankIcon, Bar, Card, AppIcon, PlayerProfileErrorBoundary } from "../components/primitives.jsx";
 import { LogModal, DeleteModal, SitOutModal, SoloModal, NoticeModal } from "../modals/modals.jsx";
 import { PlayerProfile } from "../pages/PlayerProfile.jsx";
-import { buildPaymentTarget } from "../lib/paymentLinks.js";
+import { buildPaymentTargets } from "../lib/paymentLinks.js";
 import { prefetchProfileStatsData } from "../lib/api.js";
 
 const FULL_MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
@@ -772,41 +772,33 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,logs,excus
   // auth user id, so the payer can settle at the moment they are reminded
   // instead of navigating into the month view. Opening it never changes
   // settlement state; claim/confirm stay manual.
+  // Pay affordance on a reminder: one icon per method the receiver accepts, so
+  // the payer can settle at the moment they are reminded instead of navigating
+  // into the month view. Opening a link never changes settlement state.
   const reminderPayControl = card => {
     if (!card?.isPayer || card.pending) return null;
     const receiverId = card.receiverAuthUserId;
     if (!receiverId || !profiles) return null;
-    const target = buildPaymentTarget(profiles[receiverId]);
-    if (!target || target.mode !== "link") return null;
-    return React.createElement('a',{
-      key:`${card.key}:pay`,
-      href:target.url,
-      target:"_blank",
-      rel:"noopener noreferrer",
-      onClick:e=>e.stopPropagation(),
-      "aria-label":`Pay ${card.receiverDisplayName} with ${target.label}`,
-      title:`Pay with ${target.label}`,
-      style:{
-        display:"inline-flex",alignItems:"center",justifyContent:"center",
-        width:20,height:20,borderRadius:5,flexShrink:0,
-        background:target.iconBg||target.brand,color:"#FFFFFF",
-        textDecoration:"none",boxShadow:"0 1px 4px rgba(0,0,0,.3)"
-      }
-    },
-      React.createElement('span',{style:{display:"inline-flex",width:"58%",height:"58%",alignItems:"center",justifyContent:"center"},dangerouslySetInnerHTML:{__html:target.appIcon}})
+    const targets = buildPaymentTargets(profiles[receiverId]).filter(target => target.mode === "link");
+    if (!targets.length) return null;
+    return React.createElement('span',{key:`${card.key}:pay`,style:{display:"inline-flex",alignItems:"center",gap:4}},
+      targets.map((target,index)=>React.createElement('a',{
+        key:index,
+        href:target.url, target:"_blank", rel:"noopener noreferrer",
+        onClick:e=>e.stopPropagation(),
+        "aria-label":`Pay ${card.receiverDisplayName} with ${target.label}`,
+        title:`Pay with ${target.label}`,
+        style:{
+          display:"inline-flex",alignItems:"center",justifyContent:"center",
+          width:19,height:19,borderRadius:5,flexShrink:0,
+          background:target.iconBg||target.brand,color:"#FFFFFF",
+          textDecoration:"none",boxShadow:"0 1px 4px rgba(0,0,0,.28)"
+        }
+      },
+        React.createElement('span',{"aria-hidden":true,style:{display:"inline-flex",width:"58%",height:"58%",alignItems:"center",justifyContent:"center"},dangerouslySetInnerHTML:{__html:target.appIcon}})
+      ))
     );
   };
-  // Warm co-member profile stats in one round trip while the leaderboard is
-  // being read, so opening a member profile is instant. Best effort only: the
-  // on-demand fetch still covers the real request if this fails or is slow.
-  useEffect(() => {
-    const memberIds = Object.values(currentGroup?.memberships || {})
-      .map(membership => membership?.userId)
-      .filter(id => id && id !== currentUserId);
-    if (!memberIds.length) return;
-    prefetchProfileStatsData(memberIds);
-  }, [currentGroup?.id, currentUserId, currentGroup?.memberships]);
-
   const settlementReminderSlot = showSettlementReminderSlot && React.createElement(Card,{style:{padding:"9px 10px",display:"flex",flexDirection:"column",gap:6,background:"#0A1412",border:"0.5px solid #163d36",boxShadow:"inset 0 1px 0 rgba(78,205,196,.03)"}},
     React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}},
       React.createElement('span',{className:"lbl",style:{fontSize:8,marginBottom:0,color:"#7DB8B1",fontFamily:"'Outfit', sans-serif",fontWeight:700}},"Settlement reminders"),

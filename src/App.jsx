@@ -1434,7 +1434,7 @@ const App = () => {
   };
   // Saving payment details reuses upsert-profile. displayName is required by
   // the action, so send the current one unchanged; only the payment keys move.
-  const handleSavePaymentHandle = async ({ paymentProvider, paymentHandle }) => {
+  const handleSavePaymentHandle = async ({ paymentMethods }) => {
     const displayName = String(profile?.displayName || currentUser || "").trim();
     if (!displayName) { setPaymentError("Set your display name first"); return; }
     setPaymentSaving(true);
@@ -1443,8 +1443,7 @@ const App = () => {
       userId: authSession?.userId,
       email: authSession?.email,
       displayName,
-      paymentProvider,
-      paymentHandle
+      paymentMethods
     });
     setPaymentSaving(false);
     if (!result?.ok) { setPaymentError(result?.error || "Unable to save"); return; }
@@ -2799,7 +2798,7 @@ const App = () => {
     const createdInviteGroup = createdInviteGroupId ? appState.groups?.[createdInviteGroupId] : null;
     return React.createElement(React.Fragment,null,
       showJoinModal && !authStep && React.createElement(JoinGroupModal,{inviteContext,joinCode,setJoinCode,onClose:handleJoinModalClose,onJoin:handleJoinGroup,joining:joiningGroup,error:inviteError,signedIn:true}),
-      showProfileModal && React.createElement(ProfileModal,{email:authSession?.email,onSignOut:handleSwitchUser,onClose:()=>{setProfileError("");setShowProfileModal(false);},currentDisplayName:profile?.displayName||"",onSaveDisplayName:handleSaveProfileFromModal,saving:profileSaving,saveError:profileError,onDeleteAccount:handleDeleteAccount,currentPaymentProvider:profile?.paymentProvider||"",currentPaymentHandle:profile?.paymentHandle||"",onSavePayment:handleSavePaymentHandle,savingPayment:paymentSaving,paymentError:paymentError,showFounderDashboard:founderDashboardAvailable,onOpenFounderDashboard:()=>{setShowProfileModal(false);setShowFounderDashboard(true);}}),
+      showProfileModal && React.createElement(ProfileModal,{email:authSession?.email,onSignOut:handleSwitchUser,onClose:()=>{setProfileError("");setShowProfileModal(false);},currentDisplayName:profile?.displayName||"",onSaveDisplayName:handleSaveProfileFromModal,saving:profileSaving,saveError:profileError,onDeleteAccount:handleDeleteAccount,currentPaymentMethods:profile?.paymentMethods||[],onSavePayment:handleSavePaymentHandle,savingPayment:paymentSaving,paymentError:paymentError,showFounderDashboard:founderDashboardAvailable,onOpenFounderDashboard:()=>{setShowProfileModal(false);setShowFounderDashboard(true);}}),
       createdInviteGroup
         ? React.createElement(CreatedBlocInviteScreen,{group:createdInviteGroup,onContinue:handleContinueFromCreatedInvite})
         : renderGroupSwitcherSurface({ suppressIntro:suppressSwitcherIntro }),
@@ -2817,8 +2816,7 @@ const App = () => {
           onUpdateProfilePhoto:handleUpdateProfilePhoto,
           onSignOut:handleSwitchUser,
           onDeleteAccount:handleDeleteAccount,
-          currentPaymentProvider: effectiveProfile?.paymentProvider || profile?.paymentProvider || "",
-          currentPaymentHandle: effectiveProfile?.paymentHandle || profile?.paymentHandle || "",
+          currentPaymentMethods: effectiveProfile?.paymentMethods || profile?.paymentMethods || [],
           onSavePayment: handleSavePaymentHandle,
           savingPayment: paymentSaving,
           paymentError: paymentError
@@ -2960,7 +2958,7 @@ const App = () => {
 
   return React.createElement(React.Fragment,null,
     showJoinModal && !authStep && React.createElement(JoinGroupModal,{inviteContext,joinCode,setJoinCode,onClose:handleJoinModalClose,onJoin:handleJoinGroup,joining:joiningGroup,error:inviteError,signedIn:true}),
-    showProfileModal && React.createElement(ProfileModal,{email:authSession?.email,onSignOut:handleSwitchUser,onClose:()=>setShowProfileModal(false),showDisplayName:true,currentDisplayName:currentUser,onSaveDisplayName:handleSaveProfileFromModal,saving:profileSaving,saveError:profileError,onLeaveBloc:handleLeaveBloc,onDeleteAccount:handleDeleteAccount,currentPaymentProvider:effectiveProfile?.paymentProvider||"",currentPaymentHandle:effectiveProfile?.paymentHandle||"",onSavePayment:handleSavePaymentHandle,savingPayment:paymentSaving,paymentError:paymentError,showFounderDashboard:founderDashboardAvailable,onOpenFounderDashboard:()=>{setShowProfileModal(false);setShowFounderDashboard(true);}}),
+    showProfileModal && React.createElement(ProfileModal,{email:authSession?.email,onSignOut:handleSwitchUser,onClose:()=>setShowProfileModal(false),showDisplayName:true,currentDisplayName:currentUser,onSaveDisplayName:handleSaveProfileFromModal,saving:profileSaving,saveError:profileError,onLeaveBloc:handleLeaveBloc,onDeleteAccount:handleDeleteAccount,currentPaymentMethods:effectiveProfile?.paymentMethods||[],onSavePayment:handleSavePaymentHandle,savingPayment:paymentSaving,paymentError:paymentError,showFounderDashboard:founderDashboardAvailable,onOpenFounderDashboard:()=>{setShowProfileModal(false);setShowFounderDashboard(true);}}),
     React.createElement(BlocStream,{open:showStream,groupName:currentGroup.name,blocId:currentGroup.id,initialBlocId:streamFocusBlocId,initialScrollTop:streamReturnScrollTop,initialUnreadCount:streamUnreadCount,currentUserId:effectiveAuthSession?.userId,members:Object.values(currentGroup.memberships||{}).map(m=>({id:m.userId,name:m.displayName,photoUrl:appState.profiles?.[m.userId]?.profilePhotoUrl||""})),streamBlocs:visibleGroups.map(group=>({id:group.id,name:group.name,members:Object.values(group.memberships||{}).map(m=>({id:m.userId,name:m.displayName,photoUrl:appState.profiles?.[m.userId]?.profilePhotoUrl||""}))})),onSeasonClosedTap:handleStreamSeasonClosedTap,onUnreadCountChange:(groupId,count)=>{if(groupId===currentGroup.id)setStreamUnreadCount(Number(count)||0);},onOpenLogComments:handleOpenLogComments,onClose:()=>{setShowStream(false);setStreamFocusBlocId(null);setStreamReturnScrollTop(null);refreshStreamUnreadCount(currentGroup.id);}}),
     prorationGroup && React.createElement(ProrationChoiceModal,{
       monthName: getCurrentMonthSummary(prorationGroup).monthName,

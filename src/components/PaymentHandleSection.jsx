@@ -1,23 +1,50 @@
 import React from "react";
-import { PAYMENT_PROVIDERS, buildPaymentTarget, normalizePaymentHandle } from "../lib/paymentLinks.js";
+import { PAYMENT_PROVIDERS, buildPaymentTarget, normalizePaymentHandle, normalizePaymentMethods } from "../lib/paymentLinks.js";
 
-// "How people pay you" — an optional handle shown to Bloc members who owe you
-// after a month closes. Fero stores an opaque string and, at render time,
-// either links to an allowlisted payment host or offers it for copying. It
-// never processes, routes, holds, or verifies a payment, and it never changes
-// settlement status. See src/lib/paymentLinks.js.
-const PaymentHandleSection = ({
-  currentPaymentProvider = "", currentPaymentHandle = "",
-  onSavePayment, savingPayment = false, paymentError = ""
-}) => {
-  const [payProvider, setPayProvider] = React.useState(currentPaymentProvider || "");
-  const [payHandle, setPayHandle] = React.useState(currentPaymentHandle || "");
+// "How people pay you" — the payment methods a member accepts.
+//
+// One row per provider so the whole set is legible at a glance: what is set,
+// what is not, and what the stored value is. A row expands in place to edit.
+// Fero never processes, routes, holds, or verifies a payment; it stores an
+// opaque string and, at render time, either links to an allowlisted host or
+// offers it for copying. Settlement status stays member-confirmed.
+const PaymentHandleSection = ({ currentPaymentMethods = [], onSavePayment, savingPayment = false, paymentError = "" }) => {
+  const saved = React.useMemo(
+    () => normalizePaymentMethods({ paymentMethods: currentPaymentMethods }),
+    [currentPaymentMethods]
+  );
+  const savedFor = provider => saved.find(method => method.provider === provider) || null;
+
+  const [openProvider, setOpenProvider] = React.useState("");
+  const [draft, setDraft] = React.useState("");
   const [pasteNotice, setPasteNotice] = React.useState(null);
+
+  const openRow = provider => {
+    if (openProvider === provider.id) { setOpenProvider(""); return; }
+    setPasteNotice(null);
+    setOpenProvider(provider.id);
+    setDraft(savedFor(provider.id)?.handle || "");
+  };
+
+  const commit = methods => {
+    setOpenProvider("");
+    setPasteNotice(null);
+    onSavePayment({ paymentMethods: methods });
+  };
+
+  const saveRow = provider => {
+    const handle = normalizePaymentHandle(provider.id, draft);
+    if (!handle) return;
+    const next = saved.filter(method => method.provider !== provider.id).concat({ provider: provider.id, handle });
+    commit(next);
+  };
+
+  const removeRow = provider => commit(saved.filter(method => method.provider !== provider.id));
 
   // Custom schemes fail silently when the app is absent, so fall back to the
   // provider's site if we are still here shortly after. Leaving for the app
   // hides the page, which cancels the fallback.
-  const onOpenProviderApp = provider => {
+  const openProviderApp = provider => {
     if (!provider?.appUrl) return;
     setPasteNotice(null);
     let cancelled = false;
@@ -34,126 +61,102 @@ const PaymentHandleSection = ({
   };
 
   // Clipboard reads can be refused (permission, insecure context, older
-  // browsers). Failure must never look like a bug: fall back to telling the
-  // user to paste into the field, which always works.
-  const onPasteFromClipboard = async () => {
+  // browsers). Failure must never look like a bug: fall back to asking the
+  // user to type into the field, which always works.
+  const pasteFromClipboard = async provider => {
     setPasteNotice(null);
     try {
       const text = (await navigator.clipboard.readText() || "").trim();
       if (!text) { setPasteNotice({ tone: "error", text: "Clipboard is empty" }); return; }
-      const cleaned = normalizePaymentHandle(payProvider, text);
+      const cleaned = normalizePaymentHandle(provider.id, text);
       if (!cleaned) { setPasteNotice({ tone: "error", text: "That doesn't look like a link" }); return; }
-      setPayHandle(cleaned);
+      setDraft(cleaned);
       setPasteNotice({ tone: "ok", text: "Pasted" });
     } catch {
-      setPasteNotice({ tone: "error", text: "Paste into the field above instead" });
+      setPasteNotice({ tone: "error", text: "Paste into the field instead" });
     }
   };
 
-  const activeDef = PAYMENT_PROVIDERS.find(provider => provider.id === payProvider) || null;
-  const trimmedHandle = payHandle.trim();
-  const dirty = payProvider !== (currentPaymentProvider || "") || trimmedHandle !== (currentPaymentHandle || "");
-  // Clearing the provider clears the handle, which is how a user removes it.
-  const canSave = !savingPayment && dirty && (!payProvider || trimmedHandle.length > 0);
-  const preview = payProvider && trimmedHandle
-    ? buildPaymentTarget({ paymentProvider: payProvider, paymentHandle: trimmedHandle })
-    : null;
-  // Each provider is rendered as its own app icon: a rounded square filled
-  // with the provider's icon background and the glyph reversed out in white,
-  // the way it looks on a phone home screen. Selection is shown by a ring and
-  // full opacity rather than by changing the icon, so the tile always reads as
-  // that app.
-  const ICON_SIZE = 54;
-  const chipStyle = (provider, active) => ({
-    width:ICON_SIZE, height:ICON_SIZE, padding:0, flexShrink:0,
-    borderRadius:ICON_SIZE * 0.225,
-    background: provider.iconBg || provider.brand,
-    border:"none",
-    cursor:"pointer",
-    display:"flex", alignItems:"center", justifyContent:"center",
-    opacity: active ? 1 : 0.42,
-    boxShadow: active
-      ? `0 0 0 2px var(--s1, #080F0F), 0 0 0 4px ${provider.brand}, 0 6px 14px rgba(0,0,0,.35)`
-      : "0 2px 6px rgba(0,0,0,.25)",
-    transition:"opacity .16s ease, box-shadow .16s ease",
-    WebkitTapHighlightColor:"transparent"
-  });
-  const renderProviderMark = provider => provider.appIcon
-    ? React.createElement('span',{
-        "aria-hidden":true,
-        style:{display:"inline-flex",width:"58%",height:"58%",alignItems:"center",justifyContent:"center",color:"#FFFFFF"},
-        dangerouslySetInnerHTML:{__html:provider.appIcon}
-      })
-    : null;
-  return React.createElement('div',{style:{marginBottom:14}},
-    React.createElement('span',{className:"lbl",style:{marginBottom:6,display:"block"}},"How people pay you"),
-    React.createElement('div',{style:{fontSize:11,color:"var(--text-faint)",lineHeight:1.45,marginBottom:8}},
-      "Optional. Shown only to Bloc members who owe you after a month closes. Fero never handles the money."
-    ),
-    React.createElement('div',{style:{display:"flex",gap:12,marginBottom:10,alignItems:"center"}},
-      PAYMENT_PROVIDERS.map(provider => React.createElement('button',{
-        key:provider.id, type:"button",
-        onClick:()=>{ const next = payProvider===provider.id ? "" : provider.id; setPayProvider(next); if(!next) setPayHandle(""); },
-        style:chipStyle(provider, payProvider===provider.id),
-        "aria-pressed":payProvider===provider.id,
-        "aria-label":provider.label,
-        title:provider.label
+  const icon = (provider, size) => React.createElement('span', {
+    "aria-hidden": true,
+    style: {
+      width: size, height: size, borderRadius: size * 0.225, flexShrink: 0,
+      background: provider.iconBg || provider.brand, color: "#FFFFFF",
+      display: "inline-flex", alignItems: "center", justifyContent: "center"
+    }
+  }, React.createElement('span', {
+    style: { display: "inline-flex", width: "58%", height: "58%", alignItems: "center", justifyContent: "center" },
+    dangerouslySetInnerHTML: { __html: provider.appIcon }
+  }));
+
+  const smallButton = (label, onClick, tone) => React.createElement('button', {
+    type: "button", onClick,
+    style: {
+      padding: "7px 11px", borderRadius: 8, cursor: "pointer", fontSize: 11, fontWeight: 800,
+      fontFamily: "'Outfit', sans-serif", whiteSpace: "nowrap",
+      background: tone === "primary" ? "var(--green)" : "transparent",
+      border: tone === "primary" ? "none" : "1px solid var(--border)",
+      color: tone === "primary" ? "#000" : tone === "danger" ? "rgba(212,74,74,.85)" : "var(--text-soft)"
+    }
+  }, label);
+
+  return React.createElement('div', { style: { display: "grid", gap: 1 } },
+    PAYMENT_PROVIDERS.map((provider, index) => {
+      const method = savedFor(provider.id);
+      const isOpen = openProvider === provider.id;
+      const target = method ? buildPaymentTarget({ paymentProvider: provider.id, paymentHandle: method.handle }) : null;
+      return React.createElement('div', {
+        key: provider.id,
+        style: { borderTop: index === 0 ? "none" : "1px solid rgba(255,255,255,.05)" }
       },
-        renderProviderMark(provider) || provider.label
-      ))
-    ),
-    payProvider && React.createElement(React.Fragment,null,
-      React.createElement('input',{
-        value:payHandle,
-        onChange:e=>setPayHandle(e.target.value),
-        placeholder:activeDef?.placeholder||"",
-        autoCapitalize:"none", autoCorrect:"off", spellCheck:false,
-        style:{width:"100%",background:"var(--s2)",border:"1px solid var(--border)",borderRadius:10,padding:"11px 13px",color:"var(--text)",fontSize:14,outline:"none",boxSizing:"border-box"}
-      }),
-      // Most people have to leave Fero to fetch their link. Rather than make
-      // them retype it, offer a one-tap paste of whatever they copied.
-      React.createElement('div',{style:{display:"flex",alignItems:"center",gap:8,marginTop:7,flexWrap:"wrap"}},
-        activeDef?.appUrl && React.createElement('button',{
-          type:"button",
-          onClick:()=>onOpenProviderApp(activeDef),
-          style:{
-            display:"inline-flex",alignItems:"center",gap:6,
-            padding:"6px 10px",borderRadius:8,cursor:"pointer",
-            background:activeDef.iconBg||activeDef.brand,border:"none",
-            color:"#FFFFFF",fontSize:11,fontWeight:800,
-            fontFamily:"'Outfit', sans-serif"
+        React.createElement('button', {
+          type: "button",
+          onClick: () => openRow(provider),
+          "aria-expanded": isOpen,
+          style: {
+            width: "100%", display: "flex", alignItems: "center", gap: 11, padding: "11px 2px",
+            background: "transparent", border: "none", cursor: "pointer", textAlign: "left"
           }
         },
-          React.createElement('span',{"aria-hidden":true,style:{display:"inline-flex",width:12,height:12,alignItems:"center",justifyContent:"center"},dangerouslySetInnerHTML:{__html:activeDef.appIcon}}),
-          `Open ${activeDef.label}`
+          icon(provider, 32),
+          React.createElement('span', { style: { flex: 1, minWidth: 0, display: "grid", gap: 2 } },
+            React.createElement('span', { style: { fontSize: 13, fontWeight: 700, color: "var(--text)", fontFamily: "'Outfit', sans-serif" } }, provider.label),
+            React.createElement('span', {
+              style: {
+                fontSize: 11, fontWeight: 500, fontFamily: "'Outfit', sans-serif",
+                color: method ? "var(--muted)" : "var(--muted2)",
+                overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap"
+              }
+            }, method ? method.handle : "Not added")
+          ),
+          method && target?.mode === "copy"
+            ? React.createElement('span', { style: { fontSize: 9.5, fontWeight: 700, color: "var(--amber)", fontFamily: "'Outfit', sans-serif" } }, "Copy only")
+            : null,
+          React.createElement('span', { style: { fontSize: 15, color: "var(--muted2)", flexShrink: 0 } }, isOpen ? "−" : method ? "Edit" : "+")
         ),
-        React.createElement('button',{
-          type:"button",
-          onClick:onPasteFromClipboard,
-          style:{
-            display:"inline-flex",alignItems:"center",gap:5,
-            padding:"6px 10px",borderRadius:8,cursor:"pointer",
-            background:"var(--s2)",border:"1px solid var(--border)",
-            color:"var(--text-soft)",fontSize:11,fontWeight:800,
-            fontFamily:"'Outfit', sans-serif"
-          }
-        }, "Paste copied link"),
-        pasteNotice && React.createElement('span',{style:{fontSize:10.5,color:pasteNotice.tone==="error"?"var(--red)":"var(--text-faint)",lineHeight:1.35}},pasteNotice.text)
-      ),
-      React.createElement('div',{style:{fontSize:10.5,color:"var(--text-faint)",lineHeight:1.4,marginTop:6}},
-        `Open ${activeDef?.label || "the app"}, copy your payment link, then come back and tap Paste.`
-      ),
-      activeDef?.hint && React.createElement('div',{style:{fontSize:10.5,color:"var(--text-faint)",lineHeight:1.4,marginTop:4}},activeDef.hint),
-      preview && preview.mode==="copy" && React.createElement('div',{style:{fontSize:10.5,color:"var(--amber)",lineHeight:1.4,marginTop:6}},
-        "This will be shown for copying rather than as a one-tap link."
-      )
-    ),
-    paymentError && React.createElement('div',{style:{fontSize:11,color:"var(--red)",marginTop:8}},paymentError),
-    dirty && React.createElement('button',{
-      type:"button", disabled:!canSave,
-      onClick:()=>onSavePayment({ paymentProvider:payProvider, paymentHandle:payProvider?trimmedHandle:"" }),
-      style:{width:"100%",marginTop:9,background:canSave?"var(--green)":"var(--s3)",color:canSave?"#000":"var(--muted2)",padding:"10px",borderRadius:10,fontSize:13,fontWeight:800,border:"none",cursor:canSave?"pointer":"default"}
-    }, savingPayment ? "Saving..." : (payProvider ? "Save payment details" : "Remove payment details"))
+        isOpen ? React.createElement('div', { style: { display: "grid", gap: 8, padding: "2px 2px 13px" } },
+          React.createElement('input', {
+            value: draft,
+            onChange: event => setDraft(event.target.value),
+            placeholder: provider.placeholder || "",
+            autoCapitalize: "none", autoCorrect: "off", spellCheck: false,
+            style: { width: "100%", background: "var(--s2)", border: "1px solid var(--border)", borderRadius: 10, padding: "11px 13px", color: "var(--text)", fontSize: 14, outline: "none", boxSizing: "border-box" }
+          }),
+          React.createElement('div', { style: { display: "flex", gap: 7, flexWrap: "wrap", alignItems: "center" } },
+            provider.appUrl ? smallButton(`Open ${provider.label}`, () => openProviderApp(provider)) : null,
+            smallButton("Paste", () => pasteFromClipboard(provider)),
+            React.createElement('span', { style: { flex: 1 } }),
+            method ? smallButton("Remove", () => removeRow(provider), "danger") : null,
+            smallButton(savingPayment ? "Saving..." : "Save", () => saveRow(provider), "primary")
+          ),
+          pasteNotice ? React.createElement('div', {
+            style: { fontSize: 10.5, color: pasteNotice.tone === "error" ? "var(--red)" : "var(--text-faint)" }
+          }, pasteNotice.text) : null,
+          provider.hint ? React.createElement('div', { style: { fontSize: 10.5, color: "var(--text-faint)", lineHeight: 1.4 } }, provider.hint) : null
+        ) : null
+      );
+    }),
+    paymentError ? React.createElement('div', { style: { fontSize: 11, color: "var(--red)", paddingTop: 8 } }, paymentError) : null
   );
 };
 
