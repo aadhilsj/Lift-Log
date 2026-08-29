@@ -11,6 +11,9 @@ const DEFAULT_CURRENCY = "NOK";
 const DEFAULT_MIN_RUN_DISTANCE = 3;
 const DEFAULT_DISTANCE_UNIT = "km";
 const DEFAULT_STRAVA_ENABLED = true;
+// One Bloc is capped at 20 members, so this comfortably covers a full roster
+// while bounding the work a single request can ask for.
+const PROFILE_STATS_MAX_SUBJECTS = 40;
 const SETUP_REVIEW_FIELDS = ["feeModel", "acceptedWorkoutTypes", "timeZone"];
 const UNFLAGGED_IMAGE_RETENTION_MS = 72 * 60 * 60 * 1000;
 const RESOLVED_IMAGE_RETENTION_MS = 24 * 60 * 60 * 1000;
@@ -586,8 +589,7 @@ function normalizeProfiles(profiles) {
           email,
           displayName: String(profile?.displayName || "").trim(),
           profilePhotoUrl: String(profile?.profilePhotoUrl || "").trim(),
-          paymentProvider: String(profile?.paymentProvider || "").trim().toLowerCase(),
-          paymentHandle: String(profile?.paymentHandle || "").trim(),
+          paymentMethods: normalizePaymentMethodsInput(profile?.paymentMethods) || [],
           createdAt: profile?.createdAt || new Date().toISOString()
         }];
       })
@@ -2222,7 +2224,7 @@ async function syncProfileToCanonical(userId, email, displayName, profilePhotoUr
   const normalizedOptions = profilePhotoUrlOrOptions && typeof profilePhotoUrlOrOptions === "object"
     ? profilePhotoUrlOrOptions
     : options;
-  const { throwOnError = false, paymentProvider = null, paymentHandle = null } = normalizedOptions;
+  const { throwOnError = false, paymentMethods = null } = normalizedOptions;
   try {
     const body = {
       p_auth_user_id: userId,
@@ -2232,14 +2234,11 @@ async function syncProfileToCanonical(userId, email, displayName, profilePhotoUr
     if (profilePhotoUrl !== null) {
       body.p_profile_photo_url = String(profilePhotoUrl || "").trim();
     }
-    // Null means "leave untouched" on the SQL side, so only send these when a
-    // caller explicitly supplies them. Callers that predate payment handles
-    // therefore cannot blank a stored handle.
-    if (paymentProvider !== null) {
-      body.p_payment_provider = String(paymentProvider || "").trim().toLowerCase();
-    }
-    if (paymentHandle !== null) {
-      body.p_payment_handle = String(paymentHandle || "").trim();
+    // Null means "leave untouched" on the SQL side, so only send this when a
+    // caller explicitly supplies it. Callers that predate payment methods
+    // therefore cannot blank a stored list.
+    if (paymentMethods !== null) {
+      body.p_payment_methods = normalizePaymentMethodsInput(paymentMethods) || [];
     }
     await supabaseFetch("/rest/v1/rpc/upsert_ante_core_profile", {
       method: "POST",
@@ -3399,8 +3398,7 @@ async function fetchAnteProfiles() {
         email:       row.email,
         displayName: row.display_name,
         profilePhotoUrl: row.profile_photo_url || "",
-        paymentProvider: row.payment_provider || "",
-        paymentHandle:   row.payment_handle || "",
+        paymentMethods:  Array.isArray(row.payment_methods) ? row.payment_methods : [],
         createdAt:   row.created_at
       }])
     );
@@ -7898,14 +7896,26 @@ function resolveKickTarget(group, targetUserId, targetDisplayName) {
 // never be treated as trusted just because it round-tripped the database.
 const SUPPORTED_PAYMENT_PROVIDERS = new Set(["revolut", "paypal", "vipps"]);
 const MAX_PAYMENT_HANDLE_LENGTH = 200;
+const MAX_PAYMENT_METHODS = 8;
 
-function normalizePaymentProviderInput(value) {
-  const provider = String(value || "").trim().toLowerCase();
-  return SUPPORTED_PAYMENT_PROVIDERS.has(provider) ? provider : "";
-}
-
-function normalizePaymentHandleInput(value) {
-  return String(value || "").trim().slice(0, MAX_PAYMENT_HANDLE_LENGTH);
+// A profile carries a list of methods. The server stores and bounds them; it
+// never resolves a handle to a URL. Link construction and host allowlisting
+// happen at render time in src/lib/paymentLinks.js, so a stored value is never
+// trusted merely because it round-tripped the database.
+function normalizePaymentMethodsInput(value) {
+  if (!Array.isArray(value)) return null;
+  const seen = new Set();
+  const methods = [];
+  for (const entry of value) {
+    const provider = String(entry?.provider || "").trim().toLowerCase();
+    if (!SUPPORTED_PAYMENT_PROVIDERS.has(provider) || seen.has(provider)) continue;
+    const handle = String(entry?.handle || "").trim().slice(0, MAX_PAYMENT_HANDLE_LENGTH);
+    if (!handle) continue;
+    seen.add(provider);
+    methods.push({ provider, handle });
+    if (methods.length >= MAX_PAYMENT_METHODS) break;
+  }
+  return methods;
 }
 
 function applyUpsertProfile(current, payload) {
@@ -7959,15 +7969,12 @@ function applyUpsertProfile(current, payload) {
         email,
         displayName,
         profilePhotoUrl: existing.profilePhotoUrl || "",
-        // Payment handle is optional and independent of the rename path. An
-        // absent key preserves the stored value; an explicit empty string
-        // clears it, which is how the user removes their handle.
-        paymentProvider: normalizePaymentProviderInput(
-          payload?.paymentProvider === undefined ? existing.paymentProvider : payload.paymentProvider
-        ),
-        paymentHandle: normalizePaymentHandleInput(
-          payload?.paymentHandle === undefined ? existing.paymentHandle : payload.paymentHandle
-        ),
+        // Payment methods are optional and independent of the rename path. An
+        // absent key preserves the stored list; an empty array clears it,
+        // which is how the user removes every method.
+        paymentMethods: payload?.paymentMethods === undefined
+          ? (Array.isArray(existing.paymentMethods) ? existing.paymentMethods : [])
+          : (normalizePaymentMethodsInput(payload.paymentMethods) || []),
         createdAt: existing.createdAt || new Date().toISOString()
       }
     },
@@ -7999,8 +8006,7 @@ function applyUpdateProfilePhoto(current, payload) {
         email,
         displayName,
         profilePhotoUrl,
-        paymentProvider: existing.paymentProvider || "",
-        paymentHandle: existing.paymentHandle || "",
+        paymentMethods: Array.isArray(existing.paymentMethods) ? existing.paymentMethods : [],
         createdAt: existing.createdAt || new Date().toISOString()
       }
     },
@@ -8366,6 +8372,126 @@ function applyDeleteAccount(current, payload) {
   };
 }
 
+// ─── Fero profile: genuine cross-Bloc stats ──────────────────────────────────
+//
+// Readable state is scoped per viewer, so a client can only ever aggregate the
+// Blocs it already holds. That made a member's "all time" figures shrink to the
+// Blocs the viewer happened to share with them, and the same profile showed
+// different numbers to different people. This computes the real totals here,
+// where every Bloc is visible.
+//
+// PRIVACY: aggregate numbers only. Bloc names, member names and per-Bloc splits
+// are never returned. A caller learns how much someone trains, never with whom
+// or where. Access requires sharing at least one Bloc with the subject.
+function buildFeroProfileStats(state, subjectUserId) {
+  const userId = String(subjectUserId || "").trim();
+  if (!userId) return null;
+
+  const membershipsFor = groupId => state.groups?.[groupId]?.memberships?.[userId] || null;
+  const groupIds = Object.keys(state.groups || {}).filter(id => membershipsFor(id));
+
+  let workoutsLogged = 0, blocWins = 0, targetHitMonths = 0, targetEligibleMonths = 0;
+  let earliestJoined = null, earliestWorkout = null;
+  const weekday = [0, 0, 0, 0, 0, 0, 0];
+  const typeMix = {};
+  const dayTypeMax = {};
+  const monthTotals = {};
+
+  const isoOfLog = value => {
+    const m = /^(\d{4}-\d{2}-\d{2})/.exec(String(value || ""));
+    return m ? m[1] : null;
+  };
+
+  for (const groupId of groupIds) {
+    const group = state.groups[groupId];
+    const membership = membershipsFor(groupId);
+    const displayName = String(membership?.displayName || "").trim();
+    if (!displayName) continue;
+
+    const joinedTs = Date.parse(membership?.joinedAt || "");
+    if (Number.isFinite(joinedTs) && (earliestJoined === null || joinedTs < earliestJoined)) {
+      earliestJoined = joinedTs;
+    }
+
+    // Same session logged in several Blocs must not count twice, so per-day and
+    // per-type counts collapse with max() across Blocs, exactly as the client
+    // aggregation does.
+    const groupDayType = {};
+    const tally = logs => {
+      for (const log of Array.isArray(logs) ? logs : []) {
+        if (!isCountedLog(log)) continue;
+        const iso = isoOfLog(log.date);
+        if (!iso) continue;
+        const ts = Date.parse(`${iso}T00:00:00`);
+        if (Number.isFinite(ts) && (earliestWorkout === null || ts < earliestWorkout)) earliestWorkout = ts;
+        const type = WORKOUT_TYPES.includes(log.type) ? log.type : "Other";
+        if (!groupDayType[iso]) groupDayType[iso] = {};
+        groupDayType[iso][type] = (groupDayType[iso][type] || 0) + 1;
+      }
+    };
+
+    tally(group.logs?.[displayName] || []);
+    for (const month of group.monthHistory || []) {
+      tally(month.logsByUser?.[displayName] || []);
+      const target = Number(month?.memberTargets?.[displayName] || month?.settings?.minTarget || DEFAULT_MIN_TARGET);
+      const count = Number(month?.counts?.[displayName] ?? getCountedLogCount(month?.logsByUser?.[displayName] || []));
+      if (month?.excused?.[displayName]) continue;
+      targetEligibleMonths += 1;
+      if (count >= target) targetHitMonths += 1;
+      const activeCounts = Object.keys(month?.counts || {})
+        .filter(name => !month?.excused?.[name])
+        .map(name => ({
+          name,
+          count: Number(month.counts[name] || 0),
+          target: month?.memberTargets?.[name] || month?.settings?.minTarget || DEFAULT_MIN_TARGET
+        }));
+      const penalties = calcPenalties(activeCounts, month?.settings || {});
+      if (penalties.winners.find(w => w.name === displayName)) blocWins += 1;
+    }
+
+    for (const [iso, types] of Object.entries(groupDayType)) {
+      if (!dayTypeMax[iso]) dayTypeMax[iso] = {};
+      for (const [type, count] of Object.entries(types)) {
+        dayTypeMax[iso][type] = Math.max(dayTypeMax[iso][type] || 0, count);
+      }
+    }
+  }
+
+  const logsByDate = {};
+  for (const [iso, types] of Object.entries(dayTypeMax)) {
+    const dayCount = Object.values(types).reduce((sum, n) => sum + n, 0);
+    if (dayCount <= 0) continue;
+    logsByDate[iso] = dayCount;
+    workoutsLogged += dayCount;
+    const date = new Date(`${iso}T00:00:00`);
+    // getDay() indexing (Sun=0), matching the client aggregation. The UI maps
+    // [1,2,3,4,5,6,0] onto Mon-Sun labels, so do not switch this to a
+    // Monday-first index without changing that too.
+    if (!Number.isNaN(date.getTime())) weekday[date.getDay()] += dayCount;
+    const monthKey = iso.slice(0, 7);
+    monthTotals[monthKey] = (monthTotals[monthKey] || 0) + dayCount;
+    for (const [type, n] of Object.entries(types)) typeMix[type] = (typeMix[type] || 0) + n;
+  }
+
+  const bestEntry = Object.entries(monthTotals).sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1))[0] || null;
+
+  return {
+    ok: true,
+    userId,
+    blocCount: groupIds.length,
+    workoutsLogged,
+    blocWins,
+    targetHitMonths,
+    targetEligibleMonths,
+    earliestJoined,
+    earliestWorkout,
+    weekday,
+    typeMix,
+    logsByDate,
+    bestMonth: bestEntry ? { key: bestEntry[0], count: bestEntry[1] } : null
+  };
+}
+
 function buildInviteLeaderboardRows(current, group, target) {
   if (!group) return [];
   const profiles = current?.profiles || {};
@@ -8460,6 +8586,8 @@ async function readJson(req) {
 }
 
 export {
+  // Exported so the parity test can compare it against the client aggregation.
+  buildFeroProfileStats,
   buildWorkoutLogDerivedMoments,
   resolveMemberPaceSnapshotForMonth,
   // Identity guards — exported for the display-name identity test suite.
@@ -8747,6 +8875,47 @@ export default async function handler(req, res) {
         });
       }
 
+      // Cross-Bloc profile stats for one member. Read-only.
+      //
+      // AUTHORISATION: the caller must share at least one Bloc with the
+      // subject. Requesting a stranger returns 403, so this cannot be used to
+      // enumerate arbitrary users. A caller may always request themselves.
+      if (payload?.action === "profile-stats") {
+        // `current` is lazily populated and is still null here, so resolve the
+        // readable state explicitly, as the other read actions do.
+        const auth = await requireAuthenticatedContext(req, payload, await getReadableCurrent());
+        // Accepts one subject or many. The batch form lets a client warm every
+        // member of a Bloc in a single round trip when the leaderboard opens.
+        const requested = Array.isArray(payload?.subjectUserIds)
+          ? payload.subjectUserIds
+          : [payload?.subjectUserId];
+        const subjectUserIds = [...new Set(
+          requested.map(id => String(id || "").trim()).filter(Boolean)
+        )].slice(0, PROFILE_STATS_MAX_SUBJECTS);
+        if (!subjectUserIds.length) {
+          return res.status(400).json({ ok: false, error: "subjectUserId is required" });
+        }
+        // Authorised per subject, never for the batch as a whole, so one
+        // permitted id cannot smuggle in others.
+        const sharesABloc = subjectUserId => subjectUserId === auth.user.id
+          || Object.values(auth.state.groups || {}).some(group =>
+            group?.memberships?.[auth.user.id] && group?.memberships?.[subjectUserId]
+          );
+        const allowed = subjectUserIds.filter(sharesABloc);
+        if (!allowed.length) {
+          return res.status(403).json({ ok: false, error: "Not in a shared Bloc" });
+        }
+        const stats = allowed
+          .map(id => buildFeroProfileStats(auth.state, id))
+          .filter(Boolean);
+        // Single-subject callers keep the original flat response shape.
+        if (!Array.isArray(payload?.subjectUserIds)) {
+          if (!stats.length) return res.status(404).json({ ok: false, error: "No profile found" });
+          return res.status(200).json(stats[0]);
+        }
+        return res.status(200).json({ ok: true, stats });
+      }
+
       if (payload?.action === "invite-context") {
         const readable = await getReadableCurrent();
         return res.status(200).json(await getInviteContextCanonicalFirst(readable, payload));
@@ -9005,12 +9174,9 @@ export default async function handler(req, res) {
             throwOnError: true,
             // Only forward when the client actually sent the key, so a client
             // that predates payment handles cannot blank a stored one.
-            ...(payload?.paymentProvider === undefined
+            ...(payload?.paymentMethods === undefined
               ? {}
-              : { paymentProvider: normalizePaymentProviderInput(payload.paymentProvider) }),
-            ...(payload?.paymentHandle === undefined
-              ? {}
-              : { paymentHandle: normalizePaymentHandleInput(payload.paymentHandle) })
+              : { paymentMethods: normalizePaymentMethodsInput(payload.paymentMethods) || [] })
           }
         );
         for (const [groupId, oldName] of displayNameRepairs) {

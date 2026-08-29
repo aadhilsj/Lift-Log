@@ -1,6 +1,6 @@
 import React from "react";
 import { createPortal } from "react-dom";
-import { PAYMENT_PROVIDERS, buildPaymentTarget } from "../lib/paymentLinks.js";
+import { PaymentHandleSection } from "./PaymentHandleSection.jsx";
 const { useState, useEffect, useMemo, useCallback, useRef } = React;
 import {
   DEFAULT_GROUP_TIME_ZONE,
@@ -224,84 +224,8 @@ const SignedOutLanding = ({onCreateAccount,onSignIn}) => (
 );
 
 
-// "How people pay you" — an optional handle shown to Bloc members who owe you
-// after a month closes. Fero stores an opaque string and, at render time,
-// either links to an allowlisted payment host or offers it for copying. It
-// never processes, routes, holds, or verifies a payment, and it never changes
-// settlement status. See src/lib/paymentLinks.js.
-const renderPaymentHandleSection = ({
-  payProvider, setPayProvider, payHandle, setPayHandle,
-  currentPaymentProvider, currentPaymentHandle,
-  onSavePayment, savingPayment, paymentError
-}) => {
-  const activeDef = PAYMENT_PROVIDERS.find(provider => provider.id === payProvider) || null;
-  const trimmedHandle = payHandle.trim();
-  const dirty = payProvider !== (currentPaymentProvider || "") || trimmedHandle !== (currentPaymentHandle || "");
-  // Clearing the provider clears the handle, which is how a user removes it.
-  const canSave = !savingPayment && dirty && (!payProvider || trimmedHandle.length > 0);
-  const preview = payProvider && trimmedHandle
-    ? buildPaymentTarget({ paymentProvider: payProvider, paymentHandle: trimmedHandle })
-    : null;
-  // Selected chip takes the provider's own brand colour so the row reads as
-  // Revolut/PayPal/Vipps at a glance. Unselected stays neutral so three brand
-  // colours never compete for attention at once.
-  const chipStyle = (provider, active) => ({
-    flex:1, padding:"8px 6px", borderRadius:9, fontSize:12, fontWeight:800, cursor:"pointer",
-    fontFamily:"'Outfit', sans-serif",
-    display:"flex", alignItems:"center", justifyContent:"center", gap:5, minHeight:32,
-    background: active ? provider.brand : "var(--s2)",
-    border: active ? `1px solid ${provider.brand}` : "1px solid var(--border)",
-    color: active ? (provider.onBrand || "#fff") : "var(--muted)"
-  });
-  const renderProviderMark = (provider, active) => provider.logo
-    ? React.createElement('span',{
-        "aria-hidden":true,
-        style:{display:"inline-flex",width:16,height:16,alignItems:"center",justifyContent:"center",color:active?(provider.onBrand||"#fff"):"var(--muted)"},
-        dangerouslySetInnerHTML:{__html:provider.logo}
-      })
-    : null;
-  return React.createElement('div',{style:{marginBottom:14}},
-    React.createElement('span',{className:"lbl",style:{marginBottom:6,display:"block"}},"How people pay you"),
-    React.createElement('div',{style:{fontSize:11,color:"var(--text-faint)",lineHeight:1.45,marginBottom:8}},
-      "Optional. Shown only to Bloc members who owe you after a month closes. Fero never handles the money."
-    ),
-    React.createElement('div',{style:{display:"flex",gap:6,marginBottom:8}},
-      PAYMENT_PROVIDERS.map(provider => React.createElement('button',{
-        key:provider.id, type:"button",
-        onClick:()=>{ const next = payProvider===provider.id ? "" : provider.id; setPayProvider(next); if(!next) setPayHandle(""); },
-        style:chipStyle(provider, payProvider===provider.id),
-        "aria-pressed":payProvider===provider.id
-      },
-        renderProviderMark(provider, payProvider===provider.id),
-        provider.label
-      ))
-    ),
-    payProvider && React.createElement(React.Fragment,null,
-      React.createElement('input',{
-        value:payHandle,
-        onChange:e=>setPayHandle(e.target.value),
-        placeholder:activeDef?.placeholder||"",
-        autoCapitalize:"none", autoCorrect:"off", spellCheck:false,
-        style:{width:"100%",background:"var(--s2)",border:"1px solid var(--border)",borderRadius:10,padding:"11px 13px",color:"var(--text)",fontSize:14,outline:"none",boxSizing:"border-box"}
-      }),
-      activeDef?.hint && React.createElement('div',{style:{fontSize:10.5,color:"var(--text-faint)",lineHeight:1.4,marginTop:6}},activeDef.hint),
-      preview && preview.mode==="copy" && React.createElement('div',{style:{fontSize:10.5,color:"var(--amber)",lineHeight:1.4,marginTop:6}},
-        "This will be shown for copying rather than as a one-tap link."
-      )
-    ),
-    paymentError && React.createElement('div',{style:{fontSize:11,color:"var(--red)",marginTop:8}},paymentError),
-    dirty && React.createElement('button',{
-      type:"button", disabled:!canSave,
-      onClick:()=>onSavePayment({ paymentProvider:payProvider, paymentHandle:payProvider?trimmedHandle:"" }),
-      style:{width:"100%",marginTop:9,background:canSave?"var(--green)":"var(--s3)",color:canSave?"#000":"var(--muted2)",padding:"10px",borderRadius:10,fontSize:13,fontWeight:800,border:"none",cursor:canSave?"pointer":"default"}
-    }, savingPayment ? "Saving..." : (payProvider ? "Save payment details" : "Remove payment details"))
-  );
-};
-
-const ProfileModal = ({email,onSignOut,onClose,showDisplayName,currentDisplayName,onSaveDisplayName,saving,saveError,onLeaveBloc,onDeleteAccount,currentPaymentProvider="",currentPaymentHandle="",onSavePayment,savingPayment=false,paymentError=""}) => {
+const ProfileModal = ({email,onSignOut,onClose,showDisplayName,currentDisplayName,onSaveDisplayName,saving,saveError,onLeaveBloc,onDeleteAccount,currentPaymentMethods=[],onSavePayment,savingPayment=false,paymentError=""}) => {
   const [name,setName]=React.useState(currentDisplayName||"");
-  const [payProvider,setPayProvider]=React.useState(currentPaymentProvider||"");
-  const [payHandle,setPayHandle]=React.useState(currentPaymentHandle||"");
   const [showLeaveConfirm,setShowLeaveConfirm]=React.useState(false);
   const [leaving,setLeaving]=React.useState(false);
   const [showDeleteConfirm,setShowDeleteConfirm]=React.useState(false);
@@ -319,9 +243,8 @@ const ProfileModal = ({email,onSignOut,onClose,showDisplayName,currentDisplayNam
         React.createElement('span',{className:"lbl",style:{marginBottom:6}},"Email"),
         React.createElement('div',{style:{padding:"11px 13px",borderRadius:10,background:"var(--s2)",border:"1px solid var(--border)",fontSize:14,color:"var(--muted)"}},email||"—")
       ),
-      onSavePayment && renderPaymentHandleSection({
-        payProvider, setPayProvider, payHandle, setPayHandle,
-        currentPaymentProvider, currentPaymentHandle,
+      onSavePayment && React.createElement(PaymentHandleSection,{
+        currentPaymentMethods,
         onSavePayment, savingPayment, paymentError
       }),
       showDisplayName

@@ -18,11 +18,11 @@ import {
 import { Avatar, TrophyIcon } from "../components/primitives.jsx";
 import { ShareSticker } from "../components/ShareSticker.jsx";
 import { buildStickerData } from "../lib/shareSticker.js";
-import { buildPaymentTarget } from "../lib/paymentLinks.js";
+import { buildPaymentTarget, buildPaymentTargets } from "../lib/paymentLinks.js";
 
 const FULL_MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
-const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistory, profiles, onSettlementClaimPaid, onSettlementConfirmPaid, onStartNextMonth, onViewProfileMonth, onTrackUsage}) => {
+const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistory, profiles, onOpenAccount, onSettlementClaimPaid, onSettlementConfirmPaid, onStartNextMonth, onViewProfileMonth, onTrackUsage}) => {
   const [copiedKey, setCopiedKey] = React.useState(null);
   const [settlementBusy, setSettlementBusy] = React.useState(null);
   const [showStandings, setShowStandings] = React.useState(false);
@@ -251,42 +251,54 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
     const entry = Object.entries(group?.memberships || {})
       .find(([, membership]) => String(membership?.displayName || "").trim() === name);
     if (!entry) return null;
-    return buildPaymentTarget(profiles[entry[0]]);
+    return buildPaymentTargets(profiles[entry[0]]);
   };
 
   // Opening a payment link never changes settlement state. Fero does not know
   // whether the transfer happened; only the payer and receiver do.
+  // One tappable app icon per method the receiver accepts, so the payer picks
+  // whichever they can actually use. Opening a link never changes settlement
+  // state: only the payer and receiver know whether money moved.
   const renderPayControl = (pair, key) => {
-    const target = paymentTargetFor(pair.receiverDisplayName);
-    if (!target) return null;
-    // Tinted with the provider's brand colour rather than filled with it: this
-    // sits inside a dense ledger row and a solid brand block would shout.
-    const brand = target.brand || "#4ECDC4";
-    const base = {
-      display:"inline-flex",alignItems:"center",justifyContent:"center",gap:4,
-      fontSize:8,fontWeight:800,lineHeight:1,padding:"4px 7px",borderRadius:999,
-      whiteSpace:"nowrap",fontFamily:"'Outfit', sans-serif",
-      background:`color-mix(in srgb, ${brand} 12%, transparent)`,
-      border:`1px solid color-mix(in srgb, ${brand} 45%, transparent)`,
-      color:brand
+    const targets = paymentTargetFor(pair.receiverDisplayName) || [];
+    if (!targets.length) return null;
+    const tile = (target, index) => {
+      const brand = target.brand || "#4ECDC4";
+      const label = target.mode === "link"
+        ? `Pay ${pair.receiverDisplayName} with ${target.label}`
+        : `Copy ${pair.receiverDisplayName}'s ${target.label} details`;
+      const style = {
+        display:"inline-flex",alignItems:"center",justifyContent:"center",
+        width:19,height:19,borderRadius:5,flexShrink:0,
+        background:target.iconBg||brand,color:"#FFFFFF",
+        border:"none",padding:0,cursor:"pointer",textDecoration:"none",
+        boxShadow:"0 1px 4px rgba(0,0,0,.28)"
+      };
+      const glyph = React.createElement('span',{
+        "aria-hidden":true,
+        style:{display:"inline-flex",width:"58%",height:"58%",alignItems:"center",justifyContent:"center"},
+        dangerouslySetInnerHTML:{__html:target.appIcon}
+      });
+      if (target.mode === "link") {
+        return React.createElement('a',{
+          key:`${key}:pay:${index}`, href:target.url, target:"_blank", rel:"noopener noreferrer",
+          "aria-label":label, title:label, style
+        }, glyph);
+      }
+      const copyKey = `${key}:${index}`;
+      return React.createElement('button',{
+        key:`${key}:pay:${index}`, type:"button", "aria-label":label,
+        title: copiedKey === copyKey ? "Copied" : label,
+        onClick:async()=>{
+          try { await navigator.clipboard.writeText(target.copyText); setCopiedKey(copyKey); setTimeout(()=>setCopiedKey(null),1600); }
+          catch { setCopiedKey(null); }
+        },
+        style:{...style, opacity: copiedKey === copyKey ? 0.55 : 1}
+      }, glyph);
     };
-    const mark = target.logo
-      ? React.createElement('span',{key:"mark","aria-hidden":true,style:{display:"inline-flex",width:10,height:10,alignItems:"center",justifyContent:"center"},dangerouslySetInnerHTML:{__html:target.logo}})
-      : null;
-    if (target.mode === "link") {
-      return React.createElement('a',{
-        key:`${key}:pay`, href:target.url, target:"_blank", rel:"noopener noreferrer",
-        style:{...base,textDecoration:"none"}
-      }, mark, `Pay with ${target.label}`);
-    }
-    return React.createElement('button',{
-      key:`${key}:pay`, type:"button",
-      onClick:async()=>{
-        try { await navigator.clipboard.writeText(target.copyText); setCopiedKey(key); setTimeout(()=>setCopiedKey(null),1600); }
-        catch { setCopiedKey(null); }
-      },
-      style:base
-    }, mark, copiedKey===key ? "Copied" : `Copy ${target.label} details`);
+    return React.createElement('span',{key:`${key}:pay`,style:{display:"inline-flex",alignItems:"center",gap:5}},
+      targets.map(tile)
+    );
   };
 
   const statusForPair = pair => {
@@ -299,6 +311,24 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
           ? "Pending confirmation"
           : "Outstanding"
     };
+  };
+
+  // Signpost: payment setup lives on the account surface, but the moment you
+  // realise you need it is here. Only shown to someone who owes and has not
+  // set a handle.
+  const renderPaymentSetupHint = () => {
+    if (!onOpenAccount || outcome === "winner" || !outgoingRows.length) return null;
+    const mine = currentUserId ? profiles?.[currentUserId] : null;
+    if (buildPaymentTarget(mine)) return null;
+    return React.createElement('button',{
+      type:"button", onClick:onOpenAccount,
+      style:{
+        display:"block",margin:"6px auto 0",background:"transparent",border:"none",
+        color:"rgba(78,205,196,.7)",fontSize:9,fontWeight:700,cursor:"pointer",
+        textDecoration:"underline",textUnderlineOffset:"2px",
+        fontFamily:"'Outfit', sans-serif"
+      }
+    },"Set up how people pay you");
   };
 
   const renderLedger = () => {
@@ -353,6 +383,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
               payControl && React.createElement('div',{style:{display:"flex",justifyContent:"center",paddingBottom:3}},payControl)
             );
       }),
+      renderPaymentSetupHint(),
       soloNames.length > 0 && React.createElement('div',{style:{display:"grid",gap:3,marginTop:rows.length?7:0,paddingTop:rows.length?7:0,borderTop:rows.length?"1px solid rgba(78,205,196,.12)":"none"}},
         soloNames.map(name => React.createElement('div',{key:`solo-${name}`,style:{fontSize:10,color:"var(--muted)",fontWeight:700,textAlign:"center",lineHeight:1.35}},
           `${name} — not in stakes this month.`

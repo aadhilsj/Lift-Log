@@ -854,6 +854,9 @@ function buildSettlementReminderCards(group, currentUserId, currentUserName) {
         receiverDisplayName: pair.receiverDisplayName,
         payerAuthUserId,
         receiverAuthUserId,
+        // Surfaced so Today can offer a Pay affordance only to the person who
+        // actually owes; the receiver must never see a pay button.
+        isPayer,
         amount: pair.amount,
         currency: group?.settings?.currency || pair.currency,
         pending,
@@ -1603,8 +1606,7 @@ function normalizeProfiles(profiles) {
           email,
           displayName: String(profile?.displayName || "").trim(),
           profilePhotoUrl: String(profile?.profilePhotoUrl || "").trim(),
-          paymentProvider: String(profile?.paymentProvider || "").trim().toLowerCase(),
-          paymentHandle: String(profile?.paymentHandle || "").trim(),
+          paymentMethods: Array.isArray(profile?.paymentMethods) ? profile.paymentMethods : [],
           createdAt: profile?.createdAt || null
         }];
       })

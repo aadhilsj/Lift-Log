@@ -30,6 +30,8 @@ import {
 } from "../lib/utils.js";
 import { Avatar, WorkoutTypeIcon, Bar, Card, SelectField, TargetHitHexIcon, AppIcon } from "../components/primitives.jsx";
 import { DeleteModal } from "../modals/modals.jsx";
+import { ProfileStatsPanel } from "../components/ProfileStatsPanel.jsx";
+import { fetchProfileStatsData } from "../lib/api.js";
 import {
   cancelSwipeFrame,
   releaseSwipeBack,
@@ -41,7 +43,7 @@ const FULL_MONTH_NAMES = ["January","February","March","April","May","June","Jul
 const profileMonthLabel = month => month ? `${FULL_MONTH_NAMES[month.month] || MONTH_NAMES[month.month]} ${month.year}` : "—";
 const profileMonthOptionLabel = month => month ? `${MONTH_NAMES[month.month]} '${String(month.year).slice(2)}` : "—";
 
-const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChange,groupSettings,onDeleteLog,initialMonthKey}) => {
+const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChange,groupSettings,onDeleteLog,initialMonthKey,memberUserId,currentUserId,visibleGroups,accountCreatedAt,profilePhotoUrl}) => {
   const compactMobile = isMobile();
   const [deleteTarget,setDeleteTarget]=useState(null);
   const [deleteChoices,setDeleteChoices]=useState(null);
@@ -53,6 +55,15 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
   const frameRef=useRef(null);
   const currency = groupSettings?.currency || DEFAULT_CURRENCY;
   const [selMonthIdx,setSelMonthIdx]=useState(null); // null = current month
+  const [profileTab,setProfileTab]=useState("bloc");
+  const [feroStats,setFeroStats]=useState(null);
+  const [feroStatsState,setFeroStatsState]=useState("idle"); // idle | loading | ready | error
+  const [feroStatsAttempt,setFeroStatsAttempt]=useState(0);
+  // Guards one request per member. Deliberately a ref, not state: putting the
+  // status in the effect's dependencies made the status change re-run the
+  // effect, whose cleanup then cancelled the in-flight request, so the result
+  // was discarded and the tab skeletoned forever.
+  const feroStatsRequestedFor = useRef("");
   const appliedInitialMonthKeyRef = useRef(null);
   const histReversed=[...monthHistory].reverse();
   const historicalNames=useMemo(
@@ -244,8 +255,83 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
     {label:"Target",valueNode:needed===0?React.createElement(TargetHitHexIcon,{size:22}):needed,sub:needed===0?"target hit!":`more to go`,subNote:isCurMonth&&currentTargetInfo?.prorationSource==="member"?"joined mid-month":isCurMonth&&currentMonthOverride?.prorated?"prorated":null,color:"#4ECDC4"},
     {label:"Perfect Months",val:perfectMonthStats.count||"—",sub:null,color:"var(--text)"},
     {label:"Months Won",val:hasHistory?(closedStats.wins||"—"):"—",sub:null,color:hasHistory&&closedStats.wins>0?"var(--gold)":"var(--muted)"},
-    {label:"Accountability Score",val:hasHistory?(netPL===0?fmtCurrency(0,currency):`${netPL>0?"+":"-"}${fmtCurrency(Math.abs(netPL),currency)}`):"—",sub:null,color:hasHistory?(netPL>0?"var(--green)":netPL<0?"var(--red)":"var(--muted)"):"var(--muted)"},
+    {label:"Net",val:hasHistory?(netPL===0?fmtCurrency(0,currency):`${netPL>0?"+":"-"}${fmtCurrency(Math.abs(netPL),currency)}`):"—",sub:null,color:hasHistory?(netPL>0?"var(--green)":netPL<0?"var(--red)":"var(--muted)"):"var(--muted)"},
   ];
+  // Viewing yourself needs no request at all: your client already holds every
+  // Bloc you are in, so the local aggregation is already the complete answer.
+  const isSelf = Boolean(memberUserId) && memberUserId === currentUserId;
+
+  // Fetch a member's genuine cross-Bloc stats when the tab is first opened.
+  // Deferred rather than fetched on mount so opening a profile stays cheap;
+  // a prefetch on Bloc open usually means this resolves from cache instantly.
+  useEffect(() => {
+    if (isSelf || profileTab !== "alltime" || !memberUserId) return undefined;
+    const requestKey = `${memberUserId}:${feroStatsAttempt}`;
+    if (feroStatsRequestedFor.current === requestKey) return undefined;
+    feroStatsRequestedFor.current = requestKey;
+    let cancelled = false;
+    setFeroStatsState("loading");
+    fetchProfileStatsData(memberUserId).then(result => {
+      if (cancelled) return;
+      if (result?.ok && result.stats?.ok) { setFeroStats(result.stats); setFeroStatsState("ready"); }
+      else setFeroStatsState("error");
+    }).catch(() => { if (!cancelled) setFeroStatsState("error"); });
+    return () => { cancelled = true; };
+  }, [isSelf, profileTab, memberUserId, feroStatsAttempt]);
+
+  const retryFeroStats = () => {
+    setFeroStats(null);
+    setFeroStatsState("idle");
+    setFeroStatsAttempt(n => n + 1);
+  };
+
+  // All-time panel — the exact same component the account profile renders, so
+  // the two never diverge visually.
+  //
+  // SCOPE: readable state is scoped per viewer, so the client only holds the
+  // viewer's own Blocs. These numbers therefore cover the Blocs the viewer
+  // SHARES with this member, not their whole history. For your own profile
+  // that is every Bloc you are in, matching the account profile exactly.
+  const sharedGroups = (visibleGroups || []).filter(g =>
+    memberUserId ? Object.values(g.memberships || {}).some(m => m.userId === memberUserId) : false
+  );
+  const allTimePanel = !memberUserId
+    ? React.createElement(Card,{style:{padding:"20px 16px",textAlign:"center",color:"var(--muted)",fontSize:12.5,fontFamily:"'Outfit',sans-serif"}},
+        `All-time stats aren't available for ${name}.`)
+    : isSelf
+      // Your own profile: every Bloc is already on the client, so render at once.
+      // No ownerName: headings read "Your Heatmap" rather than your own name
+      // back at you. No scope note either — your own profile spans everything
+      // by definition, so saying so is noise.
+      ? React.createElement(ProfileStatsPanel,{
+          groups:visibleGroups || [],
+          userId:memberUserId,
+          accountCreatedAt
+        })
+      : feroStatsState === "error"
+        // Fail plainly. Falling back to shared-Bloc figures under an "all time"
+        // heading would state a smaller number as if it were the whole story.
+        ? React.createElement(Card,{style:{padding:"20px 16px",display:"grid",gap:11,justifyItems:"center",textAlign:"center"}},
+            React.createElement('div',{style:{fontSize:12.5,color:"var(--muted)",lineHeight:1.5,fontFamily:"'Outfit',sans-serif",maxWidth:250}},
+              `Couldn't load ${name}'s history.`
+            ),
+            React.createElement('button',{
+              type:"button",
+              onClick:retryFeroStats,
+              style:{padding:"8px 16px",borderRadius:9,border:"1px solid rgba(78,205,196,.35)",background:"rgba(78,205,196,.08)",color:"#4ECDC4",fontSize:12,fontWeight:800,cursor:"pointer",fontFamily:"'Outfit',sans-serif"}
+            },"Try again")
+          )
+        : React.createElement(ProfileStatsPanel,{
+            groups:sharedGroups,
+            userId:memberUserId,
+            ownerName:name,
+            serverStats:feroStats,
+            loading: !feroStats,
+            scopeNote: feroStats
+              ? `Across all ${feroStats.blocCount === 1 ? "1 Bloc" : `${feroStats.blocCount} Blocs`} ${name} is in.`
+              : ""
+          });
+
   const startSwipeBack=e=>{
     e.stopPropagation();
     const t=e.touches?.[0];
@@ -420,24 +506,23 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
 	      ),
 	      React.createElement('div',{style:{justifySelf:"end"}},monthSelector)
 	    ),
+	    // Bloc / All time tabs. The Bloc tab is this Bloc's month view; All time
+	    // shows the cross-Bloc stats that used to be reachable only from the
+	    // account profile outside a Bloc.
+	    React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:5,padding:3,borderRadius:12,background:"rgba(8,20,19,.76)",border:"0.5px solid rgba(22,61,54,.72)"}},
+	      [["bloc","This Bloc"],["alltime","All time"]].map(([value,label])=>React.createElement('button',{
+	        key:value,type:"button",onClick:()=>setProfileTab(value),
+	        style:{minHeight:31,borderRadius:9,border:"none",cursor:"pointer",background:profileTab===value?"rgba(78,205,196,.12)":"transparent",color:profileTab===value?"#4ECDC4":"var(--muted)",fontFamily:"'Outfit',sans-serif",fontSize:9.5,fontWeight:900,textTransform:"uppercase",letterSpacing:".055em"}
+	      },label))
+	    ),
+	    profileTab==="alltime"
+	      ? allTimePanel
+	      : React.createElement(React.Fragment,null,
 	    // Sit out banner
 	    notJoinedBanner || sitOutBanner,
 	    // Stats — always show summary cards
 	    isJoinedThisMonth&&!isExcusedThisMonth&&React.createElement('div',{className:"fu2",style:{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}},
 	      stats.map(renderStatCard)
-	    ),
-	    isJoinedThisMonth&&!isExcusedThisMonth&&React.createElement(Card,{className:"fu3",style:{padding:"16px"}},
-		      React.createElement('div',{style:{fontWeight:800,fontSize:14,marginBottom:14}},"Workout Breakdown"),
-	      !hasDetailedLogs
-	        ? React.createElement('div',{style:{color:"var(--muted)",fontSize:13,textAlign:"center",padding:"8px 0"}},"Detailed logs were not saved for this month.")
-	      : selCount===0
-	        ? React.createElement('div',{style:{color:"var(--muted)",fontSize:13,textAlign:"center",padding:"8px 0"}},"No workouts logged yet.")
-	        : workoutBreakdownRows.map(t=>React.createElement('div',{key:t,style:{display:"flex",alignItems:"center",gap:10,marginBottom:9}},
-	            React.createElement('span',{style:{width:22,minWidth:22,height:22,display:"inline-flex",alignItems:"center",justifyContent:"center",color:"#dbe8ff"}},React.createElement(WorkoutTypeIcon,{type:t,size:16})),
-	            React.createElement('div',{style:{minWidth:40,fontSize:13,fontWeight:600}},t),
-	            React.createElement('div',{style:{flex:1}},React.createElement(Bar,{value:tBreak[t],max:maxT,color:t==="Gym"?"#4ECDC4":"#1E4040"})),
-	            React.createElement('span',{className:"mono",style:{fontSize:13,fontWeight:700,minWidth:18,textAlign:"right",color:tBreak[t]>0?"var(--text)":"var(--muted2)"}},tBreak[t])
-	          ))
 	    ),
 		    isJoinedThisMonth&&!isExcusedThisMonth&&React.createElement(Card,{className:"fu4",style:{padding:"13px 14px",background:"radial-gradient(circle at 12% 0%, rgba(255,255,255,.032), transparent 34%), radial-gradient(circle at 88% 100%, rgba(78,205,196,.052), transparent 42%), linear-gradient(180deg, rgba(10,19,19,.98), rgba(7,14,14,.98))",boxShadow:"inset 0 1px 0 rgba(255,255,255,.035), 0 7px 16px rgba(0,0,0,.12)"}},
 	      React.createElement('div',{style:{fontWeight:800,fontSize:14,marginBottom:12}},`${selLabel} · Log`),
@@ -455,7 +540,21 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
 	      )
 	      )
 	    ),
+	    isJoinedThisMonth&&!isExcusedThisMonth&&React.createElement(Card,{className:"fu3",style:{padding:"16px"}},
+		      React.createElement('div',{style:{fontWeight:800,fontSize:14,marginBottom:14}},"Workout Breakdown"),
+	      !hasDetailedLogs
+	        ? React.createElement('div',{style:{color:"var(--muted)",fontSize:13,textAlign:"center",padding:"8px 0"}},"Detailed logs were not saved for this month.")
+	      : selCount===0
+	        ? React.createElement('div',{style:{color:"var(--muted)",fontSize:13,textAlign:"center",padding:"8px 0"}},"No workouts logged yet.")
+	        : workoutBreakdownRows.map(t=>React.createElement('div',{key:t,style:{display:"flex",alignItems:"center",gap:10,marginBottom:9}},
+	            React.createElement('span',{style:{width:22,minWidth:22,height:22,display:"inline-flex",alignItems:"center",justifyContent:"center",color:"#dbe8ff"}},React.createElement(WorkoutTypeIcon,{type:t,size:16})),
+	            React.createElement('div',{style:{minWidth:40,fontSize:13,fontWeight:600}},t),
+	            React.createElement('div',{style:{flex:1}},React.createElement(Bar,{value:tBreak[t],max:maxT,color:t==="Gym"?"#4ECDC4":"#1E4040"})),
+	            React.createElement('span',{className:"mono",style:{fontSize:13,fontWeight:700,minWidth:18,textAlign:"right",color:tBreak[t]>0?"var(--text)":"var(--muted2)"}},tBreak[t])
+	          ))
+	    ),
 	    premiumSection
+	      )
 	  ));
 };
 

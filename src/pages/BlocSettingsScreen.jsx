@@ -102,13 +102,15 @@ const EditableField = ({title,description,children}) => (
   )
 );
 
-const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,saving,onReviewSetup,onReviewSitOut,onReviewSolo,onKickMember,localDevMode=false}) => {
+const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,saving,onReviewSetup,onReviewSitOut,onReviewSolo,onKickMember,onLeaveBloc,localDevMode=false}) => {
   const compactMobile = isMobile();
   const [tab,setTab]=useState("rules");
   const [groupName,setGroupName]=useState(group?.name || "");
   const [settings,setSettings]=useState({...SETTINGS_DEFAULTS,...group?.settings});
   const [submitAttempted,setSubmitAttempted]=useState(false);
   const [confirmKick,setConfirmKick]=useState(null);
+  const [confirmLeave,setConfirmLeave]=useState(false);
+  const [leaving,setLeaving]=useState(false);
   const [kickingUserId,setKickingUserId]=useState(null);
   const [dragX,setDragX]=useState(0);
   const [dragging,setDragging]=useState(false);
@@ -333,6 +335,23 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
     );
   };
 
+  // Leaving is a Bloc action, so it belongs here rather than beside account
+  // deletion in the profile. Keeping the two apart stops an irreversible
+  // account action sitting next to a reversible Bloc one.
+  const renderLeaveBloc = () => onLeaveBloc && React.createElement('div',{style:{marginTop:6,paddingTop:12,borderTop:"1px solid rgba(212,74,74,.14)"}},
+    confirmLeave
+      ? React.createElement('div',{style:{display:"grid",gap:9,padding:"11px 12px",borderRadius:12,background:"rgba(60,10,10,.28)",border:"1px solid rgba(212,74,74,.22)"}},
+          React.createElement('div',{style:{fontSize:11.5,lineHeight:1.5,color:"rgba(220,170,170,.88)",fontFamily:UI_FONT}},
+            `Leave ${group?.name || "this Bloc"}? You'll be removed from this month's stakes. Your account and other Blocs are unaffected.`
+          ),
+          React.createElement('div',{style:{display:"flex",gap:8}},
+            React.createElement('button',{type:"button",onClick:()=>setConfirmLeave(false),style:{flex:1,background:"var(--s2)",border:"1px solid var(--border)",color:"var(--muted)",padding:"10px",borderRadius:9,fontSize:12,fontWeight:700,fontFamily:UI_FONT}},"Cancel"),
+            React.createElement('button',{type:"button",disabled:leaving,onClick:async()=>{setLeaving(true);await onLeaveBloc();setLeaving(false);},style:{flex:1,background:"var(--red-dim)",border:"1px solid rgba(212,74,74,.35)",color:"var(--red)",padding:"10px",borderRadius:9,fontSize:12,fontWeight:800,fontFamily:UI_FONT}},leaving?"Leaving...":"Leave Bloc")
+          )
+        )
+      : React.createElement('button',{type:"button",onClick:()=>setConfirmLeave(true),style:{width:"100%",background:"transparent",border:"1px solid rgba(212,74,74,.24)",color:"rgba(212,74,74,.85)",padding:"10px",borderRadius:9,fontSize:12,fontWeight:800,fontFamily:UI_FONT}},"Leave Bloc")
+  );
+
   const renderMembers = () => (
     React.createElement('div',{style:{display:"grid",gap:8}},
       pendingSitOuts.length>0 && isAdmin && React.createElement('div',{style:{marginBottom:10,padding:"11px 12px",borderRadius:12,background:"#080F0F",border:"0.5px solid #163d36",display:"grid",gap:8}},
@@ -379,7 +398,8 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
           )
         );
       })
-    )
+    ),
+    renderLeaveBloc()
   );
 
   const renderInvite = () => (

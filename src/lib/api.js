@@ -515,6 +515,84 @@ async function sendOtpData(email, options = {}) {
   return { ok:false, error:"Unable to send code" };
 }
 
+// Cross-Bloc profile stats, computed server-side. The client cannot derive
+// these itself: readable state only ever contains the viewer's own Blocs, so a
+// local aggregation silently shrinks to the shared ones.
+//
+// CACHE INVALIDATION: entries are keyed by revision as well as user id. Every
+// mutation bumps ante_core.revision_clock, so a workout logged anywhere gives
+// every entry a new key and the old ones are simply never read again. The
+// revision is global, so this refetches a little more often than strictly
+// needed — the safe direction: an extra request beats a stale workout count.
+const profileStatsCache = new Map();
+let profileStatsRevision = null;
+
+function profileStatsCacheKey(userId, revision) {
+  return `${revision ?? "?"}:${userId}`;
+}
+
+// In-memory only. A reload should always start from fresh numbers.
+function setProfileStatsRevision(revision) {
+  const next = revision ?? null;
+  if (next === profileStatsRevision) return;
+  profileStatsRevision = next;
+  profileStatsCache.clear();
+}
+
+function readCachedProfileStats(subjectUserId) {
+  return profileStatsCache.get(profileStatsCacheKey(subjectUserId, profileStatsRevision)) || null;
+}
+
+// Your own count should move the moment you log, without waiting for a poll.
+function invalidateProfileStatsFor(subjectUserId) {
+  const id = String(subjectUserId || "").trim();
+  if (!id) return;
+  for (const key of [...profileStatsCache.keys()]) {
+    if (key.endsWith(`:${id}`)) profileStatsCache.delete(key);
+  }
+}
+
+function cacheProfileStats(stats) {
+  if (!stats?.userId) return;
+  profileStatsCache.set(profileStatsCacheKey(stats.userId, profileStatsRevision), stats);
+}
+
+// Test seam: lets the cache suite populate entries without a session.
+function __primeProfileStatsCacheForTest(stats) {
+  cacheProfileStats(stats);
+}
+
+async function fetchProfileStatsData(subjectUserId) {
+  const cached = readCachedProfileStats(subjectUserId);
+  if (cached) return { ok:true, stats: cached, cached:true };
+  const result = await postApi("profile-stats", { subjectUserId });
+  if (!result.ok) {
+    // Surfaced in the console so a failure on a real device is diagnosable
+    // without guessing; the UI stays a plain "couldn't load".
+    console.error("profile-stats failed:", result.status || "", result.error || result.body || "");
+    return { ok:false, error: result.error || "Unable to load profile stats" };
+  }
+  cacheProfileStats(result.body);
+  return { ok:true, stats: result.body || null };
+}
+
+// Warms every member of a Bloc in one round trip. Failures are deliberately
+// silent: this is an optimisation, and the on-demand fetch still covers the
+// real request.
+async function prefetchProfileStatsData(subjectUserIds) {
+  const pending = [...new Set((subjectUserIds || []).map(id => String(id || "").trim()).filter(Boolean))]
+    .filter(id => !readCachedProfileStats(id));
+  if (!pending.length) return { ok:true, warmed:0 };
+  try {
+    const result = await postApi("profile-stats", { subjectUserIds: pending });
+    if (!result.ok) return { ok:false, warmed:0 };
+    for (const stats of result.body?.stats || []) cacheProfileStats(stats);
+    return { ok:true, warmed: (result.body?.stats || []).length };
+  } catch {
+    return { ok:false, warmed:0 };
+  }
+}
+
 async function checkAuthEmailExistsData(email) {
   const result = await postApi("auth-email-exists", { email }, { auth:false });
   if (!result.ok) return { ok:false, error: result.error || "Unable to check email" };
@@ -805,6 +883,11 @@ function setSupabaseAuthClientPromise(value) {
 }
 
 export {
+  __primeProfileStatsCacheForTest,
+  prefetchProfileStatsData,
+  setProfileStatsRevision,
+  invalidateProfileStatsFor,
+  fetchProfileStatsData,
   setSupabaseAuthClientPromise,
   supabaseAuthConfigPromise,
   supabaseAuthClientPromise,

@@ -29,7 +29,7 @@ import { SettlementScreen } from "../pages/SettlementScreen.jsx";
 
 const FULL_MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
-const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,currentUserId,initialSelIdx,onStartNextMonth,onSettlementClaimPaid,onSettlementConfirmPaid,onOpenToday,profiles,navResetToken,onTrackUsage}) => {
+const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,currentUserId,initialSelIdx,onStartNextMonth,onSettlementClaimPaid,onSettlementConfirmPaid,onOpenToday,profiles,onOpenAccount,navResetToken,onTrackUsage}) => {
   const [selIdx,setSelIdx]=useState(initialSelIdx ?? null); // null = current month
   const [viewPlayer,setViewPlayer]=useState(null);
   const [showStandings,setShowStandings]=useState(false);
@@ -184,7 +184,7 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
         monthSelector
       ),
       React.createElement(SettlementScreen,{
-        group, month:selMonth, currentUser, currentUserId, monthHistory, profiles, onSettlementClaimPaid, onSettlementConfirmPaid, onTrackUsage,
+        group, month:selMonth, currentUser, currentUserId, monthHistory, profiles, onOpenAccount, onSettlementClaimPaid, onSettlementConfirmPaid, onTrackUsage,
         onViewProfileMonth: (name, monthKey)=>{if(name && name !== currentUser) onTrackUsage?.("other_profile_opened"); setViewPlayer({name, monthKey})},
         onStartNextMonth: onStartNextMonth ? ()=>{ setSelIdx(null); onStartNextMonth(); } : null
       })

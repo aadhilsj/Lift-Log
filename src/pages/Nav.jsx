@@ -65,11 +65,10 @@ const Nav = ({page,setPage,user,groupName,canEditGroup,onOpenSettings,onOpenProf
     React.createElement('div',{style:{display:"flex",alignItems:"center",gap:8}},
       React.createElement(StreamIconButton,{onOpenStream,unreadCount:streamUnreadCount}),
       React.createElement('button',{onClick:onOpenSettings,className:"icon-btn live-icon-btn",title:"Bloc settings"},React.createElement(AppIcon,{name:"settings",size:14})),
-      React.createElement('button',{onClick:onOpenProfile,className:"icon-btn live-icon-btn",title:"Account"},
-        profilePhotoUrl
-          ? React.createElement(Avatar,{name:user||"?",userId:currentUserId,photoUrl:profilePhotoUrl,size:22})
-          : React.createElement(AppIcon,{name:"profile",size:14})
-      )
+      // The in-Bloc account button was removed: account settings live on the
+      // Bloc Switcher, and your own profile is reached by tapping yourself on
+      // the leaderboard. Keeping it here duplicated both.
+      null
     )
   ),
   React.createElement('div',{className:"desktop-only",style:{background:"var(--s1)",borderBottom:"1px solid var(--border)",padding:"10px 16px 12px",display:"flex",justifyContent:"center"}},
@@ -90,11 +89,7 @@ const Nav = ({page,setPage,user,groupName,canEditGroup,onOpenSettings,onOpenProf
       React.createElement('div',{style:{display:"flex",alignItems:"center",gap:4,flexShrink:0}},
         React.createElement(StreamIconButton,{onOpenStream,unreadCount:streamUnreadCount,size:28}),
         React.createElement('button',{onClick:onOpenSettings,className:"icon-btn live-icon-btn",title:"Bloc settings",style:{width:28,height:28,display:"inline-flex",alignItems:"center",justifyContent:"center"}},React.createElement(AppIcon,{name:"settings",size:18})),
-        React.createElement('button',{onClick:onOpenProfile,className:"icon-btn live-icon-btn",title:"Account",style:{width:28,height:28,display:"inline-flex",alignItems:"center",justifyContent:"center"}},
-          profilePhotoUrl
-            ? React.createElement(Avatar,{name:user||"?",userId:currentUserId,photoUrl:profilePhotoUrl,size:24})
-            : React.createElement(AppIcon,{name:"profile",size:18})
-        )
+        null
       )
     )
   ),

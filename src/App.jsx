@@ -40,6 +40,8 @@ import {
   syncAuthSessionData,
   fetchData,
   fetchRevision,
+  setProfileStatsRevision,
+  invalidateProfileStatsFor,
   addLogData,
   claimSettlementConfirmationData,
   confirmSettlementConfirmationData,
@@ -800,6 +802,10 @@ const App = () => {
           setSyncError(true);
           return;
         }
+        // Any mutation anywhere bumps the revision, so re-keying the profile
+        // stats cache on it drops every stale entry without a hand-maintained
+        // list of what invalidates what.
+        setProfileStatsRevision(revision);
         if (revision <= latestRevisionRef.current) {
           setSyncError(false);
           return;
@@ -947,6 +953,9 @@ const App = () => {
 
   const handleSave=useCallback(async({ workoutType, isoDate, note, photoUrl })=>{
     if(!selectedGroupId || !currentGroup || !currentUser) return;
+    // Drop your own cached stats immediately rather than waiting for the next
+    // revision poll, so your profile reflects the workout you just logged.
+    invalidateProfileStatsFor(effectiveAuthSession?.userId);
     const optimisticLog = {
       id:`opt-${Date.now()}`,
       date:isoDate,
@@ -1011,6 +1020,7 @@ const App = () => {
   },[addLogData, applyData, authSession?.userId, beginOptimisticMutation, buildOptimisticState, clearOptimisticMutation, currentGroup, currentUser, refreshNow, selectedGroupId]);
 
   const handleMultiLog = useCallback(async({ workoutType, isoDate, targetGroupIds, note, photoUrl }) => {
+    invalidateProfileStatsFor(effectiveAuthSession?.userId);
     if(!selectedGroupId || !currentUser) return { ok:false, error:"No Bloc selected" };
     // Optimistic update: add log to UI immediately so the screen responds instantly.
     if(currentGroup) {
@@ -1454,7 +1464,7 @@ const App = () => {
   };
   // Saving payment details reuses upsert-profile. displayName is required by
   // the action, so send the current one unchanged; only the payment keys move.
-  const handleSavePaymentHandle = async ({ paymentProvider, paymentHandle }) => {
+  const handleSavePaymentHandle = async ({ paymentMethods }) => {
     const displayName = String(profile?.displayName || currentUser || "").trim();
     if (!displayName) { setPaymentError("Set your display name first"); return; }
     setPaymentSaving(true);
@@ -1463,8 +1473,7 @@ const App = () => {
       userId: authSession?.userId,
       email: authSession?.email,
       displayName,
-      paymentProvider,
-      paymentHandle
+      paymentMethods
     });
     setPaymentSaving(false);
     if (!result?.ok) { setPaymentError(result?.error || "Unable to save"); return; }
@@ -2823,7 +2832,7 @@ const App = () => {
     const createdInviteGroup = createdInviteGroupId ? appState.groups?.[createdInviteGroupId] : null;
     return React.createElement(React.Fragment,null,
       showJoinModal && !authStep && React.createElement(JoinGroupModal,{inviteContext,joinCode,setJoinCode,onClose:handleJoinModalClose,onJoin:handleJoinGroup,joining:joiningGroup,error:inviteError,signedIn:true}),
-      showProfileModal && React.createElement(ProfileModal,{email:authSession?.email,onSignOut:handleSwitchUser,onClose:()=>{setProfileError("");setShowProfileModal(false);},currentDisplayName:profile?.displayName||"",onSaveDisplayName:handleSaveProfileFromModal,saving:profileSaving,saveError:profileError,onDeleteAccount:handleDeleteAccount,currentPaymentProvider:profile?.paymentProvider||"",currentPaymentHandle:profile?.paymentHandle||"",onSavePayment:handleSavePaymentHandle,savingPayment:paymentSaving,paymentError:paymentError}),
+      showProfileModal && React.createElement(ProfileModal,{email:authSession?.email,onSignOut:handleSwitchUser,onClose:()=>{setProfileError("");setShowProfileModal(false);},currentDisplayName:profile?.displayName||"",onSaveDisplayName:handleSaveProfileFromModal,saving:profileSaving,saveError:profileError,onDeleteAccount:handleDeleteAccount,currentPaymentMethods:profile?.paymentMethods||[],onSavePayment:handleSavePaymentHandle,savingPayment:paymentSaving,paymentError:paymentError}),
       createdInviteGroup
         ? React.createElement(CreatedBlocInviteScreen,{group:createdInviteGroup,onContinue:handleContinueFromCreatedInvite})
         : renderGroupSwitcherSurface({ suppressIntro:suppressSwitcherIntro }),
@@ -2840,7 +2849,11 @@ const App = () => {
           onEditName:()=>setShowProfileModal(true),
           onUpdateProfilePhoto:handleUpdateProfilePhoto,
           onSignOut:handleSwitchUser,
-          onDeleteAccount:handleDeleteAccount
+          onDeleteAccount:handleDeleteAccount,
+          currentPaymentMethods: effectiveProfile?.paymentMethods || profile?.paymentMethods || [],
+          onSavePayment: handleSavePaymentHandle,
+          savingPayment: paymentSaving,
+          paymentError: paymentError
         })
       )
       ,showFounderDashboard && React.createElement(FounderDashboard,{onClose:()=>setShowFounderDashboard(false)})
@@ -2858,10 +2871,10 @@ const App = () => {
     style:{paddingBottom:isMobileView?"calc(108px + env(safe-area-inset-bottom))":0}
   },
     pageName==="today"  &&React.createElement(TodayPageErrorBoundary,{resetKey:`${selectedGroupId}:${navResetToken}:${currentUser}`},
-      React.createElement(TodayPage,  {user:currentUser,currentUserId:effectiveAuthSession?.userId,currentGroupId:selectedGroupId,groups,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,saving,onSave:handleSave,onMultiLog:handleMultiLog,onLogMutation:handleLogMutation,clockTick,onViewLastMonth:()=>{setMonthInitialIdx(0);setPage("month");},onSitOutRequest:handleSitOutRequest,onSoloRequest:handleSoloRequest,onSettlementClaimPaid:handleSettlementClaimPaid,onSettlementConfirmPaid:handleSettlementConfirmPaid,onSettlementDisputePaid:handleSettlementDisputePaid,onOpenSetupReview:()=>setShowSettings(true),navResetToken,showLog:showTodayLog,setShowLog:setShowTodayLog,onTrackUsage:trackUsage})
+      React.createElement(TodayPage,  {user:currentUser,currentUserId:effectiveAuthSession?.userId,currentGroupId:selectedGroupId,groups,profiles:appState?.profiles||{},accountCreatedAt:profile?.createdAt,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,saving,onSave:handleSave,onMultiLog:handleMultiLog,onLogMutation:handleLogMutation,clockTick,onViewLastMonth:()=>{setMonthInitialIdx(0);setPage("month");},onSitOutRequest:handleSitOutRequest,onSoloRequest:handleSoloRequest,onSettlementClaimPaid:handleSettlementClaimPaid,onSettlementConfirmPaid:handleSettlementConfirmPaid,onSettlementDisputePaid:handleSettlementDisputePaid,onOpenSetupReview:()=>setShowSettings(true),navResetToken,showLog:showTodayLog,setShowLog:setShowTodayLog,onTrackUsage:trackUsage})
     ),
     pageName==="activity"&&React.createElement(ActivityPage,{group:currentGroup,currentUser,currentUserId:effectiveAuthSession?.userId,onLogMutation:handleLogMutation,clockTick,reactionOverrides,setReactionOverrides,commentCountOverrides:logCommentCountOverrides,onCommentCountsLoaded:setLogCommentCountOverrides,onOpenLogComments:handleOpenLogComments,onTrackUsage:trackUsage}),
-    pageName==="month"  &&React.createElement(MonthPage,  {key:`${selectedGroupId}:${navResetToken}:${monthInitialIdx ?? "current"}`,group:currentGroup,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,groupSettings:currentGroup.settings,currentUser,currentUserId:effectiveAuthSession?.userId,initialSelIdx:monthInitialIdx,onStartNextMonth:()=>{setMonthInitialIdx(null);setPage("today");},onOpenToday:()=>setPage("today"),onSettlementClaimPaid:handleSettlementClaimPaid,onSettlementConfirmPaid:handleSettlementConfirmPaid,profiles:appState?.profiles||{},navResetToken,onTrackUsage:trackUsage}),
+    pageName==="month"  &&React.createElement(MonthPage,  {key:`${selectedGroupId}:${navResetToken}:${monthInitialIdx ?? "current"}`,group:currentGroup,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,groupSettings:currentGroup.settings,currentUser,currentUserId:effectiveAuthSession?.userId,initialSelIdx:monthInitialIdx,onStartNextMonth:()=>{setMonthInitialIdx(null);setPage("today");},onOpenToday:()=>setPage("today"),onSettlementClaimPaid:handleSettlementClaimPaid,onSettlementConfirmPaid:handleSettlementConfirmPaid,profiles:appState?.profiles||{},onOpenAccount:()=>{persistGroupSelection(null);setShowProfile(true);},navResetToken,onTrackUsage:trackUsage}),
     pageName==="history"&&React.createElement(HistoryPage,{group:currentGroup,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,groupSettings:currentGroup.settings,navResetToken,currentUser})
   );
 
@@ -2966,7 +2979,7 @@ const App = () => {
     React.createElement('div',{style:{position:"relative",overflow:"hidden",height:inBlocViewportHeight,minHeight:0}},
       showSettings && React.createElement('div',{style:{position:"absolute",inset:"0 0 auto 0",zIndex:1,pointerEvents:"none"}},renderInBlocPage(page,{swipePreview:true})),
       showSettings
-        ? React.createElement(BlocSettingsScreen,{group:currentGroup,actor:currentUser,actorUserId:authSession?.userId,isAdmin:isGroupAdmin,onSave:handleUpdateGroupSettings,onClose:()=>setShowSettings(false),saving:savingSettings,onReviewSetup:isGroupAdmin?handleReviewSetupDefaults:null,onReviewSitOut:isGroupAdmin?handleSitOutReview:null,onReviewSolo:isGroupAdmin?handleSoloReview:null,onKickMember:isGroupAdmin?handleKickMember:null,localDevMode})
+        ? React.createElement(BlocSettingsScreen,{group:currentGroup,actor:currentUser,actorUserId:authSession?.userId,isAdmin:isGroupAdmin,onSave:handleUpdateGroupSettings,onClose:()=>setShowSettings(false),saving:savingSettings,onReviewSetup:isGroupAdmin?handleReviewSetupDefaults:null,onReviewSitOut:isGroupAdmin?handleSitOutReview:null,onReviewSolo:isGroupAdmin?handleSoloReview:null,onKickMember:isGroupAdmin?handleKickMember:null,onLeaveBloc:handleLeaveBloc,localDevMode})
         : activePageLayer
     ),
     showInstallBanner && React.createElement(InstallBanner,{
@@ -2979,7 +2992,7 @@ const App = () => {
 
   return React.createElement(React.Fragment,null,
     showJoinModal && !authStep && React.createElement(JoinGroupModal,{inviteContext,joinCode,setJoinCode,onClose:handleJoinModalClose,onJoin:handleJoinGroup,joining:joiningGroup,error:inviteError,signedIn:true}),
-    showProfileModal && React.createElement(ProfileModal,{email:authSession?.email,onSignOut:handleSwitchUser,onClose:()=>setShowProfileModal(false),showDisplayName:true,currentDisplayName:currentUser,onSaveDisplayName:handleSaveProfileFromModal,saving:profileSaving,saveError:profileError,onLeaveBloc:handleLeaveBloc,onDeleteAccount:handleDeleteAccount,currentPaymentProvider:effectiveProfile?.paymentProvider||"",currentPaymentHandle:effectiveProfile?.paymentHandle||"",onSavePayment:handleSavePaymentHandle,savingPayment:paymentSaving,paymentError:paymentError}),
+    showProfileModal && React.createElement(ProfileModal,{email:authSession?.email,onSignOut:handleSwitchUser,onClose:()=>setShowProfileModal(false),showDisplayName:true,currentDisplayName:currentUser,onSaveDisplayName:handleSaveProfileFromModal,saving:profileSaving,saveError:profileError,onLeaveBloc:handleLeaveBloc,onDeleteAccount:handleDeleteAccount,currentPaymentMethods:effectiveProfile?.paymentMethods||[],onSavePayment:handleSavePaymentHandle,savingPayment:paymentSaving,paymentError:paymentError}),
     React.createElement(BlocStream,{open:showStream,groupName:currentGroup.name,blocId:currentGroup.id,initialBlocId:streamFocusBlocId,initialScrollTop:streamReturnScrollTop,initialUnreadCount:streamUnreadCount,currentUserId:effectiveAuthSession?.userId,members:Object.values(currentGroup.memberships||{}).map(m=>({id:m.userId,name:m.displayName,photoUrl:appState.profiles?.[m.userId]?.profilePhotoUrl||""})),streamBlocs:visibleGroups.map(group=>({id:group.id,name:group.name,members:Object.values(group.memberships||{}).map(m=>({id:m.userId,name:m.displayName,photoUrl:appState.profiles?.[m.userId]?.profilePhotoUrl||""}))})),onSeasonClosedTap:handleStreamSeasonClosedTap,onUnreadCountChange:(groupId,count)=>{if(groupId===currentGroup.id)setStreamUnreadCount(Number(count)||0);},onOpenLogComments:handleOpenLogComments,onClose:()=>{setShowStream(false);setStreamFocusBlocId(null);setStreamReturnScrollTop(null);refreshStreamUnreadCount(currentGroup.id);}}),
     prorationGroup && React.createElement(ProrationChoiceModal,{
       monthName: getCurrentMonthSummary(prorationGroup).monthName,
