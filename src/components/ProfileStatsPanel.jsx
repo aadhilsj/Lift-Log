@@ -8,6 +8,11 @@ const { useState, useRef, useEffect } = React;
 const REG = 400, MED = 500;
 const WD_SHORT = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
 const FULL_MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+const sinceLabel = ts => {
+  const d = ts ? new Date(ts) : null;
+  if (!d || Number.isNaN(d.getTime())) return null;
+  return `${FULL_MONTH_NAMES[d.getMonth()]} '${String(d.getFullYear()).slice(2)}`;
+};
 const isoOf = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
 
 // The all-time stats panel: stat cards, heatmap, hit rate, workouts by day and
@@ -17,7 +22,7 @@ const isoOf = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}
 // `groups` must already be scoped by the caller. ProfilePage passes every Bloc
 // the viewer is in; the in-Bloc member profile passes only the Blocs shared
 // with that member, because readable state never contains anyone else's Blocs.
-const ProfileStatsPanel = ({ groups = [], userId, ownerName = "", accountCreatedAt = null }) => {
+const ProfileStatsPanel = ({ groups = [], userId, ownerName = "", accountCreatedAt = null, scopeNote = "" }) => {
   // Section headings are possessive: they read as the viewer's own on the
   // account profile, and as the member's name when viewing someone else.
   const owns = ownerName
@@ -106,7 +111,21 @@ const ProfileStatsPanel = ({ groups = [], userId, ownerName = "", accountCreated
   const mixTotal = WORKOUT_TYPES.reduce((s, t) => s + (agg.typeMix[t] || 0), 0);
   const mixMax = Math.max(...WORKOUT_TYPES.map(t => agg.typeMix[t] || 0), 1);
 
+  // Only shown when viewing someone else. Your own profile already carries an
+  // 'On Fero since' line in its header, and that one is derived differently,
+  // so showing both would print two different dates for the same thing.
+  const joinedLabel = ownerName ? sinceLabel(agg.earliestJoined) : null;
+
   return React.createElement(React.Fragment, null,
+    // Every figure below is computed from the `groups` the caller passed, so
+    // the scope note belongs at the top where it governs all of them, not as a
+    // footnote under the last card.
+    (scopeNote || joinedLabel) ? React.createElement('div', { style: { display: "grid", gap: 2, justifyItems: "center", textAlign: "center", marginBottom: 2 } },
+      joinedLabel ? React.createElement('div', { style: { fontSize: 11.5, fontWeight: REG, color: "var(--muted)" } },
+        `${ownerName} joined ${joinedLabel}`
+      ) : null,
+      scopeNote ? React.createElement('div', { style: { fontSize: 9.5, fontWeight: REG, color: "var(--muted2)", lineHeight: 1.35, maxWidth: 300 } }, scopeNote) : null
+    ) : null,
     // Free tier — three stat cards, single row
     React.createElement('div', { style: { display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 6 } },
       statCard("Workouts", React.createElement('div', { style: statVal({ color: "#4ECDC4" }) }, agg.workoutsLogged || 0), null, { elevated: true, icon: React.createElement(WorkoutTypeIcon, { type: "Gym", size: 12 }) }),

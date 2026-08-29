@@ -363,7 +363,7 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
       )
     ),
 
-    React.createElement(ProfileStatsPanel, { groups: visibleGroups, userId: currentUserId, accountCreatedAt }),
+    React.createElement(ProfileStatsPanel, { groups: visibleGroups, userId: currentUserId, accountCreatedAt, scopeNote: "Across every Bloc you are in." }),
 
     // How people pay you — account-level, not per Bloc, so it lives here
     // rather than inside any single Bloc's screens.

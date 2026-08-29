@@ -259,12 +259,14 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
     memberUserId ? Object.values(g.memberships || {}).some(m => m.userId === memberUserId) : false
   );
   const allTimePanel = memberUserId
-    ? React.createElement(React.Fragment,null,
-        React.createElement(ProfileStatsPanel,{groups:sharedGroups,userId:memberUserId,ownerName:name}),
-        React.createElement('div',{style:{fontSize:9.5,color:"var(--muted2)",textAlign:"center",lineHeight:1.4,fontFamily:"'Outfit',sans-serif",padding:"2px 8px 0"}},
-          "Across Blocs you share."
-        )
-      )
+    ? React.createElement(ProfileStatsPanel,{
+        groups:sharedGroups,
+        userId:memberUserId,
+        ownerName:name,
+        // Stated once at the top because it governs every figure in the panel,
+        // not just the Blocs count.
+        scopeNote:`Every figure here counts only the ${sharedGroups.length === 1 ? "Bloc" : `${sharedGroups.length} Blocs`} you and ${name} are both in.`
+      })
     : React.createElement(Card,{style:{padding:"18px 16px",textAlign:"center",color:"var(--muted)",fontSize:12,fontFamily:"'Outfit',sans-serif"}},"All-time stats aren't available for this member.");
 
   const startSwipeBack=e=>{
@@ -459,19 +461,6 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
 	    isJoinedThisMonth&&!isExcusedThisMonth&&React.createElement('div',{className:"fu2",style:{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}},
 	      stats.map(renderStatCard)
 	    ),
-	    isJoinedThisMonth&&!isExcusedThisMonth&&React.createElement(Card,{className:"fu3",style:{padding:"16px"}},
-		      React.createElement('div',{style:{fontWeight:800,fontSize:14,marginBottom:14}},"Workout Breakdown"),
-	      !hasDetailedLogs
-	        ? React.createElement('div',{style:{color:"var(--muted)",fontSize:13,textAlign:"center",padding:"8px 0"}},"Detailed logs were not saved for this month.")
-	      : selCount===0
-	        ? React.createElement('div',{style:{color:"var(--muted)",fontSize:13,textAlign:"center",padding:"8px 0"}},"No workouts logged yet.")
-	        : workoutBreakdownRows.map(t=>React.createElement('div',{key:t,style:{display:"flex",alignItems:"center",gap:10,marginBottom:9}},
-	            React.createElement('span',{style:{width:22,minWidth:22,height:22,display:"inline-flex",alignItems:"center",justifyContent:"center",color:"#dbe8ff"}},React.createElement(WorkoutTypeIcon,{type:t,size:16})),
-	            React.createElement('div',{style:{minWidth:40,fontSize:13,fontWeight:600}},t),
-	            React.createElement('div',{style:{flex:1}},React.createElement(Bar,{value:tBreak[t],max:maxT,color:t==="Gym"?"#4ECDC4":"#1E4040"})),
-	            React.createElement('span',{className:"mono",style:{fontSize:13,fontWeight:700,minWidth:18,textAlign:"right",color:tBreak[t]>0?"var(--text)":"var(--muted2)"}},tBreak[t])
-	          ))
-	    ),
 		    isJoinedThisMonth&&!isExcusedThisMonth&&React.createElement(Card,{className:"fu4",style:{padding:"13px 14px",background:"radial-gradient(circle at 12% 0%, rgba(255,255,255,.032), transparent 34%), radial-gradient(circle at 88% 100%, rgba(78,205,196,.052), transparent 42%), linear-gradient(180deg, rgba(10,19,19,.98), rgba(7,14,14,.98))",boxShadow:"inset 0 1px 0 rgba(255,255,255,.035), 0 7px 16px rgba(0,0,0,.12)"}},
 	      React.createElement('div',{style:{fontWeight:800,fontSize:14,marginBottom:12}},`${selLabel} · Log`),
 	      React.createElement('div',{style:{maxWidth:compactMobile?318:380,margin:"0 auto"}},
@@ -487,6 +476,19 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
 	        })
 	      )
 	      )
+	    ),
+	    isJoinedThisMonth&&!isExcusedThisMonth&&React.createElement(Card,{className:"fu3",style:{padding:"16px"}},
+		      React.createElement('div',{style:{fontWeight:800,fontSize:14,marginBottom:14}},"Workout Breakdown"),
+	      !hasDetailedLogs
+	        ? React.createElement('div',{style:{color:"var(--muted)",fontSize:13,textAlign:"center",padding:"8px 0"}},"Detailed logs were not saved for this month.")
+	      : selCount===0
+	        ? React.createElement('div',{style:{color:"var(--muted)",fontSize:13,textAlign:"center",padding:"8px 0"}},"No workouts logged yet.")
+	        : workoutBreakdownRows.map(t=>React.createElement('div',{key:t,style:{display:"flex",alignItems:"center",gap:10,marginBottom:9}},
+	            React.createElement('span',{style:{width:22,minWidth:22,height:22,display:"inline-flex",alignItems:"center",justifyContent:"center",color:"#dbe8ff"}},React.createElement(WorkoutTypeIcon,{type:t,size:16})),
+	            React.createElement('div',{style:{minWidth:40,fontSize:13,fontWeight:600}},t),
+	            React.createElement('div',{style:{flex:1}},React.createElement(Bar,{value:tBreak[t],max:maxT,color:t==="Gym"?"#4ECDC4":"#1E4040"})),
+	            React.createElement('span',{className:"mono",style:{fontSize:13,fontWeight:700,minWidth:18,textAlign:"right",color:tBreak[t]>0?"var(--text)":"var(--muted2)"}},tBreak[t])
+	          ))
 	    ),
 	    premiumSection
 	      )
