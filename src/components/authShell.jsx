@@ -226,6 +226,11 @@ const SignedOutLanding = ({onCreateAccount,onSignIn}) => (
 
 const ProfileModal = ({email,onSignOut,onClose,showDisplayName,currentDisplayName,onSaveDisplayName,saving,saveError,onLeaveBloc,onDeleteAccount,currentPaymentProvider="",currentPaymentHandle="",onSavePayment,savingPayment=false,paymentError="",showFounderDashboard,onOpenFounderDashboard}) => {
   const [name,setName]=React.useState(currentDisplayName||"");
+  const [showLeaveConfirm,setShowLeaveConfirm]=React.useState(false);
+  const [leaving,setLeaving]=React.useState(false);
+  const [showDeleteConfirm,setShowDeleteConfirm]=React.useState(false);
+  const [deleting,setDeleting]=React.useState(false);
+  const [deleteError,setDeleteError]=React.useState("");
   const textLink = {background:"transparent",border:"none",padding:0,color:"var(--text-faint)",fontSize:12,fontWeight:500,cursor:"pointer",textDecoration:"underline",textDecorationColor:"rgba(255,255,255,.12)",textUnderlineOffset:"3px"};
   const signOutLink = {...textLink,color:"rgba(220,100,100,.55)"};
   const deleteAccountLink = {...textLink,color:"rgba(180,60,60,.45)",fontSize:10,fontWeight:500};
