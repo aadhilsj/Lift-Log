@@ -8296,6 +8296,126 @@ function applyDeleteAccount(current, payload) {
   };
 }
 
+// ─── Fero profile: genuine cross-Bloc stats ──────────────────────────────────
+//
+// Readable state is scoped per viewer, so a client can only ever aggregate the
+// Blocs it already holds. That made a member's "all time" figures shrink to the
+// Blocs the viewer happened to share with them, and the same profile showed
+// different numbers to different people. This computes the real totals here,
+// where every Bloc is visible.
+//
+// PRIVACY: aggregate numbers only. Bloc names, member names and per-Bloc splits
+// are never returned. A caller learns how much someone trains, never with whom
+// or where. Access requires sharing at least one Bloc with the subject.
+function buildFeroProfileStats(state, subjectUserId) {
+  const userId = String(subjectUserId || "").trim();
+  if (!userId) return null;
+
+  const membershipsFor = groupId => state.groups?.[groupId]?.memberships?.[userId] || null;
+  const groupIds = Object.keys(state.groups || {}).filter(id => membershipsFor(id));
+
+  let workoutsLogged = 0, blocWins = 0, targetHitMonths = 0, targetEligibleMonths = 0;
+  let earliestJoined = null, earliestWorkout = null;
+  const weekday = [0, 0, 0, 0, 0, 0, 0];
+  const typeMix = {};
+  const dayTypeMax = {};
+  const monthTotals = {};
+
+  const isoOfLog = value => {
+    const m = /^(\d{4}-\d{2}-\d{2})/.exec(String(value || ""));
+    return m ? m[1] : null;
+  };
+
+  for (const groupId of groupIds) {
+    const group = state.groups[groupId];
+    const membership = membershipsFor(groupId);
+    const displayName = String(membership?.displayName || "").trim();
+    if (!displayName) continue;
+
+    const joinedTs = Date.parse(membership?.joinedAt || "");
+    if (Number.isFinite(joinedTs) && (earliestJoined === null || joinedTs < earliestJoined)) {
+      earliestJoined = joinedTs;
+    }
+
+    // Same session logged in several Blocs must not count twice, so per-day and
+    // per-type counts collapse with max() across Blocs, exactly as the client
+    // aggregation does.
+    const groupDayType = {};
+    const tally = logs => {
+      for (const log of Array.isArray(logs) ? logs : []) {
+        if (!isCountedLog(log)) continue;
+        const iso = isoOfLog(log.date);
+        if (!iso) continue;
+        const ts = Date.parse(`${iso}T00:00:00`);
+        if (Number.isFinite(ts) && (earliestWorkout === null || ts < earliestWorkout)) earliestWorkout = ts;
+        const type = WORKOUT_TYPES.includes(log.type) ? log.type : "Other";
+        if (!groupDayType[iso]) groupDayType[iso] = {};
+        groupDayType[iso][type] = (groupDayType[iso][type] || 0) + 1;
+      }
+    };
+
+    tally(group.logs?.[displayName] || []);
+    for (const month of group.monthHistory || []) {
+      tally(month.logsByUser?.[displayName] || []);
+      const target = Number(month?.memberTargets?.[displayName] || month?.settings?.minTarget || DEFAULT_MIN_TARGET);
+      const count = Number(month?.counts?.[displayName] ?? getCountedLogCount(month?.logsByUser?.[displayName] || []));
+      if (month?.excused?.[displayName]) continue;
+      targetEligibleMonths += 1;
+      if (count >= target) targetHitMonths += 1;
+      const activeCounts = Object.keys(month?.counts || {})
+        .filter(name => !month?.excused?.[name])
+        .map(name => ({
+          name,
+          count: Number(month.counts[name] || 0),
+          target: month?.memberTargets?.[name] || month?.settings?.minTarget || DEFAULT_MIN_TARGET
+        }));
+      const penalties = calcPenalties(activeCounts, month?.settings || {});
+      if (penalties.winners.find(w => w.name === displayName)) blocWins += 1;
+    }
+
+    for (const [iso, types] of Object.entries(groupDayType)) {
+      if (!dayTypeMax[iso]) dayTypeMax[iso] = {};
+      for (const [type, count] of Object.entries(types)) {
+        dayTypeMax[iso][type] = Math.max(dayTypeMax[iso][type] || 0, count);
+      }
+    }
+  }
+
+  const logsByDate = {};
+  for (const [iso, types] of Object.entries(dayTypeMax)) {
+    const dayCount = Object.values(types).reduce((sum, n) => sum + n, 0);
+    if (dayCount <= 0) continue;
+    logsByDate[iso] = dayCount;
+    workoutsLogged += dayCount;
+    const date = new Date(`${iso}T00:00:00`);
+    // getDay() indexing (Sun=0), matching the client aggregation. The UI maps
+    // [1,2,3,4,5,6,0] onto Mon-Sun labels, so do not switch this to a
+    // Monday-first index without changing that too.
+    if (!Number.isNaN(date.getTime())) weekday[date.getDay()] += dayCount;
+    const monthKey = iso.slice(0, 7);
+    monthTotals[monthKey] = (monthTotals[monthKey] || 0) + dayCount;
+    for (const [type, n] of Object.entries(types)) typeMix[type] = (typeMix[type] || 0) + n;
+  }
+
+  const bestEntry = Object.entries(monthTotals).sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1))[0] || null;
+
+  return {
+    ok: true,
+    userId,
+    blocCount: groupIds.length,
+    workoutsLogged,
+    blocWins,
+    targetHitMonths,
+    targetEligibleMonths,
+    earliestJoined,
+    earliestWorkout,
+    weekday,
+    typeMix,
+    logsByDate,
+    bestMonth: bestEntry ? { key: bestEntry[0], count: bestEntry[1] } : null
+  };
+}
+
 function buildInviteLeaderboardRows(current, group, target) {
   if (!group) return [];
   const profiles = current?.profiles || {};
@@ -8390,6 +8510,8 @@ async function readJson(req) {
 }
 
 export {
+  // Exported so the parity test can compare it against the client aggregation.
+  buildFeroProfileStats,
   buildWorkoutLogDerivedMoments,
   resolveMemberPaceSnapshotForMonth,
   // Identity guards — exported for the display-name identity test suite.
@@ -8664,6 +8786,28 @@ export default async function handler(req, res) {
           session: synced.session,
           founderDashboardAvailable: isFounderDashboardUser(authUser.id)
         });
+      }
+
+      // Cross-Bloc profile stats for one member. Read-only.
+      //
+      // AUTHORISATION: the caller must share at least one Bloc with the
+      // subject. Requesting a stranger returns 403, so this cannot be used to
+      // enumerate arbitrary users. A caller may always request themselves.
+      if (payload?.action === "profile-stats") {
+        const auth = await requireAuthenticatedContext(req, payload, current);
+        const subjectUserId = String(payload?.subjectUserId || "").trim();
+        if (!subjectUserId) {
+          return res.status(400).json({ ok: false, error: "subjectUserId is required" });
+        }
+        const sharesABloc = subjectUserId === auth.user.id || Object.values(auth.state.groups || {}).some(group =>
+          group?.memberships?.[auth.user.id] && group?.memberships?.[subjectUserId]
+        );
+        if (!sharesABloc) {
+          return res.status(403).json({ ok: false, error: "Not in a shared Bloc" });
+        }
+        const stats = buildFeroProfileStats(auth.state, subjectUserId);
+        if (!stats) return res.status(404).json({ ok: false, error: "No profile found" });
+        return res.status(200).json(stats);
       }
 
       if (payload?.action === "invite-context") {

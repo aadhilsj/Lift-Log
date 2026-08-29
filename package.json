@@ -10,6 +10,7 @@
     "lint": "eslint src api scripts",
     "test:stream-moments": "node scripts/test-bloc-stream-derived-moments.mjs",
     "audit:rollover-counts": "node scripts/audit-rollover-counts.mjs",
+    "test:fero-profile-stats": "node scripts/test-fero-profile-stats.mjs",
     "test:identity": "node scripts/test-display-name-identity.mjs",
     "test:profile-photo-storage": "node scripts/test-profile-photo-storage.mjs",
     "test:auth-edge-flows": "node scripts/test-auth-edge-flows.mjs",
