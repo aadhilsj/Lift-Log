@@ -1,25 +1,25 @@
 import assert from "node:assert/strict";
 import { buildWorkoutLogDerivedMoments } from "../api/lift-log.js";
 
-const parts = new Intl.DateTimeFormat("en-CA", {
-  timeZone: "Europe/Oslo",
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-  hour: "2-digit",
-  hour12: false
-}).formatToParts(new Date()).reduce((acc, part) => {
-  acc[part.type] = part.value;
-  return acc;
-}, {});
-
-const leagueDate = new Date(Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day)));
-if (Number(parts.hour) < 3) leagueDate.setUTCDate(leagueDate.getUTCDate() - 1);
-const currentYear = leagueDate.getUTCFullYear();
-const currentMonth = leagueDate.getUTCMonth();
-const currentDay = leagueDate.getUTCDate();
+// Pinned to mid-month rather than today. Pace status depends on days
+// remaining, and near month-end "behind" is unreachable — anyone short of
+// target is already "cooked" — so a comeback cannot be constructed and this
+// suite failed for reasons unrelated to the code. Day 10 leaves plenty of
+// room, and the same fixed summary is handed to the code under test so both
+// sides agree.
+const currentYear = 2026;
+const currentMonth = 6; // July
+const currentDay = 10;
 const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
 const daysLeft = Math.max(1, daysInMonth - currentDay + 1);
+const summaryOverride = {
+  monthKey: `${currentYear}-${currentMonth}`,
+  year: currentYear,
+  month: currentMonth,
+  day: currentDay,
+  daysInMonth,
+  daysRemaining: daysLeft
+};
 const currentMonthKey = `${currentYear}-${currentMonth}`;
 const memberUserId = "00000000-0000-0000-0000-000000000001";
 const displayName = "Test Member";
@@ -49,7 +49,7 @@ function group({ id = "test-bloc", target = 12, count }) {
 }
 
 function derive(before, after, log = { id: "new-log", createdAt: "2026-07-19T12:00:00.000Z" }) {
-  return buildWorkoutLogDerivedMoments(before, after, currentMonthKey, displayName, memberUserId, log);
+  return buildWorkoutLogDerivedMoments(before, after, currentMonthKey, displayName, memberUserId, log, summaryOverride);
 }
 
 function statusFor(target, count) {
@@ -72,7 +72,7 @@ function findTransition(fromStatus, toStatus) {
       }
     }
   }
-  throw new Error(`No ${fromStatus} -> ${toStatus} fixture available for ${currentMonthKey}`);
+  throw new Error(`No ${fromStatus} -> ${toStatus} case exists for ${currentMonthKey} day ${currentDay}`);
 }
 
 {

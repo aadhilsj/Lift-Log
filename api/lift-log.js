@@ -2958,11 +2958,16 @@ async function deleteBlocSystemMomentInCanonical(legacyGroupKey, idempotencyKey,
   }
 }
 
-function resolveMemberPaceSnapshotForMonth(group, displayName, monthKey) {
+// `summaryOverride` exists so tests can pin the day of the month. Pace status
+// depends on how many days are left, and near month-end "behind" stops being
+// reachable at all — anyone short of target is already "cooked" — so a suite
+// that reads the real clock can find no way to exercise a comeback and fails
+// for reasons unrelated to the code. Production never passes it.
+function resolveMemberPaceSnapshotForMonth(group, displayName, monthKey, summaryOverride = null) {
   if (!group || !displayName || !monthKey) return null;
   if (group.lastMonth !== monthKey) return null;
   if (group.excused?.[displayName]?.[monthKey]) return { status: "excused" };
-  const summary = getCurrentMonthSummary(group.settings?.timeZone || DEFAULT_GROUP_TIME_ZONE);
+  const summary = summaryOverride || getCurrentMonthSummary(group.settings?.timeZone || DEFAULT_GROUP_TIME_ZONE);
   if (summary.monthKey !== monthKey) return null;
   const logs = group.logs?.[displayName] || [];
   const count = getCountedLogCount(logs);
@@ -2988,12 +2993,12 @@ function buildCookedMomentKey(groupId, monthKey, memberUserId) {
   return `cooked:${groupId}:${monthKey}:${memberUserId}`;
 }
 
-function buildWorkoutLogDerivedMoments(beforeGroup, afterGroup, monthKey, displayName, authUserId, log) {
+function buildWorkoutLogDerivedMoments(beforeGroup, afterGroup, monthKey, displayName, authUserId, log, summaryOverride = null) {
   if (!beforeGroup || !afterGroup || !monthKey || !displayName || !authUserId || !log?.id) {
     return { inserts: [], deleteKeys: [] };
   }
-  const before = resolveMemberPaceSnapshotForMonth(beforeGroup, displayName, monthKey);
-  const after = resolveMemberPaceSnapshotForMonth(afterGroup, displayName, monthKey);
+  const before = resolveMemberPaceSnapshotForMonth(beforeGroup, displayName, monthKey, summaryOverride);
+  const after = resolveMemberPaceSnapshotForMonth(afterGroup, displayName, monthKey, summaryOverride);
   if (!before || !after) return { inserts: [], deleteKeys: [] };
 
   const groupId = afterGroup.id;
