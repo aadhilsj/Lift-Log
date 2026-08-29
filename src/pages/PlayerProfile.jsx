@@ -43,7 +43,7 @@ const FULL_MONTH_NAMES = ["January","February","March","April","May","June","Jul
 const profileMonthLabel = month => month ? `${FULL_MONTH_NAMES[month.month] || MONTH_NAMES[month.month]} ${month.year}` : "—";
 const profileMonthOptionLabel = month => month ? `${MONTH_NAMES[month.month]} '${String(month.year).slice(2)}` : "—";
 
-const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChange,groupSettings,onDeleteLog,initialMonthKey,memberUserId,currentUserId,visibleGroups,profilePhotoUrl}) => {
+const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChange,groupSettings,onDeleteLog,initialMonthKey,memberUserId,currentUserId,visibleGroups,accountCreatedAt,profilePhotoUrl}) => {
   const compactMobile = isMobile();
   const [deleteTarget,setDeleteTarget]=useState(null);
   const [deleteChoices,setDeleteChoices]=useState(null);
@@ -300,11 +300,13 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
         `All-time stats aren't available for ${name}.`)
     : isSelf
       // Your own profile: every Bloc is already on the client, so render at once.
+      // No ownerName: headings read "Your Heatmap" rather than your own name
+      // back at you. No scope note either — your own profile spans everything
+      // by definition, so saying so is noise.
       ? React.createElement(ProfileStatsPanel,{
           groups:visibleGroups || [],
           userId:memberUserId,
-          ownerName:name,
-          scopeNote:"Across every Bloc you are in."
+          accountCreatedAt
         })
       : feroStatsState === "error"
         // Fail plainly. Falling back to shared-Bloc figures under an "all time"

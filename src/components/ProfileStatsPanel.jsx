@@ -192,10 +192,9 @@ const ProfileStatsPanel = ({ groups = [], userId, ownerName = "", accountCreated
   const mixTotal = WORKOUT_TYPES.reduce((s, t) => s + (agg.typeMix[t] || 0), 0);
   const mixMax = Math.max(...WORKOUT_TYPES.map(t => agg.typeMix[t] || 0), 1);
 
-  // Only shown when viewing someone else. Your own profile already carries an
-  // 'On Fero since' line in its header, and that one is derived differently,
-  // so showing both would print two different dates for the same thing.
-  const joinedLabel = ownerName ? sinceLabel(agg.earliestJoined) : null;
+  // "On Fero since" belongs with the stats rather than on the account screen,
+  // and reads the same whoever is being viewed.
+  const joinedLabel = sinceLabel(profileStartTs);
 
   // Nothing partial: while the real figures are in flight, show structure only.
   if (loading) return React.createElement(ProfileStatsSkeleton, { ownerName });
@@ -206,7 +205,7 @@ const ProfileStatsPanel = ({ groups = [], userId, ownerName = "", accountCreated
     // footnote under the last card.
     (scopeNote || joinedLabel) ? React.createElement('div', { style: { display: "grid", gap: 2, justifyItems: "center", textAlign: "center", marginBottom: 2 } },
       joinedLabel ? React.createElement('div', { style: { fontSize: 11.5, fontWeight: REG, color: "var(--muted)" } },
-        `${ownerName} joined ${joinedLabel}`
+        `On Fero since ${joinedLabel}`
       ) : null,
       scopeNote ? React.createElement('div', { style: { fontSize: 9.5, fontWeight: REG, color: "var(--muted2)", lineHeight: 1.35, maxWidth: 300 } }, scopeNote) : null
     ) : null,

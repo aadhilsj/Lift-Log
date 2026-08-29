@@ -4,7 +4,6 @@ import {
 } from "../lib/appState.js";
 import { PaymentHandleSection } from "../components/PaymentHandleSection.jsx";
 import { ProfileStatsPanel } from "../components/ProfileStatsPanel.jsx";
-import { buildProfileStats } from "../lib/profileStats.js";
 import { Avatar, Card, AppIcon, WorkoutTypeIcon } from "../components/primitives.jsx";
 import {
   cancelSwipeFrame,
@@ -17,13 +16,7 @@ import {
 // the single switch point, mirroring the History screen.
 const PROFILE_PREMIUM_GATE = false; // eslint-disable-line no-unused-vars
 
-const FULL_MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 const isoOf = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
-const sinceLabel = ts => {
-  const d = ts ? new Date(ts) : null;
-  if (!d || Number.isNaN(d.getTime())) return null;
-  return `${FULL_MONTH_NAMES[d.getMonth()]} '${String(d.getFullYear()).slice(2)}`;
-};
 // Brand font system: inherited sans-serif, two weights only — 400 and 500.
 const REG = 400, MED = 500;
 
@@ -214,12 +207,6 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
 
   // Cross-Bloc stats now live in src/lib/profileStats.js so the in-Bloc member
   // profile can render the same numbers.
-  // Only the 'On Fero since' date is needed here; the stats panel computes
-  // its own numbers from the same helper.
-  const { agg } = buildProfileStats({ groups: visibleGroups, userId: currentUserId });
-
-  const profileStartTs = agg.earliestWorkout || agg.earliestJoined || Date.parse(accountCreatedAt || "") || null;
-  const since = sinceLabel(profileStartTs);
 
   // ── heatmap — Mon→Sun rows, from the join date through today (multi-year). ──
   // Delete Account is deliberately not in this list. It sits in its own
@@ -342,7 +329,7 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
       React.createElement('div', { style: { fontSize: 16, fontWeight: MED } }, "Profile")
     ),
 
-    // Identity block — horizontal: avatar left, name + since stacked right
+    // Identity block — horizontal: avatar left, name right
     React.createElement('div', { style: { display: "flex", alignItems: "center", justifyContent: "center", gap: 14, padding: "2px 2px 4px", textAlign: "center" } },
       React.createElement('div', { style: { position: "relative", flexShrink: 0 } },
         React.createElement('input', { ref: photoInputRef, type: "file", accept: "image/*", onChange: handlePhotoFile, style: { display: "none" } }),
@@ -358,7 +345,6 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
           React.createElement('span', { style: { fontSize: 20, fontWeight: MED, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, displayName || "—"),
           React.createElement(AppIcon, { name: "edit", size: 14, stroke: "var(--muted)" })
         ),
-        since ? React.createElement('div', { style: { fontSize: 11.5, fontWeight: REG, color: "var(--muted)", marginTop: 2 } }, `On Fero since ${since}`) : null,
         photoError ? React.createElement('div', { style: { fontSize: 10.5, fontWeight: REG, color: "var(--red)", marginTop: 4 } }, photoError) : null
       )
     ),
@@ -406,7 +392,7 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
     // it sat oddly next to Sign Out, which is harmless. The consequences are
     // explained at the point of decision instead. Apple requires in-app
     // deletion to be findable, so it stays plainly labelled and unhidden.
-    React.createElement('div', { style: { marginTop: 22, display: "grid", justifyItems: "center", gap: 10 } },
+    React.createElement('div', { style: { marginTop: 18 } },
       confirmDelete
         ? React.createElement(Card, { style: { width: "100%", padding: "14px 15px", display: "grid", gap: 11, background: "rgba(60,10,10,.2)", border: "1px solid rgba(212,74,74,.22)" } },
             React.createElement('div', { style: { fontSize: 12.5, fontWeight: REG, color: "rgba(220,170,170,.9)", lineHeight: 1.55 } },
@@ -418,11 +404,16 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
               React.createElement('button', { type: "button", disabled: deleting, onClick: async () => { setDeleting(true); setDeleteError(""); const r = await onDeleteAccount?.(); if (r && !r.ok) { setDeleteError(r.error || "Unable to delete account"); setDeleting(false); } }, style: { flex: 1, background: "var(--red-dim)", border: "1px solid rgba(212,74,74,.35)", color: "var(--red)", padding: "11px", borderRadius: 9, fontSize: 12.5, fontWeight: MED, cursor: "pointer" } }, deleting ? "Deleting..." : "Delete forever")
             )
           )
-        : React.createElement('button', {
-            type: "button",
-            onClick: () => { setDeleteError(""); setConfirmDelete(true); },
-            style: { background: "transparent", border: "none", padding: "6px 4px", color: "var(--text-faint)", fontSize: 11.5, fontWeight: REG, cursor: "pointer", textDecoration: "underline", textDecorationColor: "rgba(255,255,255,.14)", textUnderlineOffset: "3px" }
-          }, "Delete account")
+        : React.createElement(Card, { style: { width: "100%", overflow: "hidden" } },
+            React.createElement('button', {
+              type: "button",
+              onClick: () => { setDeleteError(""); setConfirmDelete(true); },
+              style: { width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "13px 15px", background: "transparent", border: "none", cursor: "pointer", textAlign: "left" }
+            },
+              React.createElement('span', { style: { fontSize: 13, fontWeight: MED, color: "rgba(212,74,74,.82)" } }, "Delete account"),
+              React.createElement('span', { style: { fontSize: 11, fontWeight: REG, color: "var(--muted2)" } }, "Permanent")
+            )
+          )
     )
   );
 };
