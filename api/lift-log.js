@@ -4991,6 +4991,18 @@ async function readCanonicalFounderDashboardUsageAverages() {
   return body && typeof body === "object" && !Array.isArray(body) ? body : {};
 }
 
+async function readCanonicalFounderDashboardBlockProfileUsage() {
+  const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_founder_dashboard_block_profile_usage", { method:"POST", headers:{"Content-Type":"application/json",Accept:"application/json"}, body:JSON.stringify({}) });
+  const body = await response.json();
+  return body && typeof body === "object" && !Array.isArray(body) ? body : {};
+}
+
+async function readCanonicalFounderDashboardMonthlyActions() {
+  const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_founder_dashboard_monthly_actions", { method:"POST", headers:{"Content-Type":"application/json",Accept:"application/json"}, body:JSON.stringify({}) });
+  const body = await response.json();
+  return body && typeof body === "object" && !Array.isArray(body) ? body : {};
+}
+
 async function readCanonicalFounderDashboard() {
   const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_founder_dashboard", {
     method: "POST",
@@ -4999,13 +5011,13 @@ async function readCanonicalFounderDashboard() {
   });
   const body = await response.json();
   if (!body || typeof body !== "object" || Array.isArray(body)) return {};
-  const [rosterAndBlocMetrics, growth, usage, usageAverages] = await Promise.all([readFounderRosterAndActiveBlocs(), readCanonicalFounderDashboardGrowth(), readCanonicalFounderDashboardUsage(), readCanonicalFounderDashboardUsageAverages()]);
+  const [rosterAndBlocMetrics, growth, usage, usageAverages, blockProfileUsage, monthlyActions] = await Promise.all([readFounderRosterAndActiveBlocs(), readCanonicalFounderDashboardGrowth(), readCanonicalFounderDashboardUsage(), readCanonicalFounderDashboardUsageAverages(), readCanonicalFounderDashboardBlockProfileUsage(), readCanonicalFounderDashboardMonthlyActions()]);
   return {
     ...body,
     accounts: { ...(body.accounts || {}), ...rosterAndBlocMetrics.accounts },
     activeBlocs: rosterAndBlocMetrics.activeBlocs,
     growth,
-    usage: { ...usage, averages: usageAverages }
+    usage: { ...usage, events: { ...(usage.events || {}), own_block_profile_opened: blockProfileUsage.events?.own_block_profile_opened || {} }, averages: { ...usageAverages, own_block_profile_opened: blockProfileUsage.averages?.own_block_profile_opened || {} }, monthlyActions: monthlyActions.events || {} }
   };
 }
 

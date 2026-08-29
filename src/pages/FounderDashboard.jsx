@@ -185,6 +185,9 @@ const FounderDashboard = ({onClose}) => {
         ),
         tab === "usage" && React.createElement("section", {style:{marginBottom:20}},
           React.createElement("p", {style:{margin:"0 0 12px",fontSize:11,lineHeight:1.45,color:"var(--muted)"}}, "Unique users counts people once. Total uses counts every open or tap."),
+          React.createElement(MetricGroup,{title:"Monthly Actions",columns:2,subtitle:"Current calendar month."},
+            ["share_month_clicked","monthly_summary_card_clicked"].map(eventName=>{const metric=dashboard?.usage?.monthlyActions?.[eventName]?.monthly||{}; return React.createElement(Metric,{key:eventName,label:eventName==="share_month_clicked"?"Share This Month":"Monthly Summary Card",value:metric.total,detail:`${number(metric.users)} unique users`,formatValue:number});})
+          ),
           React.createElement("div", {style:{display:"grid",gridTemplateColumns:"repeat(4,minmax(0,1fr))",gap:5,marginBottom:10}},
             ["daily","weekly","monthly","allTime"].map(period=>React.createElement("button", {type:"button",key:period,onClick:()=>setUsagePeriod(period),style:{border:"1px solid rgba(78,205,196,.18)",borderRadius:8,padding:"8px 4px",background:usagePeriod===period?"rgba(78,205,196,.16)":"transparent",color:usagePeriod===period?"var(--text)":"var(--muted)",fontSize:10,fontWeight:900,cursor:"pointer"}}, period === "allTime" ? "All Time" : period.charAt(0).toUpperCase() + period.slice(1)))
           ),
