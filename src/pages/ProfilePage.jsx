@@ -363,7 +363,10 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
       )
     ),
 
-    React.createElement(ProfileStatsPanel, { groups: visibleGroups, userId: currentUserId, accountCreatedAt, scopeNote: "Across every Bloc you are in." }),
+    // Statistics deliberately live on the in-Bloc member profile's All time
+    // tab, not here. This screen is your account: who you are, how people pay
+    // you, and how to leave. Duplicating the stats would mean two places to
+    // keep in step for no gain.
 
     // How people pay you — account-level, not per Bloc, so it lives here
     // rather than inside any single Bloc's screens.
