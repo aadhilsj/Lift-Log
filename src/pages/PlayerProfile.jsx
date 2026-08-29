@@ -43,7 +43,7 @@ const FULL_MONTH_NAMES = ["January","February","March","April","May","June","Jul
 const profileMonthLabel = month => month ? `${FULL_MONTH_NAMES[month.month] || MONTH_NAMES[month.month]} ${month.year}` : "—";
 const profileMonthOptionLabel = month => month ? `${MONTH_NAMES[month.month]} '${String(month.year).slice(2)}` : "—";
 
-const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChange,groupSettings,onDeleteLog,initialMonthKey,memberUserId,visibleGroups,profilePhotoUrl}) => {
+const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChange,groupSettings,onDeleteLog,initialMonthKey,memberUserId,currentUserId,visibleGroups,profilePhotoUrl}) => {
   const compactMobile = isMobile();
   const [deleteTarget,setDeleteTarget]=useState(null);
   const [deleteChoices,setDeleteChoices]=useState(null);
@@ -58,6 +58,12 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
   const [profileTab,setProfileTab]=useState("bloc");
   const [feroStats,setFeroStats]=useState(null);
   const [feroStatsState,setFeroStatsState]=useState("idle"); // idle | loading | ready | error
+  const [feroStatsAttempt,setFeroStatsAttempt]=useState(0);
+  // Guards one request per member. Deliberately a ref, not state: putting the
+  // status in the effect's dependencies made the status change re-run the
+  // effect, whose cleanup then cancelled the in-flight request, so the result
+  // was discarded and the tab skeletoned forever.
+  const feroStatsRequestedFor = useRef("");
   const appliedInitialMonthKeyRef = useRef(null);
   const histReversed=[...monthHistory].reverse();
   const historicalNames=useMemo(
@@ -251,10 +257,18 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
     {label:"Months Won",val:hasHistory?(closedStats.wins||"—"):"—",sub:null,color:hasHistory&&closedStats.wins>0?"var(--gold)":"var(--muted)"},
     {label:"Net",val:hasHistory?(netPL===0?fmtCurrency(0,currency):`${netPL>0?"+":"-"}${fmtCurrency(Math.abs(netPL),currency)}`):"—",sub:null,color:hasHistory?(netPL>0?"var(--green)":netPL<0?"var(--red)":"var(--muted)"):"var(--muted)"},
   ];
-  // Fetch the member's genuine cross-Bloc stats when the tab is first opened.
-  // Deferred rather than fetched on mount so opening a profile stays cheap.
+  // Viewing yourself needs no request at all: your client already holds every
+  // Bloc you are in, so the local aggregation is already the complete answer.
+  const isSelf = Boolean(memberUserId) && memberUserId === currentUserId;
+
+  // Fetch a member's genuine cross-Bloc stats when the tab is first opened.
+  // Deferred rather than fetched on mount so opening a profile stays cheap;
+  // a prefetch on Bloc open usually means this resolves from cache instantly.
   useEffect(() => {
-    if (profileTab !== "alltime" || !memberUserId || feroStatsState !== "idle") return undefined;
+    if (isSelf || profileTab !== "alltime" || !memberUserId) return undefined;
+    const requestKey = `${memberUserId}:${feroStatsAttempt}`;
+    if (feroStatsRequestedFor.current === requestKey) return undefined;
+    feroStatsRequestedFor.current = requestKey;
     let cancelled = false;
     setFeroStatsState("loading");
     fetchProfileStatsData(memberUserId).then(result => {
@@ -263,7 +277,13 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
       else setFeroStatsState("error");
     }).catch(() => { if (!cancelled) setFeroStatsState("error"); });
     return () => { cancelled = true; };
-  }, [profileTab, memberUserId, feroStatsState]);
+  }, [isSelf, profileTab, memberUserId, feroStatsAttempt]);
+
+  const retryFeroStats = () => {
+    setFeroStats(null);
+    setFeroStatsState("idle");
+    setFeroStatsAttempt(n => n + 1);
+  };
 
   // All-time panel — the exact same component the account profile renders, so
   // the two never diverge visually.
@@ -275,21 +295,40 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
   const sharedGroups = (visibleGroups || []).filter(g =>
     memberUserId ? Object.values(g.memberships || {}).some(m => m.userId === memberUserId) : false
   );
-  const allTimePanel = memberUserId
-    ? React.createElement(ProfileStatsPanel,{
-        groups:sharedGroups,
-        userId:memberUserId,
-        ownerName:name,
-        serverStats:feroStats,
-        // Skeleton until the real figures land. Showing the shared-Bloc
-        // fallback first would print a smaller, different number and then
-        // correct itself.
-        loading: !feroStats && feroStatsState !== "error",
-        scopeNote: feroStats
-          ? `Across all ${feroStats.blocCount === 1 ? "1 Bloc" : `${feroStats.blocCount} Blocs`} ${name} is in.`
-          : `Couldn't load ${name}'s full history, so this counts only the ${sharedGroups.length === 1 ? "Bloc" : `${sharedGroups.length} Blocs`} you share.`
-      })
-    : React.createElement(Card,{style:{padding:"18px 16px",textAlign:"center",color:"var(--muted)",fontSize:12,fontFamily:"'Outfit',sans-serif"}},"All-time stats aren't available for this member.");
+  const allTimePanel = !memberUserId
+    ? React.createElement(Card,{style:{padding:"20px 16px",textAlign:"center",color:"var(--muted)",fontSize:12.5,fontFamily:"'Outfit',sans-serif"}},
+        `All-time stats aren't available for ${name}.`)
+    : isSelf
+      // Your own profile: every Bloc is already on the client, so render at once.
+      ? React.createElement(ProfileStatsPanel,{
+          groups:visibleGroups || [],
+          userId:memberUserId,
+          ownerName:name,
+          scopeNote:"Across every Bloc you are in."
+        })
+      : feroStatsState === "error"
+        // Fail plainly. Falling back to shared-Bloc figures under an "all time"
+        // heading would state a smaller number as if it were the whole story.
+        ? React.createElement(Card,{style:{padding:"20px 16px",display:"grid",gap:11,justifyItems:"center",textAlign:"center"}},
+            React.createElement('div',{style:{fontSize:12.5,color:"var(--muted)",lineHeight:1.5,fontFamily:"'Outfit',sans-serif",maxWidth:250}},
+              `Couldn't load ${name}'s history.`
+            ),
+            React.createElement('button',{
+              type:"button",
+              onClick:retryFeroStats,
+              style:{padding:"8px 16px",borderRadius:9,border:"1px solid rgba(78,205,196,.35)",background:"rgba(78,205,196,.08)",color:"#4ECDC4",fontSize:12,fontWeight:800,cursor:"pointer",fontFamily:"'Outfit',sans-serif"}
+            },"Try again")
+          )
+        : React.createElement(ProfileStatsPanel,{
+            groups:sharedGroups,
+            userId:memberUserId,
+            ownerName:name,
+            serverStats:feroStats,
+            loading: !feroStats,
+            scopeNote: feroStats
+              ? `Across all ${feroStats.blocCount === 1 ? "1 Bloc" : `${feroStats.blocCount} Blocs`} ${name} is in.`
+              : ""
+          });
 
   const startSwipeBack=e=>{
     e.stopPropagation();

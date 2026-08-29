@@ -11,6 +11,9 @@ const DEFAULT_CURRENCY = "NOK";
 const DEFAULT_MIN_RUN_DISTANCE = 3;
 const DEFAULT_DISTANCE_UNIT = "km";
 const DEFAULT_STRAVA_ENABLED = true;
+// One Bloc is capped at 20 members, so this comfortably covers a full roster
+// while bounding the work a single request can ask for.
+const PROFILE_STATS_MAX_SUBJECTS = 40;
 const SETUP_REVIEW_FIELDS = ["feeModel", "acceptedWorkoutTypes", "timeZone"];
 const UNFLAGGED_IMAGE_RETENTION_MS = 72 * 60 * 60 * 1000;
 const RESOLVED_IMAGE_RETENTION_MS = 24 * 60 * 60 * 1000;
@@ -8795,19 +8798,36 @@ export default async function handler(req, res) {
       // enumerate arbitrary users. A caller may always request themselves.
       if (payload?.action === "profile-stats") {
         const auth = await requireAuthenticatedContext(req, payload, current);
-        const subjectUserId = String(payload?.subjectUserId || "").trim();
-        if (!subjectUserId) {
+        // Accepts one subject or many. The batch form lets a client warm every
+        // member of a Bloc in a single round trip when the leaderboard opens.
+        const requested = Array.isArray(payload?.subjectUserIds)
+          ? payload.subjectUserIds
+          : [payload?.subjectUserId];
+        const subjectUserIds = [...new Set(
+          requested.map(id => String(id || "").trim()).filter(Boolean)
+        )].slice(0, PROFILE_STATS_MAX_SUBJECTS);
+        if (!subjectUserIds.length) {
           return res.status(400).json({ ok: false, error: "subjectUserId is required" });
         }
-        const sharesABloc = subjectUserId === auth.user.id || Object.values(auth.state.groups || {}).some(group =>
-          group?.memberships?.[auth.user.id] && group?.memberships?.[subjectUserId]
-        );
-        if (!sharesABloc) {
+        // Authorised per subject, never for the batch as a whole, so one
+        // permitted id cannot smuggle in others.
+        const sharesABloc = subjectUserId => subjectUserId === auth.user.id
+          || Object.values(auth.state.groups || {}).some(group =>
+            group?.memberships?.[auth.user.id] && group?.memberships?.[subjectUserId]
+          );
+        const allowed = subjectUserIds.filter(sharesABloc);
+        if (!allowed.length) {
           return res.status(403).json({ ok: false, error: "Not in a shared Bloc" });
         }
-        const stats = buildFeroProfileStats(auth.state, subjectUserId);
-        if (!stats) return res.status(404).json({ ok: false, error: "No profile found" });
-        return res.status(200).json(stats);
+        const stats = allowed
+          .map(id => buildFeroProfileStats(auth.state, id))
+          .filter(Boolean);
+        // Single-subject callers keep the original flat response shape.
+        if (!Array.isArray(payload?.subjectUserIds)) {
+          if (!stats.length) return res.status(404).json({ ok: false, error: "No profile found" });
+          return res.status(200).json(stats[0]);
+        }
+        return res.status(200).json({ ok: true, stats });
       }
 
       if (payload?.action === "invite-context") {

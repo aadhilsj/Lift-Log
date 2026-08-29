@@ -40,6 +40,8 @@ import {
   syncAuthSessionData,
   fetchData,
   fetchRevision,
+  setProfileStatsRevision,
+  invalidateProfileStatsFor,
   addLogData,
   claimSettlementConfirmationData,
   confirmSettlementConfirmationData,
@@ -779,6 +781,10 @@ const App = () => {
           setSyncError(true);
           return;
         }
+        // Any mutation anywhere bumps the revision, so re-keying the profile
+        // stats cache on it drops every stale entry without a hand-maintained
+        // list of what invalidates what.
+        setProfileStatsRevision(revision);
         if (revision <= latestRevisionRef.current) {
           setSyncError(false);
           return;
@@ -917,6 +923,9 @@ const App = () => {
 
   const handleSave=useCallback(async({ workoutType, isoDate, note, photoUrl })=>{
     if(!selectedGroupId || !currentGroup || !currentUser) return;
+    // Drop your own cached stats immediately rather than waiting for the next
+    // revision poll, so your profile reflects the workout you just logged.
+    invalidateProfileStatsFor(effectiveAuthSession?.userId);
     const optimisticLog = {
       id:`opt-${Date.now()}`,
       date:isoDate,
@@ -981,6 +990,7 @@ const App = () => {
   },[addLogData, applyData, authSession?.userId, beginOptimisticMutation, buildOptimisticState, clearOptimisticMutation, currentGroup, currentUser, refreshNow, selectedGroupId]);
 
   const handleMultiLog = useCallback(async({ workoutType, isoDate, targetGroupIds, note, photoUrl }) => {
+    invalidateProfileStatsFor(effectiveAuthSession?.userId);
     if(!selectedGroupId || !currentUser) return { ok:false, error:"No Bloc selected" };
     // Optimistic update: add log to UI immediately so the screen responds instantly.
     if(currentGroup) {

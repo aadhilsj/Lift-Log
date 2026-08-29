@@ -54,6 +54,7 @@ import { Avatar, WorkoutTypeIcon, ChevronRightIcon, TargetHitHexIcon, StatusBadg
 import { LogModal, DeleteModal, SitOutModal, SoloModal, NoticeModal } from "../modals/modals.jsx";
 import { PlayerProfile } from "../pages/PlayerProfile.jsx";
 import { buildPaymentTarget } from "../lib/paymentLinks.js";
+import { prefetchProfileStatsData } from "../lib/api.js";
 
 const FULL_MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
@@ -795,6 +796,17 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,logs,excus
       React.createElement('span',{style:{display:"inline-flex",width:"58%",height:"58%",alignItems:"center",justifyContent:"center"},dangerouslySetInnerHTML:{__html:target.appIcon}})
     );
   };
+  // Warm co-member profile stats in one round trip while the leaderboard is
+  // being read, so opening a member profile is instant. Best effort only: the
+  // on-demand fetch still covers the real request if this fails or is slow.
+  useEffect(() => {
+    const memberIds = Object.values(currentGroup?.memberships || {})
+      .map(membership => membership?.userId)
+      .filter(id => id && id !== currentUserId);
+    if (!memberIds.length) return;
+    prefetchProfileStatsData(memberIds);
+  }, [currentGroup?.id, currentUserId, currentGroup?.memberships]);
+
   const settlementReminderSlot = showSettlementReminderSlot && React.createElement(Card,{style:{padding:"9px 10px",display:"flex",flexDirection:"column",gap:6,background:"#0A1412",border:"0.5px solid #163d36",boxShadow:"inset 0 1px 0 rgba(78,205,196,.03)"}},
     React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}},
       React.createElement('span',{className:"lbl",style:{fontSize:8,marginBottom:0,color:"#7DB8B1",fontFamily:"'Outfit', sans-serif",fontWeight:700}},"Settlement reminders"),
@@ -1365,7 +1377,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,logs,excus
     React.createElement('div',{"aria-hidden":viewPlayer?true:undefined,style:{pointerEvents:viewPlayer?"none":"auto"}},todayContent),
     viewPlayer&&React.createElement('div',{key:`profile-layer-${viewPlayer}`,ref:profileLayerRef,className:"in-bloc-profile-layer",style:{backgroundColor:"#070C0C",background:profileRevealActive?"transparent":"var(--bg-gradient)",backgroundImage:profileRevealActive?"none":"var(--bg-radial-hint), var(--bg-gradient)",overflowY:"auto",overflowX:"hidden",WebkitOverflowScrolling:"touch",overscrollBehavior:"contain",touchAction:"pan-y"}},
       React.createElement(PlayerProfileErrorBoundary,{profileName:viewPlayer,onBack:closePlayerProfile},
-        React.createElement(PlayerProfile,{name:viewPlayer,logs,excused,monthHistory,onBack:closePlayerProfile,onSwipeRevealChange:setProfileRevealActive,groupSettings,memberUserId:Object.values(currentGroup?.memberships||{}).find(m=>m?.displayName===viewPlayer)?.userId||"",visibleGroups:groups,onDeleteLog:viewPlayer===user?async(log)=>{ await onLogMutation({action:"delete-log",groupId:currentGroupId,actor:user,owner:viewPlayer,logId:log.id}); }:undefined})
+        React.createElement(PlayerProfile,{name:viewPlayer,logs,excused,monthHistory,onBack:closePlayerProfile,onSwipeRevealChange:setProfileRevealActive,groupSettings,memberUserId:Object.values(currentGroup?.memberships||{}).find(m=>m?.displayName===viewPlayer)?.userId||"",currentUserId,visibleGroups:groups,onDeleteLog:viewPlayer===user?async(log)=>{ await onLogMutation({action:"delete-log",groupId:currentGroupId,actor:user,owner:viewPlayer,logId:log.id}); }:undefined})
       )
     )
   );
