@@ -46,6 +46,11 @@ const PAYPAL_MARK = '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"
 const PAYMENT_PROVIDER_DEFS = [
   {
     id: "revolut",
+    // Opens the provider's own app so the user can copy their link. These
+    // apps publish no deep link to a "share my payment link" screen, so this
+    // lands on the app home; appWeb is the fallback when the app is absent.
+    appUrl: "revolut://",
+    appWeb: "https://www.revolut.com/",
     label: "Revolut",
     brand: "#0666EB",
     onBrand: "#FFFFFF",
@@ -61,6 +66,8 @@ const PAYMENT_PROVIDER_DEFS = [
   },
   {
     id: "paypal",
+    appUrl: "paypal://",
+    appWeb: "https://www.paypal.com/",
     label: "PayPal",
     brand: "#003087",
     onBrand: "#FFFFFF",
@@ -74,6 +81,8 @@ const PAYMENT_PROVIDER_DEFS = [
   },
   {
     id: "vipps",
+    appUrl: "vipps://",
+    appWeb: "https://vipps.no/",
     label: "Vipps",
     brand: "#FF5B24",
     onBrand: "#FFFFFF",
@@ -95,8 +104,8 @@ const PAYMENT_PROVIDER_DEFS = [
 
 const ALLOWED_LINK_HOSTS = new Set(["revolut.me", "paypal.me", "qr.vipps.no"]);
 
-const PAYMENT_PROVIDERS = PAYMENT_PROVIDER_DEFS.map(({ id, label, placeholder, hint, brand, onBrand, logo = null, logoAspect = 1, appIcon = null, iconBg = null }) => ({
-  id, label, placeholder, hint, brand, onBrand, logo, logoAspect, appIcon, iconBg
+const PAYMENT_PROVIDERS = PAYMENT_PROVIDER_DEFS.map(({ id, label, placeholder, hint, brand, onBrand, logo = null, logoAspect = 1, appIcon = null, iconBg = null, appUrl = null, appWeb = null }) => ({
+  id, label, placeholder, hint, brand, onBrand, logo, logoAspect, appIcon, iconBg, appUrl, appWeb
 }));
 
 const PAYMENT_PROVIDER_IDS = new Set(PAYMENT_PROVIDER_DEFS.map(def => def.id));

@@ -233,7 +233,7 @@ const renderPaymentHandleSection = ({
   payProvider, setPayProvider, payHandle, setPayHandle,
   currentPaymentProvider, currentPaymentHandle,
   onSavePayment, savingPayment, paymentError,
-  pasteNotice, onPasteFromClipboard
+  pasteNotice, onPasteFromClipboard, onOpenProviderApp
 }) => {
   const activeDef = PAYMENT_PROVIDERS.find(provider => provider.id === payProvider) || null;
   const trimmedHandle = payHandle.trim();
@@ -297,7 +297,21 @@ const renderPaymentHandleSection = ({
       }),
       // Most people have to leave Fero to fetch their link. Rather than make
       // them retype it, offer a one-tap paste of whatever they copied.
-      React.createElement('div',{style:{display:"flex",alignItems:"center",gap:8,marginTop:7}},
+      React.createElement('div',{style:{display:"flex",alignItems:"center",gap:8,marginTop:7,flexWrap:"wrap"}},
+        activeDef?.appUrl && React.createElement('button',{
+          type:"button",
+          onClick:()=>onOpenProviderApp(activeDef),
+          style:{
+            display:"inline-flex",alignItems:"center",gap:6,
+            padding:"6px 10px",borderRadius:8,cursor:"pointer",
+            background:activeDef.iconBg||activeDef.brand,border:"none",
+            color:"#FFFFFF",fontSize:11,fontWeight:800,
+            fontFamily:"'Outfit', sans-serif"
+          }
+        },
+          React.createElement('span',{"aria-hidden":true,style:{display:"inline-flex",width:12,height:12,alignItems:"center",justifyContent:"center"},dangerouslySetInnerHTML:{__html:activeDef.appIcon}}),
+          `Open ${activeDef.label}`
+        ),
         React.createElement('button',{
           type:"button",
           onClick:onPasteFromClipboard,
@@ -312,7 +326,7 @@ const renderPaymentHandleSection = ({
         pasteNotice && React.createElement('span',{style:{fontSize:10.5,color:pasteNotice.tone==="error"?"var(--red)":"var(--text-faint)",lineHeight:1.35}},pasteNotice.text)
       ),
       React.createElement('div',{style:{fontSize:10.5,color:"var(--text-faint)",lineHeight:1.4,marginTop:6}},
-        `Copy your ${activeDef?.label || "payment"} link in their app, come back, and tap Paste.`
+        `Open ${activeDef?.label || "the app"}, copy your payment link, then come back and tap Paste.`
       ),
       activeDef?.hint && React.createElement('div',{style:{fontSize:10.5,color:"var(--text-faint)",lineHeight:1.4,marginTop:4}},activeDef.hint),
       preview && preview.mode==="copy" && React.createElement('div',{style:{fontSize:10.5,color:"var(--amber)",lineHeight:1.4,marginTop:6}},
@@ -336,6 +350,24 @@ const ProfileModal = ({email,onSignOut,onClose,showDisplayName,currentDisplayNam
   // Clipboard reads can be refused (permission, insecure context, older
   // browsers). Failure must never look like a bug: fall back to telling the
   // user to paste into the field themselves, which always works.
+  // Custom schemes fail silently when the app is absent, so fall back to the
+  // provider's site if we are still here shortly after. Leaving for the app
+  // hides the page, which cancels the fallback.
+  const handleOpenProviderApp = provider => {
+    if (!provider?.appUrl) return;
+    setPasteNotice(null);
+    let cancelled = false;
+    const cancel = () => { cancelled = true; };
+    document.addEventListener("visibilitychange", cancel, { once: true });
+    window.addEventListener("pagehide", cancel, { once: true });
+    window.setTimeout(() => {
+      document.removeEventListener("visibilitychange", cancel);
+      window.removeEventListener("pagehide", cancel);
+      if (cancelled || document.hidden) return;
+      if (provider.appWeb) window.open(provider.appWeb, "_blank", "noopener,noreferrer");
+    }, 1200);
+    window.location.href = provider.appUrl;
+  };
   const handlePasteFromClipboard = async () => {
     setPasteNotice(null);
     try {
@@ -370,7 +402,8 @@ const ProfileModal = ({email,onSignOut,onClose,showDisplayName,currentDisplayNam
         payProvider, setPayProvider, payHandle, setPayHandle,
         currentPaymentProvider, currentPaymentHandle,
         onSavePayment, savingPayment, paymentError,
-        pasteNotice, onPasteFromClipboard: handlePasteFromClipboard
+        pasteNotice, onPasteFromClipboard: handlePasteFromClipboard,
+        onOpenProviderApp: handleOpenProviderApp
       }),
       showFounderDashboard && !showLeaveConfirm && !showDeleteConfirm && React.createElement('button',{type:"button",onClick:onOpenFounderDashboard,style:{width:"100%",margin:"0 0 14px",padding:"11px 12px",borderRadius:10,border:"1px solid rgba(78,205,196,.35)",background:"rgba(78,205,196,.08)",color:"#4ECDC4",fontSize:12,fontWeight:900,cursor:"pointer"}},"Open founder dashboard"),
       showDisplayName
