@@ -30,7 +30,7 @@ import {
 } from "../lib/utils.js";
 import { Avatar, WorkoutTypeIcon, Bar, Card, SelectField, TargetHitHexIcon, AppIcon } from "../components/primitives.jsx";
 import { DeleteModal } from "../modals/modals.jsx";
-import { buildProfileStats } from "../lib/profileStats.js";
+import { ProfileStatsPanel } from "../components/ProfileStatsPanel.jsx";
 import {
   cancelSwipeFrame,
   releaseSwipeBack,
@@ -248,53 +248,24 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
     {label:"Months Won",val:hasHistory?(closedStats.wins||"—"):"—",sub:null,color:hasHistory&&closedStats.wins>0?"var(--gold)":"var(--muted)"},
     {label:"Net",val:hasHistory?(netPL===0?fmtCurrency(0,currency):`${netPL>0?"+":"-"}${fmtCurrency(Math.abs(netPL),currency)}`):"—",sub:null,color:hasHistory?(netPL>0?"var(--green)":netPL<0?"var(--red)":"var(--muted)"):"var(--muted)"},
   ];
-  // All-time panel.
+  // All-time panel — the exact same component the account profile renders, so
+  // the two never diverge visually.
   //
   // SCOPE: readable state is scoped per viewer, so the client only holds the
   // viewer's own Blocs. These numbers therefore cover the Blocs the viewer
-  // SHARES with this member, not that member's whole history. For your own
-  // profile that is every Bloc you are in, which matches the account profile.
-  //
-  // PRIVACY: aggregate numbers only. The Bloc count is shown; Bloc names are
-  // never rendered here, because naming them would expose a member's social
-  // graph to people who are not in those Blocs.
+  // SHARES with this member, not their whole history. For your own profile
+  // that is every Bloc you are in, matching the account profile exactly.
   const sharedGroups = (visibleGroups || []).filter(g =>
-    memberUserId
-      ? Object.values(g.memberships || {}).some(m => m.userId === memberUserId)
-      : false
+    memberUserId ? Object.values(g.memberships || {}).some(m => m.userId === memberUserId) : false
   );
-  const allTime = memberUserId ? buildProfileStats({ groups: sharedGroups, userId: memberUserId }) : null;
-  const allTimeHitPct = allTime?.agg?.targetEligibleMonths
-    ? Math.round((allTime.agg.targetHitMonths / allTime.agg.targetEligibleMonths) * 100)
-    : 0;
-  const allTimeCard = (label, value, sub) => React.createElement(Card,{key:label,style:{padding:"11px 10px",display:"grid",gap:3,justifyItems:"center",textAlign:"center"}},
-    React.createElement('div',{style:{fontSize:8.5,fontWeight:700,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".06em",fontFamily:"'Outfit',sans-serif"}},label),
-    React.createElement('div',{style:{fontSize:19,fontWeight:800,color:"var(--text)",fontFamily:"'Outfit',sans-serif",lineHeight:1.1}},value),
-    sub?React.createElement('div',{style:{fontSize:9.5,fontWeight:600,color:"var(--muted2)",fontFamily:"'Outfit',sans-serif"}},sub):null
-  );
-  const allTimePanel = !allTime
-    ? React.createElement(Card,{style:{padding:"18px 16px",textAlign:"center",color:"var(--muted)",fontSize:12,fontFamily:"'Outfit',sans-serif"}},"All-time stats aren't available for this member.")
-    : React.createElement(React.Fragment,null,
-        React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6}},
-          allTimeCard("Workouts", allTime.agg.workoutsLogged || 0),
-          allTimeCard("Blocs", allTime.myGroups.length),
-          allTimeCard("Wins", allTime.agg.blocWins || 0)
-        ),
-        React.createElement(Card,{style:{padding:"13px 14px",display:"grid",gap:6,justifyItems:"center"}},
-          React.createElement('div',{style:{fontSize:8.5,fontWeight:700,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".06em",fontFamily:"'Outfit',sans-serif"}},"Target hit"),
-          React.createElement('div',{style:{fontSize:22,fontWeight:800,color:"#58EBE1",fontFamily:"'Outfit',sans-serif",lineHeight:1}},`${allTimeHitPct}%`),
-          React.createElement('div',{style:{fontSize:11,fontWeight:600,color:"var(--muted)",fontFamily:"'Outfit',sans-serif"}},
-            `Hit target in ${allTime.agg.targetHitMonths} of ${allTime.agg.targetEligibleMonths} months`
-          )
-        ),
-        allTime.agg.bestMonth ? React.createElement(Card,{style:{padding:"12px 14px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:10}},
-          React.createElement('span',{style:{fontSize:11.5,fontWeight:600,color:"var(--muted)",fontFamily:"'Outfit',sans-serif"}},"Best month"),
-          React.createElement('span',{style:{fontSize:12.5,fontWeight:800,color:"var(--text)",fontFamily:"'Outfit',sans-serif"}},`${allTime.agg.bestMonth.label} · ${allTime.agg.bestMonth.count} workouts`)
-        ) : null,
-        React.createElement('div',{style:{fontSize:9.5,color:"var(--muted2)",textAlign:"center",lineHeight:1.4,fontFamily:"'Outfit',sans-serif",padding:"0 8px"}},
+  const allTimePanel = memberUserId
+    ? React.createElement(React.Fragment,null,
+        React.createElement(ProfileStatsPanel,{groups:sharedGroups,userId:memberUserId,ownerName:name}),
+        React.createElement('div',{style:{fontSize:9.5,color:"var(--muted2)",textAlign:"center",lineHeight:1.4,fontFamily:"'Outfit',sans-serif",padding:"2px 8px 0"}},
           "Across Blocs you share."
         )
-      );
+      )
+    : React.createElement(Card,{style:{padding:"18px 16px",textAlign:"center",color:"var(--muted)",fontSize:12,fontFamily:"'Outfit',sans-serif"}},"All-time stats aren't available for this member.");
 
   const startSwipeBack=e=>{
     e.stopPropagation();
