@@ -560,13 +560,6 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
     sectionSeparator,
     renderAwards(),
     sectionSeparator,
-    React.createElement('div',{style:{border:"1px solid rgba(78,205,196,.15)",borderRadius:10,overflow:"hidden",background:"linear-gradient(135deg, rgba(78,205,196,.045), rgba(8,15,15,.78) 52%, rgba(255,255,255,.018))",boxShadow:"inset 0 1px 0 rgba(255,255,255,.03), 0 10px 26px rgba(78,205,196,.035)"}},
-      React.createElement('button',{type:"button",onClick:()=>{onTrackUsage?.("monthly_summary_card_clicked");setShowStandings(v=>!v)},style:{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"13px 15px",background:"transparent",border:"none",color:"var(--text)",fontSize:13,fontWeight:800,cursor:"pointer"}},
-        React.createElement('span',null,"Month Summary"),
-        React.createElement('span',{style:{color:"var(--muted)",fontSize:16}},showStandings?"−":"+")
-      ),
-      showStandings&&renderLeaderboard()
-    ),
     reportCalendar ? React.createElement(MonthCalendarCard,{
       title:`${stickerMonthLabel} · Your month`,
       logsByDay:reportCalendar.logsByDay,
@@ -574,9 +567,15 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
       monthIndex:reportCalendar.monthIndex,
       daysInMonth:reportCalendar.daysInMonth,
       firstWeekdayOffset:reportCalendar.firstWeekdayOffset,
-      compact:true,
       onShare:handleShare
     }) : null,
+      showStandings&&renderLeaderboard()
+    ),
+    React.createElement('div',{style:{border:"1px solid rgba(78,205,196,.15)",borderRadius:10,overflow:"hidden",background:"linear-gradient(135deg, rgba(78,205,196,.045), rgba(8,15,15,.78) 52%, rgba(255,255,255,.018))",boxShadow:"inset 0 1px 0 rgba(255,255,255,.03), 0 10px 26px rgba(78,205,196,.035)"}},
+      React.createElement('button',{type:"button",onClick:()=>{onTrackUsage?.("monthly_summary_card_clicked");setShowStandings(v=>!v)},style:{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"13px 15px",background:"transparent",border:"none",color:"var(--text)",fontSize:13,fontWeight:800,cursor:"pointer"}},
+        React.createElement('span',null,"Month Summary"),
+        React.createElement('span',{style:{color:"var(--muted)",fontSize:16}},showStandings?"−":"+")
+      ),
     React.createElement('div',{style:{display:"flex",gap:8,paddingTop:2}},
       React.createElement('button',{onClick:handleShare,disabled:outcome!=="missed"&&!stickerData,style:{flex:1,padding:"13px",borderRadius:10,background:"var(--s2)",border:"1px solid var(--border)",color:"var(--text)",fontSize:13,fontWeight:800,opacity:(outcome!=="missed"&&!stickerData)?.5:1}},
         outcome === "missed" ? "View the settlement" : "Share this month"

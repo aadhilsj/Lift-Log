@@ -237,18 +237,26 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
     disabled:target === undefined,
     "aria-label":label,
     style:{
-      width:22,height:22,flexShrink:0,display:"inline-flex",alignItems:"center",justifyContent:"center",
-      borderRadius:7,border:"none",background:"transparent",padding:0,
-      color: target === undefined ? "rgba(120,150,145,.28)" : "#4ECDC4",
+      // A real tap target rather than a bare glyph: 28px square with a visible
+      // surface, so it reads as a button and is comfortable on a phone.
+      width:28,height:28,flexShrink:0,
+      display:"inline-flex",alignItems:"center",justifyContent:"center",
+      borderRadius:8,padding:0,
+      background: target === undefined ? "transparent" : "rgba(78,205,196,.1)",
+      border: target === undefined ? "1px solid transparent" : "1px solid rgba(78,205,196,.28)",
+      color: target === undefined ? "rgba(120,150,145,.3)" : "#4ECDC4",
       cursor: target === undefined ? "default" : "pointer",
-      fontFamily:"'Outfit',sans-serif",fontSize:15,fontWeight:700,lineHeight:1
+      fontFamily:"'Outfit',sans-serif",fontSize:15,fontWeight:800,lineHeight:1,
+      WebkitTapHighlightColor:"transparent"
     }
   }, direction);
-  const monthSelector = React.createElement('div',{style:{display:"inline-flex",alignItems:"center",gap:2,justifySelf:"end"}},
+  const monthSelector = React.createElement('div',{style:{display:"inline-flex",alignItems:"center",gap:6,justifySelf:"end"}},
     monthArrow("\u2039", olderIdx === null ? undefined : olderIdx, "Previous month"),
+    // Sized to the longest label rather than padded out, so the arrows sit
+    // beside the month instead of drifting away from it.
     React.createElement('span',{style:{
-      minWidth:74,textAlign:"center",fontFamily:"'Outfit',sans-serif",fontSize:11.5,fontWeight:700,
-      color:"var(--text)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"
+      textAlign:"center",fontFamily:"'Outfit',sans-serif",fontSize:12.5,fontWeight:800,
+      color:"var(--text)",whiteSpace:"nowrap"
     }}, isCurMonth ? "This Month" : profileMonthOptionLabel(selHistMonth)),
     monthArrow("\u203a", newerIdx, "Next month")
   );
@@ -530,7 +538,7 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
     ),
     React.createElement('div',{style:{maxWidth:740,margin:"0 auto",padding:"16px",display:"flex",flexDirection:"column",gap:12}},
     // Header row
-		    React.createElement('div',{className:"fu",style:{display:"grid",gridTemplateColumns:"96px minmax(0,1fr) 96px",alignItems:"center",gap:8}},
+		    React.createElement('div',{className:"fu",style:{display:"grid",gridTemplateColumns:"72px minmax(0,1fr) auto",alignItems:"center",gap:8}},
 	      React.createElement('div',{style:{justifySelf:"start"}},backButton),
 	      React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"center",gap:8,minWidth:0,textAlign:"center"}},
 		        React.createElement(Avatar,{name,size:24}),
