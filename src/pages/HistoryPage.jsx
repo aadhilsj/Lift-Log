@@ -76,7 +76,7 @@ const buildRankMap = rows => {
   return Object.fromEntries(sorted.map(([name], index) => [name, index + 1]));
 };
 
-const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToken,currentUser}) => {
+const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToken,currentUser,groups,currentUserId,accountCreatedAt}) => {
   const currency = groupSettings?.currency || DEFAULT_CURRENCY;
   const [showAllLeaderboard,setShowAllLeaderboard]=useState(false);
   const [viewPlayer,setViewPlayer]=useState(null);
@@ -359,7 +359,11 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
     React.createElement('div',{"aria-hidden":viewPlayer?true:undefined,style:{pointerEvents:viewPlayer?"none":"auto"}},historyContent),
     viewPlayer&&React.createElement('div',{key:`profile-layer-${viewPlayer}`,ref:profileLayerRef,className:"in-bloc-profile-layer",style:{backgroundColor:"#070C0C",background:profileRevealActive?"transparent":"var(--bg-gradient)",backgroundImage:profileRevealActive?"none":"var(--bg-radial-hint), var(--bg-gradient)",overflowY:"auto",overflowX:"hidden",WebkitOverflowScrolling:"touch",overscrollBehavior:"contain",touchAction:"pan-y"}},
       React.createElement(PlayerProfileErrorBoundary,{profileName:viewPlayer,onBack:closePlayerProfile},
-        React.createElement(PlayerProfile,{name:viewPlayer,logs,excused,monthHistory,onBack:closePlayerProfile,onSwipeRevealChange:setProfileRevealActive,groupSettings})
+        // The same identity props Today passes. Without memberUserId the All
+        // Blocs tab has no member to look up and says the stats are not
+        // available, even though opening the very same profile from Today
+        // loads them.
+        React.createElement(PlayerProfile,{name:viewPlayer,logs,excused,monthHistory,onBack:closePlayerProfile,onSwipeRevealChange:setProfileRevealActive,groupSettings,memberUserId:Object.values(group?.memberships||{}).find(m=>m?.displayName===viewPlayer)?.userId||"",currentUserId,visibleGroups:groups,accountCreatedAt})
       )
     )
   );
