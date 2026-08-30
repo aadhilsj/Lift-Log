@@ -812,18 +812,26 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
   // owed — someone who only owes money needs no method of their own — and only
   // when you have none set, in which case those payers see no icons at all and
   // have no way to know why.
+  // Most cards in a Bloc are about two other people; on those you are neither
+  // the payer nor the receiver. "Not the payer" therefore does not mean "owed",
+  // and using it showed the prompt to bystanders on someone else's debt.
+  // Auth id first, display name only as the fallback, matching how the card
+  // itself decides who the payer is.
+  const isReceiverCard = React.useCallback(card => (
+    card?.receiverAuthUserId ? card.receiverAuthUserId === currentUserId : card?.receiverDisplayName === user
+  ), [currentUserId, user]);
   const needsPaymentMethod = React.useMemo(() => {
     if (!onOpenAccount || !currentUserId) return false;
-    const owedToMe = visibleSettlementReminderCards.some(card => !card.isPayer);
+    const owedToMe = visibleSettlementReminderCards.some(isReceiverCard);
     if (!owedToMe) return false;
     return buildOwnPaymentTargets(profiles?.[currentUserId]).length === 0;
-  }, [onOpenAccount, currentUserId, visibleSettlementReminderCards, profiles]);
+  }, [onOpenAccount, currentUserId, visibleSettlementReminderCards, profiles, isReceiverCard]);
 
   // Inline on the card of the first person who owes you, rather than a banner
   // above the list: it belongs with the debt it is about. Only the first such
   // card carries it, so several people owing you does not repeat the prompt.
   const firstOwedKey = needsPaymentMethod
-    ? visibleSettlementReminderCards.find(card => !card.isPayer)?.key || null
+    ? visibleSettlementReminderCards.find(isReceiverCard)?.key || null
     : null;
   // Sits on the body line, not under it, and opens the provider list in place
   // rather than sending the receiver off to the account screen: the prompt is
