@@ -262,7 +262,8 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
       )
     );
   };
-  const monthSelector = React.createElement('div',{style:{display:"inline-flex",alignItems:"center",gap:9,justifySelf:"end"}},
+  // Tight to the label — reads as "< This Month >", about a space either side.
+  const monthSelector = React.createElement('div',{style:{display:"inline-flex",alignItems:"center",gap:3,justifySelf:"end"}},
     monthArrow("prev", olderIdx === null ? undefined : olderIdx, "Previous month"),
     React.createElement('span',{style:{
       textAlign:"center",fontFamily:"'Outfit',sans-serif",fontSize:11.5,fontWeight:700,
