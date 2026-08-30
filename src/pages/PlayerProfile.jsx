@@ -233,36 +233,37 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
   const stepMonth = target => { if (target !== undefined) setSelMonthIdx(target); };
   const monthArrow = (direction, target, label) => {
     const disabled = target === undefined;
+    const stroke = disabled ? "rgba(140,165,160,.34)" : "#4ECDC4";
+    // AppIcon's chevron draws "M15 6l-6 6 6 6" inside a 24x24 viewBox, so the
+    // visible arrow is only 6 units wide and 12 tall — a quarter of the box.
+    // Using it here made the border hug the SVG rather than the glyph. This
+    // crops the viewBox to the chevron itself so the outline sits on the arrow.
+    const chevron = React.createElement('svg',{
+      width:5, height:10, viewBox:"9 6 6 12", fill:"none",
+      stroke, strokeWidth:"2.6", strokeLinecap:"round", strokeLinejoin:"round",
+      "aria-hidden":true, style:{display:"block"}
+    }, React.createElement('path',{ d: direction === "prev" ? "M15 6l-6 6 6 6" : "M9 6l6 6-6 6" }));
     return React.createElement('button',{
       type:"button",
       onClick:()=>stepMonth(target),
       disabled,
       "aria-label":label,
       style:{
-        // The visible outline is deliberately smaller than the button. Padding
-        // keeps a comfortable tap target on a phone while the border stays
-        // tight to the chevron.
+        // Padding keeps a comfortable tap target while the visible outline
+        // stays tight to the arrow.
         display:"inline-flex",alignItems:"center",justifyContent:"center",
-        padding:5,margin:-5,background:"transparent",border:"none",
+        padding:6,margin:-6,background:"transparent",border:"none",
         cursor: disabled ? "default" : "pointer",
         WebkitTapHighlightColor:"transparent"
       }
     },
       React.createElement('span',{style:{
-        width:17,height:17,flexShrink:0,
         display:"inline-flex",alignItems:"center",justifyContent:"center",
-        borderRadius:5,
-        border: disabled ? "1.5px solid rgba(255,255,255,.09)" : "1.5px solid rgba(78,205,196,.42)"
-      }},
-        React.createElement(AppIcon,{
-          name: direction === "prev" ? "chevron-left" : "chevron-right",
-          size: 13,
-          stroke: disabled ? "rgba(140,165,160,.32)" : "#4ECDC4"
-        })
-      )
+        padding:"0 3px",borderRadius:4,
+        border: disabled ? "1.5px solid rgba(255,255,255,.1)" : "1.5px solid rgba(78,205,196,.45)"
+      }}, chevron)
     );
   };
-  // Tight to the label — reads as "< This Month >", about a space either side.
   const monthSelector = React.createElement('div',{style:{display:"inline-flex",alignItems:"center",gap:3,justifySelf:"end"}},
     monthArrow("prev", olderIdx === null ? undefined : olderIdx, "Previous month"),
     React.createElement('span',{style:{
