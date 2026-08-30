@@ -85,7 +85,7 @@ import {
   releaseSwipeBack,
   releaseSwipeForward
 } from "./lib/swipeRelease.js";
-import { Spinner, InstallBanner, TodayPageErrorBoundary } from "./components/primitives.jsx";
+import { Spinner, TodayScreenSkeleton, InstallBanner, TodayPageErrorBoundary } from "./components/primitives.jsx";
 import { PreviewLanding, InvalidInviteScreen, SignedOutLanding, ProfileModal, JoinGroupModal, AuthFlowModal, DisplayNameSetupScreen, IdentitySetup, CreatedBlocInviteScreen, GroupHome, GroupAccessNotice, LocalDevImpersonationBar } from "./components/authShell.jsx";
 import { GroupCreateModal, ProrationChoiceModal } from "./modals/modals.jsx";
 import { Nav } from "./pages/Nav.jsx";
@@ -2741,7 +2741,15 @@ const App = () => {
     || (!authSession?.userId && !localPreviewAuthEnabled && !hasInviteEntry && !coldOnboardingSeen)
   );
 
-  if(loading || !authReady || (authHydrating && !authStep)) return React.createElement(Spinner,{label:"Opening Fero..."});
+  // A returning member gets Today's shape rather than a spinner on blank: the
+  // screen they are about to see fades in over its own outline instead of
+  // appearing all at once. Anyone without a stored session still gets the
+  // spinner — they are heading for the sign-in screen, not for Today.
+  if(loading || !authReady || (authHydrating && !authStep)) {
+    return initialPersistedSession?.userId
+      ? React.createElement(TodayScreenSkeleton)
+      : React.createElement(Spinner,{label:"Opening Fero..."});
+  }
   if(postAuthActionPending) return React.createElement(SetupProgressScreen,{stage:postAuthProgressStage});
   if(inviteContextLoading && !inviteContext) return React.createElement(Spinner,{label:"Loading invite..."});
   if(!authStep && urlInviteCode && inviteError && !inviteContext) {

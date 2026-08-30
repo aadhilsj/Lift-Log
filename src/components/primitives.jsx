@@ -324,6 +324,57 @@ const Spinner = ({label="Loading Fero..."}) => React.createElement('div',{style:
   React.createElement('div',{style:{color:"var(--muted)",fontSize:13,fontFamily:"'JetBrains Mono',monospace"}},label)
 );
 
+// Shown on a cold open instead of a spinner on blank, for a member we already
+// know is signed in. It mirrors Today's mobile layout — the day line, four
+// stat cards, the leaderboard — so the real screen arrives into the shape
+// that is already there rather than snapping in from nothing.
+//
+// Only for a returning member: someone who is signed out would be shown the
+// frame of a screen they are not about to see. The caller decides.
+const TodayScreenSkeleton = () => {
+  const bar = (w, h = 10, extra = {}) => React.createElement('div',{className:"skel",style:{width:w,height:h,...extra}});
+  const statCardStyle = {
+    background:"linear-gradient(180deg, #080F0F 0%, #0A1314 100%)",
+    border:"0.5px solid #152827",
+    boxShadow:"inset 0 1px 0 rgba(255,255,255,.025)",
+    padding:"8px 10px",
+    minHeight:74,
+    display:"flex",
+    flexDirection:"column",
+    alignItems:"center",
+    gap:9
+  };
+  return React.createElement('div',{
+    style:{minHeight:"100vh",backgroundColor:"#070C0C",background:"var(--bg-gradient)",backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)"}
+  },
+    React.createElement('div',{style:{padding:"12px 14px 0",display:"flex",flexDirection:"column",gap:12,maxWidth:640,margin:"0 auto"}},
+      bar(118, 9),
+      React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(4,minmax(0,1fr))",gap:6,paddingBottom:2}},
+        [0,1,2,3].map(i => React.createElement(Card,{key:i,style:statCardStyle},
+          bar("72%", 7), bar("46%", 15), bar("84%", 6)
+        ))
+      ),
+      React.createElement(Card,null,
+        React.createElement('div',{style:{padding:"11px 14px",borderBottom:"1px solid var(--border)"}}, bar(112, 12)),
+        React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:4,padding:8}},
+          [0,1,2,3,4,5].map(i => React.createElement('div',{key:i,style:{
+            width:"100%",background:"#080F0F",border:"0.5px solid #0D1F1E",borderRadius:8,
+            padding:"8px 10px",boxShadow:"inset 0 1px 0 rgba(255,255,255,0.04)",
+            display:"flex",alignItems:"center",gap:8
+          }},
+            bar(20, 9),
+            bar(22, 22, {borderRadius:999, flexShrink:0}),
+            React.createElement('div',{style:{flex:1,minWidth:0}}, bar(`${[62,54,70,48,58,44][i]}%`, 10)),
+            bar(16, 12),
+            bar(52, 14, {borderRadius:999})
+          ))
+        )
+      )
+    ),
+    React.createElement('span',{style:{position:"absolute",width:1,height:1,overflow:"hidden",clip:"rect(0 0 0 0)"}},"Opening Fero")
+  );
+};
+
 class PlayerProfileErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
@@ -537,4 +588,4 @@ const PrimaryActionButton = ({label,onClick,secondary=false}) => React.createEle
 },label);
 
 
-export { Avatar, CategoryIcon, WorkoutTypeIcon, ChevronRightIcon, TargetHitHexIcon, StatusBadge, RankIcon, TrophyIcon, MedalIcon, UploadPhotoIcon, Bar, Card, AppIcon, AnteWordmark, Spinner, InstallBanner, WorkoutCategorySelector, SettingsField, SelectField, inputShellStyle, StepperField, PrimaryActionButton, PlayerProfileErrorBoundary, TodayPageErrorBoundary };
+export { Avatar, CategoryIcon, WorkoutTypeIcon, ChevronRightIcon, TargetHitHexIcon, StatusBadge, RankIcon, TrophyIcon, MedalIcon, UploadPhotoIcon, Bar, Card, AppIcon, AnteWordmark, Spinner, TodayScreenSkeleton, InstallBanner, WorkoutCategorySelector, SettingsField, SelectField, inputShellStyle, StepperField, PrimaryActionButton, PlayerProfileErrorBoundary, TodayPageErrorBoundary };

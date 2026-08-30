@@ -9,6 +9,25 @@ import {
 import { QUICK_REACTIONS, resolveStorageImageUrl } from "../lib/appState.js";
 import { formatShortDate } from "../lib/utils.js";
 
+// Skeleton bubbles while a thread loads. We already know how many comments
+// the log has, so the placeholder is that many (capped) rather than an
+// arbitrary number — the thread settles into the height it was drawn at.
+// Alternating sides mirrors the real conversation layout.
+const CommentThreadSkeleton = ({ count = 3 }) => {
+  const rows = Math.max(1, Math.min(count || 3, 6));
+  return React.createElement('div', { style: { display: "flex", flexDirection: "column", gap: 10, padding: "12px 12px 18px" } },
+    Array.from({ length: rows }, (unused, index) => {
+      const isOwn = index % 3 === 1;
+      const width = [72, 58, 84, 64, 76, 52][index % 6];
+      return React.createElement('div', { key: index, style: { display: "flex", alignItems: "flex-end", justifyContent: isOwn ? "flex-end" : "flex-start", gap: 7 } },
+        !isOwn ? React.createElement('div', { className: "skel", style: { width: 22, height: 22, borderRadius: 999, flexShrink: 0 } }) : null,
+        React.createElement('div', { className: "skel", style: { width: `${width}%`, maxWidth: "76%", height: 34, borderRadius: 14 } })
+      );
+    }),
+    React.createElement('span', { style: { position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" } }, "Loading comments")
+  );
+};
+
 const logCommentThreadCache = new Map();
 
 function resizeComposer(input) {
@@ -412,7 +431,7 @@ function LogCommentThread({ groupId, log, currentUserId, currentUserName, onClos
         React.createElement(LogHeader, { log: normalizedLog }),
         error && React.createElement('div', { style: { margin: 14, padding: "9px 11px", borderRadius: 10, background: "rgba(232,69,69,.08)", border: "1px solid rgba(232,69,69,.22)", color: "#ffd7d7", fontSize: 12 } }, error),
         comments.length === 0 && !loaded && knownCommentCount > 0
-          ? React.createElement('div', { style: { padding: "22px 14px", color: "var(--muted2)", fontSize: 13, textAlign: "center" } }, "Loading comments...")
+          ? React.createElement(CommentThreadSkeleton, { count: knownCommentCount })
           : comments.length === 0
           ? React.createElement('div', { style: { padding: "22px 14px", color: "var(--muted2)", fontSize: 13, textAlign: "center" } }, "No comments yet")
           : React.createElement('div', { style: { display: "flex", flexDirection: "column", gap: 6, padding: "12px 12px 18px" } },

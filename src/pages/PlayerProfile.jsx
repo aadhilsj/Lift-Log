@@ -524,11 +524,12 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
 	      ),
 	      React.createElement('div',{style:{justifySelf:"end"}},monthSelector)
 	    ),
-	    // Bloc / All time tabs. The Bloc tab is this Bloc's month view; All time
-	    // shows the cross-Bloc stats that used to be reachable only from the
-	    // account profile outside a Bloc.
+	    // This Bloc / All Blocs tabs. The pair differs by scope, not by time:
+	    // the left tab is this Bloc's month, the right one the cross-Bloc stats
+	    // that used to be reachable only from the account profile outside a
+	    // Bloc. The value stays "alltime" so stored state keeps working.
 	    React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:5,padding:3,borderRadius:12,background:"rgba(8,20,19,.76)",border:"0.5px solid rgba(22,61,54,.72)"}},
-	      [["bloc","This Bloc"],["alltime","All time"]].map(([value,label])=>React.createElement('button',{
+	      [["bloc","This Bloc"],["alltime","All Blocs"]].map(([value,label])=>React.createElement('button',{
 	        key:value,type:"button",onClick:()=>setProfileTab(value),
 	        style:{minHeight:31,borderRadius:9,border:"none",cursor:"pointer",background:profileTab===value?"rgba(78,205,196,.12)":"transparent",color:profileTab===value?"#4ECDC4":"var(--muted)",fontFamily:"'Outfit',sans-serif",fontSize:9.5,fontWeight:900,textTransform:"uppercase",letterSpacing:".055em"}
 	      },label))
