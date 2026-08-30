@@ -9,6 +9,11 @@
 -- Both event names are added to the general usage reader so they report
 -- daily/weekly/monthly/all-time. The dashboard decides which periods to show:
 -- the expander on all four, the banner on this month and all time only.
+--
+-- bloc_stream_opened is added to the same reader. The server has been
+-- recording it on every stream load since the event was introduced, but the
+-- reader never listed it, so the dashboard row has always read zero. Adding
+-- it here surfaces the history already in the table; no backfill is needed.
 
 alter table ante_core.app_usage_events drop constraint if exists app_usage_events_event_name_check;
 alter table ante_core.app_usage_events add constraint app_usage_events_event_name_check check (event_name in ('today_opened','activity_opened','month_opened','history_opened','own_profile_opened','own_block_profile_opened','other_profile_opened','mvp_card_opened','bloc_month_opened','settings_opened','comment_composer_opened','reaction_picker_opened','bloc_stream_opened','share_month_clicked','monthly_summary_card_clicked','last_month_banner_clicked'));
@@ -38,8 +43,8 @@ begin
     ('today_opened'), ('activity_opened'), ('month_opened'), ('history_opened'),
     ('own_profile_opened'), ('other_profile_opened'), ('mvp_card_opened'),
     ('bloc_month_opened'), ('settings_opened'), ('comment_composer_opened'),
-    ('reaction_picker_opened'), ('monthly_summary_card_clicked'),
-    ('last_month_banner_clicked')
+    ('reaction_picker_opened'), ('bloc_stream_opened'),
+    ('monthly_summary_card_clicked'), ('last_month_banner_clicked')
   ), counts as (
     select n.event_name,
       count(e.id) filter (where e.occurred_at >= v_today_start) as daily_total,
