@@ -67,6 +67,8 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
   const penalties = calcPenalties(activeCounts, isCurrent ? groupSettings || {} : selMonth?.settings || {});
   const {winners,losers,perWinner}=penalties;
   const hasActivity=activeCounts.some(u=>u.count>0);
+  const currentUserEntry = currentUser ? counts.find(u=>u.name===currentUser) : null;
+  const currentUserIsOut = isCurrent && !!currentUserEntry?.isOut;
   const resultsCurrency = (isCurrent ? groupSettings : selMonth?.settings)?.currency || DEFAULT_CURRENCY;
   const hasQualifiedWinner = winners.some(w => (w.count || 0) >= (w.target || MIN_TARGET));
   const wouldMoveMoney = hasQualifiedWinner && losers.length > 0 && perWinner > 0;
@@ -250,12 +252,16 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
       ),
       monthSelector
     ),
-    React.createElement(Card,{style:{padding:"18px 18px 16px",background:"linear-gradient(135deg, rgba(245,166,35,.16), rgba(245,210,105,.08) 48%, rgba(8,15,15,.92))",border:"1px solid rgba(245,166,35,.28)",display:"flex",flexDirection:"column",gap:14,fontFamily:"'Outfit', sans-serif"}},
+    React.createElement(Card,{style:{padding:"18px 18px 16px",background:currentUserIsOut?"linear-gradient(135deg, rgba(101,101,122,.12), rgba(8,15,15,.92))":"linear-gradient(135deg, rgba(245,166,35,.16), rgba(245,210,105,.08) 48%, rgba(8,15,15,.92))",border:currentUserIsOut?"1px solid var(--border2)":"1px solid rgba(245,166,35,.28)",display:"flex",flexDirection:"column",gap:14,fontFamily:"'Outfit', sans-serif"}},
       React.createElement('div',{style:{position:"relative",display:"flex",alignItems:"center",justifyContent:"flex-end",gap:10,minHeight:16}},
-        React.createElement('span',{style:{marginRight:"auto",fontFamily:"'Outfit', sans-serif",fontSize:11,fontWeight:800,color:"#F5A623",textTransform:"uppercase",letterSpacing:".08em",whiteSpace:"nowrap"}},"Month in progress"),
-        React.createElement('span',{style:{fontFamily:"'Outfit', sans-serif",fontSize:9.5,fontWeight:500,color:"var(--muted)",whiteSpace:"nowrap",textAlign:"right"}},`${getDaysLeft()} days remaining`)
+        React.createElement('span',{style:{marginRight:"auto",fontFamily:"'Outfit', sans-serif",fontSize:11,fontWeight:800,color:currentUserIsOut?"var(--muted)":"#F5A623",textTransform:"uppercase",letterSpacing:".08em",whiteSpace:"nowrap"}},currentUserIsOut?"Sitting out this month":"Month in progress"),
+        !currentUserIsOut&&React.createElement('span',{style:{fontFamily:"'Outfit', sans-serif",fontSize:9.5,fontWeight:500,color:"var(--muted)",whiteSpace:"nowrap",textAlign:"right"}},`${getDaysLeft()} days remaining`)
       ),
-      hasActivity&&winners.length>0
+      currentUserIsOut
+        ? React.createElement('div',{style:{display:"flex",alignItems:"center",gap:10,padding:"4px 0"}},
+            React.createElement('span',{style:{fontSize:22}},"💤"),
+          )
+        : hasActivity&&winners.length>0
         ? React.createElement('div',{style:{display:"flex",alignItems:"center",gap:10}},
             React.createElement('span',{style:{display:"inline-flex",color:"#F5A623",flexShrink:0}},React.createElement(TrophyIcon,{size:18,color:"#F5A623"})),
             React.createElement('div',{style:{minWidth:0,display:"flex",alignItems:"center",justifyContent:"center",gap:8}},
@@ -266,10 +272,10 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
             )
           )
         : React.createElement('div',{style:{fontSize:18,fontWeight:800,color:"var(--text)"}},"No leader yet"),
-      currentUser&&React.createElement('div',{style:{background:"rgba(8,17,17,.24)",border:"1px solid rgba(245,166,35,.13)",borderRadius:8,padding:"9px 12px",display:"grid",gridTemplateColumns:"minmax(0,1fr) auto",columnGap:14,rowGap:1,alignItems:"baseline",boxShadow:"inset 0 1px 0 rgba(255,255,255,.035)",backdropFilter:"blur(3px)"}},
+      currentUser&&!currentUserIsOut&&React.createElement('div',{style:{background:"rgba(8,17,17,.24)",border:"1px solid rgba(245,166,35,.13)",borderRadius:8,padding:"9px 12px",display:"grid",gridTemplateColumns:"minmax(0,1fr) auto",columnGap:14,rowGap:1,alignItems:"baseline",boxShadow:"inset 0 1px 0 rgba(255,255,255,.035)",backdropFilter:"blur(3px)"}},
         React.createElement('div',{style:{fontSize:13,fontWeight:700,color:"var(--text)",textAlign:"left",whiteSpace:"nowrap",justifySelf:"start"}},"Your month so far"),
-        React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontSize:18,fontWeight:800,color:losers.some(l=>l.name===currentUser)?"var(--red)":"#4ECDC4",textAlign:"right",whiteSpace:"nowrap",justifySelf:"end"}},`${counts.find(u=>u.name===currentUser)?.count ?? 0}/${counts.find(u=>u.name===currentUser)?.target ?? MIN_TARGET}`),
-        React.createElement('div',{style:{fontSize:12,color:"var(--muted)",textAlign:"left",whiteSpace:"nowrap",justifySelf:"start"}},counts.find(u=>u.name===currentUser)?.memberDiffLabel || getLeaderboardDiffText(counts.find(u=>u.name===currentUser) || {count:0,target:MIN_TARGET})),
+        React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontSize:18,fontWeight:800,color:losers.some(l=>l.name===currentUser)?"var(--red)":"#4ECDC4",textAlign:"right",whiteSpace:"nowrap",justifySelf:"end"}},`${currentUserEntry?.count ?? 0}/${currentUserEntry?.target ?? MIN_TARGET}`),
+        React.createElement('div',{style:{fontSize:12,color:"var(--muted)",textAlign:"left",whiteSpace:"nowrap",justifySelf:"start"}},currentUserEntry?.memberDiffLabel || getLeaderboardDiffText(currentUserEntry || {count:0,target:MIN_TARGET})),
         React.createElement('div',{style:{fontSize:11,color:"var(--muted)",textAlign:"right",whiteSpace:"nowrap",justifySelf:"end"}},"logged")
       )
     ),
