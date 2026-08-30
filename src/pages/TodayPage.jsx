@@ -56,10 +56,11 @@ import { PlayerProfile } from "../pages/PlayerProfile.jsx";
 import { buildPaymentTargets } from "../lib/paymentLinks.js";
 import { prefetchProfileStatsData } from "../lib/api.js";
 import { buildPaymentTargets as buildOwnPaymentTargets } from "../lib/paymentLinks.js";
+import { PaymentHandleSection } from "../components/PaymentHandleSection.jsx";
 
 const FULL_MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
-const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCreatedAt,logs,excused,monthHistory,saving,onSave,onMultiLog,onLogMutation,clockTick,onViewLastMonth,onSitOutRequest,onSoloRequest,onSettlementClaimPaid,onSettlementConfirmPaid,onSettlementDisputePaid,onOpenSetupReview,onOpenAccount,navResetToken,showLog,setShowLog,onTrackUsage}) => {
+const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCreatedAt,logs,excused,monthHistory,saving,onSave,onMultiLog,onLogMutation,clockTick,onViewLastMonth,onSitOutRequest,onSoloRequest,onSettlementClaimPaid,onSettlementConfirmPaid,onSettlementDisputePaid,onOpenSetupReview,onOpenAccount,navResetToken,showLog,setShowLog,onTrackUsage,currentPaymentMethods=[],onSavePayment,savingPayment=false,paymentError=""}) => {
   const [showExcuse,setShowExcuse]=useState(false);
   const [sitOutSubmitting,setSitOutSubmitting]=useState(false);
   const [sitOutError,setSitOutError]=useState("");
@@ -74,6 +75,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
   const [settlementClaimPromptCard,setSettlementClaimPromptCard]=useState(null);
   const [settlementConfirmPromptCard,setSettlementConfirmPromptCard]=useState(null);
   const [settlementDisputePromptCard,setSettlementDisputePromptCard]=useState(null);
+  const [showLinkPaymentModal,setShowLinkPaymentModal]=useState(false);
   const todayRootRef = useRef(null);
   const profileLayerRef = useRef(null);
   const [profileRevealActive,setProfileRevealActive]=useState(false);
@@ -823,13 +825,16 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
   const firstOwedKey = needsPaymentMethod
     ? visibleSettlementReminderCards.find(card => !card.isPayer)?.key || null
     : null;
+  // Sits on the body line, not under it, and opens the provider list in place
+  // rather than sending the receiver off to the account screen: the prompt is
+  // about one small piece of setup, so the whole trip is the wrong size.
   const renderLinkPaymentPrompt = card => card.key !== firstOwedKey ? null : React.createElement('button',{
     type:"button",
-    onClick:e=>{ e.stopPropagation(); onOpenAccount(); },
+    onClick:e=>{ e.stopPropagation(); setShowLinkPaymentModal(true); },
     style:{
-      display:"inline-block",background:"transparent",border:"none",padding:"1px 0 0",
-      color:"#4ECDC4",fontSize:10,fontWeight:700,cursor:"pointer",textAlign:"left",
-      textDecoration:"underline",textDecorationColor:"rgba(78,205,196,.4)",textUnderlineOffset:"2px",
+      background:"transparent",border:"none",padding:0,
+      color:"#6B9690",fontSize:8.5,fontWeight:600,cursor:"pointer",textAlign:"left",
+      textDecoration:"none",whiteSpace:"nowrap",flexShrink:0,lineHeight:1.25,
       fontFamily:"'Outfit', sans-serif"
     }
   },"Link a payment option");
@@ -845,8 +850,10 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
           React.createElement('div',{style:{fontSize:8,color:"#89A39E",letterSpacing:".12em",textTransform:"uppercase",fontFamily:"'Outfit', sans-serif",fontWeight:600}},card.monthLabel || card.month || card.label),
         )
       ),
-      React.createElement('div',{style:{minWidth:0,flex:1,fontSize:11,color:"var(--text)",lineHeight:1.25,fontFamily:"'Outfit', sans-serif",fontWeight:500}},card.body),
-      renderLinkPaymentPrompt(card),
+      React.createElement('div',{style:{minWidth:0,display:"flex",alignItems:"baseline",gap:5}},
+        React.createElement('span',{style:{minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontSize:11,color:"var(--text)",lineHeight:1.25,fontFamily:"'Outfit', sans-serif",fontWeight:500}},card.body),
+        renderLinkPaymentPrompt(card)
+      ),
       React.createElement('div',{style:{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",display:"flex",alignItems:"center",gap:8,flexShrink:0}},
         React.createElement('div',{style:{fontSize:12,fontWeight:600,color:card.amountColor,whiteSpace:"nowrap",fontFamily:"'Outfit', sans-serif"}},fmtCurrency(card.amount, card.currency)),
         reminderPayControl(card),
@@ -884,6 +891,13 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
         }, settlementCardBusy===card.key ? "Saving..." : card.action.label)
       )
     ))
+  );
+  // Only the provider list — the same component the account screen uses, so
+  // there is one place where a payment method is added or removed.
+  const linkPaymentModal = showLinkPaymentModal && onSavePayment && React.createElement('div',{className:"overlay center-mobile",onClick:()=>setShowLinkPaymentModal(false)},
+    React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{maxWidth:340,padding:"16px 15px",textAlign:"left"}},
+      React.createElement(PaymentHandleSection,{currentPaymentMethods,onSavePayment,savingPayment,paymentError})
+    )
   );
   const settlementDisputePrompt = settlementDisputePromptCard && React.createElement('div',{className:"overlay center-mobile",onClick:()=>setSettlementDisputePromptCard(null)},
     React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{maxWidth:320,padding:"18px 16px",textAlign:"center"}},
@@ -1393,6 +1407,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
     showExcuse && sitOutMode && React.createElement(SitOutModal,{mode:sitOutMode,monthName:modalMonthName,onClose:()=>{setShowExcuse(false);setSitOutError("");},onSubmit:submitSitOut,submitting:sitOutSubmitting,error:sitOutError}),
     showSolo && visibleSoloMode && React.createElement(SoloModal,{mode:visibleSoloMode,monthName:modalMonthName,minimumTarget:soloMinimumTarget,maximumTarget:effectiveTarget,defaultTarget:Math.max(soloMinimumTarget, Math.ceil(effectiveTarget * .5)),onClose:()=>{setShowSolo(false);setSoloError("");},onSubmit:submitSolo,submitting:soloSubmitting,error:soloError}),
     showSoloLocked && React.createElement(NoticeModal,{title:"Solo Mode is locked",body:"Solo Mode is only available in the first 10 days of the month.",onClose:()=>setShowSoloLocked(false)}),
+    linkPaymentModal,
     settlementDisputePrompt,
     settlementClaimPrompt,
     settlementConfirmPrompt,
