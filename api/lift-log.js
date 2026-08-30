@@ -7901,7 +7901,9 @@ function resolveKickTarget(group, targetUserId, targetDisplayName) {
 // never be treated as trusted just because it round-tripped the database.
 const SUPPORTED_PAYMENT_PROVIDERS = new Set(["revolut", "paypal", "vipps"]);
 const MAX_PAYMENT_HANDLE_LENGTH = 200;
-const MAX_PAYMENT_METHODS = 8;
+// Two is the cap, enforced here as well as in the UI so a crafted request
+// cannot store more.
+const MAX_PAYMENT_METHODS = 2;
 
 // A profile carries a list of methods. The server stores and bounds them; it
 // never resolves a handle to a URL. Link construction and host allowlisting

@@ -203,7 +203,9 @@ function buildPaymentTarget(profile) {
   return { mode: "copy", url: "", copyText: normalized, label: def.label, brand: def.brand, onBrand: def.onBrand, logo: def.logo || null, logoAspect: def.logoAspect || 1, appIcon: def.appIcon || null, iconBg: def.iconBg || def.brand || null };
 }
 
-const MAX_PAYMENT_METHODS = 8;
+// Two is the cap. Enough to cover people in different markets without turning
+// the settlement row into a wall of icons, and it keeps the picker legible.
+const MAX_PAYMENT_METHODS = 2;
 
 // A profile now carries a list: people hold different apps in different
 // markets, and the payer picks whichever suits them. Normalises whatever the

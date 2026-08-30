@@ -1982,6 +1982,27 @@ const App = () => {
       suppressIntro
     })
   );
+  const accountOverlay = () => showProfile && React.createElement('div',{ref:profileOverlayRef,style:{position:"fixed",inset:0,zIndex:30,overflowY:"auto",overflowX:"hidden",WebkitOverflowScrolling:"touch",overscrollBehavior:"contain",background:profileRevealActive?"transparent":"var(--bg-gradient)",backgroundImage:profileRevealActive?"none":"var(--bg-radial-hint), var(--bg-gradient)"}},
+        React.createElement(ProfilePage,{
+          visibleGroups,
+          currentUserId: effectiveAuthSession?.userId,
+          displayName: effectiveProfile?.displayName || profile?.displayName || "",
+          profilePhotoUrl: effectiveProfile?.profilePhotoUrl || profile?.profilePhotoUrl || "",
+          email: authSession?.email,
+          accountCreatedAt: profile?.createdAt,
+          onBack:()=>{ setProfileRevealActive(false); setShowProfile(false); },
+          onSwipeRevealChange:setProfileRevealActive,
+          onEditName:()=>setShowProfileModal(true),
+          onUpdateProfilePhoto:handleUpdateProfilePhoto,
+          onSignOut:handleSwitchUser,
+          onDeleteAccount:handleDeleteAccount,
+          currentPaymentMethods: effectiveProfile?.paymentMethods || profile?.paymentMethods || [],
+          onSavePayment: handleSavePaymentHandle,
+          savingPayment: paymentSaving,
+          paymentError: paymentError
+        })
+      )
+
   const openAuth = intent => {
     setShowJoinModal(false);
     setAuthIntent(intent);
@@ -2836,26 +2857,7 @@ const App = () => {
       createdInviteGroup
         ? React.createElement(CreatedBlocInviteScreen,{group:createdInviteGroup,onContinue:handleContinueFromCreatedInvite})
         : renderGroupSwitcherSurface({ suppressIntro:suppressSwitcherIntro }),
-      showProfile && React.createElement('div',{ref:profileOverlayRef,style:{position:"fixed",inset:0,zIndex:30,overflowY:"auto",overflowX:"hidden",WebkitOverflowScrolling:"touch",overscrollBehavior:"contain",background:profileRevealActive?"transparent":"var(--bg-gradient)",backgroundImage:profileRevealActive?"none":"var(--bg-radial-hint), var(--bg-gradient)"}},
-        React.createElement(ProfilePage,{
-          visibleGroups,
-          currentUserId: effectiveAuthSession?.userId,
-          displayName: effectiveProfile?.displayName || profile?.displayName || "",
-          profilePhotoUrl: effectiveProfile?.profilePhotoUrl || profile?.profilePhotoUrl || "",
-          email: authSession?.email,
-          accountCreatedAt: profile?.createdAt,
-          onBack:()=>{ setProfileRevealActive(false); setShowProfile(false); },
-          onSwipeRevealChange:setProfileRevealActive,
-          onEditName:()=>setShowProfileModal(true),
-          onUpdateProfilePhoto:handleUpdateProfilePhoto,
-          onSignOut:handleSwitchUser,
-          onDeleteAccount:handleDeleteAccount,
-          currentPaymentMethods: effectiveProfile?.paymentMethods || profile?.paymentMethods || [],
-          onSavePayment: handleSavePaymentHandle,
-          savingPayment: paymentSaving,
-          paymentError: paymentError
-        })
-      )
+      accountOverlay()
       ,showFounderDashboard && React.createElement(FounderDashboard,{onClose:()=>setShowFounderDashboard(false)})
     );
   }
@@ -2871,10 +2873,10 @@ const App = () => {
     style:{paddingBottom:isMobileView?"calc(108px + env(safe-area-inset-bottom))":0}
   },
     pageName==="today"  &&React.createElement(TodayPageErrorBoundary,{resetKey:`${selectedGroupId}:${navResetToken}:${currentUser}`},
-      React.createElement(TodayPage,  {user:currentUser,currentUserId:effectiveAuthSession?.userId,currentGroupId:selectedGroupId,groups,profiles:appState?.profiles||{},accountCreatedAt:profile?.createdAt,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,saving,onSave:handleSave,onMultiLog:handleMultiLog,onLogMutation:handleLogMutation,clockTick,onViewLastMonth:()=>{setMonthInitialIdx(0);setPage("month");},onSitOutRequest:handleSitOutRequest,onSoloRequest:handleSoloRequest,onSettlementClaimPaid:handleSettlementClaimPaid,onSettlementConfirmPaid:handleSettlementConfirmPaid,onSettlementDisputePaid:handleSettlementDisputePaid,onOpenSetupReview:()=>setShowSettings(true),navResetToken,showLog:showTodayLog,setShowLog:setShowTodayLog,onTrackUsage:trackUsage})
+      React.createElement(TodayPage,  {user:currentUser,currentUserId:effectiveAuthSession?.userId,currentGroupId:selectedGroupId,groups,profiles:appState?.profiles||{},accountCreatedAt:profile?.createdAt,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,saving,onSave:handleSave,onMultiLog:handleMultiLog,onLogMutation:handleLogMutation,clockTick,onViewLastMonth:()=>{setMonthInitialIdx(0);setPage("month");},onSitOutRequest:handleSitOutRequest,onSoloRequest:handleSoloRequest,onSettlementClaimPaid:handleSettlementClaimPaid,onSettlementConfirmPaid:handleSettlementConfirmPaid,onSettlementDisputePaid:handleSettlementDisputePaid,onOpenSetupReview:()=>setShowSettings(true),onOpenAccount:()=>setShowProfile(true),navResetToken,showLog:showTodayLog,setShowLog:setShowTodayLog,onTrackUsage:trackUsage})
     ),
     pageName==="activity"&&React.createElement(ActivityPage,{group:currentGroup,currentUser,currentUserId:effectiveAuthSession?.userId,onLogMutation:handleLogMutation,clockTick,reactionOverrides,setReactionOverrides,commentCountOverrides:logCommentCountOverrides,onCommentCountsLoaded:setLogCommentCountOverrides,onOpenLogComments:handleOpenLogComments,onTrackUsage:trackUsage}),
-    pageName==="month"  &&React.createElement(MonthPage,  {key:`${selectedGroupId}:${navResetToken}:${monthInitialIdx ?? "current"}`,group:currentGroup,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,groupSettings:currentGroup.settings,currentUser,currentUserId:effectiveAuthSession?.userId,initialSelIdx:monthInitialIdx,onStartNextMonth:()=>{setMonthInitialIdx(null);setPage("today");},onOpenToday:()=>setPage("today"),onSettlementClaimPaid:handleSettlementClaimPaid,onSettlementConfirmPaid:handleSettlementConfirmPaid,profiles:appState?.profiles||{},onOpenAccount:()=>{persistGroupSelection(null);setShowProfile(true);},navResetToken,onTrackUsage:trackUsage}),
+    pageName==="month"  &&React.createElement(MonthPage,  {key:`${selectedGroupId}:${navResetToken}:${monthInitialIdx ?? "current"}`,group:currentGroup,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,groupSettings:currentGroup.settings,currentUser,currentUserId:effectiveAuthSession?.userId,initialSelIdx:monthInitialIdx,onStartNextMonth:()=>{setMonthInitialIdx(null);setPage("today");},onOpenToday:()=>setPage("today"),onSettlementClaimPaid:handleSettlementClaimPaid,onSettlementConfirmPaid:handleSettlementConfirmPaid,profiles:appState?.profiles||{},onOpenAccount:()=>setShowProfile(true),navResetToken,onTrackUsage:trackUsage}),
     pageName==="history"&&React.createElement(HistoryPage,{group:currentGroup,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,groupSettings:currentGroup.settings,navResetToken,currentUser})
   );
 
@@ -3022,7 +3024,10 @@ const App = () => {
         onClose:handleCloseLogComments,
         onCommentCountChange:handleLogCommentCountChange,
         onTrackUsage:trackUsage
-      })
+      }),
+    // Also rendered inside a Bloc, so adding a payment method from a
+    // settlement reminder does not eject you back to the Bloc Switcher.
+    accountOverlay()
     )
   );
 };
