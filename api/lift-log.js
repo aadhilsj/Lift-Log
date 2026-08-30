@@ -36,6 +36,14 @@ const FOUNDER_DASHBOARD_USER_IDS = new Set(
     .map(value => value.trim())
     .filter(Boolean)
 );
+// Optional server-only email allowlist. This lets us grant dashboard access
+// without replacing the existing sensitive ID allowlist in Vercel.
+const FOUNDER_DASHBOARD_EMAILS = new Set(
+  String(process.env.FOUNDER_DASHBOARD_EMAILS || "")
+    .split(",")
+    .map(value => normalizeEmailAddress(value))
+    .filter(Boolean)
+);
 let supabaseAdminClientPromise = null;
 const ENABLE_SETTLEMENT_CONFIRMATIONS = String(process.env.ENABLE_SETTLEMENT_CONFIRMATIONS || "").trim().toLowerCase() === "true";
 const ENABLE_SETTLEMENT_CONFIRMATIONS_PREVIEW = String(process.env.ENABLE_SETTLEMENT_CONFIRMATIONS_PREVIEW || "").trim().toLowerCase() === "true";
@@ -5305,8 +5313,11 @@ function readBearerToken(req, payload) {
   return token || "";
 }
 
-function isFounderDashboardUser(userId) {
-  return FOUNDER_DASHBOARD_USER_IDS.has(String(userId || "").trim());
+function isFounderDashboardUser(userOrId) {
+  const userId = typeof userOrId === "object" && userOrId ? userOrId.id : userOrId;
+  const email = typeof userOrId === "object" && userOrId ? userOrId.email : "";
+  return FOUNDER_DASHBOARD_USER_IDS.has(String(userId || "").trim())
+    || FOUNDER_DASHBOARD_EMAILS.has(normalizeEmailAddress(email));
 }
 
 function assertFounderDashboardUser(userId) {
@@ -8842,7 +8853,7 @@ export default async function handler(req, res) {
 
       if (payload?.action === "founder-dashboard") {
         const authUser = await fetchAuthenticatedUser(readBearerToken(req, payload));
-        assertFounderDashboardUser(authUser.id);
+        assertFounderDashboardUser(authUser);
         const dashboard = await readCanonicalFounderDashboard();
         return res.status(200).json({ ok:true, dashboard });
       }

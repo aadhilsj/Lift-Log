@@ -2,12 +2,15 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 
 process.env.FOUNDER_DASHBOARD_USER_IDS = "founder-one, founder-two";
+process.env.FOUNDER_DASHBOARD_EMAILS = "mindi2001@gmail.com";
 process.env.SUPABASE_URL = "https://example.supabase.co";
 process.env.SUPABASE_SERVICE_ROLE_KEY = "test-service-role";
 const api = await import(`../api/lift-log.js?founder-dashboard-test=${Date.now()}`);
 
 assert.equal(api.isFounderDashboardUser("founder-one"), true, "exact allowed founder id is accepted");
 assert.equal(api.isFounderDashboardUser(" founder-two "), true, "surrounding caller whitespace cannot change an exact id");
+assert.equal(api.isFounderDashboardUser({ id:"not-an-id", email:"mindi2001@gmail.com" }), true, "exact allowed founder email is accepted");
+assert.equal(api.isFounderDashboardUser({ id:"not-an-id", email:"other@example.com" }), false, "unlisted founder email is rejected");
 assert.equal(api.isFounderDashboardUser("founder"), false, "partial founder id is denied");
 assert.equal(api.isFounderDashboardUser("someone-else"), false, "unlisted user is denied");
 
