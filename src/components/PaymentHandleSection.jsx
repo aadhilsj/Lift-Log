@@ -9,10 +9,26 @@ import { PAYMENT_PROVIDERS, buildPaymentTarget, normalizePaymentHandle, normaliz
 // opaque string and, at render time, either links to an allowlisted host or
 // offers it for copying. Settlement status stays member-confirmed.
 const PaymentHandleSection = ({ currentPaymentMethods = [], onSavePayment, savingPayment = false, paymentError = "" }) => {
-  const saved = React.useMemo(
+  // What we just saved, shown immediately. The round trip has to persist, sync
+  // canonical and re-read composed state, and its response can still lose a
+  // revision race with a background poll — so waiting for the prop to catch up
+  // left a removed method on screen, stuck reading "Saving...", until the
+  // screen was left and reopened.
+  const [pendingMethods, setPendingMethods] = React.useState(null);
+  const propMethods = React.useMemo(
     () => normalizePaymentMethods({ paymentMethods: currentPaymentMethods }),
     [currentPaymentMethods]
   );
+  // Once the prop agrees with what we sent, stop overriding it.
+  React.useEffect(() => {
+    if (!pendingMethods) return;
+    if (JSON.stringify(propMethods) === JSON.stringify(pendingMethods)) setPendingMethods(null);
+  }, [propMethods, pendingMethods]);
+  // A failed save must not leave the optimistic list on screen.
+  React.useEffect(() => {
+    if (paymentError) setPendingMethods(null);
+  }, [paymentError]);
+  const saved = pendingMethods || propMethods;
   const savedFor = provider => saved.find(method => method.provider === provider) || null;
 
   const [openProvider, setOpenProvider] = React.useState("");
@@ -35,6 +51,7 @@ const PaymentHandleSection = ({ currentPaymentMethods = [], onSavePayment, savin
   const commit = methods => {
     setOpenProvider("");
     setPasteNotice(null);
+    setPendingMethods(normalizePaymentMethods({ paymentMethods: methods }));
     onSavePayment({ paymentMethods: methods });
   };
 

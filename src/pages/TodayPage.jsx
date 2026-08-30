@@ -817,26 +817,28 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
     return buildOwnPaymentTargets(profiles?.[currentUserId]).length === 0;
   }, [onOpenAccount, currentUserId, visibleSettlementReminderCards, profiles]);
 
-  const linkPaymentPrompt = needsPaymentMethod && React.createElement('button',{
+  // Inline on the card of the first person who owes you, rather than a banner
+  // above the list: it belongs with the debt it is about. Only the first such
+  // card carries it, so several people owing you does not repeat the prompt.
+  const firstOwedKey = needsPaymentMethod
+    ? visibleSettlementReminderCards.find(card => !card.isPayer)?.key || null
+    : null;
+  const renderLinkPaymentPrompt = card => card.key !== firstOwedKey ? null : React.createElement('button',{
     type:"button",
-    onClick:onOpenAccount,
+    onClick:e=>{ e.stopPropagation(); onOpenAccount(); },
     style:{
-      display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,width:"100%",
-      padding:"7px 10px",borderRadius:9,cursor:"pointer",textAlign:"left",
-      background:"rgba(78,205,196,.06)",border:"1px solid rgba(78,205,196,.2)",
-      color:"#7DB8B1",fontSize:10.5,fontWeight:700,fontFamily:"'Outfit', sans-serif"
+      display:"inline-block",background:"transparent",border:"none",padding:"1px 0 0",
+      color:"#4ECDC4",fontSize:10,fontWeight:700,cursor:"pointer",textAlign:"left",
+      textDecoration:"underline",textDecorationColor:"rgba(78,205,196,.4)",textUnderlineOffset:"2px",
+      fontFamily:"'Outfit', sans-serif"
     }
-  },
-    React.createElement('span',null,"Link a payment option so they can pay you"),
-    React.createElement('span',{style:{color:"#4ECDC4",flexShrink:0}},"Add")
-  );
+  },"Link a payment option");
 
   const settlementReminderSlot = showSettlementReminderSlot && React.createElement(Card,{style:{padding:"9px 10px",display:"flex",flexDirection:"column",gap:6,background:"#0A1412",border:"0.5px solid #163d36",boxShadow:"inset 0 1px 0 rgba(78,205,196,.03)"}},
     React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}},
       React.createElement('span',{className:"lbl",style:{fontSize:8,marginBottom:0,color:"#7DB8B1",fontFamily:"'Outfit', sans-serif",fontWeight:700}},"Settlement reminders"),
       React.createElement('span',{style:{fontSize:9,color:"#6B9690",fontFamily:"'Outfit', sans-serif",fontWeight:500}},`${visibleSettlementReminderCards.length} unpaid`)
     ),
-    linkPaymentPrompt,
     visibleSettlementReminderCards.map(card => React.createElement('div',{key:card.key,style:{border:"0.5px solid #0D1F1E",borderRadius:9,padding:"6px 10px",display:"grid",gap:2,background:"#080F0F",fontFamily:"'Outfit', sans-serif",position:"relative"}},
       React.createElement('div',{style:{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:8}},
         React.createElement('div',{style:{minWidth:0,flex:1,display:"grid",gap:1}},
@@ -844,6 +846,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
         )
       ),
       React.createElement('div',{style:{minWidth:0,flex:1,fontSize:11,color:"var(--text)",lineHeight:1.25,fontFamily:"'Outfit', sans-serif",fontWeight:500}},card.body),
+      renderLinkPaymentPrompt(card),
       React.createElement('div',{style:{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",display:"flex",alignItems:"center",gap:8,flexShrink:0}},
         React.createElement('div',{style:{fontSize:12,fontWeight:600,color:card.amountColor,whiteSpace:"nowrap",fontFamily:"'Outfit', sans-serif"}},fmtCurrency(card.amount, card.currency)),
         reminderPayControl(card),

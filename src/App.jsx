@@ -1477,7 +1477,10 @@ const App = () => {
     });
     setPaymentSaving(false);
     if (!result?.ok) { setPaymentError(result?.error || "Unable to save"); return; }
-    applyData(result.data);
+    // fromMutation, like the other mutation handlers: this response is the
+    // authoritative post-write state and must not be dropped by a concurrent
+    // poll that already advanced the revision.
+    applyData(result.data, { fromMutation: true });
   };
   const handleUpdateProfilePhoto = useCallback(async (dataUrl) => {
     const result = await uploadProfilePhotoData(dataUrl);
@@ -1982,7 +1985,11 @@ const App = () => {
       suppressIntro
     })
   );
-  const accountOverlay = () => showProfile && React.createElement('div',{ref:profileOverlayRef,style:{position:"fixed",inset:0,zIndex:30,overflowY:"auto",overflowX:"hidden",WebkitOverflowScrolling:"touch",overscrollBehavior:"contain",background:profileRevealActive?"transparent":"var(--bg-gradient)",backgroundImage:profileRevealActive?"none":"var(--bg-radial-hint), var(--bg-gradient)"}},
+  // zIndex sits above the in-Bloc layers — Nav is 100, the invite prompt 410,
+  // the switcher surface 520 — and below ProfileModal at 1050, which opens from
+  // this screen. At the old value of 30 it rendered behind everything inside a
+  // Bloc, so tapping through to it appeared to do nothing.
+  const accountOverlay = () => showProfile && React.createElement('div',{ref:profileOverlayRef,style:{position:"fixed",inset:0,zIndex:900,overflowY:"auto",overflowX:"hidden",WebkitOverflowScrolling:"touch",overscrollBehavior:"contain",background:profileRevealActive?"transparent":"var(--bg-gradient)",backgroundImage:profileRevealActive?"none":"var(--bg-radial-hint), var(--bg-gradient)"}},
         React.createElement(ProfilePage,{
           visibleGroups,
           currentUserId: effectiveAuthSession?.userId,
