@@ -375,6 +375,52 @@ const TodayScreenSkeleton = () => {
   );
 };
 
+// The other cold-open landing. Which of the two a member gets is decided by
+// whether the app remembers a Bloc, so the skeleton has to be chosen the same
+// way — a Today outline in front of the switcher would be the wrong promise.
+//
+// The wordmark and "Your Blocs" are drawn for real: they are fixed furniture,
+// not data, and greying them out would hide something already known.
+const BlocSwitcherSkeleton = () => {
+  const bar = (w, h = 10, extra = {}) => React.createElement('div',{className:"skel",style:{width:w,height:h,...extra}});
+  const blocCard = key => React.createElement('div',{key,style:{
+    background:"linear-gradient(180deg,rgba(13,22,22,.99),rgba(7,12,12,.99))",
+    border:"1px solid rgba(22,44,44,.94)",
+    boxShadow:"inset 0 1px 0 rgba(255,255,255,.07), 0 16px 34px rgba(0,0,0,.2)",
+    borderRadius:15, padding:"12px 10px 12px 14px", display:"grid", gap:10
+  }},
+    React.createElement('div',{style:{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:8}},
+      bar(116, 17), bar(54, 11)
+    ),
+    React.createElement('div',{style:{display:"grid",gap:6}},
+      React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10}},
+        bar(84, 8), bar(58, 8)
+      ),
+      React.createElement('div',{style:{display:"flex",gap:5}},
+        [0,1,2,3].map(i => bar(28, 28, {borderRadius:999, flexShrink:0, key:i}))
+      )
+    ),
+    React.createElement('div',{style:{paddingTop:8,borderTop:"1px solid rgba(18,36,36,.92)",display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:5,alignItems:"end"}},
+      [0,1,2].map(i => React.createElement('div',{key:i,style:{display:"grid",gap:4}}, bar("70%", 7), bar("52%", 13)))
+    )
+  );
+  return React.createElement('div',{
+    style:{minHeight:"100vh",backgroundColor:"#070C0C",background:"var(--bg-gradient)",backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)",display:"flex",flexDirection:"column",alignItems:"center",padding:"calc(env(safe-area-inset-top) + 16px) 16px 28px"}
+  },
+    React.createElement('div',{style:{width:"100%",maxWidth:744,display:"flex",alignItems:"center",justifyContent:"flex-end",marginBottom:10}},
+      bar(30, 30, {borderRadius:999})
+    ),
+    React.createElement('div',{style:{width:"100%",display:"grid",justifyItems:"center",textAlign:"center",marginTop:-30,marginBottom:18,maxWidth:560}},
+      React.createElement('div',{style:{margin:"2px 0 8px"}},React.createElement(AnteWordmark,{size:38})),
+      React.createElement('span',{style:{fontFamily:"'Outfit',sans-serif",fontSize:10,fontWeight:800,color:"var(--cyan)",letterSpacing:".12em",textTransform:"uppercase"}},"Your Blocs")
+    ),
+    React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(228px,1fr))",gap:10,width:"100%",maxWidth:744}},
+      [0,1].map(blocCard)
+    ),
+    React.createElement('span',{style:{position:"absolute",width:1,height:1,overflow:"hidden",clip:"rect(0 0 0 0)"}},"Loading your Blocs")
+  );
+};
+
 class PlayerProfileErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
@@ -588,4 +634,4 @@ const PrimaryActionButton = ({label,onClick,secondary=false}) => React.createEle
 },label);
 
 
-export { Avatar, CategoryIcon, WorkoutTypeIcon, ChevronRightIcon, TargetHitHexIcon, StatusBadge, RankIcon, TrophyIcon, MedalIcon, UploadPhotoIcon, Bar, Card, AppIcon, AnteWordmark, Spinner, TodayScreenSkeleton, InstallBanner, WorkoutCategorySelector, SettingsField, SelectField, inputShellStyle, StepperField, PrimaryActionButton, PlayerProfileErrorBoundary, TodayPageErrorBoundary };
+export { Avatar, CategoryIcon, WorkoutTypeIcon, ChevronRightIcon, TargetHitHexIcon, StatusBadge, RankIcon, TrophyIcon, MedalIcon, UploadPhotoIcon, Bar, Card, AppIcon, AnteWordmark, Spinner, TodayScreenSkeleton, BlocSwitcherSkeleton, InstallBanner, WorkoutCategorySelector, SettingsField, SelectField, inputShellStyle, StepperField, PrimaryActionButton, PlayerProfileErrorBoundary, TodayPageErrorBoundary };

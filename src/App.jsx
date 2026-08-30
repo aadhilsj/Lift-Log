@@ -85,7 +85,7 @@ import {
   releaseSwipeBack,
   releaseSwipeForward
 } from "./lib/swipeRelease.js";
-import { Spinner, TodayScreenSkeleton, InstallBanner, TodayPageErrorBoundary } from "./components/primitives.jsx";
+import { Spinner, TodayScreenSkeleton, BlocSwitcherSkeleton, InstallBanner, TodayPageErrorBoundary } from "./components/primitives.jsx";
 import { PreviewLanding, InvalidInviteScreen, SignedOutLanding, ProfileModal, JoinGroupModal, AuthFlowModal, DisplayNameSetupScreen, IdentitySetup, CreatedBlocInviteScreen, GroupHome, GroupAccessNotice, LocalDevImpersonationBar } from "./components/authShell.jsx";
 import { GroupCreateModal, ProrationChoiceModal } from "./modals/modals.jsx";
 import { Nav } from "./pages/Nav.jsx";
@@ -2741,14 +2741,20 @@ const App = () => {
     || (!authSession?.userId && !localPreviewAuthEnabled && !hasInviteEntry && !coldOnboardingSeen)
   );
 
-  // A returning member gets Today's shape rather than a spinner on blank: the
-  // screen they are about to see fades in over its own outline instead of
-  // appearing all at once. Anyone without a stored session still gets the
-  // spinner — they are heading for the sign-in screen, not for Today.
+  // A returning member gets the shape of the screen they are about to see
+  // rather than a spinner on blank, so it fades in over its own outline
+  // instead of appearing all at once.
+  //
+  // Which screen that is comes from the remembered Bloc: with one stored the
+  // app opens inside it, without one it opens on the switcher. The skeleton
+  // reads the same value, so the outline matches where you land. Anyone with
+  // no stored session still gets the spinner — they are heading for sign-in,
+  // not into the app.
   if(loading || !authReady || (authHydrating && !authStep)) {
-    return initialPersistedSession?.userId
+    if (!initialPersistedSession?.userId) return React.createElement(Spinner,{label:"Opening Fero..."});
+    return selectedGroupId
       ? React.createElement(TodayScreenSkeleton)
-      : React.createElement(Spinner,{label:"Opening Fero..."});
+      : React.createElement(BlocSwitcherSkeleton);
   }
   if(postAuthActionPending) return React.createElement(SetupProgressScreen,{stage:postAuthProgressStage});
   if(inviteContextLoading && !inviteContext) return React.createElement(Spinner,{label:"Loading invite..."});
