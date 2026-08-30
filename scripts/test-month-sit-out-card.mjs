@@ -5,6 +5,6 @@ const source = fs.readFileSync(new URL("../src/pages/MonthPage.jsx", import.meta
 
 assert.match(source, /const currentUserIsOut = isCurrent && !!currentUserEntry\?\.isOut;/);
 assert.match(source, /currentUserIsOut\?"Sitting out this month":"Month in progress"/);
-assert.match(source, /You won't pay or collect anything this month\./);
+assert.doesNotMatch(source, /You won't pay or collect anything this month\./);
 assert.match(source, /currentUser&&!currentUserIsOut&&React\.createElement\('div'/);
 console.log("Month sit-out card checks passed.");

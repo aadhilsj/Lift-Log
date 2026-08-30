@@ -260,7 +260,6 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
       currentUserIsOut
         ? React.createElement('div',{style:{display:"flex",alignItems:"center",gap:10,padding:"4px 0"}},
             React.createElement('span',{style:{fontSize:22}},"💤"),
-            React.createElement('div',{style:{fontSize:13,fontWeight:700,color:"var(--muted)",lineHeight:1.45}},"You won't pay or collect anything this month.")
           )
         : hasActivity&&winners.length>0
         ? React.createElement('div',{style:{display:"flex",alignItems:"center",gap:10}},
