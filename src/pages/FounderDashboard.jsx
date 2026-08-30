@@ -18,7 +18,12 @@ const usageLabels = {
   own_profile_opened:"User Settings", own_block_profile_opened:"Profile Screen", other_profile_opened:"Other Profiles", mvp_card_opened:"Week's MVP Card",
   bloc_month_opened:"Bloc Month Card", settings_opened:"Settings", bloc_stream_opened:"Bloc Stream",
   comment_composer_opened:"Comment Composer", reaction_picker_opened:"Reaction Picker",
-  share_month_clicked:"Share This Month", monthly_summary_card_clicked:"Monthly Summary Card"
+  share_month_clicked:"Share This Month",
+  // Renamed from "Monthly Summary Card": it counts taps on the Month Summary
+  // expander inside the settlement screen, not the start-of-month banner. The
+  // banner is last_month_banner_clicked, which is the card that name suggested.
+  monthly_summary_card_clicked:"Month Standings Expanded",
+  last_month_banner_clicked:"Last Month Banner"
 };
 
 const Metric = ({label,value,detail,formatValue=number}) => React.createElement("article", {
@@ -190,8 +195,13 @@ const FounderDashboard = ({onClose}) => {
             ["daily","weekly","monthly","allTime"].map(period=>React.createElement("button", {type:"button",key:period,onClick:()=>setUsagePeriod(period),style:{border:"1px solid rgba(78,205,196,.18)",borderRadius:8,padding:"8px 4px",background:usagePeriod===period?"rgba(78,205,196,.16)":"transparent",color:usagePeriod===period?"var(--text)":"var(--muted)",fontSize:10,fontWeight:900,cursor:"pointer"}}, period === "allTime" ? "All Time" : period.charAt(0).toUpperCase() + period.slice(1)))
           ),
           React.createElement("div", {style:{display:"grid",gap:7}}, Object.entries(usageLabels).map(([eventName,label])=>{
-            const monthlyOnly = eventName === "share_month_clicked" || eventName === "monthly_summary_card_clicked";
+            // Share This Month is still counted per calendar month only.
+            const monthlyOnly = eventName === "share_month_clicked";
             if (monthlyOnly && usagePeriod !== "monthly") return null;
+            // The banner only appears in the first days of a month, so a daily
+            // or weekly count of it would read as zero for most of the month
+            // and say nothing. This month and all time are the honest windows.
+            if (eventName === "last_month_banner_clicked" && usagePeriod !== "monthly" && usagePeriod !== "allTime") return null;
             const metric = monthlyOnly ? (dashboard?.usage?.monthlyActions?.[eventName]?.monthly || {}) : (usageEvents?.[eventName]?.[usagePeriod] || {});
             const averageUsers = dashboard?.usage?.averages?.[eventName]?.[usagePeriod]?.users;
             const averageUses = dashboard?.usage?.averages?.[eventName]?.[usagePeriod]?.uses;

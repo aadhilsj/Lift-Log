@@ -478,7 +478,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
   const lastClosedMonth = monthHistory.length ? [...monthHistory].sort((a,b)=>b.key.localeCompare(a.key))[0] : null;
   const showLastMonthBanner = (monthSummary?.day || DAY_OF_MON) <= 5;
   const lastMonthBanner = showLastMonthBanner && lastClosedMonth && onViewLastMonth
-    ? React.createElement('button',{onClick:onViewLastMonth,style:{width:"100%",textAlign:"left",background:"radial-gradient(circle at top right, rgba(78,205,196,.10) 0%, transparent 45%), linear-gradient(135deg, rgba(8,20,20,1) 0%, rgba(6,13,13,1) 55%, rgba(7,10,14,1) 100%)",border:"0.5px solid #0D2828",borderRadius:12,padding:"10px 14px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:10}},
+    ? React.createElement('button',{onClick:()=>{onTrackUsage?.("last_month_banner_clicked");onViewLastMonth();},style:{width:"100%",textAlign:"left",background:"radial-gradient(circle at top right, rgba(78,205,196,.10) 0%, transparent 45%), linear-gradient(135deg, rgba(8,20,20,1) 0%, rgba(6,13,13,1) 55%, rgba(7,10,14,1) 100%)",border:"0.5px solid #0D2828",borderRadius:12,padding:"10px 14px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:10}},
         React.createElement('div',null,
           React.createElement('div',{style:{fontSize:9,color:"#4ECDC4",textTransform:"uppercase",letterSpacing:".12em",marginBottom:3,fontFamily:"'Outfit',sans-serif",fontWeight:700}},"Last month"),
           React.createElement('div',{style:{fontSize:14,fontWeight:700,color:"var(--text)"}},`${lastClosedMonth.label} results are in`),
