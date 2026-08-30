@@ -239,24 +239,30 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
       disabled,
       "aria-label":label,
       style:{
-        // The chevron glyph carries a lot of its own whitespace, so this uses
-        // the app's chevron icon and sizes the box to hug it: the border reads
-        // as an outline around the arrow rather than a card containing one.
-        width:19,height:19,flexShrink:0,
+        // The visible outline is deliberately smaller than the button. Padding
+        // keeps a comfortable tap target on a phone while the border stays
+        // tight to the chevron.
         display:"inline-flex",alignItems:"center",justifyContent:"center",
-        borderRadius:5,padding:0,
-        background:"transparent",
-        border: disabled ? "1.5px solid rgba(255,255,255,.09)" : "1.5px solid rgba(78,205,196,.4)",
+        padding:5,margin:-5,background:"transparent",border:"none",
         cursor: disabled ? "default" : "pointer",
         WebkitTapHighlightColor:"transparent"
       }
-    }, React.createElement(AppIcon,{
-      name: direction === "prev" ? "chevron-left" : "chevron-right",
-      size: 13,
-      stroke: disabled ? "rgba(140,165,160,.32)" : "#4ECDC4"
-    }));
+    },
+      React.createElement('span',{style:{
+        width:17,height:17,flexShrink:0,
+        display:"inline-flex",alignItems:"center",justifyContent:"center",
+        borderRadius:5,
+        border: disabled ? "1.5px solid rgba(255,255,255,.09)" : "1.5px solid rgba(78,205,196,.42)"
+      }},
+        React.createElement(AppIcon,{
+          name: direction === "prev" ? "chevron-left" : "chevron-right",
+          size: 13,
+          stroke: disabled ? "rgba(140,165,160,.32)" : "#4ECDC4"
+        })
+      )
+    );
   };
-  const monthSelector = React.createElement('div',{style:{display:"inline-flex",alignItems:"center",gap:5,justifySelf:"end"}},
+  const monthSelector = React.createElement('div',{style:{display:"inline-flex",alignItems:"center",gap:9,justifySelf:"end"}},
     monthArrow("prev", olderIdx === null ? undefined : olderIdx, "Previous month"),
     React.createElement('span',{style:{
       textAlign:"center",fontFamily:"'Outfit',sans-serif",fontSize:11.5,fontWeight:700,
