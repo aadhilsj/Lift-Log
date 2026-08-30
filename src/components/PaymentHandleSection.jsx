@@ -1,5 +1,5 @@
 import React from "react";
-import { PAYMENT_PROVIDERS, buildPaymentTarget, normalizePaymentHandle, normalizePaymentMethods } from "../lib/paymentLinks.js";
+import { PAYMENT_PROVIDERS, buildPaymentTarget, normalizePaymentHandle, normalizePaymentMethods, MAX_PAYMENT_METHODS } from "../lib/paymentLinks.js";
 
 // "How people pay you" — the payment methods a member accepts.
 //
@@ -19,7 +19,13 @@ const PaymentHandleSection = ({ currentPaymentMethods = [], onSavePayment, savin
   const [draft, setDraft] = React.useState("");
   const [pasteNotice, setPasteNotice] = React.useState(null);
 
+  // At the cap, an unset provider cannot be opened. Saying so on the row is
+  // clearer than letting someone fill in a handle and then rejecting it.
+  const atCap = saved.length >= MAX_PAYMENT_METHODS;
+  const blocked = provider => atCap && !savedFor(provider.id);
+
   const openRow = provider => {
+    if (blocked(provider)) return;
     if (openProvider === provider.id) { setOpenProvider(""); return; }
     setPasteNotice(null);
     setOpenProvider(provider.id);
@@ -103,7 +109,8 @@ const PaymentHandleSection = ({ currentPaymentMethods = [], onSavePayment, savin
   return React.createElement('div', { style: { display: "grid", gap: 1 } },
     PAYMENT_PROVIDERS.map((provider, index) => {
       const method = savedFor(provider.id);
-      const isOpen = openProvider === provider.id;
+      const isBlocked = blocked(provider);
+      const isOpen = openProvider === provider.id && !isBlocked;
       const target = method ? buildPaymentTarget({ paymentProvider: provider.id, paymentHandle: method.handle }) : null;
       return React.createElement('div', {
         key: provider.id,
@@ -113,9 +120,13 @@ const PaymentHandleSection = ({ currentPaymentMethods = [], onSavePayment, savin
           type: "button",
           onClick: () => openRow(provider),
           "aria-expanded": isOpen,
+          "aria-disabled": isBlocked,
+          disabled: isBlocked,
           style: {
             width: "100%", display: "flex", alignItems: "center", gap: 11, padding: "11px 2px",
-            background: "transparent", border: "none", cursor: "pointer", textAlign: "left"
+            background: "transparent", border: "none", textAlign: "left",
+            cursor: isBlocked ? "default" : "pointer",
+            opacity: isBlocked ? 0.42 : 1
           }
         },
           icon(provider, 32),
@@ -127,12 +138,13 @@ const PaymentHandleSection = ({ currentPaymentMethods = [], onSavePayment, savin
                 color: method ? "var(--muted)" : "var(--muted2)",
                 overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap"
               }
-            }, method ? method.handle : "Not added")
+            }, method ? method.handle : isBlocked ? `Remove one to add ${provider.label}` : "Not added")
           ),
           method && target?.mode === "copy"
             ? React.createElement('span', { style: { fontSize: 9.5, fontWeight: 700, color: "var(--amber)", fontFamily: "'Outfit', sans-serif" } }, "Copy only")
             : null,
-          React.createElement('span', { style: { fontSize: 15, color: "var(--muted2)", flexShrink: 0 } }, isOpen ? "−" : method ? "Edit" : "+")
+          React.createElement('span', { style: { fontSize: isBlocked ? 11 : 15, fontWeight: isBlocked ? 700 : 400, color: "var(--muted2)", flexShrink: 0 } },
+            isBlocked ? "Limit 2" : isOpen ? "−" : method ? "Edit" : "+")
         ),
         isOpen ? React.createElement('div', { style: { display: "grid", gap: 8, padding: "2px 2px 13px" } },
           React.createElement('input', {

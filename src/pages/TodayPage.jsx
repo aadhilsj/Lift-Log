@@ -55,10 +55,11 @@ import { LogModal, DeleteModal, SitOutModal, SoloModal, NoticeModal } from "../m
 import { PlayerProfile } from "../pages/PlayerProfile.jsx";
 import { buildPaymentTargets } from "../lib/paymentLinks.js";
 import { prefetchProfileStatsData } from "../lib/api.js";
+import { buildPaymentTargets as buildOwnPaymentTargets } from "../lib/paymentLinks.js";
 
 const FULL_MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
-const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCreatedAt,logs,excused,monthHistory,saving,onSave,onMultiLog,onLogMutation,clockTick,onViewLastMonth,onSitOutRequest,onSoloRequest,onSettlementClaimPaid,onSettlementConfirmPaid,onSettlementDisputePaid,onOpenSetupReview,navResetToken,showLog,setShowLog,onTrackUsage}) => {
+const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCreatedAt,logs,excused,monthHistory,saving,onSave,onMultiLog,onLogMutation,clockTick,onViewLastMonth,onSitOutRequest,onSoloRequest,onSettlementClaimPaid,onSettlementConfirmPaid,onSettlementDisputePaid,onOpenSetupReview,onOpenAccount,navResetToken,showLog,setShowLog,onTrackUsage}) => {
   const [showExcuse,setShowExcuse]=useState(false);
   const [sitOutSubmitting,setSitOutSubmitting]=useState(false);
   const [sitOutError,setSitOutError]=useState("");
@@ -804,11 +805,38 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
       ))
     );
   };
+  // Shown once at the top of the slot, not per card: with three people owing
+  // you, three identical prompts would be noise. Only when you are actually
+  // owed — someone who only owes money needs no method of their own — and only
+  // when you have none set, in which case those payers see no icons at all and
+  // have no way to know why.
+  const needsPaymentMethod = React.useMemo(() => {
+    if (!onOpenAccount || !currentUserId) return false;
+    const owedToMe = visibleSettlementReminderCards.some(card => !card.isPayer);
+    if (!owedToMe) return false;
+    return buildOwnPaymentTargets(profiles?.[currentUserId]).length === 0;
+  }, [onOpenAccount, currentUserId, visibleSettlementReminderCards, profiles]);
+
+  const linkPaymentPrompt = needsPaymentMethod && React.createElement('button',{
+    type:"button",
+    onClick:onOpenAccount,
+    style:{
+      display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,width:"100%",
+      padding:"7px 10px",borderRadius:9,cursor:"pointer",textAlign:"left",
+      background:"rgba(78,205,196,.06)",border:"1px solid rgba(78,205,196,.2)",
+      color:"#7DB8B1",fontSize:10.5,fontWeight:700,fontFamily:"'Outfit', sans-serif"
+    }
+  },
+    React.createElement('span',null,"Link a payment option so they can pay you"),
+    React.createElement('span',{style:{color:"#4ECDC4",flexShrink:0}},"Add")
+  );
+
   const settlementReminderSlot = showSettlementReminderSlot && React.createElement(Card,{style:{padding:"9px 10px",display:"flex",flexDirection:"column",gap:6,background:"#0A1412",border:"0.5px solid #163d36",boxShadow:"inset 0 1px 0 rgba(78,205,196,.03)"}},
     React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}},
       React.createElement('span',{className:"lbl",style:{fontSize:8,marginBottom:0,color:"#7DB8B1",fontFamily:"'Outfit', sans-serif",fontWeight:700}},"Settlement reminders"),
       React.createElement('span',{style:{fontSize:9,color:"#6B9690",fontFamily:"'Outfit', sans-serif",fontWeight:500}},`${visibleSettlementReminderCards.length} unpaid`)
     ),
+    linkPaymentPrompt,
     visibleSettlementReminderCards.map(card => React.createElement('div',{key:card.key,style:{border:"0.5px solid #0D1F1E",borderRadius:9,padding:"6px 10px",display:"grid",gap:2,background:"#080F0F",fontFamily:"'Outfit', sans-serif",position:"relative"}},
       React.createElement('div',{style:{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:8}},
         React.createElement('div',{style:{minWidth:0,flex:1,display:"grid",gap:1}},
