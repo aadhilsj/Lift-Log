@@ -29,7 +29,7 @@ import {
 import {
   isMobile
 } from "../lib/utils.js";
-import { Avatar, WorkoutTypeIcon, Bar, Card, TargetHitHexIcon, AppIcon } from "../components/primitives.jsx";
+import { Avatar, WorkoutTypeIcon, Bar, Card, SelectField, TargetHitHexIcon, AppIcon } from "../components/primitives.jsx";
 import { DeleteModal } from "../modals/modals.jsx";
 import { ProfileStatsPanel } from "../components/ProfileStatsPanel.jsx";
 import { ShareSticker } from "../components/ShareSticker.jsx";
@@ -225,53 +225,19 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
   });
   const selLabel=isCurMonth?`${MONTH_NAMES[CUR_MONTH]} ${CUR_YEAR}`:profileMonthLabel(selHistMonth);
 
-  // Months step one tap at a time rather than through a dropdown, which took
-  // two. visibleHistoryMonths is newest-first and null is the current month,
-  // so older means a higher index and newer means a lower one.
-  const olderIdx = selMonthIdx === null ? (visibleHistoryMonths.length ? 0 : null) : (selMonthIdx + 1 < visibleHistoryMonths.length ? selMonthIdx + 1 : null);
-  const newerIdx = selMonthIdx === null ? undefined : (selMonthIdx === 0 ? null : selMonthIdx - 1);
-  const stepMonth = target => { if (target !== undefined) setSelMonthIdx(target); };
-  const monthArrow = (direction, target, label) => {
-    const disabled = target === undefined;
-    const stroke = disabled ? "rgba(140,165,160,.34)" : "#4ECDC4";
-    // AppIcon's chevron draws "M15 6l-6 6 6 6" inside a 24x24 viewBox, so the
-    // visible arrow is only 6 units wide and 12 tall — a quarter of the box.
-    // Using it here made the border hug the SVG rather than the glyph. This
-    // crops the viewBox to the chevron itself so the outline sits on the arrow.
-    const chevron = React.createElement('svg',{
-      width:5, height:10, viewBox:"9 6 6 12", fill:"none",
-      stroke, strokeWidth:"2.6", strokeLinecap:"round", strokeLinejoin:"round",
-      "aria-hidden":true, style:{display:"block"}
-    }, React.createElement('path',{ d: direction === "prev" ? "M15 6l-6 6 6 6" : "M9 6l6 6-6 6" }));
-    return React.createElement('button',{
-      type:"button",
-      onClick:()=>stepMonth(target),
-      disabled,
-      "aria-label":label,
-      style:{
-        // Padding keeps a comfortable tap target while the visible outline
-        // stays tight to the arrow.
-        display:"inline-flex",alignItems:"center",justifyContent:"center",
-        padding:6,margin:-6,background:"transparent",border:"none",
-        cursor: disabled ? "default" : "pointer",
-        WebkitTapHighlightColor:"transparent"
-      }
-    },
-      React.createElement('span',{style:{
-        display:"inline-flex",alignItems:"center",justifyContent:"center",
-        padding:"0 3px",borderRadius:4,
-        border: disabled ? "1.5px solid rgba(255,255,255,.1)" : "1.5px solid rgba(78,205,196,.45)"
-      }}, chevron)
-    );
-  };
-  const monthSelector = React.createElement('div',{style:{display:"inline-flex",alignItems:"center",gap:3,justifySelf:"end"}},
-    monthArrow("prev", olderIdx === null ? undefined : olderIdx, "Previous month"),
-    React.createElement('span',{style:{
-      textAlign:"center",fontFamily:"'Outfit',sans-serif",fontSize:11.5,fontWeight:700,
-      color:"var(--text)",whiteSpace:"nowrap"
-    }}, isCurMonth ? "This Month" : profileMonthOptionLabel(selHistMonth)),
-    monthArrow("next", newerIdx, "Next month")
-  );
+  const monthSelector = React.createElement(SelectField,{
+    value:selMonthIdx??"",
+    onChange:e=>setSelMonthIdx(e.target.value===""?null:Number(e.target.value)),
+    width:96,
+    compact:true,
+    arrowColor:"#4ECDC4",
+    textAlign:"center",
+    inputStyle:{background:"rgba(8,15,15,.48)",border:"1px solid rgba(78,205,196,.18)",color:"var(--text)",fontFamily:"'Outfit',sans-serif",fontSize:10.5,fontWeight:700,letterSpacing:0,padding:"6px 20px 6px 8px",textAlign:"center",boxShadow:"none"},
+    options:[
+      {value:"",label:"This Month"},
+      ...visibleHistoryMonths.map((m,i)=>({value:i,label:profileMonthOptionLabel(m)}))
+    ]
+  });
 
   const sitOutBanner = isExcusedThisMonth
     ? React.createElement('div',{style:{background:"rgba(101,101,122,.12)",border:"1px solid var(--border2)",borderRadius:10,padding:"12px 16px",display:"flex",alignItems:"center",gap:10}},
@@ -550,7 +516,7 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
     ),
     React.createElement('div',{style:{maxWidth:740,margin:"0 auto",padding:"16px",display:"flex",flexDirection:"column",gap:12}},
     // Header row
-		    React.createElement('div',{className:"fu",style:{display:"grid",gridTemplateColumns:"72px minmax(0,1fr) auto",alignItems:"center",gap:8}},
+		    React.createElement('div',{className:"fu",style:{display:"grid",gridTemplateColumns:"96px minmax(0,1fr) 96px",alignItems:"center",gap:8}},
 	      React.createElement('div',{style:{justifySelf:"start"}},backButton),
 	      React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"center",gap:8,minWidth:0,textAlign:"center"}},
 		        React.createElement(Avatar,{name,size:24}),
