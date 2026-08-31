@@ -8889,7 +8889,7 @@ export default async function handler(req, res) {
           ok: true,
           state: scopeReadableStateForUser(state, authUser.id),
           session: synced.session,
-          founderDashboardAvailable: isFounderDashboardUser(authUser.id)
+          founderDashboardAvailable: isFounderDashboardUser(authUser)
         });
       }
 
