@@ -11,8 +11,9 @@ branch.
 - Native privacy manifest is present and the app declares no non-exempt
   encryption.
 - iOS deployment target is 15.0.
-- Native app builds successfully with Xcode 16.4 and launches in an iPhone 16
-  Pro simulator running iOS 18.6.
+- Native app builds successfully with Xcode 16.4 and launches in iPhone 16 Pro
+  and iPhone 16e simulators running iOS 18.6. The first-run onboarding was
+  visually checked on both sizes.
 - Browser/PWA naming is `Fero`; the browser title and manifest are aligned.
 - Invite-download UI is suppressed inside the installed native shell.
 - Account deletion UI and backend action already exist; full production
