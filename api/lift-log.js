@@ -10068,7 +10068,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   } catch (error) {
     return res.status(error?.status || 500).json({
-      error: "Anté sync proxy failed",
+      error: "Fero sync proxy failed",
       status: error?.status || 500,
       details: error instanceof Error ? error.message : String(error)
     });

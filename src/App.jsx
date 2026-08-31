@@ -1,5 +1,7 @@
 import React from "react";
+import { Capacitor } from "@capacitor/core";
 const { useState, useEffect, useMemo, useCallback, useRef } = React;
+const isNativeShell = Capacitor.isNativePlatform();
 import {
   MIN_TARGET,
   curKey,
@@ -457,6 +459,7 @@ const App = () => {
   },[clearInviteParamFromUrl]);
 
   const scheduleInviteDownloadPrompt = useCallback((groupId) => {
+    if (isNativeShell) return;
     if (inviteDownloadPromptTimerRef.current) clearTimeout(inviteDownloadPromptTimerRef.current);
     inviteDownloadPromptTimerRef.current = setTimeout(() => {
       setInviteDownloadPrompt({ groupId });
@@ -1926,7 +1929,7 @@ const App = () => {
       setInviteDownloadPrompt(null);
       setInviteJoinToast({ id:Date.now(), groupId:previewGroupId });
     }
-    if (showDownloadPreview) {
+    if (showDownloadPreview && !isNativeShell) {
       setInviteDownloadPrompt({ groupId: previewGroupId });
     }
   },[appState.groups, authSession?.userId, firstVisibleGroupId, selectedGroupId]);
@@ -2558,6 +2561,7 @@ const App = () => {
   });
 
   const renderInviteDownloadPrompt = () => {
+    if (isNativeShell) return null;
     if (!inviteDownloadPrompt) return null;
     const promptGroup = appState.groups?.[inviteDownloadPrompt.groupId] || currentGroup;
     return React.createElement('div',{
@@ -2587,10 +2591,7 @@ const App = () => {
         ),
         React.createElement('button',{type:"button",onClick:dismissInviteDownloadPrompt,style:{width:28,height:28,borderRadius:999,background:"transparent",border:"0.5px solid rgba(78,205,196,.18)",color:"#4ECDC4",fontSize:18,lineHeight:1,flexShrink:0}},"×")
       ),
-      React.createElement('div',{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}},
-        React.createElement('button',{type:"button",className:"setup-press",style:{minHeight:40,borderRadius:12,background:"#4ECDC4",color:"#050909",fontFamily:"'Outfit', sans-serif",fontSize:13,fontWeight:900}},"App Store"),
-        React.createElement('button',{type:"button",className:"setup-press",style:{minHeight:40,borderRadius:12,background:"rgba(78,205,196,.1)",border:"0.5px solid rgba(78,205,196,.22)",color:"#4ECDC4",fontFamily:"'Outfit', sans-serif",fontSize:13,fontWeight:900}},"Play Store")
-      )
+      React.createElement('button',{type:"button",className:"setup-press",style:{minHeight:40,borderRadius:12,background:"#4ECDC4",color:"#050909",fontFamily:"'Outfit', sans-serif",fontSize:13,fontWeight:900}},"Get Fero")
     );
   };
 
