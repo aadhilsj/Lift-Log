@@ -12,6 +12,8 @@ branch.
   encryption.
 - Native AppIcon catalog now uses an original Fero dark/teal 1024px opaque
   source image rather than Capacitor's default placeholder.
+- Web/PWA icons now use the same Fero mark, with a service-worker cache bump so
+  existing installs can receive the updated asset.
 - iOS deployment target is 15.0.
 - Native app builds successfully with Xcode 16.4 and launches in iPhone 16 Pro
   and iPhone 16e simulators running iOS 18.6. The first-run onboarding was
