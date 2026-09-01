@@ -19,6 +19,7 @@
     "test:two-workouts": "node scripts/test-two-workouts-per-day.mjs",
     "test:mobile-navigation": "node scripts/test-mobile-navigation.mjs",
     "test:founder-dashboard": "node scripts/test-founder-dashboard.mjs",
+    "test:account-deletion": "node scripts/test-account-deletion.mjs",
     "dev:api": "node scripts/local-dev-server.mjs"
   },
   "dependencies": {

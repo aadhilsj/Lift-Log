@@ -2273,6 +2273,49 @@ async function deleteProfileFromCanonical(userId, options = {}) {
   }
 }
 
+async function deleteUserStorageFiles(userId, options = {}) {
+  const { throwOnError = false } = options;
+  const safeUserId = String(userId || "").trim();
+  if (!safeUserId) return;
+  try {
+    const client = await getSupabaseAdminClient();
+    for (const bucket of ["profile-photos", "workout-photos"]) {
+      // Files are stored directly beneath a per-user folder. Delete each page
+      // before looking for the next one so no owned Storage objects prevent
+      // removal of the matching Supabase Auth user.
+      for (;;) {
+        const { data, error } = await client.storage.from(bucket).list(safeUserId, {
+          limit: 100,
+          offset: 0,
+          sortBy: { column: "name", order: "asc" }
+        });
+        if (error) throw error;
+        const paths = (data || [])
+          .filter(entry => entry?.id !== null && entry?.name)
+          .map(entry => `${safeUserId}/${entry.name}`);
+        if (!paths.length) break;
+        const { error: removeError } = await client.storage.from(bucket).remove(paths);
+        if (removeError) throw removeError;
+      }
+    }
+  } catch (err) {
+    if (throwOnError) throw err;
+    console.error("Account storage cleanup failed:", err?.message || err);
+  }
+}
+
+async function deleteSupabaseAuthUser(userId, options = {}) {
+  const { throwOnError = false } = options;
+  try {
+    const client = await getSupabaseAdminClient();
+    const { error } = await client.auth.admin.deleteUser(String(userId || ""));
+    if (error) throw error;
+  } catch (err) {
+    if (throwOnError) throw err;
+    console.error("Supabase Auth user delete failed:", err?.message || err);
+  }
+}
+
 async function syncSeasonToCanonical(group, monthKey, status, closedAt = null, options = {}) {
   const { throwOnError = false } = options;
   if (!group || !monthKey) return;
@@ -10018,8 +10061,14 @@ export default async function handler(req, res) {
           if (!survivingGroup.adminUserId || survivingGroup.adminUserId === auth.user.id) continue;
           await updateBlocAdminInCanonical(groupId, survivingGroup.adminUserId, { throwOnError: true });
         }
+        // Supabase will not delete an Auth user that still owns Storage
+        // objects. Remove all user-scoped profile and workout photos before
+        // committing the application-state deletion, then remove the Auth
+        // identity after the canonical and compatibility state writes succeed.
+        await deleteUserStorageFiles(auth.user.id, { throwOnError: true });
         await deleteProfileFromCanonical(auth.user.id, { throwOnError: true });
         const readableState = await persistAndScopeReadableStateForUser(updated, `delete-account:${auth.user.id}`, "delete-account", auth.user.id);
+        await deleteSupabaseAuthUser(auth.user.id, { throwOnError: true });
         return res.status(200).json({ ok: true, state: readableState });
       }
 
