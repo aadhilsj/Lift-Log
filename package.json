@@ -13,6 +13,8 @@
     "test:month-awards": "node scripts/test-month-awards.mjs",
     "test:profile-stats-cache": "node scripts/test-profile-stats-cache.mjs",
     "test:fero-profile-stats": "node scripts/test-fero-profile-stats.mjs",
+    "parity:gate": "node scripts/blob-parity-gate.mjs",
+    "parity:gate:test": "node scripts/blob-parity-gate.test.mjs",
     "test:identity": "node scripts/test-display-name-identity.mjs",
     "test:profile-photo-storage": "node scripts/test-profile-photo-storage.mjs",
     "test:auth-edge-flows": "node scripts/test-auth-edge-flows.mjs",
