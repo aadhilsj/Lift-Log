@@ -1,9 +1,15 @@
 # Rollover Incident — 2026-09-01
 
-Written: 2026-09-01, Europe/Oslo.
-Status: **I2 and I8 corrected in production. I1 fixed on a branch awaiting
-promotion. I3, I4, I5, I8's permanent fix still open.** This file is the
-tracking record for the issues found.
+Written: 2026-09-01, Europe/Oslo. Last updated 2026-09-01 evening.
+
+Status: **I1, I2, I4 (alerting), I5 and I8's immediate correction are shipped to
+production. I3, I4 (scheduling) and I8's permanent fix remain open.**
+
+This is the tracking record for the 2026-09-01 rollover failure and everything
+done in response. If you are picking this up cold, read the Summary, then
+**"For the blob retirement"** — that section is the whole of what this incident
+changed underneath the canonical migration, and it is the part most likely to
+surprise someone working on that branch.
 
 ### Actions taken 2026-09-01
 
@@ -15,11 +21,15 @@ tracking record for the issues found.
 | ~03:40 | Rollover fired on first authenticated app open | All Blocs advanced to September (`2026-8`), August closed into history |
 | 03:41 | Backup `2181` at revision 2122, reason `pre-gregorio-august-correction-2026-09-01` | Taken before the I8 correction |
 | 03:42 | Removed Gregorio from the closed August snapshot; set his joined month to September in blob and canonical | Aug members 10 → 9, settlement now Rodri only, count audit 0 mismatches across 127 member-months |
+| 07:56 | **PR #8 merged** — per-Bloc rollover isolation (I1) | Live |
+| 14:39 | **PR #9 merged** — corrected the month-boundary account in this document | Live |
+| ~17:20 | Migrations applied: `preserve_season_closed_at`, `add_system_events` | Inert until PR #10 merged |
+| 17:25 | Supabase security advisor flagged both new RPCs as `PUBLIC EXECUTE`; revoked and granted to `service_role` | All four introduced warnings cleared |
+| 17:38 | **PR #10 merged** — onboarding sign-in link, I5 fix, rollover alerting | Live |
 
-The rollover had not yet fired at the time of writing: it requires an
-authenticated app open, and none had occurred since the cleanup. Production was
-still running the pre-fix code, which now succeeds because the Blocs that made
-it fail no longer exist.
+The rollover fired at ~03:40 on the first authenticated app open after the
+cleanup, before any code fix was deployed: the pre-fix code succeeded once the
+Blocs that made it fail no longer existed. All Blocs advanced to September.
 
 Rollback if ever needed:
 
@@ -125,7 +135,7 @@ cause the fault; it made an existing fragility fire continuously.
 ## Issues
 
 ### I1 — One failing Bloc discards the rollover for all Blocs
-**Severity: critical. This is the outage. Fixed on `fix/rollover-per-bloc-isolation`, not yet in production.**
+**Severity: critical. This was the outage. SHIPPED — PR #8, merged 2026-09-01 07:56 UTC.**
 `persistState` treats the rollover batch as all-or-nothing across every Bloc.
 A single unsatisfiable canonical write blocks the month from advancing for
 everyone. Self-healing is impossible: every retry hits the same Bloc.
@@ -158,7 +168,16 @@ variable before designing the fix.** If `leave-bloc` is listed, this is an
 active orphan factory and I2 will recur.
 
 ### I4 — Rollover has no safety net
-**Severity: medium (design).**
+**Severity: medium (design). Alerting shipped 2026-09-01; scheduling still open.**
+
+**Alerting (done).** A skipped Bloc is now recorded to
+`ante_core.system_events` and surfaced on the founder dashboard — quiet when
+healthy, listing Bloc and reason when not. This matters more after I1 than
+before it: the rollover fix makes a failing Bloc fail *silently* so the others
+proceed, so silence no longer implies health. Summary logic is in
+`src/lib/systemHealth.js` with 15 checks in `scripts/test-system-health.mjs`.
+
+**Scheduling (open).** Everything below still stands.
 Rollover is lazy and read-triggered only; `vercel.json` schedules just
 `/api/cron-purge-app-daily-activity` at 03:00. The month therefore advances at
 whatever moment the first person opens the app, and a Bloc nobody opens rolls
@@ -214,17 +233,96 @@ exact minute Gregorio joined, and 1 January 02:00 (which must resolve to
 December of the previous year). All nine matched the JS rule. Run live on
 2026-09-01 it returns 0 across all 16 Blocs, which is correct.
 
-### I5 — Two closed seasons with a null `closed_at`
-**Severity: low. Pre-existing data inconsistency.**
+#### Scheduling constraints, established 2026-09-01
+
+- **Vercel is on the Hobby plan**: cron runs **once per day**, maximum two jobs,
+  and one is already used by `/api/cron-purge-app-daily-activity`. Not enough
+  granularity for a rollover.
+- **Supabase is on Pro**, and `pg_cron` (1.6.4) and `pg_net` (0.20.0) are
+  available though not installed. `supabase_vault` is already installed. So the
+  scheduler can live in the database on any interval, calling a locked endpoint
+  on the app, without a Vercel upgrade and without consuming the spare slot.
+- Colombo is UTC+5:30, so a 15-minute schedule catches a half-hour-offset
+  timezone within 15 minutes. Good, not exact.
+- The rollover already reads each Bloc's own timezone, so a scheduler does not
+  need to compute timezones. It only needs to invoke the existing path.
+
+Not built. The case weakened once the 3am cutoff was understood: timing was 28
+minutes out, not hours. The remaining argument is a dormant Bloc nobody opens.
+
+### I5 — Confirming a settlement erased the season's closing timestamp
+**Severity: low today, higher after blob retirement. Leak fixed 2026-09-01; the
+two existing blanks are deliberately left.**
+
+Two closed seasons carry `status = 'closed'` with `closed_at IS NULL`:
+
 - Ctrl Alt De-feat, `2026-6` (Jul '26)
 - Go To Da Gym, `2026-5` (Jun '26)
 
-Both `status = 'closed'` with `closed_at IS NULL`. Every other closed season has
-a timestamp. Likely residue from an earlier partially-applied rollover. No
-known user-visible effect; recorded so it is not mistaken for new damage.
+**Correction.** An earlier version of this document called these "residue from
+an earlier partially-applied rollover". That was a guess and it was wrong. The
+cause was found by audit and is specific and repeatable.
+
+**Both were erased by a member confirming a settlement payment.** The two events
+are identical in shape and each completed inside one second:
+
+| When (UTC) | Bloc | Sequence |
+| --- | --- | --- |
+| 2026-07-30 15:39:31 | Go To Da Gym | Kisal's profile synced → **Jun '26 season rewritten, stamp erased** → "Kisal confirmed payment." posted |
+| 2026-08-25 13:11:24 | Ctrl Alt De-feat | akijain2000 and Giang's profiles synced → **Jul '26 season rewritten, stamp erased** → "Giang confirmed payment." posted |
+
+Both settlement confirmations that exist in production did this. A 100% rate,
+and settlements become a monthly event from here.
+
+**Mechanism.** `ensureSettlementConfirmationPrereqs` (`api/lift-log.js`) re-syncs
+the Bloc, both profiles and **the month the settlement belongs to** before
+recording the confirmation. Settlements only ever concern closed months, so it
+always re-saves a closed month. It sources the closing time from the blob
+snapshot:
+
+```js
+const closedMonth = (group.monthHistory || []).find(month => month?.key === monthKey) || null;
+await syncSeasonToCanonical(group, monthKey, closedMonth ? "closed" : "open", closedMonth?.closedAt || null, ...);
+```
+
+**A blob `monthHistory` entry has no `closedAt` field.** Its keys are `key`,
+`solo`, `year`, `label`, `month`, `counts`, `excused`, `settings`, `logsByUser`,
+`settlements`, `memberTargets`. So `closedMonth?.closedAt` is always `undefined`,
+null is sent, and the upsert wrote that null over a real timestamp.
+
+**Fix (shipped).** Corrected in `upsert_ante_core_season` rather than at the call
+site, because `add-log` passes the same null for a closed month and any future
+caller would inherit the trap:
+
+```sql
+closed_at = case
+              when excluded.status = 'closed'::ante_core.season_status
+                then coalesce(excluded.closed_at, seasons.closed_at)
+              else excluded.closed_at
+            end
+```
+
+Closing never discards a timestamp already held; reopening still clears it.
+Verified in a rolled-back transaction against a test Bloc: closed+null
+preserves, closed+value overwrites, reopen clears.
+Migration `20260901190000_preserve_season_closed_at.sql`.
+
+**The two existing blanks are left blank on purpose.** They could be inferred —
+rollover closes all due Blocs in one batch under a shared timestamp, and the
+other July seasons all closed at `2026-08-01 01:18:22.511961+00` — but that is
+inference, and an inferred timestamp is indistinguishable from a recorded one
+once written. There is no backup to check against: `closed_at` exists only in
+canonical, and `lift_log_backups` stores blob state.
+
+**Why this matters more after blob retirement.** Today nothing reads `closed_at`
+for display — it is written and never read, so the user-visible impact is zero.
+Once canonical becomes the source of truth, a field that silently erases itself
+stops being a harmless copy and becomes the record.
 
 ### I6 — No test coverage for rollover
-**Severity: medium.**
+**Severity: medium. Addressed 2026-09-01: `scripts/test-rollover-isolation.mjs`
+(25 checks) and `scripts/test-system-health.mjs` (15 checks). Both run without a
+backend. The original text below stands as the reason they exist.**
 `scripts/` contains no rollover test. `rolloverStateIfNeeded` and
 `rolloverGroupIfNeeded` are not exported from `api/lift-log.js`, so no test can
 reach them. The month boundary is the single most incident-prone path in the
@@ -303,6 +401,122 @@ the behaviour first.**
 
 ---
 
+## For the blob retirement
+
+Everything from 2026-09-01 that touches the blob, `ante_core`, or the
+relationship between them. If you own the canonical migration, this section is
+the briefing; the rest of the document is background.
+
+### 1. Blob and canonical can now legitimately disagree for one Bloc
+
+`persistState` used to treat a rollover as all-or-nothing across every Bloc. It
+now skips a Bloc whose canonical writes cannot succeed and rolls that Bloc back
+to its pre-rollover state, so the others still advance.
+
+**Consequence for parity checking:** a skipped Bloc sits at its old month in the
+blob while the rest have moved on. **This is expected, not a parity defect.**
+`scripts/blob-parity-gate.mjs` should not read it as one.
+
+The skip is now recorded — see item 4 — so a divergence has an audit trail
+rather than being inferred from a diff.
+
+Two layers, both scoped to the rollover sync:
+
+- **Pre-flight.** A Bloc with no `ante_core.blocs` row is skipped *before* any
+  write, so no partial canonical state is created. `fetchAnteBlocs()` returns
+  `null` when it could not read the list at all — that means "could not verify",
+  never "no Blocs exist", and treating it as the latter would skip every Bloc
+  and stall the month from the other direction. Pinned by test.
+- **Per-Bloc try/catch.** Any other failure reverts that one Bloc and continues.
+  It keeps its old month and is retried on the next read.
+
+**Residual risk worth knowing:** if a Bloc fails *midway* — season closed
+canonically, member rows not yet written — the blob rollback leaves the two
+briefly disagreeing for that Bloc. Reads apply the blob veto so it is not
+user-visible, and the season upsert is idempotent so the next successful pass
+corrects it. Eliminating it entirely needs one transactional DB function; not
+done, deliberately.
+
+### 2. Production data changed today
+
+Retake any parity baseline captured before 2026-09-01.
+
+| What | Detail | Backup |
+| --- | --- | --- |
+| Two orphan Blocs deleted from the blob | `op0-yneefj`, `rrrr-nq9r7f` — present in `lift_log_state.state.groups`, absent from `ante_core.blocs`. Both empty, both admin+sole member Aadhil, zero logs. Removed from `groups` and `groupOrder`. | `lift_log_backups` id **2171**, revision 2121 |
+| One member's August record corrected | Gregorio removed from Ctrl Alt De-feat's closed `2026-7` snapshot (counts, targets, excused, settlements, logsByUser, solo) **and** `season_member_status.joined_for_month` set false canonically. `joinedMonthByName.Gregorio` set to `2026-8` in the blob and `bloc_members.joined_month_key` to `2026-8` in canonical. | `lift_log_backups` id **2181**, revision 2122 |
+
+Post-change sweep: **0 orphans, 0 reverse orphans**, 35 profiles unchanged, all
+450 August logs intact, count audit 0 mismatches across 127 member-months.
+
+Rollback for either is `update public.lift_log_state set state = (select state
+from public.lift_log_backups where backup_id = <id>) where id = true;` — note
+that only restores the blob, not the canonical edits.
+
+### 3. Settlement confirmations already live only in canonical
+
+Found while auditing I5, and the most directly relevant fact here.
+
+The two settlement confirmations in production wrote to `ante_core`
+(`settlement_confirmations`, `profiles`, `seasons`, `bloc_messages`) and
+produced **no blob write at all** — there is no `lift_log_backups` row at either
+moment. That points at `BLOB_MIRROR_SKIP_ACTIONS` including the confirmation
+action in the production Vercel environment.
+
+**So for this feature the blob is already retired in practice.** Confirmation
+state has no blob copy to fall back on, and no blob copy to compare against. Any
+parity gate covering settlements should expect canonical-only, and any rollback
+plan that assumes a blob shadow does not apply here.
+
+The production value of `BLOB_MIRROR_SKIP_ACTIONS` was not readable from the
+workspace (`.env.local` holds `[SENSITIVE]` placeholders). **Confirm it in
+Vercel** — it also decides I3.
+
+### 4. New canonical-only table: `ante_core.system_events`
+
+Records failures that belong to no user, so a skipped Bloc surfaces on the
+founder dashboard instead of dying in a 400 nobody reads.
+
+- Columns: `id`, `event_type`, `bloc_key`, `detail`, `occurred_at`.
+- Written by `record_ante_core_system_event`, read by
+  `read_ante_core_system_events`. Both `security definer`, both granted to
+  `service_role` only.
+- Written from `persistState` when a Bloc is skipped. Best-effort: it swallows
+  its own errors, because alerting must never be the reason a rollover fails.
+- Self-trimming to 90 days, so it needs no scheduled job.
+- **No blob counterpart, by design.** Do not add one.
+
+`ante_core.app_usage_events` could not be reused: its `profile_id` is `NOT NULL`
+and a rollover failure has no user.
+
+Migration `20260901191500_add_system_events.sql`.
+
+### 5. `upsert_ante_core_season` changed
+
+The `on conflict` clause no longer overwrites `closed_at` with null when the
+incoming status is `closed`. Full reasoning in I5. Relevant because this is the
+function every season write in the app goes through, and because it is an
+example of canonical *losing* information that the blob never held — the failure
+mode to watch for as canonical becomes authoritative.
+
+### 6. The blob snapshot shape is missing a field canonical has
+
+A blob `monthHistory` entry has no `closedAt`. Canonical `seasons` has
+`closed_at`. Any code that round-trips a closed month through the blob therefore
+cannot reproduce that value, which is exactly what caused I5. Worth checking
+whether other canonical columns have the same problem before the blob stops
+being the source of truth.
+
+### 7. Unchanged and still true
+
+- The blob veto in read composition is untouched. Canonical membership is still
+  ignored unless the blob already knows the user.
+- `scripts/blob-parity-gate.mjs` and `scripts/blob-remirror.mjs` were not
+  modified.
+- Both of today's package.json additions are npm script entries only.
+
+---
+
 ## Verified unaffected
 
 - Stored vs actual workout counts: **0 mismatches** across 21 closed months.
@@ -319,6 +533,8 @@ the behaviour first.**
 1. What should happen when someone joins a Bloc in the closing hours of a
    month, or in the gap before its rollover has fired? (I8 — to be designed)
 2. Is `leave-bloc` present in production `BLOB_MIRROR_SKIP_ACTIONS`? (I3)
-3. How were the `op0`/`rrrr` canonical rows removed after 1 August — the
+3. Does `upsert_ante_core_season` have siblings that also overwrite a canonical
+   column with a null the blob never held? (I5, item 6 in the blob section)
+4. How were the `op0`/`rrrr` canonical rows removed after 1 August — the
    `leave-bloc` last-member path, an admin delete, or manual cleanup? Answering
    this decides whether I3 is the real factory or a red herring.
