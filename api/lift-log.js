@@ -8675,8 +8675,27 @@ export {
   isMissingStorageBucketResponse
 };
 
+const NATIVE_WEBVIEW_ORIGINS = new Set([
+  "capacitor://localhost",
+  "http://localhost"
+]);
+
+function applyNativeWebviewCors(req, res) {
+  const origin = String(req?.headers?.origin || "").trim();
+  if (!NATIVE_WEBVIEW_ORIGINS.has(origin)) return;
+  res.setHeader("Access-Control-Allow-Origin", origin);
+  res.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type, Accept");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, OPTIONS");
+  res.setHeader("Vary", "Origin");
+}
+
 export default async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
+  applyNativeWebviewCors(req, res);
+
+  if (req.method === "OPTIONS") {
+    return res.status(204).end();
+  }
 
   try {
     if (req.method === "GET") {

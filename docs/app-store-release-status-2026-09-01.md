@@ -16,6 +16,10 @@ branch.
   visually checked on both sizes.
 - Browser/PWA naming is `Fero`; the browser title and manifest are aligned.
 - Invite-download UI is suppressed inside the installed native shell.
+- Native API and storage-image requests are routed to the deployed Fero API
+  from Capacitor rather than the WebView's local origin. The release origin is
+  configurable through `VITE_FERO_API_ORIGIN`; until the branded domain exists,
+  the current deployed endpoint is the fallback.
 - Account deletion UI and backend action already exist; full production
   deletion verification remains required before submission.
 - Local OTP support is forcibly disabled by the server in production, even if
@@ -35,8 +39,10 @@ branch.
    Privacy Policy, Terms/EULA, and monitored support contact. Do not publish
    placeholder policy text or claim a company name that has not been formed.
 3. **Production-domain decision.** The current live app URL is
-   `https://lift-log-nu.vercel.app`. A branded HTTPS domain is needed before
-   we can configure reliable Universal Links.
+   `https://lift-log-nu.vercel.app`. The native release must set
+   `VITE_FERO_API_ORIGIN` to the chosen branded HTTPS API origin before its
+   final TestFlight archive. A branded HTTPS domain is also needed before we
+   can configure reliable Universal Links.
 4. **Invite handoff.** Web invite joins work today, but post-install handoff
    needs Universal Links plus a short-lived, server-side opaque token. Browser
    local storage and Supabase URL tokens are explicitly not acceptable for
@@ -54,8 +60,8 @@ branch.
 1. Resolve the publisher identity and enroll it in Apple Developer Program.
 2. Create/point the public Fero legal and support URLs.
 3. Choose the production domain and implement/test Universal Link handoff.
-4. Verify account deletion, photos, auth, invitations, and settlement wording
-   in the submitted environment.
+4. Verify account deletion, photos, authenticated API access, invitations, and
+   settlement wording in the submitted environment.
 5. Create the App Store Connect record, complete privacy answers and metadata,
    then upload an archive for TestFlight.
 

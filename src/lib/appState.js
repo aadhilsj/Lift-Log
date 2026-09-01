@@ -1,3 +1,4 @@
+import { getApiUrl } from "./apiOrigin.js";
 
 const LEGACY_GROUP_ID = "legacy-group";
 const DEFAULT_GROUP_NAME = "Fero OG";
@@ -96,7 +97,7 @@ const resolveStorageImageUrl = url => {
     ]);
     const allowedPath = "/storage/v1/object/public/";
     if (allowedHosts.has(parsed.hostname) && parsed.pathname.startsWith(allowedPath)) {
-      return `/api/lift-log?image=${encodeURIComponent(raw)}`;
+      return getApiUrl(`/api/lift-log?image=${encodeURIComponent(raw)}`);
     }
   } catch {}
   return raw;
