@@ -38,6 +38,9 @@ branch.
 - Local regression checks, build, lint, and the production-dependency audit
   pass. Credential-based browser flows remain deferred because this isolated
   worktree deliberately has no local Supabase configuration.
+- Greenlight preflight passes with no critical findings. Its generated-bundle
+  platform-reference false positive is scoped out in `.greenlight.yml`; source
+  and native configuration scans remain enabled.
 
 ## Must be resolved before an App Store Connect submission
 

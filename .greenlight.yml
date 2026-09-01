@@ -1,0 +1,6 @@
+# Generated bundles include third-party browser user-agent compatibility code.
+# Keep source and native configuration checks active while avoiding duplicate
+# platform-reference findings from minified dependencies.
+ignore:
+  - dist/assets
+  - ios/App/App/public/assets
