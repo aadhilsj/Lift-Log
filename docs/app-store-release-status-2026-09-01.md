@@ -21,6 +21,9 @@ branch.
 - Native app builds successfully with Xcode 16.4 and launches in iPhone 16 Pro
   and iPhone 16e simulators running iOS 18.6. The first-run onboarding was
   visually checked on both sizes.
+- A generic iOS Release archive passes Xcode's store validation locally. The
+  archive is intentionally unsigned until the final Apple Developer team and
+  provisioning identity are available; no upload was attempted.
 - Browser/PWA naming is `Fero`; the browser title and manifest are aligned.
 - Invite-download UI is suppressed inside the installed native shell.
 - Native API and storage-image requests are routed to the deployed Fero API

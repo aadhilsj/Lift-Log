@@ -146,6 +146,8 @@ Non-obvious navigation or regional differences:
 - [ ] Universal/deep links and post-install invite handoff are verified.
 - [ ] The native archive was built with `VITE_FERO_API_ORIGIN` set to the final
   HTTPS API origin; it is not accidentally pointing at a preview deployment.
+- [ ] The signed Release archive passes Xcode store validation and uses the
+  final Apple Developer team/provisioning profile.
 - [ ] No development menu, local OTP bypass, debug identity, preview-only data, or secret is present/enabled.
 - [ ] Export compliance, content rights, privacy nutrition labels, and regional availability are complete.
 - [ ] Any in-app purchase or subscription introduced later uses Apple's required purchase flow and has complete metadata, localized terms, restore/manage behavior, and review screenshots.
