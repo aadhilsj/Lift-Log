@@ -11,6 +11,7 @@
     "test:stream-moments": "node scripts/test-bloc-stream-derived-moments.mjs",
     "audit:rollover-counts": "node scripts/audit-rollover-counts.mjs",
     "test:month-awards": "node scripts/test-month-awards.mjs",
+    "test:system-health": "node scripts/test-system-health.mjs",
     "test:rollover-isolation": "node scripts/test-rollover-isolation.mjs",
     "test:profile-stats-cache": "node scripts/test-profile-stats-cache.mjs",
     "test:fero-profile-stats": "node scripts/test-fero-profile-stats.mjs",

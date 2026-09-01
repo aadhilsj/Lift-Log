@@ -2294,6 +2294,26 @@ async function deleteProfileFromCanonical(userId, options = {}) {
   }
 }
 
+// Records a failure that belongs to no user, so it can surface on the founder
+// dashboard instead of dying in a log nobody reads. Best-effort by design: this
+// must never be the reason a rollover or a mutation fails, so every error here
+// is swallowed after being logged.
+async function recordSystemEventToCanonical(eventType, blocKey = null, detail = null) {
+  try {
+    await supabaseFetch("/rest/v1/rpc/record_ante_core_system_event", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({
+        p_event_type: String(eventType || "").trim(),
+        p_bloc_key:   blocKey ? String(blocKey) : null,
+        p_detail:     detail ? String(detail).slice(0, 1000) : null
+      })
+    });
+  } catch (err) {
+    console.error("System event record failed:", err?.message || err);
+  }
+}
+
 async function syncSeasonToCanonical(group, monthKey, status, closedAt = null, options = {}) {
   const { throwOnError = false } = options;
   if (!group || !monthKey) return;
@@ -4707,6 +4727,11 @@ async function persistState(nextState, reason, options = {}) {
 
   if (rolloverSkips.length > 0) {
     console.error(`Season rollover completed with ${rolloverSkips.length} skipped Bloc(s):`, JSON.stringify(rolloverSkips));
+    // Recorded after the loop rather than inside it, so a Bloc's rollback is
+    // never delayed by an alerting write.
+    for (const skip of rolloverSkips) {
+      await recordSystemEventToCanonical("rollover_skipped", skip.groupId, skip.reason);
+    }
   }
 
   // A rollover-only persist in which every Bloc was skipped has nothing to
@@ -5091,6 +5116,20 @@ async function readCanonicalFounderDashboardMonthlyActions() {
   return body && typeof body === "object" && !Array.isArray(body) ? body : {};
 }
 
+async function readCanonicalSystemEvents(limit = 20) {
+  try {
+    const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_system_events", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ p_limit: limit })
+    });
+    const body = await response.json();
+    return body && typeof body === "object" && !Array.isArray(body) ? body : {};
+  } catch {
+    return {};
+  }
+}
+
 async function readCanonicalFounderDashboard() {
   const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_founder_dashboard", {
     method: "POST",
@@ -5099,12 +5138,13 @@ async function readCanonicalFounderDashboard() {
   });
   const body = await response.json();
   if (!body || typeof body !== "object" || Array.isArray(body)) return {};
-  const [rosterAndBlocMetrics, growth, usage, usageAverages, blockProfileUsage, monthlyActions] = await Promise.all([readFounderRosterAndActiveBlocs(), readCanonicalFounderDashboardGrowth(), readCanonicalFounderDashboardUsage(), readCanonicalFounderDashboardUsageAverages(), readCanonicalFounderDashboardBlockProfileUsage(), readCanonicalFounderDashboardMonthlyActions()]);
+  const [rosterAndBlocMetrics, growth, usage, usageAverages, blockProfileUsage, monthlyActions, systemEvents] = await Promise.all([readFounderRosterAndActiveBlocs(), readCanonicalFounderDashboardGrowth(), readCanonicalFounderDashboardUsage(), readCanonicalFounderDashboardUsageAverages(), readCanonicalFounderDashboardBlockProfileUsage(), readCanonicalFounderDashboardMonthlyActions(), readCanonicalSystemEvents()]);
   return {
     ...body,
     accounts: { ...(body.accounts || {}), ...rosterAndBlocMetrics.accounts },
     activeBlocs: rosterAndBlocMetrics.activeBlocs,
     growth,
+    systemEvents,
     usage: { ...usage, events: { ...(usage.events || {}), own_block_profile_opened: blockProfileUsage.events?.own_block_profile_opened || {} }, averages: { ...usageAverages, own_block_profile_opened: blockProfileUsage.averages?.own_block_profile_opened || {} }, monthlyActions: monthlyActions.events || {} }
   };
 }
