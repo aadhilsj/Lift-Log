@@ -18,6 +18,12 @@ branch.
 - Invite-download UI is suppressed inside the installed native shell.
 - Account deletion UI and backend action already exist; full production
   deletion verification remains required before submission.
+- Local OTP support is forcibly disabled by the server in production, even if
+  a deployment variable is misconfigured. The browser path also restricts it
+  to local hosts and `@local.test` identities.
+- Local regression checks, build, lint, and the production-dependency audit
+  pass. Credential-based browser flows remain deferred because this isolated
+  worktree deliberately has no local Supabase configuration.
 
 ## Must be resolved before an App Store Connect submission
 

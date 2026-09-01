@@ -7,7 +7,7 @@ depending on a second human or any local-only fixture.
 
 | Role | Owner | Status |
 | --- | --- | --- |
-| Review account owner | TBD | Not created |
+| Review account owner | Dedicated Fero-controlled inbox | Deferred pending founder setup |
 | Seeded Bloc owner | TBD | Not created |
 | OTP/email delivery owner | TBD | Not verified |
 | App Review contact | TBD | Pending publisher/support details |

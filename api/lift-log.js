@@ -48,7 +48,12 @@ let supabaseAdminClientPromise = null;
 const ENABLE_SETTLEMENT_CONFIRMATIONS = String(process.env.ENABLE_SETTLEMENT_CONFIRMATIONS || "").trim().toLowerCase() === "true";
 const ENABLE_SETTLEMENT_CONFIRMATIONS_PREVIEW = String(process.env.ENABLE_SETTLEMENT_CONFIRMATIONS_PREVIEW || "").trim().toLowerCase() === "true";
 const ENABLE_LOCAL_PREVIEW_AUTH = String(process.env.ENABLE_LOCAL_PREVIEW_AUTH || "").trim().toLowerCase() === "true";
-const ENABLE_LOCAL_DEV_OTP = String(process.env.ENABLE_LOCAL_DEV_OTP || "").trim().toLowerCase() === "true";
+// Local OTP sessions are intentionally unavailable from production server
+// deployments even if a deployment variable is accidentally left enabled.
+const IS_PRODUCTION_DEPLOYMENT = String(process.env.VERCEL_ENV || "").trim().toLowerCase() === "production"
+  || String(process.env.NODE_ENV || "").trim().toLowerCase() === "production";
+const ENABLE_LOCAL_DEV_OTP = !IS_PRODUCTION_DEPLOYMENT
+  && String(process.env.ENABLE_LOCAL_DEV_OTP || "").trim().toLowerCase() === "true";
 const LOCAL_DEV_OTP_CODE = String(process.env.LOCAL_DEV_OTP_CODE || "000000").trim() || "000000";
 const WRITE_HYDRATION_PARITY_PREVIEW_BRANCH = "codex/create-group-canonical-first";
 const WRITE_HYDRATION_PARITY_DEFAULT_ACTIONS = [

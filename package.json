@@ -20,10 +20,10 @@
     "test:mobile-navigation": "node scripts/test-mobile-navigation.mjs",
     "test:founder-dashboard": "node scripts/test-founder-dashboard.mjs",
     "test:account-deletion": "node scripts/test-account-deletion.mjs",
+    "test:release-guards": "node scripts/test-release-guards.mjs",
     "dev:api": "node scripts/local-dev-server.mjs"
   },
   "dependencies": {
-    "@capacitor/cli": "^8.5.0",
     "@capacitor/core": "^8.5.0",
     "@capacitor/ios": "^8.5.0",
     "@supabase/supabase-js": "^2.45.0",
@@ -31,10 +31,12 @@
     "react-dom": "18.3.1"
   },
   "devDependencies": {
+    "@capacitor/cli": "8.5.0",
     "@vitejs/plugin-react": "^4.3.0",
     "eslint": "^10.9.1",
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.11.0",
+    "playwright": "1.62.1",
     "typescript": "^7.0.2",
     "vite": "^5.4.0"
   }

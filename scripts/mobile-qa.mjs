@@ -1,4 +1,4 @@
-import playwright from "/Users/opera_user/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright/index.js";
+import playwright from "playwright";
 
 const { chromium, devices } = playwright;
 

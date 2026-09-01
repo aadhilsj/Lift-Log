@@ -1,5 +1,10 @@
 import assert from "node:assert/strict";
-import playwright from "/Users/opera_user/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright/index.js";
+import playwright from "playwright";
+import fs from "node:fs";
+
+const serverSource = fs.readFileSync(new URL("../api/lift-log.js", import.meta.url), "utf8");
+assert.ok(serverSource.includes("const IS_PRODUCTION_DEPLOYMENT"), "production deployment detection must protect local OTP support");
+assert.ok(serverSource.includes("const ENABLE_LOCAL_DEV_OTP = !IS_PRODUCTION_DEPLOYMENT"), "local OTP support must be forcibly disabled in production");
 
 const baseUrl = process.env.FERO_QA_BASE_URL || "http://127.0.0.1:3000";
 const existingEmail = process.env.FERO_QA_EXISTING_EMAIL || "seed-invite@local.test";
