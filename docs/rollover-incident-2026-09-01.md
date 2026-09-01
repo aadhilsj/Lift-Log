@@ -165,8 +165,54 @@ whatever moment the first person opens the app, and a Bloc nobody opens rolls
 over late. It also means a rollover failure is silent — there is no alert, and
 the only signal is a 400 buried in the edge logs.
 
-Timezone handling itself is correct: the two `Asia/Colombo` Blocs rolled at
-2026-08-31T21:31Z, which is local midnight. That part works.
+**The month boundary is 03:00 local, not midnight.** `LEAGUE_CUTOFF_HOUR = 3`
+(`api/lift-log.js:6`, `src/lib/appState.js:9`): a Fero day runs 3am to 3am, and
+anything before 3am belongs to the previous day. `getLeagueMonthKey` applies
+that cutoff, so the month key flips at 03:00 on the 1st in each Bloc's own
+timezone.
+
+Timing on 2026-09-01 was therefore much better than the raw clock suggests:
+
+- `Asia/Colombo` (UTC+5:30) rolled at 2026-08-31T21:31Z = **03:01 local**, one
+  minute after its cutoff.
+- `Europe/Oslo` (UTC+2) reached its cutoff at 01:00Z; the first app open was at
+  01:28Z, so it was **28 minutes late**, not the several hours a midnight
+  boundary would imply.
+
+The real exposure is therefore not a few hours' drift on an active Bloc. It is
+a **dormant Bloc that nobody opens for days**, and the absence of any alert when
+a rollover fails.
+
+#### Validated "is a rollover due?" probe
+
+Any scheduled rollover should not pull the whole blob on every tick just to ask
+whether there is work: the blob is ~471 kB, so a 15-minute schedule would move
+over 1 GB a month for nothing. This answers the question inside the database and
+returns one integer.
+
+It applies the 3am cutoff by subtracting three hours from local time, which is
+exactly equivalent to the JS rule (`if (hour < 3) date -= 1 day`). An earlier
+draft of this probe compared against the plain calendar month and was wrong
+between 00:00 and 03:00 on the 1st — it would have reported work due for three
+hours before the app agreed. That direction is merely wasteful, never a missed
+rollover, but the version below is the correct one.
+
+```sql
+select count(*) as blocs_due
+from public.lift_log_state, lateral jsonb_object_keys(state->'groups') k
+where (state->'groups'->k->>'lastMonth') is distinct from (
+  extract(year from ((now() at time zone coalesce(
+    state->'groups'->k->'settings'->>'timeZone', 'Europe/Oslo')) - interval '3 hours'))::int::text
+  || '-' ||
+  (extract(month from ((now() at time zone coalesce(
+    state->'groups'->k->'settings'->>'timeZone', 'Europe/Oslo')) - interval '3 hours'))::int - 1)::text
+);
+```
+
+Verified against nine boundary cases including 02:59 vs 03:00 on the 1st, the
+exact minute Gregorio joined, and 1 January 02:00 (which must resolve to
+December of the previous year). All nine matched the JS rule. Run live on
+2026-09-01 it returns 0 across all 16 Blocs, which is correct.
 
 ### I5 — Two closed seasons with a null `closed_at`
 **Severity: low. Pre-existing data inconsistency.**
@@ -199,12 +245,21 @@ verification.
 ### I8 — Joining late in a month can enrol someone in the month that is closing
 **Severity: high. Open — needs a product decision, not a patch.**
 
-Gregorio joined Ctrl Alt De-feat at 2026-08-31T23:43:48Z, which is **01:43 on
-1 September in Oslo**, the Bloc's own timezone. He joined in September by any
-reading a member would recognise. But the blob still had August open, because
-the rollover had not fired, so he was enrolled into August. Proration then gave
-him a target of 1 workout for the one day it thought remained. He logged none,
-so the closed month recorded him as having missed, and billed him.
+Gregorio joined Ctrl Alt De-feat at 2026-08-31T23:43:48Z, which is 01:43 on
+1 September in Oslo, the Bloc's own timezone.
+
+**Correction (2026-09-01): the app did not put him in the wrong month.** An
+earlier version of this document claimed he "joined in September by any reading
+a member would recognise". That was wrong, and the error mattered enough to
+correct in place rather than quietly. Under `LEAGUE_CUTOFF_HOUR = 3` a Fero day
+runs 3am to 3am, so 01:43 on 1 September **is 31 August** — the last Fero-day of
+the month. Enrolling him in August was the designed behaviour.
+
+The real defect is narrower, and worse for being correct-by-design: a member who
+joins in the final hours of a month is prorated to a target of **1 workout** for
+the fraction of a day remaining, and is fined for missing it. Gregorio logged
+none in those two hours, so the closed month recorded him as having missed and
+billed him 250 NOK.
 
 Money consequences of a wrong enrolment are not contained to the person
 affected. Because the fee model escalates with the number of members who miss,
@@ -227,16 +282,21 @@ recording before anyone reaches for the obvious patch:
 - Proration already exists to handle mid-month joiners and works correctly for
   the ordinary case. The defect is at the very end of the month, not with
   proration itself.
-- The window here was not a genuine end-of-month join at all. It was the gap
-  between real local midnight and whenever the lazy rollover happened to fire
-  (I4). Gregorio joined *in September* and was still placed in August. Any rule
-  keyed on "how late in the month" would miss that, because by the clock he was
-  not late in the month — he was in the next one.
+- The month assignment was correct, so a rule that reassigns "late" joiners to
+  the next month would be fixing the wrong thing. Gregorio genuinely joined on
+  31 August under the 3am rule. What failed was the *target*, not the month: a
+  1-workout target for a two-hour membership is not a commitment anyone agreed
+  to, and it carried a 250 NOK penalty.
+- A prorated target below some floor is arguably not a real target at all.
+  Whether the answer is a minimum target, a minimum membership duration before
+  penalties apply, or excusing the first partial month, is the decision to make.
 - A join that lands in a month with a target the member cannot physically meet
   is the actual failure, whatever the calendar says.
 
-Fixing I1 shortens the window but does not close it: a Bloc still rolls over
-only when someone opens the app, so the gap persists until I4 is addressed.
+Note that a scheduled rollover (I4) does **not** fix this. Even with the month
+turning at exactly 03:00, someone joining at 02:00 still lands in the closing
+month with a near-zero target. I4 shrinks the *lateness* of the boundary; it
+does not change what happens to someone who joins just before it.
 
 **Status: to be designed. Do not implement a threshold rule without agreeing
 the behaviour first.**
@@ -248,7 +308,8 @@ the behaviour first.**
 - Stored vs actual workout counts: **0 mismatches** across 21 closed months.
 - Orphan sweep: exactly 2 blob-only Blocs, 0 canonical-only.
 - August logs intact: 450 logs across 5 Blocs, latest 2026-08-31T22:11Z.
-- Timezone rollover logic correct (Asia/Colombo Blocs rolled at local midnight).
+- Timezone rollover logic correct: Asia/Colombo Blocs rolled at 03:01 local,
+  one minute after the 03:00 cutoff.
 - No Postgres ERROR/FATAL entries in the incident window.
 
 ---
