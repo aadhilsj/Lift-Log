@@ -1,8 +1,9 @@
 # Rollover Incident — 2026-09-01
 
 Written: 2026-09-01, Europe/Oslo.
-Status: **I2 resolved in production, I1 fixed on a branch awaiting promotion.**
-This file is the tracking record for the issues found.
+Status: **I2 and I8 corrected in production. I1 fixed on a branch awaiting
+promotion. I3, I4, I5, I8's permanent fix still open.** This file is the
+tracking record for the issues found.
 
 ### Actions taken 2026-09-01
 
@@ -11,6 +12,9 @@ This file is the tracking record for the issues found.
 | 03:33 | Backup `2171` of `lift_log_state` at revision 2121, reason `pre-orphan-bloc-cleanup-2026-09-01` | Verified byte-identical to live before any change |
 | 03:34 | Removed `op0-yneefj` and `rrrr-nq9r7f` from `state.groups` and `state.groupOrder` | 16 → 14 Blocs, 16 → 14 order entries, no trace of either key |
 | 03:35 | Post-change integrity sweep | 0 orphans, 0 reverse orphans, 35 profiles unchanged, all 450 logs intact |
+| ~03:40 | Rollover fired on first authenticated app open | All Blocs advanced to September (`2026-8`), August closed into history |
+| 03:41 | Backup `2181` at revision 2122, reason `pre-gregorio-august-correction-2026-09-01` | Taken before the I8 correction |
+| 03:42 | Removed Gregorio from the closed August snapshot; set his joined month to September in blob and canonical | Aug members 10 → 9, settlement now Rodri only, count audit 0 mismatches across 127 member-months |
 
 The rollover had not yet fired at the time of writing: it requires an
 authenticated app open, and none had occurred since the cleanup. Production was
@@ -192,6 +196,51 @@ them. `npm run audit:rollover-counts` fails with 401, as will any script needing
 backend access. This audit was completed by other means, but it blocks routine
 verification.
 
+### I8 — Joining late in a month can enrol someone in the month that is closing
+**Severity: high. Open — needs a product decision, not a patch.**
+
+Gregorio joined Ctrl Alt De-feat at 2026-08-31T23:43:48Z, which is **01:43 on
+1 September in Oslo**, the Bloc's own timezone. He joined in September by any
+reading a member would recognise. But the blob still had August open, because
+the rollover had not fired, so he was enrolled into August. Proration then gave
+him a target of 1 workout for the one day it thought remained. He logged none,
+so the closed month recorded him as having missed, and billed him.
+
+Money consequences of a wrong enrolment are not contained to the person
+affected. Because the fee model escalates with the number of members who miss,
+his presence changed two other people's figures:
+
+| | As recorded | After correction |
+| --- | --- | --- |
+| Gregorio | owed 250 NOK | owes nothing |
+| Rodri | owed 250 NOK | owes 200 NOK |
+| Giang received | 500 NOK | 200 NOK |
+
+Corrected in production 2026-09-01 (backup `2181`). See the actions table above.
+
+**Why this is not simply "late joiners join next month".** The founder has
+explicitly said the rule should not be that literal, and the reasons are worth
+recording before anyone reaches for the obvious patch:
+
+- "Late" has no self-evident threshold. The last day? The last week? A fixed
+  cut-off would be arbitrary and would surprise people near the boundary.
+- Proration already exists to handle mid-month joiners and works correctly for
+  the ordinary case. The defect is at the very end of the month, not with
+  proration itself.
+- The window here was not a genuine end-of-month join at all. It was the gap
+  between real local midnight and whenever the lazy rollover happened to fire
+  (I4). Gregorio joined *in September* and was still placed in August. Any rule
+  keyed on "how late in the month" would miss that, because by the clock he was
+  not late in the month — he was in the next one.
+- A join that lands in a month with a target the member cannot physically meet
+  is the actual failure, whatever the calendar says.
+
+Fixing I1 shortens the window but does not close it: a Bloc still rolls over
+only when someone opens the app, so the gap persists until I4 is addressed.
+
+**Status: to be designed. Do not implement a threshold rule without agreeing
+the behaviour first.**
+
 ---
 
 ## Verified unaffected
@@ -206,7 +255,9 @@ verification.
 
 ## Open questions
 
-1. Is `leave-bloc` present in production `BLOB_MIRROR_SKIP_ACTIONS`? (I3)
-2. How were the `op0`/`rrrr` canonical rows removed after 1 August — the
+1. What should happen when someone joins a Bloc in the closing hours of a
+   month, or in the gap before its rollover has fired? (I8 — to be designed)
+2. Is `leave-bloc` present in production `BLOB_MIRROR_SKIP_ACTIONS`? (I3)
+3. How were the `op0`/`rrrr` canonical rows removed after 1 August — the
    `leave-bloc` last-member path, an admin delete, or manual cleanup? Answering
    this decides whether I3 is the real factory or a red herring.
