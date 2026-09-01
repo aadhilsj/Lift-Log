@@ -2188,6 +2188,19 @@ function rolloverGroupIfNeeded(group) {
   });
 }
 
+// Pre-flight guard for the rollover canonical sync.
+//
+// `canonicalBlocs` is the map returned by fetchAnteBlocs(), which returns null
+// when it could not read the canonical Bloc list at all. null therefore means
+// "could not verify", never "no Blocs exist": treating it as the latter would
+// skip every Bloc and stall the month exactly like the 2026-09-01 incident it
+// is here to prevent. Only a successfully read map that is missing this Bloc
+// is a real skip.
+function shouldSkipRolloverForMissingCanonicalBloc(canonicalBlocs, groupId) {
+  if (!canonicalBlocs) return false;
+  return !canonicalBlocs[groupId];
+}
+
 function rolloverStateIfNeeded(data, options = {}) {
   const base = normalizeState(data, options);
   let changed = false;
@@ -2205,7 +2218,15 @@ function rolloverStateIfNeeded(data, options = {}) {
         groupId,
         closedMonthKey: group.lastMonth,
         newMonthKey:    nextGroup.lastMonth,
-        closedAt:       rolledAt
+        closedAt:       rolledAt,
+        // Pre-rollover copy, so persistState can roll one Bloc back on its own
+        // without discarding the rollover for every other Bloc.
+        previousGroup:  group,
+        // The revision/updatedAt this state had before the rollover bumped
+        // them, so a rollover in which every Bloc was skipped can be restored
+        // exactly rather than reported as a change that never reached the DB.
+        baseRevision:   base.meta.revision,
+        baseUpdatedAt:  base.meta.updatedAt
       });
     }
   }
@@ -3682,7 +3703,7 @@ async function fetchReadableCurrentState() {
   // intact for future use but are no longer consulted on read.
   let baseState = await fetchCurrentStateFromSupabase();
   if (Array.isArray(baseState?._rollovers) && baseState._rollovers.length > 0) {
-    baseState = await persistState(baseState, "auto-rollover-read");
+    baseState = await persistState(baseState, "auto-rollover-read", { rolloverOnly: true });
   }
 
   // Overlay canonical bloc settings plus stable group shell metadata onto the
@@ -4589,7 +4610,7 @@ async function fetchWritableCurrentState() {
   return fetchCurrentStateFromSupabase();
 }
 
-async function persistState(nextState, reason) {
+async function persistState(nextState, reason, options = {}) {
   // Extract rollover metadata before persistStateToSupabase — normalizeState
   // strips _rollovers from the blob write, so we must read it here first.
   const rollovers = Array.isArray(nextState._rollovers) ? nextState._rollovers : [];
@@ -4599,51 +4620,107 @@ async function persistState(nextState, reason) {
   // 1. use the exact post-rollover in-memory state to close/open seasons
   // 2. write the closed-month member snapshots canonically
   // 3. persist the blob only after canonical rollover writes succeed
-  for (const { groupId, closedMonthKey, newMonthKey, closedAt } of rollovers) {
+  //
+  // Per-Bloc isolation (2026-09-01 incident): a Bloc whose canonical writes
+  // cannot succeed must not block the month from advancing for every other
+  // Bloc. On 2026-09-01 two blob-only Blocs with no ante_core.blocs row made
+  // upsert_ante_core_season raise "bloc not found", which aborted persistState
+  // before the blob write and left all sixteen Blocs on August. Every
+  // subsequent read re-attempted and re-failed the identical batch.
+  //
+  // A Bloc that fails here is rolled back to its pre-rollover state, so it
+  // keeps its old month and is retried on the next read, while the Blocs that
+  // can roll over do. See docs/rollover-incident-2026-09-01.md.
+  const rolloverSkips = [];
+  const canonicalBlocsForRollover = rollovers.length > 0 ? await fetchAnteBlocs() : null;
+  for (const { groupId, closedMonthKey, newMonthKey, closedAt, previousGroup } of rollovers) {
     const group = safeState.groups?.[groupId];
     if (!group) continue;
-    // Close the old season first so season_member_status writes can resolve the
-    // canonical season row deterministically.
-    await syncSeasonToCanonical(group, closedMonthKey, "closed", closedAt, { throwOnError: true });
-    // Open the new season.
-    await syncSeasonToCanonical(group, newMonthKey, "open", null, { throwOnError: true });
-    // Write one season_member_status row per relevant member for the closed month.
-    // The closed-month snapshot was appended to monthHistory by rolloverGroupIfNeeded,
-    // so it is already present in the exact post-rollover state at this point.
-    const closedSnapshot = group.monthHistory?.find(m => m.key === closedMonthKey);
-    if (closedSnapshot) {
-      // Build a displayName → authUserId reverse map from group.memberships.
-      const authUserIdByName = Object.fromEntries(
-        Object.entries(group.memberships || {}).map(([uid, m]) => [m.displayName, uid])
-      );
-      for (const memberName of Object.keys(closedSnapshot.counts || {})) {
-        const memberAuthUserId = authUserIdByName[memberName] || null;
-        const hasCanonicalMemberships = Object.keys(group.memberships || {}).length > 0;
-        const memberIsActiveForClosedMonth = hasCanonicalMemberships
-          ? !!memberAuthUserId && !!group.memberships?.[memberAuthUserId]
-          : !(group.leftMemberNames || []).includes(memberName);
-        await upsertSeasonMemberStatusToCanonical(
-          group,
-          closedMonthKey,
-          memberName,
-          memberAuthUserId,
-          closedSnapshot.counts[memberName] ?? 0,
-          closedSnapshot.excused[memberName] ?? false,
-          { throwOnError: true, joinedForMonth: memberIsActiveForClosedMonth }
+
+    // Roll one Bloc back out of this batch, keeping every other Bloc's rollover.
+    // Without a pre-rollover copy we cannot revert safely, so in that case the
+    // failure is rethrown rather than silently persisting a half-rolled Bloc.
+    const revertGroup = (err) => {
+      if (!previousGroup) throw err;
+      safeState.groups[groupId] = previousGroup;
+      rolloverSkips.push({ groupId, reason: err?.message || String(err) });
+      console.error(`Season rollover skipped for ${groupId} (${closedMonthKey} → ${newMonthKey}):`, err?.message || err);
+    };
+
+    // Pre-flight: skip before writing anything if this Bloc has no canonical
+    // row, so no partial canonical state is created. fetchAnteBlocs() returns
+    // null on its own internal failure — that means "could not verify", never
+    // "no Blocs exist", so in that case we attempt the writes as before rather
+    // than skipping every Bloc and reproducing the outage from the other side.
+    if (shouldSkipRolloverForMissingCanonicalBloc(canonicalBlocsForRollover, groupId)) {
+      revertGroup(new Error(`bloc not found in ante_core for legacy_group_key: ${groupId}`));
+      continue;
+    }
+
+    try {
+      // Close the old season first so season_member_status writes can resolve the
+      // canonical season row deterministically.
+      await syncSeasonToCanonical(group, closedMonthKey, "closed", closedAt, { throwOnError: true });
+      // Open the new season.
+      await syncSeasonToCanonical(group, newMonthKey, "open", null, { throwOnError: true });
+      // Write one season_member_status row per relevant member for the closed month.
+      // The closed-month snapshot was appended to monthHistory by rolloverGroupIfNeeded,
+      // so it is already present in the exact post-rollover state at this point.
+      const closedSnapshot = group.monthHistory?.find(m => m.key === closedMonthKey);
+      if (closedSnapshot) {
+        // Build a displayName → authUserId reverse map from group.memberships.
+        const authUserIdByName = Object.fromEntries(
+          Object.entries(group.memberships || {}).map(([uid, m]) => [m.displayName, uid])
         );
-        if (isSoloForMonth(closedSnapshot, memberName, closedMonthKey)) {
-          await upsertSeasonMemberSoloInCanonical(
-            groupId,
+        for (const memberName of Object.keys(closedSnapshot.counts || {})) {
+          const memberAuthUserId = authUserIdByName[memberName] || null;
+          const hasCanonicalMemberships = Object.keys(group.memberships || {}).length > 0;
+          const memberIsActiveForClosedMonth = hasCanonicalMemberships
+            ? !!memberAuthUserId && !!group.memberships?.[memberAuthUserId]
+            : !(group.leftMemberNames || []).includes(memberName);
+          await upsertSeasonMemberStatusToCanonical(
+            group,
             closedMonthKey,
             memberName,
             memberAuthUserId,
-            getSoloTargetForMonth(closedSnapshot, memberName, closedMonthKey),
-            { throwOnError: true }
+            closedSnapshot.counts[memberName] ?? 0,
+            closedSnapshot.excused[memberName] ?? false,
+            { throwOnError: true, joinedForMonth: memberIsActiveForClosedMonth }
           );
+          if (isSoloForMonth(closedSnapshot, memberName, closedMonthKey)) {
+            await upsertSeasonMemberSoloInCanonical(
+              groupId,
+              closedMonthKey,
+              memberName,
+              memberAuthUserId,
+              getSoloTargetForMonth(closedSnapshot, memberName, closedMonthKey),
+              { throwOnError: true }
+            );
+          }
         }
       }
+      console.log(`Season rollover canonical sync fired: ${groupId} ${closedMonthKey} → ${newMonthKey}`);
+    } catch (err) {
+      revertGroup(err);
     }
-    console.log(`Season rollover canonical sync fired: ${groupId} ${closedMonthKey} → ${newMonthKey}`);
+  }
+
+  if (rolloverSkips.length > 0) {
+    console.error(`Season rollover completed with ${rolloverSkips.length} skipped Bloc(s):`, JSON.stringify(rolloverSkips));
+  }
+
+  // A rollover-only persist in which every Bloc was skipped has nothing to
+  // write: safeState now equals what is already stored. Writing anyway would
+  // mean a blob write and a backup on every single read for as long as the
+  // skipped Bloc exists, since the read path re-attempts the rollover each
+  // time. Restore the pre-rollover revision/updatedAt and return without
+  // touching the database. Only the read path passes rolloverOnly, so a real
+  // mutation is never dropped here.
+  if (options.rolloverOnly && rollovers.length > 0 && rolloverSkips.length === rollovers.length) {
+    return normalizeState(
+      { ...safeState, meta: { revision: rollovers[0].baseRevision, updatedAt: rollovers[0].baseUpdatedAt } },
+      { revision: rollovers[0].baseRevision, updatedAt: rollovers[0].baseUpdatedAt }
+    );
   }
 
   const persisted = await persistStateToSupabase(safeState, reason);
@@ -8606,6 +8683,10 @@ async function readJson(req) {
 export {
   // Exported so the parity test can compare it against the client aggregation.
   buildFeroProfileStats,
+  // Exported for the rollover isolation test suite.
+  rolloverStateIfNeeded,
+  rolloverGroupIfNeeded,
+  shouldSkipRolloverForMissingCanonicalBloc,
   buildWorkoutLogDerivedMoments,
   resolveMemberPaceSnapshotForMonth,
   // Identity guards — exported for the display-name identity test suite.
