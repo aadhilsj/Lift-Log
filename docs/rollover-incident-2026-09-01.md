@@ -1,8 +1,33 @@
 # Rollover Incident — 2026-09-01
 
 Written: 2026-09-01, Europe/Oslo.
-Status: **live incident, unresolved at time of writing.** Audit complete, no
-code or data changed. This file is the tracking record for the issues found.
+Status: **I2 resolved in production, I1 fixed on a branch awaiting promotion.**
+This file is the tracking record for the issues found.
+
+### Actions taken 2026-09-01
+
+| When (UTC) | Action | Result |
+| --- | --- | --- |
+| 03:33 | Backup `2171` of `lift_log_state` at revision 2121, reason `pre-orphan-bloc-cleanup-2026-09-01` | Verified byte-identical to live before any change |
+| 03:34 | Removed `op0-yneefj` and `rrrr-nq9r7f` from `state.groups` and `state.groupOrder` | 16 → 14 Blocs, 16 → 14 order entries, no trace of either key |
+| 03:35 | Post-change integrity sweep | 0 orphans, 0 reverse orphans, 35 profiles unchanged, all 450 logs intact |
+
+The rollover had not yet fired at the time of writing: it requires an
+authenticated app open, and none had occurred since the cleanup. Production was
+still running the pre-fix code, which now succeeds because the Blocs that made
+it fail no longer exist.
+
+Rollback if ever needed:
+
+```sql
+update public.lift_log_state
+set state = (select state from public.lift_log_backups where backup_id = 2171)
+where id = true;
+```
+
+Note: the originally drafted cleanup SQL supplied `backup_id` explicitly and
+would have failed — the column is `GENERATED ALWAYS` identity. The statement
+actually run omits it.
 
 Audit method: read-only SQL against production (`bpvvvqjsfwmmfjvvijkd`) plus
 source reading. `npm run audit:rollover-counts` could not run locally — see I7.
@@ -96,13 +121,13 @@ cause the fault; it made an existing fragility fire continuously.
 ## Issues
 
 ### I1 — One failing Bloc discards the rollover for all Blocs
-**Severity: critical. This is the outage.**
+**Severity: critical. This is the outage. Fixed on `fix/rollover-per-bloc-isolation`, not yet in production.**
 `persistState` treats the rollover batch as all-or-nothing across every Bloc.
 A single unsatisfiable canonical write blocks the month from advancing for
 everyone. Self-healing is impossible: every retry hits the same Bloc.
 
 ### I2 — Two orphan Blocs in the blob with no canonical row
-**Severity: critical (the trigger). Data, not code.**
+**Severity: critical (the trigger). Data, not code. RESOLVED 2026-09-01 03:34 UTC.**
 `op0-yneefj` ("op0") and `rrrr-nq9r7f` ("rrrr"), both created 2026-07-16, both
 admin+sole member `Aadhil` (`768de245-5b17-4292-b91c-804daaa3b217`), both with
 **zero workout logs**. Present in `lift_log_state.state.groups`, absent from
