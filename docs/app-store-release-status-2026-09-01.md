@@ -14,6 +14,9 @@ branch.
   source image rather than Capacitor's default placeholder.
 - Web/PWA icons now use the same Fero mark, with a service-worker cache bump so
   existing installs can receive the updated asset.
+- Push notifications are intentionally not yet implemented; the TestFlight
+  and APNs migration plan is recorded in
+  `docs/testflight-and-push-plan-2026-09-01.md`.
 - iOS deployment target is 15.0.
 - Native app builds successfully with Xcode 16.4 and launches in iPhone 16 Pro
   and iPhone 16e simulators running iOS 18.6. The first-run onboarding was
