@@ -10,6 +10,8 @@ branch.
   `com.aadhilsj.fero`.
 - Native privacy manifest is present and the app declares no non-exempt
   encryption.
+- Native AppIcon catalog now uses an original Fero dark/teal 1024px opaque
+  source image rather than Capacitor's default placeholder.
 - iOS deployment target is 15.0.
 - Native app builds successfully with Xcode 16.4 and launches in iPhone 16 Pro
   and iPhone 16e simulators running iOS 18.6. The first-run onboarding was
