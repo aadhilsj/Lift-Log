@@ -81,3 +81,18 @@ as $function$
     ), '[]'::jsonb)
   );
 $function$;
+
+-- Match the lockdown every other ante_core RPC has. Postgres defaults new
+-- functions to PUBLIC EXECUTE, which left both of these callable with the
+-- public anon key: anyone could have written rows into the founder's health
+-- panel, and each write also trims the table. Caught by the Supabase security
+-- advisor, which flags these two and no existing RPC.
+revoke all on function public.record_ante_core_system_event(text, text, text) from public;
+revoke all on function public.record_ante_core_system_event(text, text, text) from anon;
+revoke all on function public.record_ante_core_system_event(text, text, text) from authenticated;
+grant execute on function public.record_ante_core_system_event(text, text, text) to service_role;
+
+revoke all on function public.read_ante_core_system_events(integer) from public;
+revoke all on function public.read_ante_core_system_events(integer) from anon;
+revoke all on function public.read_ante_core_system_events(integer) from authenticated;
+grant execute on function public.read_ante_core_system_events(integer) to service_role;
