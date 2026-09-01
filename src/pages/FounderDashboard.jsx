@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { fetchFounderDashboardData } from "../lib/api.js";
+import { summarizeSystemHealth } from "../lib/systemHealth.js";
 
 const number = value => new Intl.NumberFormat("en-GB").format(Math.max(0, Number(value) || 0));
 const average = value => new Intl.NumberFormat("en-GB", {minimumFractionDigits:1,maximumFractionDigits:1}).format(Math.max(0, Number(value) || 0));
@@ -33,6 +34,41 @@ const Metric = ({label,value,detail,formatValue=number}) => React.createElement(
   React.createElement("div", {style:{marginTop:6,fontSize:26,fontWeight:900,letterSpacing:"-.035em",color:"#f5f7ff",lineHeight:1}}, formatValue(value)),
   detail && React.createElement("div", {style:{marginTop:7,fontSize:11,lineHeight:1.35,color:"var(--text-faint)"}}, detail)
 );
+
+// Failures that belong to no user. Quiet when there is nothing wrong — a health
+// panel that shouts on every visit stops being read — but unmissable when a
+// Bloc has been skipped, because the rollover fix makes that failure silent by
+// design. See docs/rollover-incident-2026-09-01.md.
+const SystemHealth = ({events}) => {
+  const { healthy, headline, entries } = summarizeSystemHealth(events);
+  const when = value => {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? "" : date.toLocaleString(undefined,{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"});
+  };
+  if (healthy) {
+    return React.createElement("section", {style:{marginBottom:14,padding:"10px 13px",borderRadius:12,border:"1px solid rgba(78,205,196,.17)",background:"rgba(11,27,26,.92)",display:"flex",alignItems:"center",gap:9}},
+      React.createElement("span", {style:{width:7,height:7,borderRadius:99,background:"#4ECDC4",flexShrink:0}}),
+      React.createElement("span", {style:{fontSize:11,fontWeight:800,color:"var(--text-soft)"}}, "System healthy"),
+      React.createElement("span", {style:{fontSize:11,color:"var(--text-faint)"}}, headline)
+    );
+  }
+  return React.createElement("section", {style:{marginBottom:14,padding:"13px 14px",borderRadius:12,border:"1px solid rgba(212,74,74,.42)",background:"rgba(80,20,20,.2)"}},
+    React.createElement("div", {style:{display:"flex",alignItems:"center",gap:9,marginBottom:8}},
+      React.createElement("span", {style:{width:7,height:7,borderRadius:99,background:"#d44a4a",flexShrink:0}}),
+      React.createElement("span", {style:{fontSize:11,fontWeight:900,letterSpacing:".06em",textTransform:"uppercase",color:"#f5b5b5"}}, "Needs attention")
+    ),
+    React.createElement("div", {style:{fontSize:13,fontWeight:800,color:"#f5f7ff",marginBottom:8}}, headline),
+    entries.map((event,index)=>React.createElement("div", {
+      key:`${event?.occurredAt || index}-${index}`,
+      style:{fontSize:11,lineHeight:1.45,color:"var(--text-faint)",paddingTop:index===0?0:5,borderTop:index===0?"none":"1px solid rgba(255,255,255,.06)",marginTop:index===0?0:5}
+    },
+      React.createElement("span", {style:{color:"#f5b5b5",fontWeight:800}}, event.blocKey),
+      " · ",
+      when(event?.occurredAt),
+      event?.detail && React.createElement("div", {style:{marginTop:2,wordBreak:"break-word"}}, event.detail)
+    ))
+  );
+};
 
 const MetricGroup = ({title,subtitle,columns=3,children}) => React.createElement("section", {style:{marginTop:12}},
   React.createElement("div", {style:{margin:"0 0 7px",fontSize:11,fontWeight:900,letterSpacing:".06em",textTransform:"uppercase",color:"var(--text-soft)"}}, title),
@@ -114,6 +150,7 @@ const FounderDashboard = ({onClose}) => {
           ["overview","growth","usage"].map(item=>React.createElement("button", {type:"button",key:item,onClick:()=>setTab(item),style:{border:0,borderRadius:8,padding:"9px 8px",background:tab===item?"#4ECDC4":"transparent",color:tab===item?"#061010":"var(--muted)",fontSize:11,fontWeight:900,cursor:"pointer",textTransform:"capitalize"}}, item))
         ),
         tab === "overview" && React.createElement(React.Fragment,null,
+        React.createElement(SystemHealth,{events:dashboard?.systemEvents}),
         React.createElement("section", {style:{marginBottom:20}},
           React.createElement(MetricGroup,{title:"Total Active Users"},
             React.createElement(Metric,{label:"Daily",value:dashboard?.activeUsers?.today,detail:"Today"}),

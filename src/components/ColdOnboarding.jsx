@@ -321,7 +321,7 @@ const ProgressControls = ({index,onNext,onPrev}) => React.createElement('div',{
   React.createElement(RoundNavButton,{direction:"next",onClick:onNext,hidden:index>=ONBOARDING_SCREENS.length-1})
 );
 
-const ColdOnboarding = ({onCreate,onJoin,initialIndex=0}) => {
+const ColdOnboarding = ({onCreate,onJoin,onSignIn,initialIndex=0}) => {
   const [index,setIndex] = useState(() => Math.max(0, Math.min(ONBOARDING_SCREENS.length - 1, Number(initialIndex) || 0)));
   const [blocName,setBlocName] = useState("");
   const touchRef = useRef({sx:0,sy:0,active:false});
@@ -456,7 +456,35 @@ const ColdOnboarding = ({onCreate,onJoin,initialIndex=0}) => {
             fontWeight:800,
             cursor:"pointer"
           }
-        },"Join an existing Bloc instead")
+        },"Join an existing Bloc instead"),
+        // Someone on a new phone lands here with an account they cannot reach:
+        // the four screens only offer Create and Join. This routes them into the
+        // existing sign-in flow rather than making them create a second account.
+        onSignIn && React.createElement('p',{style:{
+          margin:"2px 0 0",
+          textAlign:"center",
+          fontSize:13,
+          lineHeight:1.2,
+          fontWeight:700,
+          color:"rgba(214,226,224,.62)"
+        }},
+          "Already a member? ",
+          React.createElement('button',{
+            type:"button",
+            onClick:onSignIn,
+            style:{
+              padding:0,
+              border:"none",
+              background:"transparent",
+              color:"rgba(78,205,196,.92)",
+              fontSize:13,
+              lineHeight:1.2,
+              fontWeight:800,
+              cursor:"pointer",
+              textDecoration:"underline"
+            }
+          },"Sign in")
+        )
       )
     ),
     React.createElement('div',{style:{maxWidth:520,width:"100%",margin:"12px auto 0",flexShrink:0,transform:"translateY(-16px)"}},

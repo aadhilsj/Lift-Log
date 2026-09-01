@@ -304,6 +304,7 @@ const App = () => {
   const [pendingOnboardingCreatePayload,setPendingOnboardingCreatePayload]=useState(null);
   const [returnToColdOnboardingOnCreateCancel,setReturnToColdOnboardingOnCreateCancel]=useState(false);
   const [returnToColdOnboardingOnJoinCancel,setReturnToColdOnboardingOnJoinCancel]=useState(false);
+  const [returnToColdOnboardingOnSignInCancel,setReturnToColdOnboardingOnSignInCancel]=useState(false);
   const [pendingJoinAfterProfile,setPendingJoinAfterProfile]=useState(false);
   // Cold-onboarding join collects the invite code BEFORE auth, so a brand-new
   // account lands straight in the target Bloc after display-name setup.
@@ -2081,6 +2082,16 @@ const App = () => {
     }
     openAuth({ type:"create", fromOnboarding:true });
   },[authSession, completeColdOnboarding, handleCreateGroup, openAuth, profile]);
+  // A returning member on a new device reaches the four onboarding screens with
+  // no way back into their account. This hands them to the same sign-in flow the
+  // signed-out landing screen uses; cancelling returns to the action screen the
+  // way Create and Join already do.
+  const handleColdOnboardingSignIn = useCallback(() => {
+    setReturnToColdOnboardingOnSignInCancel(true);
+    setReturnToColdOnboardingOnCreateCancel(false);
+    setReturnToColdOnboardingOnJoinCancel(false);
+    openAuth({ type:"signin", fromOnboarding:true });
+  },[openAuth]);
   const handleColdOnboardingJoin = useCallback(() => {
     setReturnToColdOnboardingOnJoinCancel(true);
     setReturnToColdOnboardingOnCreateCancel(false);
@@ -2138,7 +2149,8 @@ const App = () => {
     setAuthExistingAccountConfirmed(false);
   };
   const closeAuth = () => {
-    const shouldResumeColdOnboarding = (authIntent?.type === "create" && returnToColdOnboardingOnCreateCancel) || (authIntent?.type === "join" && returnToColdOnboardingOnJoinCancel);
+    const shouldResumeColdOnboarding = (authIntent?.type === "create" && returnToColdOnboardingOnCreateCancel) || (authIntent?.type === "join" && returnToColdOnboardingOnJoinCancel) || (authIntent?.type === "signin" && returnToColdOnboardingOnSignInCancel);
+    const cancelledOnboardingSignIn = authIntent?.type === "signin" && returnToColdOnboardingOnSignInCancel;
     const cancelledOnboardingJoin = authIntent?.type === "join" && returnToColdOnboardingOnJoinCancel;
     const cancelledOnboardingCreate = authIntent?.type === "create" && returnToColdOnboardingOnCreateCancel;
     resetAuthFlow();
@@ -2152,6 +2164,9 @@ const App = () => {
       setOnboardingJoinCodeStep(false);
       setReturnToColdOnboardingOnJoinCancel(false);
       resetInviteFlow({ clearUrl:false });
+    }
+    if (cancelledOnboardingSignIn) {
+      setReturnToColdOnboardingOnSignInCancel(false);
     }
     if (shouldResumeColdOnboarding) {
       setColdOnboardingInitialIndex(3);
@@ -2784,7 +2799,8 @@ const App = () => {
         key:"cold-onboarding-join-code",
         initialIndex:3,
         onCreate:handleColdOnboardingCreate,
-        onJoin:handleColdOnboardingJoin
+        onJoin:handleColdOnboardingJoin,
+        onSignIn:handleColdOnboardingSignIn
       }),
       React.createElement(JoinGroupModal,{
         inviteContext,
@@ -2807,7 +2823,8 @@ const App = () => {
         key:`cold-onboarding-${coldOnboardingInitialIndex}`,
         initialIndex:coldOnboardingInitialIndex,
         onCreate:handleColdOnboardingCreate,
-        onJoin:handleColdOnboardingJoin
+        onJoin:handleColdOnboardingJoin,
+        onSignIn:handleColdOnboardingSignIn
       }),
       onboardingCreateModalOpen && React.createElement(GroupCreateModal,{
         creating:creatingGroup,

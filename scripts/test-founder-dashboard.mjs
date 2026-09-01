@@ -14,6 +14,16 @@ assert.equal(api.isFounderDashboardUser({ id:"not-an-id", email:"other@example.c
 assert.equal(api.isFounderDashboardUser("founder"), false, "partial founder id is denied");
 assert.equal(api.isFounderDashboardUser("someone-else"), false, "unlisted user is denied");
 
+const apiSource = fs.readFileSync(new URL("../api/lift-log.js", import.meta.url), "utf8");
+assert.ok(
+  apiSource.includes("founderDashboardAvailable: isFounderDashboardUser(authUser)"),
+  "auth-sync must return founder-dashboard availability using the authenticated user's email as well as their id"
+);
+assert.ok(
+  !apiSource.includes("founderDashboardAvailable: isFounderDashboardUser(authUser.id)"),
+  "auth-sync must not hide the dashboard from an email-allowlisted user"
+);
+
 const originalFetch = globalThis.fetch;
 globalThis.fetch = async url => {
   const path = String(url);
