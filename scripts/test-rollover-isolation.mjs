@@ -30,9 +30,14 @@ const staleMonthKey = () => {
   return monthIndex === 0 ? `${year - 1}-11` : `${year}-${monthIndex - 1}`;
 };
 
+// inviteCode and createdAt are fixed: normalizeGroup generates both when they
+// are absent, which would make any two fixtures differ on fields this suite is
+// not testing.
 const mkGroup = (id, name) => ({
   id,
   name,
+  inviteCode: "QA0001",
+  createdAt: "2026-07-16T00:00:00.000Z",
   adminName: "Aadhil",
   memberOrder: ["Aadhil"],
   memberships: { u1: { userId: "u1", role: "admin", displayName: "Aadhil", joinedAt: "2026-07-16T00:00:00.000Z" } },
@@ -142,6 +147,85 @@ check(
   entries[0].baseRevision + 1,
   rolled.meta.revision
 );
+
+// --- Skip-everything round trip ---------------------------------------------
+// When every Bloc in a batch is skipped, the read path returns without writing
+// and must hand back exactly what is stored. If that returned state drifted
+// from the stored one, every reader would see a phantom rollover that no write
+// backs — the failure mode this whole fix exists to prevent, inverted.
+{
+  const stored = mkState("op0-yneefj", "rrrr-nq9r7f");
+  const storedNormalized = rolloverStateIfNeeded({ ...stored, groups: { ...stored.groups } });
+  // Simulate persistState reverting every Bloc, exactly as revertGroup does.
+  const batch = storedNormalized._rollovers;
+  const reverted = { ...storedNormalized, groups: { ...storedNormalized.groups } };
+  for (const entry of batch) reverted.groups[entry.groupId] = entry.previousGroup;
+
+  const restored = {
+    ...reverted,
+    meta: { revision: batch[0].baseRevision, updatedAt: batch[0].baseUpdatedAt }
+  };
+  delete restored._rollovers;
+
+  const pristine = rolloverStateIfNeeded(stored);
+  const pristineReverted = { ...pristine, groups: { ...pristine.groups } };
+  for (const entry of pristine._rollovers) pristineReverted.groups[entry.groupId] = entry.previousGroup;
+
+  check(
+    "every Bloc skipped restores the stored revision",
+    restored.meta.revision,
+    batch[0].baseRevision
+  );
+  check(
+    "every Bloc skipped leaves no group on the new month",
+    Object.values(restored.groups).every(group => group.lastMonth === staleMonthKey()),
+    true
+  );
+  check(
+    "every Bloc skipped leaves no closed month appended",
+    Object.values(restored.groups).every(group => group.monthHistory.length === 0),
+    true
+  );
+  check(
+    "the restored groups match the pre-rollover groups exactly",
+    restored.groups,
+    pristineReverted.groups
+  );
+}
+
+// --- Mixed batch ------------------------------------------------------------
+// The case that actually matters: one Bloc fails, the rest must still roll.
+{
+  const mixed = rolloverStateIfNeeded(mkState("osi-h3-9pmkuy", "op0-yneefj", "legacy-group"));
+  const canonical = { "osi-h3-9pmkuy": { id: "a" }, "legacy-group": { id: "b" } }; // op0 missing
+  const applied = { ...mixed, groups: { ...mixed.groups } };
+  const skipped = [];
+  for (const entry of mixed._rollovers) {
+    if (shouldSkipRolloverForMissingCanonicalBloc(canonical, entry.groupId)) {
+      applied.groups[entry.groupId] = entry.previousGroup;
+      skipped.push(entry.groupId);
+    }
+  }
+  check("exactly the orphan is skipped", skipped, ["op0-yneefj"]);
+  check(
+    "the healthy Blocs still advanced",
+    [applied.groups["osi-h3-9pmkuy"].lastMonth, applied.groups["legacy-group"].lastMonth]
+      .every(month => month !== staleMonthKey()),
+    true
+  );
+  check("the skipped Bloc kept its old month", applied.groups["op0-yneefj"].lastMonth, staleMonthKey());
+  check(
+    "the skipped Bloc has no closed month appended",
+    applied.groups["op0-yneefj"].monthHistory.length,
+    0
+  );
+  check(
+    "the healthy Blocs each closed exactly one month",
+    [applied.groups["osi-h3-9pmkuy"], applied.groups["legacy-group"]].map(g => g.monthHistory.length),
+    [1, 1]
+  );
+  check("not every Bloc was skipped, so the write must still happen", skipped.length === mixed._rollovers.length, false);
+}
 
 // --- No-op safety -----------------------------------------------------------
 // A state already on the current month must not produce a batch at all.
