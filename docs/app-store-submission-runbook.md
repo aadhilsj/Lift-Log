@@ -62,6 +62,9 @@ Apple should be able to evaluate the social product without finding another test
 - [ ] Include a closed-month result/settlement example if that screen is in the submitted build.
 - [ ] Ensure the reviewer can test invitations without needing a second live person.
 - [ ] Keep backend, authentication, storage, email delivery, and required feature flags running throughout review.
+- [ ] Verify the TestFlight build reaches the selected production API origin from
+  the native Capacitor WebView: sign-in, authenticated refresh, workout save,
+  image read, and image upload must all work on device.
 - [ ] Verify profile-photo and workout-photo upload/read permissions in the review environment.
 - [ ] Remove or clearly explain destructive test data reset behavior.
 
@@ -141,6 +144,8 @@ Non-obvious navigation or regional differences:
 - [ ] Upload one to ten screenshots in current accepted dimensions; images have no alpha/transparency.
 - [ ] Icons, splash screens, dark mode, small-device layout, and native safe areas are verified.
 - [ ] Universal/deep links and post-install invite handoff are verified.
+- [ ] The native archive was built with `VITE_FERO_API_ORIGIN` set to the final
+  HTTPS API origin; it is not accidentally pointing at a preview deployment.
 - [ ] No development menu, local OTP bypass, debug identity, preview-only data, or secret is present/enabled.
 - [ ] Export compliance, content rights, privacy nutrition labels, and regional availability are complete.
 - [ ] Any in-app purchase or subscription introduced later uses Apple's required purchase flow and has complete metadata, localized terms, restore/manage behavior, and review screenshots.
@@ -159,6 +164,8 @@ Non-obvious navigation or regional differences:
 - [ ] Month rollover, history, result, settlement claim/confirm/dispute if enabled.
 - [ ] Sign out, sign back in, and full account deletion.
 - [ ] Offline/transient backend failure produces recoverable UI.
+- [ ] Native authenticated API smoke: sign in, refresh app data, log a workout,
+  read an image, and upload an image on the TestFlight build.
 - [ ] TestFlight smoke on the oldest supported iPhone and a current device.
 - [ ] Android/Play readiness is tracked separately; do not treat iOS success as Android scroll verification.
 

@@ -27,7 +27,9 @@ depending on a second human or any local-only fixture.
    person. Record it only in App Store Connect review notes/password manager,
    never in this repository.
 8. Verify photo upload/read, account deletion, sign-out, sign-in, and the
-   invite path on the TestFlight build.
+   invite path on the TestFlight build. Also verify that the native build's
+   configured API origin handles authenticated refresh and workout saves from
+   the Capacitor WebView.
 
 ## Evidence to capture before review
 
