@@ -458,7 +458,12 @@ class PlayerProfileErrorBoundary extends React.Component {
   }
 }
 
-class TodayPageErrorBoundary extends React.Component {
+// Every in-Bloc page mounts at once inside the swipe track, so an unguarded
+// page can blank the whole app from a tab the user is not even looking at.
+// See "Blank Screen When Opening A Bloc" in docs/recurring-debugging-playbook.md.
+// Renders children untouched when there is no error, so it adds no DOM and no
+// layout of its own.
+class InBlocPageErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
     this.state = { error: null };
@@ -469,7 +474,7 @@ class TodayPageErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, info) {
-    console.error("TodayPage render failed", error, info);
+    console.error(`${this.props.pageLabel || "In-Bloc"}Page render failed`, error, info);
   }
 
   componentDidUpdate(prevProps) {
@@ -480,15 +485,21 @@ class TodayPageErrorBoundary extends React.Component {
 
   render() {
     if (!this.state.error) return this.props.children;
+    const label = this.props.pageLabel || "This";
     return React.createElement('div',{style:{maxWidth:740,margin:"0 auto",padding:"16px",display:"grid",gap:12}},
       React.createElement(Card,{style:{padding:"18px 16px",display:"grid",gap:10}},
-        React.createElement('div',{style:{fontSize:18,fontWeight:800,color:"var(--text)"}},"Today screen hit an error"),
-        React.createElement('div',{style:{fontSize:13,color:"var(--muted)",lineHeight:1.5}},"The Today view crashed while rendering."),
+        React.createElement('div',{style:{fontSize:18,fontWeight:800,color:"var(--text)"}},`${label} screen hit an error`),
+        React.createElement('div',{style:{fontSize:13,color:"var(--muted)",lineHeight:1.5}},`The ${label} view crashed while rendering.`),
         React.createElement('div',{className:"mono",style:{fontSize:10,color:"var(--red)",whiteSpace:"pre-wrap",wordBreak:"break-word"}},String(this.state.error?.message || this.state.error || "Unknown error"))
       )
     );
   }
 }
+
+// Kept as a named wrapper so the Today call site and its wording are unchanged.
+const TodayPageErrorBoundary = ({resetKey,children}) => React.createElement(
+  InBlocPageErrorBoundary,{pageLabel:"Today",resetKey},children
+);
 
 
 const InstallBanner = ({installReady,onInstall,onDismiss,showIosHint}) => (
@@ -634,4 +645,4 @@ const PrimaryActionButton = ({label,onClick,secondary=false}) => React.createEle
 },label);
 
 
-export { Avatar, CategoryIcon, WorkoutTypeIcon, ChevronRightIcon, TargetHitHexIcon, StatusBadge, RankIcon, TrophyIcon, MedalIcon, UploadPhotoIcon, Bar, Card, AppIcon, AnteWordmark, Spinner, TodayScreenSkeleton, BlocSwitcherSkeleton, InstallBanner, WorkoutCategorySelector, SettingsField, SelectField, inputShellStyle, StepperField, PrimaryActionButton, PlayerProfileErrorBoundary, TodayPageErrorBoundary };
+export { Avatar, CategoryIcon, WorkoutTypeIcon, ChevronRightIcon, TargetHitHexIcon, StatusBadge, RankIcon, TrophyIcon, MedalIcon, UploadPhotoIcon, Bar, Card, AppIcon, AnteWordmark, Spinner, TodayScreenSkeleton, BlocSwitcherSkeleton, InstallBanner, WorkoutCategorySelector, SettingsField, SelectField, inputShellStyle, StepperField, PrimaryActionButton, PlayerProfileErrorBoundary, TodayPageErrorBoundary, InBlocPageErrorBoundary };

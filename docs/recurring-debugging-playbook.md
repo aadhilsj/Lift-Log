@@ -147,3 +147,27 @@ Fix rules:
 - On closed-month canonical sync, only send `joined_for_month: true` for members that are still active in `group.memberships`. For legacy-only groups with no membership ids, fall back to excluding names in `leftMemberNames`.
 - Do not globally delete a departed member's old historical participation. Preserve months they actually joined, but mark them left for current/future membership and exclude them from months they did not participate in.
 - If data is already bad, repair both canonical membership (`bloc_members.left_at`) and the legacy blob active membership/member order for that specific Bloc/member.
+
+## Blank Screen When Opening A Bloc
+
+Symptoms:
+- Opening one particular Bloc from the switcher shows a blank screen, not an error card.
+- It is intermittent, and only ever that Bloc.
+- Restarting the app clears it every time; nothing else does.
+- First seen 2026-09-02 on a newly created Bloc with no closed months yet.
+
+Root cause:
+- `monthInitialIdx` in `src/App.jsx` is app-wide state, not per-Bloc. The Today "results are in" banner and the Bloc Stream season-closed card both set it to `0`.
+- It was cleared only in `handleNavSelect`, so leaving a Bloc by swipe or by the header Bloc name carried the value into the next Bloc.
+- `MonthPage` then read `histReversed[selIdx]` on a Bloc with fewer (or zero) closed months and dereferenced `undefined`.
+- Every in-Bloc page mounts together in the swipe track, so Month threw before Today ever painted, even though Month was not the visible tab.
+- Only `TodayPage` had an error boundary, and there is no boundary at the root in `src/main.jsx`, so the throw unmounted the whole React tree.
+
+Fix rules:
+- App-wide screen state that names a Bloc-specific thing must be cleared when the Bloc changes. Clear it in the switcher's `onOpenGroup`, not in a blanket effect on `selectedGroupId` — a blanket effect breaks the Bloc Stream season-closed jump, which deliberately sets the Bloc and the month together.
+- Never index into `monthHistory` without a fallback. A missing entry means "show the current month", never a crash.
+- Every in-Bloc page is wrapped in `InBlocPageErrorBoundary`. Keep it that way when adding a page: because all pages mount at once, an unguarded page can blank the app from a tab the user is not even looking at.
+- Zero closed months is a normal state for a new Bloc, not an edge case. Test new Blocs against Month, History and settlement views before shipping anything that reads `monthHistory`.
+
+Diagnosis note:
+- A blank screen with no error card means the throw was outside a boundary. A small error card means it was inside one. That distinction narrows the search immediately.
