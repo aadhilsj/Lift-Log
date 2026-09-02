@@ -38,9 +38,13 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
     if(viewPlayer) window.scrollTo({top:0,left:0,behavior:"auto"});
   },[viewPlayer]);
 
-  const isCurrent=selIdx===null;
   const histReversed=[...monthHistory].reverse();
-  const selMonth=isCurrent?null:histReversed[selIdx];
+  // A requested closed month can outlive the Bloc it was requested for: the
+  // "results are in" banner sets the index app-wide, so opening a Bloc with
+  // fewer (or zero) closed months would otherwise read past the end of the
+  // list. Fall back to the current month instead of rendering a missing one.
+  const selMonth=selIdx===null?null:histReversed[selIdx]||null;
+  const isCurrent=!selMonth;
 
   const relevantNames = NAMES.filter(name => isJoinedForMonth(name, isCurrent ? curKey : selMonth.key));
   const counts=isCurrent
@@ -81,7 +85,7 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
   };
   const monthLabel=isCurrent?`${FULL_MONTH_NAMES[CUR_MONTH] || MONTH_NAMES[CUR_MONTH]} ${CUR_YEAR}`:expandMonthFullYear(selMonth.label, selMonth.key);
   const monthSelector=React.createElement(SelectField,{
-    value:selIdx??"",
+    value:isCurrent?"":selIdx,
     onChange:e=>{
       const selectEl = e.currentTarget;
       setSelIdx(e.target.value===""?null:Number(e.target.value));

@@ -1980,7 +1980,7 @@ const App = () => {
       initialCreateGroupName: inert ? "" : queuedCreateGroupName,
       onAutoOpenHandled: inert ? ()=>{} : ()=>{setQueuedCreate(false);setQueuedCreateGroupName("");},
       onCreateCancel: inert ? ()=>{} : handleCreateCancelFromGroupHome,
-      onOpenGroup: inert ? ()=>{} : groupId=>{ switcherRestoreScrollRef.current = switcherScrollTopRef.current; window.scrollTo({top:0,left:0,behavior:"auto"}); setSuppressSwitcherIntro(false); persistGroupSelection(groupId); setPage("today"); },
+      onOpenGroup: inert ? ()=>{} : groupId=>{ switcherRestoreScrollRef.current = switcherScrollTopRef.current; window.scrollTo({top:0,left:0,behavior:"auto"}); setSuppressSwitcherIntro(false); setMonthInitialIdx(null); persistGroupSelection(groupId); setPage("today"); },
       onCreateGroup: inert ? ()=>{} : handleCreateGroup,
       onJoinGroup: inert ? ()=>{} : ()=>setShowJoinModal(true),
       suppressIntro
