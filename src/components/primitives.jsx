@@ -85,6 +85,36 @@ const ChevronRightIcon = ({size=10,color="#3d5e59"}) => (
 );
 
 
+// Redemption mark. Hollow red is a month still owed an answer; filled gold is
+// the answer given. One silhouette in two states, so the flip teaches itself.
+const RedemptionShieldIcon = ({size=14,redeemed=false}) => {
+  const color = redeemed ? "#f5c842" : "#D44A4A";
+  return React.createElement('svg',{
+    width:size,
+    height:size,
+    viewBox:"0 0 24 24",
+    role:"img",
+    "aria-label":redeemed ? "Redeemed" : "Redemption",
+    style:{flexShrink:0,display:"block"}
+  },
+    React.createElement('path',{
+      d:"M12 2.4 20.4 6.1 V12 c0 5.1 -5.6 8.6 -8.4 9.6 C9.2 20.6 3.6 17.1 3.6 12 V6.1 Z",
+      fill:redeemed ? color : "none",
+      stroke:color,
+      strokeWidth:"1.7",
+      strokeLinejoin:"round"
+    }),
+    redeemed && React.createElement('path',{
+      d:"M8.6 12.2 11 14.6 15.6 9.9",
+      fill:"none",
+      stroke:"#0A1212",
+      strokeWidth:"2.1",
+      strokeLinecap:"round",
+      strokeLinejoin:"round"
+    })
+  );
+};
+
 const TargetHitHexIcon = ({size=22,color="#4ECDC4"}) => (
   React.createElement('svg',{
     width:size,
@@ -645,4 +675,4 @@ const PrimaryActionButton = ({label,onClick,secondary=false}) => React.createEle
 },label);
 
 
-export { Avatar, CategoryIcon, WorkoutTypeIcon, ChevronRightIcon, TargetHitHexIcon, StatusBadge, RankIcon, TrophyIcon, MedalIcon, UploadPhotoIcon, Bar, Card, AppIcon, AnteWordmark, Spinner, TodayScreenSkeleton, BlocSwitcherSkeleton, InstallBanner, WorkoutCategorySelector, SettingsField, SelectField, inputShellStyle, StepperField, PrimaryActionButton, PlayerProfileErrorBoundary, TodayPageErrorBoundary, InBlocPageErrorBoundary };
+export { Avatar, CategoryIcon, WorkoutTypeIcon, ChevronRightIcon, TargetHitHexIcon, RedemptionShieldIcon, StatusBadge, RankIcon, TrophyIcon, MedalIcon, UploadPhotoIcon, Bar, Card, AppIcon, AnteWordmark, Spinner, TodayScreenSkeleton, BlocSwitcherSkeleton, InstallBanner, WorkoutCategorySelector, SettingsField, SelectField, inputShellStyle, StepperField, PrimaryActionButton, PlayerProfileErrorBoundary, TodayPageErrorBoundary, InBlocPageErrorBoundary };

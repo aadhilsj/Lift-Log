@@ -28,6 +28,7 @@ import {
   getRecentSoloCount,
   isSoloForMonth,
   getSoloTargetForMonth,
+  getRedemptionMark,
   getCurrentMonthSummary,
   buildSettlementReminderCards,
   buildSettlementPreviewCards,
@@ -50,7 +51,7 @@ import {
   formatWeekRangeLabel,
   buildLocalWeeklyMvpPreview
 } from "../lib/utils.js";
-import { Avatar, WorkoutTypeIcon, ChevronRightIcon, TargetHitHexIcon, StatusBadge, RankIcon, Bar, Card, AppIcon, PlayerProfileErrorBoundary } from "../components/primitives.jsx";
+import { Avatar, WorkoutTypeIcon, ChevronRightIcon, TargetHitHexIcon, StatusBadge, RankIcon, Bar, Card, AppIcon, PlayerProfileErrorBoundary, RedemptionShieldIcon } from "../components/primitives.jsx";
 import { LogModal, DeleteModal, SitOutModal, SoloModal, NoticeModal } from "../modals/modals.jsx";
 import { PlayerProfile } from "../pages/PlayerProfile.jsx";
 import { buildPaymentTargets } from "../lib/paymentLinks.js";
@@ -231,7 +232,8 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
       status = getStatus(count, activeTarget);
       memberDiffLabel = null;
     }
-    return {name,count,isOut,isSolo:isSoloMember,soloTarget:memberSoloTarget,target:activeTarget,status,memberDiffLabel,prorated:prorationSource === "member"};
+    const redemptionMark = getRedemptionMark(monthHistory, name, curKey, count >= activeTarget);
+    return {name,count,isOut,isSolo:isSoloMember,soloTarget:memberSoloTarget,target:activeTarget,status,memberDiffLabel,prorated:prorationSource === "member",redemptionMark};
   }).sort((a,b)=>{if(a.isOut&&!b.isOut)return 1;if(!a.isOut&&b.isOut)return -1;if(a.isSolo&&!b.isSolo)return 1;if(!a.isSolo&&b.isSolo)return -1;return b.count-a.count||a.name.localeCompare(b.name);});
 
   let activeRank=0;
@@ -1280,6 +1282,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
                 React.createElement(Avatar,{name:u.name,size:22,muted:u.isOut}),
                 React.createElement('div',{style:{flex:1,minWidth:0,textAlign:"left",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",display:"inline-flex",alignItems:"center",gap:6,fontWeight:600,fontSize:13,color:u.isOut?"#2A4040":"var(--text)"}},
                   React.createElement('span',null,u.name),
+                  u.redemptionMark&&React.createElement(RedemptionShieldIcon,{size:13,redeemed:u.redemptionMark === "redeemed"}),
                   isMe&&React.createElement('span',{className:"mono",style:{fontSize:8,color:"#3d5e59",marginLeft:6}},"you"),
                   u.prorated&&!u.isOut&&React.createElement('span',{className:"mono",style:{fontSize:8,color:"var(--muted)",marginLeft:6,textTransform:"uppercase",letterSpacing:".08em"}},"joined mid-month")
                 )

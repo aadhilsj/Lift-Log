@@ -19,6 +19,7 @@ import {
   getHistoricalMemberNamesForMonth,
   getHistoricalGroupMemberNames,
   isSoloForMonth,
+  getRedemptionMark,
   getSoloTargetForMonth,
   fmtCurrency,
   getCountedLogs,
@@ -29,7 +30,7 @@ import {
 import {
   isMobile
 } from "../lib/utils.js";
-import { Avatar, WorkoutTypeIcon, Bar, Card, SelectField, TargetHitHexIcon, AppIcon } from "../components/primitives.jsx";
+import { Avatar, WorkoutTypeIcon, Bar, Card, SelectField, TargetHitHexIcon, AppIcon , RedemptionShieldIcon } from "../components/primitives.jsx";
 import { DeleteModal } from "../modals/modals.jsx";
 import { ProfileStatsPanel } from "../components/ProfileStatsPanel.jsx";
 import { ShareSticker } from "../components/ShareSticker.jsx";
@@ -224,6 +225,14 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
     if (Number.isFinite(d)) logsByDay[d]=[...(logsByDay[d] || []),l];
   });
   const selLabel=isCurMonth?`${MONTH_NAMES[CUR_MONTH]} ${CUR_YEAR}`:profileMonthLabel(selHistMonth);
+  // The one place the mark gets its name. Kept off the leaderboard rows, where
+  // the shield alone has to sit beside a name without crowding it.
+  const selRedemptionMark = getRedemptionMark(
+    monthHistory,
+    name,
+    isCurMonth ? curKey : selHistMonth?.key,
+    selCount >= selectedTarget
+  );
 
   const monthSelector = React.createElement(SelectField,{
     value:selMonthIdx??"",
@@ -545,7 +554,18 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
 	    ),
 		    isJoinedThisMonth&&!isExcusedThisMonth&&React.createElement(Card,{className:"fu4",style:{padding:"13px 14px",background:"radial-gradient(circle at 12% 0%, rgba(255,255,255,.032), transparent 34%), radial-gradient(circle at 88% 100%, rgba(78,205,196,.052), transparent 42%), linear-gradient(180deg, rgba(10,19,19,.98), rgba(7,14,14,.98))",boxShadow:"inset 0 1px 0 rgba(255,255,255,.035), 0 7px 16px rgba(0,0,0,.12)"}},
 	      React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,marginBottom:12}},
-	        React.createElement('div',{style:{fontWeight:800,fontSize:14}},`${selLabel} · Log`),
+	        React.createElement('div',{style:{display:"flex",alignItems:"center",gap:7,minWidth:0}},
+	          React.createElement('div',{style:{fontWeight:800,fontSize:14}},`${selLabel} · Log`),
+	          selRedemptionMark&&React.createElement('span',{
+	            style:{display:"inline-flex",alignItems:"center",gap:4,flexShrink:0,padding:"2px 7px",borderRadius:999,
+	              border:`0.5px solid ${selRedemptionMark === "redeemed" ? "rgba(245,200,66,.34)" : "rgba(212,74,74,.34)"}`,
+	              color:selRedemptionMark === "redeemed" ? "#f5c842" : "#D44A4A"}
+	          },
+	            React.createElement(RedemptionShieldIcon,{size:11,redeemed:selRedemptionMark === "redeemed"}),
+	            React.createElement('span',{className:"mono",style:{fontSize:8,fontWeight:800,letterSpacing:".08em"}},
+	              selRedemptionMark === "redeemed" ? "REDEEMED" : "REDEMPTION")
+	          )
+	        ),
 	        shareStickerData ? React.createElement('button',{
 	          type:"button",
 	          onClick:()=>setShowShareSticker(true),

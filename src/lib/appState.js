@@ -435,6 +435,38 @@ function getSoloTargetForMonth(groupOrMonth, memberName, monthKey) {
   return Number.isFinite(target) ? Math.max(1, Math.round(target)) : null;
 }
 
+// ─── REDEMPTION MARK ──────────────────────────────────────────────────────────
+// Derived on every render from month history, never stored. That keeps it
+// automatically correct after a rollover, automatically scoped to one Bloc,
+// and removable without leaving residue.
+
+// Missing a month means being in it and coming up short. Anyone excused or on
+// solo was not held to the Bloc target, so they did not miss it.
+function missedTargetInMonth(month, memberName) {
+  if (!month || !memberName) return false;
+  if (!Object.prototype.hasOwnProperty.call(month.counts || {}, memberName)) return false;
+  if (month.excused?.[memberName]) return false;
+  if (isSoloForMonth(month, memberName, month.key)) return false;
+  const target = month.memberTargets?.[memberName] || month.settings?.minTarget || MIN_TARGET;
+  return Number(month.counts?.[memberName] || 0) < Number(target || MIN_TARGET);
+}
+
+function getClosedMonthBefore(monthHistory, monthKey) {
+  const earlier = (Array.isArray(monthHistory) ? monthHistory : [])
+    .filter(month => month?.key && compareMonthKeys(month.key, monthKey) < 0)
+    .sort((a, b) => compareMonthKeys(a.key, b.key));
+  return earlier[earlier.length - 1] || null;
+}
+
+// "redemption" = missed the month before this one and has not yet answered it.
+// "redeemed"   = missed it, and has since hit the target for this month.
+function getRedemptionMark(monthHistory, memberName, monthKey, hitTargetThisMonth) {
+  if (!memberName || !monthKey) return null;
+  const prior = getClosedMonthBefore(monthHistory, monthKey);
+  if (!prior || !missedTargetInMonth(prior, memberName)) return null;
+  return hitTargetThisMonth ? "redeemed" : "redemption";
+}
+
 function getSeasonOverrideForMonth(group, monthKey) {
   return normalizeSeasonOverrides(group?.seasonOverrides)?.[monthKey] || null;
 }
@@ -2048,6 +2080,9 @@ export {
   normalizeSolo,
   isSoloForMonth,
   getSoloTargetForMonth,
+  missedTargetInMonth,
+  getClosedMonthBefore,
+  getRedemptionMark,
   getSeasonOverrideForMonth,
   getEffectiveTargetForMonth,
   getSeasonProrationSummaryForMonth,
