@@ -32,20 +32,33 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
   const ledgerRef = React.useRef(null);
 
   const relevantNames = Object.keys(month.counts || {});
-  const soloNames = relevantNames.filter(name => isSoloForMonth(month, name, month.key));
+  const blocTargetFor = name => month.memberTargets?.[name] || month.settings?.minTarget || MIN_TARGET;
+  const missedBlocTarget = name => Number(month.counts?.[name] || 0) < blocTargetFor(name);
+  // Only names the month's exemption note has to explain: someone who hit the
+  // Bloc target needs no footnote, whether or not they could have been charged.
+  const soloNames = relevantNames.filter(name => isSoloForMonth(month, name, month.key) && missedBlocTarget(name));
   const activeCounts = relevantNames
     .filter(name => !month.excused?.[name] && !isSoloForMonth(month, name, month.key))
     .map(name => ({
       name,
       count: Number(month.counts[name] || 0),
-      target: month.memberTargets?.[name] || month.settings?.minTarget || MIN_TARGET
+      target: blocTargetFor(name)
     }));
   const penalties = calcPenalties(activeCounts, month.settings);
   const {winners, losers, perWinner} = penalties;
   const settlementPairs = buildSettlementPairsForMonth(month);
-  const isBlocPerfect = activeCounts.length > 0 && activeCounts.every(member => member.count >= member.target);
+  // Perfect means everyone who was actually training hit the Bloc's target.
+  // Being exempt from the stakes does not excuse you from the month: a solo
+  // member clearing only their own lower target does not make it perfect.
+  // Sitting out is the single exclusion, and a prorated target for joining
+  // mid-month still counts as hit.
+  const perfectRoster = relevantNames
+    .filter(name => !month.excused?.[name])
+    .map(name => ({ name, count: Number(month.counts[name] || 0), target: blocTargetFor(name) }));
+  const isBlocPerfect = perfectRoster.length > 0 && perfectRoster.every(member => member.count >= member.target);
 
   const userCount = month.counts?.[currentUser] || 0;
+  const userSatOut = !!(currentUser && month.excused?.[currentUser]);
   const userIsWinner = winners.some(w => w.name === currentUser);
   const userIsLoser = losers.some(l => l.name === currentUser);
   const outcome = userIsWinner ? "winner" : userIsLoser ? "missed" : "hit_mas";
@@ -132,6 +145,17 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
   };
 
   const hero = (() => {
+    // Asked before any money question. Every other branch below decides by
+    // whether you lost money, so someone exempt used to fall through to
+    // "Target Hit" and be congratulated for a month they sat out.
+    if (userSatOut) {
+      return {
+        tag: "Sat Out",
+        stat: "Month off",
+        line: `You sat ${selectedMonthName} out. Back in it next month.`,
+        tone: "neutral"
+      };
+    }
     if (userIsWinner && isBlocPerfect) {
       return {
         tag: "PERFECT BLOC MONTH",
@@ -142,11 +166,16 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
       };
     }
     if (userIsWinner) {
+      // With nothing in the pot, "+£ 0" reads as a bug in celebration type.
+      // The win still stands, so the headline shows the work instead and the
+      // line is the one every winner sees. Money is never raised when no
+      // money is involved.
+      const hasPot = perWinner > 0;
       return {
         tag: "Winner",
-        stat: `+${fmtCurrency(perWinner, currency)}`,
+        stat: hasPot ? `+${fmtCurrency(perWinner, currency)}` : workoutsLabel(userCount),
         topLine: "Top of the Bloc.",
-        line: `${workoutsLabel(userCount)}.`,
+        line: hasPot ? `${workoutsLabel(userCount)}.` : "",
         keepLine: "Keep it going.",
         tone: "winner"
       };
@@ -206,16 +235,18 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
   };
   const isStreakLine = text => /\bconsistent months in a row\b/.test(String(text || ""));
   const renderHeroLine = () => {
-    if (!hero.line) return null;
+    // Checked before the empty-line guard: a winner with no pot has no middle
+    // clause, but still has a top line and a sign-off to render.
     if (hero.tone === "winner") {
+      if (!hero.topLine && !hero.line && !hero.keepLine) return null;
       return React.createElement('div',{style:{fontSize:13,color:"var(--muted)",fontWeight:500,lineHeight:1.35}},
         React.createElement('span',{style:{fontWeight:800,color:"var(--muted)"}},hero.topLine),
         " ",
-        hero.line,
-        " ",
+        hero.line ? `${hero.line} ` : "",
         hero.keepLine
       );
     }
+    if (!hero.line) return null;
     if (isStreakLine(hero.line)) {
       const [first, ...rest] = String(hero.line).split(". ");
       return React.createElement('div',{style:{fontSize:12,color:"var(--muted)",fontWeight:500,lineHeight:1.35,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},
@@ -232,8 +263,9 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
     return React.createElement('div',{style:{fontSize:hero.tone==="neutral"||hero.tone==="missed"?12:13,color:"var(--muted)",fontWeight:500,lineHeight:1.35,whiteSpace:hero.tone==="neutral"||hero.tone==="missed"?"nowrap":"normal",overflow:"hidden",textOverflow:"ellipsis"}},hero.line);
   };
 
+  const perfectRosterSorted = [...perfectRoster].sort((a,b) => b.count - a.count || a.name.localeCompare(b.name));
   const renderPerfectRoster = () => isBlocPerfect && React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(132px,1fr))",gap:7}},
-    sortedActive.map(member => React.createElement('button',{key:member.name,type:"button",onClick:()=>onViewProfileMonth?.(member.name, month.key),style:{display:"flex",alignItems:"center",gap:7,background:"rgba(5,24,21,.68)",border:"1px solid rgba(78,205,196,.23)",borderRadius:8,padding:"6px 8px",minWidth:0,textAlign:"left",cursor:onViewProfileMonth?"pointer":"default",fontFamily:"'Outfit', sans-serif",color:"var(--text)",boxShadow:"inset 0 1px 0 rgba(255,255,255,.05), 0 6px 14px rgba(0,0,0,.13)",backdropFilter:"blur(3px)"}},
+    perfectRosterSorted.map(member =>React.createElement('button',{key:member.name,type:"button",onClick:()=>onViewProfileMonth?.(member.name, month.key),style:{display:"flex",alignItems:"center",gap:7,background:"rgba(5,24,21,.68)",border:"1px solid rgba(78,205,196,.23)",borderRadius:8,padding:"6px 8px",minWidth:0,textAlign:"left",cursor:onViewProfileMonth?"pointer":"default",fontFamily:"'Outfit', sans-serif",color:"var(--text)",boxShadow:"inset 0 1px 0 rgba(255,255,255,.05), 0 6px 14px rgba(0,0,0,.13)",backdropFilter:"blur(3px)"}},
       React.createElement(Avatar,{name:member.name,size:24}),
       React.createElement('div',{style:{minWidth:0,flex:1}},
         React.createElement('div',{style:{fontSize:11,fontWeight:800,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},member.name),
@@ -387,7 +419,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
       renderPaymentSetupHint(),
       soloNames.length > 0 && React.createElement('div',{style:{display:"grid",gap:3,marginTop:rows.length?7:0,paddingTop:rows.length?7:0,borderTop:rows.length?"1px solid rgba(78,205,196,.12)":"none"}},
         soloNames.map(name => React.createElement('div',{key:`solo-${name}`,style:{fontSize:10,color:"var(--muted)",fontWeight:700,textAlign:"center",lineHeight:1.35}},
-          `${name} — not in stakes this month.`
+          `${name} — on solo mode.`
         ))
       )
     );

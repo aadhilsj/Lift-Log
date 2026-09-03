@@ -142,10 +142,10 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
   const renderCurrentFinancialSnapshot=()=>React.createElement('div',{style:{padding:"13px 15px",borderTop:"1px solid var(--border)",display:"flex",flexDirection:"column",gap:12}},
     React.createElement('div',{style:{fontSize:12,color:"var(--muted)",lineHeight:1.5}},
       wouldMoveMoney
-        ? "If the month ended today, these would be the money movements. This is not final."
+        ? "These penalties would apply. Nothing is final until the month closes."
         : hasQualifiedWinner
-          ? "If the month ended today, no money would move because nobody would owe."
-          : "If the month ended today, no money would move because nobody has hit target yet."
+          ? "No penalties. Nobody is short of target."
+          : "No penalties yet. Nobody has hit target."
     ),
     wouldMoveMoney&&winners.length>0&&React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:7}},
       React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontSize:9,fontWeight:800,color:"#4ECDC4",textTransform:"uppercase",letterSpacing:".12em"}},"Would collect"),
@@ -158,7 +158,7 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
       ))
     ),
     wouldMoveMoney&&losers.length>0&&React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:7}},
-      React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontSize:9,fontWeight:800,color:"var(--red)",textTransform:"uppercase",letterSpacing:".12em"}},"Would pay"),
+      React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontSize:9,fontWeight:800,color:"var(--red)",textTransform:"uppercase",letterSpacing:".12em"}},"Would owe"),
       losers.map(l=>React.createElement('div',{key:`lose-${l.name}`,style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,background:"rgba(232,69,69,.055)",border:"1px solid rgba(232,69,69,.14)",borderRadius:8,padding:"9px 10px"}},
         React.createElement('div',{style:{display:"flex",alignItems:"center",gap:8,minWidth:0}},
           React.createElement(Avatar,{name:l.name,size:24}),
@@ -167,7 +167,7 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
         React.createElement('span',{style:{fontFamily:"'Outfit', sans-serif",fontSize:13,fontWeight:800,color:"var(--red)",flexShrink:0}},`-${fmtCurrency(getLoserAmount(penalties, l.name), resultsCurrency)}`)
       ))
     ),
-    hasQualifiedWinner&&!wouldMoveMoney&&React.createElement('div',{style:{fontSize:13,fontWeight:800,color:"#4ECDC4"}},"Everyone active would keep their money. No one would pay.")
+    hasQualifiedWinner&&!wouldMoveMoney&&React.createElement('div',{style:{fontSize:13,fontWeight:800,color:"#4ECDC4"}},"No penalties. Everyone active is on target.")
   );
 
   if(viewPlayer) {
