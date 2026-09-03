@@ -182,9 +182,27 @@ performed while testing on that preview skips the blob mirror by design, removes
 the canonical row, and leaves the blob entry behind. That is the orphan shape
 precisely, and the timeline fits.
 
-**To confirm:** check whether the Preview environment's `SUPABASE_URL` points at
-`bpvvvqjsfwmmfjvvijkd`. If it does, preview testing can orphan production Blocs,
-which is worth knowing well beyond this incident.
+**Confirmed 2026-09-03.** `SUPABASE_URL` in Vercel is
+`https://bpvvvqjsfwmmfjvvijkd.supabase.co`, scoped to **Production and Preview**.
+Preview deployments read and write the production database. There is no separate
+preview project.
+
+So the mechanism is available: a Bloc deleted while testing on
+`codex/create-group-canon` — the branch that carries `BLOB_MIRROR_SKIP_ACTIONS` —
+removes the canonical row against production and skips the blob mirror, leaving
+the blob entry behind. That is the orphan shape exactly, and it is the best
+explanation on the evidence for `op0-yneefj` and `rrrr-nq9r7f`.
+
+Still short of proof: nobody recorded doing it, and preview deployments are not
+distinguishable from production ones in `lift_log_backups`. Treat it as the
+leading explanation rather than a closed case.
+
+**The wider finding matters more than this incident.** Every preview deployment
+operates on live member data. Feature-flagged behaviour that differs on a
+preview branch — mirror-skip being the sharpest example — can therefore write
+states into production that production's own code would never produce. Whether
+to give previews their own Supabase project is a decision worth taking on its
+own merits, not as an incident follow-up.
 
 **Live-risk note.** Mirror-skip is being rolled out in waves (see
 `docs/blob-retirement-impact-2026-09-03.md`). Each wave that adds a delete-
@@ -558,8 +576,9 @@ being the source of truth.
 
 1. What should happen when someone joins a Bloc in the closing hours of a
    month, or in the gap before its rollover has fired? (I8 — to be designed)
-2. Does the Preview environment's `SUPABASE_URL` point at the production
-   Supabase project? If so, preview testing can orphan production Blocs. (I3)
+2. **Answered 2026-09-03: yes.** `SUPABASE_URL` is scoped to Production and
+   Preview and points at `bpvvvqjsfwmmfjvvijkd`. Previews write live data. The
+   open question is now what to do about it. (I3)
 3. Does `upsert_ante_core_season` have siblings that also overwrite a canonical
    column with a null the blob never held? (I5, item 6 in the blob section)
 4. Confirmed not the cause: `leave-bloc`, which mirrors to the blob in
