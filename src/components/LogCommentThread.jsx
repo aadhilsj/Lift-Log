@@ -305,7 +305,7 @@ function LogCommentThread({ groupId, log, currentUserId, currentUserName, onClos
 
   // Keep comment double-tap and long-press behavior in lockstep with the
   // Bloc Stream's Reactable surface. In particular, the same 26px movement
-  // tolerance and 600ms second-tap window make it equally forgiving on phone.
+  // tolerance and 300ms second-tap window keep it deliberate on phone.
   const clearCommentLongPress = commentId => {
     const gesture = commentGestureRef.current.get(commentId);
     if (gesture?.lp) window.clearTimeout(gesture.lp);
@@ -348,7 +348,7 @@ function LogCommentThread({ groupId, log, currentUserId, currentUserName, onClos
     gesture.lastTouch = Date.now();
     if (gesture.suppress) return;
     if ((gesture.maxDist || 0) < 26 && Date.now() - gesture.st < 550) {
-      if (Date.now() - (gesture.lastTap || 0) < 600) {
+      if (Date.now() - (gesture.lastTap || 0) < 300) {
         gesture.lastTap = 0;
         toggleReaction(commentId, "❤️");
       } else {

@@ -256,9 +256,10 @@ const Reactable = ({ msg, currentUserId, onReact, onReply, nameFor, photoFor, al
     if (s.suppress) { s.mode = null; setSwipeX(0); return; } // long-press already opened the bar
     // Tap detection is movement+time based (independent of scroll/swipe mode) so
     // a plain double-tap registers even with a little finger jitter. Generous
-    // 26px slop and a 600ms window keep it forgiving for slow or quick taps.
+    // 26px slop allows ordinary finger jitter, while the 300ms window keeps
+    // the heart reserved for an intentional, quick double-tap.
     if (s.maxDist < 26 && Date.now() - s.st < 550) {
-      if (Date.now() - s.lastTap < 600) fireHeart();
+      if (Date.now() - s.lastTap < 300) fireHeart();
       else s.lastTap = Date.now();
       setSwipeX(0); s.mode = null; return;
     }
