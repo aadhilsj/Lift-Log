@@ -1,8 +1,8 @@
 # Handover — 2026-09-03 Redemption shield & Training Wheels
 
 Branch: everything landed directly on `main` (founder's call for this session).
-Commits `03ff8c5` → `dfe2676`. Two Supabase migrations applied and one
-production data correction, all recorded below.
+Commits `03ff8c5` → `cd53912`. Three Supabase migrations applied and two
+production data corrections, all recorded below.
 
 ---
 
@@ -14,7 +14,7 @@ it. **Training Wheels** gives a new Bloc's founding roster, and every later
 joiner, a first month where they log and compete normally but cannot be
 penalised.
 
-Along the way eleven bugs were found and fixed, most of them pre-existing and
+Along the way sixteen bugs were found and fixed, most of them pre-existing and
 unrelated to either feature. The one that started the session was a blank
 screen when opening a Bloc.
 
@@ -35,6 +35,9 @@ screen when opening a Bloc.
 | `091cdc9` | Member tags in the app's own font; tappable shield |
 | `855defe` | Centre the note, lock scroll, tag only real proration |
 | `dfe2676` | Smaller tags, spelled-out month, one share button |
+| `6cf4dd2` | This handover, plus the blob-retirement briefing |
+| `5b3dd71` | The joiner prompt never fired, and now does |
+| `cd53912` | Sprout and flag marks, each with a tappable note |
 
 ---
 
@@ -83,8 +86,23 @@ offering an opt-out there would overrule the admin in the exact month their
 switch was meant to decide.
 
 The prompt never says "training wheels" — nobody wants to be told they need
-them on day one. The leaderboard tag says it afterwards, once it's their own
-choice.
+them on day one. The mark says it afterwards, once it's their own choice.
+
+**It shipped broken and fired for nobody.** The trigger asked whether
+`joinedMonthByName` listed the member under the current month. That map is
+routinely empty — StavanGang's was empty for all six members — so the condition
+could never be true. Two September joiners were silently defaulted instead.
+
+The trigger now calls **`getActiveJoinedMonthForMember`**, which is the app's
+single answer to "which month did this member join": it prefers the explicit map
+and falls back to inferring from the membership's `joinedAt`, which is present in
+both the compatibility document and canonical. It is the same resolver proration
+uses, which is why the Prorated mark rendered for the very member the prompt
+could not see.
+
+**Do not reintroduce a dependency on `joinedMonthByName`.** It is one of the two
+fields holding `join-group` back from the blob retirement, and it is empty far
+more often than it looks.
 
 ### The exemption
 
@@ -138,6 +156,51 @@ scroll back through history).
 
 ---
 
+## Status marks
+
+Three marks can appear beside a name. Only two pairings are possible, and it was
+worth checking rather than assuming:
+
+| Pairing | Possible | Why |
+|---|---|---|
+| Training + Prorated | **Yes** | A mid-month joiner on a reduced target |
+| Shield + Solo | **Yes** | Missed last month, went solo this month |
+| Shield + Training | No | Training only exists in a member's join month, so there is no earlier month they could have missed |
+| Shield + Prorated | No | Same reason |
+| Training + Solo | No | Both are exemptions; nothing grants both |
+
+**Training is a sprout, Solo is a flag, Redemption is a shield.** Prorated stays
+a *word*, because it describes the number beside it rather than a status the
+member holds.
+
+Icon rules, all learned the hard way:
+
+- **Filled silhouettes, no interior gaps.** A dashed or hollow shape at 13px is
+  a smudge. Hollow-versus-filled is the shield's own language and must not be
+  borrowed by anything else.
+- **Optically matched.** At their natural size the sprout and flag covered about
+  30% of the 24×24 box against the shield's 56%, and read as undersized beside
+  it. Each carries a scale transform bringing it to roughly 55%.
+- Stroke-drawn, round caps and joins, app palette only.
+
+### The notes behind them
+
+Tapping a mark **on a profile** opens a note. Not on the leaderboard: that row
+is itself a `<button>`, and nesting a button inside it behaves badly and reads
+incoherently to a screen reader.
+
+All three notes share `StatusNoteModal` — portalled to `document.body`, page
+scroll locked, `×` and backdrop to dismiss, no confirm button.
+
+Training says two different things, chosen from the Bloc's `createdAt` rather
+than from anything stored:
+
+- **First month** — one member arriving into a running Bloc.
+- **Opening month** — the Bloc itself is in its first month, so the whole
+  founding roster carries the mark and it is the Bloc's story, not theirs.
+
+---
+
 ## Bugs found and fixed
 
 | # | Symptom | Root cause |
@@ -155,6 +218,9 @@ scroll back through history).
 | 11 | Prorated tag on people with a full target | One branch of that function returns the **base** target while still reporting proration. The tag now requires the member's target to actually be lower than the Bloc's. |
 | 12 | Redemption note opened low, page scrolled behind | `PlayerProfile`'s root sets `transform: translateX(0)` and Safari treats any transform as the containing block for `position: fixed` children. Fixed by portalling to `document.body`, per the playbook's existing rule for the photo overlay. |
 | 13 | Share metric counted non-shares | `share_month_clicked` fired on the "View the settlement" ledger jump too. |
+| 14 | **The joiner prompt fired for nobody** | Keyed on `joinedMonthByName`, which is routinely empty — StavanGang's was empty for all six members. Now uses `getActiveJoinedMonthForMember`. |
+| 15 | Prorated tag on people with a full target | One branch of `getJoinedTargetInfo` returns the base target while still reporting proration. The tag now requires the member's target to be genuinely lower. |
+| 16 | "next month counts" told a training member their month did not count | It did count — they logged, they ranked, they appeared. Only the penalty was absent. Now "No penalty yet — penalties kick off from next month." |
 
 ---
 
@@ -194,6 +260,27 @@ and handed to the founder. **That rollback is not in the repo.**
 
 ---
 
+### The StavanGang correction
+
+Applied 2026-09-03, after the prompt fix, at the founder's instruction. September
+2026 only.
+
+| | Change |
+|---|---|
+| **Isira** | Training removed. Decision recorded, so he is not asked again — he had already answered through the founder. |
+| **Masha** | Training granted. Decision also recorded, at the founder's request, so she stays eased in without being prompted. |
+
+Both the compatibility document and `season_member_status.training_wheels` were
+updated together. Worth noting they **already disagreed** before the change:
+the blob had Isira on training while canonical said `false`, because the
+join-time grant writes the blob only. That is the gap described in
+`docs/blob-retirement-impact-2026-09-03.md`, visible in live data.
+
+Before-state and a rollback were captured and handed to the founder. Not in the
+repo.
+
+---
+
 ## Tests
 
 `npm run test:training-wheels` — 19 checks, written before any of the feature
@@ -215,10 +302,11 @@ to this session, and it means onboarding has no automated coverage.
 
 ## Known gaps
 
-1. **The joiner prompt has never run end-to-end.** The modal and the grant logic
-   are tested; the live path — invite, land, prompt, choose, tag — has not
-   executed once. The Bloc settings toggle has likewise never been watched
-   through a save round-trip. This is the highest residual risk in the session.
+1. **Nobody has yet seen the joiner prompt appear.** Its trigger is now fixed and
+   verified against StavanGang's real shape — the two September joiners resolve,
+   the four earlier ones do not — but no human has watched it render, choose, and
+   land. The Bloc settings toggle has likewise never been watched through a save
+   round-trip. Still the highest residual risk in the session.
 2. **Training is not written to canonical at the moment of the grant.** See the
    companion document for the blob-retirement implications; this is the one that
    matters to anyone else's work.
@@ -227,13 +315,18 @@ to this session, and it means onboarding has no automated coverage.
 
 ---
 
-## Two lessons worth keeping
+## Three lessons worth keeping
 
 **Check that the function you are reading is the one that runs.** Three separate
 mistakes this session came from the same habit: claiming the Month Summary shows
 `£0` (that code path is unreachable for closed months), verifying the backfill by
 feeding the settlement screen an object the app never receives, and declaring the
 prorated tag dead from a `grep | head -6` that had truncated the evidence.
+
+**Build on the field the rest of the app already trusts.** The joiner prompt was
+keyed on `joinedMonthByName` one commit after a document was written describing
+that field as unreliable. The app already had a resolver for the same question,
+in use by proration on the same screen. Prefer the existing answer to a new one.
 
 **A write with no matching read is not a partial round trip.** It is a value that
 silently never changes. Bug 7 was described as a "known limitation" one commit
