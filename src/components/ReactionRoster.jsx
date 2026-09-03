@@ -70,7 +70,7 @@ function ReactionChip({ emoji, users, nameFor, photoFor, compact = false }) {
       onPointerDown: event => { gesture.current = { moved: false, x: event.clientX, y: event.clientY }; },
       onPointerMove: event => { if (Math.abs(event.clientX - gesture.current.x) > 8 || Math.abs(event.clientY - gesture.current.y) > 8) gesture.current.moved = true; },
       onPointerUp: () => { if (!gesture.current.moved) open(); },
-      style: { height: compact ? 15 : 19, minWidth: compact ? 26 : 31, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 2, padding: compact ? "0 4px" : "0 6px", borderRadius: 999, background: "#182120", border: "1px solid rgba(255,255,255,.08)", color: "var(--text)", fontSize: compact ? 9 : 10.5, lineHeight: 1, cursor: "pointer", touchAction: "manipulation", userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none", boxShadow: "0 5px 11px rgba(0,0,0,.24)" }
+      style: { height: compact ? 16 : 19, minWidth: compact ? 27 : 31, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 2, padding: compact ? "0 4px" : "0 6px", borderRadius: 999, background: "#182120", border: "1px solid rgba(255,255,255,.08)", color: "var(--text)", fontSize: compact ? 9 : 10.5, lineHeight: 1, cursor: "pointer", touchAction: "manipulation", userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none", boxShadow: "0 5px 11px rgba(0,0,0,.24)" }
     }, emoji, React.createElement('span', { style: { fontFamily: "'Outfit', sans-serif", fontSize: compact ? 8 : 9, fontWeight: 800, color: "rgba(255,255,255,.84)" } }, users.length)),
     anchorRect && React.createElement(ReactorRoster, { emoji, ids: users, nameFor, photoFor, anchorRect, onClose: () => setAnchorRect(null), compact })
   );

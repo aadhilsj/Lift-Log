@@ -510,7 +510,8 @@ function LogCommentThread({ groupId, log, currentUserId, currentUserName, onClos
                 const isOwn = Boolean((currentUserId && comment.commenterUserId === currentUserId) || (!currentUserId && currentUserName && comment.commenterName === currentUserName));
                 const previous = comments[index - 1];
                 const showName = !isOwn && previous?.commenterUserId !== comment.commenterUserId;
-                return React.createElement('div', { key: comment.id, style: { display: "flex", alignItems: "flex-end", justifyContent: isOwn ? "flex-end" : "flex-start", gap: 7 } },
+                const previousIsDifferentUser = Boolean(previous && previous.commenterUserId !== comment.commenterUserId);
+                return React.createElement('div', { key: comment.id, style: { display: "flex", alignItems: "flex-end", justifyContent: isOwn ? "flex-end" : "flex-start", gap: 7, marginTop: previousIsDifferentUser ? 7 : 0 } },
                   !isOwn ? React.createElement(Avatar, { name: comment.commenterName, userId: comment.commenterUserId, size: 22 }) : null,
                   React.createElement('div', { style: { minWidth: 0, maxWidth: "76%", display: "flex", flexDirection: "column", alignItems: isOwn ? "flex-end" : "flex-start" } },
                     showName ? React.createElement('div', { style: { color: "#3d5e59", fontSize: 9, fontWeight: 700, lineHeight: 1.2, margin: "0 0 2px 4px" } }, comment.commenterName) : null,
