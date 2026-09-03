@@ -434,6 +434,7 @@ function buildCurrentOpenComparisonGroup(group) {
     logs: group.logs || {},
     excused: pickCurrentMonthOnlyMap(group.excused || {}, monthKey),
     solo: pickCurrentMonthOnlyMap(group.solo || {}, monthKey),
+    training: pickCurrentMonthOnlyMap(group.training || {}, monthKey),
     seasonOverrides: seasonOverrides[monthKey] ? { [monthKey]: seasonOverrides[monthKey] } : {},
     sitOutRequests: sitOutRequests[monthKey] ? { [monthKey]: sitOutRequests[monthKey] } : {},
     soloRequests: soloRequests[monthKey] ? { [monthKey]: soloRequests[monthKey] } : {},
@@ -1104,6 +1105,7 @@ function normalizeGroup(group) {
   );
   const normalizedExcused = normalizeExcused(group?.excused, memberOrder);
   const normalizedSolo = normalizeSolo(group?.solo, memberOrder);
+  const normalizedTraining = normalizeTraining(group?.training, memberOrder);
   const adminUserId = normalizeAdminUserId(group?.adminUserId, memberships, group?.adminName);
   const normalized = {
     id: typeof group?.id === "string" && group.id ? group.id : `group-${Date.now()}`,
@@ -1123,6 +1125,7 @@ function normalizeGroup(group) {
     deletedCurrentLogIds: normalizeDeletedCurrentLogIds(group?.deletedCurrentLogIds),
     excused: normalizedExcused,
     solo: normalizedSolo,
+    training: normalizedTraining,
     seasonOverrides: normalizeSeasonOverrides(group?.seasonOverrides),
     sitOutRequests: normalizeSitOutRequests(group?.sitOutRequests),
     soloRequests: normalizeSoloRequests(group?.soloRequests),
@@ -1272,6 +1275,34 @@ function normalizeSolo(solo, memberOrder = []) {
       )];
     })
   );
+}
+
+// Mirrors normalizeTraining in src/lib/appState.js. The solo mechanic is
+// written twice in this codebase; training follows it rather than hiding inside
+// it, so a first month never spends someone's solo allowance.
+function normalizeTraining(training, memberOrder = []) {
+  const source = training && typeof training === "object" ? training : {};
+  const names = uniqueNames([...memberOrder, ...Object.keys(source)]);
+  return Object.fromEntries(
+    names.map(name => {
+      const monthEntries = source?.[name] && typeof source[name] === "object" ? source[name] : {};
+      return [name, Object.fromEntries(
+        Object.entries(monthEntries)
+          .filter(([monthKey, value]) => monthKey && value)
+          .map(([monthKey]) => [monthKey, true])
+      )];
+    })
+  );
+}
+
+function isTrainingForMonth(groupOrMonth, memberName, monthKey) {
+  if (!groupOrMonth || !memberName || !monthKey) return false;
+  return !!groupOrMonth?.training?.[memberName]?.[monthKey];
+}
+
+function isExemptFromStakes(groupOrMonth, memberName, monthKey) {
+  return isSoloForMonth(groupOrMonth, memberName, monthKey)
+    || isTrainingForMonth(groupOrMonth, memberName, monthKey);
 }
 
 function isSoloForMonth(groupOrMonth, memberName, monthKey) {
@@ -1574,6 +1605,11 @@ function normalizeMonthHistory(monthHistory, memberOrder, joinedMonthByName, set
         })
         .filter(Boolean)
     );
+    const training = Object.fromEntries(
+      relevantNames
+        .filter(name => isTrainingForMonth(month, name, monthKey))
+        .map(name => [name, { [monthKey]: true }])
+    );
     const monthSettings = resolveHistoricalMonthSettings(month?.settings, settings);
     const monthGroup = {
       settings,
@@ -1596,6 +1632,7 @@ function normalizeMonthHistory(monthHistory, memberOrder, joinedMonthByName, set
       counts,
       excused,
       solo,
+      training,
       logsByUser,
       memberTargets,
       settings: monthSettings,
@@ -1965,7 +2002,7 @@ function hasParticipationBeforeMonth(group, displayName, monthKey) {
     if ((month?.counts?.[displayName] || 0) > 0) return true;
     if ((month?.logsByUser?.[displayName] || []).length > 0) return true;
     if (month?.excused?.[displayName]) return true;
-    if (isSoloForMonth(month, displayName, month.key)) return true;
+    if (isExemptFromStakes(month, displayName, month.key)) return true;
     if (month?.settlements?.[displayName]) return true;
     if (Object.prototype.hasOwnProperty.call(month?.memberTargets || {}, displayName)) return true;
     return false;
@@ -2009,7 +2046,7 @@ function calcPenalties(activeCounts, settings) {
 
 function buildDefaultSettlements(month, relevantNames, settings, memberTargets = {}) {
   const activeCounts = relevantNames
-    .filter(name => !(month.excused?.[name]) && !isSoloForMonth(month, name, month.key))
+    .filter(name => !(month.excused?.[name]) && !isExemptFromStakes(month, name, month.key))
     .map(name => ({ name, count: month.counts?.[name] || 0, target: memberTargets?.[name] || Number(settings?.minTarget || DEFAULT_MIN_TARGET) }));
   const { losers } = calcPenalties(activeCounts, settings);
   return Object.fromEntries(
@@ -2162,6 +2199,11 @@ function rolloverGroupIfNeeded(group) {
       })
       .filter(Boolean)
   );
+  const training = Object.fromEntries(
+    relevantNames
+      .filter(name => isTrainingForMonth(group, name, group.lastMonth))
+      .map(name => [name, { [group.lastMonth]: true }])
+  );
   const memberTargets = getMemberTargetsForMonth(group, relevantNames, group.lastMonth, group.settings);
   const snapshot = {
     key: group.lastMonth,
@@ -2171,10 +2213,11 @@ function rolloverGroupIfNeeded(group) {
     counts,
     excused,
     solo,
+    training,
     logsByUser: buildMonthLogsSnapshot(group.logs, relevantNames),
     memberTargets,
     settings: buildNormalizedSettings(group.settings),
-    settlements: buildDefaultSettlements({ counts, excused, solo, key: group.lastMonth }, relevantNames, group.settings, memberTargets)
+    settlements: buildDefaultSettlements({ counts, excused, solo, training, key: group.lastMonth }, relevantNames, group.settings, memberTargets)
   };
 
   return normalizeGroup({
@@ -2183,6 +2226,7 @@ function rolloverGroupIfNeeded(group) {
     deletedCurrentLogIds: [],
     excused: {},
     solo: {},
+    training: {},
     monthHistory: [...group.monthHistory, snapshot],
     lastMonth: expectedKey
   });
@@ -2702,6 +2746,27 @@ async function upsertSeasonMemberSoloInCanonical(legacyGroupKey, monthKey, displ
   } catch (err) {
     if (throwOnError) throw err;
     console.error("Canonical solo status sync failed:", err?.message || err);
+  }
+}
+
+async function upsertSeasonMemberTrainingInCanonical(legacyGroupKey, monthKey, displayName, authUserId, training, options = {}) {
+  if (!legacyGroupKey || !monthKey || !displayName) return;
+  const { throwOnError = false } = options;
+  try {
+    await supabaseFetch("/rest/v1/rpc/upsert_ante_core_season_member_training", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({
+        p_legacy_group_key: legacyGroupKey,
+        p_month_key:        monthKey,
+        p_display_name:     displayName,
+        p_auth_user_id:     authUserId || null,
+        p_training:         !!training
+      })
+    });
+  } catch (err) {
+    if (throwOnError) throw err;
+    console.error("Canonical training status sync failed:", err?.message || err);
   }
 }
 
@@ -4714,6 +4779,16 @@ async function persistState(nextState, reason, options = {}) {
               memberName,
               memberAuthUserId,
               getSoloTargetForMonth(closedSnapshot, memberName, closedMonthKey),
+              { throwOnError: true }
+            );
+          }
+          if (isTrainingForMonth(closedSnapshot, memberName, closedMonthKey)) {
+            await upsertSeasonMemberTrainingInCanonical(
+              groupId,
+              closedMonthKey,
+              memberName,
+              memberAuthUserId,
+              true,
               { throwOnError: true }
             );
           }
@@ -7956,6 +8031,7 @@ function renameGroupDisplayNameSurfaces(group, userId, oldName, displayName, opt
     counts:      renameKey(month.counts      || {}, oldName, displayName),
     excused:     renameKey(month.excused     || {}, oldName, displayName),
     solo:        renameKey(month.solo        || {}, oldName, displayName),
+    training:    renameKey(month.training    || {}, oldName, displayName),
     logsByUser:  renameKey(month.logsByUser  || {}, oldName, displayName),
     settlements: renameKey(month.settlements || {}, oldName, displayName),
     ...(month.memberTargets ? { memberTargets: renameKey(month.memberTargets, oldName, displayName) } : {}),
@@ -7992,6 +8068,7 @@ function renameGroupDisplayNameSurfaces(group, userId, oldName, displayName, opt
     logs:              renameKey(group.logs              || {}, oldName, displayName),
     excused:           renameKey(group.excused           || {}, oldName, displayName),
     solo:              renameKey(group.solo              || {}, oldName, displayName),
+    training:          renameKey(group.training          || {}, oldName, displayName),
     joinedMonthByName: renameKey(group.joinedMonthByName || {}, oldName, displayName),
     sitOutRequests:    nextSitOutRequests,
     soloRequests:      nextSoloRequests,

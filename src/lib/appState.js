@@ -424,6 +424,35 @@ function normalizeSolo(solo, memberOrder = []) {
   return normalized;
 }
 
+// Training Wheels is a separate map from solo on purpose. Solo carries a
+// personal target and a once-every-three-months allowance; training uses the
+// Bloc's own target and is granted automatically. Folding it into solo would
+// make a first month quietly consume someone's solo allowance.
+function normalizeTraining(training, memberOrder = []) {
+  const source = training && typeof training === "object" ? training : {};
+  const names = uniqueNames([...memberOrder, ...Object.keys(source)]);
+  const normalized = {};
+  names.forEach(name => {
+    const monthMap = source?.[name] && typeof source[name] === "object" ? source[name] : {};
+    const months = Object.entries(monthMap)
+      .filter(([monthKey, value]) => monthKey && value)
+      .map(([monthKey]) => [monthKey, true]);
+    normalized[name] = Object.fromEntries(months);
+  });
+  return normalized;
+}
+
+function isTrainingForMonth(groupOrMonth, memberName, monthKey) {
+  if (!memberName || !monthKey) return false;
+  return !!groupOrMonth?.training?.[memberName]?.[monthKey];
+}
+
+// One question for every screen that decides who the money applies to.
+function isExemptFromStakes(groupOrMonth, memberName, monthKey) {
+  return isSoloForMonth(groupOrMonth, memberName, monthKey)
+    || isTrainingForMonth(groupOrMonth, memberName, monthKey);
+}
+
 function isSoloForMonth(groupOrMonth, memberName, monthKey) {
   if (!memberName || !monthKey) return false;
   return !!groupOrMonth?.solo?.[memberName]?.[monthKey];
@@ -446,7 +475,9 @@ function missedTargetInMonth(month, memberName) {
   if (!month || !memberName) return false;
   if (!Object.prototype.hasOwnProperty.call(month.counts || {}, memberName)) return false;
   if (month.excused?.[memberName]) return false;
-  if (isSoloForMonth(month, memberName, month.key)) return false;
+  // Exempt from the stakes means exempt from the mark too: they were not held
+  // to the Bloc target that month, so they did not miss it.
+  if (isExemptFromStakes(month, memberName, month.key)) return false;
   const target = month.memberTargets?.[memberName] || month.settings?.minTarget || MIN_TARGET;
   return Number(month.counts?.[memberName] || 0) < Number(target || MIN_TARGET);
 }
@@ -712,10 +743,10 @@ function shouldPromptProration(group, actorUserId) {
   return !getSeasonOverrideForMonth(group, summary.monthKey);
 }
 
-function buildSettlementMap(counts, excusedByName, settings = {}, memberTargets = {}, soloByName = {}, monthKey = null) {
+function buildSettlementMap(counts, excusedByName, settings = {}, memberTargets = {}, soloByName = {}, monthKey = null, trainingByName = {}) {
   const activeCounts = NAMES
     .filter(name => Object.prototype.hasOwnProperty.call(counts || {}, name))
-    .filter(name => !excusedByName?.[name] && !(monthKey && soloByName?.[name]?.[monthKey]))
+    .filter(name => !excusedByName?.[name] && !(monthKey && (soloByName?.[name]?.[monthKey] || trainingByName?.[name]?.[monthKey])))
     .map(name => ({ name, count: counts?.[name] || 0, target: memberTargets?.[name] || Number(settings?.minTarget || MIN_TARGET) }));
   const { losers } = calcPenalties(activeCounts, settings);
   return Object.fromEntries(
@@ -739,7 +770,7 @@ function buildSettlementPairsForMonth(month) {
   const memberAuthUserIds = month?.memberAuthUserIds || {};
   const relevantNames = Object.keys(counts);
   const activeCounts = relevantNames
-    .filter(name => !excused?.[name] && !isSoloForMonth(month, name, month.key))
+    .filter(name => !excused?.[name] && !isExemptFromStakes(month, name, month.key))
     .map(name => ({ name, count: counts?.[name] || 0, target: memberTargets?.[name] || Number(settings?.minTarget || MIN_TARGET) }));
   const penalties = calcPenalties(activeCounts, settings);
   const { winners, losers } = penalties;
@@ -1436,6 +1467,11 @@ function normalizeMonthHistoryState(monthHistory, memberOrder, joinedMonthByName
         })
         .filter(Boolean)
     );
+    const training = Object.fromEntries(
+      relevantNames
+        .filter(name => isTrainingForMonth(month, name, monthKey))
+        .map(name => [name, { [monthKey]: true }])
+    );
     const monthSettings = resolveHistoricalMonthSettings(month?.settings, settings);
     const monthGroup = {
       settings,
@@ -1458,10 +1494,11 @@ function normalizeMonthHistoryState(monthHistory, memberOrder, joinedMonthByName
       counts,
       excused,
       solo,
+      training,
       logsByUser,
       memberTargets,
       settings: monthSettings,
-      settlements: month?.settlements || buildSettlementMap(counts, excused, monthSettings, memberTargets, solo, monthKey)
+      settlements: month?.settlements || buildSettlementMap(counts, excused, monthSettings, memberTargets, solo, monthKey, training)
     };
   }).filter(Boolean).sort((a, b) => compareMonthKeys(a.key, b.key));
 }
@@ -1533,6 +1570,7 @@ function normalizeGroupState(group) {
     deletedCurrentLogIds: normalizeDeletedCurrentLogIds(group?.deletedCurrentLogIds),
     excused,
     solo: normalizeSolo(group?.solo, memberOrder),
+    training: normalizeTraining(group?.training, memberOrder),
     seasonOverrides: normalizeSeasonOverrides(group?.seasonOverrides),
     sitOutRequests: pruneSitOutRequestsForRead(group?.sitOutRequests, group?.lastMonth || curKey),
     soloRequests: pruneSoloRequestsForRead(group?.soloRequests, group?.lastMonth || curKey),
@@ -1933,6 +1971,12 @@ function checkRollover(data) {
       .filter(Boolean)
   );
 
+  const training = Object.fromEntries(
+    relevantNames
+      .filter(name => isTrainingForMonth(data, name, prevKey))
+      .map(name => [name, { [prevKey]: true }])
+  );
+
   const snapshot = {
     key: prevKey,
     label,
@@ -1941,19 +1985,22 @@ function checkRollover(data) {
     counts,
     excused: exc,
     solo,
+    training,
     logsByUser: buildMonthLogsSnapshot(logs),
     memberTargets,
     settings,
-    settlements: buildSettlementMap(counts, exc, settings, memberTargets, solo, prevKey)
+    settlements: buildSettlementMap(counts, exc, settings, memberTargets, solo, prevKey, training)
   };
   const newHistory = [...(monthHistory||[]), snapshot];
 
-  // Clear current logs, excused, and solo mode for new month
+  // Clear current logs, excused, solo mode and training wheels for new month.
+  // Training is a first-month grant: it must not survive the rollover.
   const newLogs    = {};
   const newExcused = {};
   const newSolo = {};
+  const newTraining = {};
 
-  return { logs: newLogs, excused: newExcused, solo: newSolo, monthHistory: newHistory, lastMonth: expectedKey };
+  return { logs: newLogs, excused: newExcused, solo: newSolo, training: newTraining, monthHistory: newHistory, lastMonth: expectedKey };
 }
 
 // ─── API SYNC ─────────────────────────────────────────────────────────────────
@@ -2080,6 +2127,9 @@ export {
   normalizeSolo,
   isSoloForMonth,
   getSoloTargetForMonth,
+  isTrainingForMonth,
+  isExemptFromStakes,
+  normalizeTraining,
   missedTargetInMonth,
   getClosedMonthBefore,
   getRedemptionMark,

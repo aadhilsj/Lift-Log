@@ -10,6 +10,7 @@ import {
   buildSettlementPairState,
   fmtCurrency,
   isSoloForMonth,
+  isExemptFromStakes,
   getRedemptionMark,
   ordinal,
   workoutsLabel,
@@ -39,7 +40,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
   // Bloc target needs no footnote, whether or not they could have been charged.
   const soloNames = relevantNames.filter(name => isSoloForMonth(month, name, month.key) && missedBlocTarget(name));
   const activeCounts = relevantNames
-    .filter(name => !month.excused?.[name] && !isSoloForMonth(month, name, month.key))
+    .filter(name => !month.excused?.[name] && !isExemptFromStakes(month, name, month.key))
     .map(name => ({
       name,
       count: Number(month.counts[name] || 0),
@@ -95,7 +96,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
     return parts ? (parts.year * 12) + parts.monthIndex : -Infinity;
   };
   const hitTargetForMonth = (memberName, snapshot) => {
-    if (!memberName || !snapshot || snapshot.excused?.[memberName] || isSoloForMonth(snapshot, memberName, snapshot.key)) return false;
+    if (!memberName || !snapshot || snapshot.excused?.[memberName] || isExemptFromStakes(snapshot, memberName, snapshot.key)) return false;
     const target = snapshot.memberTargets?.[memberName] || snapshot.settings?.minTarget || MIN_TARGET;
     return (Number(snapshot.counts?.[memberName] || 0) >= target);
   };
