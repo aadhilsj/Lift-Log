@@ -1,6 +1,7 @@
 import React from "react";
 const { useState, useEffect, useLayoutEffect, useRef } = React;
 import { Avatar, AppIcon, WorkoutTypeIcon } from "../components/primitives.jsx";
+import { ReactionChip } from "../components/ReactionRoster.jsx";
 import {
   createBlocStreamEventData,
   getBlocStreamUnreadCountData,
@@ -173,62 +174,18 @@ const ReactBar = ({ align, onPick, onClose }) => {
   );
 };
 
-// A small floating list of members (who reacted / who RSVP'd), anchored above
-// the trigger. Reused by reaction chips and the event RSVP counts.
-const RosterPopover = ({ title, ids, nameFor, photoFor, onClose, align = "left" }) => {
-  const pos = align === "right" ? { right: 0 } : align === "center" ? { left: "50%", transform: "translateX(-50%)" } : { left: 0 };
-  return React.createElement(React.Fragment, null,
-    React.createElement('div', { onClick: e => { e.stopPropagation(); onClose(); }, onTouchStart: e => e.stopPropagation(), style: { position: "fixed", inset: 0, zIndex: 40 } }),
-    React.createElement('div', {
-      onClick: e => e.stopPropagation(),
-      onTouchStart: e => e.stopPropagation(),
-      style: { position: "absolute", bottom: "calc(100% + 6px)", zIndex: 41, minWidth: 150, maxWidth: 240, maxHeight: 210, overflowY: "auto", background: C.sheetBg, border: `1px solid ${C.sheetBorder}`, borderRadius: 12, padding: "9px 11px", boxShadow: "0 10px 26px rgba(0,0,0,.55)", ...pos }
-    },
-      title && React.createElement('div', { style: { fontFamily: "'Outfit', sans-serif", fontSize: 9.5, fontWeight: 700, color: C.meta, letterSpacing: ".08em", textTransform: "uppercase", marginBottom: 7 } }, title),
-      ids.length === 0
-        ? React.createElement('div', { style: { fontSize: 12.5, color: "var(--muted2)" } }, "No one yet")
-        : React.createElement('div', { style: { display: "flex", flexDirection: "column", gap: 8 } },
-            ids.map(id => React.createElement('div', { key: id, style: { display: "flex", alignItems: "center", gap: 8 } },
-              React.createElement(Avatar, { name: nameFor(id), userId: id, photoUrl: photoFor?.(id), size: 22 }),
-              React.createElement('span', { style: { fontFamily: "'Outfit', sans-serif", fontSize: 13, color: "var(--text)", whiteSpace: "nowrap" } }, nameFor(id))
-            ))
-          )
-    )
-  );
-};
-
-// One reaction chip: tap shows who reacted. Reaction toggles happen via
-// double-tap or the message long-press emoji bar, not by holding the chip.
-const ReactionChip = ({ emoji, users, mine, nameFor, photoFor, align }) => {
-  const [who, setWho] = useState(false);
-  const [rosterAlign, setRosterAlign] = useState(align);
-  const rootRef = useRef(null);
-  const p = useRef({ moved: false, sx: 0, sy: 0 });
-  const openRoster = () => {
-    const rect = rootRef.current?.getBoundingClientRect();
-    if (rect && typeof window !== "undefined") {
-      const popWidth = 240;
-      const gutter = 12;
-      const overflowsRight = rect.left + popWidth > window.innerWidth - gutter;
-      const overflowsLeft = rect.right - popWidth < gutter;
-      setRosterAlign(overflowsRight && !overflowsLeft ? "right" : align);
-    } else {
-      setRosterAlign(align);
-    }
-    setWho(true);
-  };
-  return React.createElement('span', { style: { position: "relative", display: "inline-flex" } },
-    React.createElement('button', {
-      ref: rootRef,
-      onPointerDown: e => { const s = p.current; s.moved = false; s.sx = e.clientX; s.sy = e.clientY; },
-      onPointerMove: e => { const s = p.current; if (Math.abs(e.clientX - s.sx) > 8 || Math.abs(e.clientY - s.sy) > 8) s.moved = true; },
-      onPointerUp: () => { if (!p.current.moved) openRoster(); },
-      onContextMenu: e => e.preventDefault(),
-      style: { minHeight: 20, display: "inline-flex", alignItems: "center", gap: 4, background: "#182120", border: "1px solid rgba(255,255,255,.06)", borderRadius: 999, padding: "0 7px", fontSize: 11, color: "var(--text)", cursor: "pointer", lineHeight: 1.25, userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none", touchAction: "manipulation", boxShadow: "0 7px 14px rgba(0,0,0,.32), inset 0 1px 0 rgba(255,255,255,.04)" }
-    }, emoji, React.createElement('span', { style: { fontFamily: "'Outfit', sans-serif", fontSize: 10, color: "rgba(255,255,255,.8)", fontWeight: 800 } }, users.length)),
-    who && React.createElement(RosterPopover, { title: `${emoji} · ${users.length}`, ids: users, nameFor, photoFor, onClose: () => setWho(false), align: rosterAlign })
-  );
-};
+// RSVP stacks remain anchored in their event card, unlike message reaction
+// chips which use the viewport-safe popover from ReactionRoster.
+const RosterPopover = ({ title, ids, nameFor, photoFor, onClose }) => React.createElement(React.Fragment, null,
+  React.createElement('button', { type: "button", "aria-label": "Close roster", onClick: onClose, style: { position: "fixed", inset: 0, zIndex: 40, background: "transparent", border: "none", padding: 0 } }),
+  React.createElement('div', { style: { position: "absolute", bottom: "calc(100% + 6px)", left: 0, zIndex: 41, minWidth: 142, maxWidth: 200, maxHeight: 180, overflowY: "auto", background: C.sheetBg, border: `1px solid ${C.sheetBorder}`, borderRadius: 10, padding: "7px 8px", boxShadow: "0 10px 26px rgba(0,0,0,.55)" } },
+    title && React.createElement('div', { style: { fontFamily: "'Outfit', sans-serif", fontSize: 9, fontWeight: 700, color: C.meta, letterSpacing: ".08em", textTransform: "uppercase", marginBottom: 5 } }, title),
+    React.createElement('div', { style: { display: "flex", flexDirection: "column", gap: 5 } }, ids.map(id => React.createElement('div', { key: id, style: { display: "flex", alignItems: "center", gap: 6 } },
+      React.createElement(Avatar, { name: nameFor(id), userId: id, photoUrl: photoFor?.(id), size: 18 }),
+      React.createElement('span', { style: { fontFamily: "'Outfit', sans-serif", fontSize: 11.5, color: "var(--text)", whiteSpace: "nowrap" } }, nameFor(id))
+    )))
+  )
+);
 
 // Compact reaction chips row. `showAdd` renders a "+" that opens the react bar
 // (kept for system moments; text bubbles add via double-tap / long-press).
@@ -248,7 +205,7 @@ const ReactionChips = ({ msg, currentUserId, onReact, nameFor, photoFor, align, 
     style: { display: "flex", flexWrap: "wrap", gap: 3, justifyContent: justify, marginTop: attached ? 0 : 5, paddingLeft: attached ? 0 : (align === "left" ? 36 : 0), width: attached ? "max-content" : "auto", maxWidth: attached ? "min(220px, calc(100vw - 68px))" : "none", ...attachStyle }
   },
     active.map(([emoji, users]) => React.createElement(ReactionChip, {
-      key: emoji, emoji, users, mine: users.includes(currentUserId), nameFor, photoFor, align
+      key: emoji, emoji, users, nameFor, photoFor
     })),
     showAdd && React.createElement('button', {
       onClick: onAdd, onMouseDown: e => e.preventDefault(),
