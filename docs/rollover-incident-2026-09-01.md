@@ -153,19 +153,44 @@ A full sweep found **exactly these two** orphans and **no reverse orphans**
 Because the readable group set is now canonical-driven, these two are almost
 certainly invisible in the Bloc switcher while still blocking the rollover.
 
-### I3 — Suspected orphan-creation path
-**Severity: high. Unconfirmed.**
-In the `leave-bloc` handler (~line 9410), last-member deletion calls
-`deleteBlocFromCanonical(..., { throwOnError: true })` **first**, then
-`persistOrSkipBlobMirror(...)`. If the blob mirror is skipped for `leave-bloc`,
-the canonical row is deleted and the blob entry survives — producing exactly the
-I2 orphan shape.
+### I3 — Orphan-creation path
+**Severity: high. The original hypothesis is DISPROVEN. A better one replaces it,
+still unconfirmed.**
 
-Whether this is live depends on `BLOB_MIRROR_SKIP_ACTIONS` in the production
-Vercel environment. The local `.env.local` value is redacted (`[SENSITIVE]`), so
-this could not be confirmed from the workspace. **Check the Vercel environment
-variable before designing the fix.** If `leave-bloc` is listed, this is an
-active orphan factory and I2 will recur.
+**Original hypothesis, now ruled out.** In the `leave-bloc` handler, last-member
+deletion calls `deleteBlocFromCanonical(..., { throwOnError: true })` **first**,
+then `persistOrSkipBlobMirror(...)`. If the blob mirror were skipped for
+`leave-bloc`, the canonical row would go and the blob entry would survive —
+exactly the I2 orphan shape.
+
+It is not skipped. `lift_log_backups` holds **39 rows with a `leave-bloc:`
+reason**, most recently 2026-08-30. Every one of those is a blob write. In
+production `leave-bloc` mirrors to the blob, so it cannot be the source.
+
+Determined from the write log rather than the environment variable, which is
+more reliable: `BLOB_MIRROR_SKIP_ACTIONS` is stored as a Vercel **Secret** and is
+write-only, so its value cannot be read back by anyone.
+
+**Replacement hypothesis.** `BLOB_MIRROR_SKIP_ACTIONS` is set in Vercel scoped to
+**Preview**, on branch `codex/create-group-canon`, last updated **2026-07-18**.
+`op0-yneefj` and `rrrr-nq9r7f` were created **2026-07-16** and both still rolled
+over correctly on 2026-08-01, so they lost their canonical rows after that.
+
+If that preview branch points at the production Supabase project — which it will
+unless a separate project was configured for previews — then any Bloc deletion
+performed while testing on that preview skips the blob mirror by design, removes
+the canonical row, and leaves the blob entry behind. That is the orphan shape
+precisely, and the timeline fits.
+
+**To confirm:** check whether the Preview environment's `SUPABASE_URL` points at
+`bpvvvqjsfwmmfjvvijkd`. If it does, preview testing can orphan production Blocs,
+which is worth knowing well beyond this incident.
+
+**Live-risk note.** Mirror-skip is being rolled out in waves (see
+`docs/blob-retirement-impact-2026-09-03.md`). Each wave that adds a delete-
+capable action to the skip list makes this shape reachable in production too,
+not just on a preview. Deleting a Bloc canonically while leaving the blob entry
+is what took the September rollover down for every Bloc.
 
 ### I4 — Rollover has no safety net
 **Severity: medium (design). Alerting shipped 2026-09-01; scheduling still open.**
@@ -460,17 +485,18 @@ Found while auditing I5, and the most directly relevant fact here.
 The two settlement confirmations in production wrote to `ante_core`
 (`settlement_confirmations`, `profiles`, `seasons`, `bloc_messages`) and
 produced **no blob write at all** — there is no `lift_log_backups` row at either
-moment. That points at `BLOB_MIRROR_SKIP_ACTIONS` including the confirmation
-action in the production Vercel environment.
+moment.
 
-**So for this feature the blob is already retired in practice.** Confirmation
-state has no blob copy to fall back on, and no blob copy to compare against. Any
-parity gate covering settlements should expect canonical-only, and any rollback
-plan that assumes a blob shadow does not apply here.
+**Correction.** An earlier version of this section attributed that to
+`BLOB_MIRROR_SKIP_ACTIONS`. It is not configuration. The
+`settlement-confirm-paid` handler contains no blob write of any kind — no
+`persistState`, no `persistOrSkipBlobMirror`. It is canonical-native by design.
 
-The production value of `BLOB_MIRROR_SKIP_ACTIONS` was not readable from the
-workspace (`.env.local` holds `[SENSITIVE]` placeholders). **Confirm it in
-Vercel** — it also decides I3.
+That makes the conclusion stronger, not weaker: **for this feature the blob is
+already retired, and not by a flag that could be switched back.** Confirmation
+state has no blob copy to fall back on and none to compare against. A parity
+gate covering settlements should expect canonical-only, and any rollback plan
+assuming a blob shadow does not apply here.
 
 ### 4. New canonical-only table: `ante_core.system_events`
 
@@ -532,9 +558,12 @@ being the source of truth.
 
 1. What should happen when someone joins a Bloc in the closing hours of a
    month, or in the gap before its rollover has fired? (I8 — to be designed)
-2. Is `leave-bloc` present in production `BLOB_MIRROR_SKIP_ACTIONS`? (I3)
+2. Does the Preview environment's `SUPABASE_URL` point at the production
+   Supabase project? If so, preview testing can orphan production Blocs. (I3)
 3. Does `upsert_ante_core_season` have siblings that also overwrite a canonical
    column with a null the blob never held? (I5, item 6 in the blob section)
-4. How were the `op0`/`rrrr` canonical rows removed after 1 August — the
+4. Confirmed not the cause: `leave-bloc`, which mirrors to the blob in
+   production (39 backup rows). How the `op0`/`rrrr` canonical rows were removed
+   after 1 August — the
    `leave-bloc` last-member path, an admin delete, or manual cleanup? Answering
    this decides whether I3 is the real factory or a red herring.
