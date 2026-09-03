@@ -927,6 +927,53 @@ const SoloModal = ({mode,monthName,minimumTarget,maximumTarget,defaultTarget,onC
 };
 
 
+// Shown once, over the Bloc a member has just landed in. Pre-selected to
+// whatever the admin set, so tapping straight through honours the Bloc's
+// intent. The wording avoids "training wheels": nobody wants to be told they
+// need them on day one. The leaderboard tag says it afterwards, once it is
+// their own choice.
+const TrainingChoiceModal = ({blocName, defaultTraining = true, onConfirm, saving}) => {
+  const [choice,setChoice] = useState(defaultTraining ? "training" : "standard");
+  const option = (value, title, help) => {
+    const picked = choice === value;
+    return React.createElement('button',{
+      type:"button",
+      onClick:()=>setChoice(value),
+      "aria-pressed":picked,
+      style:{
+        width:"100%",textAlign:"left",display:"flex",alignItems:"flex-start",gap:10,
+        padding:12,borderRadius:11,marginBottom:9,fontFamily:UI_FONT,
+        border:picked ? "1px solid rgba(245,200,66,.4)" : "1px solid var(--border)",
+        background:picked ? "rgba(245,200,66,.06)" : "rgba(25,27,36,.45)"
+      }
+    },
+      React.createElement('span',{style:{
+        width:17,height:17,borderRadius:999,flexShrink:0,marginTop:1,position:"relative",
+        border:picked ? "1.5px solid #f5c842" : "1.5px solid #3A414C",
+        background:picked ? "radial-gradient(circle, #f5c842 0 45%, transparent 46%)" : "transparent"
+      }}),
+      React.createElement('span',{style:{minWidth:0}},
+        React.createElement('span',{style:{display:"block",fontSize:13.5,fontWeight:800,color:"var(--text)",marginBottom:3}},title),
+        React.createElement('span',{style:{display:"block",fontSize:11.5,color:"var(--muted)",lineHeight:1.4}},help)
+      )
+    );
+  };
+  return React.createElement('div',{className:"overlay center-mobile"},
+    React.createElement('div',{className:"modal",onClick:e=>e.stopPropagation(),style:{maxWidth:340,padding:"20px 18px 16px",fontFamily:UI_FONT}},
+      React.createElement('div',{style:{fontFamily:DISPLAY_FONT,fontWeight:800,fontSize:19,lineHeight:1.1,marginBottom:6}},"Your first month"),
+      React.createElement('div',{style:{color:"var(--muted)",fontSize:12.5,lineHeight:1.45,marginBottom:14}},
+        `${blocName || "This Bloc"} has been running a while. Ease in, or start on the same terms as everyone else.`),
+      option("training","Ease in","Log and compete as normal. You cannot be penalised this month."),
+      option("standard","Same terms as everyone","Penalties apply from your first month."),
+      React.createElement('button',{
+        disabled:saving,
+        onClick:()=>onConfirm(choice),
+        style:{width:"100%",marginTop:4,background:"#4ECDC4",color:"#050909",padding:14,borderRadius:12,fontFamily:UI_FONT,fontSize:15,fontWeight:900,opacity:saving?.6:1}
+      }, saving ? "Saving..." : "Confirm")
+    )
+  );
+};
+
 const ProrationChoiceModal = ({monthName,fullMas,daysRemaining,daysInMonth,proratedMas,onKeep,onProrate,savingChoice}) => React.createElement('div',{className:"overlay center-mobile"},
   React.createElement('div',{className:"modal pi",style:{maxWidth:430}},
     React.createElement('div',{style:{fontWeight:800,fontSize:20,marginBottom:10}},"You're starting mid-month."),
@@ -1006,4 +1053,4 @@ const PinModal = ({prompt, onConfirm, onClose}) => {
 
 // ─── SETTLEMENT SCREEN ───────────────────────────────────────────────────────
 
-export { SETTINGS_DEFAULTS, TIME_ZONE_OPTIONS, GroupSettingsFields, GroupCreateModal, GroupSettingsModal, CropModal, LogModal, DeleteModal, SitOutModal, SoloModal, ProrationChoiceModal, TextEntryModal, NoticeModal, ImageLightbox, PinModal };
+export { SETTINGS_DEFAULTS, TIME_ZONE_OPTIONS, GroupSettingsFields, GroupCreateModal, GroupSettingsModal, CropModal, LogModal, DeleteModal, SitOutModal, SoloModal, ProrationChoiceModal, TrainingChoiceModal, TextEntryModal, NoticeModal, ImageLightbox, PinModal };

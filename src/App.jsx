@@ -53,6 +53,7 @@ import {
   reviewSitOutData,
   requestSoloData,
   reviewSoloData,
+  setTrainingChoiceData,
   deleteAccountData,
   checkAuthEmailExistsData,
   sendOtpData,
@@ -87,7 +88,7 @@ import {
 } from "./lib/swipeRelease.js";
 import { Spinner, TodayScreenSkeleton, BlocSwitcherSkeleton, InstallBanner, TodayPageErrorBoundary, InBlocPageErrorBoundary } from "./components/primitives.jsx";
 import { PreviewLanding, InvalidInviteScreen, SignedOutLanding, ProfileModal, JoinGroupModal, AuthFlowModal, DisplayNameSetupScreen, IdentitySetup, CreatedBlocInviteScreen, GroupHome, GroupAccessNotice, LocalDevImpersonationBar } from "./components/authShell.jsx";
-import { GroupCreateModal, ProrationChoiceModal } from "./modals/modals.jsx";
+import { GroupCreateModal, ProrationChoiceModal, TrainingChoiceModal } from "./modals/modals.jsx";
 import { Nav } from "./pages/Nav.jsx";
 import { TodayPage } from "./pages/TodayPage.jsx";
 import { ActivityPage } from "./pages/ActivityPage.jsx";
@@ -328,6 +329,7 @@ const App = () => {
   const [inviteAlreadyMemberNotice,setInviteAlreadyMemberNotice]=useState(null);
   const [pendingProrationGroupId,setPendingProrationGroupId]=useState(null);
   const [prorationSavingChoice,setProrationSavingChoice]=useState(null);
+  const [trainingChoiceSaving,setTrainingChoiceSaving]=useState(false);
   const [installPrompt,setInstallPrompt]=useState(null);
   const [installDismissed,setInstallDismissed]=useState(()=>{try{return localStorage.getItem(INSTALL_DISMISSED_KEY)==="1";}catch{return false;}});
   const [standalone,setStandalone]=useState(()=>isStandalone());
@@ -517,6 +519,18 @@ const App = () => {
   const currentUser = currentMembership?.displayName || null;
   const isGroupAdmin = currentGroup ? (currentGroup.adminUserId ? currentGroup.adminUserId === effectiveAuthSession?.userId : currentGroup.adminName === currentUser) : false;
   const prorationGroup = pendingProrationGroupId ? appState.groups?.[pendingProrationGroupId] || null : null;
+
+  // The joiner's one-time question. Only in a Bloc that has already closed a
+  // month - before that the admin's create-time switch governs the whole
+  // founding roster, and offering an opt-out would just overrule it in the very
+  // month it was meant to decide.
+  const needsTrainingChoice = !!(
+    currentGroup
+    && currentUser
+    && (currentGroup.monthHistory || []).length > 0
+    && currentGroup.joinedMonthByName?.[currentUser] === curKey
+    && !currentGroup.trainingDecisions?.[currentUser]?.[curKey]
+  );
 
   setActiveSessionUserId(effectiveAuthSession?.userId || "");
   syncActiveGroupGlobals(currentGroup);
@@ -1288,6 +1302,22 @@ const App = () => {
     });
   },[currentGroup, handleUpdateGroupSettings]);
 
+  const handleTrainingChoice = useCallback(async(choice)=>{
+    if (!selectedGroupId) return;
+    setTrainingChoiceSaving(true);
+    try {
+      const result = await setTrainingChoiceData({
+        groupId: selectedGroupId,
+        userId: effectiveAuthSession?.userId,
+        choice
+      });
+      if (result?.ok && result.data) applyData(result.data);
+      else if (result?.error) window.alert(result.error);
+    } finally {
+      setTrainingChoiceSaving(false);
+    }
+  },[selectedGroupId, effectiveAuthSession?.userId, applyData]);
+
   const handleSeasonProrationChoice = useCallback(async(choice)=>{
     if (!pendingProrationGroupId || !currentUser) return;
     setProrationSavingChoice(choice);
@@ -1606,12 +1636,12 @@ const App = () => {
     persistGroupSelection(null);
   };
   const startBlocSwitchSwipe = useCallback((e) => {
-    if (page !== "today" || showTodayLog || showSettings || showProfileModal || showStream || showJoinModal || authStep || prorationGroup) return;
+    if (page !== "today" || showTodayLog || showSettings || showProfileModal || showStream || showJoinModal || authStep || prorationGroup || needsTrainingChoice) return;
     if (e.target?.closest?.(".in-bloc-profile-layer")) return;
     const t = e.touches?.[0];
     if (!t || t.clientX > 72) return;
     blocSwipeRef.current = {sx:t.clientX, sy:t.clientY, st:performance.now(), active:true, mode:null};
-  },[authStep, page, prorationGroup, showJoinModal, showProfileModal, showSettings, showStream, showTodayLog]);
+  },[authStep, needsTrainingChoice, page, prorationGroup, showJoinModal, showProfileModal, showSettings, showStream, showTodayLog]);
   const moveBlocSwitchSwipe = useCallback((e) => {
     const s = blocSwipeRef.current;
     const t = e.touches?.[0];
@@ -1793,13 +1823,13 @@ const App = () => {
     setPageSwipeTarget(null);
   },[applyPageTransforms]);
   const startPageSwipe = useCallback((e) => {
-    if (pageTapTransition || showSettings || showTodayLog || showProfileModal || showStream || showJoinModal || authStep || prorationGroup || logCommentScreen) return;
+    if (pageTapTransition || showSettings || showTodayLog || showProfileModal || showStream || showJoinModal || authStep || prorationGroup || needsTrainingChoice || logCommentScreen) return;
     if (e.target?.closest?.(".in-bloc-profile-layer,input,textarea,select,[contenteditable='true']")) return;
     const t = e.touches?.[0];
     if (!t) return;
     if (page === "today" && t.clientX <= 96) return;
     pageSwipeRef.current = {sx:t.clientX, sy:t.clientY, st:performance.now(), active:true, mode:null, target:null,priority:e.target?.closest?.("[data-page-swipe-priority='horizontal-scroll']") ? "horizontal-scroll" : null};
-  },[authStep, logCommentScreen, page, pageTapTransition, prorationGroup, showJoinModal, showProfileModal, showSettings, showStream, showTodayLog]);
+  },[authStep, logCommentScreen, needsTrainingChoice, page, pageTapTransition, prorationGroup, showJoinModal, showProfileModal, showSettings, showStream, showTodayLog]);
   const movePageSwipe = useCallback((e) => {
     const s = pageSwipeRef.current;
     const t = e.touches?.[0];
@@ -3040,6 +3070,12 @@ const App = () => {
     showJoinModal && !authStep && React.createElement(JoinGroupModal,{inviteContext,joinCode,setJoinCode,onClose:handleJoinModalClose,onJoin:handleJoinGroup,joining:joiningGroup,error:inviteError,signedIn:true}),
     showProfileModal && React.createElement(ProfileModal,{email:authSession?.email,onSignOut:handleSwitchUser,onClose:()=>setShowProfileModal(false),showDisplayName:true,currentDisplayName:currentUser,onSaveDisplayName:handleSaveProfileFromModal,saving:profileSaving,saveError:profileError,onLeaveBloc:handleLeaveBloc,onDeleteAccount:handleDeleteAccount,currentPaymentMethods:effectiveProfile?.paymentMethods||[],onSavePayment:handleSavePaymentHandle,savingPayment:paymentSaving,paymentError:paymentError}),
     React.createElement(BlocStream,{open:showStream,groupName:currentGroup.name,blocId:currentGroup.id,initialBlocId:streamFocusBlocId,initialScrollTop:streamReturnScrollTop,initialUnreadCount:streamUnreadCount,currentUserId:effectiveAuthSession?.userId,members:Object.values(currentGroup.memberships||{}).map(m=>({id:m.userId,name:m.displayName,photoUrl:appState.profiles?.[m.userId]?.profilePhotoUrl||""})),streamBlocs:visibleGroups.map(group=>({id:group.id,name:group.name,members:Object.values(group.memberships||{}).map(m=>({id:m.userId,name:m.displayName,photoUrl:appState.profiles?.[m.userId]?.profilePhotoUrl||""}))})),onSeasonClosedTap:handleStreamSeasonClosedTap,onUnreadCountChange:(groupId,count)=>{if(groupId===currentGroup.id)setStreamUnreadCount(Number(count)||0);},onOpenLogComments:handleOpenLogComments,onClose:()=>{setShowStream(false);setStreamFocusBlocId(null);setStreamReturnScrollTop(null);refreshStreamUnreadCount(currentGroup.id);}}),
+    needsTrainingChoice && React.createElement(TrainingChoiceModal,{
+      blocName: currentGroup.name,
+      defaultTraining: currentGroup.settings?.trainingWheels !== false,
+      onConfirm: handleTrainingChoice,
+      saving: trainingChoiceSaving
+    }),
     prorationGroup && React.createElement(ProrationChoiceModal,{
       monthName: getCurrentMonthSummary(prorationGroup).monthName,
       fullMas: prorationGroup.settings?.minTarget || MIN_TARGET,

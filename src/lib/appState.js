@@ -443,6 +443,28 @@ function normalizeTraining(training, memberOrder = []) {
   return normalized;
 }
 
+// Whether a member has already answered the training question for a month.
+// Absent means never asked; present means asked and answered, whichever way
+// they answered. Without this, someone choosing "same terms as everyone" would
+// be asked again on every open, because choosing it leaves no training entry.
+function normalizeTrainingDecisions(decisions, memberOrder = []) {
+  const source = decisions && typeof decisions === "object" ? decisions : {};
+  const names = uniqueNames([...memberOrder, ...Object.keys(source)]);
+  const normalized = {};
+  names.forEach(name => {
+    const monthMap = source?.[name] && typeof source[name] === "object" ? source[name] : {};
+    normalized[name] = Object.fromEntries(
+      Object.entries(monthMap).filter(([monthKey, value]) => monthKey && value).map(([monthKey]) => [monthKey, true])
+    );
+  });
+  return normalized;
+}
+
+function hasDecidedTrainingForMonth(group, memberName, monthKey) {
+  if (!memberName || !monthKey) return false;
+  return !!group?.trainingDecisions?.[memberName]?.[monthKey];
+}
+
 function isTrainingForMonth(groupOrMonth, memberName, monthKey) {
   if (!memberName || !monthKey) return false;
   return !!groupOrMonth?.training?.[memberName]?.[monthKey];
@@ -1576,6 +1598,7 @@ function normalizeGroupState(group) {
     excused,
     solo: normalizeSolo(group?.solo, memberOrder),
     training: normalizeTraining(group?.training, memberOrder),
+    trainingDecisions: normalizeTrainingDecisions(group?.trainingDecisions, memberOrder),
     seasonOverrides: normalizeSeasonOverrides(group?.seasonOverrides),
     sitOutRequests: pruneSitOutRequestsForRead(group?.sitOutRequests, group?.lastMonth || curKey),
     soloRequests: pruneSoloRequestsForRead(group?.soloRequests, group?.lastMonth || curKey),
@@ -2004,8 +2027,9 @@ function checkRollover(data) {
   const newExcused = {};
   const newSolo = {};
   const newTraining = {};
+  const newTrainingDecisions = {};
 
-  return { logs: newLogs, excused: newExcused, solo: newSolo, training: newTraining, monthHistory: newHistory, lastMonth: expectedKey };
+  return { logs: newLogs, excused: newExcused, solo: newSolo, training: newTraining, trainingDecisions: newTrainingDecisions, monthHistory: newHistory, lastMonth: expectedKey };
 }
 
 // ─── API SYNC ─────────────────────────────────────────────────────────────────
@@ -2135,6 +2159,7 @@ export {
   getSoloTargetForMonth,
   isTrainingForMonth,
   isExemptFromStakes,
+  hasDecidedTrainingForMonth,
   normalizeTraining,
   missedTargetInMonth,
   getClosedMonthBefore,

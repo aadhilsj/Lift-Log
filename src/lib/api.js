@@ -483,6 +483,12 @@ async function reviewSoloData(payload) {
   return { ok:true, data: normalizeAppState(result.body) };
 }
 
+async function setTrainingChoiceData(payload) {
+  const result = await postApi("training-choice", payload);
+  if (!result.ok) return { ok:false, error: result.error || "Unable to save your choice" };
+  return { ok:true, data: normalizeAppState(result.body) };
+}
+
 async function deleteAccountData(userId) {
   const result = await postApi("delete-account", { userId });
   if (!result.ok) return { ok:false, error: result.error || "Unable to delete account" };
@@ -922,6 +928,7 @@ export {
   reviewSitOutData,
   requestSoloData,
   reviewSoloData,
+  setTrainingChoiceData,
   deleteAccountData,
   checkAuthEmailExistsData,
   sendOtpData,

@@ -43,6 +43,7 @@ const {
   calcPenalties,
   isTrainingForMonth,
   isExemptFromStakes,
+  hasDecidedTrainingForMonth,
   isSoloForMonth,
   missedTargetInMonth,
   getRedemptionMark,
@@ -232,6 +233,27 @@ test("someone who genuinely missed still earns the mark", () => {
   assert.equal(missedTargetInMonth(july, "Dee"), true);
   assert.equal(getRedemptionMark([july], "Dee", MONTH, false), "redemption");
   assert.equal(getRedemptionMark([july], "Dee", MONTH, true), "redeemed");
+});
+
+test("an unanswered joiner is not recorded as having decided", () => {
+  const group = makeGroup({ training: { Cal: { [MONTH]: true } } });
+  assert.equal(hasDecidedTrainingForMonth(group, "Cal", MONTH), false,
+    "being granted training is not the same as having answered");
+});
+
+test("choosing the Bloc default still counts as answered", () => {
+  // The reason the decision is recorded separately: someone who picks "same
+  // terms as everyone" leaves no training entry behind, so without this they
+  // would be asked again every time they opened the app.
+  const group = makeGroup({ trainingDecisions: { Cal: { [MONTH]: true } } });
+  assert.equal(hasDecidedTrainingForMonth(group, "Cal", MONTH), true);
+  assert.equal(isTrainingForMonth(group, "Cal", MONTH), false);
+});
+
+test("a decision does not leak into another month or another member", () => {
+  const group = makeGroup({ trainingDecisions: { Cal: { [MONTH]: true } } });
+  assert.equal(hasDecidedTrainingForMonth(group, "Cal", "2026-8"), false);
+  assert.equal(hasDecidedTrainingForMonth(group, "Dee", MONTH), false);
 });
 
 test("a Bloc with nobody on training behaves exactly as before", () => {

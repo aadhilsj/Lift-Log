@@ -58,6 +58,7 @@ const WRITE_HYDRATION_PARITY_DEFAULT_ACTIONS = [
   "sitout-review",
   "solo-request",
   "solo-review",
+  "training-choice",
   "add-log",
   "multi-log",
   "reaction",
@@ -435,6 +436,7 @@ function buildCurrentOpenComparisonGroup(group) {
     excused: pickCurrentMonthOnlyMap(group.excused || {}, monthKey),
     solo: pickCurrentMonthOnlyMap(group.solo || {}, monthKey),
     training: pickCurrentMonthOnlyMap(group.training || {}, monthKey),
+    trainingDecisions: pickCurrentMonthOnlyMap(group.trainingDecisions || {}, monthKey),
     seasonOverrides: seasonOverrides[monthKey] ? { [monthKey]: seasonOverrides[monthKey] } : {},
     sitOutRequests: sitOutRequests[monthKey] ? { [monthKey]: sitOutRequests[monthKey] } : {},
     soloRequests: soloRequests[monthKey] ? { [monthKey]: soloRequests[monthKey] } : {},
@@ -1106,6 +1108,7 @@ function normalizeGroup(group) {
   const normalizedExcused = normalizeExcused(group?.excused, memberOrder);
   const normalizedSolo = normalizeSolo(group?.solo, memberOrder);
   const normalizedTraining = normalizeTraining(group?.training, memberOrder);
+  const normalizedTrainingDecisions = normalizeTrainingDecisions(group?.trainingDecisions, memberOrder);
   const adminUserId = normalizeAdminUserId(group?.adminUserId, memberships, group?.adminName);
   const normalized = {
     id: typeof group?.id === "string" && group.id ? group.id : `group-${Date.now()}`,
@@ -1126,6 +1129,7 @@ function normalizeGroup(group) {
     excused: normalizedExcused,
     solo: normalizedSolo,
     training: normalizedTraining,
+    trainingDecisions: normalizedTrainingDecisions,
     seasonOverrides: normalizeSeasonOverrides(group?.seasonOverrides),
     sitOutRequests: normalizeSitOutRequests(group?.sitOutRequests),
     soloRequests: normalizeSoloRequests(group?.soloRequests),
@@ -1290,6 +1294,19 @@ function normalizeTraining(training, memberOrder = []) {
         Object.entries(monthEntries)
           .filter(([monthKey, value]) => monthKey && value)
           .map(([monthKey]) => [monthKey, true])
+      )];
+    })
+  );
+}
+
+function normalizeTrainingDecisions(decisions, memberOrder = []) {
+  const source = decisions && typeof decisions === "object" ? decisions : {};
+  const names = uniqueNames([...memberOrder, ...Object.keys(source)]);
+  return Object.fromEntries(
+    names.map(name => {
+      const monthEntries = source?.[name] && typeof source[name] === "object" ? source[name] : {};
+      return [name, Object.fromEntries(
+        Object.entries(monthEntries).filter(([monthKey, value]) => monthKey && value).map(([monthKey]) => [monthKey, true])
       )];
     })
   );
@@ -2231,6 +2248,7 @@ function rolloverGroupIfNeeded(group) {
     excused: {},
     solo: {},
     training: {},
+    trainingDecisions: {},
     monthHistory: [...group.monthHistory, snapshot],
     lastMonth: expectedKey
   });
@@ -7733,6 +7751,53 @@ function applySoloRequest(current, payload) {
   };
 }
 
+// The joiner's one-time answer, taken after they land rather than mid-invite.
+// Only their own join month, only once, and only in a Bloc that has already
+// run a month - before that the admin's create-time switch governs everyone.
+function applyTrainingChoice(current, payload) {
+  const actor = String(payload?.actor || "").trim();
+  const groupId = String(payload?.groupId || "").trim();
+  const wantsTraining = payload?.choice === "training";
+  const base = rolloverStateIfNeeded(current);
+  const group = base.groups[groupId];
+  if (!group) {
+    const error = new Error("Bloc not found");
+    error.status = 404;
+    throw error;
+  }
+  if (!actor) {
+    const error = new Error("You are not a member of this Bloc");
+    error.status = 403;
+    throw error;
+  }
+  const monthKey = group.lastMonth;
+  if (!(group.monthHistory || []).length) {
+    const error = new Error("This Bloc has not finished a month yet");
+    error.status = 409;
+    throw error;
+  }
+  if (group.trainingDecisions?.[actor]?.[monthKey]) {
+    const error = new Error("You have already made this choice");
+    error.status = 409;
+    throw error;
+  }
+  const training = { ...(group.training || {}) };
+  const actorMonths = { ...(training[actor] || {}) };
+  if (wantsTraining) actorMonths[monthKey] = true;
+  else delete actorMonths[monthKey];
+  training[actor] = actorMonths;
+
+  const nextGroup = normalizeGroup({
+    ...group,
+    training,
+    trainingDecisions: {
+      ...(group.trainingDecisions || {}),
+      [actor]: { ...(group.trainingDecisions?.[actor] || {}), [monthKey]: true }
+    }
+  });
+  return { ...base, groups: { ...base.groups, [groupId]: nextGroup } };
+}
+
 function applySoloReview(current, payload) {
   const actor = String(payload?.actor || "").trim();
   const actorUserId = String(payload?.actorUserId || "").trim();
@@ -8082,6 +8147,7 @@ function renameGroupDisplayNameSurfaces(group, userId, oldName, displayName, opt
     excused:           renameKey(group.excused           || {}, oldName, displayName),
     solo:              renameKey(group.solo              || {}, oldName, displayName),
     training:          renameKey(group.training          || {}, oldName, displayName),
+    trainingDecisions: renameKey(group.trainingDecisions || {}, oldName, displayName),
     joinedMonthByName: renameKey(group.joinedMonthByName || {}, oldName, displayName),
     sitOutRequests:    nextSitOutRequests,
     soloRequests:      nextSoloRequests,
@@ -10019,6 +10085,26 @@ export default async function handler(req, res) {
           );
         }
         const readableState = await persistAndScopeReadableStateForUser(updated, `solo-request:${payload.groupId}:${canonicalActor || actor || auth.user.id}`, null, auth.user.id);
+        return res.status(200).json(readableState);
+      }
+
+      if (payload?.action === "training-choice") {
+        const auth = await requireAuthenticatedContext(req, payload, current);
+        const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
+        const canonicalActor = assertGroupMembershipForUser(canonicalState, payload.groupId, auth.user.id);
+        const updated = applyTrainingChoice(canonicalState, { ...payload, actor: canonicalActor, actorUserId: auth.user.id });
+        const choiceGroup = updated.groups?.[payload.groupId];
+        const choiceMonthKey = choiceGroup?.lastMonth;
+        if (choiceGroup && choiceMonthKey) {
+          await upsertSeasonMemberTrainingInCanonical(
+            payload.groupId,
+            choiceMonthKey,
+            canonicalActor,
+            auth.user.id,
+            isTrainingForMonth(choiceGroup, canonicalActor, choiceMonthKey)
+          );
+        }
+        const readableState = await persistAndScopeReadableStateForUser(updated, `training-choice:${payload.groupId}:${canonicalActor}`, null, auth.user.id);
         return res.status(200).json(readableState);
       }
 
