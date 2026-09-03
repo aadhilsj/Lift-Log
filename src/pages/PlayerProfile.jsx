@@ -19,9 +19,11 @@ import {
   getHistoricalMemberNamesForMonth,
   getHistoricalGroupMemberNames,
   isSoloForMonth,
+  isTrainingForMonth,
+  getSoloTargetForMonth,
+  getLeagueMonthSummaryForTimestamp,
   isExemptFromStakes,
   getRedemptionMark,
-  getSoloTargetForMonth,
   fmtCurrency,
   getCountedLogs,
   getMonthPartsFromKey,
@@ -31,7 +33,7 @@ import {
 import {
   isMobile
 } from "../lib/utils.js";
-import { Avatar, WorkoutTypeIcon, Bar, Card, SelectField, TargetHitHexIcon, AppIcon , RedemptionShieldIcon, RedemptionNoteModal } from "../components/primitives.jsx";
+import { Avatar, WorkoutTypeIcon, Bar, Card, SelectField, TargetHitHexIcon, AppIcon , RedemptionShieldIcon, RedemptionNoteModal, TrainingSproutIcon, SoloFlagIcon, TrainingNoteModal, SoloNoteModal } from "../components/primitives.jsx";
 import { DeleteModal } from "../modals/modals.jsx";
 import { ProfileStatsPanel } from "../components/ProfileStatsPanel.jsx";
 import { ShareSticker } from "../components/ShareSticker.jsx";
@@ -52,7 +54,7 @@ const profileMonthOptionLabel = month => month ? `${MONTH_NAMES[month.month]} '$
 // redemption note is a sentence, so it needs the month spelled out.
 const PROFILE_FULL_MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
-const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChange,groupSettings,onDeleteLog,initialMonthKey,memberUserId,currentUserId,visibleGroups,accountCreatedAt,profilePhotoUrl}) => {
+const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevealChange,groupSettings,onDeleteLog,initialMonthKey,memberUserId,currentUserId,visibleGroups,accountCreatedAt,profilePhotoUrl}) => {
   const compactMobile = isMobile();
   const [deleteTarget,setDeleteTarget]=useState(null);
   const [deleteChoices,setDeleteChoices]=useState(null);
@@ -236,6 +238,21 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
   // The one place the mark gets its name. Kept off the leaderboard rows, where
   // the shield alone has to sit beside a name without crowding it.
   const [showRedemptionNote,setShowRedemptionNote]=useState(false);
+  const [openStatusNote,setOpenStatusNote]=useState(null);
+  // The selected month's own exemptions. A closed month carries its own maps in
+  // the snapshot; the open month is only knowable from the live group.
+  const selMonthSource = isCurMonth ? group : selHistMonth;
+  const selIsTraining = !!(selectedMonthKey && isTrainingForMonth(selMonthSource, name, selectedMonthKey));
+  const selIsSolo = !!(selectedMonthKey && isSoloForMonth(selMonthSource, name, selectedMonthKey));
+  const selSoloTarget = selIsSolo ? getSoloTargetForMonth(selMonthSource, name, selectedMonthKey) : null;
+  // A Bloc created in the month being viewed is in its own opening month, so
+  // every training grant there belongs to the Bloc rather than to one arrival.
+  const selBlocOpening = (() => {
+    if (!selIsTraining || !group?.createdAt || !selectedMonthKey) return false;
+    const created = getLeagueMonthSummaryForTimestamp(group.createdAt, group?.settings?.timeZone);
+    return created?.monthKey === selectedMonthKey;
+  })();
+
   const selRedemptionMark = getRedemptionMark(
     monthHistory,
     name,
@@ -510,6 +527,19 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
   );
 
   return React.createElement('div',{ref:surfaceRef,onTouchStart:startSwipeBack,onTouchMove:moveSwipeBack,onTouchEnd:endSwipeBack,onTouchCancel:e=>{e.stopPropagation();swipeRef.current={sx:0,sy:0,active:false,mode:null};onSwipeRevealChange?.(false);setDragging(false);resetSwipeTransform();},style:{minHeight:"100dvh",background:"var(--bg-gradient)",backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)",transform:dragXRef.current?`translateX(${dragXRef.current}px)`:"translateX(0)",transition:dragging?"none":"transform .08s ease-out",boxShadow:dragXRef.current?"-18px 0 34px rgba(0,0,0,.28)":"none",willChange:dragging||dragXRef.current?"transform":"auto",touchAction:"pan-y",overscrollBehavior:"contain"}},
+    openStatusNote === "training" && React.createElement(TrainingNoteModal,{
+      memberName: name,
+      isSelf: currentUserId ? memberUserId === currentUserId : false,
+      blocOpening: selBlocOpening,
+      onClose: ()=>setOpenStatusNote(null)
+    }),
+    openStatusNote === "solo" && React.createElement(SoloNoteModal,{
+      memberName: name,
+      isSelf: currentUserId ? memberUserId === currentUserId : false,
+      monthName: PROFILE_FULL_MONTH_NAMES[selMonthNum] || "",
+      target: selSoloTarget,
+      onClose: ()=>setOpenStatusNote(null)
+    }),
     showRedemptionNote && React.createElement(RedemptionNoteModal,{
       redeemed: selRedemptionMark === "redeemed",
       memberName: name,
@@ -572,6 +602,18 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
 	      React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,marginBottom:12}},
 	        React.createElement('div',{style:{display:"flex",alignItems:"center",gap:7,minWidth:0}},
 	          React.createElement('div',{style:{fontWeight:800,fontSize:14}},`${selLabel} · Log`),
+	          selIsTraining&&React.createElement('button',{
+	            type:"button",
+	            onClick:()=>setOpenStatusNote("training"),
+	            "aria-label":"About this first month",
+	            style:{display:"inline-flex",alignItems:"center",flexShrink:0,padding:0,background:"transparent",border:"none"}
+	          }, React.createElement(TrainingSproutIcon,{size:13})),
+	          selIsSolo&&React.createElement('button',{
+	            type:"button",
+	            onClick:()=>setOpenStatusNote("solo"),
+	            "aria-label":"About solo mode",
+	            style:{display:"inline-flex",alignItems:"center",flexShrink:0,padding:0,background:"transparent",border:"none"}
+	          }, React.createElement(SoloFlagIcon,{size:13})),
 	          selRedemptionMark&&React.createElement('button',{
 	            type:"button",
 	            onClick:()=>setShowRedemptionNote(true),

@@ -24,7 +24,7 @@ import {
 import {
   isMobile
 } from "../lib/utils.js";
-import { Avatar, RankIcon, TrophyIcon, Card, SelectField, PlayerProfileErrorBoundary, MemberTag } from "../components/primitives.jsx";
+import { Avatar, RankIcon, TrophyIcon, Card, SelectField, PlayerProfileErrorBoundary, MemberTag, TrainingSproutIcon, SoloFlagIcon } from "../components/primitives.jsx";
 import { PlayerProfile } from "../pages/PlayerProfile.jsx";
 import { SettlementScreen } from "../pages/SettlementScreen.jsx";
 
@@ -132,8 +132,8 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
           React.createElement('span',{style:{fontWeight:700,fontSize:14,color:u.isOut?"var(--muted)":"var(--text)",marginLeft:6,textDecoration:"underline",textDecorationColor:"rgba(255,255,255,.15)"}},u.name)
         ),
         u.isOut&&React.createElement('span',{className:"mono",style:{fontSize:9,color:"var(--muted2)",marginLeft:6}},"excused"),
-        u.isSolo&&React.createElement('span',{style:{marginLeft:6}},React.createElement(MemberTag,{tone:"solo"},"Solo")),
-        u.isTraining&&React.createElement('span',{style:{marginLeft:6}},React.createElement(MemberTag,{tone:"training"},"Training")),
+        u.isSolo&&React.createElement('span',{style:{marginLeft:6,display:"inline-flex"}},React.createElement(SoloFlagIcon,{size:13})),
+        u.isTraining&&React.createElement('span',{style:{marginLeft:6,display:"inline-flex"}},React.createElement(TrainingSproutIcon,{size:13})),
         React.createElement('div',{style:{flex:1}}),
         React.createElement('span',{className:"mono",style:{fontSize:17,fontWeight:700,marginRight:12,color:u.isOut?"var(--muted)":"var(--text)"}},u.isOut?"—":u.count),
         React.createElement('span',{className:"mono",style:{fontSize:12,minWidth:74,textAlign:"right",color:isWin&&losers.length>0?"#4ECDC4":isLose?"var(--red)":"var(--muted)"}},
@@ -178,7 +178,7 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
     const profileMonthKey = typeof viewPlayer === "string" ? null : viewPlayer?.monthKey;
     return React.createElement('div',{style:{maxWidth:840,margin:"0 auto"}},
       React.createElement(PlayerProfileErrorBoundary,{profileName,onBack:()=>setViewPlayer(null)},
-        React.createElement(PlayerProfile,{name:profileName,logs,excused,monthHistory,onBack:()=>setViewPlayer(null),groupSettings,initialMonthKey:profileMonthKey})
+        React.createElement(PlayerProfile,{group:group,name:profileName,logs,excused,monthHistory,onBack:()=>setViewPlayer(null),groupSettings,initialMonthKey:profileMonthKey})
       )
     );
   }

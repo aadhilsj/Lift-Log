@@ -111,6 +111,34 @@ const MemberTag = ({tone="prorated",children}) => React.createElement('span',{
   }
 }, children);
 
+// Training and Solo marks. Filled silhouettes with no interior gaps, because a
+// hollow or dashed shape at 13px is just a smudge - and hollow-versus-filled is
+// already the shield's own language, which these must never borrow.
+//
+// Each is scaled so its drawn area covers roughly the same share of the 24x24
+// box as the shield does. Drawn at their natural size they filled about 30% to
+// the shield's 56%, and sitting beside it they read as undersized.
+const TrainingSproutIcon = ({size=13,color="#f5c842"}) => React.createElement('svg',{
+  width:size, height:size, viewBox:"0 0 24 24", role:"img", "aria-label":"Training wheels",
+  style:{flexShrink:0,display:"block"}
+},
+  React.createElement('g',{transform:"translate(12,11.5) scale(1.35) translate(-12,-12)"},
+    React.createElement('path',{d:"M12 21 V12.4",fill:"none",stroke:color,strokeWidth:"1.9",strokeLinecap:"round"}),
+    React.createElement('path',{d:"M11.6 13.2 C8.2 13.2 6.2 11 6.2 7.7 C9.6 7.7 11.6 9.9 11.6 13.2 Z",fill:color}),
+    React.createElement('path',{d:"M12.4 11.6 C12.4 8.3 14.4 6.1 17.8 6.1 C17.8 9.4 15.8 11.6 12.4 11.6 Z",fill:color})
+  )
+);
+
+const SoloFlagIcon = ({size=13,color="#4ECDC4"}) => React.createElement('svg',{
+  width:size, height:size, viewBox:"0 0 24 24", role:"img", "aria-label":"Solo mode",
+  style:{flexShrink:0,display:"block"}
+},
+  React.createElement('g',{transform:"translate(12,12) scale(1.34) translate(-12,-12)"},
+    React.createElement('path',{d:"M7.4 20.4 V4.4",fill:"none",stroke:color,strokeWidth:"1.9",strokeLinecap:"round"}),
+    React.createElement('path',{d:"M8.6 5 H18.4 l-2.6 3.6 2.6 3.6 H8.6 Z",fill:color})
+  )
+);
+
 // Redemption mark. Hollow red is a month still owed an answer; filled gold is
 // the answer given. One silhouette in two states, so the flip teaches itself.
 const RedemptionShieldIcon = ({size=14,redeemed=false}) => {
@@ -562,51 +590,44 @@ const TodayPageErrorBoundary = ({resetKey,children}) => React.createElement(
 // explain one, so tapping it says the sentence out loud. Dismissed by the
 // close control or by tapping the backdrop - there is nothing to acknowledge
 // here, so there is no confirm button to press.
-const RedemptionNoteModal = ({redeemed=false,memberName="",isSelf=false,monthName="",onClose}) => {
-  // Portalled to document.body on purpose. PlayerProfile's root carries a
-  // translateX for its back-swipe, and Safari treats any transform as the
-  // containing block for fixed descendants - so rendered in place this landed
-  // wherever the profile surface happened to be rather than in the middle of
-  // the screen, with the page still scrolling behind it.
-  //
-  // Nothing behind it may scroll while it is open. overflow:hidden on the body
-  // is not enough on its own - the profile layer owns its own scroll container
-  // and would keep moving - so this mirrors the capture-phase touchmove block
-  // the auth surface already uses in App.jsx.
+// The shell every status note shares. Portalled to document.body on purpose:
+// PlayerProfile's root carries a translateX for its back-swipe, and Safari
+// treats any transform as the containing block for fixed descendants, so
+// rendered in place a note lands wherever the profile surface happens to be
+// rather than in the middle of the screen.
+//
+// Nothing behind it may scroll while it is open. overflow:hidden on the body
+// is not enough on its own - the profile layer owns its own scroll container -
+// so this mirrors the capture-phase touchmove block the auth surface uses.
+const StatusNoteModal = ({icon,title,tone="#4ECDC4",body,onClose}) => {
   useEffect(() => {
-    const body = document.body;
+    const bodyEl = document.body;
     const root = document.documentElement;
     const previous = {
-      bodyOverflow: body.style.overflow,
+      bodyOverflow: bodyEl.style.overflow,
       rootOverflow: root.style.overflow,
-      bodyTouch: body.style.touchAction,
-      bodyOverscroll: body.style.overscrollBehavior
+      bodyTouch: bodyEl.style.touchAction,
+      bodyOverscroll: bodyEl.style.overscrollBehavior
     };
     const blockScroll = event => {
       if (event.cancelable) event.preventDefault();
     };
-    body.style.overflow = "hidden";
+    bodyEl.style.overflow = "hidden";
     root.style.overflow = "hidden";
-    body.style.touchAction = "none";
-    body.style.overscrollBehavior = "none";
+    bodyEl.style.touchAction = "none";
+    bodyEl.style.overscrollBehavior = "none";
     document.addEventListener("touchmove", blockScroll, { passive:false, capture:true });
     document.addEventListener("wheel", blockScroll, { passive:false, capture:true });
     return () => {
       document.removeEventListener("touchmove", blockScroll, { capture:true });
       document.removeEventListener("wheel", blockScroll, { capture:true });
-      body.style.overflow = previous.bodyOverflow;
+      bodyEl.style.overflow = previous.bodyOverflow;
       root.style.overflow = previous.rootOverflow;
-      body.style.touchAction = previous.bodyTouch;
-      body.style.overscrollBehavior = previous.bodyOverscroll;
+      bodyEl.style.touchAction = previous.bodyTouch;
+      bodyEl.style.overscrollBehavior = previous.bodyOverscroll;
     };
   }, []);
 
-  const colour = redeemed ? "#f5c842" : "#D44A4A";
-  const who = isSelf ? "You" : (memberName || "They");
-  const slowLine = monthName ? `had a slow ${monthName}` : "had a slow month";
-  const body = redeemed
-    ? (isSelf ? `You ${slowLine}. You redeemed it this month.` : `${who} ${slowLine}, and redeemed it this month.`)
-    : (isSelf ? `You ${slowLine}. This month is your chance to redeem it.` : `${who} ${slowLine}. This month is their chance to redeem it.`);
   return createPortal(React.createElement('div',{
     onClick:onClose,
     onTouchMove:e=>e.preventDefault(),
@@ -638,15 +659,60 @@ const RedemptionNoteModal = ({redeemed=false,memberName="",isSelf=false,monthNam
         "aria-label":"Close",
         style:{position:"absolute",top:9,right:11,background:"transparent",border:"none",padding:5,lineHeight:1,color:"var(--muted2)",fontFamily:"'Outfit',sans-serif",fontSize:14,fontWeight:600}
       },"\u2715"),
-      React.createElement('div',{style:{display:"grid",placeItems:"center",marginBottom:9}},
-        React.createElement(RedemptionShieldIcon,{size:30,redeemed})
-      ),
-      React.createElement('div',{style:{fontFamily:"'Raleway',sans-serif",fontSize:16,fontWeight:800,marginBottom:6,color:colour}},
-        redeemed ? "Redeemed" : "Out for redemption"
-      ),
+      React.createElement('div',{style:{display:"grid",placeItems:"center",marginBottom:9}}, icon),
+      React.createElement('div',{style:{fontFamily:"'Raleway',sans-serif",fontSize:16,fontWeight:800,marginBottom:6,color:tone}}, title),
       React.createElement('div',{style:{fontSize:12.5,color:"var(--text-soft, #b8becc)",lineHeight:1.5}}, body)
     )
   ), document.body);
+};
+
+const RedemptionNoteModal = ({redeemed=false,memberName="",isSelf=false,monthName="",onClose}) => {
+  const who = isSelf ? "You" : (memberName || "They");
+  const slowLine = monthName ? `had a slow ${monthName}` : "had a slow month";
+  const body = redeemed
+    ? (isSelf ? `You ${slowLine}. You redeemed it this month.` : `${who} ${slowLine}, and redeemed it this month.`)
+    : (isSelf ? `You ${slowLine}. This month is your chance to redeem it.` : `${who} ${slowLine}. This month is their chance to redeem it.`);
+  return React.createElement(StatusNoteModal,{
+    icon: React.createElement(RedemptionShieldIcon,{size:30,redeemed}),
+    title: redeemed ? "Redeemed" : "Out for redemption",
+    tone: redeemed ? "#f5c842" : "#D44A4A",
+    body,
+    onClose
+  });
+};
+
+// Two states, because a Bloc's own opening month is not the same story as one
+// person arriving late into a running Bloc.
+const TrainingNoteModal = ({memberName="",isSelf=false,blocOpening=false,onClose}) => {
+  const body = blocOpening
+    ? "The Bloc started this month. Everyone settles in \u2014 penalties kick off next month."
+    : isSelf
+      ? "You joined the Bloc this month. Settle in \u2014 penalties kick off next month."
+      : `${memberName || "They"} joined the Bloc this month. Settling in \u2014 penalties kick off next month.`;
+  return React.createElement(StatusNoteModal,{
+    icon: React.createElement(TrainingSproutIcon,{size:30}),
+    title: blocOpening ? "Opening month" : "First month",
+    tone: "#f5c842",
+    body,
+    onClose
+  });
+};
+
+const SoloNoteModal = ({memberName="",isSelf=false,monthName="",target=null,onClose}) => {
+  const when = monthName ? ` this ${monthName}` : "";
+  const targetPart = Number.isFinite(Number(target)) && Number(target) > 0
+    ? `, with a personal target of ${Math.round(Number(target))}`
+    : "";
+  const body = isSelf
+    ? `You're on solo mode${when}${targetPart}. No penalty either way.`
+    : `${memberName || "They"} is on solo mode${when}${targetPart}. No penalty either way.`;
+  return React.createElement(StatusNoteModal,{
+    icon: React.createElement(SoloFlagIcon,{size:30}),
+    title: "Solo mode",
+    tone: "#4ECDC4",
+    body,
+    onClose
+  });
 };
 
 const InstallBanner = ({installReady,onInstall,onDismiss,showIosHint}) => (
@@ -792,4 +858,4 @@ const PrimaryActionButton = ({label,onClick,secondary=false}) => React.createEle
 },label);
 
 
-export { Avatar, CategoryIcon, WorkoutTypeIcon, ChevronRightIcon, TargetHitHexIcon, RedemptionShieldIcon, MemberTag, RedemptionNoteModal, StatusBadge, RankIcon, TrophyIcon, MedalIcon, UploadPhotoIcon, Bar, Card, AppIcon, AnteWordmark, Spinner, TodayScreenSkeleton, BlocSwitcherSkeleton, InstallBanner, WorkoutCategorySelector, SettingsField, SelectField, inputShellStyle, StepperField, PrimaryActionButton, PlayerProfileErrorBoundary, TodayPageErrorBoundary, InBlocPageErrorBoundary };
+export { Avatar, CategoryIcon, WorkoutTypeIcon, ChevronRightIcon, TargetHitHexIcon, RedemptionShieldIcon, MemberTag, RedemptionNoteModal, StatusNoteModal, TrainingNoteModal, SoloNoteModal, TrainingSproutIcon, SoloFlagIcon, StatusBadge, RankIcon, TrophyIcon, MedalIcon, UploadPhotoIcon, Bar, Card, AppIcon, AnteWordmark, Spinner, TodayScreenSkeleton, BlocSwitcherSkeleton, InstallBanner, WorkoutCategorySelector, SettingsField, SelectField, inputShellStyle, StepperField, PrimaryActionButton, PlayerProfileErrorBoundary, TodayPageErrorBoundary, InBlocPageErrorBoundary };

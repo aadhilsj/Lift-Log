@@ -52,7 +52,7 @@ import {
   formatWeekRangeLabel,
   buildLocalWeeklyMvpPreview
 } from "../lib/utils.js";
-import { Avatar, WorkoutTypeIcon, ChevronRightIcon, TargetHitHexIcon, StatusBadge, RankIcon, Bar, Card, AppIcon, PlayerProfileErrorBoundary, RedemptionShieldIcon, MemberTag } from "../components/primitives.jsx";
+import { Avatar, WorkoutTypeIcon, ChevronRightIcon, TargetHitHexIcon, StatusBadge, RankIcon, Bar, Card, AppIcon, PlayerProfileErrorBoundary, RedemptionShieldIcon, MemberTag, TrainingSproutIcon, SoloFlagIcon } from "../components/primitives.jsx";
 import { LogModal, DeleteModal, SitOutModal, SoloModal, NoticeModal } from "../modals/modals.jsx";
 import { PlayerProfile } from "../pages/PlayerProfile.jsx";
 import { buildPaymentTargets } from "../lib/paymentLinks.js";
@@ -1225,7 +1225,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
     React.createElement(ChevronRightIcon,null)
   );
 
-  const soloTag = React.createElement(MemberTag,{tone:"solo"},"Solo");
+  const soloTag = React.createElement(SoloFlagIcon,{size:13});
   const renderSoloSection = () => soloLeaderboardRows.length > 0 && React.createElement('div',{style:{display:"grid",gap:6,padding:"8px",borderTop:"1px solid rgba(78,205,196,.10)"}},
     React.createElement('div',{style:{fontSize:9,color:"#4ECDC4",fontWeight:800,letterSpacing:".12em",textTransform:"uppercase",padding:"4px 2px 2px"}},"Solo this month"),
     soloLeaderboardRows.map(u=>{
@@ -1292,7 +1292,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
                 React.createElement('div',{style:{flex:1,minWidth:0,textAlign:"left",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",display:"inline-flex",alignItems:"center",gap:6,fontWeight:600,fontSize:13,color:u.isOut?"#2A4040":"var(--text)"}},
                   React.createElement('span',null,u.name),
                   u.redemptionMark&&React.createElement(RedemptionShieldIcon,{size:13,redeemed:u.redemptionMark === "redeemed"}),
-                  u.isTraining&&React.createElement(MemberTag,{tone:"training"},"Training"),
+                  u.isTraining&&React.createElement(TrainingSproutIcon,{size:13}),
                   isMe&&React.createElement('span',{className:"mono",style:{fontSize:8,color:"#3d5e59",marginLeft:6}},"you"),
                   u.prorated&&!u.isOut&&React.createElement(MemberTag,{tone:"prorated"},"Prorated")
                 )
@@ -1441,7 +1441,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
     React.createElement('div',{"aria-hidden":viewPlayer?true:undefined,style:{pointerEvents:viewPlayer?"none":"auto"}},todayContent),
     viewPlayer&&React.createElement('div',{key:`profile-layer-${viewPlayer}`,ref:profileLayerRef,className:"in-bloc-profile-layer",style:{backgroundColor:"#070C0C",background:profileRevealActive?"transparent":"var(--bg-gradient)",backgroundImage:profileRevealActive?"none":"var(--bg-radial-hint), var(--bg-gradient)",overflowY:"auto",overflowX:"hidden",WebkitOverflowScrolling:"touch",overscrollBehavior:"contain",touchAction:"pan-y"}},
       React.createElement(PlayerProfileErrorBoundary,{profileName:viewPlayer,onBack:closePlayerProfile},
-        React.createElement(PlayerProfile,{name:viewPlayer,logs,excused,monthHistory,onBack:closePlayerProfile,onSwipeRevealChange:setProfileRevealActive,groupSettings,memberUserId:Object.values(currentGroup?.memberships||{}).find(m=>m?.displayName===viewPlayer)?.userId||"",currentUserId,visibleGroups:groups,accountCreatedAt,onDeleteLog:viewPlayer===user?async(log)=>{ await onLogMutation({action:"delete-log",groupId:currentGroupId,actor:user,owner:viewPlayer,logId:log.id}); }:undefined})
+        React.createElement(PlayerProfile,{group:currentGroup,name:viewPlayer,logs,excused,monthHistory,onBack:closePlayerProfile,onSwipeRevealChange:setProfileRevealActive,groupSettings,memberUserId:Object.values(currentGroup?.memberships||{}).find(m=>m?.displayName===viewPlayer)?.userId||"",currentUserId,visibleGroups:groups,accountCreatedAt,onDeleteLog:viewPlayer===user?async(log)=>{ await onLogMutation({action:"delete-log",groupId:currentGroupId,actor:user,owner:viewPlayer,logId:log.id}); }:undefined})
       )
     )
   );

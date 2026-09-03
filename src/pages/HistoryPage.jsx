@@ -363,7 +363,7 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
         // Blocs tab has no member to look up and says the stats are not
         // available, even though opening the very same profile from Today
         // loads them.
-        React.createElement(PlayerProfile,{name:viewPlayer,logs,excused,monthHistory,onBack:closePlayerProfile,onSwipeRevealChange:setProfileRevealActive,groupSettings,memberUserId:Object.values(group?.memberships||{}).find(m=>m?.displayName===viewPlayer)?.userId||"",currentUserId,visibleGroups:groups,accountCreatedAt})
+        React.createElement(PlayerProfile,{group:group,name:viewPlayer,logs,excused,monthHistory,onBack:closePlayerProfile,onSwipeRevealChange:setProfileRevealActive,groupSettings,memberUserId:Object.values(group?.memberships||{}).find(m=>m?.displayName===viewPlayer)?.userId||"",currentUserId,visibleGroups:groups,accountCreatedAt})
       )
     )
   );

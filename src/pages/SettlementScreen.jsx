@@ -18,7 +18,7 @@ import {
   getCountedLogs,
   getMonthPartsFromKey
 } from "../lib/appState.js";
-import { Avatar, TrophyIcon, RedemptionShieldIcon, MemberTag } from "../components/primitives.jsx";
+import { Avatar, TrophyIcon, RedemptionShieldIcon, MemberTag, TrainingSproutIcon } from "../components/primitives.jsx";
 import { ShareSticker } from "../components/ShareSticker.jsx";
 import { MonthCalendarCard } from "../components/MonthCalendarCard.jsx";
 import { buildStickerData } from "../lib/shareSticker.js";
@@ -171,7 +171,9 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
         stat: workoutsLabel(userCount),
         line: userCount >= target
           ? "Target hit. No penalty either way \u2014 but you hit it."
-          : `Target was ${target}. No penalty \u2014 next month counts.`,
+          // Not "next month counts": this month counted too. They logged, they
+          // ranked, they appear. The only thing absent was the penalty.
+          : `Target was ${target}. No penalty yet \u2014 penalties kick off from next month.`,
         tone: "training"
       };
     }
@@ -536,7 +538,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
         React.createElement('div',{style:{flex:1,minWidth:0}},
           React.createElement('div',{style:{fontSize:13,fontWeight:isMe?900:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",display:"flex",alignItems:"center",gap:5}},
             React.createElement('span',{style:{overflow:"hidden",textOverflow:"ellipsis"}},row.name + (isMe ? " (you)" : "")),
-            row.training && React.createElement(MemberTag,{tone:"training"},"Training"),
+            row.training && React.createElement(TrainingSproutIcon,{size:13}),
             getRedemptionMark(monthHistory, row.name, month.key, row.count >= row.target)
               && React.createElement(RedemptionShieldIcon,{size:13,redeemed:getRedemptionMark(monthHistory, row.name, month.key, row.count >= row.target) === "redeemed"})
           ),
