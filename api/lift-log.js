@@ -9101,21 +9101,27 @@ export default async function handler(req, res) {
         const canonicalActor = resolveDisplayNameForUser(canonicalState, payload.groupId, auth.user.id, auth.user.email);
         const group = canonicalState.groups?.[payload.groupId];
         const logId = String(payload?.logId || "").trim();
+        // An open-month log may still need to be copied into canonical storage
+        // before its first comment. Historical logs are already canonical and
+        // deliberately do not appear in `group.logs`; rejecting them here made
+        // their existing conversations read-only after rollover.
         let owner = "";
-        let log = null;
+        let openLog = null;
         if (group && logId) {
           for (const [name, logs] of Object.entries(group.logs || {})) {
             const match = (Array.isArray(logs) ? logs : []).find(entry => String(entry?.id) === logId);
             if (match) {
               owner = name;
-              log = match;
+              openLog = match;
               break;
             }
           }
         }
-        if (!group || !log || !owner) return res.status(404).json({ error: "Workout not found" });
+        if (!group || !logId) return res.status(404).json({ error: "Workout not found" });
         if (!isCurrentGroupMember(group, canonicalActor, auth.user.id)) return res.status(403).json({ error: "Only Bloc members can comment" });
-        await syncOpenWorkoutLogSnapshotToCanonical(group, owner, log, { throwOnError: true });
+        if (openLog && owner) {
+          await syncOpenWorkoutLogSnapshotToCanonical(group, owner, openLog, { throwOnError: true });
+        }
         const result = await insertWorkoutLogCommentInCanonical(payload.groupId, auth.user.id, logId, payload.body);
         await recordCanonicalMonthlyFeatureUsage(auth.user.id, "comment");
         await bumpCanonicalRevision(`log-comment:${payload.groupId}:${logId}:${auth.user.id}`, null);
