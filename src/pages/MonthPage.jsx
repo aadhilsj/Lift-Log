@@ -15,6 +15,7 @@ import {
   getLoserAmount,
   getCurrentMemberTargetInfo,
   isSoloForMonth,
+  isTrainingForMonth,
   getSoloTargetForMonth,
   fmtCurrency,
   getCountedLogCount,
@@ -62,11 +63,12 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
           const d = count - exp;
           memberDiffLabel = d > 0 ? `+${d} ahead of pace` : d < 0 ? `${d} behind pace` : "on pace";
         }
-        return { name:n, count, isOut, isSolo, target:activeTarget, soloTarget, memberDiffLabel, joinDay, proratedDays };
+        const isTraining = isTrainingForMonth(group, n, curKey);
+        return { name:n, count, isOut, isSolo, isTraining, target:activeTarget, soloTarget, memberDiffLabel, joinDay, proratedDays };
       })
-    : relevantNames.map(n=>({name:n,count:selMonth.counts[n]||0,isOut:selMonth.excused?.[n]||false,isSolo:isSoloForMonth(selMonth,n,selMonth.key),soloTarget:getSoloTargetForMonth(selMonth,n,selMonth.key),target:getSoloTargetForMonth(selMonth,n,selMonth.key) || selMonth.memberTargets?.[n] || selMonth.settings?.minTarget || MIN_TARGET}));
+    : relevantNames.map(n=>({name:n,count:selMonth.counts[n]||0,isOut:selMonth.excused?.[n]||false,isSolo:isSoloForMonth(selMonth,n,selMonth.key),isTraining:isTrainingForMonth(selMonth,n,selMonth.key),soloTarget:getSoloTargetForMonth(selMonth,n,selMonth.key),target:getSoloTargetForMonth(selMonth,n,selMonth.key) || selMonth.memberTargets?.[n] || selMonth.settings?.minTarget || MIN_TARGET}));
 
-  const activeCounts=counts.filter(u=>!u.isOut&&!u.isSolo);
+  const activeCounts=counts.filter(u=>!u.isOut&&!u.isSolo&&!u.isTraining);
   const sorted=[...counts].sort((a,b)=>{if(a.isOut&&!b.isOut)return 1;if(!a.isOut&&b.isOut)return -1;if(a.isSolo&&!b.isSolo)return 1;if(!a.isSolo&&b.isSolo)return -1;return b.count-a.count;});
   const penalties = calcPenalties(activeCounts, isCurrent ? groupSettings || {} : selMonth?.settings || {});
   const {winners,losers,perWinner}=penalties;

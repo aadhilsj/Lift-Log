@@ -1488,7 +1488,11 @@ function buildNormalizedSettings(settings) {
     feeModel: normalizeFeeModel(settings?.feeModel),
     minRunDistance: clampRunDistance(settings?.minRunDistance ?? settings?.minDurationMinutes),
     distanceUnit: normalizeDistanceUnit(settings?.distanceUnit),
-    stravaEnabled: settings?.stravaEnabled !== false
+    stravaEnabled: settings?.stravaEnabled !== false,
+    // Whether a Bloc starts new members with a penalty-free first month.
+    // Defaults on: the cost of a wrong default is a free month, not a charge
+    // nobody agreed to.
+    trainingWheels: settings?.trainingWheels !== false
   };
 }
 
@@ -5907,6 +5911,15 @@ function applyCreateGroup(current, payload) {
     setupReview: buildDefaultSetupReview(),
     logs: {},
     excused: {},
+    // A Bloc's first month is penalty-free for its founding roster unless the
+    // admin turned that off while creating it. Granted here rather than at
+    // each join so the whole roster is covered by one decision.
+    training: settings.trainingWheels
+      ? Object.fromEntries(
+          uniqueNames([creatorName, ...extraMembers])
+            .map(name => [name, { [getLeagueMonthKey(settings.timeZone)]: true }])
+        )
+      : {},
     monthHistory: [],
     lastMonth: getLeagueMonthKey(settings.timeZone)
   });
@@ -8366,6 +8379,13 @@ function applyJoinGroup(current, payload) {
         joinedAt: new Date().toISOString()
       }
     },
+    // Granted here, in the one join handler every door funnels through, so no
+    // invite path can miss it and none has to carry the setting itself. A
+    // joiner who would rather start on the same terms as everyone else says so
+    // after landing, and that overrides this.
+    training: group.settings?.trainingWheels
+      ? { ...(group.training || {}), [profile.displayName]: { ...(group.training?.[profile.displayName] || {}), [joinMonthKey]: true } }
+      : (group.training || {}),
     leftMemberNames: nextLeftMemberNames
   });
   return {

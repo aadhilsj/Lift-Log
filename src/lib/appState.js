@@ -14,6 +14,7 @@ const DEFAULT_CURRENCY = "NOK";
 const DEFAULT_MIN_RUN_DISTANCE = 3;
 const DEFAULT_DISTANCE_UNIT = "km";
 const DEFAULT_STRAVA_ENABLED = true;
+const DEFAULT_TRAINING_WHEELS = true;
 const SETUP_REVIEW_FIELDS = ["feeModel","acceptedWorkoutTypes","timeZone"];
 const UNFLAGGED_IMAGE_RETENTION_MS = 72 * 60 * 60 * 1000;
 const RESOLVED_IMAGE_RETENTION_MS = 24 * 60 * 60 * 1000;
@@ -1345,7 +1346,11 @@ function buildNormalizedSettings(settings) {
     feeModel: normalizeFeeModel(settings?.feeModel),
     minRunDistance: clampRunDistance(settings?.minRunDistance ?? settings?.minDurationMinutes),
     distanceUnit: normalizeDistanceUnit(settings?.distanceUnit),
-    stravaEnabled: settings?.stravaEnabled !== false
+    stravaEnabled: settings?.stravaEnabled !== false,
+    // Whether a Bloc starts new members with a penalty-free first month.
+    // Defaults on: the cost of a wrong default is a free month, not a charge
+    // nobody agreed to.
+    trainingWheels: settings?.trainingWheels !== false
   };
 }
 
@@ -2053,6 +2058,7 @@ export {
   DEFAULT_MIN_RUN_DISTANCE,
   DEFAULT_DISTANCE_UNIT,
   DEFAULT_STRAVA_ENABLED,
+  DEFAULT_TRAINING_WHEELS,
   SETUP_REVIEW_FIELDS,
   UNFLAGGED_IMAGE_RETENTION_MS,
   RESOLVED_IMAGE_RETENTION_MS,

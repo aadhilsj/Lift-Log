@@ -10,6 +10,7 @@ import {
   buildSettlementPairState,
   fmtCurrency,
   isSoloForMonth,
+  isTrainingForMonth,
   isExemptFromStakes,
   getRedemptionMark,
   ordinal,
@@ -39,6 +40,8 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
   // Only names the month's exemption note has to explain: someone who hit the
   // Bloc target needs no footnote, whether or not they could have been charged.
   const soloNames = relevantNames.filter(name => isSoloForMonth(month, name, month.key) && missedBlocTarget(name));
+  const trainingNames = relevantNames.filter(name => isTrainingForMonth(month, name, month.key) && missedBlocTarget(name));
+  const userOnTraining = !!(currentUser && isTrainingForMonth(month, currentUser, month.key));
   const activeCounts = relevantNames
     .filter(name => !month.excused?.[name] && !isExemptFromStakes(month, name, month.key))
     .map(name => ({
@@ -158,6 +161,20 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
         tone: "neutral"
       };
     }
+    // Exempt but present: they logged, they ranked, they simply could not be
+    // charged. Without this they fall into the "did not lose money" branch and
+    // get congratulated for a target they missed.
+    if (userOnTraining) {
+      const target = blocTargetFor(currentUser);
+      return {
+        tag: "First Month",
+        stat: workoutsLabel(userCount),
+        line: userCount >= target
+          ? "Target hit. No penalty either way \u2014 but you hit it."
+          : `Target was ${target}. No penalty \u2014 next month counts.`,
+        tone: "training"
+      };
+    }
     if (userIsWinner && isBlocPerfect) {
       return {
         tag: "PERFECT BLOC MONTH",
@@ -211,15 +228,18 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
     ? {background:"linear-gradient(135deg, rgba(78,205,196,.2), rgba(215,226,225,.12) 48%, rgba(58,168,90,.2))", border:"1px solid rgba(78,205,196,.3)"}
     : hero.tone === "winner"
       ? {background:"rgba(57,168,90,.11)", border:"1px solid rgba(57,168,90,.24)"}
+      : hero.tone === "training"
+        ? {background:"linear-gradient(135deg, rgba(245,200,66,.14), rgba(245,200,66,.05) 55%, rgba(78,205,196,.03))", border:"1px solid rgba(245,200,66,.26)"}
       : hero.tone === "missed"
         ? {background:"rgba(185,50,50,.07)", border:"1px solid rgba(185,50,50,.18)"}
         : {background:"linear-gradient(135deg, rgba(235,242,241,.18), rgba(185,199,198,.11) 54%, rgba(78,205,196,.025))", border:"1px solid rgba(235,242,241,.22)"};
-  const heroColor = hero.tone === "winner" ? C.greenText : hero.tone === "missed" ? C.redText : hero.tone === "neutral" ? "#D7E2E1" : "var(--text)";
+  const heroColor = hero.tone === "winner" ? C.greenText : hero.tone === "missed" ? C.redText : hero.tone === "training" ? "#f5c842" : hero.tone === "neutral" ? "#D7E2E1" : "var(--text)";
   const heroLabelGradients = {
     neutral: "linear-gradient(135deg, #FFFFFF, #D7E2E1 55%, #9DB4B3)",
     perfect: "linear-gradient(135deg, #FFFFFF, #DDFDE9 42%, #63D989)",
     winner: "linear-gradient(135deg, #DDFDE9, #39A85A 54%, #1E7C3D)",
-    missed: "linear-gradient(135deg, #FFD8D8, #E65A5A 50%, #A92F2F)"
+    missed: "linear-gradient(135deg, #FFD8D8, #E65A5A 50%, #A92F2F)",
+    training: "linear-gradient(135deg, #FFF6D8, #F5C842 55%, #B98F18)"
   };
   const heroPillStyle = {
     alignSelf:"center",
@@ -367,8 +387,12 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
   };
 
   const renderLedger = () => {
-    if (isBlocPerfect && soloNames.length === 0) return null;
-    if (!incomingRows.length && !outgoingRows.length && soloNames.length === 0) return null;
+    const exemptNotes = [
+      ...trainingNames.filter(name => name !== currentUser).map(name => `${name} \u2014 first month, no penalty.`),
+      ...soloNames.filter(name => name !== currentUser).map(name => `${name} \u2014 on solo mode.`)
+    ];
+    if (isBlocPerfect && exemptNotes.length === 0) return null;
+    if (!incomingRows.length && !outgoingRows.length && exemptNotes.length === 0) return null;
 
     const rows = outcome === "winner" ? incomingRows : outgoingRows;
     const title = outcome === "winner" ? `${rows.length} to pay:` : "You owe:";
@@ -419,10 +443,11 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
             );
       }),
       renderPaymentSetupHint(),
-      soloNames.length > 0 && React.createElement('div',{style:{display:"grid",gap:3,marginTop:rows.length?7:0,paddingTop:rows.length?7:0,borderTop:rows.length?"1px solid rgba(78,205,196,.12)":"none"}},
-        soloNames.map(name => React.createElement('div',{key:`solo-${name}`,style:{fontSize:10,color:"var(--muted)",fontWeight:700,textAlign:"center",lineHeight:1.35}},
-          `${name} — on solo mode.`
-        ))
+      // Never your own name: your headline already told you. These lines exist
+      // to explain someone else's absence from the money above, and only when
+      // that person actually came up short.
+      exemptNotes.length > 0 && React.createElement('div',{style:{display:"grid",gap:3,marginTop:rows.length?7:0,paddingTop:rows.length?7:0,borderTop:rows.length?"1px solid rgba(78,205,196,.12)":"none"}},
+        exemptNotes.map(note => React.createElement('div',{key:note,style:{fontSize:10,color:"var(--muted)",fontWeight:700,textAlign:"center",lineHeight:1.35}},note))
       )
     );
   };
@@ -489,8 +514,18 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
   );
   const sectionSeparator = React.createElement('div',{style:{height:1,width:"100%",background:"linear-gradient(90deg, transparent, rgba(78,205,196,.2), rgba(255,255,255,.12), rgba(78,205,196,.2), transparent)",margin:"2px 0"}});
 
+  // The stakes list excludes anyone exempt, but a training member still
+  // competed and still has a rank. They belong in the standings with a dash
+  // where the money would be, not deleted from the month they took part in.
+  const standingsRows = [
+    ...sortedActive,
+    ...relevantNames
+      .filter(name => isTrainingForMonth(month, name, month.key))
+      .map(name => ({ name, count: Number(month.counts[name] || 0), target: blocTargetFor(name), training: true }))
+  ].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+
   const renderLeaderboard = () => React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:6,padding:"7px",background:"rgba(8,15,15,.32)",borderTop:"1px solid rgba(255,255,255,.05)"}},
-    sortedActive.map((row, i) => {
+    standingsRows.map((row, i) => {
       const isMe = row.name === currentUser;
       const isWinner = winners.some(w => w.name === row.name);
       const isLoser = losers.some(l => l.name === row.name);
@@ -501,12 +536,15 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
         React.createElement('div',{style:{flex:1,minWidth:0}},
           React.createElement('div',{style:{fontSize:13,fontWeight:isMe?900:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",display:"flex",alignItems:"center",gap:5}},
             React.createElement('span',{style:{overflow:"hidden",textOverflow:"ellipsis"}},row.name + (isMe ? " (you)" : "")),
+            row.training && React.createElement('span',{className:"mono",style:{fontSize:8,fontWeight:800,letterSpacing:".1em",color:"#f5c842",border:"0.5px solid rgba(245,200,66,.34)",borderRadius:999,padding:"2px 6px",flexShrink:0}},"TRAINING"),
             getRedemptionMark(monthHistory, row.name, month.key, row.count >= row.target)
               && React.createElement(RedemptionShieldIcon,{size:13,redeemed:getRedemptionMark(monthHistory, row.name, month.key, row.count >= row.target) === "redeemed"})
           ),
           React.createElement('div',{style:{fontSize:10,color:"var(--muted)",marginTop:1}},workoutsLabel(row.count))
         ),
-        isWinner && losers.length > 0
+        row.training
+          ? React.createElement('span',{style:{fontSize:12,fontWeight:900,color:"var(--muted2)"}},"\u2014")
+          : isWinner && losers.length > 0
           ? React.createElement('span',{style:{fontSize:12,fontWeight:900,color:C.greenText}},`+${fmtCurrency(perWinner,currency)}`)
           : isLoser
             ? React.createElement('span',{style:{fontSize:12,fontWeight:900,color:C.redText}},`-${fmtCurrency(getLoserAmount(penalties,row.name),currency)}`)

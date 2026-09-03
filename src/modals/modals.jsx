@@ -12,6 +12,7 @@ import {
   DEFAULT_MIN_RUN_DISTANCE,
   DEFAULT_DISTANCE_UNIT,
   DEFAULT_STRAVA_ENABLED,
+  DEFAULT_TRAINING_WHEELS,
   TODAY_ISO,
   curKey,
   CURRENCY_OPTIONS,
@@ -51,7 +52,8 @@ const SETTINGS_DEFAULTS = {
   feeModel: DEFAULT_FEE_MODEL,
   minRunDistance: DEFAULT_MIN_RUN_DISTANCE,
   distanceUnit: DEFAULT_DISTANCE_UNIT,
-  stravaEnabled: DEFAULT_STRAVA_ENABLED
+  stravaEnabled: DEFAULT_STRAVA_ENABLED,
+  trainingWheels: DEFAULT_TRAINING_WHEELS
 };
 
 const WORKOUT_NOTE_LIMIT = 140;
@@ -254,6 +256,39 @@ const GroupCreateModal = ({onCreate,onClose,creating,defaultCreatorName="",defau
         React.createElement('div',{style:setupFieldTitleStyle},"Monthly Workout Target"),
         React.createElement('div',{style:setupFieldHelpStyle},"Between 6 and 30 workouts per month."),
         React.createElement(StepperField,{value:settings.minTarget,onChange:value=>setSettings(current=>({...current,minTarget:value})),min:6,max:30})
+      ),
+      React.createElement('button',{
+        type:"button",
+        onClick:()=>setSettings(current=>({...current,trainingWheels:!(current.trainingWheels !== false)})),
+        "aria-pressed":settings.trainingWheels !== false,
+        style:{
+          width:"100%",textAlign:"left",display:"flex",alignItems:"flex-start",gap:11,marginBottom:14,
+          padding:"11px 12px",borderRadius:11,fontFamily:UI_FONT,
+          border:settings.trainingWheels !== false ? "1px solid rgba(78,205,196,.3)" : "1px solid var(--border)",
+          background:settings.trainingWheels !== false ? "rgba(78,205,196,.05)" : "rgba(25,27,36,.5)"
+        }
+      },
+        React.createElement('div',{style:{flex:1,minWidth:0}},
+          React.createElement('div',{style:{fontSize:13,fontWeight:800,color:"var(--text)",marginBottom:4}},"Training Wheels"),
+          // Only the helper line changes between states, so the row keeps its
+          // height and the buttons below it never move under a thumb.
+          React.createElement('div',{style:{fontSize:12,color:"var(--muted)",lineHeight:1.38}},
+            settings.trainingWheels !== false
+              ? "Month one is penalty-free for everyone."
+              : "No warm-up. Penalties from day one."
+          )
+        ),
+        React.createElement('span',{style:{
+          width:40,height:23,borderRadius:999,flexShrink:0,position:"relative",marginTop:1,
+          transition:"background .18s",
+          background:settings.trainingWheels !== false ? "#4ECDC4" : "#2A2E39"
+        }},
+          React.createElement('span',{style:{
+            position:"absolute",top:3,width:17,height:17,borderRadius:999,transition:"left .18s",
+            left:settings.trainingWheels !== false ? 20 : 3,
+            background:settings.trainingWheels !== false ? "#050909" : "#767C88"
+          }})
+        )
       ),
       submitAttempted && escalationStepMissing && React.createElement('div',{style:{fontSize:12,color:"var(--red)",marginTop:-6,marginBottom:10}},"Set a step amount to continue."),
       React.createElement('div',{style:{display:"grid",gridTemplateColumns:"0.82fr 1.18fr",gap:9,marginTop:18}},

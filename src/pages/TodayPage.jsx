@@ -27,6 +27,7 @@ import {
   getRecentSitOutCount,
   getRecentSoloCount,
   isSoloForMonth,
+  isTrainingForMonth,
   getSoloTargetForMonth,
   getRedemptionMark,
   getCurrentMonthSummary,
@@ -233,7 +234,10 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
       memberDiffLabel = null;
     }
     const redemptionMark = getRedemptionMark(monthHistory, name, curKey, count >= activeTarget);
-    return {name,count,isOut,isSolo:isSoloMember,soloTarget:memberSoloTarget,target:activeTarget,status,memberDiffLabel,prorated:prorationSource === "member",redemptionMark};
+    // Training members stay in the main list. They are exempt from the money,
+    // not from the month, so they keep their rank and their row.
+    const isTrainingMember = currentGroup ? isTrainingForMonth(currentGroup, name, curKey) : false;
+    return {name,count,isOut,isSolo:isSoloMember,isTraining:isTrainingMember,soloTarget:memberSoloTarget,target:activeTarget,status,memberDiffLabel,prorated:prorationSource === "member",redemptionMark};
   }).sort((a,b)=>{if(a.isOut&&!b.isOut)return 1;if(!a.isOut&&b.isOut)return -1;if(a.isSolo&&!b.isSolo)return 1;if(!a.isSolo&&b.isSolo)return -1;return b.count-a.count||a.name.localeCompare(b.name);});
 
   let activeRank=0;
@@ -1283,6 +1287,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
                 React.createElement('div',{style:{flex:1,minWidth:0,textAlign:"left",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",display:"inline-flex",alignItems:"center",gap:6,fontWeight:600,fontSize:13,color:u.isOut?"#2A4040":"var(--text)"}},
                   React.createElement('span',null,u.name),
                   u.redemptionMark&&React.createElement(RedemptionShieldIcon,{size:13,redeemed:u.redemptionMark === "redeemed"}),
+                  u.isTraining&&React.createElement('span',{className:"mono",style:{fontSize:8,color:"#f5c842",border:"0.5px solid rgba(245,200,66,.34)",borderRadius:999,padding:"2px 6px",letterSpacing:".1em",fontWeight:800,flexShrink:0}},"TRAINING"),
                   isMe&&React.createElement('span',{className:"mono",style:{fontSize:8,color:"#3d5e59",marginLeft:6}},"you"),
                   u.prorated&&!u.isOut&&React.createElement('span',{className:"mono",style:{fontSize:8,color:"var(--muted)",marginLeft:6,textTransform:"uppercase",letterSpacing:".08em"}},"joined mid-month")
                 )
