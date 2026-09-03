@@ -18,3 +18,6 @@ supabase/.temp/
 .vercel
 .env*
 Fero-private-recovery/
+
+# Local sandbox data (never shared, never production)
+.sandbox-data/
