@@ -19,6 +19,7 @@ import {
   getHistoricalMemberNamesForMonth,
   getHistoricalGroupMemberNames,
   isSoloForMonth,
+  isExemptFromStakes,
   getRedemptionMark,
   getSoloTargetForMonth,
   fmtCurrency,
@@ -111,10 +112,12 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
       const monthNames = getHistoricalMemberNamesForMonth(m, historicalNames);
       if(!monthNames.includes(name)) return;
       if(m.excused?.[name]) return;
-      const memberIsSolo = isSoloForMonth(m, name, m.key);
+      // Exempt is exempt whichever way it was granted: a training month must
+      // no more count towards this member's money than a solo month does.
+      const memberIsExempt = isExemptFromStakes(m, name, m.key);
       closedTotal+=m.counts[name]||0;
-      if (memberIsSolo) return;
-      const ac=monthNames.filter(n=>isJoinedForMonth(n, m.key) && !m.excused?.[n] && !isSoloForMonth(m, n, m.key)).map(n=>({name:n,count:m.counts[n]||0,target:m.memberTargets?.[n] || m.settings?.minTarget || MIN_TARGET}));
+      if (memberIsExempt) return;
+      const ac=monthNames.filter(n=>isJoinedForMonth(n, m.key) && !m.excused?.[n] && !isExemptFromStakes(m, n, m.key)).map(n=>({name:n,count:m.counts[n]||0,target:m.memberTargets?.[n] || m.settings?.minTarget || MIN_TARGET}));
       const penalties = calcPenalties(ac, m.settings || {});
       const {winners,losers,perWinner}=penalties;
       if(winners.find(w=>w.name===name)){wins++;moneyWon+=perWinner;}
@@ -141,6 +144,7 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
         memberTargets:m.memberTargets || {},
         excused:m.excused || {},
         solo:m.solo || {},
+        training:m.training || {},
         closed:true
       }));
     const current = isJoinedForMonth(name, curKey) && !excused?.[name]?.[curKey]
@@ -165,10 +169,10 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
   const perfectMonthStats = useMemo(()=>{
     const perfectMonths = profileMonths.filter(m=>{
       if (!m.closed) return false;
-      if (isSoloForMonth(m, name, m.key)) return false;
+      if (isExemptFromStakes(m, name, m.key)) return false;
       const monthNames = getHistoricalMemberNamesForMonth(m, historicalNames);
       const activeCounts = monthNames
-        .filter(n=>isJoinedForMonth(n, m.key) && !m.excused?.[n] && !isSoloForMonth(m, n, m.key))
+        .filter(n=>isJoinedForMonth(n, m.key) && !m.excused?.[n] && !isExemptFromStakes(m, n, m.key))
         .map(n=>({name:n,count:Number(m.counts?.[n] || 0),target:m.memberTargets?.[n] || m.settings?.minTarget || MIN_TARGET}));
       const { losers } = calcPenalties(activeCounts, m.settings || {});
       return Number(m.count || 0) >= Number(m.stakesTarget || MIN_TARGET) && !losers.some(l=>l.name===name);

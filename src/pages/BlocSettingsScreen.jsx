@@ -10,6 +10,7 @@ import {
   DEFAULT_MIN_RUN_DISTANCE,
   DEFAULT_DISTANCE_UNIT,
   DEFAULT_STRAVA_ENABLED,
+  DEFAULT_TRAINING_WHEELS,
   curKey,
   buildNormalizedSettings,
   normalizeSitOutRequests,
@@ -44,7 +45,8 @@ const SETTINGS_DEFAULTS = {
   feeModel: DEFAULT_FEE_MODEL,
   minRunDistance: DEFAULT_MIN_RUN_DISTANCE,
   distanceUnit: DEFAULT_DISTANCE_UNIT,
-  stravaEnabled: DEFAULT_STRAVA_ENABLED
+  stravaEnabled: DEFAULT_STRAVA_ENABLED,
+  trainingWheels: DEFAULT_TRAINING_WHEELS
 };
 
 const ReadOnlyField = ({title,value,review=false,children}) => (
@@ -248,6 +250,7 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
         React.createElement(ReadOnlyField,{title:"Penalty Calculation",value:readonlySettings.feeModel === "flat" ? "Flat" : "Escalating"}),
         readonlySettings.feeModel === "escalating" && React.createElement(ReadOnlyField,{title:"Penalty Increase Per Miss",value:`${readonlySettings.currency || DEFAULT_CURRENCY} ${readonlySettings.escalationStepAmount || DEFAULT_FINE_AMOUNT}`}),
         React.createElement(ReadOnlyField,{title:"Monthly Workout Target",value:`${readonlySettings.minTarget || DEFAULT_MIN_TARGET} workouts`}),
+        React.createElement(ReadOnlyField,{title:"Training Wheels",value:readonlySettings.trainingWheels !== false ? "New members start penalty-free" : "Penalties from the month you join"}),
         React.createElement(ReadOnlyField,{title:"Workout Types That Count"},
           React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(5, minmax(0, 1fr))",gap:7,alignItems:"stretch",width:"100%"}},
             readonlyTypes.map(type=>React.createElement(ReadOnlyWorkoutTypeTile,{key:type,type}))
@@ -318,6 +321,35 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
       ),
       React.createElement(EditableField,{title:"Monthly Workout Target"},
         React.createElement(StepperField,{value:settings.minTarget,onChange:value=>setSettings(current=>({...current,minTarget:value})),min:6,max:30,compact:true})
+      ),
+      React.createElement(EditableField,{title:"Training Wheels"},
+        React.createElement('button',{
+          type:"button",
+          className:"setup-press",
+          onClick:()=>setSettings(current=>({...current,trainingWheels:!(current.trainingWheels !== false)})),
+          "aria-pressed":settings.trainingWheels !== false,
+          style:{
+            width:"100%",textAlign:"left",display:"flex",alignItems:"center",gap:11,
+            padding:"10px 11px",borderRadius:10,background:"transparent",
+            border:settings.trainingWheels !== false ? "1px solid rgba(78,205,196,.3)" : "1px solid var(--border)"
+          }
+        },
+          React.createElement('div',{style:{flex:1,minWidth:0,fontSize:11,color:"var(--muted)",lineHeight:1.4}},
+            settings.trainingWheels !== false
+              ? "New members get a penalty-free first month."
+              : "New members can be penalised from the month they join."
+          ),
+          React.createElement('span',{style:{
+            width:38,height:22,borderRadius:999,flexShrink:0,position:"relative",transition:"background .18s",
+            background:settings.trainingWheels !== false ? "#4ECDC4" : "#2A2E39"
+          }},
+            React.createElement('span',{style:{
+              position:"absolute",top:3,width:16,height:16,borderRadius:999,transition:"left .18s",
+              left:settings.trainingWheels !== false ? 19 : 3,
+              background:settings.trainingWheels !== false ? "#050909" : "#767C88"
+            }})
+          )
+        )
       ),
       React.createElement(ReviewShell,{review:pendingSet.has("acceptedWorkoutTypes"),onDismiss:()=>dismissReviewField("acceptedWorkoutTypes")},
         React.createElement(EditableField,{title:renderRuleTitle("Workout Types That Count","acceptedWorkoutTypes")},
