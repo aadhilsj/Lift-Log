@@ -52,7 +52,7 @@ import {
   formatWeekRangeLabel,
   buildLocalWeeklyMvpPreview
 } from "../lib/utils.js";
-import { Avatar, WorkoutTypeIcon, ChevronRightIcon, TargetHitHexIcon, StatusBadge, RankIcon, Bar, Card, AppIcon, PlayerProfileErrorBoundary, RedemptionShieldIcon } from "../components/primitives.jsx";
+import { Avatar, WorkoutTypeIcon, ChevronRightIcon, TargetHitHexIcon, StatusBadge, RankIcon, Bar, Card, AppIcon, PlayerProfileErrorBoundary, RedemptionShieldIcon, MemberTag } from "../components/primitives.jsx";
 import { LogModal, DeleteModal, SitOutModal, SoloModal, NoticeModal } from "../modals/modals.jsx";
 import { PlayerProfile } from "../pages/PlayerProfile.jsx";
 import { buildPaymentTargets } from "../lib/paymentLinks.js";
@@ -1220,7 +1220,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
     React.createElement(ChevronRightIcon,null)
   );
 
-  const soloTag = React.createElement('span',{className:"mono",style:{fontSize:8,color:"#4ECDC4",border:"0.5px solid rgba(78,205,196,.35)",borderRadius:999,padding:"2px 6px",letterSpacing:".1em",fontWeight:800}},"SOLO");
+  const soloTag = React.createElement(MemberTag,{tone:"solo"},"Solo");
   const renderSoloSection = () => soloLeaderboardRows.length > 0 && React.createElement('div',{style:{display:"grid",gap:6,padding:"8px",borderTop:"1px solid rgba(78,205,196,.10)"}},
     React.createElement('div',{style:{fontSize:9,color:"#4ECDC4",fontWeight:800,letterSpacing:".12em",textTransform:"uppercase",padding:"4px 2px 2px"}},"Solo this month"),
     soloLeaderboardRows.map(u=>{
@@ -1287,9 +1287,9 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
                 React.createElement('div',{style:{flex:1,minWidth:0,textAlign:"left",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",display:"inline-flex",alignItems:"center",gap:6,fontWeight:600,fontSize:13,color:u.isOut?"#2A4040":"var(--text)"}},
                   React.createElement('span',null,u.name),
                   u.redemptionMark&&React.createElement(RedemptionShieldIcon,{size:13,redeemed:u.redemptionMark === "redeemed"}),
-                  u.isTraining&&React.createElement('span',{className:"mono",style:{fontSize:8,color:"#f5c842",border:"0.5px solid rgba(245,200,66,.34)",borderRadius:999,padding:"2px 6px",letterSpacing:".1em",fontWeight:800,flexShrink:0}},"TRAINING"),
+                  u.isTraining&&React.createElement(MemberTag,{tone:"training"},"Training"),
                   isMe&&React.createElement('span',{className:"mono",style:{fontSize:8,color:"#3d5e59",marginLeft:6}},"you"),
-                  u.prorated&&!u.isOut&&React.createElement('span',{className:"mono",style:{fontSize:8,color:"var(--muted)",marginLeft:6,textTransform:"uppercase",letterSpacing:".08em"}},"joined mid-month")
+                  u.prorated&&!u.isOut&&React.createElement(MemberTag,{tone:"prorated"},"Prorated month")
                 )
               )
             ),
@@ -1378,7 +1378,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
                   React.createElement('div',{style:{flex:1,minWidth:0,textAlign:"left",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",display:"inline-flex",alignItems:"center",gap:7,fontWeight:600,fontSize:14,color:u.isOut?"#2A4040":"var(--text)"}},
                     React.createElement('span',null,u.name),
                     isMe&&React.createElement('span',{className:"mono",style:{fontSize:8,color:"#3d5e59",marginLeft:7}},"you"),
-                    u.prorated&&!u.isOut&&React.createElement('span',{className:"mono",style:{fontSize:8,color:"var(--muted)",marginLeft:6,textTransform:"uppercase",letterSpacing:".08em"}},"joined mid-month")
+                    u.prorated&&!u.isOut&&React.createElement(MemberTag,{tone:"prorated"},"Prorated month")
                   )
                 )
               ),

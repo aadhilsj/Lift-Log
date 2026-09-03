@@ -24,7 +24,7 @@ import {
 import {
   isMobile
 } from "../lib/utils.js";
-import { Avatar, RankIcon, TrophyIcon, Card, SelectField, PlayerProfileErrorBoundary } from "../components/primitives.jsx";
+import { Avatar, RankIcon, TrophyIcon, Card, SelectField, PlayerProfileErrorBoundary, MemberTag } from "../components/primitives.jsx";
 import { PlayerProfile } from "../pages/PlayerProfile.jsx";
 import { SettlementScreen } from "../pages/SettlementScreen.jsx";
 
@@ -132,7 +132,8 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
           React.createElement('span',{style:{fontWeight:700,fontSize:14,color:u.isOut?"var(--muted)":"var(--text)",marginLeft:6,textDecoration:"underline",textDecorationColor:"rgba(255,255,255,.15)"}},u.name)
         ),
         u.isOut&&React.createElement('span',{className:"mono",style:{fontSize:9,color:"var(--muted2)",marginLeft:6}},"excused"),
-        u.isSolo&&React.createElement('span',{className:"mono",style:{fontSize:9,color:"#4ECDC4",marginLeft:6,border:"0.5px solid rgba(78,205,196,.32)",borderRadius:999,padding:"2px 6px",fontWeight:800}},"SOLO"),
+        u.isSolo&&React.createElement('span',{style:{marginLeft:6}},React.createElement(MemberTag,{tone:"solo"},"Solo")),
+        u.isTraining&&React.createElement('span',{style:{marginLeft:6}},React.createElement(MemberTag,{tone:"training"},"Training")),
         React.createElement('div',{style:{flex:1}}),
         React.createElement('span',{className:"mono",style:{fontSize:17,fontWeight:700,marginRight:12,color:u.isOut?"var(--muted)":"var(--text)"}},u.isOut?"—":u.count),
         React.createElement('span',{className:"mono",style:{fontSize:12,minWidth:74,textAlign:"right",color:isWin&&losers.length>0?"#4ECDC4":isLose?"var(--red)":"var(--muted)"}},

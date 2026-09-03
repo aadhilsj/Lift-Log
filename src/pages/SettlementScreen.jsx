@@ -18,7 +18,7 @@ import {
   getCountedLogs,
   getMonthPartsFromKey
 } from "../lib/appState.js";
-import { Avatar, TrophyIcon, RedemptionShieldIcon } from "../components/primitives.jsx";
+import { Avatar, TrophyIcon, RedemptionShieldIcon, MemberTag } from "../components/primitives.jsx";
 import { ShareSticker } from "../components/ShareSticker.jsx";
 import { MonthCalendarCard } from "../components/MonthCalendarCard.jsx";
 import { buildStickerData } from "../lib/shareSticker.js";
@@ -536,7 +536,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
         React.createElement('div',{style:{flex:1,minWidth:0}},
           React.createElement('div',{style:{fontSize:13,fontWeight:isMe?900:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",display:"flex",alignItems:"center",gap:5}},
             React.createElement('span',{style:{overflow:"hidden",textOverflow:"ellipsis"}},row.name + (isMe ? " (you)" : "")),
-            row.training && React.createElement('span',{className:"mono",style:{fontSize:8,fontWeight:800,letterSpacing:".1em",color:"#f5c842",border:"0.5px solid rgba(245,200,66,.34)",borderRadius:999,padding:"2px 6px",flexShrink:0}},"TRAINING"),
+            row.training && React.createElement(MemberTag,{tone:"training"},"Training"),
             getRedemptionMark(monthHistory, row.name, month.key, row.count >= row.target)
               && React.createElement(RedemptionShieldIcon,{size:13,redeemed:getRedemptionMark(monthHistory, row.name, month.key, row.count >= row.target) === "redeemed"})
           ),

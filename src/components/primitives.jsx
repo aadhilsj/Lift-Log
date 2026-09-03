@@ -85,6 +85,31 @@ const ChevronRightIcon = ({size=10,color="#3d5e59"}) => (
 );
 
 
+// Every inline member label - Training, Solo, Prorated month - in one place.
+// The spec is StatusBadge's: Outfit 700 at 9px, the app's label voice. These
+// used to be JetBrains Mono pills asking for weight 800, which index.html does
+// not load, so the browser faked the bold. Mono is the data font here (counts,
+// amounts, ranks); labels are Outfit, and the colour carries the meaning
+// without needing a border around it.
+const MEMBER_TAG_TONES = {
+  training: "#f5c842",
+  solo: "#4ECDC4",
+  prorated: "var(--muted)"
+};
+
+const MemberTag = ({tone="prorated",children}) => React.createElement('span',{
+  style:{
+    fontFamily:"'Outfit',sans-serif",
+    fontSize:9,
+    fontWeight:700,
+    letterSpacing:".04em",
+    textTransform:"uppercase",
+    color:MEMBER_TAG_TONES[tone] || MEMBER_TAG_TONES.prorated,
+    whiteSpace:"nowrap",
+    flexShrink:0
+  }
+}, children);
+
 // Redemption mark. Hollow red is a month still owed an answer; filled gold is
 // the answer given. One silhouette in two states, so the flip teaches itself.
 const RedemptionShieldIcon = ({size=14,redeemed=false}) => {
@@ -532,6 +557,43 @@ const TodayPageErrorBoundary = ({resetKey,children}) => React.createElement(
 );
 
 
+// The note behind the redemption mark. A mark can carry a meaning but never
+// explain one, so tapping it says the sentence out loud. Dismissed by the
+// close control or by tapping the backdrop - there is nothing to acknowledge
+// here, so there is no confirm button to press.
+const RedemptionNoteModal = ({redeemed=false,memberName="",isSelf=false,monthName="",onClose}) => {
+  const colour = redeemed ? "#f5c842" : "#D44A4A";
+  const who = isSelf ? "You" : (memberName || "They");
+  const slowLine = monthName ? `had a slow ${monthName}` : "had a slow month";
+  const body = redeemed
+    ? (isSelf ? `You ${slowLine}. You redeemed it this month.` : `${who} ${slowLine}, and redeemed it this month.`)
+    : (isSelf ? `You ${slowLine}. This month is your chance to redeem it.` : `${who} ${slowLine}. This month is their chance to redeem it.`);
+  return React.createElement('div',{
+    className:"overlay center-mobile",
+    onClick:onClose
+  },
+    React.createElement('div',{
+      className:"modal",
+      onClick:e=>e.stopPropagation(),
+      style:{position:"relative",maxWidth:292,padding:"18px 16px 16px",textAlign:"center"}
+    },
+      React.createElement('button',{
+        type:"button",
+        onClick:onClose,
+        "aria-label":"Close",
+        style:{position:"absolute",top:9,right:11,background:"transparent",border:"none",padding:5,lineHeight:1,color:"var(--muted2)",fontFamily:"'Outfit',sans-serif",fontSize:14,fontWeight:600}
+      },"\u2715"),
+      React.createElement('div',{style:{display:"grid",placeItems:"center",marginBottom:9}},
+        React.createElement(RedemptionShieldIcon,{size:30,redeemed})
+      ),
+      React.createElement('div',{style:{fontFamily:"'Raleway',sans-serif",fontSize:16,fontWeight:800,marginBottom:6,color:colour}},
+        redeemed ? "Redeemed" : "Out for redemption"
+      ),
+      React.createElement('div',{style:{fontSize:12.5,color:"var(--text-soft, #b8becc)",lineHeight:1.5}}, body)
+    )
+  );
+};
+
 const InstallBanner = ({installReady,onInstall,onDismiss,showIosHint}) => (
   React.createElement('div',{className:"install-banner"},
     React.createElement('div',{className:"install-card pi",style:{padding:isMobile()?"12px 14px":"14px 16px",borderRadius:isMobile()?14:16}},
@@ -675,4 +737,4 @@ const PrimaryActionButton = ({label,onClick,secondary=false}) => React.createEle
 },label);
 
 
-export { Avatar, CategoryIcon, WorkoutTypeIcon, ChevronRightIcon, TargetHitHexIcon, RedemptionShieldIcon, StatusBadge, RankIcon, TrophyIcon, MedalIcon, UploadPhotoIcon, Bar, Card, AppIcon, AnteWordmark, Spinner, TodayScreenSkeleton, BlocSwitcherSkeleton, InstallBanner, WorkoutCategorySelector, SettingsField, SelectField, inputShellStyle, StepperField, PrimaryActionButton, PlayerProfileErrorBoundary, TodayPageErrorBoundary, InBlocPageErrorBoundary };
+export { Avatar, CategoryIcon, WorkoutTypeIcon, ChevronRightIcon, TargetHitHexIcon, RedemptionShieldIcon, MemberTag, RedemptionNoteModal, StatusBadge, RankIcon, TrophyIcon, MedalIcon, UploadPhotoIcon, Bar, Card, AppIcon, AnteWordmark, Spinner, TodayScreenSkeleton, BlocSwitcherSkeleton, InstallBanner, WorkoutCategorySelector, SettingsField, SelectField, inputShellStyle, StepperField, PrimaryActionButton, PlayerProfileErrorBoundary, TodayPageErrorBoundary, InBlocPageErrorBoundary };

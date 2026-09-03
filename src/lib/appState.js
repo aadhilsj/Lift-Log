@@ -542,27 +542,35 @@ function getSeasonProrationSummaryForMonth(group, monthKey, settingsOverride = n
   return chosenSummary;
 }
 
+// This function exists twice, here and in api/lift-log.js, and the two had
+// drifted: the API's copy reported prorationSource "member" on every joined
+// branch and this one reported nothing at all. Screens that ask whether a
+// member's own target was prorated were therefore comparing undefined against
+// "member" and never matching. Kept in step with the API deliberately.
 function getJoinedTargetInfo(baseTarget, joinedSummary, prorationSummary = null) {
-  if (!joinedSummary || joinedSummary.day <= 1) return { target: baseTarget, joinDay: 1 };
+  if (!joinedSummary || joinedSummary.day <= 1) return { target: baseTarget, joinDay: 1, prorationSource: "none" };
   const joinDay = joinedSummary.daysInMonth - joinedSummary.daysRemaining + 1;
   if (!prorationSummary) {
     return {
       target: Math.max(1, Math.round((joinedSummary.daysRemaining / joinedSummary.daysInMonth) * baseTarget)),
       joinDay,
-      proratedDays: joinedSummary.daysRemaining
+      proratedDays: joinedSummary.daysRemaining,
+      prorationSource: "member"
     };
   }
   if (joinedSummary.day <= prorationSummary.day) {
     return {
       target: baseTarget,
       joinDay: prorationSummary.day,
-      proratedDays: prorationSummary.daysRemaining
+      proratedDays: prorationSummary.daysRemaining,
+      prorationSource: "member"
     };
   }
   return {
     target: Math.max(1, Math.round((joinedSummary.daysRemaining / prorationSummary.daysRemaining) * baseTarget)),
     joinDay,
-    proratedDays: joinedSummary.daysRemaining
+    proratedDays: joinedSummary.daysRemaining,
+    prorationSource: "member"
   };
 }
 

@@ -16,7 +16,7 @@ import {
   isRecentPastTimestamp,
   isMobile
 } from "../lib/utils.js";
-import { Avatar, AppIcon, WorkoutTypeIcon, Card } from "../components/primitives.jsx";
+import { Avatar, AppIcon, WorkoutTypeIcon, Card, MemberTag } from "../components/primitives.jsx";
 import { TextEntryModal, NoticeModal } from "../modals/modals.jsx";
 
 const getReactionKey = (groupId, owner, logId, emoji) => `${groupId || ""}:${owner || ""}:${logId || ""}:${emoji || ""}`;
@@ -75,7 +75,7 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
   const approvedFlagCount = countApprovedFlagsForActor(group, currentUser);
   const cannotFlagMore = approvedFlagCount >= 3;
   const compactFeed = isMobile();
-  const soloBadge = React.createElement('span',{className:"mono",style:{fontSize:7.5,color:"#4ECDC4",border:"0.5px solid rgba(78,205,196,.34)",borderRadius:999,padding:"2px 5px",letterSpacing:".08em",fontWeight:800,flexShrink:0}},"SOLO");
+  const soloBadge = React.createElement(MemberTag,{tone:"solo"},"Solo");
   const isPostSolo = post => !!post && isSoloForMonth(group, post.owner, getMonthKeyFromISO(post.date));
   const getCommentCount = useCallback(post => {
     const key = String(post?.id || "");

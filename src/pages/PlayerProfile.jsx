@@ -31,7 +31,7 @@ import {
 import {
   isMobile
 } from "../lib/utils.js";
-import { Avatar, WorkoutTypeIcon, Bar, Card, SelectField, TargetHitHexIcon, AppIcon , RedemptionShieldIcon } from "../components/primitives.jsx";
+import { Avatar, WorkoutTypeIcon, Bar, Card, SelectField, TargetHitHexIcon, AppIcon , RedemptionShieldIcon, RedemptionNoteModal } from "../components/primitives.jsx";
 import { DeleteModal } from "../modals/modals.jsx";
 import { ProfileStatsPanel } from "../components/ProfileStatsPanel.jsx";
 import { ShareSticker } from "../components/ShareSticker.jsx";
@@ -231,6 +231,7 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
   const selLabel=isCurMonth?`${MONTH_NAMES[CUR_MONTH]} ${CUR_YEAR}`:profileMonthLabel(selHistMonth);
   // The one place the mark gets its name. Kept off the leaderboard rows, where
   // the shield alone has to sit beside a name without crowding it.
+  const [showRedemptionNote,setShowRedemptionNote]=useState(false);
   const selRedemptionMark = getRedemptionMark(
     monthHistory,
     name,
@@ -505,6 +506,13 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
   );
 
   return React.createElement('div',{ref:surfaceRef,onTouchStart:startSwipeBack,onTouchMove:moveSwipeBack,onTouchEnd:endSwipeBack,onTouchCancel:e=>{e.stopPropagation();swipeRef.current={sx:0,sy:0,active:false,mode:null};onSwipeRevealChange?.(false);setDragging(false);resetSwipeTransform();},style:{minHeight:"100dvh",background:"var(--bg-gradient)",backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)",transform:dragXRef.current?`translateX(${dragXRef.current}px)`:"translateX(0)",transition:dragging?"none":"transform .08s ease-out",boxShadow:dragXRef.current?"-18px 0 34px rgba(0,0,0,.28)":"none",willChange:dragging||dragXRef.current?"transform":"auto",touchAction:"pan-y",overscrollBehavior:"contain"}},
+    showRedemptionNote && React.createElement(RedemptionNoteModal,{
+      redeemed: selRedemptionMark === "redeemed",
+      memberName: name,
+      isSelf: currentUserId ? memberUserId === currentUserId : false,
+      monthName: selLabel ? String(selLabel).split(" ")[0] : "",
+      onClose: ()=>setShowRedemptionNote(false)
+    }),
     showShareSticker && shareStickerData && React.createElement(ShareSticker,{
       data:shareStickerData,
       monthLabel:selLabel,
@@ -560,14 +568,16 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
 	      React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,marginBottom:12}},
 	        React.createElement('div',{style:{display:"flex",alignItems:"center",gap:7,minWidth:0}},
 	          React.createElement('div',{style:{fontWeight:800,fontSize:14}},`${selLabel} · Log`),
-	          selRedemptionMark&&React.createElement('span',{
-	            style:{display:"inline-flex",alignItems:"center",gap:4,flexShrink:0,padding:"2px 7px",borderRadius:999,
-	              border:`0.5px solid ${selRedemptionMark === "redeemed" ? "rgba(245,200,66,.34)" : "rgba(212,74,74,.34)"}`,
+	          selRedemptionMark&&React.createElement('button',{
+	            type:"button",
+	            onClick:()=>setShowRedemptionNote(true),
+	            "aria-label":selRedemptionMark === "redeemed" ? "About this redeemed month" : "About this redemption",
+	            style:{display:"inline-flex",alignItems:"center",gap:5,flexShrink:0,padding:0,background:"transparent",border:"none",
 	              color:selRedemptionMark === "redeemed" ? "#f5c842" : "#D44A4A"}
 	          },
-	            React.createElement(RedemptionShieldIcon,{size:11,redeemed:selRedemptionMark === "redeemed"}),
-	            React.createElement('span',{className:"mono",style:{fontSize:8,fontWeight:800,letterSpacing:".08em"}},
-	              selRedemptionMark === "redeemed" ? "REDEEMED" : "REDEMPTION")
+	            React.createElement(RedemptionShieldIcon,{size:12,redeemed:selRedemptionMark === "redeemed"}),
+	            React.createElement('span',{style:{fontFamily:"'Outfit',sans-serif",fontSize:9,fontWeight:700,letterSpacing:".04em",textTransform:"uppercase"}},
+	              selRedemptionMark === "redeemed" ? "Redeemed" : "Redemption")
 	          )
 	        ),
 	        shareStickerData ? React.createElement('button',{
