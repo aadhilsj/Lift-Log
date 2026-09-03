@@ -1,4 +1,5 @@
 import React from "react";
+import { createPortal } from "react-dom";
 const { useState, useEffect, useMemo, useCallback, useRef } = React;
 import {
   WORKOUT_TYPES,
@@ -562,15 +563,69 @@ const TodayPageErrorBoundary = ({resetKey,children}) => React.createElement(
 // close control or by tapping the backdrop - there is nothing to acknowledge
 // here, so there is no confirm button to press.
 const RedemptionNoteModal = ({redeemed=false,memberName="",isSelf=false,monthName="",onClose}) => {
+  // Portalled to document.body on purpose. PlayerProfile's root carries a
+  // translateX for its back-swipe, and Safari treats any transform as the
+  // containing block for fixed descendants - so rendered in place this landed
+  // wherever the profile surface happened to be rather than in the middle of
+  // the screen, with the page still scrolling behind it.
+  //
+  // Nothing behind it may scroll while it is open. overflow:hidden on the body
+  // is not enough on its own - the profile layer owns its own scroll container
+  // and would keep moving - so this mirrors the capture-phase touchmove block
+  // the auth surface already uses in App.jsx.
+  useEffect(() => {
+    const body = document.body;
+    const root = document.documentElement;
+    const previous = {
+      bodyOverflow: body.style.overflow,
+      rootOverflow: root.style.overflow,
+      bodyTouch: body.style.touchAction,
+      bodyOverscroll: body.style.overscrollBehavior
+    };
+    const blockScroll = event => {
+      if (event.cancelable) event.preventDefault();
+    };
+    body.style.overflow = "hidden";
+    root.style.overflow = "hidden";
+    body.style.touchAction = "none";
+    body.style.overscrollBehavior = "none";
+    document.addEventListener("touchmove", blockScroll, { passive:false, capture:true });
+    document.addEventListener("wheel", blockScroll, { passive:false, capture:true });
+    return () => {
+      document.removeEventListener("touchmove", blockScroll, { capture:true });
+      document.removeEventListener("wheel", blockScroll, { capture:true });
+      body.style.overflow = previous.bodyOverflow;
+      root.style.overflow = previous.rootOverflow;
+      body.style.touchAction = previous.bodyTouch;
+      body.style.overscrollBehavior = previous.bodyOverscroll;
+    };
+  }, []);
+
   const colour = redeemed ? "#f5c842" : "#D44A4A";
   const who = isSelf ? "You" : (memberName || "They");
   const slowLine = monthName ? `had a slow ${monthName}` : "had a slow month";
   const body = redeemed
     ? (isSelf ? `You ${slowLine}. You redeemed it this month.` : `${who} ${slowLine}, and redeemed it this month.`)
     : (isSelf ? `You ${slowLine}. This month is your chance to redeem it.` : `${who} ${slowLine}. This month is their chance to redeem it.`);
-  return React.createElement('div',{
-    className:"overlay center-mobile",
-    onClick:onClose
+  return createPortal(React.createElement('div',{
+    onClick:onClose,
+    onTouchMove:e=>e.preventDefault(),
+    style:{
+      position:"fixed",
+      inset:0,
+      zIndex:1100,
+      display:"flex",
+      alignItems:"center",
+      justifyContent:"center",
+      padding:"16px",
+      // Lighter than the app's standard overlay: this is a footnote, not a
+      // decision, so the screen behind stays legible under the blur.
+      background:"rgba(4,9,9,.42)",
+      backdropFilter:"blur(6px)",
+      WebkitBackdropFilter:"blur(6px)",
+      overscrollBehavior:"contain",
+      animation:"fadeIn .16s ease"
+    }
   },
     React.createElement('div',{
       className:"modal",
@@ -591,7 +646,7 @@ const RedemptionNoteModal = ({redeemed=false,memberName="",isSelf=false,monthNam
       ),
       React.createElement('div',{style:{fontSize:12.5,color:"var(--text-soft, #b8becc)",lineHeight:1.5}}, body)
     )
-  );
+  ), document.body);
 };
 
 const InstallBanner = ({installReady,onInstall,onDismiss,showIosHint}) => (

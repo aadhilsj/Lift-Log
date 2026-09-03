@@ -237,7 +237,12 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
     // Training members stay in the main list. They are exempt from the money,
     // not from the month, so they keep their rank and their row.
     const isTrainingMember = currentGroup ? isTrainingForMonth(currentGroup, name, curKey) : false;
-    return {name,count,isOut,isSolo:isSoloMember,isTraining:isTrainingMember,soloTarget:memberSoloTarget,target:activeTarget,status,memberDiffLabel,prorated:prorationSource === "member",redemptionMark};
+    // Joining mid-month is not the same as being prorated. Someone who joined
+    // early enough keeps the Bloc's full target, and calling that prorated says
+    // something untrue about the number beside their name. The tag follows the
+    // target, not the join date.
+    const hasReducedTarget = !isSoloMember && Number(target) < Number(MIN_TARGET);
+    return {name,count,isOut,isSolo:isSoloMember,isTraining:isTrainingMember,soloTarget:memberSoloTarget,target:activeTarget,status,memberDiffLabel,prorated:hasReducedTarget && prorationSource === "member",redemptionMark};
   }).sort((a,b)=>{if(a.isOut&&!b.isOut)return 1;if(!a.isOut&&b.isOut)return -1;if(a.isSolo&&!b.isSolo)return 1;if(!a.isSolo&&b.isSolo)return -1;return b.count-a.count||a.name.localeCompare(b.name);});
 
   let activeRank=0;
@@ -1289,7 +1294,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
                   u.redemptionMark&&React.createElement(RedemptionShieldIcon,{size:13,redeemed:u.redemptionMark === "redeemed"}),
                   u.isTraining&&React.createElement(MemberTag,{tone:"training"},"Training"),
                   isMe&&React.createElement('span',{className:"mono",style:{fontSize:8,color:"#3d5e59",marginLeft:6}},"you"),
-                  u.prorated&&!u.isOut&&React.createElement(MemberTag,{tone:"prorated"},"Prorated month")
+                  u.prorated&&!u.isOut&&React.createElement(MemberTag,{tone:"prorated"},"Prorated")
                 )
               )
             ),
@@ -1378,7 +1383,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
                   React.createElement('div',{style:{flex:1,minWidth:0,textAlign:"left",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",display:"inline-flex",alignItems:"center",gap:7,fontWeight:600,fontSize:14,color:u.isOut?"#2A4040":"var(--text)"}},
                     React.createElement('span',null,u.name),
                     isMe&&React.createElement('span',{className:"mono",style:{fontSize:8,color:"#3d5e59",marginLeft:7}},"you"),
-                    u.prorated&&!u.isOut&&React.createElement(MemberTag,{tone:"prorated"},"Prorated month")
+                    u.prorated&&!u.isOut&&React.createElement(MemberTag,{tone:"prorated"},"Prorated")
                   )
                 )
               ),
