@@ -1,7 +1,7 @@
 # Blob retirement — impact briefing, 2026-09-03
 
 For: Deveen (blob retirement / parity tooling)
-From: the Redemption + Training Wheels session, commits `03ff8c5` → `dfe2676`,
+From: the Redemption + Training Wheels session, commits `03ff8c5` → `ca88727`,
 all on `main`.
 
 Written after reading `docs/handover-2026-09-01-blob-retirement-parity-tooling.md`
@@ -23,6 +23,8 @@ today, the write is dropped and the user-visible effect is a member being
 charged money they were exempted from.
 
 None of this is urgent. All of it is cheap to close before the relevant wave.
+The first item is no longer theoretical: a live blob-vs-canonical divergence
+from it is recorded in section 1.
 
 ---
 
@@ -52,6 +54,28 @@ settlement. That is a money-visible failure, not a cosmetic one.
 handlers at grant time, exactly as `training-choice` already does. The RPC and
 column already exist. That makes the flag safe to skip and closes the gap for
 the retirement generally.
+
+### This is already visible in production
+
+Not hypothetical. Isira joined StavanGang on 2026-09-03 and was granted training
+by the Bloc's default. Read back the same day, before anything was corrected:
+
+| Source | Isira, September 2026 |
+|---|---|
+| Blob `groups.stavanger-4ever-7162hj.training` | `{"2026-8": true}` |
+| `season_member_status.training_wheels` | `false` |
+
+The two disagreed from the moment of the grant, and nothing was wrong with the
+write — that is simply what happens when a field is granted at join and only
+mirrored at rollover. Masha, who joined a day earlier, had no grant in either
+place.
+
+Both were corrected by hand on 2026-09-03 and now agree. The mechanism that
+produced the divergence is unchanged, so the next joiner reproduces it.
+
+**Two things follow.** The window is not brief: it lasts until the month closes,
+which can be four weeks. And the parity gate does not look at this field, so
+nothing would have reported it — see section 6.
 
 ---
 
@@ -103,6 +127,24 @@ It is blob-only, cleared at rollover, and carried through renames. At retirement
 it vanishes, and the symptom is a member being asked the same question forever.
 
 Low stakes, no money involved, but it needs a home before the blob goes.
+
+### One `joinedMonthByName` consumer removed
+
+Related, and in your favour. The joiner prompt originally decided whether to show
+by reading `joinedMonthByName` directly, and consequently never fired once in
+production — that map is empty for every member of StavanGang, and presumably
+plenty of other Blocs.
+
+It now calls `getActiveJoinedMonthForMember`, which still *prefers* the explicit
+map but falls back to inferring the join month from the membership's `joinedAt`.
+So the field is still read, but this path no longer breaks when it is empty.
+Whatever canonical home `joinedMonthByName` eventually gets, that resolver is the
+one place worth pointing at it.
+
+**How empty is it, in production today: 14 of 17 Blocs have `joinedMonthByName`
+as `{}`** — including Sarandawgs, StavanGang, Sweat Equity and Trying times.
+None are missing the key; they are present and empty. Anything reading it
+directly is reading nothing for most of the app.
 
 ---
 
@@ -180,6 +222,12 @@ Applied to both the blob's closed-month snapshot and
 `season_member_status.training_wheels`, deliberately together, since either one
 alone is exactly the drift your gate exists to catch. A two-statement rollback
 was captured and is with the founder; it is not in the repo.
+
+A second, smaller correction on 2026-09-03 in **StavanGang**: Isira's training
+grant for September was removed and Masha's added, at the founder's instruction,
+with both members' decisions recorded so neither is prompted. Blob and canonical
+were written together. This is the correction that surfaced the divergence in
+section 1.
 
 ---
 
