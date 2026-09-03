@@ -101,7 +101,7 @@ const MEMBER_TAG_TONES = {
 const MemberTag = ({tone="prorated",children}) => React.createElement('span',{
   style:{
     fontFamily:"'Outfit',sans-serif",
-    fontSize:9,
+    fontSize:8,
     fontWeight:700,
     letterSpacing:".04em",
     textTransform:"uppercase",

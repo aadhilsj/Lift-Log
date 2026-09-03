@@ -48,6 +48,10 @@ const FULL_MONTH_NAMES = ["January","February","March","April","May","June","Jul
 const profileMonthLabel = month => month ? `${FULL_MONTH_NAMES[month.month] || MONTH_NAMES[month.month]} ${month.year}` : "—";
 const profileMonthOptionLabel = month => month ? `${MONTH_NAMES[month.month]} '${String(month.year).slice(2)}` : "—";
 
+// The shared MONTH_NAMES list is the short form used in compact labels. The
+// redemption note is a sentence, so it needs the month spelled out.
+const PROFILE_FULL_MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+
 const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChange,groupSettings,onDeleteLog,initialMonthKey,memberUserId,currentUserId,visibleGroups,accountCreatedAt,profilePhotoUrl}) => {
   const compactMobile = isMobile();
   const [deleteTarget,setDeleteTarget]=useState(null);
@@ -510,7 +514,7 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
       redeemed: selRedemptionMark === "redeemed",
       memberName: name,
       isSelf: currentUserId ? memberUserId === currentUserId : false,
-      monthName: selLabel ? String(selLabel).split(" ")[0] : "",
+      monthName: PROFILE_FULL_MONTH_NAMES[selMonthNum] || "",
       onClose: ()=>setShowRedemptionNote(false)
     }),
     showShareSticker && shareStickerData && React.createElement(ShareSticker,{

@@ -589,13 +589,15 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
 
 
   const handleShare = () => {
-    onTrackUsage?.("share_month_clicked");
     // Preserved from the text-only share this replaced: a missed month sends you to the
     // ledger instead, because what you need then is what you owe, not a trophy.
     if (outcome === "missed") {
       ledgerRef.current?.scrollIntoView({behavior:"smooth", block:"center"});
       return;
     }
+    // Counted only when something is actually shared. This used to fire on the
+    // ledger jump too, which inflated the figure with taps that shared nothing.
+    onTrackUsage?.("share_month_clicked");
     setShowSticker(true);
   };
 
@@ -653,8 +655,11 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
         React.createElement('span',{style:{color:"var(--muted)",fontSize:16}},showStandings?"−":"+")
       ),
     React.createElement('div',{style:{display:"flex",gap:8,paddingTop:2}},
-      React.createElement('button',{onClick:handleShare,disabled:outcome!=="missed"&&!stickerData,style:{flex:1,padding:"13px",borderRadius:10,background:"var(--s2)",border:"1px solid var(--border)",color:"var(--text)",fontSize:13,fontWeight:800,opacity:(outcome!=="missed"&&!stickerData)?.5:1}},
-        outcome === "missed" ? "View the settlement" : "Share this month"
+      // Sharing lives on the calendar card now, so this is only the ledger jump
+      // a missed month needs. Rendering it as "Share this month" as well put the
+      // same action on screen twice.
+      outcome === "missed" && React.createElement('button',{onClick:handleShare,style:{flex:1,padding:"13px",borderRadius:10,background:"var(--s2)",border:"1px solid var(--border)",color:"var(--text)",fontSize:13,fontWeight:800}},
+        "View the settlement"
       )
     )
     ),
