@@ -139,8 +139,7 @@ function LogCommentThread({ groupId, log, currentUserId, currentUserName, onClos
   const [reactionTarget, setReactionTarget] = useState(null);
   const [dragX, setDragX] = useState(0);
   const [dragging, setDragging] = useState(false);
-  const reactionTimerRef = useRef(null);
-  const commentTapRef = useRef(new Map());
+  const commentGestureRef = useRef(new Map());
   const pendingCommentsRef = useRef(new Map());
   const pendingReactionOverridesRef = useRef(new Map());
   const inputRef = useRef(null);
@@ -304,18 +303,58 @@ function LogCommentThread({ groupId, log, currentUserId, currentUserName, onClos
     await refresh();
   };
 
-  const clearReactionTimer = () => {
-    if (reactionTimerRef.current) window.clearTimeout(reactionTimerRef.current);
-    reactionTimerRef.current = null;
+  // Keep comment double-tap and long-press behavior in lockstep with the
+  // Bloc Stream's Reactable surface. In particular, the same 26px movement
+  // tolerance and 600ms second-tap window make it equally forgiving on phone.
+  const clearCommentLongPress = commentId => {
+    const gesture = commentGestureRef.current.get(commentId);
+    if (gesture?.lp) window.clearTimeout(gesture.lp);
+    if (gesture) gesture.lp = null;
   };
-  const startReactionPress = (event, comment, isOwn) => {
-    clearReactionTimer();
-    const point = event.touches?.[0] || event;
-    reactionTimerRef.current = window.setTimeout(() => {
-      try { window.getSelection?.()?.removeAllRanges?.(); } catch {}
+  const startCommentGesture = (event, comment, isOwn) => {
+    const touch = event.touches?.[0];
+    if (!touch) return;
+    clearCommentLongPress(comment.id);
+    const previous = commentGestureRef.current.get(comment.id) || {};
+    const gesture = {
+      ...previous,
+      sx: touch.clientX,
+      sy: touch.clientY,
+      st: Date.now(),
+      maxDist: 0,
+      suppress: false,
+      lastTouch: Date.now(),
+      lp: null
+    };
+    gesture.lp = window.setTimeout(() => {
+      gesture.suppress = true;
+      try { navigator.vibrate?.(10); } catch (_) {}
       onTrackUsage?.("reaction_picker_opened");
-      setReactionTarget({ id: comment.id, isOwn, y: point?.clientY || 180 });
-    }, 330);
+      setReactionTarget({ id: comment.id, isOwn, y: touch.clientY || 180 });
+    }, 500);
+    commentGestureRef.current.set(comment.id, gesture);
+  };
+  const moveCommentGesture = (event, commentId) => {
+    const gesture = commentGestureRef.current.get(commentId);
+    const touch = event.touches?.[0];
+    if (!gesture || !touch) return;
+    gesture.maxDist = Math.max(gesture.maxDist || 0, Math.hypot(touch.clientX - gesture.sx, touch.clientY - gesture.sy));
+    if (gesture.maxDist > 10) clearCommentLongPress(commentId);
+  };
+  const endCommentGesture = (event, commentId) => {
+    const gesture = commentGestureRef.current.get(commentId);
+    if (!gesture) return;
+    clearCommentLongPress(commentId);
+    gesture.lastTouch = Date.now();
+    if (gesture.suppress) return;
+    if ((gesture.maxDist || 0) < 26 && Date.now() - gesture.st < 550) {
+      if (Date.now() - (gesture.lastTap || 0) < 600) {
+        gesture.lastTap = 0;
+        toggleReaction(commentId, "❤️");
+      } else {
+        gesture.lastTap = Date.now();
+      }
+    }
   };
   const renderReactionPicker = () => reactionTarget && React.createElement('div', {
     "data-comment-reaction-picker": "true",
@@ -477,33 +516,19 @@ function LogCommentThread({ groupId, log, currentUserId, currentUserName, onClos
                   React.createElement('div', { style: { minWidth: 0, maxWidth: "76%", display: "flex", flexDirection: "column", alignItems: isOwn ? "flex-end" : "flex-start" } },
                     showName ? React.createElement('div', { style: { color: "#3d5e59", fontSize: 9, fontWeight: 700, lineHeight: 1.2, margin: "0 0 2px 4px" } }, comment.commenterName) : null,
                     React.createElement('div', {
-                      onContextMenu: event => event.preventDefault(),
-                      onDoubleClick: () => toggleReaction(comment.id, "❤️"),
-                      onMouseDown: event => startReactionPress(event, comment, isOwn),
-                      onMouseUp: clearReactionTimer,
-                      onMouseLeave: clearReactionTimer,
-                      onTouchStart: event => {
-                        startReactionPress(event, comment, isOwn);
-                        const state = commentTapRef.current.get(comment.id) || { lastTap: 0, x: 0, y: 0 };
-                        const touch = event.touches?.[0];
-                        state.x = touch?.clientX || 0;
-                        state.y = touch?.clientY || 0;
-                        commentTapRef.current.set(comment.id, state);
+                      onDoubleClick: () => {
+                        const gesture = commentGestureRef.current.get(comment.id);
+                        if (!gesture || Date.now() - (gesture.lastTouch || 0) > 800) toggleReaction(comment.id, "❤️");
                       },
-                      onTouchEnd: event => {
-                        clearReactionTimer();
-                        const state = commentTapRef.current.get(comment.id);
-                        const touch = event.changedTouches?.[0];
-                        const now = Date.now();
-                        const closeEnough = state && Math.hypot((touch?.clientX || 0) - state.x, (touch?.clientY || 0) - state.y) < 26;
-                        if (closeEnough && state.lastTap && now - state.lastTap < 600) {
-                          state.lastTap = 0;
-                          toggleReaction(comment.id, "❤️");
-                        } else if (state) {
-                          state.lastTap = now;
-                        }
+                      onContextMenu: event => {
+                        event.preventDefault();
+                        onTrackUsage?.("reaction_picker_opened");
+                        setReactionTarget({ id: comment.id, isOwn, y: event.clientY || 180 });
                       },
-                      onTouchCancel: clearReactionTimer,
+                      onTouchStart: event => startCommentGesture(event, comment, isOwn),
+                      onTouchMove: event => moveCommentGesture(event, comment.id),
+                      onTouchEnd: event => endCommentGesture(event, comment.id),
+                      onTouchCancel: () => clearCommentLongPress(comment.id),
                       style: { position: "relative", color: "#fff", fontSize: 12, lineHeight: 1.32, whiteSpace: "pre-wrap", wordBreak: "break-word", background: isOwn ? "linear-gradient(135deg, #116B65, #0D4642)" : "#0D1F1E", border: `1px solid ${isOwn ? "rgba(78,205,196,.28)" : "#163d36"}`, borderRadius: isOwn ? "12px 4px 12px 12px" : "4px 12px 12px 12px", padding: "7px 9px", userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none", touchAction: "manipulation" }
                     }, comment.body, renderCommentReactions(comment, isOwn))
                   ),
