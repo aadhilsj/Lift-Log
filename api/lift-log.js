@@ -1917,6 +1917,7 @@ function buildCanonicalMonthHistoryForGroup(group, canonicalSeasons) {
     const counts = {};
     const excused = {};
     const solo = {};
+    const training = {};
     const memberAuthUserIds = {};
     for (const name of relevantNames) {
       const m = membersByName[name];
@@ -1925,6 +1926,13 @@ function buildCanonicalMonthHistoryForGroup(group, canonicalSeasons) {
       const soloTarget = Number(m?.solo_target || 0);
       if (m?.solo && Number.isFinite(soloTarget) && soloTarget > 0) {
         solo[name] = { [monthKey]: { target: Math.round(soloTarget) } };
+      }
+      // A closed month is rebuilt from canonical here, replacing the blob's
+      // copy wholesale. Anything not carried across is silently dropped, which
+      // is exactly how a training grant written to canonical could still leave
+      // the member showing a penalty on screen.
+      if (m?.training_wheels) {
+        training[name] = { [monthKey]: true };
       }
       if (m?.auth_user_id) memberAuthUserIds[name] = m.auth_user_id;
     }
@@ -1977,6 +1985,7 @@ function buildCanonicalMonthHistoryForGroup(group, canonicalSeasons) {
       counts,
       excused,
       solo,
+      training,
       memberAuthUserIds,
       logsByUser,
       settings:     canonicalSettings,
