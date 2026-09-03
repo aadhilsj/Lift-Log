@@ -44,6 +44,7 @@ const {
   isTrainingForMonth,
   isExemptFromStakes,
   hasDecidedTrainingForMonth,
+  getActiveJoinedMonthForMember,
   isSoloForMonth,
   missedTargetInMonth,
   getRedemptionMark,
@@ -254,6 +255,44 @@ test("a decision does not leak into another month or another member", () => {
   const group = makeGroup({ trainingDecisions: { Cal: { [MONTH]: true } } });
   assert.equal(hasDecidedTrainingForMonth(group, "Cal", "2026-8"), false);
   assert.equal(hasDecidedTrainingForMonth(group, "Dee", MONTH), false);
+});
+
+// ─── who gets asked ──────────────────────────────────────────────────────────
+//
+// The joiner prompt shipped keyed on joinedMonthByName and never fired once in
+// production, because that map is routinely empty - StavanGang's was empty for
+// all six members. These cover the resolver that replaced it, which falls back
+// to the membership's joinedAt.
+
+// July 2026 is month key "2026-6" - the key is zero-indexed, the ISO string is
+// not, and getting that wrong is what made the first draft of this test fail.
+const JULY_KEY = "2026-6";
+
+test("a join month is resolved even when joinedMonthByName is empty", () => {
+  const group = makeGroup({
+    joinedMonthByName: {},
+    memberships: {
+      m0: { userId:"u0", displayName:"Ann", role:"admin", joinedAt:"2026-01-04T10:00:00.000Z" },
+      m1: { userId:"u1", displayName:"Ben", joinedAt:"2026-07-15T10:00:00.000Z" }
+    },
+    monthHistory: []
+  });
+  syncActiveGroupGlobals(group);
+  assert.equal(group.joinedMonthByName?.Ben, undefined, "the explicit map really is empty");
+  assert.equal(getActiveJoinedMonthForMember("Ben", JULY_KEY), JULY_KEY,
+    "the join month still resolves, from the membership timestamp");
+});
+
+test("someone who joined an earlier month is not asked", () => {
+  const group = makeGroup({
+    joinedMonthByName: {},
+    memberships: {
+      m0: { userId:"u0", displayName:"Ann", role:"admin", joinedAt:"2026-01-04T10:00:00.000Z" }
+    },
+    monthHistory: []
+  });
+  syncActiveGroupGlobals(group);
+  assert.notEqual(getActiveJoinedMonthForMember("Ann", JULY_KEY), JULY_KEY);
 });
 
 test("a Bloc with nobody on training behaves exactly as before", () => {

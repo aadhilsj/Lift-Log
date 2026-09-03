@@ -17,6 +17,7 @@ import {
   normalizeAppState,
   getProfileForSession,
   getMembershipForUser,
+  getActiveJoinedMonthForMember,
   syncActiveGroupGlobals,
   syncActiveProfileGlobals,
   getCurrentGroupMemberNames,
@@ -524,11 +525,18 @@ const App = () => {
   // month - before that the admin's create-time switch governs the whole
   // founding roster, and offering an opt-out would just overrule it in the very
   // month it was meant to decide.
+  // "Did this member join this month" has exactly one right answer in this
+  // codebase, and it is not joinedMonthByName. That map is frequently empty -
+  // StavanGang's was empty for all six members - which is why it is one of the
+  // fields holding join-group back from the blob retirement. The resolver below
+  // is what proration already uses: it prefers the explicit map and falls back
+  // to inferring from the membership's joinedAt, which is present in both the
+  // compatibility document and canonical.
   const needsTrainingChoice = !!(
     currentGroup
     && currentUser
     && (currentGroup.monthHistory || []).length > 0
-    && currentGroup.joinedMonthByName?.[currentUser] === curKey
+    && getActiveJoinedMonthForMember(currentUser, curKey) === curKey
     && !currentGroup.trainingDecisions?.[currentUser]?.[curKey]
   );
 
