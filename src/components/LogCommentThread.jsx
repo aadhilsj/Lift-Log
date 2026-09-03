@@ -87,7 +87,6 @@ function LogThumb({ log }) {
       return React.createElement('div', {
         style: { width: "100%", aspectRatio: "1 / 1", maxHeight: 178, borderRadius: 12, overflow: "hidden", background: "rgba(13,31,30,.72)", flexShrink: 0, display: "flex", flexDirection: "column", gap: 7, alignItems: "center", justifyContent: "center", border: "1px solid rgba(78,205,196,.18)", color: "#6f918c", textAlign: "center", padding: 16, boxSizing: "border-box" }
       },
-        React.createElement(AppIcon, { name: "image", size: 26, stroke: "#4ECDC4" }),
         React.createElement('div', { style: { fontSize: 12, fontWeight: 700, color: "var(--text-soft)" } }, "Image expired"),
         React.createElement('div', { style: { fontSize: 10.5, lineHeight: 1.35 } }, "The workout and its comments are still here.")
       );
@@ -386,7 +385,7 @@ function LogCommentThread({ groupId, log, currentUserId, currentUserName, onClos
       .sort((a, b) => b[1].length - a[1].length || QUICK_REACTIONS.indexOf(a[0]) - QUICK_REACTIONS.indexOf(b[0]));
     if (!active.length) return null;
     const nameFor = userId => comments.find(entry => entry.commenterUserId === userId)?.commenterName || (userId === currentUserId ? currentUserName || "You" : "Member");
-    return React.createElement('div', { style: { position: "absolute", right: isOwnComment ? -7 : "auto", left: isOwnComment ? "auto" : -7, bottom: -9, zIndex: 3, display: "flex", alignItems: "center", gap: 3, flexWrap: "wrap" } },
+    return React.createElement('div', { style: { position: "absolute", left: isOwnComment ? -7 : "auto", right: isOwnComment ? "auto" : -7, bottom: -9, zIndex: 3, display: "flex", alignItems: "center", gap: 3, flexWrap: "wrap" } },
       active.map(([emoji, users]) => {
         return React.createElement(ReactionChip, { key: emoji, emoji, users, nameFor, compact: true });
       })

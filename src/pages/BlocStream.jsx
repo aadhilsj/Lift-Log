@@ -411,6 +411,7 @@ const SystemCard = ({ msg, onSeasonClosedTap }) => {
 };
 
 const LogCommentCard = ({ msg, onOpen }) => {
+  const [imageExpired, setImageExpired] = useState(false);
   const payload = msg.payload || {};
   const latest = payload.latestComment || {};
   const count = Number.isFinite(Number(payload.commentCount)) ? Math.max(0, Number(payload.commentCount)) : 0;
@@ -419,8 +420,10 @@ const LogCommentCard = ({ msg, onOpen }) => {
   const preview = latest.body
     ? `${latest.commenterName || "Member"}: "${latest.body}"`
     : "Open comments";
-  const thumb = payload.photoUrl
-    ? React.createElement('img', { src: resolveStorageImageUrl(payload.photoUrl), alt: `${owner} ${type}`, loading: "eager", decoding: "async", style: { width: 44, height: 44, borderRadius: 8, objectFit: "cover", background: "#050507", flexShrink: 0 } })
+  const thumb = payload.photoUrl && !imageExpired
+    ? React.createElement('img', { src: resolveStorageImageUrl(payload.photoUrl), alt: `${owner} ${type}`, loading: "eager", decoding: "async", onError: () => setImageExpired(true), style: { width: 44, height: 44, borderRadius: 8, objectFit: "cover", background: "#050507", flexShrink: 0 } })
+    : payload.photoUrl
+      ? React.createElement('div', { style: { width: 44, height: 44, borderRadius: 8, background: "#0D1F1E", border: "0.5px solid #163d36", display: "flex", alignItems: "center", justifyContent: "center", color: "#638b86", fontFamily: "'Outfit', sans-serif", fontSize: 8, fontWeight: 700, textAlign: "center", lineHeight: 1.1, padding: 4, boxSizing: "border-box", flexShrink: 0 } }, "Expired")
     : React.createElement('div', { style: { width: 44, height: 44, borderRadius: 8, background: "#0D1F1E", border: "0.5px solid #163d36", display: "flex", alignItems: "center", justifyContent: "center", color: C.accent, flexShrink: 0 } },
         React.createElement(WorkoutTypeIcon, { type, size: 20 })
       );
