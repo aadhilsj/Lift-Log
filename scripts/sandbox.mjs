@@ -13,6 +13,7 @@
 
 import { spawn } from "node:child_process";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -50,8 +51,19 @@ const sandboxEnv = {
 
   SANDBOX_BLOB_FILE: blobFile,
   SANDBOX_SUPABASE_PORT: String(supabasePort),
-  PORT: String(appPort)
+  PORT: String(appPort),
+
+  // Listen on the local network, not just this Mac. Fero is tested on a phone,
+  // and 127.0.0.1 is unreachable from one. The API already treats 192.168.x.x,
+  // 10.x.x.x and 172.16–31.x.x callers as local (isLocalDevRequest), so the
+  // dev sign-in works from a phone exactly as it does here.
+  HOST: "0.0.0.0"
 };
+
+// The address a phone on the same wifi should use.
+const lanAddress = Object.values(os.networkInterfaces())
+  .flat()
+  .find(entry => entry?.family === "IPv4" && !entry.internal)?.address || null;
 
 for (const [key, value] of Object.entries(sandboxEnv)) {
   if (typeof value === "string" && value.includes(PRODUCTION_REF)) {
@@ -117,12 +129,14 @@ setTimeout(() => {
     console.log("");
     console.log("  Fero sandbox is up.");
     console.log("");
-    console.log(`    Open      http://127.0.0.1:${appPort}`);
-    console.log("    Sign in   any address ending @local.test");
-    console.log("    Code      000000");
+    console.log(`    On this Mac   http://127.0.0.1:${appPort}`);
+    if (lanAddress) console.log(`    On your phone http://${lanAddress}:${appPort}   (same wifi)`);
     console.log("");
-    console.log(`    Data      ${path.relative(rootDir, blobFile)}  (delete it to start over)`);
-    console.log("    Live app  untouched — this talks to a local file only");
+    console.log("    Sign in       any address ending @local.test");
+    console.log("    Code          000000");
+    console.log("");
+    console.log(`    Data          ${path.relative(rootDir, blobFile)}  (delete it to start over)`);
+    console.log("    Live app      untouched — this talks to a local file only");
     console.log("");
   }, 700);
 }, 400);
