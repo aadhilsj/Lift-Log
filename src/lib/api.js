@@ -514,6 +514,33 @@ async function deleteAccountData(userId) {
   return { ok:true, state: normalizeAppState(result.body.state) };
 }
 
+// Supabase reports several different conditions here, and the app used to
+// collapse every one of them into "No Fero account found for that email."
+// That told real members their account did not exist — the production logs for
+// 2026-09-04 03:06 show a 429 rate limit being reported that way.
+//
+// Only `otp_disabled` (Supabase's answer when shouldCreateUser is false and the
+// address is unknown) actually means there is no account.
+function classifyOtpSendError(error) {
+  const message = String(error?.message || "").trim() || "Unable to send code";
+  const code = String(error?.code || error?.error_code || "").trim();
+  const status = Number(error?.status) || 0;
+  const rateLimited = status === 429 || code === "over_email_send_rate_limit";
+  const noAccount = code === "otp_disabled" || /signups?\s+not\s+allowed/i.test(message);
+  // Supabase names the wait in the message: "you can only request this after
+  // 36 seconds". Read it rather than guessing, and fall back to a minute only
+  // when the wording changes.
+  const secondsMatch = /after\s+(\d+)\s*second/i.exec(message);
+  return {
+    error: message,
+    code,
+    status,
+    rateLimited,
+    noAccount,
+    retryAfterSeconds: rateLimited ? (secondsMatch ? Number(secondsMatch[1]) : 60) : null
+  };
+}
+
 async function sendOtpData(email, options = {}) {
   try {
     const config = await fetchAuthConfig().catch(()=>null);
@@ -534,7 +561,7 @@ async function sendOtpData(email, options = {}) {
         emailRedirectTo: `${window.location.origin}${window.location.pathname}`
       }
     });
-    if (error) return { ok:false, error:error.message || "Unable to send code" };
+    if (error) return { ok:false, ...classifyOtpSendError(error) };
     return { ok:true, devCode:null };
   } catch(e){ console.error("Send OTP error:", e); }
   return { ok:false, error:"Unable to send code" };
@@ -959,6 +986,7 @@ export {
   deleteAccountData,
   checkAuthEmailExistsData,
   sendOtpData,
+  classifyOtpSendError,
   verifyOtpData,
   upsertProfileData,
   updateProfilePhotoData,

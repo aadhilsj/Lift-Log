@@ -34,7 +34,9 @@ const sandboxEnv = {
 
   // Sign in as anyone @local.test with the code below. No email is sent and
   // Supabase Auth is never called (api/lift-log.js, parseLocalDevAuthToken).
-  ENABLE_LOCAL_DEV_OTP: "true",
+  // Overridable so the real Supabase auth path can be exercised against the
+  // stand-in server: ENABLE_LOCAL_DEV_OTP=false npm run sandbox
+  ENABLE_LOCAL_DEV_OTP: process.env.ENABLE_LOCAL_DEV_OTP || "true",
   LOCAL_DEV_OTP_CODE: "000000",
   ENABLE_LOCAL_PREVIEW_AUTH: "false",
 

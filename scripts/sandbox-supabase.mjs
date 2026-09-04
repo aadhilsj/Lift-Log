@@ -53,9 +53,20 @@ function writeRow(row) {
   fs.renameSync(tmp, dataFile);
 }
 
+// The browser calls this server cross-origin (page on :3000, server on :54321),
+// so every response needs CORS headers or the Supabase client only ever sees
+// "Failed to fetch".
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info, x-supabase-api-version",
+  "Access-Control-Allow-Methods": "GET, POST, PATCH, PUT, DELETE, OPTIONS",
+  "Access-Control-Expose-Headers": "content-range, x-supabase-api-version"
+};
+
 function send(res, status, body) {
   const payload = body === undefined ? "" : JSON.stringify(body);
   res.writeHead(status, {
+    ...CORS_HEADERS,
     "Content-Type": "application/json; charset=utf-8",
     "Content-Length": Buffer.byteLength(payload)
   });
@@ -77,6 +88,11 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url || "/", `http://127.0.0.1:${port}`);
   const route = url.pathname;
   const method = (req.method || "GET").toUpperCase();
+
+  if (method === "OPTIONS") {
+    res.writeHead(204, CORS_HEADERS);
+    return res.end();
+  }
 
   // --- the blob ----------------------------------------------------------
   if (route === "/rest/v1/lift_log_state") {
@@ -118,6 +134,27 @@ const server = http.createServer(async (req, res) => {
   if (route.startsWith("/rest/v1/rpc/")) {
     await readBody(req);
     return send(res, 200, []);
+  }
+
+  // --- auth ---------------------------------------------------------------
+  // Only reached when ENABLE_LOCAL_DEV_OTP is off, which is how the real
+  // Supabase code path gets exercised locally. An address containing
+  // "ratelimit" gets the genuine 429 body, copied from the production auth log
+  // for 2026-09-04T03:06:14Z, so the rate-limit handling can be tested without
+  // waiting on the real thing.
+  if (route === "/auth/v1/otp" && method === "POST") {
+    const body = await readBody(req);
+    const email = String(body?.email || "").toLowerCase();
+    if (email.includes("ratelimit")) {
+      const payload = JSON.stringify({
+        code: 429,
+        error_code: "over_email_send_rate_limit",
+        msg: "For security purposes, you can only request this after 36 seconds."
+      });
+      res.writeHead(429, { ...CORS_HEADERS, "Content-Type": "application/json", "Content-Length": Buffer.byteLength(payload) });
+      return res.end(payload);
+    }
+    return send(res, 200, {});
   }
 
   // --- storage -----------------------------------------------------------

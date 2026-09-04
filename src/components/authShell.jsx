@@ -352,7 +352,7 @@ const authHelper = (step, mode, intent, email) => {
   return "Use a one-time code to sign in.";
 };
 
-const AuthFlowModal = ({step,mode="signin",intent="",email,setEmail,code,setCode,displayName,setDisplayName,onClose,onSendOtp,onVerifyOtp,onSaveProfile,onConfirmExistingAccount,onUseDifferentEmail,onRetryAccountSync,retryingAccountSync,sending,verifying,savingProfile,error,devCode}) => renderTopLevelOverlay(React.createElement('div',{className:"overlay center-mobile",onClick:containOverlayActivation,onMouseDown:containOverlayActivation,onPointerDown:containOverlayActivation,onTouchStart:containOverlayTouch,onTouchMove:containOverlayTouchMove,onTouchEnd:containOverlayTouch,onTouchCancel:containOverlayTouch,style:{touchAction:"none",zIndex:10000,pointerEvents:"auto"}},
+const AuthFlowModal = ({step,mode="signin",intent="",email,setEmail,code,setCode,displayName,setDisplayName,onClose,onSendOtp,onVerifyOtp,onSaveProfile,onConfirmExistingAccount,onUseDifferentEmail,onRetryAccountSync,retryingAccountSync,resendCooldown=0,sending,verifying,savingProfile,error,devCode}) => renderTopLevelOverlay(React.createElement('div',{className:"overlay center-mobile",onClick:containOverlayActivation,onMouseDown:containOverlayActivation,onPointerDown:containOverlayActivation,onTouchStart:containOverlayTouch,onTouchMove:containOverlayTouchMove,onTouchEnd:containOverlayTouch,onTouchCancel:containOverlayTouch,style:{touchAction:"none",zIndex:10000,pointerEvents:"auto"}},
   React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),onTouchStart:stopModalTouch,onTouchMove:stopModalTouch,onTouchEnd:stopModalTouch,onTouchCancel:stopModalTouch,style:{maxWidth:420,touchAction:"auto"}},
     React.createElement('div',{style:{fontFamily:"'Raleway', sans-serif",fontWeight:900,fontSize:22,marginBottom:6,lineHeight:1.05,letterSpacing:0}},
       authTitle(step, mode, intent)
@@ -378,10 +378,20 @@ const AuthFlowModal = ({step,mode="signin",intent="",email,setEmail,code,setCode
       React.createElement('span',{className:"lbl"},"Display name"),
       React.createElement('input',{value:displayName,onChange:e=>setDisplayName(e.target.value),placeholder:"Your name",style:{width:"100%",background:"var(--s2)",border:"1px solid var(--border)",borderRadius:10,padding:"12px 13px",color:"var(--text)",fontSize:15,outline:"none"}})
     ),
-    error && React.createElement('div',{style:{fontSize:12,color:"var(--red)",marginBottom:16,whiteSpace:"pre-wrap"}},error),
+    resendCooldown > 0 && React.createElement('div',{style:{fontSize:12,color:"var(--text-soft)",marginBottom:16,lineHeight:1.5}},
+      "Too many code requests. You can ask for another in ",
+      React.createElement('span',{className:"mono",style:{color:"var(--green)",fontWeight:700}},`${resendCooldown}s`),
+      "."
+    ),
+    error && resendCooldown <= 0 && React.createElement('div',{style:{fontSize:12,color:"var(--red)",marginBottom:16,whiteSpace:"pre-wrap"}},error),
     React.createElement('div',{style:{display:"flex",gap:9}},
       step!=="existing" && step!=="alreadyMember" && React.createElement('button',{onClick:onClose,style:{flex:1,background:"var(--s2)",border:"1px solid var(--border)",color:"var(--muted)",padding:"14px",borderRadius:10,fontFamily:"'Outfit', sans-serif",fontSize:15,fontWeight:700}},"Cancel"),
-      step==="email" && React.createElement('button',{disabled:!email.trim()||sending,onClick:onSendOtp,style:{flex:1,background:email.trim()&&!sending?"var(--green)":"var(--s3)",color:email.trim()&&!sending?"#000":"var(--muted2)",padding:"14px",borderRadius:10,fontSize:15,fontWeight:800}},sending?"Sending...":"Send code"),
+      step==="email" && (() => {
+        const waiting = resendCooldown > 0;
+        const ready = email.trim() && !sending && !waiting;
+        return React.createElement('button',{disabled:!ready,onClick:onSendOtp,style:{flex:1,background:ready?"var(--green)":"var(--s3)",color:ready?"#000":"var(--muted2)",padding:"14px",borderRadius:10,fontSize:15,fontWeight:800}},
+          waiting ? `Wait ${resendCooldown}s` : sending ? "Sending..." : "Send code");
+      })(),
       step==="otp" && React.createElement('button',{disabled:code.length!==6||verifying,onClick:onVerifyOtp,style:{flex:1,background:code.length===6&&!verifying?"var(--green)":"var(--s3)",color:code.length===6&&!verifying?"#000":"var(--muted2)",padding:"14px",borderRadius:10,fontSize:15,fontWeight:800}},verifying?"Checking...":"Verify"),
       step==="syncFailed" && React.createElement('button',{disabled:retryingAccountSync,onClick:onRetryAccountSync,style:{flex:1,background:!retryingAccountSync?"var(--green)":"var(--s3)",color:!retryingAccountSync?"#000":"var(--muted2)",padding:"14px",borderRadius:10,fontSize:15,fontWeight:800}},retryingAccountSync?"Loading...":"Try again"),
       step==="name" && React.createElement('button',{disabled:!displayName.trim()||savingProfile,onClick:onSaveProfile,style:{flex:1,background:displayName.trim()&&!savingProfile?"var(--green)":"var(--s3)",color:displayName.trim()&&!savingProfile?"#000":"var(--muted2)",padding:"14px",borderRadius:10,fontSize:15,fontWeight:800}},savingProfile?"Saving...":"Continue"),

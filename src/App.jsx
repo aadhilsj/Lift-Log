@@ -153,6 +153,21 @@ const preserveKnownProfilePhotos = (current, incoming) => {
   return changed ? { ...incoming, profiles: mergedProfiles } : incoming;
 };
 
+// What to say when a code could not be sent. One place, because the two
+// callers previously disagreed: one always claimed the account did not exist.
+//
+// The countdown text is deliberately absent here — the modal renders the live
+// seconds, and a number frozen into a string is wrong the moment it is read.
+const describeOtpSendFailure = (result, intentType) => {
+  if (result?.rateLimited) return "";
+  if (result?.noAccount) {
+    return intentType === "signin"
+      ? "No Fero account found for that email. Create a new account instead."
+      : "That email can't be used to sign up right now.";
+  }
+  return result?.error || "Unable to send code";
+};
+
 const SETUP_PROGRESS_STAGES = {
   signingIn: { labels:["Checking your code...", "Signing you in...", "Getting things ready..."], min:8, max:92 },
   savingName: { labels:["Saving your name...", "Securing your profile..."], min:8, max:34 },
@@ -286,6 +301,9 @@ const App = () => {
   // never the code, which cannot be verified twice.
   const [pendingVerifiedSession,setPendingVerifiedSession]=useState(null);
   const [retryingAccountSync,setRetryingAccountSync]=useState(false);
+  // Seconds left before another code may be requested. Supabase names the
+  // number; this counts it down so nobody has to guess what "in a moment" means.
+  const [resendCooldown,setResendCooldown]=useState(0);
   const [coldOnboardingSeen,setColdOnboardingSeen]=useState(()=>{try{return localStorage.getItem(COLD_ONBOARDING_SEEN_KEY)==="1";}catch{return false;}});
   const [replayColdOnboarding,setReplayColdOnboarding]=useState(false);
   const [coldOnboardingInitialIndex,setColdOnboardingInitialIndex]=useState(0);
@@ -439,6 +457,12 @@ const App = () => {
     } catch {}
     setSelectedGroupId(groupId || null);
   },[]);
+
+  useEffect(()=>{
+    if (resendCooldown <= 0) return undefined;
+    const timer = window.setTimeout(()=>setResendCooldown(current=>Math.max(0, current - 1)), 1000);
+    return ()=>window.clearTimeout(timer);
+  },[resendCooldown]);
 
   const persistSession = useCallback((session) => {
     const nextSession = session?.userId ? session : null;
@@ -2188,6 +2212,7 @@ const App = () => {
     setPendingAuthSession(null);
     setPendingVerifiedSession(null);
     setRetryingAccountSync(false);
+    setResendCooldown(0);
     setAuthExistingAccountEmail("");
     setAuthExistingAccountConfirmed(false);
   };
@@ -2394,9 +2419,11 @@ const App = () => {
     const result = await sendOtpData(normalizedEmail, { shouldCreateUser });
     setSendingOtp(false);
     if (!result?.ok) {
-      setAuthError(authIntent?.type === "signin" ? "No Fero account found for that email. Create a new account instead." : (result?.error || "Unable to send code"));
+      setAuthError(describeOtpSendFailure(result, authIntent?.type));
+      if (result?.rateLimited) setResendCooldown(Number(result.retryAfterSeconds) || 60);
       return;
     }
+    setResendCooldown(0);
     setDevOtpCode(result.devCode || "");
     setAuthStep("otp");
   };
@@ -2414,9 +2441,11 @@ const App = () => {
     const result = await sendOtpData(normalizedEmail, { shouldCreateUser:false });
     setSendingOtp(false);
     if (!result?.ok) {
-      setAuthError(result?.error || "Unable to send code");
+      setAuthError(describeOtpSendFailure(result, "signin"));
+      if (result?.rateLimited) setResendCooldown(Number(result.retryAfterSeconds) || 60);
       return;
     }
+    setResendCooldown(0);
     setDevOtpCode(result.devCode || "");
     setAuthStep("otp");
   };
@@ -2698,6 +2727,7 @@ const App = () => {
     onUseDifferentEmail:handleUseDifferentEmail,
     onRetryAccountSync:handleRetryAccountSync,
     retryingAccountSync,
+    resendCooldown,
     sending:sendingOtp,
     verifying:verifyingOtp,
     savingProfile,

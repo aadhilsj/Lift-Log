@@ -26,7 +26,8 @@
     "test:founder-dashboard": "node scripts/test-founder-dashboard.mjs",
     "dev:api": "node scripts/local-dev-server.mjs",
     "sandbox": "node scripts/sandbox.mjs",
-    "sandbox:seed": "node scripts/sandbox-seed.mjs"
+    "sandbox:seed": "node scripts/sandbox-seed.mjs",
+    "test:otp-errors": "node scripts/test-otp-send-errors.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",
