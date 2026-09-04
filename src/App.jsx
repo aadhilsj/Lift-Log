@@ -280,6 +280,11 @@ const App = () => {
   const [pendingAuthSession,setPendingAuthSession]=useState(null);
   const [authStep,setAuthStep]=useState(null);
   const [authIntent,setAuthIntent]=useState(null);
+  // Held when the one-time code was accepted but the account never loaded. The
+  // session is real and already spent, so recovery re-runs the account fetch —
+  // never the code, which cannot be verified twice.
+  const [pendingVerifiedSession,setPendingVerifiedSession]=useState(null);
+  const [retryingAccountSync,setRetryingAccountSync]=useState(false);
   const [coldOnboardingSeen,setColdOnboardingSeen]=useState(()=>{try{return localStorage.getItem(COLD_ONBOARDING_SEEN_KEY)==="1";}catch{return false;}});
   const [replayColdOnboarding,setReplayColdOnboarding]=useState(false);
   const [coldOnboardingInitialIndex,setColdOnboardingInitialIndex]=useState(0);
@@ -2180,10 +2185,21 @@ const App = () => {
     setAuthError("");
     setDevOtpCode("");
     setPendingAuthSession(null);
+    setPendingVerifiedSession(null);
+    setRetryingAccountSync(false);
     setAuthExistingAccountEmail("");
     setAuthExistingAccountConfirmed(false);
   };
   const closeAuth = () => {
+    // Backing out of the failed-fetch screen must leave no half-signed-in
+    // state behind. The code was spent and Supabase holds a live session, but
+    // the app never learned who this is — and the startup path never asks for
+    // a display name, so a new member left signed in here would land inside
+    // Fero with no profile and nothing to prompt them. Sign out instead.
+    if (authStep === "syncFailed") {
+      signOutAuthSession().catch(error => console.error("Sign out after failed account load:", error));
+      persistSession(null);
+    }
     const shouldResumeColdOnboarding = (authIntent?.type === "create" && returnToColdOnboardingOnCreateCancel) || (authIntent?.type === "join" && returnToColdOnboardingOnJoinCancel) || (authIntent?.type === "signin" && returnToColdOnboardingOnSignInCancel);
     const cancelledOnboardingSignIn = authIntent?.type === "signin" && returnToColdOnboardingOnSignInCancel;
     const cancelledOnboardingJoin = authIntent?.type === "join" && returnToColdOnboardingOnJoinCancel;
@@ -2427,7 +2443,34 @@ const App = () => {
       localDevOtp: Boolean(result.session.localDevOtp)
     };
     const syncedState = result.state || (nextSession.userId === authSession?.userId ? appState : null);
+
+    // The code was accepted but the account never came back.
+    //
+    // This is a FAILED FETCH, never a new account. A genuinely new member's
+    // sync succeeds and says `needsProfileSetup`; only a broken one returns
+    // nothing at all. Treating nothing-at-all as "new" is what asked existing
+    // members to name themselves — and saving that name renamed them across
+    // every Bloc, rewriting closed months in the process.
+    //
+    // So: hold the session, ask nothing, and offer to fetch again.
+    if (!syncedState) {
+      setPendingVerifiedSession(nextSession);
+      setAuthStep("syncFailed");
+      setAuthError(result?.syncRetryable === false
+        ? (result?.syncError || "Your session is no longer valid. Sign in again.")
+        : "");
+      return;
+    }
+
     let nextProfile = getProfileForSession(syncedState, nextSession);
+    return finishVerifiedAuth({ nextSession, syncedState, nextProfile, sessionInfo: result.session, freshState: result.state });
+  };
+
+  // Everything that happens once a code is verified AND the account has
+  // actually loaded. Shared by the first attempt and by the retry, so the two
+  // can never drift — the last session lost a day to exactly that, with
+  // getJoinedTargetInfo living in two places and disagreeing.
+  const finishVerifiedAuth = async ({ nextSession, syncedState, nextProfile, sessionInfo, freshState }) => {
     const hasExistingFeroAccount = authIntent?.type === "signup" && (
       Boolean(nextProfile?.displayName)
       || Object.values(syncedState?.groups || {}).some(group => Boolean(getMembershipForUser(group, nextSession, nextProfile)))
@@ -2441,17 +2484,17 @@ const App = () => {
       setAuthError("This email already has a Fero account. Sign in instead.");
       return;
     }
-    const needsProfileSetup = syncedState
-      ? (typeof result.session.needsProfileSetup === "boolean"
-          ? result.session.needsProfileSetup
-          : !nextProfile?.displayName)
-      : true;
+    // syncedState is guaranteed present here, so this is always the server's
+    // own answer or a read of real profile data — never a guess.
+    const needsProfileSetup = typeof sessionInfo?.needsProfileSetup === "boolean"
+      ? sessionInfo.needsProfileSetup
+      : !nextProfile?.displayName;
 
     // Brand-new accounts created from the Welcome Back screen should see the
     // pitch before profile setup. Profile setup is collected later, once they
     // actually create or join a Bloc from onboarding screen 4.
     if (authIntent?.type === "signup" && needsProfileSetup) {
-      if (result.state) applyData(result.state);
+      if (freshState) applyData(freshState);
       persistSession(nextSession);
       setPendingAuthSession(null);
       resetAuthFlow();
@@ -2472,12 +2515,45 @@ const App = () => {
       setAuthStep("name");
       setAuthError("");
     }
-    if (result.state) applyData(result.state);
+    if (freshState) applyData(freshState);
     persistSession(nextSession);
     setPendingAuthSession(nextSession);
     if (needsProfileSetup) return;
     resetAuthFlow();
     continueAfterAuth(nextSession, nextProfile, authIntent);
+  };
+
+  // Recovery from a failed account fetch. Re-runs ONLY the fetch: the one-time
+  // code is already spent and cannot be verified a second time.
+  const handleRetryAccountSync = async () => {
+    const session = pendingVerifiedSession;
+    if (!session) {
+      setAuthStep("email");
+      setAuthError("");
+      return;
+    }
+    setRetryingAccountSync(true);
+    setAuthError("");
+    const synced = await syncAuthSessionData(session);
+    setRetryingAccountSync(false);
+    if (!synced?.ok) {
+      setAuthError(synced?.error || "Still couldn't reach your account. Try again in a moment.");
+      return;
+    }
+    setPendingVerifiedSession(null);
+    const syncedState = synced.state;
+    if (!syncedState) {
+      setAuthError("Still couldn't reach your account. Try again in a moment.");
+      return;
+    }
+    const nextProfile = getProfileForSession(syncedState, session);
+    await finishVerifiedAuth({
+      nextSession: session,
+      syncedState,
+      nextProfile,
+      sessionInfo: synced.session,
+      freshState: syncedState
+    });
   };
   const handleSaveProfile = async ({ profilePhotoDataUrl = "" } = {}) => {
     setSavingProfile(true);
@@ -2603,6 +2679,8 @@ const App = () => {
     onSaveProfile:handleSaveProfile,
     onConfirmExistingAccount:handleConfirmExistingAccount,
     onUseDifferentEmail:handleUseDifferentEmail,
+    onRetryAccountSync:handleRetryAccountSync,
+    retryingAccountSync,
     sending:sendingOtp,
     verifying:verifyingOtp,
     savingProfile,
