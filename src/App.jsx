@@ -154,6 +154,7 @@ const preserveKnownProfilePhotos = (current, incoming) => {
 };
 
 const SETUP_PROGRESS_STAGES = {
+  signingIn: { labels:["Checking your code...", "Signing you in...", "Getting things ready..."], min:8, max:92 },
   savingName: { labels:["Saving your name...", "Securing your profile..."], min:8, max:34 },
   settingUpBloc: { labels:["Creating your Bloc...", "Setting things up...", "Final touches...", "Opening your Bloc..."], min:35, max:96 },
   joiningBloc: { labels:["Joining your Bloc...", "Syncing the leaderboard...", "Final touches...", "Opening your Bloc..."], min:35, max:96 },
@@ -2430,9 +2431,16 @@ const App = () => {
   const handleVerifyOtp = async () => {
     setVerifyingOtp(true);
     setAuthError("");
+    // Verifying the code and loading the account is a two-call round trip and
+    // routinely takes a few seconds. Leaving the button reading "Checking..."
+    // for that long reads as a hang, so hand over to the same progress screen
+    // the create and join flows already use.
+    setPostAuthProgressStage("signingIn");
+    setPostAuthActionPending(true);
     const result = await verifyOtpData(authEmail.trim(), authCode.trim());
     setVerifyingOtp(false);
     if (!result?.ok) {
+      setPostAuthActionPending(false);
       setAuthError(result?.error || "Unable to verify code");
       return;
     }
@@ -2454,6 +2462,7 @@ const App = () => {
     //
     // So: hold the session, ask nothing, and offer to fetch again.
     if (!syncedState) {
+      setPostAuthActionPending(false);
       setPendingVerifiedSession(nextSession);
       setAuthStep("syncFailed");
       setAuthError(result?.syncRetryable === false
@@ -2476,6 +2485,7 @@ const App = () => {
       || Object.values(syncedState?.groups || {}).some(group => Boolean(getMembershipForUser(group, nextSession, nextProfile)))
     );
     if (hasExistingFeroAccount) {
+      setPostAuthActionPending(false);
       try { await signOutAuthSession(); } catch (error) { console.error("Sign out after duplicate signup failed:", error); }
       persistSession(null);
       setPendingAuthSession(null);
@@ -2494,6 +2504,7 @@ const App = () => {
     // pitch before profile setup. Profile setup is collected later, once they
     // actually create or join a Bloc from onboarding screen 4.
     if (authIntent?.type === "signup" && needsProfileSetup) {
+      setPostAuthActionPending(false);
       if (freshState) applyData(freshState);
       persistSession(nextSession);
       setPendingAuthSession(null);
@@ -2510,6 +2521,7 @@ const App = () => {
     // needsProfileSetup against the migrated server state, so no pre-fetch is
     // needed here.
     if (needsProfileSetup) {
+      setPostAuthActionPending(false);
       setShowJoinModal(false);
       setAuthDisplayName("");
       setAuthStep("name");
@@ -2520,6 +2532,7 @@ const App = () => {
     setPendingAuthSession(nextSession);
     if (needsProfileSetup) return;
     resetAuthFlow();
+    setPostAuthActionPending(false);
     continueAfterAuth(nextSession, nextProfile, authIntent);
   };
 
@@ -2534,15 +2547,19 @@ const App = () => {
     }
     setRetryingAccountSync(true);
     setAuthError("");
+    setPostAuthProgressStage("signingIn");
+    setPostAuthActionPending(true);
     const synced = await syncAuthSessionData(session);
     setRetryingAccountSync(false);
     if (!synced?.ok) {
+      setPostAuthActionPending(false);
       setAuthError(synced?.error || "Still couldn't reach your account. Try again in a moment.");
       return;
     }
     setPendingVerifiedSession(null);
     const syncedState = synced.state;
     if (!syncedState) {
+      setPostAuthActionPending(false);
       setAuthError("Still couldn't reach your account. Try again in a moment.");
       return;
     }
