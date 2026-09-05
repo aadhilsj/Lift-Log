@@ -301,8 +301,13 @@ const App = () => {
   // never the code, which cannot be verified twice.
   const [pendingVerifiedSession,setPendingVerifiedSession]=useState(null);
   const [retryingAccountSync,setRetryingAccountSync]=useState(false);
-  // Seconds left before another code may be requested. Supabase names the
-  // number; this counts it down so nobody has to guess what "in a moment" means.
+  // When another code may be requested, as a wall-clock deadline rather than a
+  // running total. Counting ticks loses time whenever the tab is throttled or
+  // backgrounded — measured at roughly 0.6x real speed on a hidden tab, which
+  // showed "8s left" a good half minute after the limit had actually cleared.
+  // The displayed number is derived from the clock, so it is right regardless
+  // of how often this gets a chance to run.
+  const [resendAvailableAt,setResendAvailableAt]=useState(0);
   const [resendCooldown,setResendCooldown]=useState(0);
   const [coldOnboardingSeen,setColdOnboardingSeen]=useState(()=>{try{return localStorage.getItem(COLD_ONBOARDING_SEEN_KEY)==="1";}catch{return false;}});
   const [replayColdOnboarding,setReplayColdOnboarding]=useState(false);
@@ -459,10 +464,21 @@ const App = () => {
   },[]);
 
   useEffect(()=>{
-    if (resendCooldown <= 0) return undefined;
-    const timer = window.setTimeout(()=>setResendCooldown(current=>Math.max(0, current - 1)), 1000);
-    return ()=>window.clearTimeout(timer);
-  },[resendCooldown]);
+    if (!resendAvailableAt) {
+      setResendCooldown(0);
+      return undefined;
+    }
+    const tick = () => {
+      const secondsLeft = Math.max(0, Math.ceil((resendAvailableAt - Date.now()) / 1000));
+      setResendCooldown(secondsLeft);
+      if (secondsLeft === 0) setResendAvailableAt(0);
+    };
+    tick();
+    // Four times a second: the reading stays honest after the tab wakes up,
+    // and it is derived rather than accumulated, so nothing drifts.
+    const timer = window.setInterval(tick, 250);
+    return ()=>window.clearInterval(timer);
+  },[resendAvailableAt]);
 
   const persistSession = useCallback((session) => {
     const nextSession = session?.userId ? session : null;
@@ -2212,7 +2228,7 @@ const App = () => {
     setPendingAuthSession(null);
     setPendingVerifiedSession(null);
     setRetryingAccountSync(false);
-    setResendCooldown(0);
+    setResendAvailableAt(0);
     setAuthExistingAccountEmail("");
     setAuthExistingAccountConfirmed(false);
   };
@@ -2420,10 +2436,10 @@ const App = () => {
     setSendingOtp(false);
     if (!result?.ok) {
       setAuthError(describeOtpSendFailure(result, authIntent?.type));
-      if (result?.rateLimited) setResendCooldown(Number(result.retryAfterSeconds) || 60);
+      if (result?.rateLimited) setResendAvailableAt(Date.now() + (Number(result.retryAfterSeconds) || 60) * 1000);
       return;
     }
-    setResendCooldown(0);
+    setResendAvailableAt(0);
     setDevOtpCode(result.devCode || "");
     setAuthStep("otp");
   };
@@ -2442,10 +2458,10 @@ const App = () => {
     setSendingOtp(false);
     if (!result?.ok) {
       setAuthError(describeOtpSendFailure(result, "signin"));
-      if (result?.rateLimited) setResendCooldown(Number(result.retryAfterSeconds) || 60);
+      if (result?.rateLimited) setResendAvailableAt(Date.now() + (Number(result.retryAfterSeconds) || 60) * 1000);
       return;
     }
-    setResendCooldown(0);
+    setResendAvailableAt(0);
     setDevOtpCode(result.devCode || "");
     setAuthStep("otp");
   };
