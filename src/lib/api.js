@@ -227,33 +227,52 @@ async function signOutAuthSession() {
   if (error) throw error;
 }
 
-async function syncAuthSessionData(sessionOverride) {
+// Retried once on a dropped connection or a server-side blip, because the cost
+// of the first failure is high: whoever calls this straight after an OTP has a
+// valid session and no account data, and every caller has to decide what to do
+// with that. Most failures here last less than a second.
+//
+// A 4xx is NOT retried. Those are answers — an expired token says "sign in
+// again", and asking twice cannot change it.
+async function syncAuthSessionData(sessionOverride, options = {}) {
   const session = sessionOverride || await getCurrentAuthSession();
-  if (!session?.accessToken) return { ok:false, error:"You need to sign in again" };
-  try {
-    const res = await fetch("./api/lift-log", {
-      method: "POST",
-      cache: "no-store",
-      headers: {
-        "Content-Type":"application/json",
-        "Authorization": `Bearer ${session.accessToken}`
-      },
-      body: JSON.stringify({ action:"auth-sync" })
-    });
-    const body = await res.json().catch(()=>null);
-    if (!res.ok) {
-      return { ok:false, error: body?.details || body?.error || "Unable to sync account" };
+  if (!session?.accessToken) return { ok:false, error:"You need to sign in again", retryable:false };
+  const attempts = Number.isFinite(options.attempts) ? Math.max(1, options.attempts) : 2;
+  let last = { ok:false, error:"Unable to sync account", retryable:true };
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      const res = await fetch("./api/lift-log", {
+        method: "POST",
+        cache: "no-store",
+        headers: {
+          "Content-Type":"application/json",
+          "Authorization": `Bearer ${session.accessToken}`
+        },
+        body: JSON.stringify({ action:"auth-sync" })
+      });
+      const body = await res.json().catch(()=>null);
+      if (res.ok) {
+        return {
+          ok:true,
+          state: normalizeAppState(body.state),
+          session: body.session || session,
+          founderDashboardAvailable: body.founderDashboardAvailable === true
+        };
+      }
+      last = {
+        ok:false,
+        error: body?.details || body?.error || "Unable to sync account",
+        status: res.status,
+        retryable: res.status >= 500
+      };
+      if (res.status < 500) return last;
+    } catch (e) {
+      console.error("Auth sync error:", e);
+      last = { ok:false, error:"Unable to sync account", retryable:true };
     }
-    return {
-      ok:true,
-      state: normalizeAppState(body.state),
-      session: body.session || session,
-      founderDashboardAvailable: body.founderDashboardAvailable === true
-    };
-  } catch (e) {
-    console.error("Auth sync error:", e);
+    if (attempt < attempts) await new Promise(resolve => setTimeout(resolve, 600));
   }
-  return { ok:false, error:"Unable to sync account" };
+  return last;
 }
 
 async function refreshAuthSession() {
@@ -495,6 +514,33 @@ async function deleteAccountData(userId) {
   return { ok:true, state: normalizeAppState(result.body.state) };
 }
 
+// Supabase reports several different conditions here, and the app used to
+// collapse every one of them into "No Fero account found for that email."
+// That told real members their account did not exist — the production logs for
+// 2026-09-04 03:06 show a 429 rate limit being reported that way.
+//
+// Only `otp_disabled` (Supabase's answer when shouldCreateUser is false and the
+// address is unknown) actually means there is no account.
+function classifyOtpSendError(error) {
+  const message = String(error?.message || "").trim() || "Unable to send code";
+  const code = String(error?.code || error?.error_code || "").trim();
+  const status = Number(error?.status) || 0;
+  const rateLimited = status === 429 || code === "over_email_send_rate_limit";
+  const noAccount = code === "otp_disabled" || /signups?\s+not\s+allowed/i.test(message);
+  // Supabase names the wait in the message: "you can only request this after
+  // 36 seconds". Read it rather than guessing, and fall back to a minute only
+  // when the wording changes.
+  const secondsMatch = /after\s+(\d+)\s*second/i.exec(message);
+  return {
+    error: message,
+    code,
+    status,
+    rateLimited,
+    noAccount,
+    retryAfterSeconds: rateLimited ? (secondsMatch ? Number(secondsMatch[1]) : 60) : null
+  };
+}
+
 async function sendOtpData(email, options = {}) {
   try {
     const config = await fetchAuthConfig().catch(()=>null);
@@ -515,7 +561,7 @@ async function sendOtpData(email, options = {}) {
         emailRedirectTo: `${window.location.origin}${window.location.pathname}`
       }
     });
-    if (error) return { ok:false, error:error.message || "Unable to send code" };
+    if (error) return { ok:false, ...classifyOtpSendError(error) };
     return { ok:true, devCode:null };
   } catch(e){ console.error("Send OTP error:", e); }
   return { ok:false, error:"Unable to send code" };
@@ -620,10 +666,15 @@ async function verifyOtpData(email, code) {
       if (!session?.accessToken) return { ok:false, error:"Unable to create local dev session" };
       const synced = await syncAuthSessionData(session);
       if (!synced.ok) {
+        // Verified, but the account never loaded. `state:null` here means the
+        // fetch failed — it never means "this person is new", and callers must
+        // not read it that way.
         return {
           ok:true,
           state:null,
           session,
+          syncFailed:true,
+          syncRetryable: synced.retryable !== false,
           syncError: synced.error || "Unable to sync account"
         };
       }
@@ -640,10 +691,13 @@ async function verifyOtpData(email, code) {
     if (!session) return { ok:false, error:"Unable to verify code" };
     const synced = await syncAuthSessionData(session);
     if (!synced.ok) {
+      // See the note above: a null state is a failed fetch, not a new account.
       return {
         ok:true,
         state:null,
         session,
+        syncFailed:true,
+        syncRetryable: synced.retryable !== false,
         syncError: synced.error || "Unable to sync account"
       };
     }
@@ -932,6 +986,7 @@ export {
   deleteAccountData,
   checkAuthEmailExistsData,
   sendOtpData,
+  classifyOtpSendError,
   verifyOtpData,
   upsertProfileData,
   updateProfilePhotoData,
