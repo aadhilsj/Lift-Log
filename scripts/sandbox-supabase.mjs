@@ -142,9 +142,28 @@ const server = http.createServer(async (req, res) => {
   // "ratelimit" gets the genuine 429 body, copied from the production auth log
   // for 2026-09-04T03:06:14Z, so the rate-limit handling can be tested without
   // waiting on the real thing.
+  // The signup path asks whether an address already has an account before
+  // sending anything. Nobody exists in the sandbox, so the honest answer is an
+  // empty page.
+  if (route === "/auth/v1/admin/users") {
+    return send(res, 200, { users: [], aud: "authenticated" });
+  }
+
   if (route === "/auth/v1/otp" && method === "POST") {
     const body = await readBody(req);
     const email = String(body?.email || "").toLowerCase();
+    // signInWithOtp sends create_user:false when the caller is signing in
+    // rather than signing up. Supabase answers an unknown address with
+    // otp_disabled, and that is the ONLY condition that means "no account".
+    if (body?.create_user === false && !email.includes("known")) {
+      const payload = JSON.stringify({
+        code: 422,
+        error_code: "otp_disabled",
+        msg: "Signups not allowed for otp"
+      });
+      res.writeHead(422, { ...CORS_HEADERS, "Content-Type": "application/json", "Content-Length": Buffer.byteLength(payload) });
+      return res.end(payload);
+    }
     if (email.includes("ratelimit")) {
       const payload = JSON.stringify({
         code: 429,

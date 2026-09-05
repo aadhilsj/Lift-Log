@@ -307,6 +307,9 @@ const App = () => {
   // showed "8s left" a good half minute after the limit had actually cleared.
   // The displayed number is derived from the clock, so it is right regardless
   // of how often this gets a chance to run.
+  // Set only when Supabase actually said the address has no account, so the
+  // offer to create one never appears on a rate limit or a dropped connection.
+  const [offerAccountCreation,setOfferAccountCreation]=useState(false);
   const [resendAvailableAt,setResendAvailableAt]=useState(0);
   const [resendCooldown,setResendCooldown]=useState(0);
   const [coldOnboardingSeen,setColdOnboardingSeen]=useState(()=>{try{return localStorage.getItem(COLD_ONBOARDING_SEEN_KEY)==="1";}catch{return false;}});
@@ -2228,6 +2231,7 @@ const App = () => {
     setPendingAuthSession(null);
     setPendingVerifiedSession(null);
     setRetryingAccountSync(false);
+    setOfferAccountCreation(false);
     setResendAvailableAt(0);
     setAuthExistingAccountEmail("");
     setAuthExistingAccountConfirmed(false);
@@ -2437,11 +2441,46 @@ const App = () => {
     if (!result?.ok) {
       setAuthError(describeOtpSendFailure(result, authIntent?.type));
       if (result?.rateLimited) setResendAvailableAt(Date.now() + (Number(result.retryAfterSeconds) || 60) * 1000);
+      setOfferAccountCreation(Boolean(result?.noAccount) && authIntent?.type === "signin");
       return;
     }
+    setOfferAccountCreation(false);
     setResendAvailableAt(0);
     setDevOtpCode(result.devCode || "");
     setAuthStep("otp");
+  };
+  // "No Fero account found" used to be a dead end: correct, and with no way to
+  // act on it. These three turn it into one tap, without losing the address
+  // already typed.
+  const handleOfferCreateAccount = () => {
+    setAuthError("");
+    setAuthStep("confirmNewAccount");
+  };
+  // The address is read back before anything is sent. The failure this guards
+  // against is a mistyped domain that the typist has stopped looking at, so the
+  // fix has to put it in front of them rather than ask "are you sure".
+  const handleConfirmNewAccount = async () => {
+    const normalizedEmail = String(authEmail || "").trim();
+    if (!normalizedEmail) { setAuthStep("email"); return; }
+    setSendingOtp(true);
+    setAuthError("");
+    setAuthIntent(current => ({ ...(current || {}), type:"signup" }));
+    const result = await sendOtpData(normalizedEmail, { shouldCreateUser:true });
+    setSendingOtp(false);
+    if (!result?.ok) {
+      setAuthStep("email");
+      setAuthError(describeOtpSendFailure(result, "signup"));
+      if (result?.rateLimited) setResendAvailableAt(Date.now() + (Number(result.retryAfterSeconds) || 60) * 1000);
+      return;
+    }
+    setOfferAccountCreation(false);
+    setDevOtpCode(result.devCode || "");
+    setAuthStep("otp");
+  };
+  const handleFixEmailBeforeSignup = () => {
+    setOfferAccountCreation(false);
+    setAuthError("");
+    setAuthStep("email");
   };
   const handleConfirmExistingAccount = async () => {
     const normalizedEmail = String(authExistingAccountEmail || authEmail || "").trim();
@@ -2545,20 +2584,11 @@ const App = () => {
       ? sessionInfo.needsProfileSetup
       : !nextProfile?.displayName;
 
-    // Brand-new accounts created from the Welcome Back screen should see the
-    // pitch before profile setup. Profile setup is collected later, once they
-    // actually create or join a Bloc from onboarding screen 4.
-    if (authIntent?.type === "signup" && needsProfileSetup) {
-      setPostAuthActionPending(false);
-      if (freshState) applyData(freshState);
-      persistSession(nextSession);
-      setPendingAuthSession(null);
-      resetAuthFlow();
-      setColdOnboardingPreviewDismissed(false);
-      setColdOnboardingInitialIndex(0);
-      setReplayColdOnboarding(true);
-      return;
-    }
+    // A brand-new account used to be sent back through the whole intro before
+    // being asked for a name. The only way to reach the sign-in screen is by
+    // getting to the end of that intro, so replaying it rewound someone who had
+    // just made progress. They now continue forward — name next, then their own
+    // (empty) Bloc switcher — and never see an onboarding screen again.
 
     // Move to the display-name screen BEFORE the session is persisted for
     // create/join flows, so the app never renders an empty Bloc switcher in the
@@ -2667,9 +2697,11 @@ const App = () => {
     resetAuthFlow();
     if (completedIntent === "signup" && !shouldAutoJoin) {
       uploadSavedProfilePhoto();
-      setColdOnboardingPreviewDismissed(false);
-      setColdOnboardingInitialIndex(0);
-      setReplayColdOnboarding(true);
+      // Their own space, with their name on it — Create a Bloc or Join one.
+      // completeColdOnboarding() marks the intro as seen, which is what keeps
+      // the switcher on screen instead of the carousel.
+      completeColdOnboarding();
+      persistGroupSelection(null);
       return;
     }
     if (shouldAutoJoin) {
@@ -2744,6 +2776,10 @@ const App = () => {
     onRetryAccountSync:handleRetryAccountSync,
     retryingAccountSync,
     resendCooldown,
+    offerAccountCreation,
+    onOfferCreateAccount:handleOfferCreateAccount,
+    onConfirmNewAccount:handleConfirmNewAccount,
+    onFixEmailBeforeSignup:handleFixEmailBeforeSignup,
     sending:sendingOtp,
     verifying:verifyingOtp,
     savingProfile,
