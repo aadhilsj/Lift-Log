@@ -36,20 +36,32 @@ if (!fixtureDir && (!supabaseUrl || !serviceRoleKey)) {
   process.exit(1);
 }
 
-const [liveState, monthHistory, blocs, blocMembers, seasonOverrides] = fixtureDir
+// --now is honored only in fixture mode, so liveness scenarios are
+// deterministic under test; production runs always use the real clock.
+const now = fixtureDir && args.now ? new Date(args.now) : new Date();
+
+const [liveState, monthHistory, blocs, blocMembers, seasonOverrides, openSeasons, systemEvents] = fixtureDir
   ? [
       readFixture("live_state.json"),
       readFixture("month_history.json"),
       readFixture("blocs.json"),
       readFixture("bloc_members.json"),
-      readFixture("season_overrides.json")
+      readFixture("season_overrides.json"),
+      readFixture("open_seasons.json"),
+      readFixture("system_events.json")
     ]
   : await Promise.all([
       fetchLiveBlobState(),
       fetchRpcArray("read_ante_core_month_history"),
       fetchRpcArray("read_ante_core_blocs"),
       fetchRpcArray("read_ante_core_bloc_members"),
-      fetchRpcArray("read_ante_core_season_overrides")
+      fetchRpcArray("read_ante_core_season_overrides"),
+      fetchRpcArray("read_ante_core_open_seasons"),
+      fetchRestJson("/rest/v1/rpc/read_ante_core_system_events", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ p_limit: 100 })
+      })
     ]);
 
 const blobState = liveState.state || {};
@@ -66,6 +78,7 @@ for (const [groupId, group] of Object.entries(blobGroups)) {
 }
 
 const checks = [
+  checkRolloverLiveness(),
   checkHistoricalWorkoutCounts(),
   checkHistoricalReactionCoverage(),
   checkHistoricalSettlements(),
@@ -113,6 +126,99 @@ console.log(JSON.stringify({
 process.exit(failures.length ? 1 : 0);
 
 // --- checks -----------------------------------------------------------------
+
+// Rollover liveness — added after the 2026-09-01 incident, where the rollover
+// failed 50 times and every parity check stayed green: blob and canonical
+// lagged together, so there was no drift to detect. Agreement is not currency.
+// Three conditions, in order of how directly they reproduce that incident:
+//   a. A blob group with no ante_core.blocs row (the incident's root cause:
+//      its canonical season write fails every rollover) — always a failure.
+//   b. An active bloc with no open season row at all — a failure.
+//   c. An open season behind the bloc's current month (per its own time zone):
+//      recorded rollover_skipped event within 7 days → expected, pass with
+//      note (per-Bloc isolation, their PR #8); no event and <24h into the new
+//      month → warning (rollover fires lazily on first app open); no event
+//      and ≥24h → failure.
+function checkRolloverLiveness() {
+  const failures = [];
+  const pending = [];
+  const recordedSkips = [];
+
+  const canonicalKeys = new Set(blocs.map(bloc => bloc.legacy_group_key));
+  const activeKeys = new Set(blocMembers.map(member => member.legacy_group_key));
+  const timeZoneByKey = new Map(blocs.map(bloc => [bloc.legacy_group_key, bloc.time_zone || "UTC"]));
+  const openByKey = new Map(openSeasons.map(row => [row.legacy_group_key, row]));
+
+  const sevenDaysAgo = now.getTime() - 7 * 24 * 3600 * 1000;
+  const skipEventKeys = new Set(
+    (systemEvents?.recent || [])
+      .filter(event => event.eventType === "rollover_skipped"
+        && new Date(event.occurredAt).getTime() >= sevenDaysAgo)
+      .map(event => event.blocKey)
+  );
+
+  // a. Orphans: blob-only groups whose canonical season writes cannot succeed.
+  for (const groupId of Object.keys(blobGroups)) {
+    if (!canonicalKeys.has(groupId)) {
+      failures.push({ group: groupId, issue: "blob-group-missing-from-canonical" });
+    }
+  }
+
+  for (const key of activeKeys) {
+    if (!canonicalKeys.has(key)) continue; // already reported above via blob side
+    const open = openByKey.get(key);
+    if (!open) {
+      // b. No open season at all for a bloc with active members.
+      failures.push({ group: key, issue: "no-open-season" });
+      continue;
+    }
+    const { expectedKey, hoursIntoMonth } = expectedMonthFor(timeZoneByKey.get(key));
+    if (open.month_key === expectedKey) continue;
+    // c. Lagging.
+    if (skipEventKeys.has(key)) {
+      recordedSkips.push({ group: key, openMonthKey: open.month_key, expectedKey });
+    } else if (hoursIntoMonth < 24) {
+      pending.push({ group: key, openMonthKey: open.month_key, expectedKey, hoursIntoMonth });
+    } else {
+      failures.push({ group: key, issue: "rollover-stuck", openMonthKey: open.month_key, expectedKey, hoursIntoMonth });
+    }
+  }
+
+  return {
+    name: "rollover-liveness",
+    ok: failures.length === 0,
+    ...(failures.length === 0 && pending.length ? { status: "warning" } : {}),
+    details: {
+      note: "Recorded rollover_skipped blocs pass (per-Bloc isolation); unexplained lag warns <24h into the month, fails after.",
+      failureCount: failures.length,
+      failures: failures.slice(0, SAMPLE_LIMIT),
+      pendingWithinGrace: pending.slice(0, SAMPLE_LIMIT),
+      recordedSkips: recordedSkips.slice(0, SAMPLE_LIMIT),
+      skipEventsSeen: skipEventKeys.size
+    }
+  };
+}
+
+// Month keys are JS-style zero-indexed ("2026-8" is September). Compute the
+// expected key and hours elapsed in the bloc's own time zone, so a bloc in
+// Auckland is not declared stuck while it is still August in Oslo.
+function expectedMonthFor(timeZone) {
+  let parts;
+  try {
+    parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone, year: "numeric", month: "numeric", day: "numeric", hour: "numeric", hourCycle: "h23"
+    }).formatToParts(now);
+  } catch {
+    parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "UTC", year: "numeric", month: "numeric", day: "numeric", hour: "numeric", hourCycle: "h23"
+    }).formatToParts(now);
+  }
+  const get = type => Number(parts.find(part => part.type === type)?.value);
+  return {
+    expectedKey: `${get("year")}-${get("month") - 1}`,
+    hoursIntoMonth: (get("day") - 1) * 24 + get("hour")
+  };
+}
 
 // Audit area 1. The documented SQL compares workout_count against a raw
 // count(wl.id), but the app counts a log only when isCountedLog() is true, which
