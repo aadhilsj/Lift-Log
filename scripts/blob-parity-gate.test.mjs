@@ -66,8 +66,8 @@ function cleanFixture() {
       logs
     }],
     blocs: [
-      { legacy_group_key: "alpha-abc123", name: "Alpha", sort_order: 1 },
-      { legacy_group_key: "dead-zzz999", name: "Dead", sort_order: null }
+      { legacy_group_key: "alpha-abc123", name: "Alpha", sort_order: 1, time_zone: "UTC" },
+      { legacy_group_key: "dead-zzz999", name: "Dead", sort_order: null, time_zone: "UTC" }
     ],
     bloc_members: [
       { legacy_group_key: "alpha-abc123", display_name: "Ana", sort_order: 1 },
@@ -75,7 +75,14 @@ function cleanFixture() {
     ],
     season_overrides: [
       { legacy_group_key: "alpha-abc123", month_key: "2026-07", prorated: true, prorated_mas: 8, chosen_at: "2026-07-02T10:00:00+00:00", chosen_by: "Ana", chosen_by_user_id: "u-ana" }
-    ]
+    ],
+    // Liveness inputs. now is 2026-08-15 UTC, so the expected open month key is
+    // "2026-7" (month keys are JS-style zero-indexed: 2026-7 = August).
+    open_seasons: [
+      { legacy_group_key: "alpha-abc123", season_id: "s-open", month_key: "2026-7" }
+    ],
+    system_events: { last24h: 0, last7d: 0, total: 0, recent: [] },
+    now: "2026-08-15T12:00:00Z"
   };
 }
 
@@ -87,8 +94,10 @@ function runGate(fixture, label) {
   fs.writeFileSync(path.join(dir, "blocs.json"), JSON.stringify(fixture.blocs));
   fs.writeFileSync(path.join(dir, "bloc_members.json"), JSON.stringify(fixture.bloc_members));
   fs.writeFileSync(path.join(dir, "season_overrides.json"), JSON.stringify(fixture.season_overrides));
+  fs.writeFileSync(path.join(dir, "open_seasons.json"), JSON.stringify(fixture.open_seasons));
+  fs.writeFileSync(path.join(dir, "system_events.json"), JSON.stringify(fixture.system_events));
   try {
-    const stdout = execFileSync("node", [gateScript, "--fixture-dir", dir, "--output-dir", dir], { encoding: "utf8" });
+    const stdout = execFileSync("node", [gateScript, "--fixture-dir", dir, "--output-dir", dir, "--now", fixture.now], { encoding: "utf8" });
     return { exitCode: 0, ...JSON.parse(stdout) };
   } catch (err) {
     return { exitCode: err.status ?? 1, ...JSON.parse(err.stdout || "{}") };
@@ -177,6 +186,51 @@ const scenarios = [
     mutate: fixture => { fixture.season_overrides[0].chosen_by = "Ana R"; },
     expectFailed: [],
     expectWarned: ["season-override-parity"]
+  },
+  {
+    label: "liveness-orphan-blob-group",
+    note: "a blob group with no canonical bloc row must fail (the 09-01 incident's root cause)",
+    mutate: fixture => {
+      fixture.live_state.state.groups["ghost-xyz111"] = { name: "Ghost", monthHistory: [], logs: {} };
+    },
+    expectFailed: ["rollover-liveness"],
+    expectWarned: []
+  },
+  {
+    label: "liveness-rollover-stuck",
+    note: "an open season 14 days behind its expected month with no skip event must fail",
+    mutate: fixture => { fixture.open_seasons[0].month_key = "2026-6"; },
+    expectFailed: ["rollover-liveness"],
+    expectWarned: []
+  },
+  {
+    label: "liveness-recorded-skip-passes",
+    note: "the same lag with a rollover_skipped system event is expected divergence, not drift",
+    mutate: fixture => {
+      fixture.open_seasons[0].month_key = "2026-6";
+      fixture.system_events.recent = [
+        { eventType: "rollover_skipped", blocKey: "alpha-abc123", detail: "canonical season write failed", occurredAt: "2026-08-14T12:00:00Z" }
+      ];
+    },
+    expectFailed: [],
+    expectWarned: []
+  },
+  {
+    label: "liveness-grace-window-warns",
+    note: "lag within 24h of the month boundary warns instead of failing (rollover is lazy)",
+    mutate: fixture => {
+      fixture.open_seasons[0].month_key = "2026-6";
+      fixture.now = "2026-08-01T05:00:00Z";
+    },
+    expectFailed: [],
+    expectWarned: ["rollover-liveness"]
+  },
+  {
+    label: "liveness-no-open-season",
+    note: "an active bloc with no open season row at all must fail",
+    mutate: fixture => { fixture.open_seasons = []; },
+    expectFailed: ["rollover-liveness"],
+    expectWarned: []
   },
   {
     label: "active-bloc-null-sort-order",
