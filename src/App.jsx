@@ -2464,7 +2464,10 @@ const App = () => {
     if (!normalizedEmail) { setAuthStep("email"); return; }
     setSendingOtp(true);
     setAuthError("");
-    setAuthIntent(current => ({ ...(current || {}), type:"signup" }));
+    // Marked so this door can be told apart from "Create new account" on the
+    // Welcome Back screen. Both produce a signup, but only this one arrives
+    // from the end of the intro — so only this one skips replaying it.
+    setAuthIntent(current => ({ ...(current || {}), type:"signup", fromSignInDeadEnd:true }));
     const result = await sendOtpData(normalizedEmail, { shouldCreateUser:true });
     setSendingOtp(false);
     if (!result?.ok) {
@@ -2584,11 +2587,25 @@ const App = () => {
       ? sessionInfo.needsProfileSetup
       : !nextProfile?.displayName;
 
-    // A brand-new account used to be sent back through the whole intro before
-    // being asked for a name. The only way to reach the sign-in screen is by
-    // getting to the end of that intro, so replaying it rewound someone who had
-    // just made progress. They now continue forward — name next, then their own
-    // (empty) Bloc switcher — and never see an onboarding screen again.
+    // "Create new account" from the Welcome Back screen keeps its original
+    // behaviour: see the pitch, then pick Create or Join on screen 4, with the
+    // name collected at that point. Unchanged deliberately.
+    //
+    // The exception is an account created from the sign-in dead end, which is
+    // reached by getting to the END of that intro. Replaying it there would
+    // rewind someone who had just made progress, so that door alone continues
+    // forward to the name screen and then their own empty Bloc switcher.
+    if (authIntent?.type === "signup" && needsProfileSetup && !authIntent?.fromSignInDeadEnd) {
+      setPostAuthActionPending(false);
+      if (freshState) applyData(freshState);
+      persistSession(nextSession);
+      setPendingAuthSession(null);
+      resetAuthFlow();
+      setColdOnboardingPreviewDismissed(false);
+      setColdOnboardingInitialIndex(0);
+      setReplayColdOnboarding(true);
+      return;
+    }
 
     // Move to the display-name screen BEFORE the session is persisted for
     // create/join flows, so the app never renders an empty Bloc switcher in the
@@ -2697,11 +2714,17 @@ const App = () => {
     resetAuthFlow();
     if (completedIntent === "signup" && !shouldAutoJoin) {
       uploadSavedProfilePhoto();
-      // Their own space, with their name on it — Create a Bloc or Join one.
-      // completeColdOnboarding() marks the intro as seen, which is what keeps
-      // the switcher on screen instead of the carousel.
-      completeColdOnboarding();
-      persistGroupSelection(null);
+      if (completedIntentObj?.fromSignInDeadEnd) {
+        // Their own space, with their name on it — Create a Bloc or Join one.
+        // completeColdOnboarding() marks the intro as seen, which is what keeps
+        // the switcher on screen instead of the carousel.
+        completeColdOnboarding();
+        persistGroupSelection(null);
+        return;
+      }
+      setColdOnboardingPreviewDismissed(false);
+      setColdOnboardingInitialIndex(0);
+      setReplayColdOnboarding(true);
       return;
     }
     if (shouldAutoJoin) {
