@@ -24,6 +24,7 @@ import {
   getLeagueMonthSummaryForTimestamp,
   isExemptFromStakes,
   getRedemptionMark,
+  getClosedMonthBefore,
   fmtCurrency,
   getCountedLogs,
   getMonthPartsFromKey,
@@ -253,12 +254,28 @@ const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevea
     return created?.monthKey === selectedMonthKey;
   })();
 
+  const selMonthKey = isCurMonth ? curKey : selHistMonth?.key;
   const selRedemptionMark = getRedemptionMark(
     monthHistory,
     name,
-    isCurMonth ? curKey : selHistMonth?.key,
+    selMonthKey,
     selCount >= selectedTarget
   );
+  // The shield is about the month that was MISSED, which is the closed month
+  // before the one on screen — not the one on screen. Naming the displayed
+  // month told a member viewing September that they had a slow September, when
+  // the shield was there because of August.
+  //
+  // Taken from the same helper the mark itself uses rather than subtracting
+  // one from the calendar: the prior closed month is not always last month. A
+  // Bloc with a gap in its history would otherwise be told the wrong month
+  // with total confidence.
+  const redemptionMonthName = (() => {
+    const prior = getClosedMonthBefore(monthHistory, selMonthKey);
+    if (!prior) return "";
+    const monthIndex = Number(prior.month);
+    return Number.isInteger(monthIndex) ? (PROFILE_FULL_MONTH_NAMES[monthIndex] || "") : "";
+  })();
 
   const monthSelector = React.createElement(SelectField,{
     value:selMonthIdx??"",
@@ -544,7 +561,7 @@ const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevea
       redeemed: selRedemptionMark === "redeemed",
       memberName: name,
       isSelf: currentUserId ? memberUserId === currentUserId : false,
-      monthName: PROFILE_FULL_MONTH_NAMES[selMonthNum] || "",
+      monthName: redemptionMonthName,
       onClose: ()=>setShowRedemptionNote(false)
     }),
     showShareSticker && shareStickerData && React.createElement(ShareSticker,{

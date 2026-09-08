@@ -3237,6 +3237,22 @@ function buildTargetHitMoment(beforeGroup, afterGroup, monthKey, displayName, au
   };
 }
 
+// The mirror of buildTargetHitMoment. "X hit target" was announced on the way
+// up and never taken back on the way down, so deleting a workout left the Bloc
+// stream congratulating someone who was below target again — nine of ten, with
+// a moment saying otherwise.
+//
+// The key is built the same way the announcement built it, so this retracts
+// exactly that moment and nothing else.
+function buildTargetHitRetractionKey(beforeGroup, afterGroup, monthKey, displayName, authUserId) {
+  if (!beforeGroup || !afterGroup || !monthKey || !displayName) return null;
+  const target = getMemberTargetForMonth(afterGroup, displayName, monthKey);
+  const beforeCount = getCountedLogCount(beforeGroup.logs?.[displayName] || []);
+  const afterCount = getCountedLogCount(afterGroup.logs?.[displayName] || []);
+  if (beforeCount < target || afterCount >= target) return null;
+  return `target_hit:${afterGroup.id}:${monthKey}:${authUserId || displayName}`;
+}
+
 function buildSettingsChangedMoment(beforeGroup, afterGroup, actorUserId, revision) {
   if (!beforeGroup || !afterGroup) return null;
   const beforeSettings = beforeGroup.settings || {};
@@ -10308,6 +10324,29 @@ export default async function handler(req, res) {
           await runWriteHydrationParityProbe("delete-log", payload, auth, actor, shadowBlobResult.updated, applyDeleteLog);
         }
         await deleteWorkoutLogFromCanonical(payload.logId, { throwOnError: true });
+        // Deleting a workout can drop a member back under target. The stream
+        // has to take the announcement back with it.
+        //
+        // Keyed to the log's OWNER, not whoever pressed delete — an admin
+        // removing someone else's workout would otherwise retract their own
+        // moment and leave the wrong one standing.
+        const deletedFromGroup = result.updated.groups?.[payload.groupId] || null;
+        const beforeDeleteGroup = canonicalState.groups?.[payload.groupId] || null;
+        const deletedLogOwner = beforeDeleteGroup
+          ? resolveDeleteLogOwner(beforeDeleteGroup, canonicalActor, payload?.owner, payload?.logId)
+          : null;
+        const retractionKey = deletedLogOwner
+          ? buildTargetHitRetractionKey(
+            beforeDeleteGroup,
+            deletedFromGroup,
+            deletedFromGroup?.lastMonth || null,
+            deletedLogOwner,
+            findAuthUserIdForDisplayName(deletedFromGroup, deletedLogOwner)
+          )
+          : null;
+        if (retractionKey && deletedFromGroup) {
+          await deleteBlocSystemMomentInCanonical(deletedFromGroup.id, retractionKey, { throwOnError: true });
+        }
         const readableState = await persistAndScopeReadableStateForUser(result.updated, result.reason, "delete-log", auth.user.id);
         return res.status(200).json(readableState);
       }

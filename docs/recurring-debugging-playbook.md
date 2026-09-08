@@ -171,3 +171,75 @@ Fix rules:
 
 Diagnosis note:
 - A blank screen with no error card means the throw was outside a boundary. A small error card means it was inside one. That distinction narrows the search immediately.
+
+## Modals Opened From The Player Profile
+
+Symptoms:
+- A modal opens near the bottom of the screen, close to the nav bar, instead of centred.
+- The backdrop is flat black rather than the blurred app behind it.
+- The page keeps scrolling behind the modal.
+- First seen 2026-09-08 on the delete-log modal, opened from the profile calendar.
+
+Root cause:
+- `PlayerProfile`'s root carries a `transform` for the back-swipe, and Safari treats **any** transform as the containing block for `position: fixed` descendants. A modal rendered inside that subtree is positioned against the profile's box, not the viewport.
+- This is the same rule already recorded above for `.in-bloc-profile-layer` and the expanded photo overlay. It has now caught three separate surfaces.
+
+Fix rules:
+- Any modal that can be opened from inside a transformed screen must portal to `document.body`. Use `ModalScrim` from `src/components/primitives.jsx` — it portals, centres, blurs, and locks page scroll, and `StatusNoteModal` is built on the same piece so the two cannot drift.
+- Scroll lock is part of the contract, not a nicety: restore `overflow`, `touchAction` and `overscrollBehavior` on unmount, or the page stays frozen after the modal closes.
+- `className="overlay center-mobile"` alone is not enough. It works from untransformed screens and fails from the profile, which is why this keeps coming back on new modals rather than old ones.
+
+## Derived Stream Moments Must Retract, Not Only Announce
+
+Symptoms:
+- The Bloc Stream says "X hit target" while X is below target.
+- Deleting a workout leaves the congratulation in place.
+- First seen 2026-09-08 in StavanGang: nine of ten, with a moment claiming ten.
+
+Root cause:
+- `buildTargetHitMoment` fires on `add-log` when the count crosses the target. Nothing removed it when a deletion crossed back the other way.
+- `delete-log` did not touch the stream at all. The retraction machinery existed — `buildWorkoutLogDerivedMoments` returns `deleteKeys` — but only `add-log` ever called `syncWorkoutLogDerivedStreamMoments`.
+
+Fix rules:
+- Every derived moment needs both directions written in the same change. A moment that can be announced by a mutation can be falsified by its inverse.
+- Retractions are keyed to the **subject** of the moment, not the actor. An admin deleting another member's workout must retract that member's moment; keying on the caller retracts the wrong one and leaves the wrong one standing.
+- The idempotency key is the handle. Build it with the same expression that created it, or the delete silently matches nothing.
+
+## Signing In Lands On The Onboarding Screen
+
+Symptoms:
+- A member signs in from cold onboarding screen 4, sees the progress bar finish, and is dropped back on screen 4 — signed in, session held, looking at the intro.
+- Intermittent, and never reproducible from a fresh browser.
+- Reported twice before it was caught: 2026-09-04 and again 2026-09-08.
+
+Root cause:
+- `closeAuth` sets `replayColdOnboarding` and `coldOnboardingInitialIndex = 3` so a **cancelled** sign-in returns to screen 4. That part is correct.
+- Nothing cleared the flag again. `resetAuthFlow()` does not touch it, and only sign-out and `completeColdOnboarding()` do — neither of which a successful sign-in called.
+- So the flag survived the cancel, the modal closed on success, and `shouldShowColdOnboarding` was still true.
+
+Fix rules:
+- A flag set on the cancel path must be cleared on the success path, in the same change. `resetAuthFlow()` clears the auth modal's own state and nothing outside it — do not assume it resets navigation intent.
+- Signing in successfully is the end of onboarding. Clear `replayColdOnboarding`, `coldOnboardingInitialIndex` and `returnToColdOnboardingOnSignInCancel` when a verified session lands in the app.
+
+Diagnosis note:
+- **Test the second attempt, not just the first.** Every sign-in test until 2026-09-08 went fresh browser → clean sign-in, and all of them passed. The bug lived two taps off that path: cancel once, then sign in. Any flow with a cancel, a back, or a retry needs the retry exercised, not just the happy path.
+- A related trap when reproducing this: `?onboarding=1` forces the intro **and keeps forcing it after a successful sign-in**, because nothing clears `coldOnboardingPreviewDismissed` on that path. It makes a working sign-in look broken. Use a private window instead.
+
+## An Empty Result Is Not An Answer
+
+Symptoms:
+- An existing member finishes signing in and is asked "What should your Bloc call you?"
+- Saving a name there renames them across every Bloc and rewrites the counts inside already-closed months.
+
+Root cause:
+- After the one-time code is verified, the client fetches the account. On failure `verifyOtpData` returned `ok:true` with `state:null`, and the caller read a missing state as `needsProfileSetup = true`.
+- Nothing distinguished "the fetch failed" from "this person is new". A genuinely new member's sync **succeeds** and says so; only a broken one returns nothing.
+
+Fix rules:
+- This is the client-side twin of the rule in `AGENTS.md` §6: empty means "no data", never "the answer is no". On the client it must also never mean "the answer is yes".
+- When a fetch fails, hold what you have and offer to try again. Do not infer state from its absence — especially where the inference leads to a write.
+- The error was already being returned and thrown away. If a failure path carries a reason, read it: that reason is what tells a rate limit apart from a missing account.
+
+Related, same family:
+- The sign-in screen replaced **every** send failure with "No Fero account found for that email", so a 429 rate limit told a member with six Blocs that they did not exist. Only Supabase's `otp_disabled` means no account. `npm run test:otp-errors` guards this.
+- A countdown that decrements once per timer tick loses whatever time a throttled or backgrounded tab does not give it — measured at roughly 0.6x real speed. Derive the number from a deadline and the clock, never by counting down.

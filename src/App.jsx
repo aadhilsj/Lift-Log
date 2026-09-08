@@ -307,6 +307,9 @@ const App = () => {
   // showed "8s left" a good half minute after the limit had actually cleared.
   // The displayed number is derived from the clock, so it is right regardless
   // of how often this gets a chance to run.
+  // Set only when Supabase actually said the address has no account, so the
+  // offer to create one never appears on a rate limit or a dropped connection.
+  const [offerAccountCreation,setOfferAccountCreation]=useState(false);
   const [resendAvailableAt,setResendAvailableAt]=useState(0);
   const [resendCooldown,setResendCooldown]=useState(0);
   const [coldOnboardingSeen,setColdOnboardingSeen]=useState(()=>{try{return localStorage.getItem(COLD_ONBOARDING_SEEN_KEY)==="1";}catch{return false;}});
@@ -2228,6 +2231,7 @@ const App = () => {
     setPendingAuthSession(null);
     setPendingVerifiedSession(null);
     setRetryingAccountSync(false);
+    setOfferAccountCreation(false);
     setResendAvailableAt(0);
     setAuthExistingAccountEmail("");
     setAuthExistingAccountConfirmed(false);
@@ -2437,11 +2441,49 @@ const App = () => {
     if (!result?.ok) {
       setAuthError(describeOtpSendFailure(result, authIntent?.type));
       if (result?.rateLimited) setResendAvailableAt(Date.now() + (Number(result.retryAfterSeconds) || 60) * 1000);
+      setOfferAccountCreation(Boolean(result?.noAccount) && authIntent?.type === "signin");
       return;
     }
+    setOfferAccountCreation(false);
     setResendAvailableAt(0);
     setDevOtpCode(result.devCode || "");
     setAuthStep("otp");
+  };
+  // "No Fero account found" used to be a dead end: correct, and with no way to
+  // act on it. These three turn it into one tap, without losing the address
+  // already typed.
+  const handleOfferCreateAccount = () => {
+    setAuthError("");
+    setAuthStep("confirmNewAccount");
+  };
+  // The address is read back before anything is sent. The failure this guards
+  // against is a mistyped domain that the typist has stopped looking at, so the
+  // fix has to put it in front of them rather than ask "are you sure".
+  const handleConfirmNewAccount = async () => {
+    const normalizedEmail = String(authEmail || "").trim();
+    if (!normalizedEmail) { setAuthStep("email"); return; }
+    setSendingOtp(true);
+    setAuthError("");
+    // Marked so this door can be told apart from "Create new account" on the
+    // Welcome Back screen. Both produce a signup, but only this one arrives
+    // from the end of the intro — so only this one skips replaying it.
+    setAuthIntent(current => ({ ...(current || {}), type:"signup", fromSignInDeadEnd:true }));
+    const result = await sendOtpData(normalizedEmail, { shouldCreateUser:true });
+    setSendingOtp(false);
+    if (!result?.ok) {
+      setAuthStep("email");
+      setAuthError(describeOtpSendFailure(result, "signup"));
+      if (result?.rateLimited) setResendAvailableAt(Date.now() + (Number(result.retryAfterSeconds) || 60) * 1000);
+      return;
+    }
+    setOfferAccountCreation(false);
+    setDevOtpCode(result.devCode || "");
+    setAuthStep("otp");
+  };
+  const handleFixEmailBeforeSignup = () => {
+    setOfferAccountCreation(false);
+    setAuthError("");
+    setAuthStep("email");
   };
   const handleConfirmExistingAccount = async () => {
     const normalizedEmail = String(authExistingAccountEmail || authEmail || "").trim();
@@ -2545,10 +2587,15 @@ const App = () => {
       ? sessionInfo.needsProfileSetup
       : !nextProfile?.displayName;
 
-    // Brand-new accounts created from the Welcome Back screen should see the
-    // pitch before profile setup. Profile setup is collected later, once they
-    // actually create or join a Bloc from onboarding screen 4.
-    if (authIntent?.type === "signup" && needsProfileSetup) {
+    // "Create new account" from the Welcome Back screen keeps its original
+    // behaviour: see the pitch, then pick Create or Join on screen 4, with the
+    // name collected at that point. Unchanged deliberately.
+    //
+    // The exception is an account created from the sign-in dead end, which is
+    // reached by getting to the END of that intro. Replaying it there would
+    // rewind someone who had just made progress, so that door alone continues
+    // forward to the name screen and then their own empty Bloc switcher.
+    if (authIntent?.type === "signup" && needsProfileSetup && !authIntent?.fromSignInDeadEnd) {
       setPostAuthActionPending(false);
       if (freshState) applyData(freshState);
       persistSession(nextSession);
@@ -2578,6 +2625,15 @@ const App = () => {
     if (needsProfileSetup) return;
     resetAuthFlow();
     setPostAuthActionPending(false);
+    // Cancelling out of sign-in queues the intro to replay at screen 4, which
+    // is right for a cancel. Nothing cleared that queue again, and
+    // resetAuthFlow() does not touch it — so anyone who backed out once and
+    // then signed in properly was dropped back on the screen they had just
+    // signed in from, session and all. Signing in is the end of onboarding;
+    // say so here.
+    setReturnToColdOnboardingOnSignInCancel(false);
+    setReplayColdOnboarding(false);
+    setColdOnboardingInitialIndex(0);
     continueAfterAuth(nextSession, nextProfile, authIntent);
   };
 
@@ -2667,6 +2723,14 @@ const App = () => {
     resetAuthFlow();
     if (completedIntent === "signup" && !shouldAutoJoin) {
       uploadSavedProfilePhoto();
+      if (completedIntentObj?.fromSignInDeadEnd) {
+        // Their own space, with their name on it — Create a Bloc or Join one.
+        // completeColdOnboarding() marks the intro as seen, which is what keeps
+        // the switcher on screen instead of the carousel.
+        completeColdOnboarding();
+        persistGroupSelection(null);
+        return;
+      }
       setColdOnboardingPreviewDismissed(false);
       setColdOnboardingInitialIndex(0);
       setReplayColdOnboarding(true);
@@ -2744,6 +2808,10 @@ const App = () => {
     onRetryAccountSync:handleRetryAccountSync,
     retryingAccountSync,
     resendCooldown,
+    offerAccountCreation,
+    onOfferCreateAccount:handleOfferCreateAccount,
+    onConfirmNewAccount:handleConfirmNewAccount,
+    onFixEmailBeforeSignup:handleFixEmailBeforeSignup,
     sending:sendingOtp,
     verifying:verifyingOtp,
     savingProfile,

@@ -63,6 +63,21 @@ const CORS_HEADERS = {
   "Access-Control-Expose-Headers": "content-range, x-supabase-api-version"
 };
 
+// A stable uuid-shaped id per address, so the same sandbox address is the same
+// person across sign-ins.
+function sandboxUserId(email) {
+  const part = (salt) => {
+    let hash = 2166136261 ^ salt;
+    for (let i = 0; i < email.length; i += 1) {
+      hash ^= email.charCodeAt(i);
+      hash = Math.imul(hash, 16777619);
+    }
+    return (hash >>> 0).toString(16).padStart(8, "0");
+  };
+  const a = part(0x1111), b = part(0x2222), c = part(0x3333), d = part(0x4444);
+  return `${a}-${b.slice(0, 4)}-4${b.slice(5, 8)}-8${c.slice(1, 4)}-${c.slice(4)}${d}`;
+}
+
 function send(res, status, body) {
   const payload = body === undefined ? "" : JSON.stringify(body);
   res.writeHead(status, {
@@ -142,9 +157,28 @@ const server = http.createServer(async (req, res) => {
   // "ratelimit" gets the genuine 429 body, copied from the production auth log
   // for 2026-09-04T03:06:14Z, so the rate-limit handling can be tested without
   // waiting on the real thing.
+  // The signup path asks whether an address already has an account before
+  // sending anything. Nobody exists in the sandbox, so the honest answer is an
+  // empty page.
+  if (route === "/auth/v1/admin/users") {
+    return send(res, 200, { users: [], aud: "authenticated" });
+  }
+
   if (route === "/auth/v1/otp" && method === "POST") {
     const body = await readBody(req);
     const email = String(body?.email || "").toLowerCase();
+    // signInWithOtp sends create_user:false when the caller is signing in
+    // rather than signing up. Supabase answers an unknown address with
+    // otp_disabled, and that is the ONLY condition that means "no account".
+    if (body?.create_user === false && !email.includes("known")) {
+      const payload = JSON.stringify({
+        code: 422,
+        error_code: "otp_disabled",
+        msg: "Signups not allowed for otp"
+      });
+      res.writeHead(422, { ...CORS_HEADERS, "Content-Type": "application/json", "Content-Length": Buffer.byteLength(payload) });
+      return res.end(payload);
+    }
     if (email.includes("ratelimit")) {
       const payload = JSON.stringify({
         code: 429,
@@ -155,6 +189,39 @@ const server = http.createServer(async (req, res) => {
       return res.end(payload);
     }
     return send(res, 200, {});
+  }
+
+  // Completes the real auth path so the sign-in and signup flows can be walked
+  // end to end locally. The access token carries the address, and /auth/v1/user
+  // reads it back — enough for the server's fetchAuthenticatedUser.
+  if (route === "/auth/v1/verify" && method === "POST") {
+    const body = await readBody(req);
+    const email = String(body?.email || "").trim().toLowerCase();
+    if (!email) return send(res, 400, { code: 400, msg: "email is required" });
+    const user = { id: sandboxUserId(email), email, aud: "authenticated", role: "authenticated" };
+    return send(res, 200, {
+      access_token: `sbx.${Buffer.from(email, "utf8").toString("base64url")}`,
+      token_type: "bearer",
+      expires_in: 3600,
+      expires_at: Math.floor(Date.now() / 1000) + 3600,
+      refresh_token: `sbxr.${Buffer.from(email, "utf8").toString("base64url")}`,
+      user
+    });
+  }
+
+  if (route === "/auth/v1/user") {
+    const auth = String(req.headers.authorization || "");
+    const token = auth.startsWith("Bearer ") ? auth.slice(7).trim() : "";
+    if (!token.startsWith("sbx.")) return send(res, 401, { code: 401, msg: "invalid claim" });
+    let email = "";
+    try { email = Buffer.from(token.slice(4), "base64url").toString("utf8"); } catch { /* fall through */ }
+    if (!email) return send(res, 401, { code: 401, msg: "invalid claim" });
+    return send(res, 200, { id: sandboxUserId(email), email, aud: "authenticated", role: "authenticated" });
+  }
+
+  if (route === "/auth/v1/logout" && method === "POST") {
+    await readBody(req);
+    return send(res, 204, undefined);
   }
 
   // --- storage -----------------------------------------------------------
