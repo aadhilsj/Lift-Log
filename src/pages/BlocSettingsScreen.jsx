@@ -374,7 +374,7 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
     confirmLeave
       ? React.createElement('div',{style:{display:"grid",gap:9,padding:"11px 12px",borderRadius:12,background:"rgba(60,10,10,.28)",border:"1px solid rgba(212,74,74,.22)"}},
           React.createElement('div',{style:{fontSize:11.5,lineHeight:1.5,color:"rgba(220,170,170,.88)",fontFamily:UI_FONT}},
-            `Leave ${group?.name || "this Bloc"}? You'll be removed from this month's stakes. Your account and other Blocs are unaffected.`
+            `Leave ${group?.name || "this Bloc"}? You won't pay or collect anything this month. Your account and other Blocs are unaffected.`
           ),
           React.createElement('div',{style:{display:"flex",gap:8}},
             React.createElement('button',{type:"button",onClick:()=>setConfirmLeave(false),style:{flex:1,background:"var(--s2)",border:"1px solid var(--border)",color:"var(--muted)",padding:"10px",borderRadius:9,fontSize:12,fontWeight:700,fontFamily:UI_FONT}},"Cancel"),
