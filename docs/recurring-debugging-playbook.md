@@ -243,3 +243,41 @@ Fix rules:
 Related, same family:
 - The sign-in screen replaced **every** send failure with "No Fero account found for that email", so a 429 rate limit told a member with six Blocs that they did not exist. Only Supabase's `otp_disabled` means no account. `npm run test:otp-errors` guards this.
 - A countdown that decrements once per timer tick loses whatever time a throttled or backgrounded tab does not give it — measured at roughly 0.6x real speed. Derive the number from a deadline and the clock, never by counting down.
+
+## A Skipped Blob Write With A Blob Reader Left Behind
+
+Symptoms:
+- A workout is logged, appears on screen, and disappears a second later with no message.
+- The member is under the daily cap everywhere the app displays a count, but the API returns 409.
+- Blob and canonical disagree for one member on one date, and nothing in the UI shows it.
+- First seen 2026-09-09; the mechanism has been live since 2026-07-19.
+
+Root cause:
+- `delete-log` is in `BLOB_MIRROR_SKIP_ACTIONS`, so a deletion writes canonical and leaves the workout in the blob.
+- `assertWorkoutSlotAvailable` — the two-per-day cap — reads the blob. A deleted workout therefore keeps consuming one of that day's two slots forever.
+- Everything the member can see (leaderboard, counts, month screen) reads canonical and is correct. The phantom is visible only to the cap, which is why it survived a day of looking at screens.
+
+Fix rules:
+- **A mirror skip is only safe once every reader of that field has moved.** Grep for readers before adding an action to the skip list, and name them in the change. This is the third time an action has stopped writing the blob while something still read it (see `docs/blob-retirement-impact-2026-09-03.md` and the rollover incident).
+- The same rule enforced in two places will diverge the moment one of them stops being written. `ante_core.upsert_ante_core_workout_log` enforces the cap correctly against canonical; the JS copy reads the blob. Prefer one authority.
+- When blob and canonical can disagree, the check that **blocks a member** must read the same store the member is shown.
+
+Diagnosis note:
+- `public.lift_log_backups.reason` records every blob write with its action. Counting reasons by action, and finding the last date each one appears, tells you immediately which actions have stopped mirroring:
+  `select reason, max(created_at) from public.lift_log_backups group by 1` — an action whose last write is months old while the app still uses it is skipping the blob.
+- A cross-store audit query for phantoms is in `docs/handover-2026-09-09-signin-fixes-and-delete-log-blob-divergence.md` §2.
+
+## A Failed Mutation That Says Nothing
+
+Symptoms:
+- An action appears to work, then undoes itself a moment later.
+- No error, no toast, no red text. The member reports "it deleted itself".
+
+Root cause:
+- `handleMultiLog` in `src/App.jsx` applies an optimistic update before the request, then calls `clearOptimisticMutation()` and `refreshNow()` on failure — which correctly removes the optimistic row.
+- The caller in `src/pages/TodayPage.jsx` captures the result and discards it: `const result = await onMultiLog({...}); return;`. Nothing reads `result.ok` or `result.error`.
+
+Fix rules:
+- An optimistic update is a promise to the member. If the write fails, say so in the same place the optimistic row appeared — silently rolling back is worse than not being optimistic at all.
+- `submitSitOut`, in the same file, is the pattern: check `result?.ok`, set an error, leave the sheet open.
+- Any mutation that can return a real error (409 from the daily cap, 429 from a rate limit, a dropped connection) needs its failure surfaced before the feature counts as finished. A silent failure turns a one-line server log into a day of debugging.
