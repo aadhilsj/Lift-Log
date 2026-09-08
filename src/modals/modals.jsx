@@ -963,8 +963,8 @@ const TrainingChoiceModal = ({blocName, defaultTraining = true, onConfirm, savin
       React.createElement('div',{style:{fontFamily:DISPLAY_FONT,fontWeight:800,fontSize:19,lineHeight:1.1,marginBottom:6}},"Your first month"),
       React.createElement('div',{style:{color:"var(--muted)",fontSize:12.5,lineHeight:1.45,marginBottom:14}},
         `${blocName || "This Bloc"} has been running a while. Ease in, or start on the same terms as everyone else.`),
-      option("training","Ease in","Log and compete as normal. You cannot be penalised this month."),
-      option("standard","Same terms as everyone","Penalties apply from your first month."),
+      option("training","Ease in","Find your rhythm. Penalties start next month."),
+      option("standard","Dive in","Penalties apply from your first month."),
       React.createElement('button',{
         disabled:saving,
         onClick:()=>onConfirm(choice),
