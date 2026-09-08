@@ -2625,6 +2625,15 @@ const App = () => {
     if (needsProfileSetup) return;
     resetAuthFlow();
     setPostAuthActionPending(false);
+    // Cancelling out of sign-in queues the intro to replay at screen 4, which
+    // is right for a cancel. Nothing cleared that queue again, and
+    // resetAuthFlow() does not touch it — so anyone who backed out once and
+    // then signed in properly was dropped back on the screen they had just
+    // signed in from, session and all. Signing in is the end of onboarding;
+    // say so here.
+    setReturnToColdOnboardingOnSignInCancel(false);
+    setReplayColdOnboarding(false);
+    setColdOnboardingInitialIndex(0);
     continueAfterAuth(nextSession, nextProfile, authIntent);
   };
 
