@@ -40,7 +40,7 @@ import {
   isMobile,
   copyToClipboard
 } from "../lib/utils.js";
-import { Avatar, WorkoutTypeIcon, WorkoutCategorySelector, SettingsField, SelectField, inputShellStyle, StepperField } from "../components/primitives.jsx";
+import { Avatar, WorkoutTypeIcon, WorkoutCategorySelector, SettingsField, SelectField, inputShellStyle, StepperField, ModalScrim } from "../components/primitives.jsx";
 
 const SETTINGS_DEFAULTS = {
   minTarget: DEFAULT_MIN_TARGET,
@@ -800,7 +800,11 @@ const LogModal = ({user,currentUserId,currentGroupId,groups,onConfirm,onClose}) 
 
 // ─── DELETE MODAL ─────────────────────────────────────────────────────────────
 
-const DeleteModal = ({log,onConfirm,onClose}) => React.createElement('div',{className:"overlay center-mobile",onClick:onClose},
+// Opened from the player profile, whose root is transformed for the back-swipe.
+// A plain overlay inside that transform is positioned against it rather than
+// the viewport, which put this down by the nav bar with the page still
+// scrolling behind. ModalScrim portals it out to the body and locks the scroll.
+const DeleteModal = ({log,onConfirm,onClose}) => React.createElement(ModalScrim,{onClose},
   React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{textAlign:"center",maxWidth:280,padding:"14px 14px"}},
     React.createElement('div',{style:{marginBottom:6,display:"flex",justifyContent:"center"}},
       React.createElement('svg',{xmlns:"http://www.w3.org/2000/svg",width:20,height:20,viewBox:"0 0 24 24",fill:"none",stroke:"var(--red)",strokeWidth:"1.8",strokeLinecap:"round",strokeLinejoin:"round"},
@@ -835,7 +839,7 @@ const SitOutModal = ({mode,monthName,onClose,onSubmit,submitting,error}) => {
   const config = mode === "instant"
     ? {
         title:`Sit out ${monthName}?`,
-        body:["You'll be removed from this month's stakes.","You won't pay or collect anything."],
+        body:["You won't pay or collect anything this month."],
         cta:"Confirm sit-out"
       }
     : mode === "exceptional"

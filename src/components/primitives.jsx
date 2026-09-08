@@ -599,6 +599,60 @@ const TodayPageErrorBoundary = ({resetKey,children}) => React.createElement(
 // Nothing behind it may scroll while it is open. overflow:hidden on the body
 // is not enough on its own - the profile layer owns its own scroll container -
 // so this mirrors the capture-phase touchmove block the auth surface uses.
+// Portalled, scroll-locked, blurred. Portalling is not cosmetic: PlayerProfile's
+// root carries a transform for the back-swipe, and Safari treats any transform
+// as the containing block for position:fixed children — so an overlay rendered
+// inside it lands wherever that box happens to be, typically down by the nav
+// bar, instead of centred on the screen. Same rule as the profile photo layer
+// in the recurring-debugging playbook.
+const ModalScrim = ({onClose,children,zIndex=1100}) => {
+  useEffect(() => {
+    const bodyEl = document.body;
+    const root = document.documentElement;
+    const previous = {
+      bodyOverflow: bodyEl.style.overflow,
+      rootOverflow: root.style.overflow,
+      bodyTouch: bodyEl.style.touchAction,
+      bodyOverscroll: bodyEl.style.overscrollBehavior
+    };
+    const blockScroll = event => {
+      if (event.cancelable) event.preventDefault();
+    };
+    bodyEl.style.overflow = "hidden";
+    root.style.overflow = "hidden";
+    bodyEl.style.touchAction = "none";
+    bodyEl.style.overscrollBehavior = "none";
+    document.addEventListener("touchmove", blockScroll, { passive:false, capture:true });
+    document.addEventListener("wheel", blockScroll, { passive:false, capture:true });
+    return () => {
+      document.removeEventListener("touchmove", blockScroll, { capture:true });
+      document.removeEventListener("wheel", blockScroll, { capture:true });
+      bodyEl.style.overflow = previous.bodyOverflow;
+      root.style.overflow = previous.rootOverflow;
+      bodyEl.style.touchAction = previous.bodyTouch;
+      bodyEl.style.overscrollBehavior = previous.bodyOverscroll;
+    };
+  }, []);
+
+  return createPortal(React.createElement('div',{
+    onClick:onClose,
+    onTouchMove:e=>e.preventDefault(),
+    style:{
+      position:"fixed",
+      inset:0,
+      zIndex,
+      display:"flex",
+      alignItems:"center",
+      justifyContent:"center",
+      padding:"16px",
+      background:"rgba(4,9,9,.42)",
+      backdropFilter:"blur(6px)",
+      WebkitBackdropFilter:"blur(6px)",
+      overscrollBehavior:"contain"
+    }
+  }, children), document.body);
+};
+
 const StatusNoteModal = ({icon,title,tone="#4ECDC4",body,onClose}) => {
   useEffect(() => {
     const bodyEl = document.body;
@@ -858,4 +912,4 @@ const PrimaryActionButton = ({label,onClick,secondary=false}) => React.createEle
 },label);
 
 
-export { Avatar, CategoryIcon, WorkoutTypeIcon, ChevronRightIcon, TargetHitHexIcon, RedemptionShieldIcon, MemberTag, RedemptionNoteModal, StatusNoteModal, TrainingNoteModal, SoloNoteModal, TrainingSproutIcon, SoloFlagIcon, StatusBadge, RankIcon, TrophyIcon, MedalIcon, UploadPhotoIcon, Bar, Card, AppIcon, AnteWordmark, Spinner, TodayScreenSkeleton, BlocSwitcherSkeleton, InstallBanner, WorkoutCategorySelector, SettingsField, SelectField, inputShellStyle, StepperField, PrimaryActionButton, PlayerProfileErrorBoundary, TodayPageErrorBoundary, InBlocPageErrorBoundary };
+export { ModalScrim, Avatar, CategoryIcon, WorkoutTypeIcon, ChevronRightIcon, TargetHitHexIcon, RedemptionShieldIcon, MemberTag, RedemptionNoteModal, StatusNoteModal, TrainingNoteModal, SoloNoteModal, TrainingSproutIcon, SoloFlagIcon, StatusBadge, RankIcon, TrophyIcon, MedalIcon, UploadPhotoIcon, Bar, Card, AppIcon, AnteWordmark, Spinner, TodayScreenSkeleton, BlocSwitcherSkeleton, InstallBanner, WorkoutCategorySelector, SettingsField, SelectField, inputShellStyle, StepperField, PrimaryActionButton, PlayerProfileErrorBoundary, TodayPageErrorBoundary, InBlocPageErrorBoundary };
