@@ -7,6 +7,12 @@ document exists rather than a playbook entry alone.
 
 **If you are Deveen or one of his agents, read section 2 and stop there.**
 
+> **Updated 2026-09-09, evening.** Section 2 originally framed this as a
+> two-per-day-cap problem and leaned toward moving the cap onto canonical.
+> That was the smaller half and the wrong lean. **Month close also reads the
+> blob**, and the parity gate cannot see any of it. Sections 2.5, 2.6 and 6 are
+> new; "The decision Deveen owns" has been rewritten.
+
 ---
 
 ## Plain-English summary
@@ -22,6 +28,11 @@ to hit it, because it needs a delete *and* a second attempt on the same league
 day.
 
 His data was corrected by hand. **The code is still broken for everyone.**
+
+Following that further the same evening: month close also counts from the blob,
+so a deleted workout is counted in the frozen month and the wrong number is
+copied into canonical, where it decides settlements. And the parity gate audits
+closed months only, so none of this is visible to it until it is already frozen.
 
 ---
 
@@ -134,15 +145,84 @@ set state = jsonb_set(state, '{groups,sweat-equity-saucff,logs,Aadhil}',
 where id = true;
 ```
 
+### 2.5 The larger half: month close reads the blob
+
+Found the same evening, after the section above was written.
+
+Four links, all `api/lift-log.js`:
+
+1. **The blob is never rewritten on delete.** `persistOrSkipBlobMirror` returns
+   before `persistStateToSupabase` when the action is skipped. Both the log
+   removal *and* the `deletedCurrentLogIds` marker `applyDeleteLog` sets are
+   discarded — the blob has no record a deletion ever happened.
+2. **Rollover reads the raw blob.** `fetchCurrentStateFromSupabase()` selects
+   `lift_log_state.state` and calls `rolloverStateIfNeeded()` on it directly.
+   No canonical overlay; the readable projection is a different path.
+3. **The frozen count comes from blob logs.** `rolloverGroupIfNeeded()` builds
+   `counts` from `getCountedLogCount(group.logs?.[name] || [])` and `logsByUser`
+   from `buildMonthLogsSnapshot(group.logs, relevantNames)`.
+4. **The wrong number reaches canonical.** The rollover batch passes
+   `closedSnapshot`'s `workoutCount` to `upsertSeasonMemberStatusToCanonical`.
+
+`buildDefaultSettlements(...)` is built from the same `counts` in the same
+snapshot.
+
+Verified with fixtures against the real exported `rolloverGroupIfNeeded`:
+
+```
+Real workouts the member has:      10
+Frozen into the closed month:      11   <- the deleted one
+Control (blob mirror restored):    10
+```
+
+And on the money, target 12, member genuinely did 11 plus one deleted:
+
+```
+Frozen from blob (phantom):  12 of 12 -> no settlement row
+Actually true:               11 of 12 -> {"status":"outstanding", ...}
+```
+
+Phantoms **inflate** counts, so this releases members from penalties they owe.
+It does not over-charge. **Not verified:** no real production month-end was run.
+
+September closes 1 October.
+
+### 2.6 Why nothing caught it for seven weeks
+
+`npm run parity:gate` ran clean on 2026-09-09 at blob revision 2304 — 8 checks,
+0 failures, 0 warnings. That is not evidence the current month is sound.
+
+Every check operates on closed seasons. `open-season-scope` says so:
+
+> "Open seasons are excluded by design; season_member_status is a rollover
+> snapshot, not the live counter."
+
+So current-month divergence is invisible until the month closes, at which point
+the number is frozen and `scripts/blob-remirror.mjs` cannot repair it — its own
+header says *never touched: monthHistory*.
+
+**A green gate is not clearance for a mirror skip.** The missing check is an
+open-season comparison of blob current-month log sets against
+`ante_core.workout_logs`, per member per date. That is the check that would have
+caught this on 20 July; the audit query above is that check written by hand.
+
 ### The decision Deveen owns
 
 Either **`delete-log` mirrors to the blob again**, or **the cap stops reading the
-blob**. The second is the direction everything else is moving, and
-`ante_core.upsert_ante_core_workout_log` already enforces the same cap correctly
-against canonical, counting distinct session keys. The JS-side
-`assertWorkoutSlotAvailable` is the copy that reads the blob.
+blob**.
 
-Two call sites, both in `api/lift-log.js`: `applyAddLog` and `applyMultiLog`.
+**Recommendation: restore the mirror.** Section 2.5 is why. Moving the cap onto
+canonical fixes the 409 and leaves month close still counting the phantom — so
+September would still close wrong. Restoring the mirror fixes both, and it is
+env-only: drop `delete-log` from `BLOB_MIRROR_SKIP_ACTIONS`. No code, no deploy,
+reversible in minutes.
+
+Moving the cap onto canonical remains the right long-term direction —
+`ante_core.upsert_ante_core_workout_log` already enforces the same cap correctly
+against canonical, counting distinct session keys, and the JS-side
+`assertWorkoutSlotAvailable` is the odd copy out (two call sites, `applyAddLog`
+and `applyMultiLog`). It just is not sufficient on its own, and it is not what
+1 October needs.
 
 **Also worth his attention:** `reaction` is skipping the blob too. The same
 question applies — does anything still read reactions from the blob?
@@ -193,9 +273,10 @@ healthy, and there are no open branches.
 
 ### 3.1 Deleting must clear both stores — **do this first**
 
-The defect in §2. It affects every member who deletes a workout. Decide with
-Devein whether the fix is to restore the blob mirror for `delete-log` or to move
-`assertWorkoutSlotAvailable` onto canonical, then implement it.
+The defect in §2. It affects every member who deletes a workout, and §2.5 gives
+it a date: September closes 1 October. Recommendation is to restore the blob
+mirror; see "The decision Deveen owns". Sent to Deveen 2026-09-09, awaiting his
+answer — do not implement either option before he replies.
 
 Do not treat the founder's data correction as the fix. It was one row.
 
@@ -268,7 +349,101 @@ after a successful sign-in, so a working flow looks broken. Use a private window
 ## 5. State at handover
 
 - `main` = PR #19, deployed, healthy, no console errors
-- No open branches, nothing uncommitted
-- Blob revision **2303**; backup at 2302
+- No open branches
+- Blob revision **2304** as of the evening gate run; backup at 2302
 - One hand-correction applied, recorded in §2, reversible
 - 13 test suites pass; 2 cannot run (§3.4)
+- Parity gate: **18/18 offline, 8/8 live, 0 warnings** (2026-09-09 evening)
+- §2 was extended the same evening — see the note at the top of this document
+
+---
+
+## 6. Deveen's runbook — status, and a stop condition on Task 5
+
+`docs/blob-retirement-runbook-aadhil-side-2026-09-06.md`.
+
+### 6.1 Task 5 must not run yet
+
+Task 5 adds `add-log,multi-log` to `BLOB_MIRROR_SKIP_ACTIONS`, after which no
+workout write reaches the blob at all. Month close still counts from the blob
+(§2.5). Same fixture, two members who both genuinely hit 12 of 12, with the blob
+having received only the first five of one member's:
+
+```
+Aadhil: actually 12 of 12 -> no penalty
+        frozen    5 of 12 -> {"status":"outstanding", ...}   <- charged wrongly
+Sam:    actually 12 of 12 -> no penalty
+        frozen   12 of 12 -> no penalty
+```
+
+So Task 5 reverses the failure direction: from releasing members from penalties
+they owe, to charging members who completed the month. That is the worse one.
+
+Three reasons it is a hard stop, not a caution:
+
+- Month close reads the blob, and Task 5 stops the blob being written.
+- No heal path. `blob-remirror.mjs` never touches `monthHistory` (§2.6).
+- The gate will not warn during the soak window (§2.6).
+
+Task 5's own step 4 — "log a workout, log a second, delete one, all three must
+behave normally" — passes fine in this scenario. The damage does not appear
+until rollover, up to a month after the soak ends.
+
+**Open question for Deveen:** does the `left_at` branch move month close onto
+canonical? If yes, Task 5 sequences behind it. If no, month close has to move
+first.
+
+### 6.2 Two things block running the gate at all
+
+Tooling only; neither affects production.
+
+- `loadEnvFile()` in `scripts/blob-parity-gate.mjs` does not strip quotes, and a
+  Vercel-pulled `.env.local` quotes every value — `SUPABASE_URL` arrives as
+  `"https://…"` and the run dies with `ERR_INVALID_URL`.
+- Vercel redacts secrets on pull: `SUPABASE_SERVICE_ROLE_KEY` in `.env.local` is
+  the literal string `[SENSITIVE]`. The runbook's "Aadhil's workspace already has
+  these" cannot be true for anyone who pulled env from Vercel.
+
+Workaround used. No repo change; the key never reaches disk or shell history:
+
+```bash
+cd "/Users/aadhilsj/Documents/Codex Space/Fero" && printf 'Paste your secret key, then press Enter: ' && read -rs KEY && echo && SUPABASE_URL="$(grep '^SUPABASE_URL=' .env.local | cut -d= -f2- | tr -d '"')" SUPABASE_SERVICE_ROLE_KEY="$KEY" node scripts/blob-parity-gate.mjs
+```
+
+### 6.3 Runbook status
+
+| Task | State |
+|---|---|
+| 1 — confirm the mirror-skip flag | not started; needs `ADMIN_PIN`, set by Aadhil in his own shell |
+| 2 — parity gate baseline | **done 2026-09-09. 18/18 offline, 8/8 live, rev 2304** |
+| 3 — prove a backup restores | not started; needs a scratch Supabase project |
+| 4 — close I3 | Aadhil's decision; Option A recommended in the runbook |
+| 5 — wave B | **blocked, §6.1** |
+
+### 6.4 Three questions with Deveen, sent 2026-09-09
+
+1. Restore the `delete-log` blob mirror? Recommended over moving the cap.
+2. Does `left_at` move month close onto canonical? Gates Task 5.
+3. Is `reaction` skipping safe — does anything still read reactions off the blob?
+
+---
+
+## 7. Unrelated to the blob, but outstanding
+
+`codex/app-store-readiness` is **21 commits behind `main`**. It last merged
+`main` before the sign-in work landed, so it is missing every fix in PRs #14,
+#17, #18 and #19 — including the failed-account-load bug that put an existing
+member on the display-name screen and renamed them across every Bloc. It is also
+missing Deveen's parity gate and runbook (PRs #15, #16).
+
+Submitting from that branch as it stands would ship the member-renaming sign-in
+bug to the App Store.
+
+It also edits `api/lift-log.js` and `src/pages/TodayPage.jsx` — the two files
+§3.1 and §3.2 will touch, so expect conflicts. Merge `main` into it before any
+further App Store work, and re-verify swipe and reaction behaviour afterwards:
+the playbook records both being re-broken by branch merges before.
+
+The native shell routes to the deployed API, which is production. TestFlight
+testers deleting workouts create the same phantoms real members do — one more
+reason to land §3.1 before TestFlight goes wide.

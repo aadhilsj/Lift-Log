@@ -267,6 +267,35 @@ Diagnosis note:
   `select reason, max(created_at) from public.lift_log_backups group by 1` — an action whose last write is months old while the app still uses it is skipping the blob.
 - A cross-store audit query for phantoms is in `docs/handover-2026-09-09-signin-fixes-and-delete-log-blob-divergence.md` §2.
 
+The reader that matters most, found 2026-09-09 evening:
+- **Month close reads the blob.** `rolloverGroupIfNeeded` builds the frozen month's
+  `counts` from `getCountedLogCount(group.logs?.[name])`, and the rollover batch
+  copies that count into canonical via `upsertSeasonMemberStatusToCanonical`.
+  `fetchCurrentStateFromSupabase()` rolls over the raw `lift_log_state.state` row,
+  so no canonical overlay is involved. Settlements are built from the same counts.
+- Verified with fixtures against the real `rolloverGroupIfNeeded`: a member who did
+  11 of a 12 target, with one deleted workout still in the blob, freezes as 12 of 12
+  and the `outstanding` settlement disappears.
+- The failure direction depends on which way the blob is stale. A phantom **inflates**
+  a count and releases someone from a penalty. A blob that stopped *receiving* writes
+  **deflates** it and charges someone who completed the month. The second is worse and
+  is what adding `add-log,multi-log` to the skip list would cause.
+- **There is no heal path after a month closes.** `scripts/blob-remirror.mjs` says in
+  its own header: *never touched: monthHistory*. It repairs current-month logs only.
+
+Why nothing caught it for seven weeks:
+- `npm run parity:gate` audits **closed months only**. Its `open-season-scope` check
+  states "Open seasons are excluded by design". Current-month blob/canonical
+  divergence is therefore invisible to the gate until the month closes — at which
+  point the wrong number is already frozen.
+- **A green gate is not evidence that a mirror skip is safe.** It is evidence about
+  months that already ended. Before adding any action to the skip list, the open
+  season needs its own comparison: blob current-month log sets against
+  `ante_core.workout_logs`, per member per date.
+- Full write-up, fixtures and the runbook stop condition:
+  `docs/handover-2026-09-09-signin-fixes-and-delete-log-blob-divergence.md` §2.5,
+  §2.6 and §6.
+
 ## A Failed Mutation That Says Nothing
 
 Symptoms:
