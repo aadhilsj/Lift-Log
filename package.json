@@ -13,6 +13,7 @@
     "test:month-awards": "node scripts/test-month-awards.mjs",
     "test:system-health": "node scripts/test-system-health.mjs",
     "test:rollover-isolation": "node scripts/test-rollover-isolation.mjs",
+    "test:month-close-canonical": "node scripts/test-month-close-canonical.mjs",
     "test:profile-stats-cache": "node scripts/test-profile-stats-cache.mjs",
     "test:fero-profile-stats": "node scripts/test-fero-profile-stats.mjs",
     "parity:gate": "node scripts/blob-parity-gate.mjs",
