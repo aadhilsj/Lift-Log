@@ -2276,6 +2276,75 @@ function shouldSkipRolloverForMissingCanonicalBloc(canonicalBlocs, groupId) {
   return !canonicalBlocs[groupId];
 }
 
+// Month close reads canonical, not the blob (2026-09-09 divergence).
+//
+// rolloverGroupIfNeeded builds the closed snapshot from blob group.logs, but
+// delete-log stopped mirroring to the blob on 2026-07-19, so the blob can hold
+// workouts the member deleted. Freezing those counts lets members off penalties
+// they owe — and once add-log/multi-log stop mirroring too, the direction
+// reverses and members who completed the month get charged for logs the blob
+// never received. See docs/handover-2026-09-09-signin-fixes-and-delete-log-blob-divergence.md §2.
+//
+// This rebuilds the snapshot's counts, logsByUser and settlements from the
+// canonical current-log rows for the closing season, before persistState
+// writes either store. Names, excused, solo, training, targets and settings
+// are untouched — membership is not this function's concern.
+//
+// `canonicalLogRows` is the group's slice of fetchAnteCurrentLogs() (already
+// blob-shaped). `options.deletedCurrentLogIds` is the PRE-rollover group's
+// tombstone list — the post-rollover group resets it — applying the same
+// filter as the read overlay, so a log deleted in the race window is not
+// resurrected into the frozen month. Returns { ok: true, group } or
+// { ok: false, reason } — the caller reverts the Bloc out of the rollover
+// batch on !ok, the same skip path as a missing bloc row.
+function rebuildClosedMonthSnapshotFromCanonicalLogs(group, closedMonthKey, canonicalLogRows, options = {}) {
+  const history = Array.isArray(group?.monthHistory) ? group.monthHistory : [];
+  const index = history.findIndex(month => month?.key === closedMonthKey);
+  if (index === -1) return { ok: false, reason: `no closed snapshot for ${closedMonthKey}` };
+  const snapshot = history[index];
+  const relevantNames = Object.keys(snapshot.counts || {});
+
+  const deletedLogIds = new Set(normalizeDeletedCurrentLogIds(options.deletedCurrentLogIds));
+  const rows = (Array.isArray(canonicalLogRows) ? canonicalLogRows : [])
+    .filter(row => !deletedLogIds.has(String(row?.id || "")));
+  const byOwner = {};
+  for (const row of rows) {
+    const owner = row?.ownerDisplayName;
+    if (!owner) continue;
+    if (!byOwner[owner]) byOwner[owner] = [];
+    byOwner[owner].push(row);
+  }
+
+  // Guard against canonical data loss, not against deletes: member-level
+  // blob-vs-canonical differences are exactly what this rebuild corrects, but
+  // a season with zero canonical rows while the blob counted workouts means
+  // the canonical record itself is suspect — freeze nothing, skip and retry.
+  const blobCountedTotal = relevantNames
+    .reduce((total, name) => total + Number(snapshot.counts?.[name] || 0), 0);
+  if (rows.length === 0 && blobCountedTotal > 0) {
+    return { ok: false, reason: `canonical logs empty for ${closedMonthKey} while blob counted ${blobCountedTotal}` };
+  }
+
+  const counts = Object.fromEntries(
+    relevantNames.map(name => [name, getCountedLogCount(byOwner[name] || [])])
+  );
+  const logsByUser = buildMonthLogsSnapshot(byOwner, relevantNames);
+  const rebuilt = {
+    ...snapshot,
+    counts,
+    logsByUser,
+    settlements: buildDefaultSettlements(
+      { counts, excused: snapshot.excused, solo: snapshot.solo, training: snapshot.training, key: closedMonthKey },
+      relevantNames,
+      snapshot.settings,
+      snapshot.memberTargets || {}
+    )
+  };
+  const monthHistory = [...history];
+  monthHistory[index] = rebuilt;
+  return { ok: true, group: { ...group, monthHistory } };
+}
+
 function rolloverStateIfNeeded(data, options = {}) {
   const base = normalizeState(data, options);
   let changed = false;
@@ -4765,8 +4834,12 @@ async function persistState(nextState, reason, options = {}) {
   // can roll over do. See docs/rollover-incident-2026-09-01.md.
   const rolloverSkips = [];
   const canonicalBlocsForRollover = rollovers.length > 0 ? await fetchAnteBlocs() : null;
+  // Canonical current logs for the closing seasons. Fetched before any season
+  // is closed below — read_ante_core_current_logs filters to open seasons, so
+  // fetching after the close would return nothing for the month being frozen.
+  const canonicalLogsForRollover = rollovers.length > 0 ? await fetchAnteCurrentLogs() : null;
   for (const { groupId, closedMonthKey, newMonthKey, closedAt, previousGroup } of rollovers) {
-    const group = safeState.groups?.[groupId];
+    let group = safeState.groups?.[groupId];
     if (!group) continue;
 
     // Roll one Bloc back out of this batch, keeping every other Bloc's rollover.
@@ -4788,6 +4861,31 @@ async function persistState(nextState, reason, options = {}) {
       revertGroup(new Error(`bloc not found in ante_core for legacy_group_key: ${groupId}`));
       continue;
     }
+
+    // Month close counts from canonical, not the blob (see
+    // rebuildClosedMonthSnapshotFromCanonicalLogs). The null rule here is the
+    // OPPOSITE of the fetchAnteBlocs rule above, deliberately: an unreadable
+    // Bloc list must not skip every Bloc (that recreates the 09-01 stall),
+    // but unreadable logs must not freeze month counts computed from a blob
+    // that no longer receives every write — a wrongly frozen settlement is
+    // permanent, while a skipped Bloc is retried on the next read and
+    // surfaces on the founder dashboard via rollover_skipped.
+    if (canonicalLogsForRollover === null) {
+      revertGroup(new Error(`canonical current logs unavailable for month close of ${closedMonthKey}`));
+      continue;
+    }
+    const rebuild = rebuildClosedMonthSnapshotFromCanonicalLogs(
+      group,
+      closedMonthKey,
+      canonicalLogsForRollover[groupId] || [],
+      { deletedCurrentLogIds: previousGroup?.deletedCurrentLogIds }
+    );
+    if (!rebuild.ok) {
+      revertGroup(new Error(`month close snapshot rebuild failed: ${rebuild.reason}`));
+      continue;
+    }
+    group = rebuild.group;
+    safeState.groups[groupId] = group;
 
     try {
       // Close the old season first so season_member_status writes can resolve the
@@ -8915,6 +9013,8 @@ export {
   rolloverStateIfNeeded,
   rolloverGroupIfNeeded,
   shouldSkipRolloverForMissingCanonicalBloc,
+  // Exported for the month-close canonical test suite.
+  rebuildClosedMonthSnapshotFromCanonicalLogs,
   buildWorkoutLogDerivedMoments,
   resolveMemberPaceSnapshotForMonth,
   // Identity guards — exported for the display-name identity test suite.
