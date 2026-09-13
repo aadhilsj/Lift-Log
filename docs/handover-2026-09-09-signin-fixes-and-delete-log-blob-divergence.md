@@ -428,6 +428,55 @@ cd "/Users/aadhilsj/Documents/Codex Space/Fero" && printf 'Paste your secret key
 
 ---
 
+## 6.5 Outcome, 2026-09-13
+
+- **§3.1 fixed live.** Deveen approved restoring the mirror. The production
+  `BLOB_MIRROR_SKIP_ACTIONS` was read back through the admin report as
+  `["reaction","flag","flag-response","flag-review","delete-log"]` (runbook
+  Task 1, done) and set to `reaction,flag,flag-response,flag-review`, then
+  redeployed and read back without `delete-log`. `ADMIN_PIN` was rotated first;
+  the copy in the local `.env.local` from 31 August is stale.
+- **Phantom audit after the fix: zero rows**, and blob and canonical both held
+  317 September logs. No heal was needed, as Deveen expected.
+- **Deveen on reactions:** skipping is safe; nothing user-facing reads them from
+  the blob. **Task 5 stays on hold.**
+
+### Phantoms were self-healing in active Blocs
+
+Kasper (OSI H3) reported on 9 September that after deleting a workout he could
+not log another. The backups show why the audit never caught him:
+
+| UTC | Revision | Event |
+|---|---|---|
+| 17:08:06 | 2319 | add-log, workout `1788973684700877` |
+| 17:08:43 | 2320 | add-log, `1788973722071989` — same photo, same note, 37s later |
+| — | — | he deletes the second; canonical only, blob keeps it; he is capped |
+| 19:26:32 | 2322 | **Tri's** add-log in the same Bloc — the phantom is gone from this backup on |
+| 22:51:09 | 2325 | Kasper logs his real second workout |
+
+Another member's write to the same Bloc rewrote the current-month logs from
+canonical and cleared the phantom. So in busy Blocs phantoms blocked their owner
+for hours, not until month close. §2.5's month-close risk was real but smaller in
+practice than stated, and only for quiet Blocs.
+
+### A separate bug: the same save recorded twice
+
+Kasper's duplicate above, and Varun (Ctrl Alt De-feat) on 13 September: two Gym
+workouts for 12 September, 13 seconds apart, **identical photo URL and note**.
+Every upload gets its own URL, so an identical URL means the same request
+arrived twice. No resend exists in the app: the service worker ignores POSTs,
+nothing replays on reconnect, and each save has one call site. The likeliest
+source is the phone's network stack; Vercel logs had expired, so unconfirmed.
+
+Varun deleted the first copy and kept the one with 3 reactions. Both stores match.
+
+**Fix built, not deployed:** branch `fix/log-failure-and-duplicate-save`. A
+repeat (same member, date, photo) is answered as success without writing,
+checked before the cap. It also ships §3.2 — a failed log now says why. Tested
+in an isolated sandbox; see the commit message for the scenarios.
+
+---
+
 ## 7. Unrelated to the blob, but outstanding
 
 `codex/app-store-readiness` is **21 commits behind `main`**. It last merged
