@@ -1219,7 +1219,9 @@ const App = () => {
     }
     const runMutation = async()=>{
       // Optimistic update for delete-log: remove the entry immediately.
-      if(payload.action === "delete-log" && payload.logId && currentGroup) {
+      // Only the Bloc on screen can be patched optimistically: currentGroup is
+      // that Bloc, and writing it under another Bloc's id would swap their logs.
+      if(payload.action === "delete-log" && payload.logId && currentGroup && (payload.groupId || selectedGroupId) === selectedGroupId) {
         const optimisticLogs = Object.fromEntries(
           Object.entries(currentGroup.logs || {}).map(([name, logs]) => [name, logs.filter(l => l.id !== payload.logId)])
         );

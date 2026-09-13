@@ -29,7 +29,8 @@ import {
   getCountedLogs,
   getMonthPartsFromKey,
   getCountedLogCount,
-  isJoinedForMonth
+  isJoinedForMonth,
+  findWorkoutCopiesInOtherBlocs
 } from "../lib/appState.js";
 import {
   isMobile
@@ -569,7 +570,7 @@ const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevea
       monthLabel:selLabel,
       onClose:()=>setShowShareSticker(false)
     }),
-    deleteTarget && React.createElement(DeleteModal,{log:deleteTarget,onClose:()=>setDeleteTarget(null),onConfirm:async()=>{ const log = deleteTarget; setDeleteTarget(null); await onDeleteLog(log); }}),
+    deleteTarget && React.createElement(DeleteModal,{log:deleteTarget,otherBlocNames:[...new Set(findWorkoutCopiesInOtherBlocs(visibleGroups, group?.id, currentUserId, deleteTarget).map(copy => copy.groupName))],onClose:()=>setDeleteTarget(null),onConfirm:async(options)=>{ const log = deleteTarget; setDeleteTarget(null); await onDeleteLog(log, options); }}),
     deleteChoices && React.createElement('div',{className:"overlay center-mobile",onClick:()=>setDeleteChoices(null)},
       React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{textAlign:"center",maxWidth:300,padding:"15px 14px"}},
         React.createElement('div',{style:{fontWeight:800,fontSize:14,marginBottom:4}},"Choose a workout"),

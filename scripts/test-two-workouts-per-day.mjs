@@ -9,7 +9,8 @@ import {
 } from "../api/lift-log.js";
 import {
   getDistinctWorkoutCountForDate as getFrontendWorkoutCount,
-  countWorkoutsInDayMap
+  countWorkoutsInDayMap,
+  findWorkoutCopiesInOtherBlocs
 } from "../src/lib/appState.js";
 
 // Week's MVP counts workouts, not merely occupied calendar dates. Its display
@@ -281,6 +282,50 @@ function addLog(current, groupId, workoutType = "Gym") {
     null,
     "an unknown Bloc is not a repeat"
   );
+}
+
+// Deleting a multi-Bloc workout offers to remove its copies elsewhere. A copy
+// is the same session on the same date, found under the member's own name in
+// each Bloc, never another member's workout and never a separate session.
+{
+  const u = "user-1";
+  const blocs = [
+    { id: "a", name: "Bloc A", memberships: { [u]: { displayName: "Aadhil" } }, logs: {
+      Aadhil: [{ id: "1788888521665526", date: "2026-09-08", type: "Run" }, { id: "1788888600000000", date: "2026-09-08", type: "Gym" }]
+    } },
+    { id: "b", name: "Bloc B", memberships: { [u]: { displayName: "AJ" } }, logs: {
+      AJ: [{ id: "1788888521665526-b", date: "2026-09-08", type: "Run" }],
+      Aadhil: [{ id: "1788888521665526-b", date: "2026-09-08", type: "Run" }]
+    } },
+    { id: "c", name: "Bloc C", memberships: { [u]: { displayName: "Aadhil" } }, logs: {
+      Aadhil: [{ id: "1788888600000000-c", date: "2026-09-08", type: "Gym" }]
+    } },
+    { id: "d", name: "Not mine", memberships: { "someone-else": { displayName: "Aadhil" } }, logs: {
+      Aadhil: [{ id: "1788888521665526-d", date: "2026-09-08", type: "Run" }]
+    } }
+  ];
+  const run = blocs[0].logs.Aadhil[0];
+  assert.deepEqual(
+    findWorkoutCopiesInOtherBlocs(blocs, "a", u, run),
+    [{ groupId: "b", groupName: "Bloc B", owner: "AJ", logId: "1788888521665526-b" }],
+    "finds the copy under the member's name in that Bloc, and only the same session"
+  );
+  assert.deepEqual(
+    findWorkoutCopiesInOtherBlocs(blocs, "b", u, blocs[1].logs.AJ[0]).map(copy => copy.groupId),
+    ["a"],
+    "works from a copy back to the source Bloc"
+  );
+  assert.deepEqual(
+    findWorkoutCopiesInOtherBlocs(blocs, "a", u, { id: "1788999999999999", date: "2026-09-08" }),
+    [],
+    "a single-Bloc workout has no copies"
+  );
+  assert.deepEqual(
+    findWorkoutCopiesInOtherBlocs(blocs, "a", u, { ...run, date: "2026-09-09" }),
+    [],
+    "the same session key on another date is not a copy"
+  );
+  assert.deepEqual(findWorkoutCopiesInOtherBlocs(blocs, "a", "", run), [], "no user, no copies");
 }
 
 console.log("Two-workouts-per-day checks passed.");

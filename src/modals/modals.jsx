@@ -804,7 +804,15 @@ const LogModal = ({user,currentUserId,currentGroupId,groups,onConfirm,onClose}) 
 // A plain overlay inside that transform is positioned against it rather than
 // the viewport, which put this down by the nav bar with the page still
 // scrolling behind. ModalScrim portals it out to the body and locks the scroll.
-const DeleteModal = ({log,onConfirm,onClose}) => React.createElement(ModalScrim,{onClose},
+const DeleteModal = ({log,onConfirm,onClose,otherBlocNames=[]}) => {
+  // Logged to several Blocs at once, it should leave them together too, so the
+  // default is yes. Unticking keeps the other Blocs' copies.
+  const [alsoOtherBlocs,setAlsoOtherBlocs] = React.useState(true);
+  const otherCount = otherBlocNames.length;
+  const otherLabel = otherCount <= 2
+    ? `Also delete from ${otherBlocNames.join(" and ")}`
+    : `Also delete from your ${otherCount} other Blocs`;
+  return React.createElement(ModalScrim,{onClose},
   React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{textAlign:"center",maxWidth:280,padding:"14px 14px"}},
     React.createElement('div',{style:{marginBottom:6,display:"flex",justifyContent:"center"}},
       React.createElement('svg',{xmlns:"http://www.w3.org/2000/svg",width:20,height:20,viewBox:"0 0 24 24",fill:"none",stroke:"var(--red)",strokeWidth:"1.8",strokeLinecap:"round",strokeLinejoin:"round"},
@@ -823,13 +831,18 @@ const DeleteModal = ({log,onConfirm,onClose}) => React.createElement(ModalScrim,
       ),
       React.createElement('div',{className:"mono",style:{fontSize:10,color:"var(--muted)"}},fmtISO(log.date))
     ),
+    otherCount > 0 && React.createElement('label',{style:{display:"flex",alignItems:"center",gap:7,textAlign:"left",background:"var(--s2)",border:"1px solid var(--border)",borderRadius:8,padding:"6px 10px",marginBottom:8,fontSize:10.5,fontWeight:600,color:"var(--text)",cursor:"pointer"}},
+      React.createElement('input',{type:"checkbox",checked:alsoOtherBlocs,onChange:e=>setAlsoOtherBlocs(e.target.checked),style:{accentColor:"var(--red)",margin:0,flexShrink:0}}),
+      React.createElement('span',{style:{minWidth:0}},otherLabel)
+    ),
     React.createElement('div',{style:{color:"var(--muted)",fontSize:10,marginBottom:10}},"This will permanently remove this workout."),
     React.createElement('div',{style:{display:"flex",gap:6}},
       React.createElement('button',{onClick:onClose,style:{flex:1,background:"var(--s2)",border:"1px solid var(--border)",color:"var(--muted)",padding:"7px",borderRadius:7,fontSize:11,fontWeight:600}},"Keep it"),
-      React.createElement('button',{onClick:onConfirm,style:{flex:1,background:"var(--red-bg)",border:"1px solid var(--red)",color:"var(--red)",padding:"7px",borderRadius:7,fontSize:11,fontWeight:800}},"Delete")
+      React.createElement('button',{onClick:()=>onConfirm({ alsoOtherBlocs: otherCount > 0 && alsoOtherBlocs }),style:{flex:1,background:"var(--red-bg)",border:"1px solid var(--red)",color:"var(--red)",padding:"7px",borderRadius:7,fontSize:11,fontWeight:800}},"Delete")
     )
   )
-);
+  );
+};
 
 // ─── EXCUSE MODAL ─────────────────────────────────────────────────────────────
 

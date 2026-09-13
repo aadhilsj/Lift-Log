@@ -1312,6 +1312,24 @@ function getDistinctWorkoutCountForDate(groups, userId, fallbackDisplayName, iso
   return sessionKeys.size;
 }
 
+// One multi-Bloc log is several rows sharing a session key, one per Bloc, each
+// under whatever name the member uses there. Returns the copies of `log` in
+// every Bloc other than the one it is being deleted from.
+function findWorkoutCopiesInOtherBlocs(groups, currentGroupId, userId, log) {
+  const sessionKey = getWorkoutSessionKey(log);
+  const safeUserId = String(userId || "").trim();
+  if (!sessionKey || !safeUserId || !log?.date) return [];
+  return (Array.isArray(groups) ? groups : Object.values(groups || {}))
+    .filter(group => group?.id && group.id !== currentGroupId)
+    .flatMap(group => {
+      const owner = String(group?.memberships?.[safeUserId]?.displayName || "").trim();
+      if (!owner) return [];
+      return (group?.logs?.[owner] || [])
+        .filter(copy => copy?.date === log.date && getWorkoutSessionKey(copy) === sessionKey)
+        .map(copy => ({ groupId: group.id, groupName: group.name || "", owner, logId: String(copy.id) }));
+    });
+}
+
 function normalizeDeletedCurrentLogIds(value) {
   return uniqueNames(Array.isArray(value) ? value.map(id => String(id || "")) : []).slice(-200);
 }
@@ -2221,6 +2239,7 @@ export {
   resolveLogCreatedAt,
   normalizeLogEntry,
   getWorkoutSessionKey,
+  findWorkoutCopiesInOtherBlocs,
   countWorkoutsInDayMap,
   getDistinctWorkoutCountForDate,
   normalizeAcceptedWorkoutTypes,

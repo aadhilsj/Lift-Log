@@ -41,7 +41,8 @@ import {
   getMonthKeyFromISO,
   isJoinedForMonth,
   getCurrentGroupMemberNames,
-  getSetupReviewPendingCount
+  getSetupReviewPendingCount,
+  findWorkoutCopiesInOtherBlocs
 } from "../lib/appState.js";
 import {
   getGroupCloseMeta,
@@ -274,6 +275,22 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
     }
     setShowLog(false);
     onSave({ workoutType, isoDate, note, photoUrl });
+  };
+
+  // Deletes from this Bloc first, then — only if asked — the same workout's
+  // copies in the member's other Blocs, one ordinary delete-log each so every
+  // Bloc gets its own stream retraction. Copies are found before the first
+  // delete, while this Bloc's state still holds the workout.
+  const deleteOwnLog = async (log, { alsoOtherBlocs = false } = {}) => {
+    const copies = alsoOtherBlocs ? findWorkoutCopiesInOtherBlocs(groups, currentGroupId, currentUserId, log) : [];
+    const first = await onLogMutation({action:"delete-log",groupId:currentGroupId,actor:user,owner:user,logId:log.id});
+    if (!first?.ok || !copies.length) return;
+    let failed = 0;
+    for (const copy of copies) {
+      const result = await onLogMutation({action:"delete-log",groupId:copy.groupId,actor:copy.owner,owner:copy.owner,logId:copy.logId});
+      if (!result?.ok) failed += 1;
+    }
+    if (failed) window.alert(`Deleted here, but it couldn't be removed from ${failed === 1 ? "one of your other Blocs" : `${failed} of your other Blocs`}. Please try again from there.`);
   };
 
   const submitSitOut = async (reason) => {
@@ -1424,7 +1441,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
 
   const todayContent = React.createElement('div',{ref:todayRootRef,style:{position:"relative",minHeight:"calc(100vh - 44px)",backgroundColor:"#070C0C",background:"var(--bg-gradient)",backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)",overscrollBehavior:"contain",overscrollBehaviorY:"contain",overflowX:"hidden",isolation:"isolate"}},
     showLog&&React.createElement(LogModal,{user,currentUserId,currentGroupId,groups,onConfirm:doLog,onClose:()=>setShowLog(false)}),
-    deleteTarget && React.createElement(DeleteModal,{log:deleteTarget,onClose:()=>setDeleteTarget(null),onConfirm:async()=>{ const logId = deleteTarget.id; setDeleteTarget(null); await onLogMutation({action:"delete-log",groupId:currentGroupId,actor:user,owner:user,logId}); }}),
+    deleteTarget && React.createElement(DeleteModal,{log:deleteTarget,otherBlocNames:[...new Set(findWorkoutCopiesInOtherBlocs(groups, currentGroupId, currentUserId, deleteTarget).map(copy => copy.groupName))],onClose:()=>setDeleteTarget(null),onConfirm:async(options)=>{ const log = deleteTarget; setDeleteTarget(null); await deleteOwnLog(log, options); }}),
     showExcuse && sitOutMode && React.createElement(SitOutModal,{mode:sitOutMode,monthName:modalMonthName,onClose:()=>{setShowExcuse(false);setSitOutError("");},onSubmit:submitSitOut,submitting:sitOutSubmitting,error:sitOutError}),
     showSolo && visibleSoloMode && React.createElement(SoloModal,{mode:visibleSoloMode,monthName:modalMonthName,minimumTarget:soloMinimumTarget,maximumTarget:effectiveTarget,defaultTarget:Math.max(soloMinimumTarget, Math.ceil(effectiveTarget * .5)),onClose:()=>{setShowSolo(false);setSoloError("");},onSubmit:submitSolo,submitting:soloSubmitting,error:soloError}),
     showSoloLocked && React.createElement(NoticeModal,{title:"Solo Mode is locked",body:"Solo Mode is only available in the first 10 days of the month.",onClose:()=>setShowSoloLocked(false)}),
@@ -1441,7 +1458,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
     React.createElement('div',{"aria-hidden":viewPlayer?true:undefined,style:{pointerEvents:viewPlayer?"none":"auto"}},todayContent),
     viewPlayer&&React.createElement('div',{key:`profile-layer-${viewPlayer}`,ref:profileLayerRef,className:"in-bloc-profile-layer",style:{backgroundColor:"#070C0C",background:profileRevealActive?"transparent":"var(--bg-gradient)",backgroundImage:profileRevealActive?"none":"var(--bg-radial-hint), var(--bg-gradient)",overflowY:"auto",overflowX:"hidden",WebkitOverflowScrolling:"touch",overscrollBehavior:"contain",touchAction:"pan-y"}},
       React.createElement(PlayerProfileErrorBoundary,{profileName:viewPlayer,onBack:closePlayerProfile},
-        React.createElement(PlayerProfile,{group:currentGroup,name:viewPlayer,logs,excused,monthHistory,onBack:closePlayerProfile,onSwipeRevealChange:setProfileRevealActive,groupSettings,memberUserId:Object.values(currentGroup?.memberships||{}).find(m=>m?.displayName===viewPlayer)?.userId||"",currentUserId,visibleGroups:groups,accountCreatedAt,onDeleteLog:viewPlayer===user?async(log)=>{ await onLogMutation({action:"delete-log",groupId:currentGroupId,actor:user,owner:viewPlayer,logId:log.id}); }:undefined})
+        React.createElement(PlayerProfile,{group:currentGroup,name:viewPlayer,logs,excused,monthHistory,onBack:closePlayerProfile,onSwipeRevealChange:setProfileRevealActive,groupSettings,memberUserId:Object.values(currentGroup?.memberships||{}).find(m=>m?.displayName===viewPlayer)?.userId||"",currentUserId,visibleGroups:groups,accountCreatedAt,onDeleteLog:viewPlayer===user?async(log, options)=>{ await deleteOwnLog(log, options); }:undefined})
       )
     )
   );
