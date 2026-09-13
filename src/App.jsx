@@ -168,6 +168,14 @@ const describeOtpSendFailure = (result, intentType) => {
   return result?.error || "Unable to send code";
 };
 
+// The daily cap is the one save failure a member can act on, and blaming their
+// connection for it sends them retrying something that will never go through.
+const getWorkoutSaveFailureMessage = (error) => (
+  /already logged 2 workouts/i.test(String(error || ""))
+    ? "You've already logged 2 workouts for this day."
+    : "Workout couldn't be saved. Please check your connection and try again."
+);
+
 const SETUP_PROGRESS_STAGES = {
   signingIn: { labels:["Checking your code...", "Signing you in...", "Getting things ready..."], min:8, max:92 },
   savingName: { labels:["Saving your name...", "Securing your profile..."], min:8, max:34 },
@@ -1078,14 +1086,14 @@ const App = () => {
       } else {
         clearOptimisticMutation();
         setSyncError(true);
-        window.alert("Workout couldn't be saved. Please check your connection and try again.");
+        window.alert(getWorkoutSaveFailureMessage(saved?.error));
         await refreshNow();
       }
     }catch(e){
       console.error("Save failed",e);
       clearOptimisticMutation();
       setSyncError(true);
-      window.alert("Workout couldn't be saved. Please check your connection and try again.");
+      window.alert(getWorkoutSaveFailureMessage());
       await refreshNow();
     }
     setSaving(false);
@@ -1122,6 +1130,7 @@ const App = () => {
       } else {
         clearOptimisticMutation();
         setSyncError(true);
+        window.alert(getWorkoutSaveFailureMessage(result?.error));
         await refreshNow();
       }
       return result;
@@ -1129,6 +1138,7 @@ const App = () => {
       console.error("Multi-group log failed", e);
       clearOptimisticMutation();
       setSyncError(true);
+      window.alert(getWorkoutSaveFailureMessage());
       await refreshNow();
       return { ok:false, error:"Unable to save workout" };
     } finally {

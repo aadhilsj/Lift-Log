@@ -1447,6 +1447,19 @@ function assertWorkoutSlotAvailable(state, actor, actorUserId, date) {
   throw error;
 }
 
+// The same save arriving twice: same member, same date, same uploaded photo.
+// Every photo upload gets its own URL, so a genuine second workout can never
+// match. Seen 2026-09-09 and 2026-09-13 as identical saves 37 and 13 seconds
+// apart, with no resend anywhere in the app; the repeat is answered as the
+// success it already was, instead of recording the workout twice.
+function findRepeatedWorkoutSave(state, groupId, actor, date, photoUrl) {
+  const safePhotoUrl = String(photoUrl || "").trim();
+  const safeDate = String(date || "").trim();
+  if (!safePhotoUrl || !safeDate || !actor) return null;
+  return (state?.groups?.[groupId]?.logs?.[actor] || [])
+    .find(log => log?.date === safeDate && String(log?.photoUrl || "").trim() === safePhotoUrl) || null;
+}
+
 function createWorkoutSessionId() {
   return `${Date.now()}${Math.floor(Math.random() * 1000).toString().padStart(3, "0")}`;
 }
@@ -8925,6 +8938,7 @@ export {
   isGroupAdminActor,
   getWorkoutSessionKey,
   getDistinctWorkoutCountForDate,
+  findRepeatedWorkoutSave,
   isFounderDashboardUser,
   readFounderRosterAndActiveBlocs,
   isMissingLocalCanonicalWorkoutRpcError,
@@ -9734,14 +9748,18 @@ export default async function handler(req, res) {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actor = resolveDisplayNameForUser(auth.state, payload.sourceGroupId, auth.user.id, auth.user.email);
         const allTargetIds = [...new Set([payload.sourceGroupId, ...(Array.isArray(payload.targetGroupIds) ? payload.targetGroupIds.filter(Boolean) : [])])];
+        const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.sourceGroupId);
+        const canonicalActor = assertGroupMembershipForUser(canonicalState, payload.sourceGroupId, auth.user.id);
+        // Every multi-log writes the source Bloc, so a repeat always matches there.
+        if (findRepeatedWorkoutSave(canonicalState, payload.sourceGroupId, canonicalActor, payload.date, payload.photoUrl)) {
+          return res.status(200).json(scopeReadableStateForUser(await fetchReadableCurrentState(), auth.user.id));
+        }
         let shadowBlobUpdated = null;
         try {
           shadowBlobUpdated = applyMultiLog(auth.state, { ...payload, actor, actorUserId: auth.user.id });
         } catch (err) {
           if (err?.status !== 404 && err?.status !== 403) throw err;
         }
-        const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.sourceGroupId);
-        const canonicalActor = assertGroupMembershipForUser(canonicalState, payload.sourceGroupId, auth.user.id);
         const beforeLogIdsByGroup = Object.fromEntries(
           allTargetIds.map(groupId => [
             groupId,
@@ -9803,14 +9821,19 @@ export default async function handler(req, res) {
       if (payload?.action === "add-log") {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
+        const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
+        const canonicalActor = assertGroupMembershipForUser(canonicalState, payload.groupId, auth.user.id);
+        // Before any cap check: a repeat of a save that already landed would
+        // otherwise count against the daily limit and report a failure.
+        if (findRepeatedWorkoutSave(canonicalState, payload.groupId, canonicalActor, payload.date, payload.photoUrl)) {
+          return res.status(200).json(scopeReadableStateForUser(await fetchReadableCurrentState(), auth.user.id));
+        }
         let shadowBlobUpdated = null;
         try {
           shadowBlobUpdated = applyAddLog(auth.state, { ...payload, actor, actorUserId: auth.user.id });
         } catch (err) {
           if (err?.status !== 404 && err?.status !== 403) throw err;
         }
-        const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
-        const canonicalActor = assertGroupMembershipForUser(canonicalState, payload.groupId, auth.user.id);
         const result = applyAddLog(canonicalState, { ...payload, actor: canonicalActor, actorUserId: auth.user.id });
         const group = result.updated.groups?.[payload.groupId];
         const groupSortOrder = (result.updated.groupOrder || []).indexOf(payload.groupId);
