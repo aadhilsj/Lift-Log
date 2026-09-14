@@ -34,7 +34,7 @@ on hold by agreement.
 | Supabase / Vercel previews | cannot reach production — `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are Production-only |
 | Phantom audit (blob vs canonical sessions) | zero rows after the delete fix |
 | Parity gate | 18/18 offline, 8/8 live, 0 warnings (2026-09-09, rev 2304) |
-| Test suites | 12 pass; `test:mobile-navigation` and `test:auth-edge-flows` still cannot start (hard-coded Playwright path) |
+| Test suites | all 14 pass, including `test:mobile-navigation` (6/6) and `test:auth-edge-flows` (2/2), fixed 2026-09-14 |
 | Open branches from this work | none |
 
 ---
@@ -201,6 +201,28 @@ fails, it now alerts "Workout couldn't be deleted. Please check your connection
 and try again." and stops before touching other Blocs. `handleLogMutation` still
 does not alert on its own, so any new caller must check `result.ok`.
 
+### The two Playwright suites run again
+
+Both imported Playwright from a path on another machine. Playwright 1.62.1 is now
+a devDependency and imported by name, matching `codex/app-store-readiness`. Both
+launch the installed Google Chrome, so nothing downloads a browser.
+
+They need a running app and a member in a Bloc. Against the sandbox:
+
+```bash
+npm run build && npm run sandbox
+```
+
+Create a member in a Bloc with at least one workout (`npm run sandbox:seed`, or
+the API), then, with that member's email and the Bloc's invite code:
+
+```bash
+FERO_QA_BASE_URL=http://127.0.0.1:3000 FERO_QA_EXISTING_EMAIL=seed-invite@local.test FERO_QA_INVITE_CODE=<invite code> npm run test:auth-edge-flows
+```
+
+The defaults (`seed-invite@local.test`, invite `ALHK05`) only exist in old local
+data, so pass both explicitly.
+
 ### How it was tested
 
 Every fix ran in an isolated sandbox against the real API and in the browser; the
@@ -217,5 +239,6 @@ canonical with empty results.
 1. **Bring `codex/app-store-readiness` up to date with `main`** before any App
    Store submission. It is missing every sign-in fix, including the display-name
    overwrite. Paused with the App Store work.
-2. Fix the Playwright import in `test:mobile-navigation` and `test:auth-edge-flows`.
-3. Confirm the first real `delete-log` blob write (query in §2, Task 1).
+2. Confirm the first real `delete-log` blob write (query in §2, Task 1).
+3. `scripts/mobile-qa.mjs` and `scripts/capture-onboarding-journeys.mjs` still
+   hard-code `/Users/opera_user/...` paths. They are helper scripts, not suites.

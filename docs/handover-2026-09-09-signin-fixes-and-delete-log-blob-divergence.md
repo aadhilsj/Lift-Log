@@ -311,7 +311,10 @@ leave the blob holding a session canonical never received. Session
 `1788888521665526` existed in two Blocs in the blob and in **zero** canonical
 rows, which is how it survived a canonical-only delete.
 
-### 3.4 Two test suites still cannot run
+### 3.4 Two test suites still cannot run — fixed 2026-09-14
+
+Playwright is now a project devDependency; both suites pass. See
+`docs/handover-2026-09-14-blob-runbook-tasks-1-4-and-log-fixes.md`.
 
 `test:mobile-navigation` and `test:auth-edge-flows` both import Playwright from a
 hard-coded path inside another machine's cache (`/Users/opera_user/...`). They
