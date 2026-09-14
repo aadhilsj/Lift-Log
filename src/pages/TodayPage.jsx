@@ -284,7 +284,13 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
   const deleteOwnLog = async (log, { alsoOtherBlocs = false } = {}) => {
     const copies = alsoOtherBlocs ? findWorkoutCopiesInOtherBlocs(groups, currentGroupId, currentUserId, log) : [];
     const first = await onLogMutation({action:"delete-log",groupId:currentGroupId,actor:user,owner:user,logId:log.id});
-    if (!first?.ok || !copies.length) return;
+    // The optimistic removal has already been rolled back by now, so the
+    // workout is back on screen; without this it looks like the tap did nothing.
+    if (!first?.ok) {
+      window.alert("Workout couldn't be deleted. Please check your connection and try again.");
+      return;
+    }
+    if (!copies.length) return;
     let failed = 0;
     for (const copy of copies) {
       const result = await onLogMutation({action:"delete-log",groupId:copy.groupId,actor:copy.owner,owner:copy.owner,logId:copy.logId});
