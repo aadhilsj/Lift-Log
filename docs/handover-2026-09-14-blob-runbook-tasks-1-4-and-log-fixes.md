@@ -240,5 +240,9 @@ canonical with empty results.
    Store submission. It is missing every sign-in fix, including the display-name
    overwrite. Paused with the App Store work.
 2. Confirm the first real `delete-log` blob write (query in §2, Task 1).
-3. `scripts/mobile-qa.mjs` and `scripts/capture-onboarding-journeys.mjs` still
-   hard-code `/Users/opera_user/...` paths. They are helper scripts, not suites.
+3. ~~Helper scripts with `/Users/opera_user/...` paths~~ — fixed 2026-09-14
+   (`b9ca1b9`, `dbed071`): `mobile-qa`, `capture-onboarding-journeys`,
+   `render-onboarding-journey-pack`, `test-workout-flow-local` and
+   `canonical-parity-report` now resolve from the checkout or the user's home. None
+   remain in `scripts/`, `api/` or `src/`. `test-workout-flow-local` still needs the
+   local Supabase CLI setup it was written for, which is not in the repo.
