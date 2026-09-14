@@ -482,7 +482,7 @@ in an isolated sandbox; see the commit message for the scenarios.
 
 ## 7. Unrelated to the blob, but outstanding
 
-`codex/app-store-readiness` is **21 commits behind `main`**. It last merged
+`codex/app-store-readiness` was **56 commits behind `main`** on 2026-09-09 (first recorded as 21 — a truncated count; 69 by 2026-09-14). It last merged
 `main` before the sign-in work landed, so it is missing every fix in PRs #14,
 #17, #18 and #19 — including the failed-account-load bug that put an existing
 member on the display-name screen and renamed them across every Bloc. It is also
