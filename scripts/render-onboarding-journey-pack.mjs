@@ -1,8 +1,11 @@
 import { spawn } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-const OUT_ROOT = process.env.FERO_JOURNEY_OUT || "/Users/opera_user/Documents/Codex Space/Lift Log/docs/user-journey-screenshots/2026-08-12";
+// Must match the default in capture-onboarding-journeys.mjs, which writes here.
+const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const OUT_ROOT = process.env.FERO_JOURNEY_OUT || path.join(REPO_ROOT, "docs", "user-journey-screenshots", "2026-08-12");
 const CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 const W = 390;
 const H = 844;

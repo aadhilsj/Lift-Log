@@ -2,10 +2,14 @@ import { spawn } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
 import http from "node:http";
+import { fileURLToPath } from "node:url";
 
-const SOURCE_ROOT = process.env.FERO_SOURCE_ROOT || "/Users/opera_user/Documents/Codex Space/Lift Log Extraction";
-const OUT_ROOT = process.env.FERO_JOURNEY_OUT || "/Users/opera_user/Documents/Codex Space/Lift Log/docs/user-journey-screenshots/2026-08-12";
-const NODE_BIN_DIR = "/Users/opera_user/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin";
+// Defaults resolve from this checkout, not from the machine the script was
+// first written on. Both env overrides still win.
+const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const SOURCE_ROOT = process.env.FERO_SOURCE_ROOT || REPO_ROOT;
+const OUT_ROOT = process.env.FERO_JOURNEY_OUT || path.join(REPO_ROOT, "docs", "user-journey-screenshots", "2026-08-12");
+const NODE_BIN_DIR = path.dirname(process.execPath);
 const CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 const API_PORT = Number(process.env.FERO_API_PORT || 3000);
 const WEB_PORT = Number(process.env.FERO_WEB_PORT || 5174);
