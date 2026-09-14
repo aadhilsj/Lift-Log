@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import playwright from "/Users/opera_user/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright/index.js";
+import playwright from "playwright";
 
 const baseUrl = process.env.FERO_QA_BASE_URL || "http://127.0.0.1:3000";
 const existingEmail = process.env.FERO_QA_EXISTING_EMAIL || "seed-invite@local.test";
