@@ -251,6 +251,7 @@ Symptoms:
 - The member is under the daily cap everywhere the app displays a count, but the API returns 409.
 - Blob and canonical disagree for one member on one date, and nothing in the UI shows it.
 - First seen 2026-09-09; the mechanism has been live since 2026-07-19.
+- **Fixed 2026-09-13:** `delete-log` removed from the production `BLOB_MIRROR_SKIP_ACTIONS` (now `reaction,flag,flag-response,flag-review`). Phantom audit afterwards: zero rows.
 
 Root cause:
 - `delete-log` is in `BLOB_MIRROR_SKIP_ACTIONS`, so a deletion writes canonical and leaves the workout in the blob.
@@ -310,3 +311,44 @@ Fix rules:
 - An optimistic update is a promise to the member. If the write fails, say so in the same place the optimistic row appeared — silently rolling back is worse than not being optimistic at all.
 - `submitSitOut`, in the same file, is the pattern: check `result?.ok`, set an error, leave the sheet open.
 - Any mutation that can return a real error (409 from the daily cap, 429 from a rate limit, a dropped connection) needs its failure surfaced before the feature counts as finished. A silent failure turns a one-line server log into a day of debugging.
+
+Fixed 2026-09-13 (`19e3d8b`):
+- `handleMultiLog` now alerts on failure, matching `handleSave`. The log sheet closes before the request, so an alert was used rather than the `submitSitOut` keep-the-sheet-open pattern.
+- Both paths go through `getWorkoutSaveFailureMessage`, which names the daily cap ("You've already logged 2 workouts for this day.") instead of blaming the connection.
+- **Still silent:** a failed `delete-log` through `handleLogMutation` rolls back without a message. The multi-Bloc delete added on 2026-09-14 alerts only when a copy in another Bloc fails.
+
+## The Same Workout Saved Twice
+
+Symptoms:
+- A member gets two identical workouts, same type, note and photo, seconds apart. They report the app "automatically logged a second one".
+- Deleting the extra copy then locked them out of logging that day while the delete-log mirror was skipped (Kasper, 2026-09-09).
+- Seen: Kasper 2026-09-09, 37 seconds apart; Varun 2026-09-13, 13 seconds apart.
+
+Root cause:
+- The two rows have different session ids but the **same uploaded photo URL**. Every upload gets a fresh URL (`<timestamp>-<random>.jpg`), so an identical URL means the same request arrived twice, not a member logging again.
+- Nothing in the app resends: `public/sw.js` ignores non-GET requests, nothing replays saves on reconnect, and `addLogData` / `multiLogData` each have one caller. The only in-app retry, `postApi`'s refresh-and-retry, fires on 401, which never writes. The likeliest source is the phone's network stack. Unconfirmed: Vercel logs had expired.
+
+Fixed 2026-09-13 (`19e3d8b`):
+- `findRepeatedWorkoutSave` in `api/lift-log.js`. `add-log` and `multi-log` check the canonical writable state for the same member, date and photo URL and, on a match, return the scoped readable state without writing.
+- The check runs **before** any cap check. Otherwise a repeat at the daily limit returns 409 "Already logged 2 workouts" to a member whose save succeeded.
+- Not covered: two copies arriving within about 1.5 seconds, before the first reaches canonical.
+
+Fix rules:
+- Never treat a matching type, date or note as a repeat. A second genuine workout the same day is allowed and often identical in type. The photo URL is the only field that proves the same save.
+- A save without a photo can never match. Keep it that way if photo-less logging is ever added.
+- Answer a repeat as the success it already was. An error teaches the member to retry, which is the opposite of what happened.
+
+Diagnosis note:
+- Find repeats that survive in the backups, even after one was deleted: compare `photoUrl` across a member's logs in `public.lift_log_backups` for that date. Canonical alone will not show a repeat that was already deleted.
+
+## Optimistic Updates Must Target The Bloc On Screen
+
+Symptoms (latent, caught before shipping 2026-09-14):
+- Deleting a workout from another Bloc would briefly show the current Bloc's logs under the other Bloc's id, until the server response replaced them.
+
+Root cause:
+- `handleLogMutation`'s optimistic delete built state from `currentGroup` and wrote it under `payload.groupId || selectedGroupId`. Harmless while every delete targeted the Bloc on screen.
+
+Fix rules:
+- `currentGroup` is the Bloc on screen. An optimistic patch built from it may only be written under `selectedGroupId`. For any other Bloc, skip the optimistic step and wait for the response.
+- When a mutation gains a way to target another Bloc, re-read every optimistic path it passes through.
