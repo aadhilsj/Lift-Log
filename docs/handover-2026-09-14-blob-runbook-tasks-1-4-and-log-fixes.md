@@ -246,3 +246,49 @@ canonical with empty results.
    `canonical-parity-report` now resolve from the checkout or the user's home. None
    remain in `scripts/`, `api/` or `src/`. `test-workout-flow-local` still needs the
    local Supabase CLI setup it was written for, which is not in the repo.
+
+---
+
+## 6. Update, 2026-09-14 — your month-close branch is ready and not merged
+
+**Deveen, this section is for you.** It was added after this handover was sent.
+
+**Plain English:** your fix that makes month close count workouts from canonical
+is pushed, but there is no pull request, so it is not live. September closes on
+**1 October**. We would like it reviewed and merged well before then.
+
+| | |
+|---|---|
+| Branch | `blob/month-close-canonical`, one commit, `be34784` (2026-09-10) |
+| Pull request | none open |
+| Against `main` at `3eb43f1` | 1 ahead, 13 behind; merges with no conflicts |
+
+### Checked on a throwaway merge into `main`
+
+The branch was merged into `main` (`3eb43f1`) in a temporary worktree, tested,
+and the worktree deleted. Nothing was pushed or deployed.
+
+| Check | Result |
+|---|---|
+| `npm run test:month-close-canonical` | all checks pass |
+| `npm run test:rollover-isolation` | pass |
+| `npm run parity:gate:test` | 18/18 |
+| `npm run test:two-workouts` | pass |
+| `npm run lint`, `npm run build` | clean |
+
+Since your branch point (`37167e1`), `main` changed `api/lift-log.js` in two
+places: the daily-cap and duplicate-save check near `assertWorkoutSlotAvailable`,
+and the `add-log` / `multi-log` handlers (`19e3d8b`). Neither touches
+`persistState` or the rollover loop your commit changes.
+
+**Not verified:** a real month close against production. The sandbox stands in
+for canonical with empty results, so your rebuild would take its "canonical logs
+empty while blob counted" skip there. The canonical-read path can only be
+checked from the code and your fixture suite.
+
+### What we need from you
+
+1. **Open a pull request** for `blob/month-close-canonical`, or say if you want
+   us to open it.
+2. **Does this answer §3 item 4?** With month close reading canonical, is Task 5
+   still waiting on `left_at`, or only on the open-season parity check (§3 item 1)?
