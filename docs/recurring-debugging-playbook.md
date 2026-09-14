@@ -315,7 +315,7 @@ Fix rules:
 Fixed 2026-09-13 (`19e3d8b`):
 - `handleMultiLog` now alerts on failure, matching `handleSave`. The log sheet closes before the request, so an alert was used rather than the `submitSitOut` keep-the-sheet-open pattern.
 - Both paths go through `getWorkoutSaveFailureMessage`, which names the daily cap ("You've already logged 2 workouts for this day.") instead of blaming the connection.
-- **Still silent:** a failed `delete-log` through `handleLogMutation` rolls back without a message. The multi-Bloc delete added on 2026-09-14 alerts only when a copy in another Bloc fails.
+- Failed deletes fixed 2026-09-14 (`e69fb24`): `deleteOwnLog` in `src/pages/TodayPage.jsx`, which every workout delete goes through, alerts "Workout couldn't be deleted. Please check your connection and try again." and stops before touching other Blocs' copies. `handleLogMutation` itself still does not alert, so a new caller must check `result.ok` the same way.
 
 ## The Same Workout Saved Twice
 

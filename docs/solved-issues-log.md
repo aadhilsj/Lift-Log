@@ -115,7 +115,7 @@ Resolution:
 - Commit `19e3d8b`. Both log paths now alert, and name the daily limit when that is the reason.
 
 Notes:
-- A failed `delete-log` is still silent.
+- Failed deletes were fixed separately on 2026-09-14 (entry below).
 
 ---
 
@@ -155,3 +155,22 @@ Resolution:
 
 Notes:
 - Fixed alongside: an optimistic-update trap that would have shown one Bloc's logs under another's id. Playbook: "Optimistic Updates Must Target The Bloc On Screen".
+
+---
+
+## 2026-09-14 — A failed workout delete said nothing
+
+Symptom:
+- Tapping Delete on a workout could do nothing visible: it disappeared for a moment, then came back, with no message.
+
+Scope:
+- Every workout delete. No reports; found while closing out the silent log failure above.
+
+Cause:
+- `handleLogMutation` rolls back its optimistic removal on failure without telling the member, and the delete caller did not check the result.
+
+Resolution:
+- Commit `e69fb24`. `deleteOwnLog` alerts "Workout couldn't be deleted. Please check your connection and try again." and does not go on to other Blocs' copies.
+
+Notes:
+- `handleLogMutation` still does not alert for other actions (flags, flag responses). Any new caller needs to check `result.ok`.

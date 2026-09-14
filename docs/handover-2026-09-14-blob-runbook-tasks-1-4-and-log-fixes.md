@@ -19,9 +19,9 @@ on hold by agreement.
   spare project. It came back identical, record for record. Photos are the one
   thing backups do not contain.
 - Preview versions of the app can no longer reach live member data.
-- Three workout-log fixes shipped: a failed log now says why, the same workout can
-  no longer be saved twice by accident, and deleting a workout logged to several
-  Blocs offers to remove it from all of them.
+- Four workout-log fixes shipped: a failed log now says why, a failed delete now
+  says so too, the same workout can no longer be saved twice by accident, and
+  deleting a workout logged to several Blocs offers to remove it from all of them.
 
 ---
 
@@ -156,6 +156,7 @@ A quiet Bloc gets no such rescue.
 | `37167e1`, `061670a` | Docs: month close reads the blob; the gate's blind spot; the Kasper and Varun cases |
 | `19e3d8b` | A failed workout log says why; a repeated save is not recorded twice |
 | `6e9da32` | Deleting a multi-Bloc workout offers to remove it from every Bloc |
+| `e69fb24` | A failed workout delete tells the member |
 
 ### A failed log says why
 
@@ -192,6 +193,13 @@ A latent bug fixed alongside: `handleLogMutation`'s optimistic delete wrote
 `currentGroup` under `payload.groupId`, which would have swapped two Blocs' logs
 on screen once deletes targeted another Bloc. It now only patches optimistically
 for the Bloc on screen.
+
+### A failed delete says so
+
+Every delete goes through `deleteOwnLog`. When the delete in the current Bloc
+fails, it now alerts "Workout couldn't be deleted. Please check your connection
+and try again." and stops before touching other Blocs. `handleLogMutation` still
+does not alert on its own, so any new caller must check `result.ok`.
 
 ### How it was tested
 
