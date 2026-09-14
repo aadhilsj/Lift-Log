@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { createClient } from "@supabase/supabase-js";
-import playwright from "/Users/opera_user/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright/index.js";
+import playwright from "playwright";
 
 const base = "http://127.0.0.1:3000";
 const config = await (await fetch(`${base}/api/lift-log?config=auth`)).json();
