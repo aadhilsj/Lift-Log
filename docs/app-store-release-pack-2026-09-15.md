@@ -106,12 +106,13 @@ review/TestFlight environment before submission.
 1. Build and test user blocking plus an objectionable-content filtering and
    support process for messages/comments. Reporting a workout alone is not
    enough for Fero's user-generated-content features.
-2. Decide and implement photo delivery: public direct links should be replaced
-   with authenticated/signed access unless a reviewed reason says otherwise.
+2. Implement founder-approved private photo delivery: replace public direct
+   links with authenticated/signed access and test profile/workout photo flows.
 3. Remove/rename all visible Premium labels for V1; retain the internal future
    feature map but do not promise an unavailable paid tier.
-4. Decide the historical-data-on-account-deletion rule and granular-usage-event
-   retention, then make the implementation and Privacy Policy agree.
+4. Decide the historical-data-on-account-deletion rule. Implement the
+   founder-approved six-month granular-usage-event retention rule, then make
+   the implementation and Privacy Policy agree.
 5. Choose the public support email/domain and publish Privacy, Terms, Support
    and Community Rules pages.
 6. Create the non-personal reviewer account and seeded Bloc, then perform the
@@ -122,14 +123,15 @@ review/TestFlight environment before submission.
 ## Founder review — the sensitive choices only
 
 - Which public support email and domain represents Fero?
-- Should workout/profile photos become access-controlled before V1? Recommended:
-  yes.
+- Photo access control before V1: **approved**. Preserve the visible UI; change
+  only who is technically allowed to load the underlying image.
 - What happens to a departed member's old shared workouts, comments, reactions,
   photos and settlement history?
-- How long should detailed product-use events be kept? Recommended starting
-  point: 90 days, with anonymised/aggregate reporting retained if needed.
-- Which launch countries are intended, and has the settlement wording received
-  appropriate advice for those countries?
+- Detailed product-use event retention: **six months** approved. The existing
+  90-day daily-activity cleanup remains separate.
+- Launch availability: intended for **all App Store countries/regions**. Confirm
+  the final settlement wording and region-specific legal review before turning
+  that availability on.
 - After the moderation work is complete, who monitors reports and the support
   inbox during App Review and launch?
 

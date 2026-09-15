@@ -78,10 +78,11 @@ tested.
 1. Set the deletion rule for historic shared content, then make the app and
    policy agree.
 2. Confirm that the daily-activity purge is successfully running in production,
-   and set and implement a retention period for granular usage events.
-3. Confirm the live `profile-photos` and `workout-photos` bucket visibility.
-   Source says public URLs; decide whether that is acceptable or should be
-   changed to access-controlled delivery before launch.
+   and implement the founder-approved six-month retention period for granular
+   usage events.
+3. Change the live `profile-photos` and `workout-photos` buckets from public
+   URLs to access-controlled delivery before launch. This is founder-approved;
+   verify the final deployed configuration.
 4. Confirm each live vendor, hosting region, email provider, analytics setting
    and launch country/region.
 5. Decide whether member payment handles remain in version one. If yes,
