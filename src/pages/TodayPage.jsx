@@ -27,7 +27,9 @@ import {
   getRecentSitOutCount,
   getRecentSoloCount,
   isSoloForMonth,
+  isTrainingForMonth,
   getSoloTargetForMonth,
+  getRedemptionMark,
   getCurrentMonthSummary,
   buildSettlementReminderCards,
   buildSettlementPreviewCards,
@@ -39,7 +41,8 @@ import {
   getMonthKeyFromISO,
   isJoinedForMonth,
   getCurrentGroupMemberNames,
-  getSetupReviewPendingCount
+  getSetupReviewPendingCount,
+  findWorkoutCopiesInOtherBlocs
 } from "../lib/appState.js";
 import {
   getGroupCloseMeta,
@@ -50,7 +53,7 @@ import {
   formatWeekRangeLabel,
   buildLocalWeeklyMvpPreview
 } from "../lib/utils.js";
-import { Avatar, WorkoutTypeIcon, ChevronRightIcon, TargetHitHexIcon, StatusBadge, RankIcon, Bar, Card, AppIcon, PlayerProfileErrorBoundary } from "../components/primitives.jsx";
+import { Avatar, WorkoutTypeIcon, ChevronRightIcon, TargetHitHexIcon, StatusBadge, RankIcon, Bar, Card, AppIcon, PlayerProfileErrorBoundary, RedemptionShieldIcon, MemberTag, TrainingSproutIcon, SoloFlagIcon } from "../components/primitives.jsx";
 import { LogModal, DeleteModal, SitOutModal, SoloModal, NoticeModal } from "../modals/modals.jsx";
 import { PlayerProfile } from "../pages/PlayerProfile.jsx";
 import { buildPaymentTargets } from "../lib/paymentLinks.js";
@@ -231,7 +234,16 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
       status = getStatus(count, activeTarget);
       memberDiffLabel = null;
     }
-    return {name,count,isOut,isSolo:isSoloMember,soloTarget:memberSoloTarget,target:activeTarget,status,memberDiffLabel,prorated:prorationSource === "member"};
+    const redemptionMark = getRedemptionMark(monthHistory, name, curKey, count >= activeTarget);
+    // Training members stay in the main list. They are exempt from the money,
+    // not from the month, so they keep their rank and their row.
+    const isTrainingMember = currentGroup ? isTrainingForMonth(currentGroup, name, curKey) : false;
+    // Joining mid-month is not the same as being prorated. Someone who joined
+    // early enough keeps the Bloc's full target, and calling that prorated says
+    // something untrue about the number beside their name. The tag follows the
+    // target, not the join date.
+    const hasReducedTarget = !isSoloMember && Number(target) < Number(MIN_TARGET);
+    return {name,count,isOut,isSolo:isSoloMember,isTraining:isTrainingMember,soloTarget:memberSoloTarget,target:activeTarget,status,memberDiffLabel,prorated:hasReducedTarget && prorationSource === "member",redemptionMark};
   }).sort((a,b)=>{if(a.isOut&&!b.isOut)return 1;if(!a.isOut&&b.isOut)return -1;if(a.isSolo&&!b.isSolo)return 1;if(!a.isSolo&&b.isSolo)return -1;return b.count-a.count||a.name.localeCompare(b.name);});
 
   let activeRank=0;
@@ -263,6 +275,28 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
     }
     setShowLog(false);
     onSave({ workoutType, isoDate, note, photoUrl });
+  };
+
+  // Deletes from this Bloc first, then — only if asked — the same workout's
+  // copies in the member's other Blocs, one ordinary delete-log each so every
+  // Bloc gets its own stream retraction. Copies are found before the first
+  // delete, while this Bloc's state still holds the workout.
+  const deleteOwnLog = async (log, { alsoOtherBlocs = false } = {}) => {
+    const copies = alsoOtherBlocs ? findWorkoutCopiesInOtherBlocs(groups, currentGroupId, currentUserId, log) : [];
+    const first = await onLogMutation({action:"delete-log",groupId:currentGroupId,actor:user,owner:user,logId:log.id});
+    // The optimistic removal has already been rolled back by now, so the
+    // workout is back on screen; without this it looks like the tap did nothing.
+    if (!first?.ok) {
+      window.alert("Workout couldn't be deleted. Please check your connection and try again.");
+      return;
+    }
+    if (!copies.length) return;
+    let failed = 0;
+    for (const copy of copies) {
+      const result = await onLogMutation({action:"delete-log",groupId:copy.groupId,actor:copy.owner,owner:copy.owner,logId:copy.logId});
+      if (!result?.ok) failed += 1;
+    }
+    if (failed) window.alert(`Deleted here, but it couldn't be removed from ${failed === 1 ? "one of your other Blocs" : `${failed} of your other Blocs`}. Please try again from there.`);
   };
 
   const submitSitOut = async (reason) => {
@@ -1214,7 +1248,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
     React.createElement(ChevronRightIcon,null)
   );
 
-  const soloTag = React.createElement('span',{className:"mono",style:{fontSize:8,color:"#4ECDC4",border:"0.5px solid rgba(78,205,196,.35)",borderRadius:999,padding:"2px 6px",letterSpacing:".1em",fontWeight:800}},"SOLO");
+  const soloTag = React.createElement(SoloFlagIcon,{size:13});
   const renderSoloSection = () => soloLeaderboardRows.length > 0 && React.createElement('div',{style:{display:"grid",gap:6,padding:"8px",borderTop:"1px solid rgba(78,205,196,.10)"}},
     React.createElement('div',{style:{fontSize:9,color:"#4ECDC4",fontWeight:800,letterSpacing:".12em",textTransform:"uppercase",padding:"4px 2px 2px"}},"Solo this month"),
     soloLeaderboardRows.map(u=>{
@@ -1280,8 +1314,10 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
                 React.createElement(Avatar,{name:u.name,size:22,muted:u.isOut}),
                 React.createElement('div',{style:{flex:1,minWidth:0,textAlign:"left",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",display:"inline-flex",alignItems:"center",gap:6,fontWeight:600,fontSize:13,color:u.isOut?"#2A4040":"var(--text)"}},
                   React.createElement('span',null,u.name),
+                  u.redemptionMark&&React.createElement(RedemptionShieldIcon,{size:13,redeemed:u.redemptionMark === "redeemed"}),
+                  u.isTraining&&React.createElement(TrainingSproutIcon,{size:13}),
                   isMe&&React.createElement('span',{className:"mono",style:{fontSize:8,color:"#3d5e59",marginLeft:6}},"you"),
-                  u.prorated&&!u.isOut&&React.createElement('span',{className:"mono",style:{fontSize:8,color:"var(--muted)",marginLeft:6,textTransform:"uppercase",letterSpacing:".08em"}},"joined mid-month")
+                  u.prorated&&!u.isOut&&React.createElement(MemberTag,{tone:"prorated"},"Prorated")
                 )
               )
             ),
@@ -1370,7 +1406,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
                   React.createElement('div',{style:{flex:1,minWidth:0,textAlign:"left",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",display:"inline-flex",alignItems:"center",gap:7,fontWeight:600,fontSize:14,color:u.isOut?"#2A4040":"var(--text)"}},
                     React.createElement('span',null,u.name),
                     isMe&&React.createElement('span',{className:"mono",style:{fontSize:8,color:"#3d5e59",marginLeft:7}},"you"),
-                    u.prorated&&!u.isOut&&React.createElement('span',{className:"mono",style:{fontSize:8,color:"var(--muted)",marginLeft:6,textTransform:"uppercase",letterSpacing:".08em"}},"joined mid-month")
+                    u.prorated&&!u.isOut&&React.createElement(MemberTag,{tone:"prorated"},"Prorated")
                   )
                 )
               ),
@@ -1411,7 +1447,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
 
   const todayContent = React.createElement('div',{ref:todayRootRef,style:{position:"relative",minHeight:"calc(100vh - 44px)",backgroundColor:"#070C0C",background:"var(--bg-gradient)",backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)",overscrollBehavior:"contain",overscrollBehaviorY:"contain",overflowX:"hidden",isolation:"isolate"}},
     showLog&&React.createElement(LogModal,{user,currentUserId,currentGroupId,groups,onConfirm:doLog,onClose:()=>setShowLog(false)}),
-    deleteTarget && React.createElement(DeleteModal,{log:deleteTarget,onClose:()=>setDeleteTarget(null),onConfirm:async()=>{ const logId = deleteTarget.id; setDeleteTarget(null); await onLogMutation({action:"delete-log",groupId:currentGroupId,actor:user,owner:user,logId}); }}),
+    deleteTarget && React.createElement(DeleteModal,{log:deleteTarget,otherBlocNames:[...new Set(findWorkoutCopiesInOtherBlocs(groups, currentGroupId, currentUserId, deleteTarget).map(copy => copy.groupName))],onClose:()=>setDeleteTarget(null),onConfirm:async(options)=>{ const log = deleteTarget; setDeleteTarget(null); await deleteOwnLog(log, options); }}),
     showExcuse && sitOutMode && React.createElement(SitOutModal,{mode:sitOutMode,monthName:modalMonthName,onClose:()=>{setShowExcuse(false);setSitOutError("");},onSubmit:submitSitOut,submitting:sitOutSubmitting,error:sitOutError}),
     showSolo && visibleSoloMode && React.createElement(SoloModal,{mode:visibleSoloMode,monthName:modalMonthName,minimumTarget:soloMinimumTarget,maximumTarget:effectiveTarget,defaultTarget:Math.max(soloMinimumTarget, Math.ceil(effectiveTarget * .5)),onClose:()=>{setShowSolo(false);setSoloError("");},onSubmit:submitSolo,submitting:soloSubmitting,error:soloError}),
     showSoloLocked && React.createElement(NoticeModal,{title:"Solo Mode is locked",body:"Solo Mode is only available in the first 10 days of the month.",onClose:()=>setShowSoloLocked(false)}),
@@ -1428,7 +1464,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
     React.createElement('div',{"aria-hidden":viewPlayer?true:undefined,style:{pointerEvents:viewPlayer?"none":"auto"}},todayContent),
     viewPlayer&&React.createElement('div',{key:`profile-layer-${viewPlayer}`,ref:profileLayerRef,className:"in-bloc-profile-layer",style:{backgroundColor:"#070C0C",background:profileRevealActive?"transparent":"var(--bg-gradient)",backgroundImage:profileRevealActive?"none":"var(--bg-radial-hint), var(--bg-gradient)",overflowY:"auto",overflowX:"hidden",WebkitOverflowScrolling:"touch",overscrollBehavior:"contain",touchAction:"pan-y"}},
       React.createElement(PlayerProfileErrorBoundary,{profileName:viewPlayer,onBack:closePlayerProfile},
-        React.createElement(PlayerProfile,{name:viewPlayer,logs,excused,monthHistory,onBack:closePlayerProfile,onSwipeRevealChange:setProfileRevealActive,groupSettings,memberUserId:Object.values(currentGroup?.memberships||{}).find(m=>m?.displayName===viewPlayer)?.userId||"",currentUserId,visibleGroups:groups,accountCreatedAt,onDeleteLog:viewPlayer===user?async(log)=>{ await onLogMutation({action:"delete-log",groupId:currentGroupId,actor:user,owner:viewPlayer,logId:log.id}); }:undefined})
+        React.createElement(PlayerProfile,{group:currentGroup,name:viewPlayer,logs,excused,monthHistory,onBack:closePlayerProfile,onSwipeRevealChange:setProfileRevealActive,groupSettings,memberUserId:Object.values(currentGroup?.memberships||{}).find(m=>m?.displayName===viewPlayer)?.userId||"",currentUserId,visibleGroups:groups,accountCreatedAt,onDeleteLog:viewPlayer===user?async(log, options)=>{ await deleteOwnLog(log, options); }:undefined})
       )
     )
   );

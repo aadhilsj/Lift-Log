@@ -1,4 +1,5 @@
 import React from "react";
+import { createPortal } from "react-dom";
 const { useState, useEffect, useMemo, useCallback, useRef } = React;
 import {
   WORKOUT_TYPES,
@@ -84,6 +85,89 @@ const ChevronRightIcon = ({size=10,color="#3d5e59"}) => (
   )
 );
 
+
+// Every inline member label - Training, Solo, Prorated month - in one place.
+// The spec is StatusBadge's: Outfit 700 at 9px, the app's label voice. These
+// used to be JetBrains Mono pills asking for weight 800, which index.html does
+// not load, so the browser faked the bold. Mono is the data font here (counts,
+// amounts, ranks); labels are Outfit, and the colour carries the meaning
+// without needing a border around it.
+const MEMBER_TAG_TONES = {
+  training: "#f5c842",
+  solo: "#4ECDC4",
+  prorated: "var(--muted)"
+};
+
+const MemberTag = ({tone="prorated",children}) => React.createElement('span',{
+  style:{
+    fontFamily:"'Outfit',sans-serif",
+    fontSize:8,
+    fontWeight:700,
+    letterSpacing:".04em",
+    textTransform:"uppercase",
+    color:MEMBER_TAG_TONES[tone] || MEMBER_TAG_TONES.prorated,
+    whiteSpace:"nowrap",
+    flexShrink:0
+  }
+}, children);
+
+// Training and Solo marks. Filled silhouettes with no interior gaps, because a
+// hollow or dashed shape at 13px is just a smudge - and hollow-versus-filled is
+// already the shield's own language, which these must never borrow.
+//
+// Each is scaled so its drawn area covers roughly the same share of the 24x24
+// box as the shield does. Drawn at their natural size they filled about 30% to
+// the shield's 56%, and sitting beside it they read as undersized.
+const TrainingSproutIcon = ({size=13,color="#f5c842"}) => React.createElement('svg',{
+  width:size, height:size, viewBox:"0 0 24 24", role:"img", "aria-label":"Training wheels",
+  style:{flexShrink:0,display:"block"}
+},
+  React.createElement('g',{transform:"translate(12,11.5) scale(1.35) translate(-12,-12)"},
+    React.createElement('path',{d:"M12 21 V12.4",fill:"none",stroke:color,strokeWidth:"1.9",strokeLinecap:"round"}),
+    React.createElement('path',{d:"M11.6 13.2 C8.2 13.2 6.2 11 6.2 7.7 C9.6 7.7 11.6 9.9 11.6 13.2 Z",fill:color}),
+    React.createElement('path',{d:"M12.4 11.6 C12.4 8.3 14.4 6.1 17.8 6.1 C17.8 9.4 15.8 11.6 12.4 11.6 Z",fill:color})
+  )
+);
+
+const SoloFlagIcon = ({size=13,color="#4ECDC4"}) => React.createElement('svg',{
+  width:size, height:size, viewBox:"0 0 24 24", role:"img", "aria-label":"Solo mode",
+  style:{flexShrink:0,display:"block"}
+},
+  React.createElement('g',{transform:"translate(12,12) scale(1.34) translate(-12,-12)"},
+    React.createElement('path',{d:"M7.4 20.4 V4.4",fill:"none",stroke:color,strokeWidth:"1.9",strokeLinecap:"round"}),
+    React.createElement('path',{d:"M8.6 5 H18.4 l-2.6 3.6 2.6 3.6 H8.6 Z",fill:color})
+  )
+);
+
+// Redemption mark. Hollow red is a month still owed an answer; filled gold is
+// the answer given. One silhouette in two states, so the flip teaches itself.
+const RedemptionShieldIcon = ({size=14,redeemed=false}) => {
+  const color = redeemed ? "#f5c842" : "#D44A4A";
+  return React.createElement('svg',{
+    width:size,
+    height:size,
+    viewBox:"0 0 24 24",
+    role:"img",
+    "aria-label":redeemed ? "Redeemed" : "Redemption",
+    style:{flexShrink:0,display:"block"}
+  },
+    React.createElement('path',{
+      d:"M12 2.4 20.4 6.1 V12 c0 5.1 -5.6 8.6 -8.4 9.6 C9.2 20.6 3.6 17.1 3.6 12 V6.1 Z",
+      fill:redeemed ? color : "none",
+      stroke:color,
+      strokeWidth:"1.7",
+      strokeLinejoin:"round"
+    }),
+    redeemed && React.createElement('path',{
+      d:"M8.6 12.2 11 14.6 15.6 9.9",
+      fill:"none",
+      stroke:"#0A1212",
+      strokeWidth:"2.1",
+      strokeLinecap:"round",
+      strokeLinejoin:"round"
+    })
+  );
+};
 
 const TargetHitHexIcon = ({size=22,color="#4ECDC4"}) => (
   React.createElement('svg',{
@@ -458,7 +542,12 @@ class PlayerProfileErrorBoundary extends React.Component {
   }
 }
 
-class TodayPageErrorBoundary extends React.Component {
+// Every in-Bloc page mounts at once inside the swipe track, so an unguarded
+// page can blank the whole app from a tab the user is not even looking at.
+// See "Blank Screen When Opening A Bloc" in docs/recurring-debugging-playbook.md.
+// Renders children untouched when there is no error, so it adds no DOM and no
+// layout of its own.
+class InBlocPageErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
     this.state = { error: null };
@@ -469,7 +558,7 @@ class TodayPageErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, info) {
-    console.error("TodayPage render failed", error, info);
+    console.error(`${this.props.pageLabel || "In-Bloc"}Page render failed`, error, info);
   }
 
   componentDidUpdate(prevProps) {
@@ -480,16 +569,205 @@ class TodayPageErrorBoundary extends React.Component {
 
   render() {
     if (!this.state.error) return this.props.children;
+    const label = this.props.pageLabel || "This";
     return React.createElement('div',{style:{maxWidth:740,margin:"0 auto",padding:"16px",display:"grid",gap:12}},
       React.createElement(Card,{style:{padding:"18px 16px",display:"grid",gap:10}},
-        React.createElement('div',{style:{fontSize:18,fontWeight:800,color:"var(--text)"}},"Today screen hit an error"),
-        React.createElement('div',{style:{fontSize:13,color:"var(--muted)",lineHeight:1.5}},"The Today view crashed while rendering."),
+        React.createElement('div',{style:{fontSize:18,fontWeight:800,color:"var(--text)"}},`${label} screen hit an error`),
+        React.createElement('div',{style:{fontSize:13,color:"var(--muted)",lineHeight:1.5}},`The ${label} view crashed while rendering.`),
         React.createElement('div',{className:"mono",style:{fontSize:10,color:"var(--red)",whiteSpace:"pre-wrap",wordBreak:"break-word"}},String(this.state.error?.message || this.state.error || "Unknown error"))
       )
     );
   }
 }
 
+// Kept as a named wrapper so the Today call site and its wording are unchanged.
+const TodayPageErrorBoundary = ({resetKey,children}) => React.createElement(
+  InBlocPageErrorBoundary,{pageLabel:"Today",resetKey},children
+);
+
+
+// The note behind the redemption mark. A mark can carry a meaning but never
+// explain one, so tapping it says the sentence out loud. Dismissed by the
+// close control or by tapping the backdrop - there is nothing to acknowledge
+// here, so there is no confirm button to press.
+// The shell every status note shares. Portalled to document.body on purpose:
+// PlayerProfile's root carries a translateX for its back-swipe, and Safari
+// treats any transform as the containing block for fixed descendants, so
+// rendered in place a note lands wherever the profile surface happens to be
+// rather than in the middle of the screen.
+//
+// Nothing behind it may scroll while it is open. overflow:hidden on the body
+// is not enough on its own - the profile layer owns its own scroll container -
+// so this mirrors the capture-phase touchmove block the auth surface uses.
+// Portalled, scroll-locked, blurred. Portalling is not cosmetic: PlayerProfile's
+// root carries a transform for the back-swipe, and Safari treats any transform
+// as the containing block for position:fixed children — so an overlay rendered
+// inside it lands wherever that box happens to be, typically down by the nav
+// bar, instead of centred on the screen. Same rule as the profile photo layer
+// in the recurring-debugging playbook.
+const ModalScrim = ({onClose,children,zIndex=1100}) => {
+  useEffect(() => {
+    const bodyEl = document.body;
+    const root = document.documentElement;
+    const previous = {
+      bodyOverflow: bodyEl.style.overflow,
+      rootOverflow: root.style.overflow,
+      bodyTouch: bodyEl.style.touchAction,
+      bodyOverscroll: bodyEl.style.overscrollBehavior
+    };
+    const blockScroll = event => {
+      if (event.cancelable) event.preventDefault();
+    };
+    bodyEl.style.overflow = "hidden";
+    root.style.overflow = "hidden";
+    bodyEl.style.touchAction = "none";
+    bodyEl.style.overscrollBehavior = "none";
+    document.addEventListener("touchmove", blockScroll, { passive:false, capture:true });
+    document.addEventListener("wheel", blockScroll, { passive:false, capture:true });
+    return () => {
+      document.removeEventListener("touchmove", blockScroll, { capture:true });
+      document.removeEventListener("wheel", blockScroll, { capture:true });
+      bodyEl.style.overflow = previous.bodyOverflow;
+      root.style.overflow = previous.rootOverflow;
+      bodyEl.style.touchAction = previous.bodyTouch;
+      bodyEl.style.overscrollBehavior = previous.bodyOverscroll;
+    };
+  }, []);
+
+  return createPortal(React.createElement('div',{
+    onClick:onClose,
+    onTouchMove:e=>e.preventDefault(),
+    style:{
+      position:"fixed",
+      inset:0,
+      zIndex,
+      display:"flex",
+      alignItems:"center",
+      justifyContent:"center",
+      padding:"16px",
+      background:"rgba(4,9,9,.42)",
+      backdropFilter:"blur(6px)",
+      WebkitBackdropFilter:"blur(6px)",
+      overscrollBehavior:"contain"
+    }
+  }, children), document.body);
+};
+
+const StatusNoteModal = ({icon,title,tone="#4ECDC4",body,onClose}) => {
+  useEffect(() => {
+    const bodyEl = document.body;
+    const root = document.documentElement;
+    const previous = {
+      bodyOverflow: bodyEl.style.overflow,
+      rootOverflow: root.style.overflow,
+      bodyTouch: bodyEl.style.touchAction,
+      bodyOverscroll: bodyEl.style.overscrollBehavior
+    };
+    const blockScroll = event => {
+      if (event.cancelable) event.preventDefault();
+    };
+    bodyEl.style.overflow = "hidden";
+    root.style.overflow = "hidden";
+    bodyEl.style.touchAction = "none";
+    bodyEl.style.overscrollBehavior = "none";
+    document.addEventListener("touchmove", blockScroll, { passive:false, capture:true });
+    document.addEventListener("wheel", blockScroll, { passive:false, capture:true });
+    return () => {
+      document.removeEventListener("touchmove", blockScroll, { capture:true });
+      document.removeEventListener("wheel", blockScroll, { capture:true });
+      bodyEl.style.overflow = previous.bodyOverflow;
+      root.style.overflow = previous.rootOverflow;
+      bodyEl.style.touchAction = previous.bodyTouch;
+      bodyEl.style.overscrollBehavior = previous.bodyOverscroll;
+    };
+  }, []);
+
+  return createPortal(React.createElement('div',{
+    onClick:onClose,
+    onTouchMove:e=>e.preventDefault(),
+    style:{
+      position:"fixed",
+      inset:0,
+      zIndex:1100,
+      display:"flex",
+      alignItems:"center",
+      justifyContent:"center",
+      padding:"16px",
+      // Lighter than the app's standard overlay: this is a footnote, not a
+      // decision, so the screen behind stays legible under the blur.
+      background:"rgba(4,9,9,.42)",
+      backdropFilter:"blur(6px)",
+      WebkitBackdropFilter:"blur(6px)",
+      overscrollBehavior:"contain",
+      animation:"fadeIn .16s ease"
+    }
+  },
+    React.createElement('div',{
+      className:"modal",
+      onClick:e=>e.stopPropagation(),
+      style:{position:"relative",maxWidth:292,padding:"18px 16px 16px",textAlign:"center"}
+    },
+      React.createElement('button',{
+        type:"button",
+        onClick:onClose,
+        "aria-label":"Close",
+        style:{position:"absolute",top:9,right:11,background:"transparent",border:"none",padding:5,lineHeight:1,color:"var(--muted2)",fontFamily:"'Outfit',sans-serif",fontSize:14,fontWeight:600}
+      },"\u2715"),
+      React.createElement('div',{style:{display:"grid",placeItems:"center",marginBottom:9}}, icon),
+      React.createElement('div',{style:{fontFamily:"'Raleway',sans-serif",fontSize:16,fontWeight:800,marginBottom:6,color:tone}}, title),
+      React.createElement('div',{style:{fontSize:12.5,color:"var(--text-soft, #b8becc)",lineHeight:1.5}}, body)
+    )
+  ), document.body);
+};
+
+const RedemptionNoteModal = ({redeemed=false,memberName="",isSelf=false,monthName="",onClose}) => {
+  const who = isSelf ? "You" : (memberName || "They");
+  const slowLine = monthName ? `had a slow ${monthName}` : "had a slow month";
+  const body = redeemed
+    ? (isSelf ? `You ${slowLine}. You redeemed it this month.` : `${who} ${slowLine}, and redeemed it this month.`)
+    : (isSelf ? `You ${slowLine}. This month is your chance to redeem it.` : `${who} ${slowLine}. This month is their chance to redeem it.`);
+  return React.createElement(StatusNoteModal,{
+    icon: React.createElement(RedemptionShieldIcon,{size:30,redeemed}),
+    title: redeemed ? "Redeemed" : "Out for redemption",
+    tone: redeemed ? "#f5c842" : "#D44A4A",
+    body,
+    onClose
+  });
+};
+
+// Two states, because a Bloc's own opening month is not the same story as one
+// person arriving late into a running Bloc.
+const TrainingNoteModal = ({memberName="",isSelf=false,blocOpening=false,onClose}) => {
+  const body = blocOpening
+    ? "The Bloc started this month. Everyone settles in \u2014 penalties kick off next month."
+    : isSelf
+      ? "You joined the Bloc this month. Settle in \u2014 penalties kick off next month."
+      : `${memberName || "They"} joined the Bloc this month. Settling in \u2014 penalties kick off next month.`;
+  return React.createElement(StatusNoteModal,{
+    icon: React.createElement(TrainingSproutIcon,{size:30}),
+    title: blocOpening ? "Opening month" : "First month",
+    tone: "#f5c842",
+    body,
+    onClose
+  });
+};
+
+const SoloNoteModal = ({memberName="",isSelf=false,monthName="",target=null,onClose}) => {
+  const when = monthName ? ` this ${monthName}` : "";
+  const targetPart = Number.isFinite(Number(target)) && Number(target) > 0
+    ? `, with a personal target of ${Math.round(Number(target))}`
+    : "";
+  const body = isSelf
+    ? `You're on solo mode${when}${targetPart}. No penalty either way.`
+    : `${memberName || "They"} is on solo mode${when}${targetPart}. No penalty either way.`;
+  return React.createElement(StatusNoteModal,{
+    icon: React.createElement(SoloFlagIcon,{size:30}),
+    title: "Solo mode",
+    tone: "#4ECDC4",
+    body,
+    onClose
+  });
+};
 
 const InstallBanner = ({installReady,onInstall,onDismiss,showIosHint}) => (
   React.createElement('div',{className:"install-banner"},
@@ -634,4 +912,4 @@ const PrimaryActionButton = ({label,onClick,secondary=false}) => React.createEle
 },label);
 
 
-export { Avatar, CategoryIcon, WorkoutTypeIcon, ChevronRightIcon, TargetHitHexIcon, StatusBadge, RankIcon, TrophyIcon, MedalIcon, UploadPhotoIcon, Bar, Card, AppIcon, AnteWordmark, Spinner, TodayScreenSkeleton, BlocSwitcherSkeleton, InstallBanner, WorkoutCategorySelector, SettingsField, SelectField, inputShellStyle, StepperField, PrimaryActionButton, PlayerProfileErrorBoundary, TodayPageErrorBoundary };
+export { ModalScrim, Avatar, CategoryIcon, WorkoutTypeIcon, ChevronRightIcon, TargetHitHexIcon, RedemptionShieldIcon, MemberTag, RedemptionNoteModal, StatusNoteModal, TrainingNoteModal, SoloNoteModal, TrainingSproutIcon, SoloFlagIcon, StatusBadge, RankIcon, TrophyIcon, MedalIcon, UploadPhotoIcon, Bar, Card, AppIcon, AnteWordmark, Spinner, TodayScreenSkeleton, BlocSwitcherSkeleton, InstallBanner, WorkoutCategorySelector, SettingsField, SelectField, inputShellStyle, StepperField, PrimaryActionButton, PlayerProfileErrorBoundary, TodayPageErrorBoundary, InBlocPageErrorBoundary };

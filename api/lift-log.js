@@ -63,6 +63,7 @@ const WRITE_HYDRATION_PARITY_DEFAULT_ACTIONS = [
   "sitout-review",
   "solo-request",
   "solo-review",
+  "training-choice",
   "add-log",
   "multi-log",
   "reaction",
@@ -439,6 +440,8 @@ function buildCurrentOpenComparisonGroup(group) {
     logs: group.logs || {},
     excused: pickCurrentMonthOnlyMap(group.excused || {}, monthKey),
     solo: pickCurrentMonthOnlyMap(group.solo || {}, monthKey),
+    training: pickCurrentMonthOnlyMap(group.training || {}, monthKey),
+    trainingDecisions: pickCurrentMonthOnlyMap(group.trainingDecisions || {}, monthKey),
     seasonOverrides: seasonOverrides[monthKey] ? { [monthKey]: seasonOverrides[monthKey] } : {},
     sitOutRequests: sitOutRequests[monthKey] ? { [monthKey]: sitOutRequests[monthKey] } : {},
     soloRequests: soloRequests[monthKey] ? { [monthKey]: soloRequests[monthKey] } : {},
@@ -1109,6 +1112,8 @@ function normalizeGroup(group) {
   );
   const normalizedExcused = normalizeExcused(group?.excused, memberOrder);
   const normalizedSolo = normalizeSolo(group?.solo, memberOrder);
+  const normalizedTraining = normalizeTraining(group?.training, memberOrder);
+  const normalizedTrainingDecisions = normalizeTrainingDecisions(group?.trainingDecisions, memberOrder);
   const adminUserId = normalizeAdminUserId(group?.adminUserId, memberships, group?.adminName);
   const normalized = {
     id: typeof group?.id === "string" && group.id ? group.id : `group-${Date.now()}`,
@@ -1128,6 +1133,8 @@ function normalizeGroup(group) {
     deletedCurrentLogIds: normalizeDeletedCurrentLogIds(group?.deletedCurrentLogIds),
     excused: normalizedExcused,
     solo: normalizedSolo,
+    training: normalizedTraining,
+    trainingDecisions: normalizedTrainingDecisions,
     seasonOverrides: normalizeSeasonOverrides(group?.seasonOverrides),
     sitOutRequests: normalizeSitOutRequests(group?.sitOutRequests),
     soloRequests: normalizeSoloRequests(group?.soloRequests),
@@ -1279,6 +1286,47 @@ function normalizeSolo(solo, memberOrder = []) {
   );
 }
 
+// Mirrors normalizeTraining in src/lib/appState.js. The solo mechanic is
+// written twice in this codebase; training follows it rather than hiding inside
+// it, so a first month never spends someone's solo allowance.
+function normalizeTraining(training, memberOrder = []) {
+  const source = training && typeof training === "object" ? training : {};
+  const names = uniqueNames([...memberOrder, ...Object.keys(source)]);
+  return Object.fromEntries(
+    names.map(name => {
+      const monthEntries = source?.[name] && typeof source[name] === "object" ? source[name] : {};
+      return [name, Object.fromEntries(
+        Object.entries(monthEntries)
+          .filter(([monthKey, value]) => monthKey && value)
+          .map(([monthKey]) => [monthKey, true])
+      )];
+    })
+  );
+}
+
+function normalizeTrainingDecisions(decisions, memberOrder = []) {
+  const source = decisions && typeof decisions === "object" ? decisions : {};
+  const names = uniqueNames([...memberOrder, ...Object.keys(source)]);
+  return Object.fromEntries(
+    names.map(name => {
+      const monthEntries = source?.[name] && typeof source[name] === "object" ? source[name] : {};
+      return [name, Object.fromEntries(
+        Object.entries(monthEntries).filter(([monthKey, value]) => monthKey && value).map(([monthKey]) => [monthKey, true])
+      )];
+    })
+  );
+}
+
+function isTrainingForMonth(groupOrMonth, memberName, monthKey) {
+  if (!groupOrMonth || !memberName || !monthKey) return false;
+  return !!groupOrMonth?.training?.[memberName]?.[monthKey];
+}
+
+function isExemptFromStakes(groupOrMonth, memberName, monthKey) {
+  return isSoloForMonth(groupOrMonth, memberName, monthKey)
+    || isTrainingForMonth(groupOrMonth, memberName, monthKey);
+}
+
 function isSoloForMonth(groupOrMonth, memberName, monthKey) {
   if (!groupOrMonth || !memberName || !monthKey) return false;
   return !!groupOrMonth?.solo?.[memberName]?.[monthKey];
@@ -1404,6 +1452,19 @@ function assertWorkoutSlotAvailable(state, actor, actorUserId, date) {
   throw error;
 }
 
+// The same save arriving twice: same member, same date, same uploaded photo.
+// Every photo upload gets its own URL, so a genuine second workout can never
+// match. Seen 2026-09-09 and 2026-09-13 as identical saves 37 and 13 seconds
+// apart, with no resend anywhere in the app; the repeat is answered as the
+// success it already was, instead of recording the workout twice.
+function findRepeatedWorkoutSave(state, groupId, actor, date, photoUrl) {
+  const safePhotoUrl = String(photoUrl || "").trim();
+  const safeDate = String(date || "").trim();
+  if (!safePhotoUrl || !safeDate || !actor) return null;
+  return (state?.groups?.[groupId]?.logs?.[actor] || [])
+    .find(log => log?.date === safeDate && String(log?.photoUrl || "").trim() === safePhotoUrl) || null;
+}
+
 function createWorkoutSessionId() {
   return `${Date.now()}${Math.floor(Math.random() * 1000).toString().padStart(3, "0")}`;
 }
@@ -1462,7 +1523,11 @@ function buildNormalizedSettings(settings) {
     feeModel: normalizeFeeModel(settings?.feeModel),
     minRunDistance: clampRunDistance(settings?.minRunDistance ?? settings?.minDurationMinutes),
     distanceUnit: normalizeDistanceUnit(settings?.distanceUnit),
-    stravaEnabled: settings?.stravaEnabled !== false
+    stravaEnabled: settings?.stravaEnabled !== false,
+    // Whether a Bloc starts new members with a penalty-free first month.
+    // Defaults on: the cost of a wrong default is a free month, not a charge
+    // nobody agreed to.
+    trainingWheels: settings?.trainingWheels !== false
   };
 }
 
@@ -1579,6 +1644,11 @@ function normalizeMonthHistory(monthHistory, memberOrder, joinedMonthByName, set
         })
         .filter(Boolean)
     );
+    const training = Object.fromEntries(
+      relevantNames
+        .filter(name => isTrainingForMonth(month, name, monthKey))
+        .map(name => [name, { [monthKey]: true }])
+    );
     const monthSettings = resolveHistoricalMonthSettings(month?.settings, settings);
     const monthGroup = {
       settings,
@@ -1601,6 +1671,7 @@ function normalizeMonthHistory(monthHistory, memberOrder, joinedMonthByName, set
       counts,
       excused,
       solo,
+      training,
       logsByUser,
       memberTargets,
       settings: monthSettings,
@@ -1864,6 +1935,7 @@ function buildCanonicalMonthHistoryForGroup(group, canonicalSeasons) {
     const counts = {};
     const excused = {};
     const solo = {};
+    const training = {};
     const memberAuthUserIds = {};
     for (const name of relevantNames) {
       const m = membersByName[name];
@@ -1872,6 +1944,13 @@ function buildCanonicalMonthHistoryForGroup(group, canonicalSeasons) {
       const soloTarget = Number(m?.solo_target || 0);
       if (m?.solo && Number.isFinite(soloTarget) && soloTarget > 0) {
         solo[name] = { [monthKey]: { target: Math.round(soloTarget) } };
+      }
+      // A closed month is rebuilt from canonical here, replacing the blob's
+      // copy wholesale. Anything not carried across is silently dropped, which
+      // is exactly how a training grant written to canonical could still leave
+      // the member showing a penalty on screen.
+      if (m?.training_wheels) {
+        training[name] = { [monthKey]: true };
       }
       if (m?.auth_user_id) memberAuthUserIds[name] = m.auth_user_id;
     }
@@ -1924,6 +2003,7 @@ function buildCanonicalMonthHistoryForGroup(group, canonicalSeasons) {
       counts,
       excused,
       solo,
+      training,
       memberAuthUserIds,
       logsByUser,
       settings:     canonicalSettings,
@@ -1970,7 +2050,7 @@ function hasParticipationBeforeMonth(group, displayName, monthKey) {
     if ((month?.counts?.[displayName] || 0) > 0) return true;
     if ((month?.logsByUser?.[displayName] || []).length > 0) return true;
     if (month?.excused?.[displayName]) return true;
-    if (isSoloForMonth(month, displayName, month.key)) return true;
+    if (isExemptFromStakes(month, displayName, month.key)) return true;
     if (month?.settlements?.[displayName]) return true;
     if (Object.prototype.hasOwnProperty.call(month?.memberTargets || {}, displayName)) return true;
     return false;
@@ -2014,7 +2094,7 @@ function calcPenalties(activeCounts, settings) {
 
 function buildDefaultSettlements(month, relevantNames, settings, memberTargets = {}) {
   const activeCounts = relevantNames
-    .filter(name => !(month.excused?.[name]) && !isSoloForMonth(month, name, month.key))
+    .filter(name => !(month.excused?.[name]) && !isExemptFromStakes(month, name, month.key))
     .map(name => ({ name, count: month.counts?.[name] || 0, target: memberTargets?.[name] || Number(settings?.minTarget || DEFAULT_MIN_TARGET) }));
   const { losers } = calcPenalties(activeCounts, settings);
   return Object.fromEntries(
@@ -2167,6 +2247,11 @@ function rolloverGroupIfNeeded(group) {
       })
       .filter(Boolean)
   );
+  const training = Object.fromEntries(
+    relevantNames
+      .filter(name => isTrainingForMonth(group, name, group.lastMonth))
+      .map(name => [name, { [group.lastMonth]: true }])
+  );
   const memberTargets = getMemberTargetsForMonth(group, relevantNames, group.lastMonth, group.settings);
   const snapshot = {
     key: group.lastMonth,
@@ -2176,10 +2261,11 @@ function rolloverGroupIfNeeded(group) {
     counts,
     excused,
     solo,
+    training,
     logsByUser: buildMonthLogsSnapshot(group.logs, relevantNames),
     memberTargets,
     settings: buildNormalizedSettings(group.settings),
-    settlements: buildDefaultSettlements({ counts, excused, solo, key: group.lastMonth }, relevantNames, group.settings, memberTargets)
+    settlements: buildDefaultSettlements({ counts, excused, solo, training, key: group.lastMonth }, relevantNames, group.settings, memberTargets)
   };
 
   return normalizeGroup({
@@ -2188,6 +2274,8 @@ function rolloverGroupIfNeeded(group) {
     deletedCurrentLogIds: [],
     excused: {},
     solo: {},
+    training: {},
+    trainingDecisions: {},
     monthHistory: [...group.monthHistory, snapshot],
     lastMonth: expectedKey
   });
@@ -2753,6 +2841,27 @@ async function upsertSeasonMemberSoloInCanonical(legacyGroupKey, monthKey, displ
   }
 }
 
+async function upsertSeasonMemberTrainingInCanonical(legacyGroupKey, monthKey, displayName, authUserId, training, options = {}) {
+  if (!legacyGroupKey || !monthKey || !displayName) return;
+  const { throwOnError = false } = options;
+  try {
+    await supabaseFetch("/rest/v1/rpc/upsert_ante_core_season_member_training", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({
+        p_legacy_group_key: legacyGroupKey,
+        p_month_key:        monthKey,
+        p_display_name:     displayName,
+        p_auth_user_id:     authUserId || null,
+        p_training:         !!training
+      })
+    });
+  } catch (err) {
+    if (throwOnError) throw err;
+    console.error("Canonical training status sync failed:", err?.message || err);
+  }
+}
+
 async function upsertSeasonOverrideInCanonical(legacyGroupKey, monthKey, prorated, proratedMas, chosenAt, chosenBy, chosenByUserId, options = {}) {
   if (!legacyGroupKey || !monthKey) return;
   const { throwOnError = false } = options;
@@ -3187,6 +3296,22 @@ function buildTargetHitMoment(beforeGroup, afterGroup, monthKey, displayName, au
     idempotencyKey: `target_hit:${afterGroup.id}:${monthKey}:${authUserId || displayName}`,
     createdAt: log.createdAt || null
   };
+}
+
+// The mirror of buildTargetHitMoment. "X hit target" was announced on the way
+// up and never taken back on the way down, so deleting a workout left the Bloc
+// stream congratulating someone who was below target again — nine of ten, with
+// a moment saying otherwise.
+//
+// The key is built the same way the announcement built it, so this retracts
+// exactly that moment and nothing else.
+function buildTargetHitRetractionKey(beforeGroup, afterGroup, monthKey, displayName, authUserId) {
+  if (!beforeGroup || !afterGroup || !monthKey || !displayName) return null;
+  const target = getMemberTargetForMonth(afterGroup, displayName, monthKey);
+  const beforeCount = getCountedLogCount(beforeGroup.logs?.[displayName] || []);
+  const afterCount = getCountedLogCount(afterGroup.logs?.[displayName] || []);
+  if (beforeCount < target || afterCount >= target) return null;
+  return `target_hit:${afterGroup.id}:${monthKey}:${authUserId || displayName}`;
 }
 
 function buildSettingsChangedMoment(beforeGroup, afterGroup, actorUserId, revision) {
@@ -4765,6 +4890,16 @@ async function persistState(nextState, reason, options = {}) {
               { throwOnError: true }
             );
           }
+          if (isTrainingForMonth(closedSnapshot, memberName, closedMonthKey)) {
+            await upsertSeasonMemberTrainingInCanonical(
+              groupId,
+              closedMonthKey,
+              memberName,
+              memberAuthUserId,
+              true,
+              { throwOnError: true }
+            );
+          }
         }
       }
       console.log(`Season rollover canonical sync fired: ${groupId} ${closedMonthKey} → ${newMonthKey}`);
@@ -5880,6 +6015,15 @@ function applyCreateGroup(current, payload) {
     setupReview: buildDefaultSetupReview(),
     logs: {},
     excused: {},
+    // A Bloc's first month is penalty-free for its founding roster unless the
+    // admin turned that off while creating it. Granted here rather than at
+    // each join so the whole roster is covered by one decision.
+    training: settings.trainingWheels
+      ? Object.fromEntries(
+          uniqueNames([creatorName, ...extraMembers])
+            .map(name => [name, { [getLeagueMonthKey(settings.timeZone)]: true }])
+        )
+      : {},
     monthHistory: [],
     lastMonth: getLeagueMonthKey(settings.timeZone)
   });
@@ -7693,6 +7837,53 @@ function applySoloRequest(current, payload) {
   };
 }
 
+// The joiner's one-time answer, taken after they land rather than mid-invite.
+// Only their own join month, only once, and only in a Bloc that has already
+// run a month - before that the admin's create-time switch governs everyone.
+function applyTrainingChoice(current, payload) {
+  const actor = String(payload?.actor || "").trim();
+  const groupId = String(payload?.groupId || "").trim();
+  const wantsTraining = payload?.choice === "training";
+  const base = rolloverStateIfNeeded(current);
+  const group = base.groups[groupId];
+  if (!group) {
+    const error = new Error("Bloc not found");
+    error.status = 404;
+    throw error;
+  }
+  if (!actor) {
+    const error = new Error("You are not a member of this Bloc");
+    error.status = 403;
+    throw error;
+  }
+  const monthKey = group.lastMonth;
+  if (!(group.monthHistory || []).length) {
+    const error = new Error("This Bloc has not finished a month yet");
+    error.status = 409;
+    throw error;
+  }
+  if (group.trainingDecisions?.[actor]?.[monthKey]) {
+    const error = new Error("You have already made this choice");
+    error.status = 409;
+    throw error;
+  }
+  const training = { ...(group.training || {}) };
+  const actorMonths = { ...(training[actor] || {}) };
+  if (wantsTraining) actorMonths[monthKey] = true;
+  else delete actorMonths[monthKey];
+  training[actor] = actorMonths;
+
+  const nextGroup = normalizeGroup({
+    ...group,
+    training,
+    trainingDecisions: {
+      ...(group.trainingDecisions || {}),
+      [actor]: { ...(group.trainingDecisions?.[actor] || {}), [monthKey]: true }
+    }
+  });
+  return { ...base, groups: { ...base.groups, [groupId]: nextGroup } };
+}
+
 function applySoloReview(current, payload) {
   const actor = String(payload?.actor || "").trim();
   const actorUserId = String(payload?.actorUserId || "").trim();
@@ -8004,6 +8195,7 @@ function renameGroupDisplayNameSurfaces(group, userId, oldName, displayName, opt
     counts:      renameKey(month.counts      || {}, oldName, displayName),
     excused:     renameKey(month.excused     || {}, oldName, displayName),
     solo:        renameKey(month.solo        || {}, oldName, displayName),
+    training:    renameKey(month.training    || {}, oldName, displayName),
     logsByUser:  renameKey(month.logsByUser  || {}, oldName, displayName),
     settlements: renameKey(month.settlements || {}, oldName, displayName),
     ...(month.memberTargets ? { memberTargets: renameKey(month.memberTargets, oldName, displayName) } : {}),
@@ -8040,6 +8232,8 @@ function renameGroupDisplayNameSurfaces(group, userId, oldName, displayName, opt
     logs:              renameKey(group.logs              || {}, oldName, displayName),
     excused:           renameKey(group.excused           || {}, oldName, displayName),
     solo:              renameKey(group.solo              || {}, oldName, displayName),
+    training:          renameKey(group.training          || {}, oldName, displayName),
+    trainingDecisions: renameKey(group.trainingDecisions || {}, oldName, displayName),
     joinedMonthByName: renameKey(group.joinedMonthByName || {}, oldName, displayName),
     sitOutRequests:    nextSitOutRequests,
     soloRequests:      nextSoloRequests,
@@ -8337,6 +8531,13 @@ function applyJoinGroup(current, payload) {
         joinedAt: new Date().toISOString()
       }
     },
+    // Granted here, in the one join handler every door funnels through, so no
+    // invite path can miss it and none has to carry the setting itself. A
+    // joiner who would rather start on the same terms as everyone else says so
+    // after landing, and that overrides this.
+    training: group.settings?.trainingWheels
+      ? { ...(group.training || {}), [profile.displayName]: { ...(group.training?.[profile.displayName] || {}), [joinMonthKey]: true } }
+      : (group.training || {}),
     leftMemberNames: nextLeftMemberNames
   });
   return {
@@ -8785,6 +8986,7 @@ export {
   isGroupAdminActor,
   getWorkoutSessionKey,
   getDistinctWorkoutCountForDate,
+  findRepeatedWorkoutSave,
   isFounderDashboardUser,
   readFounderRosterAndActiveBlocs,
   isMissingLocalCanonicalWorkoutRpcError,
@@ -8996,21 +9198,27 @@ export default async function handler(req, res) {
         const canonicalActor = resolveDisplayNameForUser(canonicalState, payload.groupId, auth.user.id, auth.user.email);
         const group = canonicalState.groups?.[payload.groupId];
         const logId = String(payload?.logId || "").trim();
+        // An open-month log may still need to be copied into canonical storage
+        // before its first comment. Historical logs are already canonical and
+        // deliberately do not appear in `group.logs`; rejecting them here made
+        // their existing conversations read-only after rollover.
         let owner = "";
-        let log = null;
+        let openLog = null;
         if (group && logId) {
           for (const [name, logs] of Object.entries(group.logs || {})) {
             const match = (Array.isArray(logs) ? logs : []).find(entry => String(entry?.id) === logId);
             if (match) {
               owner = name;
-              log = match;
+              openLog = match;
               break;
             }
           }
         }
-        if (!group || !log || !owner) return res.status(404).json({ error: "Workout not found" });
+        if (!group || !logId) return res.status(404).json({ error: "Workout not found" });
         if (!isCurrentGroupMember(group, canonicalActor, auth.user.id)) return res.status(403).json({ error: "Only Bloc members can comment" });
-        await syncOpenWorkoutLogSnapshotToCanonical(group, owner, log, { throwOnError: true });
+        if (openLog && owner) {
+          await syncOpenWorkoutLogSnapshotToCanonical(group, owner, openLog, { throwOnError: true });
+        }
         const result = await insertWorkoutLogCommentInCanonical(payload.groupId, auth.user.id, logId, payload.body);
         await recordCanonicalMonthlyFeatureUsage(auth.user.id, "comment");
         await bumpCanonicalRevision(`log-comment:${payload.groupId}:${logId}:${auth.user.id}`, null);
@@ -9607,14 +9815,18 @@ export default async function handler(req, res) {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actor = resolveDisplayNameForUser(auth.state, payload.sourceGroupId, auth.user.id, auth.user.email);
         const allTargetIds = [...new Set([payload.sourceGroupId, ...(Array.isArray(payload.targetGroupIds) ? payload.targetGroupIds.filter(Boolean) : [])])];
+        const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.sourceGroupId);
+        const canonicalActor = assertGroupMembershipForUser(canonicalState, payload.sourceGroupId, auth.user.id);
+        // Every multi-log writes the source Bloc, so a repeat always matches there.
+        if (findRepeatedWorkoutSave(canonicalState, payload.sourceGroupId, canonicalActor, payload.date, payload.photoUrl)) {
+          return res.status(200).json(scopeReadableStateForUser(await fetchReadableCurrentState(), auth.user.id));
+        }
         let shadowBlobUpdated = null;
         try {
           shadowBlobUpdated = applyMultiLog(auth.state, { ...payload, actor, actorUserId: auth.user.id });
         } catch (err) {
           if (err?.status !== 404 && err?.status !== 403) throw err;
         }
-        const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.sourceGroupId);
-        const canonicalActor = assertGroupMembershipForUser(canonicalState, payload.sourceGroupId, auth.user.id);
         const beforeLogIdsByGroup = Object.fromEntries(
           allTargetIds.map(groupId => [
             groupId,
@@ -9676,14 +9888,19 @@ export default async function handler(req, res) {
       if (payload?.action === "add-log") {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
+        const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
+        const canonicalActor = assertGroupMembershipForUser(canonicalState, payload.groupId, auth.user.id);
+        // Before any cap check: a repeat of a save that already landed would
+        // otherwise count against the daily limit and report a failure.
+        if (findRepeatedWorkoutSave(canonicalState, payload.groupId, canonicalActor, payload.date, payload.photoUrl)) {
+          return res.status(200).json(scopeReadableStateForUser(await fetchReadableCurrentState(), auth.user.id));
+        }
         let shadowBlobUpdated = null;
         try {
           shadowBlobUpdated = applyAddLog(auth.state, { ...payload, actor, actorUserId: auth.user.id });
         } catch (err) {
           if (err?.status !== 404 && err?.status !== 403) throw err;
         }
-        const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
-        const canonicalActor = assertGroupMembershipForUser(canonicalState, payload.groupId, auth.user.id);
         const result = applyAddLog(canonicalState, { ...payload, actor: canonicalActor, actorUserId: auth.user.id });
         const group = result.updated.groups?.[payload.groupId];
         const groupSortOrder = (result.updated.groupOrder || []).indexOf(payload.groupId);
@@ -9992,6 +10209,26 @@ export default async function handler(req, res) {
         return res.status(200).json(readableState);
       }
 
+      if (payload?.action === "training-choice") {
+        const auth = await requireAuthenticatedContext(req, payload, current);
+        const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
+        const canonicalActor = assertGroupMembershipForUser(canonicalState, payload.groupId, auth.user.id);
+        const updated = applyTrainingChoice(canonicalState, { ...payload, actor: canonicalActor, actorUserId: auth.user.id });
+        const choiceGroup = updated.groups?.[payload.groupId];
+        const choiceMonthKey = choiceGroup?.lastMonth;
+        if (choiceGroup && choiceMonthKey) {
+          await upsertSeasonMemberTrainingInCanonical(
+            payload.groupId,
+            choiceMonthKey,
+            canonicalActor,
+            auth.user.id,
+            isTrainingForMonth(choiceGroup, canonicalActor, choiceMonthKey)
+          );
+        }
+        const readableState = await persistAndScopeReadableStateForUser(updated, `training-choice:${payload.groupId}:${canonicalActor}`, null, auth.user.id);
+        return res.status(200).json(readableState);
+      }
+
       if (payload?.action === "solo-review") {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
@@ -10177,6 +10414,29 @@ export default async function handler(req, res) {
           await runWriteHydrationParityProbe("delete-log", payload, auth, actor, shadowBlobResult.updated, applyDeleteLog);
         }
         await deleteWorkoutLogFromCanonical(payload.logId, { throwOnError: true });
+        // Deleting a workout can drop a member back under target. The stream
+        // has to take the announcement back with it.
+        //
+        // Keyed to the log's OWNER, not whoever pressed delete — an admin
+        // removing someone else's workout would otherwise retract their own
+        // moment and leave the wrong one standing.
+        const deletedFromGroup = result.updated.groups?.[payload.groupId] || null;
+        const beforeDeleteGroup = canonicalState.groups?.[payload.groupId] || null;
+        const deletedLogOwner = beforeDeleteGroup
+          ? resolveDeleteLogOwner(beforeDeleteGroup, canonicalActor, payload?.owner, payload?.logId)
+          : null;
+        const retractionKey = deletedLogOwner
+          ? buildTargetHitRetractionKey(
+            beforeDeleteGroup,
+            deletedFromGroup,
+            deletedFromGroup?.lastMonth || null,
+            deletedLogOwner,
+            findAuthUserIdForDisplayName(deletedFromGroup, deletedLogOwner)
+          )
+          : null;
+        if (retractionKey && deletedFromGroup) {
+          await deleteBlocSystemMomentInCanonical(deletedFromGroup.id, retractionKey, { throwOnError: true });
+        }
         const readableState = await persistAndScopeReadableStateForUser(result.updated, result.reason, "delete-log", auth.user.id);
         return res.status(200).json(readableState);
       }

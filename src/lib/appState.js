@@ -15,6 +15,7 @@ const DEFAULT_CURRENCY = "NOK";
 const DEFAULT_MIN_RUN_DISTANCE = 3;
 const DEFAULT_DISTANCE_UNIT = "km";
 const DEFAULT_STRAVA_ENABLED = true;
+const DEFAULT_TRAINING_WHEELS = true;
 const SETUP_REVIEW_FIELDS = ["feeModel","acceptedWorkoutTypes","timeZone"];
 const UNFLAGGED_IMAGE_RETENTION_MS = 72 * 60 * 60 * 1000;
 const RESOLVED_IMAGE_RETENTION_MS = 24 * 60 * 60 * 1000;
@@ -425,6 +426,57 @@ function normalizeSolo(solo, memberOrder = []) {
   return normalized;
 }
 
+// Training Wheels is a separate map from solo on purpose. Solo carries a
+// personal target and a once-every-three-months allowance; training uses the
+// Bloc's own target and is granted automatically. Folding it into solo would
+// make a first month quietly consume someone's solo allowance.
+function normalizeTraining(training, memberOrder = []) {
+  const source = training && typeof training === "object" ? training : {};
+  const names = uniqueNames([...memberOrder, ...Object.keys(source)]);
+  const normalized = {};
+  names.forEach(name => {
+    const monthMap = source?.[name] && typeof source[name] === "object" ? source[name] : {};
+    const months = Object.entries(monthMap)
+      .filter(([monthKey, value]) => monthKey && value)
+      .map(([monthKey]) => [monthKey, true]);
+    normalized[name] = Object.fromEntries(months);
+  });
+  return normalized;
+}
+
+// Whether a member has already answered the training question for a month.
+// Absent means never asked; present means asked and answered, whichever way
+// they answered. Without this, someone choosing "same terms as everyone" would
+// be asked again on every open, because choosing it leaves no training entry.
+function normalizeTrainingDecisions(decisions, memberOrder = []) {
+  const source = decisions && typeof decisions === "object" ? decisions : {};
+  const names = uniqueNames([...memberOrder, ...Object.keys(source)]);
+  const normalized = {};
+  names.forEach(name => {
+    const monthMap = source?.[name] && typeof source[name] === "object" ? source[name] : {};
+    normalized[name] = Object.fromEntries(
+      Object.entries(monthMap).filter(([monthKey, value]) => monthKey && value).map(([monthKey]) => [monthKey, true])
+    );
+  });
+  return normalized;
+}
+
+function hasDecidedTrainingForMonth(group, memberName, monthKey) {
+  if (!memberName || !monthKey) return false;
+  return !!group?.trainingDecisions?.[memberName]?.[monthKey];
+}
+
+function isTrainingForMonth(groupOrMonth, memberName, monthKey) {
+  if (!memberName || !monthKey) return false;
+  return !!groupOrMonth?.training?.[memberName]?.[monthKey];
+}
+
+// One question for every screen that decides who the money applies to.
+function isExemptFromStakes(groupOrMonth, memberName, monthKey) {
+  return isSoloForMonth(groupOrMonth, memberName, monthKey)
+    || isTrainingForMonth(groupOrMonth, memberName, monthKey);
+}
+
 function isSoloForMonth(groupOrMonth, memberName, monthKey) {
   if (!memberName || !monthKey) return false;
   return !!groupOrMonth?.solo?.[memberName]?.[monthKey];
@@ -434,6 +486,40 @@ function getSoloTargetForMonth(groupOrMonth, memberName, monthKey) {
   const value = groupOrMonth?.solo?.[memberName]?.[monthKey];
   const target = typeof value === "object" ? Number(value?.target ?? value?.personalTarget) : Number(value);
   return Number.isFinite(target) ? Math.max(1, Math.round(target)) : null;
+}
+
+// ─── REDEMPTION MARK ──────────────────────────────────────────────────────────
+// Derived on every render from month history, never stored. That keeps it
+// automatically correct after a rollover, automatically scoped to one Bloc,
+// and removable without leaving residue.
+
+// Missing a month means being in it and coming up short. Anyone excused or on
+// solo was not held to the Bloc target, so they did not miss it.
+function missedTargetInMonth(month, memberName) {
+  if (!month || !memberName) return false;
+  if (!Object.prototype.hasOwnProperty.call(month.counts || {}, memberName)) return false;
+  if (month.excused?.[memberName]) return false;
+  // Exempt from the stakes means exempt from the mark too: they were not held
+  // to the Bloc target that month, so they did not miss it.
+  if (isExemptFromStakes(month, memberName, month.key)) return false;
+  const target = month.memberTargets?.[memberName] || month.settings?.minTarget || MIN_TARGET;
+  return Number(month.counts?.[memberName] || 0) < Number(target || MIN_TARGET);
+}
+
+function getClosedMonthBefore(monthHistory, monthKey) {
+  const earlier = (Array.isArray(monthHistory) ? monthHistory : [])
+    .filter(month => month?.key && compareMonthKeys(month.key, monthKey) < 0)
+    .sort((a, b) => compareMonthKeys(a.key, b.key));
+  return earlier[earlier.length - 1] || null;
+}
+
+// "redemption" = missed the month before this one and has not yet answered it.
+// "redeemed"   = missed it, and has since hit the target for this month.
+function getRedemptionMark(monthHistory, memberName, monthKey, hitTargetThisMonth) {
+  if (!memberName || !monthKey) return null;
+  const prior = getClosedMonthBefore(monthHistory, monthKey);
+  if (!prior || !missedTargetInMonth(prior, memberName)) return null;
+  return hitTargetThisMonth ? "redeemed" : "redemption";
 }
 
 function getSeasonOverrideForMonth(group, monthKey) {
@@ -457,27 +543,35 @@ function getSeasonProrationSummaryForMonth(group, monthKey, settingsOverride = n
   return chosenSummary;
 }
 
+// This function exists twice, here and in api/lift-log.js, and the two had
+// drifted: the API's copy reported prorationSource "member" on every joined
+// branch and this one reported nothing at all. Screens that ask whether a
+// member's own target was prorated were therefore comparing undefined against
+// "member" and never matching. Kept in step with the API deliberately.
 function getJoinedTargetInfo(baseTarget, joinedSummary, prorationSummary = null) {
-  if (!joinedSummary || joinedSummary.day <= 1) return { target: baseTarget, joinDay: 1 };
+  if (!joinedSummary || joinedSummary.day <= 1) return { target: baseTarget, joinDay: 1, prorationSource: "none" };
   const joinDay = joinedSummary.daysInMonth - joinedSummary.daysRemaining + 1;
   if (!prorationSummary) {
     return {
       target: Math.max(1, Math.round((joinedSummary.daysRemaining / joinedSummary.daysInMonth) * baseTarget)),
       joinDay,
-      proratedDays: joinedSummary.daysRemaining
+      proratedDays: joinedSummary.daysRemaining,
+      prorationSource: "member"
     };
   }
   if (joinedSummary.day <= prorationSummary.day) {
     return {
       target: baseTarget,
       joinDay: prorationSummary.day,
-      proratedDays: prorationSummary.daysRemaining
+      proratedDays: prorationSummary.daysRemaining,
+      prorationSource: "member"
     };
   }
   return {
     target: Math.max(1, Math.round((joinedSummary.daysRemaining / prorationSummary.daysRemaining) * baseTarget)),
     joinDay,
-    proratedDays: joinedSummary.daysRemaining
+    proratedDays: joinedSummary.daysRemaining,
+    prorationSource: "member"
   };
 }
 
@@ -681,10 +775,10 @@ function shouldPromptProration(group, actorUserId) {
   return !getSeasonOverrideForMonth(group, summary.monthKey);
 }
 
-function buildSettlementMap(counts, excusedByName, settings = {}, memberTargets = {}, soloByName = {}, monthKey = null) {
+function buildSettlementMap(counts, excusedByName, settings = {}, memberTargets = {}, soloByName = {}, monthKey = null, trainingByName = {}) {
   const activeCounts = NAMES
     .filter(name => Object.prototype.hasOwnProperty.call(counts || {}, name))
-    .filter(name => !excusedByName?.[name] && !(monthKey && soloByName?.[name]?.[monthKey]))
+    .filter(name => !excusedByName?.[name] && !(monthKey && (soloByName?.[name]?.[monthKey] || trainingByName?.[name]?.[monthKey])))
     .map(name => ({ name, count: counts?.[name] || 0, target: memberTargets?.[name] || Number(settings?.minTarget || MIN_TARGET) }));
   const { losers } = calcPenalties(activeCounts, settings);
   return Object.fromEntries(
@@ -708,7 +802,7 @@ function buildSettlementPairsForMonth(month) {
   const memberAuthUserIds = month?.memberAuthUserIds || {};
   const relevantNames = Object.keys(counts);
   const activeCounts = relevantNames
-    .filter(name => !excused?.[name] && !isSoloForMonth(month, name, month.key))
+    .filter(name => !excused?.[name] && !isExemptFromStakes(month, name, month.key))
     .map(name => ({ name, count: counts?.[name] || 0, target: memberTargets?.[name] || Number(settings?.minTarget || MIN_TARGET) }));
   const penalties = calcPenalties(activeCounts, settings);
   const { winners, losers } = penalties;
@@ -1219,6 +1313,24 @@ function getDistinctWorkoutCountForDate(groups, userId, fallbackDisplayName, iso
   return sessionKeys.size;
 }
 
+// One multi-Bloc log is several rows sharing a session key, one per Bloc, each
+// under whatever name the member uses there. Returns the copies of `log` in
+// every Bloc other than the one it is being deleted from.
+function findWorkoutCopiesInOtherBlocs(groups, currentGroupId, userId, log) {
+  const sessionKey = getWorkoutSessionKey(log);
+  const safeUserId = String(userId || "").trim();
+  if (!sessionKey || !safeUserId || !log?.date) return [];
+  return (Array.isArray(groups) ? groups : Object.values(groups || {}))
+    .filter(group => group?.id && group.id !== currentGroupId)
+    .flatMap(group => {
+      const owner = String(group?.memberships?.[safeUserId]?.displayName || "").trim();
+      if (!owner) return [];
+      return (group?.logs?.[owner] || [])
+        .filter(copy => copy?.date === log.date && getWorkoutSessionKey(copy) === sessionKey)
+        .map(copy => ({ groupId: group.id, groupName: group.name || "", owner, logId: String(copy.id) }));
+    });
+}
+
 function normalizeDeletedCurrentLogIds(value) {
   return uniqueNames(Array.isArray(value) ? value.map(id => String(id || "")) : []).slice(-200);
 }
@@ -1283,7 +1395,11 @@ function buildNormalizedSettings(settings) {
     feeModel: normalizeFeeModel(settings?.feeModel),
     minRunDistance: clampRunDistance(settings?.minRunDistance ?? settings?.minDurationMinutes),
     distanceUnit: normalizeDistanceUnit(settings?.distanceUnit),
-    stravaEnabled: settings?.stravaEnabled !== false
+    stravaEnabled: settings?.stravaEnabled !== false,
+    // Whether a Bloc starts new members with a penalty-free first month.
+    // Defaults on: the cost of a wrong default is a free month, not a charge
+    // nobody agreed to.
+    trainingWheels: settings?.trainingWheels !== false
   };
 }
 
@@ -1405,6 +1521,11 @@ function normalizeMonthHistoryState(monthHistory, memberOrder, joinedMonthByName
         })
         .filter(Boolean)
     );
+    const training = Object.fromEntries(
+      relevantNames
+        .filter(name => isTrainingForMonth(month, name, monthKey))
+        .map(name => [name, { [monthKey]: true }])
+    );
     const monthSettings = resolveHistoricalMonthSettings(month?.settings, settings);
     const monthGroup = {
       settings,
@@ -1427,10 +1548,11 @@ function normalizeMonthHistoryState(monthHistory, memberOrder, joinedMonthByName
       counts,
       excused,
       solo,
+      training,
       logsByUser,
       memberTargets,
       settings: monthSettings,
-      settlements: month?.settlements || buildSettlementMap(counts, excused, monthSettings, memberTargets, solo, monthKey)
+      settlements: month?.settlements || buildSettlementMap(counts, excused, monthSettings, memberTargets, solo, monthKey, training)
     };
   }).filter(Boolean).sort((a, b) => compareMonthKeys(a.key, b.key));
 }
@@ -1502,6 +1624,8 @@ function normalizeGroupState(group) {
     deletedCurrentLogIds: normalizeDeletedCurrentLogIds(group?.deletedCurrentLogIds),
     excused,
     solo: normalizeSolo(group?.solo, memberOrder),
+    training: normalizeTraining(group?.training, memberOrder),
+    trainingDecisions: normalizeTrainingDecisions(group?.trainingDecisions, memberOrder),
     seasonOverrides: normalizeSeasonOverrides(group?.seasonOverrides),
     sitOutRequests: pruneSitOutRequestsForRead(group?.sitOutRequests, group?.lastMonth || curKey),
     soloRequests: pruneSoloRequestsForRead(group?.soloRequests, group?.lastMonth || curKey),
@@ -1902,6 +2026,12 @@ function checkRollover(data) {
       .filter(Boolean)
   );
 
+  const training = Object.fromEntries(
+    relevantNames
+      .filter(name => isTrainingForMonth(data, name, prevKey))
+      .map(name => [name, { [prevKey]: true }])
+  );
+
   const snapshot = {
     key: prevKey,
     label,
@@ -1910,19 +2040,23 @@ function checkRollover(data) {
     counts,
     excused: exc,
     solo,
+    training,
     logsByUser: buildMonthLogsSnapshot(logs),
     memberTargets,
     settings,
-    settlements: buildSettlementMap(counts, exc, settings, memberTargets, solo, prevKey)
+    settlements: buildSettlementMap(counts, exc, settings, memberTargets, solo, prevKey, training)
   };
   const newHistory = [...(monthHistory||[]), snapshot];
 
-  // Clear current logs, excused, and solo mode for new month
+  // Clear current logs, excused, solo mode and training wheels for new month.
+  // Training is a first-month grant: it must not survive the rollover.
   const newLogs    = {};
   const newExcused = {};
   const newSolo = {};
+  const newTraining = {};
+  const newTrainingDecisions = {};
 
-  return { logs: newLogs, excused: newExcused, solo: newSolo, monthHistory: newHistory, lastMonth: expectedKey };
+  return { logs: newLogs, excused: newExcused, solo: newSolo, training: newTraining, trainingDecisions: newTrainingDecisions, monthHistory: newHistory, lastMonth: expectedKey };
 }
 
 // ─── API SYNC ─────────────────────────────────────────────────────────────────
@@ -1975,6 +2109,7 @@ export {
   DEFAULT_MIN_RUN_DISTANCE,
   DEFAULT_DISTANCE_UNIT,
   DEFAULT_STRAVA_ENABLED,
+  DEFAULT_TRAINING_WHEELS,
   SETUP_REVIEW_FIELDS,
   UNFLAGGED_IMAGE_RETENTION_MS,
   RESOLVED_IMAGE_RETENTION_MS,
@@ -2049,6 +2184,13 @@ export {
   normalizeSolo,
   isSoloForMonth,
   getSoloTargetForMonth,
+  isTrainingForMonth,
+  isExemptFromStakes,
+  hasDecidedTrainingForMonth,
+  normalizeTraining,
+  missedTargetInMonth,
+  getClosedMonthBefore,
+  getRedemptionMark,
   getSeasonOverrideForMonth,
   getEffectiveTargetForMonth,
   getSeasonProrationSummaryForMonth,
@@ -2098,6 +2240,7 @@ export {
   resolveLogCreatedAt,
   normalizeLogEntry,
   getWorkoutSessionKey,
+  findWorkoutCopiesInOtherBlocs,
   countWorkoutsInDayMap,
   getDistinctWorkoutCountForDate,
   normalizeAcceptedWorkoutTypes,

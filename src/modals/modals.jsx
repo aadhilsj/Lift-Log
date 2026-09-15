@@ -12,6 +12,7 @@ import {
   DEFAULT_MIN_RUN_DISTANCE,
   DEFAULT_DISTANCE_UNIT,
   DEFAULT_STRAVA_ENABLED,
+  DEFAULT_TRAINING_WHEELS,
   TODAY_ISO,
   curKey,
   CURRENCY_OPTIONS,
@@ -39,7 +40,7 @@ import {
   isMobile,
   copyToClipboard
 } from "../lib/utils.js";
-import { Avatar, WorkoutTypeIcon, WorkoutCategorySelector, SettingsField, SelectField, inputShellStyle, StepperField } from "../components/primitives.jsx";
+import { Avatar, WorkoutTypeIcon, WorkoutCategorySelector, SettingsField, SelectField, inputShellStyle, StepperField, ModalScrim } from "../components/primitives.jsx";
 
 const SETTINGS_DEFAULTS = {
   minTarget: DEFAULT_MIN_TARGET,
@@ -51,7 +52,8 @@ const SETTINGS_DEFAULTS = {
   feeModel: DEFAULT_FEE_MODEL,
   minRunDistance: DEFAULT_MIN_RUN_DISTANCE,
   distanceUnit: DEFAULT_DISTANCE_UNIT,
-  stravaEnabled: DEFAULT_STRAVA_ENABLED
+  stravaEnabled: DEFAULT_STRAVA_ENABLED,
+  trainingWheels: DEFAULT_TRAINING_WHEELS
 };
 
 const WORKOUT_NOTE_LIMIT = 140;
@@ -254,6 +256,39 @@ const GroupCreateModal = ({onCreate,onClose,creating,defaultCreatorName="",defau
         React.createElement('div',{style:setupFieldTitleStyle},"Monthly Workout Target"),
         React.createElement('div',{style:setupFieldHelpStyle},"Between 6 and 30 workouts per month."),
         React.createElement(StepperField,{value:settings.minTarget,onChange:value=>setSettings(current=>({...current,minTarget:value})),min:6,max:30})
+      ),
+      React.createElement('button',{
+        type:"button",
+        onClick:()=>setSettings(current=>({...current,trainingWheels:!(current.trainingWheels !== false)})),
+        "aria-pressed":settings.trainingWheels !== false,
+        style:{
+          width:"100%",textAlign:"left",display:"flex",alignItems:"flex-start",gap:11,marginBottom:14,
+          padding:"11px 12px",borderRadius:11,fontFamily:UI_FONT,
+          border:settings.trainingWheels !== false ? "1px solid rgba(78,205,196,.3)" : "1px solid var(--border)",
+          background:settings.trainingWheels !== false ? "rgba(78,205,196,.05)" : "rgba(25,27,36,.5)"
+        }
+      },
+        React.createElement('div',{style:{flex:1,minWidth:0}},
+          React.createElement('div',{style:{fontSize:13,fontWeight:800,color:"var(--text)",marginBottom:4}},"Training Wheels"),
+          // Only the helper line changes between states, so the row keeps its
+          // height and the buttons below it never move under a thumb.
+          React.createElement('div',{style:{fontSize:12,color:"var(--muted)",lineHeight:1.38}},
+            settings.trainingWheels !== false
+              ? "Month one is penalty-free for everyone."
+              : "No warm-up. Penalties from day one."
+          )
+        ),
+        React.createElement('span',{style:{
+          width:40,height:23,borderRadius:999,flexShrink:0,position:"relative",marginTop:1,
+          transition:"background .18s",
+          background:settings.trainingWheels !== false ? "#4ECDC4" : "#2A2E39"
+        }},
+          React.createElement('span',{style:{
+            position:"absolute",top:3,width:17,height:17,borderRadius:999,transition:"left .18s",
+            left:settings.trainingWheels !== false ? 20 : 3,
+            background:settings.trainingWheels !== false ? "#050909" : "#767C88"
+          }})
+        )
       ),
       submitAttempted && escalationStepMissing && React.createElement('div',{style:{fontSize:12,color:"var(--red)",marginTop:-6,marginBottom:10}},"Set a step amount to continue."),
       React.createElement('div',{style:{display:"grid",gridTemplateColumns:"0.82fr 1.18fr",gap:9,marginTop:18}},
@@ -765,7 +800,19 @@ const LogModal = ({user,currentUserId,currentGroupId,groups,onConfirm,onClose}) 
 
 // ─── DELETE MODAL ─────────────────────────────────────────────────────────────
 
-const DeleteModal = ({log,onConfirm,onClose}) => React.createElement('div',{className:"overlay center-mobile",onClick:onClose},
+// Opened from the player profile, whose root is transformed for the back-swipe.
+// A plain overlay inside that transform is positioned against it rather than
+// the viewport, which put this down by the nav bar with the page still
+// scrolling behind. ModalScrim portals it out to the body and locks the scroll.
+const DeleteModal = ({log,onConfirm,onClose,otherBlocNames=[]}) => {
+  // Logged to several Blocs at once, it should leave them together too, so the
+  // default is yes. Unticking keeps the other Blocs' copies.
+  const [alsoOtherBlocs,setAlsoOtherBlocs] = React.useState(true);
+  const otherCount = otherBlocNames.length;
+  const otherLabel = otherCount <= 2
+    ? `Also delete from ${otherBlocNames.join(" and ")}`
+    : `Also delete from your ${otherCount} other Blocs`;
+  return React.createElement(ModalScrim,{onClose},
   React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{textAlign:"center",maxWidth:280,padding:"14px 14px"}},
     React.createElement('div',{style:{marginBottom:6,display:"flex",justifyContent:"center"}},
       React.createElement('svg',{xmlns:"http://www.w3.org/2000/svg",width:20,height:20,viewBox:"0 0 24 24",fill:"none",stroke:"var(--red)",strokeWidth:"1.8",strokeLinecap:"round",strokeLinejoin:"round"},
@@ -784,13 +831,18 @@ const DeleteModal = ({log,onConfirm,onClose}) => React.createElement('div',{clas
       ),
       React.createElement('div',{className:"mono",style:{fontSize:10,color:"var(--muted)"}},fmtISO(log.date))
     ),
+    otherCount > 0 && React.createElement('label',{style:{display:"flex",alignItems:"center",gap:7,textAlign:"left",background:"var(--s2)",border:"1px solid var(--border)",borderRadius:8,padding:"6px 10px",marginBottom:8,fontSize:10.5,fontWeight:600,color:"var(--text)",cursor:"pointer"}},
+      React.createElement('input',{type:"checkbox",checked:alsoOtherBlocs,onChange:e=>setAlsoOtherBlocs(e.target.checked),style:{accentColor:"var(--red)",margin:0,flexShrink:0}}),
+      React.createElement('span',{style:{minWidth:0}},otherLabel)
+    ),
     React.createElement('div',{style:{color:"var(--muted)",fontSize:10,marginBottom:10}},"This will permanently remove this workout."),
     React.createElement('div',{style:{display:"flex",gap:6}},
       React.createElement('button',{onClick:onClose,style:{flex:1,background:"var(--s2)",border:"1px solid var(--border)",color:"var(--muted)",padding:"7px",borderRadius:7,fontSize:11,fontWeight:600}},"Keep it"),
-      React.createElement('button',{onClick:onConfirm,style:{flex:1,background:"var(--red-bg)",border:"1px solid var(--red)",color:"var(--red)",padding:"7px",borderRadius:7,fontSize:11,fontWeight:800}},"Delete")
+      React.createElement('button',{onClick:()=>onConfirm({ alsoOtherBlocs: otherCount > 0 && alsoOtherBlocs }),style:{flex:1,background:"var(--red-bg)",border:"1px solid var(--red)",color:"var(--red)",padding:"7px",borderRadius:7,fontSize:11,fontWeight:800}},"Delete")
     )
   )
-);
+  );
+};
 
 // ─── EXCUSE MODAL ─────────────────────────────────────────────────────────────
 
@@ -800,7 +852,7 @@ const SitOutModal = ({mode,monthName,onClose,onSubmit,submitting,error}) => {
   const config = mode === "instant"
     ? {
         title:`Sit out ${monthName}?`,
-        body:["You'll be removed from this month's stakes.","You won't pay or collect anything."],
+        body:["You won't pay or collect anything this month."],
         cta:"Confirm sit-out"
       }
     : mode === "exceptional"
@@ -892,6 +944,53 @@ const SoloModal = ({mode,monthName,minimumTarget,maximumTarget,defaultTarget,onC
 };
 
 
+// Shown once, over the Bloc a member has just landed in. Pre-selected to
+// whatever the admin set, so tapping straight through honours the Bloc's
+// intent. The wording avoids "training wheels": nobody wants to be told they
+// need them on day one. The leaderboard tag says it afterwards, once it is
+// their own choice.
+const TrainingChoiceModal = ({blocName, defaultTraining = true, onConfirm, saving}) => {
+  const [choice,setChoice] = useState(defaultTraining ? "training" : "standard");
+  const option = (value, title, help) => {
+    const picked = choice === value;
+    return React.createElement('button',{
+      type:"button",
+      onClick:()=>setChoice(value),
+      "aria-pressed":picked,
+      style:{
+        width:"100%",textAlign:"left",display:"flex",alignItems:"flex-start",gap:10,
+        padding:12,borderRadius:11,marginBottom:9,fontFamily:UI_FONT,
+        border:picked ? "1px solid rgba(245,200,66,.4)" : "1px solid var(--border)",
+        background:picked ? "rgba(245,200,66,.06)" : "rgba(25,27,36,.45)"
+      }
+    },
+      React.createElement('span',{style:{
+        width:17,height:17,borderRadius:999,flexShrink:0,marginTop:1,position:"relative",
+        border:picked ? "1.5px solid #f5c842" : "1.5px solid #3A414C",
+        background:picked ? "radial-gradient(circle, #f5c842 0 45%, transparent 46%)" : "transparent"
+      }}),
+      React.createElement('span',{style:{minWidth:0}},
+        React.createElement('span',{style:{display:"block",fontSize:13.5,fontWeight:800,color:"var(--text)",marginBottom:3}},title),
+        React.createElement('span',{style:{display:"block",fontSize:11.5,color:"var(--muted)",lineHeight:1.4}},help)
+      )
+    );
+  };
+  return React.createElement('div',{className:"overlay center-mobile"},
+    React.createElement('div',{className:"modal",onClick:e=>e.stopPropagation(),style:{maxWidth:340,padding:"20px 18px 16px",fontFamily:UI_FONT}},
+      React.createElement('div',{style:{fontFamily:DISPLAY_FONT,fontWeight:800,fontSize:19,lineHeight:1.1,marginBottom:6}},"Your first month"),
+      React.createElement('div',{style:{color:"var(--muted)",fontSize:12.5,lineHeight:1.45,marginBottom:14}},
+        `${blocName || "This Bloc"} has been running a while. Ease in, or start on the same terms as everyone else.`),
+      option("training","Ease in","Find your rhythm. Penalties start next month."),
+      option("standard","Dive in","Penalties apply from your first month."),
+      React.createElement('button',{
+        disabled:saving,
+        onClick:()=>onConfirm(choice),
+        style:{width:"100%",marginTop:4,background:"#4ECDC4",color:"#050909",padding:14,borderRadius:12,fontFamily:UI_FONT,fontSize:15,fontWeight:900,opacity:saving?.6:1}
+      }, saving ? "Saving..." : "Confirm")
+    )
+  );
+};
+
 const ProrationChoiceModal = ({monthName,fullMas,daysRemaining,daysInMonth,proratedMas,onKeep,onProrate,savingChoice}) => React.createElement('div',{className:"overlay center-mobile"},
   React.createElement('div',{className:"modal pi",style:{maxWidth:430}},
     React.createElement('div',{style:{fontWeight:800,fontSize:20,marginBottom:10}},"You're starting mid-month."),
@@ -971,4 +1070,4 @@ const PinModal = ({prompt, onConfirm, onClose}) => {
 
 // ─── SETTLEMENT SCREEN ───────────────────────────────────────────────────────
 
-export { SETTINGS_DEFAULTS, TIME_ZONE_OPTIONS, GroupSettingsFields, GroupCreateModal, GroupSettingsModal, CropModal, LogModal, DeleteModal, SitOutModal, SoloModal, ProrationChoiceModal, TextEntryModal, NoticeModal, ImageLightbox, PinModal };
+export { SETTINGS_DEFAULTS, TIME_ZONE_OPTIONS, GroupSettingsFields, GroupCreateModal, GroupSettingsModal, CropModal, LogModal, DeleteModal, SitOutModal, SoloModal, ProrationChoiceModal, TrainingChoiceModal, TextEntryModal, NoticeModal, ImageLightbox, PinModal };

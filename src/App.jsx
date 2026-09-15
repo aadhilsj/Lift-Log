@@ -19,6 +19,7 @@ import {
   normalizeAppState,
   getProfileForSession,
   getMembershipForUser,
+  getActiveJoinedMonthForMember,
   syncActiveGroupGlobals,
   syncActiveProfileGlobals,
   getCurrentGroupMemberNames,
@@ -55,6 +56,7 @@ import {
   reviewSitOutData,
   requestSoloData,
   reviewSoloData,
+  setTrainingChoiceData,
   deleteAccountData,
   checkAuthEmailExistsData,
   sendOtpData,
@@ -87,9 +89,9 @@ import {
   releaseSwipeBack,
   releaseSwipeForward
 } from "./lib/swipeRelease.js";
-import { Spinner, TodayScreenSkeleton, BlocSwitcherSkeleton, InstallBanner, TodayPageErrorBoundary } from "./components/primitives.jsx";
+import { Spinner, TodayScreenSkeleton, BlocSwitcherSkeleton, InstallBanner, TodayPageErrorBoundary, InBlocPageErrorBoundary } from "./components/primitives.jsx";
 import { PreviewLanding, InvalidInviteScreen, SignedOutLanding, ProfileModal, JoinGroupModal, AuthFlowModal, DisplayNameSetupScreen, IdentitySetup, CreatedBlocInviteScreen, GroupHome, GroupAccessNotice, LocalDevImpersonationBar } from "./components/authShell.jsx";
-import { GroupCreateModal, ProrationChoiceModal } from "./modals/modals.jsx";
+import { GroupCreateModal, ProrationChoiceModal, TrainingChoiceModal } from "./modals/modals.jsx";
 import { Nav } from "./pages/Nav.jsx";
 import { TodayPage } from "./pages/TodayPage.jsx";
 import { ActivityPage } from "./pages/ActivityPage.jsx";
@@ -153,7 +155,31 @@ const preserveKnownProfilePhotos = (current, incoming) => {
   return changed ? { ...incoming, profiles: mergedProfiles } : incoming;
 };
 
+// What to say when a code could not be sent. One place, because the two
+// callers previously disagreed: one always claimed the account did not exist.
+//
+// The countdown text is deliberately absent here — the modal renders the live
+// seconds, and a number frozen into a string is wrong the moment it is read.
+const describeOtpSendFailure = (result, intentType) => {
+  if (result?.rateLimited) return "";
+  if (result?.noAccount) {
+    return intentType === "signin"
+      ? "No Fero account found for that email. Create a new account instead."
+      : "That email can't be used to sign up right now.";
+  }
+  return result?.error || "Unable to send code";
+};
+
+// The daily cap is the one save failure a member can act on, and blaming their
+// connection for it sends them retrying something that will never go through.
+const getWorkoutSaveFailureMessage = (error) => (
+  /already logged 2 workouts/i.test(String(error || ""))
+    ? "You've already logged 2 workouts for this day."
+    : "Workout couldn't be saved. Please check your connection and try again."
+);
+
 const SETUP_PROGRESS_STAGES = {
+  signingIn: { labels:["Checking your code...", "Signing you in...", "Getting things ready..."], min:8, max:92 },
   savingName: { labels:["Saving your name...", "Securing your profile..."], min:8, max:34 },
   settingUpBloc: { labels:["Creating your Bloc...", "Setting things up...", "Final touches...", "Opening your Bloc..."], min:35, max:96 },
   joiningBloc: { labels:["Joining your Bloc...", "Syncing the leaderboard...", "Final touches...", "Opening your Bloc..."], min:35, max:96 },
@@ -280,6 +306,22 @@ const App = () => {
   const [pendingAuthSession,setPendingAuthSession]=useState(null);
   const [authStep,setAuthStep]=useState(null);
   const [authIntent,setAuthIntent]=useState(null);
+  // Held when the one-time code was accepted but the account never loaded. The
+  // session is real and already spent, so recovery re-runs the account fetch —
+  // never the code, which cannot be verified twice.
+  const [pendingVerifiedSession,setPendingVerifiedSession]=useState(null);
+  const [retryingAccountSync,setRetryingAccountSync]=useState(false);
+  // When another code may be requested, as a wall-clock deadline rather than a
+  // running total. Counting ticks loses time whenever the tab is throttled or
+  // backgrounded — measured at roughly 0.6x real speed on a hidden tab, which
+  // showed "8s left" a good half minute after the limit had actually cleared.
+  // The displayed number is derived from the clock, so it is right regardless
+  // of how often this gets a chance to run.
+  // Set only when Supabase actually said the address has no account, so the
+  // offer to create one never appears on a rate limit or a dropped connection.
+  const [offerAccountCreation,setOfferAccountCreation]=useState(false);
+  const [resendAvailableAt,setResendAvailableAt]=useState(0);
+  const [resendCooldown,setResendCooldown]=useState(0);
   const [coldOnboardingSeen,setColdOnboardingSeen]=useState(()=>{try{return localStorage.getItem(COLD_ONBOARDING_SEEN_KEY)==="1";}catch{return false;}});
   const [replayColdOnboarding,setReplayColdOnboarding]=useState(false);
   const [coldOnboardingInitialIndex,setColdOnboardingInitialIndex]=useState(0);
@@ -330,6 +372,7 @@ const App = () => {
   const [inviteAlreadyMemberNotice,setInviteAlreadyMemberNotice]=useState(null);
   const [pendingProrationGroupId,setPendingProrationGroupId]=useState(null);
   const [prorationSavingChoice,setProrationSavingChoice]=useState(null);
+  const [trainingChoiceSaving,setTrainingChoiceSaving]=useState(false);
   const [installPrompt,setInstallPrompt]=useState(null);
   const [installDismissed,setInstallDismissed]=useState(()=>{try{return localStorage.getItem(INSTALL_DISMISSED_KEY)==="1";}catch{return false;}});
   const [standalone,setStandalone]=useState(()=>isStandalone());
@@ -433,6 +476,23 @@ const App = () => {
     setSelectedGroupId(groupId || null);
   },[]);
 
+  useEffect(()=>{
+    if (!resendAvailableAt) {
+      setResendCooldown(0);
+      return undefined;
+    }
+    const tick = () => {
+      const secondsLeft = Math.max(0, Math.ceil((resendAvailableAt - Date.now()) / 1000));
+      setResendCooldown(secondsLeft);
+      if (secondsLeft === 0) setResendAvailableAt(0);
+    };
+    tick();
+    // Four times a second: the reading stays honest after the tab wakes up,
+    // and it is derived rather than accumulated, so nothing drifts.
+    const timer = window.setInterval(tick, 250);
+    return ()=>window.clearInterval(timer);
+  },[resendAvailableAt]);
+
   const persistSession = useCallback((session) => {
     const nextSession = session?.userId ? session : null;
     persistLocalPreviewSession(nextSession);
@@ -520,6 +580,25 @@ const App = () => {
   const currentUser = currentMembership?.displayName || null;
   const isGroupAdmin = currentGroup ? (currentGroup.adminUserId ? currentGroup.adminUserId === effectiveAuthSession?.userId : currentGroup.adminName === currentUser) : false;
   const prorationGroup = pendingProrationGroupId ? appState.groups?.[pendingProrationGroupId] || null : null;
+
+  // The joiner's one-time question. Only in a Bloc that has already closed a
+  // month - before that the admin's create-time switch governs the whole
+  // founding roster, and offering an opt-out would just overrule it in the very
+  // month it was meant to decide.
+  // "Did this member join this month" has exactly one right answer in this
+  // codebase, and it is not joinedMonthByName. That map is frequently empty -
+  // StavanGang's was empty for all six members - which is why it is one of the
+  // fields holding join-group back from the blob retirement. The resolver below
+  // is what proration already uses: it prefers the explicit map and falls back
+  // to inferring from the membership's joinedAt, which is present in both the
+  // compatibility document and canonical.
+  const needsTrainingChoice = !!(
+    currentGroup
+    && currentUser
+    && (currentGroup.monthHistory || []).length > 0
+    && getActiveJoinedMonthForMember(currentUser, curKey) === curKey
+    && !currentGroup.trainingDecisions?.[currentUser]?.[curKey]
+  );
 
   setActiveSessionUserId(effectiveAuthSession?.userId || "");
   syncActiveGroupGlobals(currentGroup);
@@ -1010,14 +1089,14 @@ const App = () => {
       } else {
         clearOptimisticMutation();
         setSyncError(true);
-        window.alert("Workout couldn't be saved. Please check your connection and try again.");
+        window.alert(getWorkoutSaveFailureMessage(saved?.error));
         await refreshNow();
       }
     }catch(e){
       console.error("Save failed",e);
       clearOptimisticMutation();
       setSyncError(true);
-      window.alert("Workout couldn't be saved. Please check your connection and try again.");
+      window.alert(getWorkoutSaveFailureMessage());
       await refreshNow();
     }
     setSaving(false);
@@ -1054,6 +1133,7 @@ const App = () => {
       } else {
         clearOptimisticMutation();
         setSyncError(true);
+        window.alert(getWorkoutSaveFailureMessage(result?.error));
         await refreshNow();
       }
       return result;
@@ -1061,6 +1141,7 @@ const App = () => {
       console.error("Multi-group log failed", e);
       clearOptimisticMutation();
       setSyncError(true);
+      window.alert(getWorkoutSaveFailureMessage());
       await refreshNow();
       return { ok:false, error:"Unable to save workout" };
     } finally {
@@ -1141,7 +1222,9 @@ const App = () => {
     }
     const runMutation = async()=>{
       // Optimistic update for delete-log: remove the entry immediately.
-      if(payload.action === "delete-log" && payload.logId && currentGroup) {
+      // Only the Bloc on screen can be patched optimistically: currentGroup is
+      // that Bloc, and writing it under another Bloc's id would swap their logs.
+      if(payload.action === "delete-log" && payload.logId && currentGroup && (payload.groupId || selectedGroupId) === selectedGroupId) {
         const optimisticLogs = Object.fromEntries(
           Object.entries(currentGroup.logs || {}).map(([name, logs]) => [name, logs.filter(l => l.id !== payload.logId)])
         );
@@ -1290,6 +1373,22 @@ const App = () => {
       closeAfterSave: false
     });
   },[currentGroup, handleUpdateGroupSettings]);
+
+  const handleTrainingChoice = useCallback(async(choice)=>{
+    if (!selectedGroupId) return;
+    setTrainingChoiceSaving(true);
+    try {
+      const result = await setTrainingChoiceData({
+        groupId: selectedGroupId,
+        userId: effectiveAuthSession?.userId,
+        choice
+      });
+      if (result?.ok && result.data) applyData(result.data);
+      else if (result?.error) window.alert(result.error);
+    } finally {
+      setTrainingChoiceSaving(false);
+    }
+  },[selectedGroupId, effectiveAuthSession?.userId, applyData]);
 
   const handleSeasonProrationChoice = useCallback(async(choice)=>{
     if (!pendingProrationGroupId || !currentUser) return;
@@ -1609,12 +1708,12 @@ const App = () => {
     persistGroupSelection(null);
   };
   const startBlocSwitchSwipe = useCallback((e) => {
-    if (page !== "today" || showTodayLog || showSettings || showProfileModal || showStream || showJoinModal || authStep || prorationGroup) return;
+    if (page !== "today" || showTodayLog || showSettings || showProfileModal || showStream || showJoinModal || authStep || prorationGroup || needsTrainingChoice) return;
     if (e.target?.closest?.(".in-bloc-profile-layer")) return;
     const t = e.touches?.[0];
     if (!t || t.clientX > 72) return;
     blocSwipeRef.current = {sx:t.clientX, sy:t.clientY, st:performance.now(), active:true, mode:null};
-  },[authStep, page, prorationGroup, showJoinModal, showProfileModal, showSettings, showStream, showTodayLog]);
+  },[authStep, needsTrainingChoice, page, prorationGroup, showJoinModal, showProfileModal, showSettings, showStream, showTodayLog]);
   const moveBlocSwitchSwipe = useCallback((e) => {
     const s = blocSwipeRef.current;
     const t = e.touches?.[0];
@@ -1796,13 +1895,13 @@ const App = () => {
     setPageSwipeTarget(null);
   },[applyPageTransforms]);
   const startPageSwipe = useCallback((e) => {
-    if (pageTapTransition || showSettings || showTodayLog || showProfileModal || showStream || showJoinModal || authStep || prorationGroup || logCommentScreen) return;
+    if (pageTapTransition || showSettings || showTodayLog || showProfileModal || showStream || showJoinModal || authStep || prorationGroup || needsTrainingChoice || logCommentScreen) return;
     if (e.target?.closest?.(".in-bloc-profile-layer,input,textarea,select,[contenteditable='true']")) return;
     const t = e.touches?.[0];
     if (!t) return;
     if (page === "today" && t.clientX <= 96) return;
     pageSwipeRef.current = {sx:t.clientX, sy:t.clientY, st:performance.now(), active:true, mode:null, target:null,priority:e.target?.closest?.("[data-page-swipe-priority='horizontal-scroll']") ? "horizontal-scroll" : null};
-  },[authStep, logCommentScreen, page, pageTapTransition, prorationGroup, showJoinModal, showProfileModal, showSettings, showStream, showTodayLog]);
+  },[authStep, logCommentScreen, needsTrainingChoice, page, pageTapTransition, prorationGroup, showJoinModal, showProfileModal, showSettings, showStream, showTodayLog]);
   const movePageSwipe = useCallback((e) => {
     const s = pageSwipeRef.current;
     const t = e.touches?.[0];
@@ -1983,7 +2082,7 @@ const App = () => {
       initialCreateGroupName: inert ? "" : queuedCreateGroupName,
       onAutoOpenHandled: inert ? ()=>{} : ()=>{setQueuedCreate(false);setQueuedCreateGroupName("");},
       onCreateCancel: inert ? ()=>{} : handleCreateCancelFromGroupHome,
-      onOpenGroup: inert ? ()=>{} : groupId=>{ switcherRestoreScrollRef.current = switcherScrollTopRef.current; window.scrollTo({top:0,left:0,behavior:"auto"}); setSuppressSwitcherIntro(false); persistGroupSelection(groupId); setPage("today"); },
+      onOpenGroup: inert ? ()=>{} : groupId=>{ switcherRestoreScrollRef.current = switcherScrollTopRef.current; window.scrollTo({top:0,left:0,behavior:"auto"}); setSuppressSwitcherIntro(false); setMonthInitialIdx(null); persistGroupSelection(groupId); setPage("today"); },
       onCreateGroup: inert ? ()=>{} : handleCreateGroup,
       onJoinGroup: inert ? ()=>{} : ()=>setShowJoinModal(true),
       suppressIntro
@@ -2145,10 +2244,23 @@ const App = () => {
     setAuthError("");
     setDevOtpCode("");
     setPendingAuthSession(null);
+    setPendingVerifiedSession(null);
+    setRetryingAccountSync(false);
+    setOfferAccountCreation(false);
+    setResendAvailableAt(0);
     setAuthExistingAccountEmail("");
     setAuthExistingAccountConfirmed(false);
   };
   const closeAuth = () => {
+    // Backing out of the failed-fetch screen must leave no half-signed-in
+    // state behind. The code was spent and Supabase holds a live session, but
+    // the app never learned who this is — and the startup path never asks for
+    // a display name, so a new member left signed in here would land inside
+    // Fero with no profile and nothing to prompt them. Sign out instead.
+    if (authStep === "syncFailed") {
+      signOutAuthSession().catch(error => console.error("Sign out after failed account load:", error));
+      persistSession(null);
+    }
     const shouldResumeColdOnboarding = (authIntent?.type === "create" && returnToColdOnboardingOnCreateCancel) || (authIntent?.type === "join" && returnToColdOnboardingOnJoinCancel) || (authIntent?.type === "signin" && returnToColdOnboardingOnSignInCancel);
     const cancelledOnboardingSignIn = authIntent?.type === "signin" && returnToColdOnboardingOnSignInCancel;
     const cancelledOnboardingJoin = authIntent?.type === "join" && returnToColdOnboardingOnJoinCancel;
@@ -2342,11 +2454,51 @@ const App = () => {
     const result = await sendOtpData(normalizedEmail, { shouldCreateUser });
     setSendingOtp(false);
     if (!result?.ok) {
-      setAuthError(authIntent?.type === "signin" ? "No Fero account found for that email. Create a new account instead." : (result?.error || "Unable to send code"));
+      setAuthError(describeOtpSendFailure(result, authIntent?.type));
+      if (result?.rateLimited) setResendAvailableAt(Date.now() + (Number(result.retryAfterSeconds) || 60) * 1000);
+      setOfferAccountCreation(Boolean(result?.noAccount) && authIntent?.type === "signin");
       return;
     }
+    setOfferAccountCreation(false);
+    setResendAvailableAt(0);
     setDevOtpCode(result.devCode || "");
     setAuthStep("otp");
+  };
+  // "No Fero account found" used to be a dead end: correct, and with no way to
+  // act on it. These three turn it into one tap, without losing the address
+  // already typed.
+  const handleOfferCreateAccount = () => {
+    setAuthError("");
+    setAuthStep("confirmNewAccount");
+  };
+  // The address is read back before anything is sent. The failure this guards
+  // against is a mistyped domain that the typist has stopped looking at, so the
+  // fix has to put it in front of them rather than ask "are you sure".
+  const handleConfirmNewAccount = async () => {
+    const normalizedEmail = String(authEmail || "").trim();
+    if (!normalizedEmail) { setAuthStep("email"); return; }
+    setSendingOtp(true);
+    setAuthError("");
+    // Marked so this door can be told apart from "Create new account" on the
+    // Welcome Back screen. Both produce a signup, but only this one arrives
+    // from the end of the intro — so only this one skips replaying it.
+    setAuthIntent(current => ({ ...(current || {}), type:"signup", fromSignInDeadEnd:true }));
+    const result = await sendOtpData(normalizedEmail, { shouldCreateUser:true });
+    setSendingOtp(false);
+    if (!result?.ok) {
+      setAuthStep("email");
+      setAuthError(describeOtpSendFailure(result, "signup"));
+      if (result?.rateLimited) setResendAvailableAt(Date.now() + (Number(result.retryAfterSeconds) || 60) * 1000);
+      return;
+    }
+    setOfferAccountCreation(false);
+    setDevOtpCode(result.devCode || "");
+    setAuthStep("otp");
+  };
+  const handleFixEmailBeforeSignup = () => {
+    setOfferAccountCreation(false);
+    setAuthError("");
+    setAuthStep("email");
   };
   const handleConfirmExistingAccount = async () => {
     const normalizedEmail = String(authExistingAccountEmail || authEmail || "").trim();
@@ -2362,9 +2514,11 @@ const App = () => {
     const result = await sendOtpData(normalizedEmail, { shouldCreateUser:false });
     setSendingOtp(false);
     if (!result?.ok) {
-      setAuthError(result?.error || "Unable to send code");
+      setAuthError(describeOtpSendFailure(result, "signin"));
+      if (result?.rateLimited) setResendAvailableAt(Date.now() + (Number(result.retryAfterSeconds) || 60) * 1000);
       return;
     }
+    setResendAvailableAt(0);
     setDevOtpCode(result.devCode || "");
     setAuthStep("otp");
   };
@@ -2379,9 +2533,16 @@ const App = () => {
   const handleVerifyOtp = async () => {
     setVerifyingOtp(true);
     setAuthError("");
+    // Verifying the code and loading the account is a two-call round trip and
+    // routinely takes a few seconds. Leaving the button reading "Checking..."
+    // for that long reads as a hang, so hand over to the same progress screen
+    // the create and join flows already use.
+    setPostAuthProgressStage("signingIn");
+    setPostAuthActionPending(true);
     const result = await verifyOtpData(authEmail.trim(), authCode.trim());
     setVerifyingOtp(false);
     if (!result?.ok) {
+      setPostAuthActionPending(false);
       setAuthError(result?.error || "Unable to verify code");
       return;
     }
@@ -2392,12 +2553,41 @@ const App = () => {
       localDevOtp: Boolean(result.session.localDevOtp)
     };
     const syncedState = result.state || (nextSession.userId === authSession?.userId ? appState : null);
+
+    // The code was accepted but the account never came back.
+    //
+    // This is a FAILED FETCH, never a new account. A genuinely new member's
+    // sync succeeds and says `needsProfileSetup`; only a broken one returns
+    // nothing at all. Treating nothing-at-all as "new" is what asked existing
+    // members to name themselves — and saving that name renamed them across
+    // every Bloc, rewriting closed months in the process.
+    //
+    // So: hold the session, ask nothing, and offer to fetch again.
+    if (!syncedState) {
+      setPostAuthActionPending(false);
+      setPendingVerifiedSession(nextSession);
+      setAuthStep("syncFailed");
+      setAuthError(result?.syncRetryable === false
+        ? (result?.syncError || "Your session is no longer valid. Sign in again.")
+        : "");
+      return;
+    }
+
     let nextProfile = getProfileForSession(syncedState, nextSession);
+    return finishVerifiedAuth({ nextSession, syncedState, nextProfile, sessionInfo: result.session, freshState: result.state });
+  };
+
+  // Everything that happens once a code is verified AND the account has
+  // actually loaded. Shared by the first attempt and by the retry, so the two
+  // can never drift — the last session lost a day to exactly that, with
+  // getJoinedTargetInfo living in two places and disagreeing.
+  const finishVerifiedAuth = async ({ nextSession, syncedState, nextProfile, sessionInfo, freshState }) => {
     const hasExistingFeroAccount = authIntent?.type === "signup" && (
       Boolean(nextProfile?.displayName)
       || Object.values(syncedState?.groups || {}).some(group => Boolean(getMembershipForUser(group, nextSession, nextProfile)))
     );
     if (hasExistingFeroAccount) {
+      setPostAuthActionPending(false);
       try { await signOutAuthSession(); } catch (error) { console.error("Sign out after duplicate signup failed:", error); }
       persistSession(null);
       setPendingAuthSession(null);
@@ -2406,17 +2596,23 @@ const App = () => {
       setAuthError("This email already has a Fero account. Sign in instead.");
       return;
     }
-    const needsProfileSetup = syncedState
-      ? (typeof result.session.needsProfileSetup === "boolean"
-          ? result.session.needsProfileSetup
-          : !nextProfile?.displayName)
-      : true;
+    // syncedState is guaranteed present here, so this is always the server's
+    // own answer or a read of real profile data — never a guess.
+    const needsProfileSetup = typeof sessionInfo?.needsProfileSetup === "boolean"
+      ? sessionInfo.needsProfileSetup
+      : !nextProfile?.displayName;
 
-    // Brand-new accounts created from the Welcome Back screen should see the
-    // pitch before profile setup. Profile setup is collected later, once they
-    // actually create or join a Bloc from onboarding screen 4.
-    if (authIntent?.type === "signup" && needsProfileSetup) {
-      if (result.state) applyData(result.state);
+    // "Create new account" from the Welcome Back screen keeps its original
+    // behaviour: see the pitch, then pick Create or Join on screen 4, with the
+    // name collected at that point. Unchanged deliberately.
+    //
+    // The exception is an account created from the sign-in dead end, which is
+    // reached by getting to the END of that intro. Replaying it there would
+    // rewind someone who had just made progress, so that door alone continues
+    // forward to the name screen and then their own empty Bloc switcher.
+    if (authIntent?.type === "signup" && needsProfileSetup && !authIntent?.fromSignInDeadEnd) {
+      setPostAuthActionPending(false);
+      if (freshState) applyData(freshState);
       persistSession(nextSession);
       setPendingAuthSession(null);
       resetAuthFlow();
@@ -2432,17 +2628,65 @@ const App = () => {
     // needsProfileSetup against the migrated server state, so no pre-fetch is
     // needed here.
     if (needsProfileSetup) {
+      setPostAuthActionPending(false);
       setShowJoinModal(false);
       setAuthDisplayName("");
       setAuthStep("name");
       setAuthError("");
     }
-    if (result.state) applyData(result.state);
+    if (freshState) applyData(freshState);
     persistSession(nextSession);
     setPendingAuthSession(nextSession);
     if (needsProfileSetup) return;
     resetAuthFlow();
+    setPostAuthActionPending(false);
+    // Cancelling out of sign-in queues the intro to replay at screen 4, which
+    // is right for a cancel. Nothing cleared that queue again, and
+    // resetAuthFlow() does not touch it — so anyone who backed out once and
+    // then signed in properly was dropped back on the screen they had just
+    // signed in from, session and all. Signing in is the end of onboarding;
+    // say so here.
+    setReturnToColdOnboardingOnSignInCancel(false);
+    setReplayColdOnboarding(false);
+    setColdOnboardingInitialIndex(0);
     continueAfterAuth(nextSession, nextProfile, authIntent);
+  };
+
+  // Recovery from a failed account fetch. Re-runs ONLY the fetch: the one-time
+  // code is already spent and cannot be verified a second time.
+  const handleRetryAccountSync = async () => {
+    const session = pendingVerifiedSession;
+    if (!session) {
+      setAuthStep("email");
+      setAuthError("");
+      return;
+    }
+    setRetryingAccountSync(true);
+    setAuthError("");
+    setPostAuthProgressStage("signingIn");
+    setPostAuthActionPending(true);
+    const synced = await syncAuthSessionData(session);
+    setRetryingAccountSync(false);
+    if (!synced?.ok) {
+      setPostAuthActionPending(false);
+      setAuthError(synced?.error || "Still couldn't reach your account. Try again in a moment.");
+      return;
+    }
+    setPendingVerifiedSession(null);
+    const syncedState = synced.state;
+    if (!syncedState) {
+      setPostAuthActionPending(false);
+      setAuthError("Still couldn't reach your account. Try again in a moment.");
+      return;
+    }
+    const nextProfile = getProfileForSession(syncedState, session);
+    await finishVerifiedAuth({
+      nextSession: session,
+      syncedState,
+      nextProfile,
+      sessionInfo: synced.session,
+      freshState: syncedState
+    });
   };
   const handleSaveProfile = async ({ profilePhotoDataUrl = "" } = {}) => {
     setSavingProfile(true);
@@ -2494,6 +2738,14 @@ const App = () => {
     resetAuthFlow();
     if (completedIntent === "signup" && !shouldAutoJoin) {
       uploadSavedProfilePhoto();
+      if (completedIntentObj?.fromSignInDeadEnd) {
+        // Their own space, with their name on it — Create a Bloc or Join one.
+        // completeColdOnboarding() marks the intro as seen, which is what keeps
+        // the switcher on screen instead of the carousel.
+        completeColdOnboarding();
+        persistGroupSelection(null);
+        return;
+      }
       setColdOnboardingPreviewDismissed(false);
       setColdOnboardingInitialIndex(0);
       setReplayColdOnboarding(true);
@@ -2568,6 +2820,13 @@ const App = () => {
     onSaveProfile:handleSaveProfile,
     onConfirmExistingAccount:handleConfirmExistingAccount,
     onUseDifferentEmail:handleUseDifferentEmail,
+    onRetryAccountSync:handleRetryAccountSync,
+    retryingAccountSync,
+    resendCooldown,
+    offerAccountCreation,
+    onOfferCreateAccount:handleOfferCreateAccount,
+    onConfirmNewAccount:handleConfirmNewAccount,
+    onFixEmailBeforeSignup:handleFixEmailBeforeSignup,
     sending:sendingOtp,
     verifying:verifyingOtp,
     savingProfile,
@@ -2914,9 +3173,15 @@ const App = () => {
     pageName==="today"  &&React.createElement(TodayPageErrorBoundary,{resetKey:`${selectedGroupId}:${navResetToken}:${currentUser}`},
       React.createElement(TodayPage,  {user:currentUser,currentUserId:effectiveAuthSession?.userId,currentGroupId:selectedGroupId,groups,profiles:appState?.profiles||{},accountCreatedAt:profile?.createdAt,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,saving,onSave:handleSave,onMultiLog:handleMultiLog,onLogMutation:handleLogMutation,clockTick,onViewLastMonth:()=>{setMonthInitialIdx(0);setPage("month");},onSitOutRequest:handleSitOutRequest,onSoloRequest:handleSoloRequest,onSettlementClaimPaid:handleSettlementClaimPaid,onSettlementConfirmPaid:handleSettlementConfirmPaid,onSettlementDisputePaid:handleSettlementDisputePaid,onOpenSetupReview:()=>setShowSettings(true),onOpenAccount:()=>setShowProfile(true),navResetToken,showLog:showTodayLog,setShowLog:setShowTodayLog,onTrackUsage:trackUsage,currentPaymentMethods:effectiveProfile?.paymentMethods||[],onSavePayment:handleSavePaymentHandle,savingPayment:paymentSaving,paymentError:paymentError})
     ),
-    pageName==="activity"&&React.createElement(ActivityPage,{group:currentGroup,currentUser,currentUserId:effectiveAuthSession?.userId,onLogMutation:handleLogMutation,clockTick,reactionOverrides,setReactionOverrides,commentCountOverrides:logCommentCountOverrides,onCommentCountsLoaded:setLogCommentCountOverrides,onOpenLogComments:handleOpenLogComments,onTrackUsage:trackUsage}),
-    pageName==="month"  &&React.createElement(MonthPage,  {key:`${selectedGroupId}:${navResetToken}:${monthInitialIdx ?? "current"}`,group:currentGroup,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,groupSettings:currentGroup.settings,currentUser,currentUserId:effectiveAuthSession?.userId,initialSelIdx:monthInitialIdx,onStartNextMonth:()=>{setMonthInitialIdx(null);setPage("today");},onOpenToday:()=>setPage("today"),onSettlementClaimPaid:handleSettlementClaimPaid,onSettlementConfirmPaid:handleSettlementConfirmPaid,profiles:appState?.profiles||{},onOpenAccount:()=>setShowProfile(true),navResetToken,onTrackUsage:trackUsage}),
-    pageName==="history"&&React.createElement(HistoryPage,{group:currentGroup,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,groupSettings:currentGroup.settings,navResetToken,currentUser,groups,currentUserId:effectiveAuthSession?.userId,accountCreatedAt:profile?.createdAt})
+    pageName==="activity"&&React.createElement(InBlocPageErrorBoundary,{pageLabel:"Activity",resetKey:`${selectedGroupId}:${navResetToken}:${currentUser}`},
+      React.createElement(ActivityPage,{group:currentGroup,currentUser,currentUserId:effectiveAuthSession?.userId,onLogMutation:handleLogMutation,clockTick,reactionOverrides,setReactionOverrides,commentCountOverrides:logCommentCountOverrides,onCommentCountsLoaded:setLogCommentCountOverrides,onOpenLogComments:handleOpenLogComments,onTrackUsage:trackUsage})
+    ),
+    pageName==="month"  &&React.createElement(InBlocPageErrorBoundary,{pageLabel:"Month",resetKey:`${selectedGroupId}:${navResetToken}:${currentUser}:${monthInitialIdx ?? "current"}`},
+      React.createElement(MonthPage,  {key:`${selectedGroupId}:${navResetToken}:${monthInitialIdx ?? "current"}`,group:currentGroup,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,groupSettings:currentGroup.settings,currentUser,currentUserId:effectiveAuthSession?.userId,initialSelIdx:monthInitialIdx,onStartNextMonth:()=>{setMonthInitialIdx(null);setPage("today");},onOpenToday:()=>setPage("today"),onSettlementClaimPaid:handleSettlementClaimPaid,onSettlementConfirmPaid:handleSettlementConfirmPaid,profiles:appState?.profiles||{},onOpenAccount:()=>setShowProfile(true),navResetToken,onTrackUsage:trackUsage})
+    ),
+    pageName==="history"&&React.createElement(InBlocPageErrorBoundary,{pageLabel:"History",resetKey:`${selectedGroupId}:${navResetToken}:${currentUser}`},
+      React.createElement(HistoryPage,{group:currentGroup,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,groupSettings:currentGroup.settings,navResetToken,currentUser,groups,currentUserId:effectiveAuthSession?.userId,accountCreatedAt:profile?.createdAt})
+    )
   );
 
   const pageIndex = Math.max(0, IN_BLOC_PAGES.indexOf(page));
@@ -3035,6 +3300,12 @@ const App = () => {
     showJoinModal && !authStep && React.createElement(JoinGroupModal,{inviteContext,joinCode,setJoinCode,onClose:handleJoinModalClose,onJoin:handleJoinGroup,joining:joiningGroup,error:inviteError,signedIn:true}),
     showProfileModal && React.createElement(ProfileModal,{email:authSession?.email,onSignOut:handleSwitchUser,onClose:()=>setShowProfileModal(false),showDisplayName:true,currentDisplayName:currentUser,onSaveDisplayName:handleSaveProfileFromModal,saving:profileSaving,saveError:profileError,onLeaveBloc:handleLeaveBloc,onDeleteAccount:handleDeleteAccount,currentPaymentMethods:effectiveProfile?.paymentMethods||[],onSavePayment:handleSavePaymentHandle,savingPayment:paymentSaving,paymentError:paymentError}),
     React.createElement(BlocStream,{open:showStream,groupName:currentGroup.name,blocId:currentGroup.id,initialBlocId:streamFocusBlocId,initialScrollTop:streamReturnScrollTop,initialUnreadCount:streamUnreadCount,currentUserId:effectiveAuthSession?.userId,members:Object.values(currentGroup.memberships||{}).map(m=>({id:m.userId,name:m.displayName,photoUrl:appState.profiles?.[m.userId]?.profilePhotoUrl||""})),streamBlocs:visibleGroups.map(group=>({id:group.id,name:group.name,members:Object.values(group.memberships||{}).map(m=>({id:m.userId,name:m.displayName,photoUrl:appState.profiles?.[m.userId]?.profilePhotoUrl||""}))})),onSeasonClosedTap:handleStreamSeasonClosedTap,onUnreadCountChange:(groupId,count)=>{if(groupId===currentGroup.id)setStreamUnreadCount(Number(count)||0);},onOpenLogComments:handleOpenLogComments,onClose:()=>{setShowStream(false);setStreamFocusBlocId(null);setStreamReturnScrollTop(null);refreshStreamUnreadCount(currentGroup.id);}}),
+    needsTrainingChoice && React.createElement(TrainingChoiceModal,{
+      blocName: currentGroup.name,
+      defaultTraining: currentGroup.settings?.trainingWheels !== false,
+      onConfirm: handleTrainingChoice,
+      saving: trainingChoiceSaving
+    }),
     prorationGroup && React.createElement(ProrationChoiceModal,{
       monthName: getCurrentMonthSummary(prorationGroup).monthName,
       fullMas: prorationGroup.settings?.minTarget || MIN_TARGET,

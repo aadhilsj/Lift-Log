@@ -19,17 +19,23 @@ import {
   getHistoricalMemberNamesForMonth,
   getHistoricalGroupMemberNames,
   isSoloForMonth,
+  isTrainingForMonth,
   getSoloTargetForMonth,
+  getLeagueMonthSummaryForTimestamp,
+  isExemptFromStakes,
+  getRedemptionMark,
+  getClosedMonthBefore,
   fmtCurrency,
   getCountedLogs,
   getMonthPartsFromKey,
   getCountedLogCount,
-  isJoinedForMonth
+  isJoinedForMonth,
+  findWorkoutCopiesInOtherBlocs
 } from "../lib/appState.js";
 import {
   isMobile
 } from "../lib/utils.js";
-import { Avatar, WorkoutTypeIcon, Bar, Card, SelectField, TargetHitHexIcon, AppIcon } from "../components/primitives.jsx";
+import { Avatar, WorkoutTypeIcon, Bar, Card, SelectField, TargetHitHexIcon, AppIcon , RedemptionShieldIcon, RedemptionNoteModal, TrainingSproutIcon, SoloFlagIcon, TrainingNoteModal, SoloNoteModal } from "../components/primitives.jsx";
 import { DeleteModal } from "../modals/modals.jsx";
 import { ProfileStatsPanel } from "../components/ProfileStatsPanel.jsx";
 import { ShareSticker } from "../components/ShareSticker.jsx";
@@ -46,7 +52,11 @@ const FULL_MONTH_NAMES = ["January","February","March","April","May","June","Jul
 const profileMonthLabel = month => month ? `${FULL_MONTH_NAMES[month.month] || MONTH_NAMES[month.month]} ${month.year}` : "—";
 const profileMonthOptionLabel = month => month ? `${MONTH_NAMES[month.month]} '${String(month.year).slice(2)}` : "—";
 
-const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChange,groupSettings,onDeleteLog,initialMonthKey,memberUserId,currentUserId,visibleGroups,accountCreatedAt,profilePhotoUrl}) => {
+// The shared MONTH_NAMES list is the short form used in compact labels. The
+// redemption note is a sentence, so it needs the month spelled out.
+const PROFILE_FULL_MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+
+const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevealChange,groupSettings,onDeleteLog,initialMonthKey,memberUserId,currentUserId,visibleGroups,accountCreatedAt,profilePhotoUrl}) => {
   const compactMobile = isMobile();
   const [deleteTarget,setDeleteTarget]=useState(null);
   const [deleteChoices,setDeleteChoices]=useState(null);
@@ -110,10 +120,12 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
       const monthNames = getHistoricalMemberNamesForMonth(m, historicalNames);
       if(!monthNames.includes(name)) return;
       if(m.excused?.[name]) return;
-      const memberIsSolo = isSoloForMonth(m, name, m.key);
+      // Exempt is exempt whichever way it was granted: a training month must
+      // no more count towards this member's money than a solo month does.
+      const memberIsExempt = isExemptFromStakes(m, name, m.key);
       closedTotal+=m.counts[name]||0;
-      if (memberIsSolo) return;
-      const ac=monthNames.filter(n=>isJoinedForMonth(n, m.key) && !m.excused?.[n] && !isSoloForMonth(m, n, m.key)).map(n=>({name:n,count:m.counts[n]||0,target:m.memberTargets?.[n] || m.settings?.minTarget || MIN_TARGET}));
+      if (memberIsExempt) return;
+      const ac=monthNames.filter(n=>isJoinedForMonth(n, m.key) && !m.excused?.[n] && !isExemptFromStakes(m, n, m.key)).map(n=>({name:n,count:m.counts[n]||0,target:m.memberTargets?.[n] || m.settings?.minTarget || MIN_TARGET}));
       const penalties = calcPenalties(ac, m.settings || {});
       const {winners,losers,perWinner}=penalties;
       if(winners.find(w=>w.name===name)){wins++;moneyWon+=perWinner;}
@@ -140,6 +152,7 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
         memberTargets:m.memberTargets || {},
         excused:m.excused || {},
         solo:m.solo || {},
+        training:m.training || {},
         closed:true
       }));
     const current = isJoinedForMonth(name, curKey) && !excused?.[name]?.[curKey]
@@ -164,10 +177,10 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
   const perfectMonthStats = useMemo(()=>{
     const perfectMonths = profileMonths.filter(m=>{
       if (!m.closed) return false;
-      if (isSoloForMonth(m, name, m.key)) return false;
+      if (isExemptFromStakes(m, name, m.key)) return false;
       const monthNames = getHistoricalMemberNamesForMonth(m, historicalNames);
       const activeCounts = monthNames
-        .filter(n=>isJoinedForMonth(n, m.key) && !m.excused?.[n] && !isSoloForMonth(m, n, m.key))
+        .filter(n=>isJoinedForMonth(n, m.key) && !m.excused?.[n] && !isExemptFromStakes(m, n, m.key))
         .map(n=>({name:n,count:Number(m.counts?.[n] || 0),target:m.memberTargets?.[n] || m.settings?.minTarget || MIN_TARGET}));
       const { losers } = calcPenalties(activeCounts, m.settings || {});
       return Number(m.count || 0) >= Number(m.stakesTarget || MIN_TARGET) && !losers.some(l=>l.name===name);
@@ -224,6 +237,46 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
     if (Number.isFinite(d)) logsByDay[d]=[...(logsByDay[d] || []),l];
   });
   const selLabel=isCurMonth?`${MONTH_NAMES[CUR_MONTH]} ${CUR_YEAR}`:profileMonthLabel(selHistMonth);
+  // The one place the mark gets its name. Kept off the leaderboard rows, where
+  // the shield alone has to sit beside a name without crowding it.
+  const [showRedemptionNote,setShowRedemptionNote]=useState(false);
+  const [openStatusNote,setOpenStatusNote]=useState(null);
+  // The selected month's own exemptions. A closed month carries its own maps in
+  // the snapshot; the open month is only knowable from the live group.
+  const selMonthSource = isCurMonth ? group : selHistMonth;
+  const selIsTraining = !!(selectedMonthKey && isTrainingForMonth(selMonthSource, name, selectedMonthKey));
+  const selIsSolo = !!(selectedMonthKey && isSoloForMonth(selMonthSource, name, selectedMonthKey));
+  const selSoloTarget = selIsSolo ? getSoloTargetForMonth(selMonthSource, name, selectedMonthKey) : null;
+  // A Bloc created in the month being viewed is in its own opening month, so
+  // every training grant there belongs to the Bloc rather than to one arrival.
+  const selBlocOpening = (() => {
+    if (!selIsTraining || !group?.createdAt || !selectedMonthKey) return false;
+    const created = getLeagueMonthSummaryForTimestamp(group.createdAt, group?.settings?.timeZone);
+    return created?.monthKey === selectedMonthKey;
+  })();
+
+  const selMonthKey = isCurMonth ? curKey : selHistMonth?.key;
+  const selRedemptionMark = getRedemptionMark(
+    monthHistory,
+    name,
+    selMonthKey,
+    selCount >= selectedTarget
+  );
+  // The shield is about the month that was MISSED, which is the closed month
+  // before the one on screen — not the one on screen. Naming the displayed
+  // month told a member viewing September that they had a slow September, when
+  // the shield was there because of August.
+  //
+  // Taken from the same helper the mark itself uses rather than subtracting
+  // one from the calendar: the prior closed month is not always last month. A
+  // Bloc with a gap in its history would otherwise be told the wrong month
+  // with total confidence.
+  const redemptionMonthName = (() => {
+    const prior = getClosedMonthBefore(monthHistory, selMonthKey);
+    if (!prior) return "";
+    const monthIndex = Number(prior.month);
+    return Number.isInteger(monthIndex) ? (PROFILE_FULL_MONTH_NAMES[monthIndex] || "") : "";
+  })();
 
   const monthSelector = React.createElement(SelectField,{
     value:selMonthIdx??"",
@@ -492,12 +545,32 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
   );
 
   return React.createElement('div',{ref:surfaceRef,onTouchStart:startSwipeBack,onTouchMove:moveSwipeBack,onTouchEnd:endSwipeBack,onTouchCancel:e=>{e.stopPropagation();swipeRef.current={sx:0,sy:0,active:false,mode:null};onSwipeRevealChange?.(false);setDragging(false);resetSwipeTransform();},style:{minHeight:"100dvh",background:"var(--bg-gradient)",backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)",transform:dragXRef.current?`translateX(${dragXRef.current}px)`:"translateX(0)",transition:dragging?"none":"transform .08s ease-out",boxShadow:dragXRef.current?"-18px 0 34px rgba(0,0,0,.28)":"none",willChange:dragging||dragXRef.current?"transform":"auto",touchAction:"pan-y",overscrollBehavior:"contain"}},
+    openStatusNote === "training" && React.createElement(TrainingNoteModal,{
+      memberName: name,
+      isSelf: currentUserId ? memberUserId === currentUserId : false,
+      blocOpening: selBlocOpening,
+      onClose: ()=>setOpenStatusNote(null)
+    }),
+    openStatusNote === "solo" && React.createElement(SoloNoteModal,{
+      memberName: name,
+      isSelf: currentUserId ? memberUserId === currentUserId : false,
+      monthName: PROFILE_FULL_MONTH_NAMES[selMonthNum] || "",
+      target: selSoloTarget,
+      onClose: ()=>setOpenStatusNote(null)
+    }),
+    showRedemptionNote && React.createElement(RedemptionNoteModal,{
+      redeemed: selRedemptionMark === "redeemed",
+      memberName: name,
+      isSelf: currentUserId ? memberUserId === currentUserId : false,
+      monthName: redemptionMonthName,
+      onClose: ()=>setShowRedemptionNote(false)
+    }),
     showShareSticker && shareStickerData && React.createElement(ShareSticker,{
       data:shareStickerData,
       monthLabel:selLabel,
       onClose:()=>setShowShareSticker(false)
     }),
-    deleteTarget && React.createElement(DeleteModal,{log:deleteTarget,onClose:()=>setDeleteTarget(null),onConfirm:async()=>{ const log = deleteTarget; setDeleteTarget(null); await onDeleteLog(log); }}),
+    deleteTarget && React.createElement(DeleteModal,{log:deleteTarget,otherBlocNames:[...new Set(findWorkoutCopiesInOtherBlocs(visibleGroups, group?.id, currentUserId, deleteTarget).map(copy => copy.groupName))],onClose:()=>setDeleteTarget(null),onConfirm:async(options)=>{ const log = deleteTarget; setDeleteTarget(null); await onDeleteLog(log, options); }}),
     deleteChoices && React.createElement('div',{className:"overlay center-mobile",onClick:()=>setDeleteChoices(null)},
       React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{textAlign:"center",maxWidth:300,padding:"15px 14px"}},
         React.createElement('div',{style:{fontWeight:800,fontSize:14,marginBottom:4}},"Choose a workout"),
@@ -545,7 +618,32 @@ const PlayerProfile = ({name,logs,excused,monthHistory,onBack,onSwipeRevealChang
 	    ),
 		    isJoinedThisMonth&&!isExcusedThisMonth&&React.createElement(Card,{className:"fu4",style:{padding:"13px 14px",background:"radial-gradient(circle at 12% 0%, rgba(255,255,255,.032), transparent 34%), radial-gradient(circle at 88% 100%, rgba(78,205,196,.052), transparent 42%), linear-gradient(180deg, rgba(10,19,19,.98), rgba(7,14,14,.98))",boxShadow:"inset 0 1px 0 rgba(255,255,255,.035), 0 7px 16px rgba(0,0,0,.12)"}},
 	      React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,marginBottom:12}},
-	        React.createElement('div',{style:{fontWeight:800,fontSize:14}},`${selLabel} · Log`),
+	        React.createElement('div',{style:{display:"flex",alignItems:"center",gap:7,minWidth:0}},
+	          React.createElement('div',{style:{fontWeight:800,fontSize:14}},`${selLabel} · Log`),
+	          selIsTraining&&React.createElement('button',{
+	            type:"button",
+	            onClick:()=>setOpenStatusNote("training"),
+	            "aria-label":"About this first month",
+	            style:{display:"inline-flex",alignItems:"center",flexShrink:0,padding:0,background:"transparent",border:"none"}
+	          }, React.createElement(TrainingSproutIcon,{size:13})),
+	          selIsSolo&&React.createElement('button',{
+	            type:"button",
+	            onClick:()=>setOpenStatusNote("solo"),
+	            "aria-label":"About solo mode",
+	            style:{display:"inline-flex",alignItems:"center",flexShrink:0,padding:0,background:"transparent",border:"none"}
+	          }, React.createElement(SoloFlagIcon,{size:13})),
+	          selRedemptionMark&&React.createElement('button',{
+	            type:"button",
+	            onClick:()=>setShowRedemptionNote(true),
+	            "aria-label":selRedemptionMark === "redeemed" ? "About this redeemed month" : "About this redemption",
+	            style:{display:"inline-flex",alignItems:"center",gap:5,flexShrink:0,padding:0,background:"transparent",border:"none",
+	              color:selRedemptionMark === "redeemed" ? "#f5c842" : "#D44A4A"}
+	          },
+	            React.createElement(RedemptionShieldIcon,{size:12,redeemed:selRedemptionMark === "redeemed"}),
+	            React.createElement('span',{style:{fontFamily:"'Outfit',sans-serif",fontSize:9,fontWeight:700,letterSpacing:".04em",textTransform:"uppercase"}},
+	              selRedemptionMark === "redeemed" ? "Redeemed" : "Redemption")
+	          )
+	        ),
 	        shareStickerData ? React.createElement('button',{
 	          type:"button",
 	          onClick:()=>setShowShareSticker(true),

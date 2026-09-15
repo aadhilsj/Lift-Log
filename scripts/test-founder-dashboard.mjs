@@ -93,11 +93,23 @@ const authShell = fs.readFileSync(new URL("../src/components/authShell.jsx", imp
 assert.ok(!dashboardUi.includes('subtitle:"All-time average"'), "dashboard UI should not repeat the all-time average helper text");
 assert.ok(!dashboardUi.includes('"Private"'), "dashboard UI should not show the private header");
 assert.ok(!dashboardUi.includes('All Account Names'), "dashboard UI should not show the all-account roster");
+assert.ok(dashboardUi.includes('const growthRange = useMemo(()=>dashboard?.growth?.range || {},[dashboard]);'), "retention availability must read its dates from the growth response");
+assert.ok(dashboardUi.includes('previousPeriodActiveUsers'), "retention detail must identify the prior-period cohort");
+assert.ok(dashboardUi.includes('Number.isFinite(Number(dashboard?.growth?.retention?.weekly?.previousPeriodActiveUsers))'), "weekly retention must wait for the corrected cohort response");
 assert.ok(appUi.includes('showFounderDashboard: !inert && founderDashboardAvailable'), "founder dashboard entry should be available from the bloc switcher");
 assert.ok(appUi.includes('FOUNDER_DASHBOARD_AVAILABILITY_PREFIX'), "founder dashboard availability should be cached per account");
 assert.ok(appUi.includes('useState(()=>readFounderDashboardAvailability(initialPersistedSession?.userId))'), "founder dashboard entry should render from the persisted availability hint");
 assert.ok(appUi.includes('persistFounderDashboardAvailability(initialSession.userId, available)'), "fresh founder dashboard permission should update the local hint");
 assert.ok(authShell.includes('"Dashboard"'), "bloc switcher should use a labelled dashboard entry");
 assert.ok(!authShell.includes('"Open founder dashboard"'), "profile should not duplicate the founder dashboard entry");
+
+const retentionMigration = fs.readFileSync(new URL("../supabase/migrations/20260908183917_correct_founder_dashboard_retention.sql", import.meta.url), "utf8");
+[
+  "v_previous_active_week",
+  "v_previous_active_month",
+  "previousPeriodActiveUsers",
+  "case when v_previous_active_week = 0",
+  "case when v_previous_active_month = 0"
+].forEach(fragment => assert.ok(retentionMigration.includes(fragment), `retention migration is missing: ${fragment}`));
 
 console.log("Founder dashboard contract checks passed.");

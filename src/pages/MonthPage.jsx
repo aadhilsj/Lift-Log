@@ -15,6 +15,7 @@ import {
   getLoserAmount,
   getCurrentMemberTargetInfo,
   isSoloForMonth,
+  isTrainingForMonth,
   getSoloTargetForMonth,
   fmtCurrency,
   getCountedLogCount,
@@ -23,7 +24,7 @@ import {
 import {
   isMobile
 } from "../lib/utils.js";
-import { Avatar, RankIcon, TrophyIcon, Card, SelectField, PlayerProfileErrorBoundary } from "../components/primitives.jsx";
+import { Avatar, RankIcon, TrophyIcon, Card, SelectField, PlayerProfileErrorBoundary, MemberTag, TrainingSproutIcon, SoloFlagIcon } from "../components/primitives.jsx";
 import { PlayerProfile } from "../pages/PlayerProfile.jsx";
 import { SettlementScreen } from "../pages/SettlementScreen.jsx";
 
@@ -38,9 +39,13 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
     if(viewPlayer) window.scrollTo({top:0,left:0,behavior:"auto"});
   },[viewPlayer]);
 
-  const isCurrent=selIdx===null;
   const histReversed=[...monthHistory].reverse();
-  const selMonth=isCurrent?null:histReversed[selIdx];
+  // A requested closed month can outlive the Bloc it was requested for: the
+  // "results are in" banner sets the index app-wide, so opening a Bloc with
+  // fewer (or zero) closed months would otherwise read past the end of the
+  // list. Fall back to the current month instead of rendering a missing one.
+  const selMonth=selIdx===null?null:histReversed[selIdx]||null;
+  const isCurrent=!selMonth;
 
   const relevantNames = NAMES.filter(name => isJoinedForMonth(name, isCurrent ? curKey : selMonth.key));
   const counts=isCurrent
@@ -58,11 +63,12 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
           const d = count - exp;
           memberDiffLabel = d > 0 ? `+${d} ahead of pace` : d < 0 ? `${d} behind pace` : "on pace";
         }
-        return { name:n, count, isOut, isSolo, target:activeTarget, soloTarget, memberDiffLabel, joinDay, proratedDays };
+        const isTraining = isTrainingForMonth(group, n, curKey);
+        return { name:n, count, isOut, isSolo, isTraining, target:activeTarget, soloTarget, memberDiffLabel, joinDay, proratedDays };
       })
-    : relevantNames.map(n=>({name:n,count:selMonth.counts[n]||0,isOut:selMonth.excused?.[n]||false,isSolo:isSoloForMonth(selMonth,n,selMonth.key),soloTarget:getSoloTargetForMonth(selMonth,n,selMonth.key),target:getSoloTargetForMonth(selMonth,n,selMonth.key) || selMonth.memberTargets?.[n] || selMonth.settings?.minTarget || MIN_TARGET}));
+    : relevantNames.map(n=>({name:n,count:selMonth.counts[n]||0,isOut:selMonth.excused?.[n]||false,isSolo:isSoloForMonth(selMonth,n,selMonth.key),isTraining:isTrainingForMonth(selMonth,n,selMonth.key),soloTarget:getSoloTargetForMonth(selMonth,n,selMonth.key),target:getSoloTargetForMonth(selMonth,n,selMonth.key) || selMonth.memberTargets?.[n] || selMonth.settings?.minTarget || MIN_TARGET}));
 
-  const activeCounts=counts.filter(u=>!u.isOut&&!u.isSolo);
+  const activeCounts=counts.filter(u=>!u.isOut&&!u.isSolo&&!u.isTraining);
   const sorted=[...counts].sort((a,b)=>{if(a.isOut&&!b.isOut)return 1;if(!a.isOut&&b.isOut)return -1;if(a.isSolo&&!b.isSolo)return 1;if(!a.isSolo&&b.isSolo)return -1;return b.count-a.count;});
   const penalties = calcPenalties(activeCounts, isCurrent ? groupSettings || {} : selMonth?.settings || {});
   const {winners,losers,perWinner}=penalties;
@@ -81,7 +87,7 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
   };
   const monthLabel=isCurrent?`${FULL_MONTH_NAMES[CUR_MONTH] || MONTH_NAMES[CUR_MONTH]} ${CUR_YEAR}`:expandMonthFullYear(selMonth.label, selMonth.key);
   const monthSelector=React.createElement(SelectField,{
-    value:selIdx??"",
+    value:isCurrent?"":selIdx,
     onChange:e=>{
       const selectEl = e.currentTarget;
       setSelIdx(e.target.value===""?null:Number(e.target.value));
@@ -126,7 +132,8 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
           React.createElement('span',{style:{fontWeight:700,fontSize:14,color:u.isOut?"var(--muted)":"var(--text)",marginLeft:6,textDecoration:"underline",textDecorationColor:"rgba(255,255,255,.15)"}},u.name)
         ),
         u.isOut&&React.createElement('span',{className:"mono",style:{fontSize:9,color:"var(--muted2)",marginLeft:6}},"excused"),
-        u.isSolo&&React.createElement('span',{className:"mono",style:{fontSize:9,color:"#4ECDC4",marginLeft:6,border:"0.5px solid rgba(78,205,196,.32)",borderRadius:999,padding:"2px 6px",fontWeight:800}},"SOLO"),
+        u.isSolo&&React.createElement('span',{style:{marginLeft:6,display:"inline-flex"}},React.createElement(SoloFlagIcon,{size:13})),
+        u.isTraining&&React.createElement('span',{style:{marginLeft:6,display:"inline-flex"}},React.createElement(TrainingSproutIcon,{size:13})),
         React.createElement('div',{style:{flex:1}}),
         React.createElement('span',{className:"mono",style:{fontSize:17,fontWeight:700,marginRight:12,color:u.isOut?"var(--muted)":"var(--text)"}},u.isOut?"—":u.count),
         React.createElement('span',{className:"mono",style:{fontSize:12,minWidth:74,textAlign:"right",color:isWin&&losers.length>0?"#4ECDC4":isLose?"var(--red)":"var(--muted)"}},
@@ -138,10 +145,10 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
   const renderCurrentFinancialSnapshot=()=>React.createElement('div',{style:{padding:"13px 15px",borderTop:"1px solid var(--border)",display:"flex",flexDirection:"column",gap:12}},
     React.createElement('div',{style:{fontSize:12,color:"var(--muted)",lineHeight:1.5}},
       wouldMoveMoney
-        ? "If the month ended today, these would be the money movements. This is not final."
+        ? "These penalties would apply. Nothing is final until the month closes."
         : hasQualifiedWinner
-          ? "If the month ended today, no money would move because nobody would owe."
-          : "If the month ended today, no money would move because nobody has hit target yet."
+          ? "No penalties. Nobody is short of target."
+          : "No penalties yet. Nobody has hit target."
     ),
     wouldMoveMoney&&winners.length>0&&React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:7}},
       React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontSize:9,fontWeight:800,color:"#4ECDC4",textTransform:"uppercase",letterSpacing:".12em"}},"Would collect"),
@@ -154,7 +161,7 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
       ))
     ),
     wouldMoveMoney&&losers.length>0&&React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:7}},
-      React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontSize:9,fontWeight:800,color:"var(--red)",textTransform:"uppercase",letterSpacing:".12em"}},"Would pay"),
+      React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontSize:9,fontWeight:800,color:"var(--red)",textTransform:"uppercase",letterSpacing:".12em"}},"Would owe"),
       losers.map(l=>React.createElement('div',{key:`lose-${l.name}`,style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,background:"rgba(232,69,69,.055)",border:"1px solid rgba(232,69,69,.14)",borderRadius:8,padding:"9px 10px"}},
         React.createElement('div',{style:{display:"flex",alignItems:"center",gap:8,minWidth:0}},
           React.createElement(Avatar,{name:l.name,size:24}),
@@ -163,7 +170,7 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
         React.createElement('span',{style:{fontFamily:"'Outfit', sans-serif",fontSize:13,fontWeight:800,color:"var(--red)",flexShrink:0}},`-${fmtCurrency(getLoserAmount(penalties, l.name), resultsCurrency)}`)
       ))
     ),
-    hasQualifiedWinner&&!wouldMoveMoney&&React.createElement('div',{style:{fontSize:13,fontWeight:800,color:"#4ECDC4"}},"Everyone active would keep their money. No one would pay.")
+    hasQualifiedWinner&&!wouldMoveMoney&&React.createElement('div',{style:{fontSize:13,fontWeight:800,color:"#4ECDC4"}},"No penalties. Everyone active is on target.")
   );
 
   if(viewPlayer) {
@@ -171,7 +178,7 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
     const profileMonthKey = typeof viewPlayer === "string" ? null : viewPlayer?.monthKey;
     return React.createElement('div',{style:{maxWidth:840,margin:"0 auto"}},
       React.createElement(PlayerProfileErrorBoundary,{profileName,onBack:()=>setViewPlayer(null)},
-        React.createElement(PlayerProfile,{name:profileName,logs,excused,monthHistory,onBack:()=>setViewPlayer(null),groupSettings,initialMonthKey:profileMonthKey})
+        React.createElement(PlayerProfile,{group:group,name:profileName,logs,excused,monthHistory,onBack:()=>setViewPlayer(null),groupSettings,initialMonthKey:profileMonthKey})
       )
     );
   }

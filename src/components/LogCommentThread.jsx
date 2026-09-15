@@ -1,6 +1,7 @@
 import React from "react";
 const { useEffect, useMemo, useRef, useState } = React;
 import { Avatar, AppIcon, WorkoutTypeIcon } from "./primitives.jsx";
+import { ReactionChip } from "./ReactionRoster.jsx";
 import {
   createLogCommentData,
   listLogCommentsData,
@@ -80,7 +81,16 @@ const inputStyle = {
 };
 
 function LogThumb({ log }) {
+  const [imageExpired, setImageExpired] = useState(false);
   if (log?.photoUrl) {
+    if (imageExpired) {
+      return React.createElement('div', {
+        style: { width: "100%", aspectRatio: "1 / 1", maxHeight: 178, borderRadius: 12, overflow: "hidden", background: "rgba(13,31,30,.72)", flexShrink: 0, display: "flex", flexDirection: "column", gap: 7, alignItems: "center", justifyContent: "center", border: "1px solid rgba(78,205,196,.18)", color: "#6f918c", textAlign: "center", padding: 16, boxSizing: "border-box" }
+      },
+        React.createElement('div', { style: { fontSize: 12, fontWeight: 700, color: "var(--text-soft)" } }, "Image expired"),
+        React.createElement('div', { style: { fontSize: 10.5, lineHeight: 1.35 } }, "The workout and its comments are still here.")
+      );
+    }
     const displayPhotoUrl = resolveStorageImageUrl(log.photoUrl);
     return React.createElement('div', {
       style: { width: "100%", aspectRatio: "1 / 1", maxHeight: 178, borderRadius: 12, overflow: "hidden", background: "rgba(13,31,30,.72)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid rgba(255,255,255,.08)" }
@@ -88,6 +98,7 @@ function LogThumb({ log }) {
       React.createElement('img', {
         src: displayPhotoUrl,
         alt: `${log.owner || "Member"} ${log.type || "workout"}`,
+        onError: () => setImageExpired(true),
         style: { width: "100%", height: "100%", objectFit: "contain", display: "block" }
       })
     );
@@ -127,8 +138,9 @@ function LogCommentThread({ groupId, log, currentUserId, currentUserName, onClos
   const [reactionTarget, setReactionTarget] = useState(null);
   const [dragX, setDragX] = useState(0);
   const [dragging, setDragging] = useState(false);
-  const reactionTimerRef = useRef(null);
+  const commentGestureRef = useRef(new Map());
   const pendingCommentsRef = useRef(new Map());
+  const pendingReactionOverridesRef = useRef(new Map());
   const inputRef = useRef(null);
   const swipeRef = useRef({ sx: 0, sy: 0, st: 0, active: false, mode: null });
   const logId = String(log?.id || "");
@@ -161,11 +173,26 @@ function LogCommentThread({ groupId, log, currentUserId, currentUserName, onClos
       .filter(comment => comment.id && !serverIds.has(comment.id));
     const nextComments = [...serverComments, ...pendingComments]
       .sort((a, b) => String(a.createdAt || "").localeCompare(String(b.createdAt || "")));
-    setComments(nextComments);
+    const pendingReactions = pendingReactionOverridesRef.current;
+    const nextWithPendingReactions = nextComments.map(comment => {
+      const pending = pendingReactions.get(comment.id);
+      if (!pending) return comment;
+      if (pending.until <= now) {
+        pendingReactions.delete(comment.id);
+        setError("Reaction wasn't saved. Please try again.");
+        return comment;
+      }
+      if (JSON.stringify(comment.reactions || {}) === JSON.stringify(pending.reactions)) {
+        pendingReactions.delete(comment.id);
+        return comment;
+      }
+      return { ...comment, reactions: pending.reactions };
+    });
+    setComments(nextWithPendingReactions);
     setLoaded(true);
-    if (cacheKey) logCommentThreadCache.set(cacheKey, nextComments);
-    onCommentCountChange?.(logId, Math.max(serverComments.length, nextComments.length));
-    setError("");
+    if (cacheKey) logCommentThreadCache.set(cacheKey, nextWithPendingReactions);
+    onCommentCountChange?.(logId, Math.max(serverComments.length, nextWithPendingReactions.length));
+    if (!pendingReactions.size) setError("");
   };
 
   useEffect(() => {
@@ -236,9 +263,14 @@ function LogCommentThread({ groupId, log, currentUserId, currentUserName, onClos
   const toggleReaction = async (commentId, emoji) => {
     const normalizedCommentId = String(commentId || "");
     if (!normalizedCommentId || normalizedCommentId.startsWith("tmp_")) return;
-    const isAdding = !comments
-      .find(comment => comment.id === normalizedCommentId)
-      ?.reactions?.[emoji]?.includes(currentUserId);
+    const targetComment = comments.find(comment => comment.id === normalizedCommentId);
+    const isAdding = !targetComment?.reactions?.[emoji]?.includes(currentUserId);
+    const expectedReactions = { ...(targetComment?.reactions || {}) };
+    const currentMembers = Array.isArray(expectedReactions[emoji]) ? expectedReactions[emoji].filter(Boolean) : [];
+    const withoutMe = currentMembers.filter(id => id !== currentUserId);
+    if (isAdding && currentUserId) expectedReactions[emoji] = [...withoutMe, currentUserId];
+    else if (withoutMe.length > 0) expectedReactions[emoji] = withoutMe;
+    else delete expectedReactions[emoji];
     setComments(current => {
       const next = current.map(comment => {
       if (comment.id !== normalizedCommentId) return comment;
@@ -253,6 +285,7 @@ function LogCommentThread({ groupId, log, currentUserId, currentUserName, onClos
       if (cacheKey) logCommentThreadCache.set(cacheKey, next);
       return next;
     });
+    pendingReactionOverridesRef.current.set(normalizedCommentId, { reactions: expectedReactions, until: Date.now() + 10000 });
     setReactionTarget(null);
     const result = await toggleLogCommentReactionData({
       groupId,
@@ -261,23 +294,66 @@ function LogCommentThread({ groupId, log, currentUserId, currentUserName, onClos
       isAdding
     });
     if (!result.ok) {
+      pendingReactionOverridesRef.current.delete(normalizedCommentId);
       setError(result.error || "Unable to update reaction");
       await refresh();
+      return;
     }
+    await refresh();
   };
 
-  const clearReactionTimer = () => {
-    if (reactionTimerRef.current) window.clearTimeout(reactionTimerRef.current);
-    reactionTimerRef.current = null;
+  // Keep comment double-tap and long-press behavior in lockstep with the
+  // Bloc Stream's Reactable surface. In particular, the same 26px movement
+  // tolerance and 300ms second-tap window keep it deliberate on phone.
+  const clearCommentLongPress = commentId => {
+    const gesture = commentGestureRef.current.get(commentId);
+    if (gesture?.lp) window.clearTimeout(gesture.lp);
+    if (gesture) gesture.lp = null;
   };
-  const startReactionPress = (event, comment, isOwn) => {
-    clearReactionTimer();
-    const point = event.touches?.[0] || event;
-    reactionTimerRef.current = window.setTimeout(() => {
-      try { window.getSelection?.()?.removeAllRanges?.(); } catch {}
+  const startCommentGesture = (event, comment, isOwn) => {
+    const touch = event.touches?.[0];
+    if (!touch) return;
+    clearCommentLongPress(comment.id);
+    const previous = commentGestureRef.current.get(comment.id) || {};
+    const gesture = {
+      ...previous,
+      sx: touch.clientX,
+      sy: touch.clientY,
+      st: Date.now(),
+      maxDist: 0,
+      suppress: false,
+      lastTouch: Date.now(),
+      lp: null
+    };
+    gesture.lp = window.setTimeout(() => {
+      gesture.suppress = true;
+      try { navigator.vibrate?.(10); } catch (_) {}
       onTrackUsage?.("reaction_picker_opened");
-      setReactionTarget({ id: comment.id, isOwn, y: point?.clientY || 180 });
-    }, 330);
+      setReactionTarget({ id: comment.id, isOwn, y: touch.clientY || 180 });
+    }, 500);
+    commentGestureRef.current.set(comment.id, gesture);
+  };
+  const moveCommentGesture = (event, commentId) => {
+    const gesture = commentGestureRef.current.get(commentId);
+    const touch = event.touches?.[0];
+    if (!gesture || !touch) return;
+    gesture.maxDist = Math.max(gesture.maxDist || 0, Math.hypot(touch.clientX - gesture.sx, touch.clientY - gesture.sy));
+    if (gesture.maxDist > 10) clearCommentLongPress(commentId);
+  };
+  const endCommentGesture = (event, commentId) => {
+    const gesture = commentGestureRef.current.get(commentId);
+    if (!gesture) return;
+    clearCommentLongPress(commentId);
+    gesture.lastTouch = Date.now();
+    if (gesture.suppress) return;
+    if ((gesture.maxDist || 0) < 26 && Date.now() - gesture.st < 550) {
+      if (Date.now() - (gesture.lastTap || 0) < 300) {
+        gesture.lastTap = 0;
+        toggleReaction(commentId, "❤️");
+      } else {
+        gesture.lastTap = Date.now();
+      }
+    }
   };
   const renderReactionPicker = () => reactionTarget && React.createElement('div', {
     "data-comment-reaction-picker": "true",
@@ -303,20 +379,15 @@ function LogCommentThread({ groupId, log, currentUserId, currentUserName, onClos
       style: { width: 25, height: 25, borderRadius: 999, background: "var(--s2)", border: "1px solid var(--border)", fontSize: 13, display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 0 }
     }, emoji))
   );
-  const renderCommentReactions = comment => {
+  const renderCommentReactions = (comment, isOwnComment) => {
     const active = Object.entries(comment.reactions || {})
       .filter(([, users]) => Array.isArray(users) && users.length > 0)
       .sort((a, b) => b[1].length - a[1].length || QUICK_REACTIONS.indexOf(a[0]) - QUICK_REACTIONS.indexOf(b[0]));
     if (!active.length) return null;
-    return React.createElement('div', { style: { display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap", marginTop: 4 } },
+    const nameFor = userId => comments.find(entry => entry.commenterUserId === userId)?.commenterName || (userId === currentUserId ? currentUserName || "You" : "Member");
+    return React.createElement('div', { style: { position: "absolute", left: isOwnComment ? -7 : "auto", right: isOwnComment ? "auto" : -7, bottom: -9, zIndex: 3, display: "flex", alignItems: "center", gap: 3, flexWrap: "wrap" } },
       active.map(([emoji, users]) => {
-        const mine = currentUserId && users.includes(currentUserId);
-        return React.createElement('button', {
-          key: emoji,
-          type: "button",
-          onClick: () => toggleReaction(comment.id, emoji),
-          style: { height: 19, padding: "0 6px", borderRadius: 999, background: mine ? "rgba(78,205,196,.14)" : "#0D1F1E", border: `1px solid ${mine ? "rgba(78,205,196,.36)" : "#163d36"}`, color: mine ? "#4ECDC4" : "var(--muted)", display: "inline-flex", alignItems: "center", gap: 3, fontSize: 10.5, lineHeight: 1 }
-        }, emoji, React.createElement('span', { className: "mono", style: { fontSize: 8.5 } }, users.length));
+        return React.createElement(ReactionChip, { key: emoji, emoji, users, nameFor, compact: true });
       })
     );
   };
@@ -439,21 +510,27 @@ function LogCommentThread({ groupId, log, currentUserId, currentUserName, onClos
                 const isOwn = Boolean((currentUserId && comment.commenterUserId === currentUserId) || (!currentUserId && currentUserName && comment.commenterName === currentUserName));
                 const previous = comments[index - 1];
                 const showName = !isOwn && previous?.commenterUserId !== comment.commenterUserId;
-                return React.createElement('div', { key: comment.id, style: { display: "flex", alignItems: "flex-end", justifyContent: isOwn ? "flex-end" : "flex-start", gap: 7 } },
+                const previousIsDifferentUser = Boolean(previous && previous.commenterUserId !== comment.commenterUserId);
+                return React.createElement('div', { key: comment.id, style: { display: "flex", alignItems: "flex-end", justifyContent: isOwn ? "flex-end" : "flex-start", gap: 7, marginTop: previousIsDifferentUser ? 3.5 : 0 } },
                   !isOwn ? React.createElement(Avatar, { name: comment.commenterName, userId: comment.commenterUserId, size: 22 }) : null,
                   React.createElement('div', { style: { minWidth: 0, maxWidth: "76%", display: "flex", flexDirection: "column", alignItems: isOwn ? "flex-end" : "flex-start" } },
                     showName ? React.createElement('div', { style: { color: "#3d5e59", fontSize: 9, fontWeight: 700, lineHeight: 1.2, margin: "0 0 2px 4px" } }, comment.commenterName) : null,
                     React.createElement('div', {
-                      onContextMenu: event => event.preventDefault(),
-                      onMouseDown: event => startReactionPress(event, comment, isOwn),
-                      onMouseUp: clearReactionTimer,
-                      onMouseLeave: clearReactionTimer,
-                      onTouchStart: event => startReactionPress(event, comment, isOwn),
-                      onTouchEnd: clearReactionTimer,
-                      onTouchCancel: clearReactionTimer,
-                      style: { color: "#fff", fontSize: 12, lineHeight: 1.32, whiteSpace: "pre-wrap", wordBreak: "break-word", background: isOwn ? "linear-gradient(135deg, #116B65, #0D4642)" : "#0D1F1E", border: `1px solid ${isOwn ? "rgba(78,205,196,.28)" : "#163d36"}`, borderRadius: isOwn ? "12px 4px 12px 12px" : "4px 12px 12px 12px", padding: "7px 9px", userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none", touchAction: "manipulation" }
-                    }, comment.body),
-                    renderCommentReactions(comment)
+                      onDoubleClick: () => {
+                        const gesture = commentGestureRef.current.get(comment.id);
+                        if (!gesture || Date.now() - (gesture.lastTouch || 0) > 800) toggleReaction(comment.id, "❤️");
+                      },
+                      onContextMenu: event => {
+                        event.preventDefault();
+                        onTrackUsage?.("reaction_picker_opened");
+                        setReactionTarget({ id: comment.id, isOwn, y: event.clientY || 180 });
+                      },
+                      onTouchStart: event => startCommentGesture(event, comment, isOwn),
+                      onTouchMove: event => moveCommentGesture(event, comment.id),
+                      onTouchEnd: event => endCommentGesture(event, comment.id),
+                      onTouchCancel: () => clearCommentLongPress(comment.id),
+                      style: { position: "relative", color: "#fff", fontSize: 12, lineHeight: 1.32, whiteSpace: "pre-wrap", wordBreak: "break-word", background: isOwn ? "linear-gradient(135deg, #116B65, #0D4642)" : "#0D1F1E", border: `1px solid ${isOwn ? "rgba(78,205,196,.28)" : "#163d36"}`, borderRadius: isOwn ? "12px 4px 12px 12px" : "4px 12px 12px 12px", padding: "7px 9px", userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none", touchAction: "manipulation" }
+                    }, comment.body, renderCommentReactions(comment, isOwn))
                   ),
                   null
                 )

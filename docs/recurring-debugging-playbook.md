@@ -147,3 +147,208 @@ Fix rules:
 - On closed-month canonical sync, only send `joined_for_month: true` for members that are still active in `group.memberships`. For legacy-only groups with no membership ids, fall back to excluding names in `leftMemberNames`.
 - Do not globally delete a departed member's old historical participation. Preserve months they actually joined, but mark them left for current/future membership and exclude them from months they did not participate in.
 - If data is already bad, repair both canonical membership (`bloc_members.left_at`) and the legacy blob active membership/member order for that specific Bloc/member.
+
+## Blank Screen When Opening A Bloc
+
+Symptoms:
+- Opening one particular Bloc from the switcher shows a blank screen, not an error card.
+- It is intermittent, and only ever that Bloc.
+- Restarting the app clears it every time; nothing else does.
+- First seen 2026-09-02 on a newly created Bloc with no closed months yet.
+
+Root cause:
+- `monthInitialIdx` in `src/App.jsx` is app-wide state, not per-Bloc. The Today "results are in" banner and the Bloc Stream season-closed card both set it to `0`.
+- It was cleared only in `handleNavSelect`, so leaving a Bloc by swipe or by the header Bloc name carried the value into the next Bloc.
+- `MonthPage` then read `histReversed[selIdx]` on a Bloc with fewer (or zero) closed months and dereferenced `undefined`.
+- Every in-Bloc page mounts together in the swipe track, so Month threw before Today ever painted, even though Month was not the visible tab.
+- Only `TodayPage` had an error boundary, and there is no boundary at the root in `src/main.jsx`, so the throw unmounted the whole React tree.
+
+Fix rules:
+- App-wide screen state that names a Bloc-specific thing must be cleared when the Bloc changes. Clear it in the switcher's `onOpenGroup`, not in a blanket effect on `selectedGroupId` — a blanket effect breaks the Bloc Stream season-closed jump, which deliberately sets the Bloc and the month together.
+- Never index into `monthHistory` without a fallback. A missing entry means "show the current month", never a crash.
+- Every in-Bloc page is wrapped in `InBlocPageErrorBoundary`. Keep it that way when adding a page: because all pages mount at once, an unguarded page can blank the app from a tab the user is not even looking at.
+- Zero closed months is a normal state for a new Bloc, not an edge case. Test new Blocs against Month, History and settlement views before shipping anything that reads `monthHistory`.
+
+Diagnosis note:
+- A blank screen with no error card means the throw was outside a boundary. A small error card means it was inside one. That distinction narrows the search immediately.
+
+## Modals Opened From The Player Profile
+
+Symptoms:
+- A modal opens near the bottom of the screen, close to the nav bar, instead of centred.
+- The backdrop is flat black rather than the blurred app behind it.
+- The page keeps scrolling behind the modal.
+- First seen 2026-09-08 on the delete-log modal, opened from the profile calendar.
+
+Root cause:
+- `PlayerProfile`'s root carries a `transform` for the back-swipe, and Safari treats **any** transform as the containing block for `position: fixed` descendants. A modal rendered inside that subtree is positioned against the profile's box, not the viewport.
+- This is the same rule already recorded above for `.in-bloc-profile-layer` and the expanded photo overlay. It has now caught three separate surfaces.
+
+Fix rules:
+- Any modal that can be opened from inside a transformed screen must portal to `document.body`. Use `ModalScrim` from `src/components/primitives.jsx` — it portals, centres, blurs, and locks page scroll, and `StatusNoteModal` is built on the same piece so the two cannot drift.
+- Scroll lock is part of the contract, not a nicety: restore `overflow`, `touchAction` and `overscrollBehavior` on unmount, or the page stays frozen after the modal closes.
+- `className="overlay center-mobile"` alone is not enough. It works from untransformed screens and fails from the profile, which is why this keeps coming back on new modals rather than old ones.
+
+## Derived Stream Moments Must Retract, Not Only Announce
+
+Symptoms:
+- The Bloc Stream says "X hit target" while X is below target.
+- Deleting a workout leaves the congratulation in place.
+- First seen 2026-09-08 in StavanGang: nine of ten, with a moment claiming ten.
+
+Root cause:
+- `buildTargetHitMoment` fires on `add-log` when the count crosses the target. Nothing removed it when a deletion crossed back the other way.
+- `delete-log` did not touch the stream at all. The retraction machinery existed — `buildWorkoutLogDerivedMoments` returns `deleteKeys` — but only `add-log` ever called `syncWorkoutLogDerivedStreamMoments`.
+
+Fix rules:
+- Every derived moment needs both directions written in the same change. A moment that can be announced by a mutation can be falsified by its inverse.
+- Retractions are keyed to the **subject** of the moment, not the actor. An admin deleting another member's workout must retract that member's moment; keying on the caller retracts the wrong one and leaves the wrong one standing.
+- The idempotency key is the handle. Build it with the same expression that created it, or the delete silently matches nothing.
+
+## Signing In Lands On The Onboarding Screen
+
+Symptoms:
+- A member signs in from cold onboarding screen 4, sees the progress bar finish, and is dropped back on screen 4 — signed in, session held, looking at the intro.
+- Intermittent, and never reproducible from a fresh browser.
+- Reported twice before it was caught: 2026-09-04 and again 2026-09-08.
+
+Root cause:
+- `closeAuth` sets `replayColdOnboarding` and `coldOnboardingInitialIndex = 3` so a **cancelled** sign-in returns to screen 4. That part is correct.
+- Nothing cleared the flag again. `resetAuthFlow()` does not touch it, and only sign-out and `completeColdOnboarding()` do — neither of which a successful sign-in called.
+- So the flag survived the cancel, the modal closed on success, and `shouldShowColdOnboarding` was still true.
+
+Fix rules:
+- A flag set on the cancel path must be cleared on the success path, in the same change. `resetAuthFlow()` clears the auth modal's own state and nothing outside it — do not assume it resets navigation intent.
+- Signing in successfully is the end of onboarding. Clear `replayColdOnboarding`, `coldOnboardingInitialIndex` and `returnToColdOnboardingOnSignInCancel` when a verified session lands in the app.
+
+Diagnosis note:
+- **Test the second attempt, not just the first.** Every sign-in test until 2026-09-08 went fresh browser → clean sign-in, and all of them passed. The bug lived two taps off that path: cancel once, then sign in. Any flow with a cancel, a back, or a retry needs the retry exercised, not just the happy path.
+- A related trap when reproducing this: `?onboarding=1` forces the intro **and keeps forcing it after a successful sign-in**, because nothing clears `coldOnboardingPreviewDismissed` on that path. It makes a working sign-in look broken. Use a private window instead.
+
+## An Empty Result Is Not An Answer
+
+Symptoms:
+- An existing member finishes signing in and is asked "What should your Bloc call you?"
+- Saving a name there renames them across every Bloc and rewrites the counts inside already-closed months.
+
+Root cause:
+- After the one-time code is verified, the client fetches the account. On failure `verifyOtpData` returned `ok:true` with `state:null`, and the caller read a missing state as `needsProfileSetup = true`.
+- Nothing distinguished "the fetch failed" from "this person is new". A genuinely new member's sync **succeeds** and says so; only a broken one returns nothing.
+
+Fix rules:
+- This is the client-side twin of the rule in `AGENTS.md` §6: empty means "no data", never "the answer is no". On the client it must also never mean "the answer is yes".
+- When a fetch fails, hold what you have and offer to try again. Do not infer state from its absence — especially where the inference leads to a write.
+- The error was already being returned and thrown away. If a failure path carries a reason, read it: that reason is what tells a rate limit apart from a missing account.
+
+Related, same family:
+- The sign-in screen replaced **every** send failure with "No Fero account found for that email", so a 429 rate limit told a member with six Blocs that they did not exist. Only Supabase's `otp_disabled` means no account. `npm run test:otp-errors` guards this.
+- A countdown that decrements once per timer tick loses whatever time a throttled or backgrounded tab does not give it — measured at roughly 0.6x real speed. Derive the number from a deadline and the clock, never by counting down.
+
+## A Skipped Blob Write With A Blob Reader Left Behind
+
+Symptoms:
+- A workout is logged, appears on screen, and disappears a second later with no message.
+- The member is under the daily cap everywhere the app displays a count, but the API returns 409.
+- Blob and canonical disagree for one member on one date, and nothing in the UI shows it.
+- First seen 2026-09-09; the mechanism has been live since 2026-07-19.
+- **Fixed 2026-09-13:** `delete-log` removed from the production `BLOB_MIRROR_SKIP_ACTIONS` (now `reaction,flag,flag-response,flag-review`). Phantom audit afterwards: zero rows.
+
+Root cause:
+- `delete-log` is in `BLOB_MIRROR_SKIP_ACTIONS`, so a deletion writes canonical and leaves the workout in the blob.
+- `assertWorkoutSlotAvailable` — the two-per-day cap — reads the blob. A deleted workout therefore keeps consuming one of that day's two slots forever.
+- Everything the member can see (leaderboard, counts, month screen) reads canonical and is correct. The phantom is visible only to the cap, which is why it survived a day of looking at screens.
+
+Fix rules:
+- **A mirror skip is only safe once every reader of that field has moved.** Grep for readers before adding an action to the skip list, and name them in the change. This is the third time an action has stopped writing the blob while something still read it (see `docs/blob-retirement-impact-2026-09-03.md` and the rollover incident).
+- The same rule enforced in two places will diverge the moment one of them stops being written. `ante_core.upsert_ante_core_workout_log` enforces the cap correctly against canonical; the JS copy reads the blob. Prefer one authority.
+- When blob and canonical can disagree, the check that **blocks a member** must read the same store the member is shown.
+
+Diagnosis note:
+- `public.lift_log_backups.reason` records every blob write with its action. Counting reasons by action, and finding the last date each one appears, tells you immediately which actions have stopped mirroring:
+  `select reason, max(created_at) from public.lift_log_backups group by 1` — an action whose last write is months old while the app still uses it is skipping the blob.
+- A cross-store audit query for phantoms is in `docs/handover-2026-09-09-signin-fixes-and-delete-log-blob-divergence.md` §2.
+
+The reader that matters most, found 2026-09-09 evening:
+- **Month close reads the blob.** `rolloverGroupIfNeeded` builds the frozen month's
+  `counts` from `getCountedLogCount(group.logs?.[name])`, and the rollover batch
+  copies that count into canonical via `upsertSeasonMemberStatusToCanonical`.
+  `fetchCurrentStateFromSupabase()` rolls over the raw `lift_log_state.state` row,
+  so no canonical overlay is involved. Settlements are built from the same counts.
+- Verified with fixtures against the real `rolloverGroupIfNeeded`: a member who did
+  11 of a 12 target, with one deleted workout still in the blob, freezes as 12 of 12
+  and the `outstanding` settlement disappears.
+- The failure direction depends on which way the blob is stale. A phantom **inflates**
+  a count and releases someone from a penalty. A blob that stopped *receiving* writes
+  **deflates** it and charges someone who completed the month. The second is worse and
+  is what adding `add-log,multi-log` to the skip list would cause.
+- **There is no heal path after a month closes.** `scripts/blob-remirror.mjs` says in
+  its own header: *never touched: monthHistory*. It repairs current-month logs only.
+
+Why nothing caught it for seven weeks:
+- `npm run parity:gate` audits **closed months only**. Its `open-season-scope` check
+  states "Open seasons are excluded by design". Current-month blob/canonical
+  divergence is therefore invisible to the gate until the month closes — at which
+  point the wrong number is already frozen.
+- **A green gate is not evidence that a mirror skip is safe.** It is evidence about
+  months that already ended. Before adding any action to the skip list, the open
+  season needs its own comparison: blob current-month log sets against
+  `ante_core.workout_logs`, per member per date.
+- Full write-up, fixtures and the runbook stop condition:
+  `docs/handover-2026-09-09-signin-fixes-and-delete-log-blob-divergence.md` §2.5,
+  §2.6 and §6.
+
+## A Failed Mutation That Says Nothing
+
+Symptoms:
+- An action appears to work, then undoes itself a moment later.
+- No error, no toast, no red text. The member reports "it deleted itself".
+
+Root cause:
+- `handleMultiLog` in `src/App.jsx` applies an optimistic update before the request, then calls `clearOptimisticMutation()` and `refreshNow()` on failure — which correctly removes the optimistic row.
+- The caller in `src/pages/TodayPage.jsx` captures the result and discards it: `const result = await onMultiLog({...}); return;`. Nothing reads `result.ok` or `result.error`.
+
+Fix rules:
+- An optimistic update is a promise to the member. If the write fails, say so in the same place the optimistic row appeared — silently rolling back is worse than not being optimistic at all.
+- `submitSitOut`, in the same file, is the pattern: check `result?.ok`, set an error, leave the sheet open.
+- Any mutation that can return a real error (409 from the daily cap, 429 from a rate limit, a dropped connection) needs its failure surfaced before the feature counts as finished. A silent failure turns a one-line server log into a day of debugging.
+
+Fixed 2026-09-13 (`19e3d8b`):
+- `handleMultiLog` now alerts on failure, matching `handleSave`. The log sheet closes before the request, so an alert was used rather than the `submitSitOut` keep-the-sheet-open pattern.
+- Both paths go through `getWorkoutSaveFailureMessage`, which names the daily cap ("You've already logged 2 workouts for this day.") instead of blaming the connection.
+- Failed deletes fixed 2026-09-14 (`e69fb24`): `deleteOwnLog` in `src/pages/TodayPage.jsx`, which every workout delete goes through, alerts "Workout couldn't be deleted. Please check your connection and try again." and stops before touching other Blocs' copies. `handleLogMutation` itself still does not alert, so a new caller must check `result.ok` the same way.
+
+## The Same Workout Saved Twice
+
+Symptoms:
+- A member gets two identical workouts, same type, note and photo, seconds apart. They report the app "automatically logged a second one".
+- Deleting the extra copy then locked them out of logging that day while the delete-log mirror was skipped (Kasper, 2026-09-09).
+- Seen: Kasper 2026-09-09, 37 seconds apart; Varun 2026-09-13, 13 seconds apart.
+
+Root cause:
+- The two rows have different session ids but the **same uploaded photo URL**. Every upload gets a fresh URL (`<timestamp>-<random>.jpg`), so an identical URL means the same request arrived twice, not a member logging again.
+- Nothing in the app resends: `public/sw.js` ignores non-GET requests, nothing replays saves on reconnect, and `addLogData` / `multiLogData` each have one caller. The only in-app retry, `postApi`'s refresh-and-retry, fires on 401, which never writes. The likeliest source is the phone's network stack. Unconfirmed: Vercel logs had expired.
+
+Fixed 2026-09-13 (`19e3d8b`):
+- `findRepeatedWorkoutSave` in `api/lift-log.js`. `add-log` and `multi-log` check the canonical writable state for the same member, date and photo URL and, on a match, return the scoped readable state without writing.
+- The check runs **before** any cap check. Otherwise a repeat at the daily limit returns 409 "Already logged 2 workouts" to a member whose save succeeded.
+- Not covered: two copies arriving within about 1.5 seconds, before the first reaches canonical.
+
+Fix rules:
+- Never treat a matching type, date or note as a repeat. A second genuine workout the same day is allowed and often identical in type. The photo URL is the only field that proves the same save.
+- A save without a photo can never match. Keep it that way if photo-less logging is ever added.
+- Answer a repeat as the success it already was. An error teaches the member to retry, which is the opposite of what happened.
+
+Diagnosis note:
+- Find repeats that survive in the backups, even after one was deleted: compare `photoUrl` across a member's logs in `public.lift_log_backups` for that date. Canonical alone will not show a repeat that was already deleted.
+
+## Optimistic Updates Must Target The Bloc On Screen
+
+Symptoms (latent, caught before shipping 2026-09-14):
+- Deleting a workout from another Bloc would briefly show the current Bloc's logs under the other Bloc's id, until the server response replaced them.
+
+Root cause:
+- `handleLogMutation`'s optimistic delete built state from `currentGroup` and wrote it under `payload.groupId || selectedGroupId`. Harmless while every delete targeted the Bloc on screen.
+
+Fix rules:
+- `currentGroup` is the Bloc on screen. An optimistic patch built from it may only be written under `selectedGroupId`. For any other Bloc, skip the optimistic step and wait for the response.
+- When a mutation gains a way to target another Bloc, re-read every optimistic path it passes through.

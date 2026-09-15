@@ -21,11 +21,15 @@
     "test:profile-photo-storage": "node scripts/test-profile-photo-storage.mjs",
     "test:auth-edge-flows": "node scripts/test-auth-edge-flows.mjs",
     "test:two-workouts": "node scripts/test-two-workouts-per-day.mjs",
+    "test:training-wheels": "node scripts/test-training-wheels.mjs",
     "test:mobile-navigation": "node scripts/test-mobile-navigation.mjs",
     "test:founder-dashboard": "node scripts/test-founder-dashboard.mjs",
     "test:account-deletion": "node scripts/test-account-deletion.mjs",
     "test:release-guards": "node scripts/test-release-guards.mjs",
-    "dev:api": "node scripts/local-dev-server.mjs"
+    "dev:api": "node scripts/local-dev-server.mjs",
+    "sandbox": "node scripts/sandbox.mjs",
+    "sandbox:seed": "node scripts/sandbox-seed.mjs",
+    "test:otp-errors": "node scripts/test-otp-send-errors.mjs"
   },
   "dependencies": {
     "@capacitor/core": "^8.5.0",

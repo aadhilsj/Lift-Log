@@ -10,12 +10,15 @@ import {
   buildSettlementPairState,
   fmtCurrency,
   isSoloForMonth,
+  isTrainingForMonth,
+  isExemptFromStakes,
+  getRedemptionMark,
   ordinal,
   workoutsLabel,
   getCountedLogs,
   getMonthPartsFromKey
 } from "../lib/appState.js";
-import { Avatar, TrophyIcon } from "../components/primitives.jsx";
+import { Avatar, TrophyIcon, RedemptionShieldIcon, MemberTag, TrainingSproutIcon } from "../components/primitives.jsx";
 import { ShareSticker } from "../components/ShareSticker.jsx";
 import { MonthCalendarCard } from "../components/MonthCalendarCard.jsx";
 import { buildStickerData } from "../lib/shareSticker.js";
@@ -32,20 +35,35 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
   const ledgerRef = React.useRef(null);
 
   const relevantNames = Object.keys(month.counts || {});
-  const soloNames = relevantNames.filter(name => isSoloForMonth(month, name, month.key));
+  const blocTargetFor = name => month.memberTargets?.[name] || month.settings?.minTarget || MIN_TARGET;
+  const missedBlocTarget = name => Number(month.counts?.[name] || 0) < blocTargetFor(name);
+  // Only names the month's exemption note has to explain: someone who hit the
+  // Bloc target needs no footnote, whether or not they could have been charged.
+  const soloNames = relevantNames.filter(name => isSoloForMonth(month, name, month.key) && missedBlocTarget(name));
+  const trainingNames = relevantNames.filter(name => isTrainingForMonth(month, name, month.key) && missedBlocTarget(name));
+  const userOnTraining = !!(currentUser && isTrainingForMonth(month, currentUser, month.key));
   const activeCounts = relevantNames
-    .filter(name => !month.excused?.[name] && !isSoloForMonth(month, name, month.key))
+    .filter(name => !month.excused?.[name] && !isExemptFromStakes(month, name, month.key))
     .map(name => ({
       name,
       count: Number(month.counts[name] || 0),
-      target: month.memberTargets?.[name] || month.settings?.minTarget || MIN_TARGET
+      target: blocTargetFor(name)
     }));
   const penalties = calcPenalties(activeCounts, month.settings);
   const {winners, losers, perWinner} = penalties;
   const settlementPairs = buildSettlementPairsForMonth(month);
-  const isBlocPerfect = activeCounts.length > 0 && activeCounts.every(member => member.count >= member.target);
+  // Perfect means everyone who was actually training hit the Bloc's target.
+  // Being exempt from the stakes does not excuse you from the month: a solo
+  // member clearing only their own lower target does not make it perfect.
+  // Sitting out is the single exclusion, and a prorated target for joining
+  // mid-month still counts as hit.
+  const perfectRoster = relevantNames
+    .filter(name => !month.excused?.[name])
+    .map(name => ({ name, count: Number(month.counts[name] || 0), target: blocTargetFor(name) }));
+  const isBlocPerfect = perfectRoster.length > 0 && perfectRoster.every(member => member.count >= member.target);
 
   const userCount = month.counts?.[currentUser] || 0;
+  const userSatOut = !!(currentUser && month.excused?.[currentUser]);
   const userIsWinner = winners.some(w => w.name === currentUser);
   const userIsLoser = losers.some(l => l.name === currentUser);
   const outcome = userIsWinner ? "winner" : userIsLoser ? "missed" : "hit_mas";
@@ -81,7 +99,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
     return parts ? (parts.year * 12) + parts.monthIndex : -Infinity;
   };
   const hitTargetForMonth = (memberName, snapshot) => {
-    if (!memberName || !snapshot || snapshot.excused?.[memberName] || isSoloForMonth(snapshot, memberName, snapshot.key)) return false;
+    if (!memberName || !snapshot || snapshot.excused?.[memberName] || isExemptFromStakes(snapshot, memberName, snapshot.key)) return false;
     const target = snapshot.memberTargets?.[memberName] || snapshot.settings?.minTarget || MIN_TARGET;
     return (Number(snapshot.counts?.[memberName] || 0) >= target);
   };
@@ -132,6 +150,33 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
   };
 
   const hero = (() => {
+    // Asked before any money question. Every other branch below decides by
+    // whether you lost money, so someone exempt used to fall through to
+    // "Target Hit" and be congratulated for a month they sat out.
+    if (userSatOut) {
+      return {
+        tag: "Sat Out",
+        stat: "Month off",
+        line: `You sat ${selectedMonthName} out. Back in it next month.`,
+        tone: "neutral"
+      };
+    }
+    // Exempt but present: they logged, they ranked, they simply could not be
+    // charged. Without this they fall into the "did not lose money" branch and
+    // get congratulated for a target they missed.
+    if (userOnTraining) {
+      const target = blocTargetFor(currentUser);
+      return {
+        tag: "First Month",
+        stat: workoutsLabel(userCount),
+        line: userCount >= target
+          ? "Target hit. No penalty either way \u2014 but you hit it."
+          // Not "next month counts": this month counted too. They logged, they
+          // ranked, they appear. The only thing absent was the penalty.
+          : `Target was ${target}. No penalty yet \u2014 penalties kick off from next month.`,
+        tone: "training"
+      };
+    }
     if (userIsWinner && isBlocPerfect) {
       return {
         tag: "PERFECT BLOC MONTH",
@@ -142,11 +187,16 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
       };
     }
     if (userIsWinner) {
+      // With nothing in the pot, "+£ 0" reads as a bug in celebration type.
+      // The win still stands, so the headline shows the work instead and the
+      // line is the one every winner sees. Money is never raised when no
+      // money is involved.
+      const hasPot = perWinner > 0;
       return {
         tag: "Winner",
-        stat: `+${fmtCurrency(perWinner, currency)}`,
+        stat: hasPot ? `+${fmtCurrency(perWinner, currency)}` : workoutsLabel(userCount),
         topLine: "Top of the Bloc.",
-        line: `${workoutsLabel(userCount)}.`,
+        line: hasPot ? `${workoutsLabel(userCount)}.` : "",
         keepLine: "Keep it going.",
         tone: "winner"
       };
@@ -180,15 +230,18 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
     ? {background:"linear-gradient(135deg, rgba(78,205,196,.2), rgba(215,226,225,.12) 48%, rgba(58,168,90,.2))", border:"1px solid rgba(78,205,196,.3)"}
     : hero.tone === "winner"
       ? {background:"rgba(57,168,90,.11)", border:"1px solid rgba(57,168,90,.24)"}
+      : hero.tone === "training"
+        ? {background:"linear-gradient(135deg, rgba(245,200,66,.14), rgba(245,200,66,.05) 55%, rgba(78,205,196,.03))", border:"1px solid rgba(245,200,66,.26)"}
       : hero.tone === "missed"
         ? {background:"rgba(185,50,50,.07)", border:"1px solid rgba(185,50,50,.18)"}
         : {background:"linear-gradient(135deg, rgba(235,242,241,.18), rgba(185,199,198,.11) 54%, rgba(78,205,196,.025))", border:"1px solid rgba(235,242,241,.22)"};
-  const heroColor = hero.tone === "winner" ? C.greenText : hero.tone === "missed" ? C.redText : hero.tone === "neutral" ? "#D7E2E1" : "var(--text)";
+  const heroColor = hero.tone === "winner" ? C.greenText : hero.tone === "missed" ? C.redText : hero.tone === "training" ? "#f5c842" : hero.tone === "neutral" ? "#D7E2E1" : "var(--text)";
   const heroLabelGradients = {
     neutral: "linear-gradient(135deg, #FFFFFF, #D7E2E1 55%, #9DB4B3)",
     perfect: "linear-gradient(135deg, #FFFFFF, #DDFDE9 42%, #63D989)",
     winner: "linear-gradient(135deg, #DDFDE9, #39A85A 54%, #1E7C3D)",
-    missed: "linear-gradient(135deg, #FFD8D8, #E65A5A 50%, #A92F2F)"
+    missed: "linear-gradient(135deg, #FFD8D8, #E65A5A 50%, #A92F2F)",
+    training: "linear-gradient(135deg, #FFF6D8, #F5C842 55%, #B98F18)"
   };
   const heroPillStyle = {
     alignSelf:"center",
@@ -206,16 +259,18 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
   };
   const isStreakLine = text => /\bconsistent months in a row\b/.test(String(text || ""));
   const renderHeroLine = () => {
-    if (!hero.line) return null;
+    // Checked before the empty-line guard: a winner with no pot has no middle
+    // clause, but still has a top line and a sign-off to render.
     if (hero.tone === "winner") {
+      if (!hero.topLine && !hero.line && !hero.keepLine) return null;
       return React.createElement('div',{style:{fontSize:13,color:"var(--muted)",fontWeight:500,lineHeight:1.35}},
         React.createElement('span',{style:{fontWeight:800,color:"var(--muted)"}},hero.topLine),
         " ",
-        hero.line,
-        " ",
+        hero.line ? `${hero.line} ` : "",
         hero.keepLine
       );
     }
+    if (!hero.line) return null;
     if (isStreakLine(hero.line)) {
       const [first, ...rest] = String(hero.line).split(". ");
       return React.createElement('div',{style:{fontSize:12,color:"var(--muted)",fontWeight:500,lineHeight:1.35,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},
@@ -232,8 +287,9 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
     return React.createElement('div',{style:{fontSize:hero.tone==="neutral"||hero.tone==="missed"?12:13,color:"var(--muted)",fontWeight:500,lineHeight:1.35,whiteSpace:hero.tone==="neutral"||hero.tone==="missed"?"nowrap":"normal",overflow:"hidden",textOverflow:"ellipsis"}},hero.line);
   };
 
+  const perfectRosterSorted = [...perfectRoster].sort((a,b) => b.count - a.count || a.name.localeCompare(b.name));
   const renderPerfectRoster = () => isBlocPerfect && React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(132px,1fr))",gap:7}},
-    sortedActive.map(member => React.createElement('button',{key:member.name,type:"button",onClick:()=>onViewProfileMonth?.(member.name, month.key),style:{display:"flex",alignItems:"center",gap:7,background:"rgba(5,24,21,.68)",border:"1px solid rgba(78,205,196,.23)",borderRadius:8,padding:"6px 8px",minWidth:0,textAlign:"left",cursor:onViewProfileMonth?"pointer":"default",fontFamily:"'Outfit', sans-serif",color:"var(--text)",boxShadow:"inset 0 1px 0 rgba(255,255,255,.05), 0 6px 14px rgba(0,0,0,.13)",backdropFilter:"blur(3px)"}},
+    perfectRosterSorted.map(member =>React.createElement('button',{key:member.name,type:"button",onClick:()=>onViewProfileMonth?.(member.name, month.key),style:{display:"flex",alignItems:"center",gap:7,background:"rgba(5,24,21,.68)",border:"1px solid rgba(78,205,196,.23)",borderRadius:8,padding:"6px 8px",minWidth:0,textAlign:"left",cursor:onViewProfileMonth?"pointer":"default",fontFamily:"'Outfit', sans-serif",color:"var(--text)",boxShadow:"inset 0 1px 0 rgba(255,255,255,.05), 0 6px 14px rgba(0,0,0,.13)",backdropFilter:"blur(3px)"}},
       React.createElement(Avatar,{name:member.name,size:24}),
       React.createElement('div',{style:{minWidth:0,flex:1}},
         React.createElement('div',{style:{fontSize:11,fontWeight:800,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},member.name),
@@ -333,8 +389,12 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
   };
 
   const renderLedger = () => {
-    if (isBlocPerfect && soloNames.length === 0) return null;
-    if (!incomingRows.length && !outgoingRows.length && soloNames.length === 0) return null;
+    const exemptNotes = [
+      ...trainingNames.filter(name => name !== currentUser).map(name => `${name} \u2014 first month, no penalty.`),
+      ...soloNames.filter(name => name !== currentUser).map(name => `${name} \u2014 on solo mode.`)
+    ];
+    if (isBlocPerfect && exemptNotes.length === 0) return null;
+    if (!incomingRows.length && !outgoingRows.length && exemptNotes.length === 0) return null;
 
     const rows = outcome === "winner" ? incomingRows : outgoingRows;
     const title = outcome === "winner" ? `${rows.length} to pay:` : "You owe:";
@@ -385,10 +445,11 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
             );
       }),
       renderPaymentSetupHint(),
-      soloNames.length > 0 && React.createElement('div',{style:{display:"grid",gap:3,marginTop:rows.length?7:0,paddingTop:rows.length?7:0,borderTop:rows.length?"1px solid rgba(78,205,196,.12)":"none"}},
-        soloNames.map(name => React.createElement('div',{key:`solo-${name}`,style:{fontSize:10,color:"var(--muted)",fontWeight:700,textAlign:"center",lineHeight:1.35}},
-          `${name} — not in stakes this month.`
-        ))
+      // Never your own name: your headline already told you. These lines exist
+      // to explain someone else's absence from the money above, and only when
+      // that person actually came up short.
+      exemptNotes.length > 0 && React.createElement('div',{style:{display:"grid",gap:3,marginTop:rows.length?7:0,paddingTop:rows.length?7:0,borderTop:rows.length?"1px solid rgba(78,205,196,.12)":"none"}},
+        exemptNotes.map(note => React.createElement('div',{key:note,style:{fontSize:10,color:"var(--muted)",fontWeight:700,textAlign:"center",lineHeight:1.35}},note))
       )
     );
   };
@@ -455,8 +516,18 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
   );
   const sectionSeparator = React.createElement('div',{style:{height:1,width:"100%",background:"linear-gradient(90deg, transparent, rgba(78,205,196,.2), rgba(255,255,255,.12), rgba(78,205,196,.2), transparent)",margin:"2px 0"}});
 
+  // The stakes list excludes anyone exempt, but a training member still
+  // competed and still has a rank. They belong in the standings with a dash
+  // where the money would be, not deleted from the month they took part in.
+  const standingsRows = [
+    ...sortedActive,
+    ...relevantNames
+      .filter(name => isTrainingForMonth(month, name, month.key))
+      .map(name => ({ name, count: Number(month.counts[name] || 0), target: blocTargetFor(name), training: true }))
+  ].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+
   const renderLeaderboard = () => React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:6,padding:"7px",background:"rgba(8,15,15,.32)",borderTop:"1px solid rgba(255,255,255,.05)"}},
-    sortedActive.map((row, i) => {
+    standingsRows.map((row, i) => {
       const isMe = row.name === currentUser;
       const isWinner = winners.some(w => w.name === row.name);
       const isLoser = losers.some(l => l.name === row.name);
@@ -465,10 +536,17 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
         React.createElement('div',{className:"mono",style:{fontSize:10,color:"var(--muted)",width:18,textAlign:"right",flexShrink:0}},i+1),
         React.createElement(Avatar,{name:row.name,size:26}),
         React.createElement('div',{style:{flex:1,minWidth:0}},
-          React.createElement('div',{style:{fontSize:13,fontWeight:isMe?900:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},row.name + (isMe ? " (you)" : "")),
+          React.createElement('div',{style:{fontSize:13,fontWeight:isMe?900:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",display:"flex",alignItems:"center",gap:5}},
+            React.createElement('span',{style:{overflow:"hidden",textOverflow:"ellipsis"}},row.name + (isMe ? " (you)" : "")),
+            row.training && React.createElement(TrainingSproutIcon,{size:13}),
+            getRedemptionMark(monthHistory, row.name, month.key, row.count >= row.target)
+              && React.createElement(RedemptionShieldIcon,{size:13,redeemed:getRedemptionMark(monthHistory, row.name, month.key, row.count >= row.target) === "redeemed"})
+          ),
           React.createElement('div',{style:{fontSize:10,color:"var(--muted)",marginTop:1}},workoutsLabel(row.count))
         ),
-        isWinner && losers.length > 0
+        row.training
+          ? React.createElement('span',{style:{fontSize:12,fontWeight:900,color:"var(--muted2)"}},"\u2014")
+          : isWinner && losers.length > 0
           ? React.createElement('span',{style:{fontSize:12,fontWeight:900,color:C.greenText}},`+${fmtCurrency(perWinner,currency)}`)
           : isLoser
             ? React.createElement('span',{style:{fontSize:12,fontWeight:900,color:C.redText}},`-${fmtCurrency(getLoserAmount(penalties,row.name),currency)}`)
@@ -513,13 +591,15 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
 
 
   const handleShare = () => {
-    onTrackUsage?.("share_month_clicked");
     // Preserved from the text-only share this replaced: a missed month sends you to the
     // ledger instead, because what you need then is what you owe, not a trophy.
     if (outcome === "missed") {
       ledgerRef.current?.scrollIntoView({behavior:"smooth", block:"center"});
       return;
     }
+    // Counted only when something is actually shared. This used to fire on the
+    // ledger jump too, which inflated the figure with taps that shared nothing.
+    onTrackUsage?.("share_month_clicked");
     setShowSticker(true);
   };
 
@@ -577,8 +657,11 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
         React.createElement('span',{style:{color:"var(--muted)",fontSize:16}},showStandings?"−":"+")
       ),
     React.createElement('div',{style:{display:"flex",gap:8,paddingTop:2}},
-      React.createElement('button',{onClick:handleShare,disabled:outcome!=="missed"&&!stickerData,style:{flex:1,padding:"13px",borderRadius:10,background:"var(--s2)",border:"1px solid var(--border)",color:"var(--text)",fontSize:13,fontWeight:800,opacity:(outcome!=="missed"&&!stickerData)?.5:1}},
-        outcome === "missed" ? "View the settlement" : "Share this month"
+      // Sharing lives on the calendar card now, so this is only the ledger jump
+      // a missed month needs. Rendering it as "Share this month" as well put the
+      // same action on screen twice.
+      outcome === "missed" && React.createElement('button',{onClick:handleShare,style:{flex:1,padding:"13px",borderRadius:10,background:"var(--s2)",border:"1px solid var(--border)",color:"var(--text)",fontSize:13,fontWeight:800}},
+        "View the settlement"
       )
     )
     ),

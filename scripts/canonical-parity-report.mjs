@@ -1,8 +1,10 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 
 const DEFAULT_CANONICAL_DIR = path.resolve("migration-output/canonical-live-backup");
-const DEFAULT_DOWNLOADS_DIR = "/Users/opera_user/Downloads";
+// Whoever runs it: the Supabase snippet exports land in their own Downloads.
+const DEFAULT_DOWNLOADS_DIR = path.join(os.homedir(), "Downloads");
 
 const DEFAULT_FILES = {
   liveState: path.join(DEFAULT_DOWNLOADS_DIR, "Supabase Snippet Recent Lift Log Backup Status.csv"),
