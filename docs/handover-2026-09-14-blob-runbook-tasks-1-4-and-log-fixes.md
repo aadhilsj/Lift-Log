@@ -6,10 +6,12 @@ and closes out the Aadhil side of
 
 **Deveen: section 2 is yours. Section 3 lists what is still open on your side.**
 
-> **Added after this was sent — two more items for you at the end:**
+> **Added after this was sent — three more items for you at the end:**
 > §6, your month-close branch is ready and unmerged; §7, a database scaling
 > problem that must be solved before launch —
-> [`docs/scaling-before-launch-2026-09-15.md`](https://github.com/aadhilsj/Lift-Log/blob/main/docs/scaling-before-launch-2026-09-15.md).
+> [`docs/scaling-before-launch-2026-09-15.md`](https://github.com/aadhilsj/Lift-Log/blob/main/docs/scaling-before-launch-2026-09-15.md);
+> §8, workout activities are live, including a canonical migration — **read §8.4
+> before your next canonical SQL.**
 
 ---
 
@@ -325,3 +327,89 @@ before launch, and it overlaps with blob retirement, so we would like you to own
 What we need from you: read the doc, and say whether you agree with the order
 and will take it on.
 
+---
+
+## 8. Update, 2026-09-16 — workout activities are live (canonical change inside)
+
+**Deveen, §8.4 is the part that touches your work.** PR
+[#20](https://github.com/aadhilsj/Lift-Log/pull/20), merged to `main` as
+`496e5cc`, deployed to production 2026-09-15 22:36 UTC.
+
+### 8.1 What shipped
+
+Members now pick a specific **activity** when logging — Padel, Hiking,
+Basketball, Yoga, Kitesurfing and so on — instead of only the five categories.
+The log pop-up offers their five most-logged activities plus a searchable A–Z
+list. The activity shows on the feed, calendars, comment screen, delete
+confirmation, Bloc stream card, profile and History page, and both mix charts
+count per activity.
+
+**Every activity belongs to one of the five existing categories**, and a log's
+`type` still holds that category. Bloc `acceptedWorkoutTypes`, multi-Bloc
+logging, the two-a-day cap, month close and share stickers are unchanged. Only
+"Other" requires a note; named Other-category activities (Hiking, Swimming) do
+not. Logs saved before this show their category, so an old Sports log reads
+"Sports".
+
+### 8.2 The canonical change — already applied to production
+
+`supabase/migrations/20260916090000_add_workout_log_activity.sql`, run on
+production **2026-09-15 22:32 UTC**, before the code deploy:
+
+| | |
+|---|---|
+| `ante_core.workout_logs` | new nullable `activity text` column |
+| `upsert_ante_core_workout_log` | new `p_activity text default null`, appended last. The old 17-argument version was dropped (two overloads with a default make every call ambiguous) |
+| `read_ante_core_current_logs`, `read_ante_core_month_history` | return `activity` |
+| `insert_ante_core_workout_log_comment` | `activity` in the log_comment stream payload |
+
+Function bodies are the **live definitions read with `pg_get_functiondef` that
+morning**, with only the activity lines added. Grants are unchanged (`postgres`,
+`service_role`). On conflict the column is written as
+`coalesce(excluded.activity, workout_logs.activity)`: a re-save that does not
+carry an activity — a flag, a repair script, older code — never erases a stored
+one.
+
+Verified on production after the run: one upsert version, grants intact, all
+1,577 logs unchanged, both readers returning `activity`, no errors in the
+Postgres, PostgREST or edge logs.
+
+### 8.3 How it was tested before touching production
+
+- The 2026-09-15 backup was restored into a scratch project
+  (`fero-activity-test`, deleted straight after) and the migration applied there
+  first.
+- Against that copy: 12/12 end-to-end checks on the new code (add-log,
+  multi-log, a Bloc without Sports refusing a sport, the Other note rule, the
+  daily cap, the comment card payload, profile stats, delete, existing logs
+  untouched).
+- **The then-deployed `main` (`8156ef3`) was run against the migrated copy too**
+  — add-log, multi-log, cap, comment and delete all worked. That is what made
+  SQL-before-deploy safe.
+- `npm run parity:gate` against the copy: **8 checks, 0 failures, 0 warnings.**
+- Lint, build and all 14 suites, including the new `npm run test:activities`,
+  which fails if the app's activity list and the server's copy ever drift.
+
+### 8.4 What this means for your work
+
+1. **Your next canonical SQL must build on the current definitions.** Those four
+   functions now carry `activity`. Recreating any of them from an older copy
+   would silently drop it from reads — no data lost (the column keeps it), but
+   activities would stop appearing. `pg_get_functiondef` is the source of truth;
+   the repo migration above matches production exactly.
+2. **`scripts/blob-remirror.mjs` now carries `activity`** in `LOG_FIELDS`, so a
+   re-added log keeps it. Its self-test still passes 13/13.
+3. **`blob/month-close-canonical` merges cleanly with this** and picks activities
+   up for free: it rebuilds the closing snapshot from `fetchAnteCurrentLogs`,
+   which now includes `activity`. Nothing to change there.
+4. **Known and accepted:** if code without this change writes while activities
+   exist (a deploy overlap, or a rollback), the **blob** copy of the logs loses
+   `activity` — canonical keeps it, and the next write by current code restores
+   the blob. Both directions were observed on the scratch project.
+
+### 8.5 Still open
+
+- Activity icons are placeholders (Tabler, MIT; Padel drawn by hand) until the
+  Fero set is ready. One entry each in `src/lib/workoutIcons.js`.
+- Share stickers still render the category icon. Their design is locked
+  (`docs/share-sticker-reference/`), so that is the founder's call.
