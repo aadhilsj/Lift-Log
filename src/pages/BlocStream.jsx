@@ -12,6 +12,7 @@ import {
   toggleBlocStreamReactionData
 } from "../lib/api.js";
 import { resolveStorageImageUrl } from "../lib/appState.js";
+import { getLogDisplayActivity } from "../lib/activities.js";
 
 // Long-press / hold reveals these (Instagram-style quick bar). Heart leads and
 // is also the double-tap default. The full emoji keyboard is deferred to the
@@ -416,7 +417,7 @@ const LogCommentCard = ({ msg, onOpen }) => {
   const latest = payload.latestComment || {};
   const count = Number.isFinite(Number(payload.commentCount)) ? Math.max(0, Number(payload.commentCount)) : 0;
   const owner = payload.ownerDisplayName || "Member";
-  const type = payload.workoutType || "Workout";
+  const type = getLogDisplayActivity({ activity: payload.activity, type: payload.workoutType || "Workout" });
   const preview = latest.body
     ? `${latest.commenterName || "Member"}: "${latest.body}"`
     : "Open comments";
@@ -1159,6 +1160,7 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, 
         id: payload.id || payload.logId,
         owner: payload.ownerDisplayName || "Member",
         type: payload.workoutType || "Workout",
+        activity: payload.activity || "",
         date: payload.workoutDate || "",
         photoUrl: payload.photoUrl || "",
         commentCount: payload.commentCount

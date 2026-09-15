@@ -1031,7 +1031,7 @@ const App = () => {
     } catch {}
   },[]);
 
-  const handleSave=useCallback(async({ workoutType, isoDate, note, photoUrl })=>{
+  const handleSave=useCallback(async({ workoutType, activity, isoDate, note, photoUrl })=>{
     if(!selectedGroupId || !currentGroup || !currentUser) return;
     // Drop your own cached stats immediately rather than waiting for the next
     // revision poll, so your profile reflects the workout you just logged.
@@ -1040,6 +1040,7 @@ const App = () => {
       id:`opt-${Date.now()}`,
       date:isoDate,
       type:workoutType,
+      ...(activity ? { activity } : {}),
       note:note||"",
       photoUrl:photoUrl||"",
       createdAt:new Date().toISOString(),
@@ -1073,6 +1074,7 @@ const App = () => {
         actor: currentUser,
         actorUserId: authSession?.userId,
         workoutType,
+        activity,
         date: isoDate,
         note,
         photoUrl
@@ -1099,12 +1101,12 @@ const App = () => {
     setSaving(false);
   },[addLogData, applyData, authSession?.userId, beginOptimisticMutation, buildOptimisticState, clearOptimisticMutation, currentGroup, currentUser, refreshNow, selectedGroupId]);
 
-  const handleMultiLog = useCallback(async({ workoutType, isoDate, targetGroupIds, note, photoUrl }) => {
+  const handleMultiLog = useCallback(async({ workoutType, activity, isoDate, targetGroupIds, note, photoUrl }) => {
     invalidateProfileStatsFor(effectiveAuthSession?.userId);
     if(!selectedGroupId || !currentUser) return { ok:false, error:"No Bloc selected" };
     // Optimistic update: add log to UI immediately so the screen responds instantly.
     if(currentGroup) {
-      const optimisticLog = { id:`opt-${Date.now()}`, date:isoDate, type:workoutType, note:note||"", photoUrl:photoUrl||"", createdAt:new Date().toISOString(), verifiedVia:"manual", reactions:{} };
+      const optimisticLog = { id:`opt-${Date.now()}`, date:isoDate, type:workoutType, ...(activity ? { activity } : {}), note:note||"", photoUrl:photoUrl||"", createdAt:new Date().toISOString(), verifiedVia:"manual", reactions:{} };
       const userLogs = Array.isArray(currentGroup.logs?.[currentUser]) ? currentGroup.logs[currentUser] : [];
       beginOptimisticMutation();
       applyData(buildOptimisticState({ groupId:selectedGroupId, group:{ ...currentGroup, logs:{ ...currentGroup.logs, [currentUser]:[...userLogs, optimisticLog] } } }), { optimistic:true });
@@ -1116,6 +1118,7 @@ const App = () => {
         actorUserId: authSession?.userId,
         sourceGroupId: selectedGroupId,
         workoutType,
+        activity,
         date: isoDate,
         note,
         photoUrl,

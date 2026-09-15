@@ -1,6 +1,6 @@
 import React from "react";
-import { WORKOUT_TYPES } from "../lib/appState.js";
 import { Card, AppIcon, WorkoutTypeIcon } from "./primitives.jsx";
+import { ActivityMix } from "./ActivityMix.jsx";
 import { buildProfileStats } from "../lib/profileStats.js";
 
 const { useState, useRef, useEffect } = React;
@@ -187,11 +187,6 @@ const ProfileStatsPanel = ({ groups = [], userId, ownerName = "", accountCreated
   );
 
 
-  // ── workout mix (all-time, cross-Bloc) ─────────────────────────────────────
-  const mixSorted = [...WORKOUT_TYPES].sort((a, b) => (agg.typeMix[b] || 0) - (agg.typeMix[a] || 0) || WORKOUT_TYPES.indexOf(a) - WORKOUT_TYPES.indexOf(b));
-  const mixTotal = WORKOUT_TYPES.reduce((s, t) => s + (agg.typeMix[t] || 0), 0);
-  const mixMax = Math.max(...WORKOUT_TYPES.map(t => agg.typeMix[t] || 0), 1);
-
   // "On Fero since" belongs with the stats rather than on the account screen,
   // and reads the same whoever is being viewed.
   const joinedLabel = sinceLabel(profileStartTs);
@@ -308,30 +303,9 @@ const ProfileStatsPanel = ({ groups = [], userId, ownerName = "", accountCreated
       )
     ),
 
-    // Workout mix — lifetime, cross-Bloc (History-style bars; favourite highlighted)
+    // Workout mix — lifetime, cross-Bloc, per activity (top five; See All for the rest)
     React.createElement(Card, { style: { padding: "12px 13px" } },
-      React.createElement('div', { style: { marginBottom: 10, textAlign: "center" } },
-        React.createElement('div', { style: { fontSize: 13, fontWeight: MED } }, `${owns} Workout Mix`)
-      ),
-      mixTotal === 0
-        ? React.createElement('div', { style: { color: "var(--muted)", fontSize: 13, fontWeight: REG, textAlign: "center", padding: "12px 0" } }, "No workouts logged yet.")
-        : React.createElement('div', { style: { display: "flex", gap: 6, alignItems: "stretch" } },
-            mixSorted.map(t => {
-              const count = agg.typeMix[t] || 0;
-              const pct = mixTotal > 0 ? (count > 0 ? Math.max(1, Math.round((count / mixTotal) * 100)) : 0) : 0;
-              const barH = Math.max(count > 0 ? 6 : 0, Math.round((count / mixMax) * 56));
-              const isTop = count === mixMax && count > 0;
-              return React.createElement('div', { key: t, style: { flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, minWidth: 0 } },
-                React.createElement('span', { style: { fontSize: 9.5, fontWeight: REG, color: count > 0 ? "var(--muted)" : "var(--muted2)", height: 16, display: "flex", alignItems: "center" } }, count > 0 ? `${pct}%` : ""),
-                React.createElement('div', { style: { width: "100%", height: 56, display: "flex", alignItems: "flex-end" } },
-                  React.createElement('div', { style: { width: "100%", height: barH, background: count > 0 ? (isTop ? "#4ECDC4" : "rgba(78,205,196,.28)") : "var(--border)", borderRadius: "3px 3px 0 0", opacity: count > 0 ? 1 : .3 } })
-                ),
-                React.createElement('span', { style: { width: 18, height: 18, display: "inline-flex", alignItems: "center", justifyContent: "center", color: "#4ECDC4" } }, React.createElement(WorkoutTypeIcon, { type: t, size: 16 })),
-                React.createElement('span', { style: { fontSize: 10, fontWeight: REG, color: "var(--muted)" } }, t),
-                React.createElement('span', { style: { fontSize: 11, fontWeight: MED, color: count > 0 ? "var(--text)" : "var(--muted2)" } }, count)
-              );
-            })
-          )
+      React.createElement(ActivityMix, { title: `${owns} Workout Mix`, counts: agg.typeMix || {}, variant: "profile", titleStyle: { fontWeight: MED } })
     )
   );
 };
