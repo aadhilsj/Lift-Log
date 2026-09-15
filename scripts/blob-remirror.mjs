@@ -51,6 +51,7 @@ const WAVE_A_FIELDS = {
 const LOG_FIELDS = {
   id: "id",
   workout_type: "type",
+  activity: "activity",
   workout_date: "date",
   note: "note",
   photo_url: "photoUrl",

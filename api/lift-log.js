@@ -1995,6 +1995,7 @@ function buildCanonicalMonthHistoryForGroup(group, canonicalSeasons) {
       logsByUser[owner].push(normalizeLogEntry({
         id:           log.id,
         type:         log.workout_type,
+        activity:     log.activity,
         date:         log.workout_date,
         note:         log.note,
         photoUrl:     "",
@@ -3371,7 +3372,10 @@ async function upsertWorkoutLogToCanonical(group, monthKey, ownerDisplayName, ow
         p_flag_response:      log.flagResponse || "",
         p_flagged_by:         log.flaggedBy || null,
         p_decision_by:        log.decisionBy || null,
-        p_decision_at:        log.decisionAt || null
+        p_decision_at:        log.decisionAt || null,
+        // Requires migration 20260916090000_add_workout_log_activity. The
+        // database keeps a stored activity when this is null.
+        p_activity:           normalizeActivityName(log.activity)
       })
     });
   } catch (err) {
@@ -3667,6 +3671,7 @@ async function fetchAnteCurrentLogs() {
         ownerDisplayName: row.owner_display_name,
         id:               row.id,
         type:             row.workout_type,
+        ...(row.activity ? { activity: row.activity } : {}),
         date:             row.workout_date,
         note:             row.note,
         photoUrl:         row.photo_url,
