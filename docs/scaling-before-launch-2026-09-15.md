@@ -94,6 +94,25 @@ ran at 13–28 a minute over the same period.
 `max_connections = 60`, `shared_buffers = 224MB`. These match Supabase's
 **Micro** compute (2-core shared ARM, 1 GB RAM, 60 connections), on the Pro plan.
 
+### What the Supabase dashboard showed (Observability → Database, 22:30–23:15 local, per minute)
+
+Read from founder screenshots on 2026-09-15:
+
+| Chart | Normal minutes | At 22:51 |
+|---|---|---|
+| CPU usage | under ~10% | **~95%, almost all IOwait**; User and System stay small |
+| Memory — Free | near zero throughout; Used ~250 MB, the rest cache and buffers; no swap | unchanged |
+| Memory commitment | ~1.5 GB, above the 1 GB of RAM | peaks ~1.9 GB |
+| Database connections | ~15 of 60 | ~40 of 60, from 22:51 to 22:59 |
+| Network throughput | low | peaks ~700 KB/s at 22:50 |
+
+Hourly averages over the previous day showed CPU around 2% and about 4
+connections. **The instance is idle most of the time and starves in bursts.**
+
+**Reading:** the CPU was not busy computing; it was waiting on disk. With no free
+memory, the burst of full-app reads went to disk, and IOwait stalled everything.
+That points at memory and disk I/O, not processor speed.
+
 ---
 
 ## 2. Root causes, in the code
@@ -214,11 +233,21 @@ Prices are Supabase's published compute prices as of 2026-09-15. The $10 credit
 comes off whichever size is chosen. Billing is hourly, so it can be reversed.
 **A size change takes the database offline for about 2 minutes** — do it at a quiet hour.
 
-Caveat: Micro, Small and Medium share the same 2-core CPU; Large is the first
-dedicated one. Before choosing, check Supabase → **Reports / Observability →
-Database** for 20:50–20:55 UTC on 14 September: if **CPU** was pinned, memory
-alone will not help much; if **Disk IO** or memory was the limit, Small or Medium
-will. This step buys headroom only. It does not change how load grows (§2.2).
+Micro, Small and Medium share the same 2-core CPU; Large is the first dedicated
+one. The dashboard (§1) showed the stall was **IOwait with no free memory**, not
+CPU work. So the extra memory is what matters.
+
+**Recommendation: Small** (2 GB). The working data is well under 350 MB, and most
+of the 344 MB database is `lift_log_backups`, which live reads do not touch. So
+2 GB lets the hot data sit in memory. Medium is not justified by the evidence
+so far.
+
+- **Timing:** before 1 October if possible. Month close is the next predictable
+  burst (§5).
+- **After upgrading:** re-check the same per-minute charts on the next busy evening.
+  IOwait spikes should shrink and Free memory should no longer sit at zero.
+
+This step buys headroom only. It does not change how load grows (§2.2).
 
 ### Step 1 — Scope reads to the member's Blocs (biggest win)
 
