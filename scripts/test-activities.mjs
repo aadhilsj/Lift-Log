@@ -12,6 +12,7 @@ import {
   countMemberActivities,
   getActivityCategory,
   getLogActivity,
+  getLogDisplayActivity,
   getTopActivities
 } from "../src/lib/activities.js";
 import { getWorkoutIcon } from "../src/lib/workoutIcons.js";
@@ -44,6 +45,12 @@ assert.equal(getLogActivity({ type: "Other" }), "Other");
 assert.equal(getLogActivity({ type: "Sports" }), null, "an old Sports log never said which sport");
 assert.equal(getLogActivity({ type: "Sports", activity: "Padel" }), "Padel");
 assert.equal(getLogActivity({ type: "Sports", activity: "Not a sport" }), null);
+
+// What screens show: the activity, or the category for older logs.
+assert.equal(getLogDisplayActivity({ type: "Sports", activity: "Padel" }), "Padel");
+assert.equal(getLogDisplayActivity({ type: "Sports" }), "Sports");
+assert.equal(getLogDisplayActivity({ type: "Other", activity: "home workout" }), "Home Workout");
+assert.equal(getLogDisplayActivity({ type: "Gym", activity: "nonsense" }), "Gym");
 
 // ── Top five ───────────────────────────────────────────────────────────────
 assert.deepEqual(getTopActivities({}, ALL_CATEGORIES), NEW_MEMBER_ACTIVITIES, "a new member sees the starting five");

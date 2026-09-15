@@ -55,6 +55,7 @@ import {
 } from "../lib/utils.js";
 import { Avatar, WorkoutTypeIcon, ChevronRightIcon, TargetHitHexIcon, StatusBadge, RankIcon, Bar, Card, AppIcon, PlayerProfileErrorBoundary, RedemptionShieldIcon, MemberTag, TrainingSproutIcon, SoloFlagIcon } from "../components/primitives.jsx";
 import { LogModal, DeleteModal, SitOutModal, SoloModal, NoticeModal } from "../modals/modals.jsx";
+import { getLogDisplayActivity } from "../lib/activities.js";
 import { PlayerProfile } from "../pages/PlayerProfile.jsx";
 import { buildPaymentTargets } from "../lib/paymentLinks.js";
 import { prefetchProfileStatsData } from "../lib/api.js";
@@ -678,7 +679,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
               ? null
               : log
                 ? React.createElement('span',{style:{position:"relative",width:20,height:20,display:"inline-flex",alignItems:"center",justifyContent:"center"}},
-                    React.createElement(WorkoutTypeIcon,{type:log.type,size:16}),
+                    React.createElement(WorkoutTypeIcon,{type:getLogDisplayActivity(log),size:16}),
                     dayLogs.length > 1 && React.createElement('span',{style:{position:"absolute",right:-5,top:-5,minWidth:13,height:13,padding:"0 2px",borderRadius:999,display:"inline-flex",alignItems:"center",justifyContent:"center",background:"#4ECDC4",border:"1px solid #1A2E4A",color:"#071010",fontFamily:"'Outfit',sans-serif",fontSize:8,fontWeight:900,lineHeight:1}},Math.min(dayLogs.length,2))
                   )
                 : day
@@ -1074,7 +1075,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
               }},
                 React.createElement('span',{className:"mono",style:{fontSize:8,color:isToday ? "#8EE7DF" : "var(--muted)",lineHeight:1}},date.getDate()),
                 React.createElement('span',{style:{position:"relative",width:16,height:16,display:"inline-flex",alignItems:"center",justifyContent:"center",color:"#4ECDC4"}},
-                  React.createElement(WorkoutTypeIcon,{type:log.type,size:13}),
+                  React.createElement(WorkoutTypeIcon,{type:getLogDisplayActivity(log),size:13}),
                   dayLogs.length > 1 && React.createElement('span',{style:{position:"absolute",right:-5,top:-5,minWidth:12,height:12,padding:"0 2px",borderRadius:999,display:"inline-flex",alignItems:"center",justifyContent:"center",background:"#4ECDC4",border:"1px solid #0B1B1A",color:"#071010",fontFamily:"'Outfit',sans-serif",fontSize:7.5,fontWeight:900,lineHeight:1}},Math.min(dayLogs.length,2))
                 )
               )

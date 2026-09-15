@@ -64,6 +64,12 @@ function getLogActivity(log) {
   return type === "Sports" ? null : normalizeActivityName(type);
 }
 
+// What to show for a log: its activity, or its category for logs saved before
+// activities existed (an old Sports log shows as "Sports").
+function getLogDisplayActivity(log) {
+  return normalizeActivityName(log?.activity) || String(log?.type || "Other");
+}
+
 function getSessionKey(log) {
   const id = String(log?.id || "").trim();
   if (!id) return "";
@@ -126,6 +132,7 @@ export {
   getActivityCategory,
   activityNeedsNote,
   getLogActivity,
+  getLogDisplayActivity,
   countMemberActivities,
   getTopActivities
 };
