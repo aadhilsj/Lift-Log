@@ -752,8 +752,16 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
   const weeklyMvpDisplayLeaders = localWeeklyMvpPreview?.currentWeekLeaders || weeklyStripLeaders;
   const weeklyMvpDisplayHistory = localWeeklyMvpPreview?.previousWeeks || weeklyMvpHistoryRows;
   const currentWeekRangeLabel = formatWeekRangeLabel(currentWeekStart, currentWeekEnd);
+  // The MVP tile is one of four across a phone screen — about 60px inside. A
+  // long display name cannot fit there legibly at any size, so it falls back to
+  // the first name rather than being clipped mid-word.
+  const weeklyMvpTileValue = weeklyMvpDisplayValue.length > 13
+    ? (weeklyMvpDisplayValue.split(" ")[0] || weeklyMvpDisplayValue)
+    : weeklyMvpDisplayValue;
   const weeklyMvpValueStyle = {
-    fontSize: weeklyMvpDisplayValue.length > 11 ? 10.5 : weeklyMvpDisplayValue.length > 8 ? 11.5 : 12,
+    // The ladder runs down to the longest display names so an MVP's name is
+    // never clipped in this tile.
+    fontSize: weeklyMvpTileValue.length > 11 ? 10.5 : weeklyMvpTileValue.length > 8 ? 11.5 : 12,
     lineHeight: 1.05,
     whiteSpace: "nowrap",
     justifyContent: "center",
@@ -796,7 +804,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
       ? {kind:"target",label:"Target",valueNode:React.createElement(TargetHitHexIcon,{size:22}),sub:"target hit!",meta:targetCardMeta}
       : {kind:"target",label:"Target",val:needed,sub:"more to go",meta:targetCardMeta,color:"#4ECDC4"},
     {kind:"pace",label:"Pace Check",val:paceDeltaText,sub:todayTargetText,color:paceDeltaColor,valueStyle:paceValueStyle},
-    {kind:"week-mvp",label:"Week's MVP",val:weeklyMvpDisplayValue,sub:"most logs this week",color:"var(--text)",valueStyle:weeklyMvpValueStyle},
+    {kind:"week-mvp",label:"Week's MVP",val:weeklyMvpTileValue,sub:"most logs this week",color:"var(--text)",valueStyle:weeklyMvpValueStyle},
     {kind:"bloc-month",label:"Bloc Month",val:blocMonthCount,sub:"workouts logged",color:"var(--text)",valueStyle:blocMonthValueStyle}
   ];
   const desktopLogsByDay = {};
@@ -1259,7 +1267,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
           React.createElement(Avatar,{name:u.name,size:22}),
           React.createElement('div',{style:{display:"grid",gap:5,minWidth:0}},
             React.createElement('div',{style:{display:"flex",alignItems:"center",gap:7,minWidth:0}},
-              React.createElement('span',{style:{fontSize:13,fontWeight:700,color:"var(--text)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},u.name),
+              React.createElement('span',{style:{fontSize:13,fontWeight:700,color:"var(--text)",whiteSpace:"nowrap"}},u.name),
               u.name===user&&React.createElement('span',{className:"mono",style:{fontSize:8,color:"#3d5e59"}},"you"),
               soloTag
             ),
@@ -1313,8 +1321,8 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
               React.createElement('div',{style:{display:"flex",alignItems:"center",gap:8,width:"100%"}},
                 React.createElement('div',{style:{minWidth:20}},u.isOut?React.createElement('span',{style:{fontSize:12,color:"#2A4040"}},"💤"):React.createElement(RankIcon,{rank:aIdx+1})),
                 React.createElement(Avatar,{name:u.name,size:22,muted:u.isOut}),
-                React.createElement('div',{style:{flex:1,minWidth:0,textAlign:"left",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",display:"inline-flex",alignItems:"center",gap:6,fontWeight:600,fontSize:13,color:u.isOut?"#2A4040":"var(--text)"}},
-                  React.createElement('span',null,u.name),
+                React.createElement('div',{style:{flex:1,minWidth:0,textAlign:"left",display:"flex",flexWrap:"wrap",alignItems:"center",gap:6,rowGap:2,fontWeight:600,fontSize:13,color:u.isOut?"#2A4040":"var(--text)"}},
+                  React.createElement('span',{style:{whiteSpace:"nowrap"}},u.name),
                   u.redemptionMark&&React.createElement(RedemptionShieldIcon,{size:13,redeemed:u.redemptionMark === "redeemed"}),
                   u.isTraining&&React.createElement(TrainingSproutIcon,{size:13}),
                   isMe&&React.createElement('span',{className:"mono",style:{fontSize:8,color:"#3d5e59",marginLeft:6}},"you"),
@@ -1404,8 +1412,8 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
                 React.createElement('div',{style:{display:"flex",alignItems:"center",gap:9,width:"100%"}},
                   React.createElement('div',{style:{minWidth:22}},u.isOut?React.createElement('span',{style:{fontSize:13,color:"#2A4040"}},"💤"):React.createElement(RankIcon,{rank:aIdx+1})),
                   React.createElement(Avatar,{name:u.name,size:24,muted:u.isOut}),
-                  React.createElement('div',{style:{flex:1,minWidth:0,textAlign:"left",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",display:"inline-flex",alignItems:"center",gap:7,fontWeight:600,fontSize:14,color:u.isOut?"#2A4040":"var(--text)"}},
-                    React.createElement('span',null,u.name),
+                  React.createElement('div',{style:{flex:1,minWidth:0,textAlign:"left",display:"flex",flexWrap:"wrap",alignItems:"center",gap:7,rowGap:2,fontWeight:600,fontSize:14,color:u.isOut?"#2A4040":"var(--text)"}},
+                    React.createElement('span',{style:{whiteSpace:"nowrap"}},u.name),
                     isMe&&React.createElement('span',{className:"mono",style:{fontSize:8,color:"#3d5e59",marginLeft:7}},"you"),
                     u.prorated&&!u.isOut&&React.createElement(MemberTag,{tone:"prorated"},"Prorated")
                   )

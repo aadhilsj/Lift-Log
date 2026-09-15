@@ -273,7 +273,7 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
             React.createElement('span',{style:{display:"inline-flex",color:"#F5A623",flexShrink:0}},React.createElement(TrophyIcon,{size:18,color:"#F5A623"})),
             React.createElement('div',{style:{minWidth:0,display:"flex",alignItems:"center",justifyContent:"center",gap:8}},
               React.createElement('div',{style:{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",justifyContent:"center",minWidth:0}},
-                winners.map(w=>React.createElement('div',{key:w.name,style:{display:"flex",alignItems:"center",gap:5,justifyContent:"center",minWidth:0}},React.createElement(Avatar,{name:w.name,size:18}),React.createElement('span',{style:{fontSize:winners.length>1?12:14,fontWeight:700,color:"var(--text)",lineHeight:1.05,maxWidth:104,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},w.name))),
+                winners.map(w=>React.createElement('div',{key:w.name,style:{display:"flex",alignItems:"center",gap:5,justifyContent:"center",minWidth:0}},React.createElement(Avatar,{name:w.name,size:18}),React.createElement('span',{style:{fontSize:winners.length>1?12:14,fontWeight:700,color:"var(--text)",lineHeight:1.05,whiteSpace:"nowrap"}},w.name))),
                 React.createElement('span',{style:{fontFamily:"'Outfit', sans-serif",fontSize:9.5,fontWeight:500,color:"#F5A623",letterSpacing:".04em",textTransform:"lowercase",whiteSpace:"nowrap",lineHeight:1.05}},winners.length>1?"current leaders":"current leader")
               )
             )
