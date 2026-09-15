@@ -32,7 +32,7 @@ acceptable for version one.
 | Sit-out, solo/training, target and exception requests | Apply each Bloc's workout rules fairly | Supabase database | Relevant Bloc members/admins and Fero operations. |
 | Settlement records and member payment handles | Let members record workout-penalty outcomes and optionally copy/open a member-selected payment handle | Supabase database | Relevant Bloc members. Fero does not process, hold, route, or verify a payment in the current code. A handle can be a Revolut, PayPal, Vipps or similar identifier, so it needs explicit policy disclosure. |
 | Reports/flags and responses | Allow members/admins to flag a workout and record a review | Supabase database | Reporter, involved member, Bloc admin and Fero operations as the product permits. |
-| Product-use events and daily activity | Aggregate product improvement and founder dashboard | Supabase database | Private Fero operations only. Events are limited to named UI actions and timestamp/profile link; no content or route parameters are recorded. Daily app activity has a 90-day purge function, but its live schedule still needs verification. No retention limit was found for granular `app_usage_events`. |
+| Product-use events and daily activity | Aggregate product improvement and founder dashboard | Supabase database | Private Fero operations only. Events are limited to named UI actions and timestamp/profile link; no content or route parameters are recorded. Preview config schedules the daily-activity 90-day purge for 03:00 every day; final production execution still needs verification. No retention limit was found for granular `app_usage_events`. |
 | Device/browser state | Keep a selected Bloc, app preferences, cached app state, sign-in/session state, install/onboarding status and stream draft cache working | Device local storage and service-worker cache | On the user's device/browser. The service worker excludes API responses from its static cache. Account deletion needs a final device-level test to confirm no personal cache remains usable. |
 
 ## Services and outside destinations found in source
@@ -77,8 +77,8 @@ tested.
 
 1. Set the deletion rule for historic shared content, then make the app and
    policy agree.
-2. Confirm that the daily-activity purge function is scheduled in production, and
-   set and implement a retention period for granular usage events.
+2. Confirm that the daily-activity purge is successfully running in production,
+   and set and implement a retention period for granular usage events.
 3. Confirm the live `profile-photos` and `workout-photos` bucket visibility.
    Source says public URLs; decide whether that is acceptable or should be
    changed to access-controlled delivery before launch.

@@ -25,7 +25,10 @@ try {
     sessionStorage.clear();
     localStorage.setItem("fero_cold_onboarding_seen", "1");
   });
-  await page.reload({ waitUntil:"networkidle" });
+  // Fero intentionally loads fonts/background assets after the document is
+  // ready, so network-idle is not a reliable readiness signal. The UI checks
+  // below are the actual test gates for this flow.
+  await page.reload({ waitUntil:"domcontentloaded" });
 
   // Regression 1: an existing user who accidentally starts account creation
   // can accept the Sign in handoff and reach their existing account.
@@ -45,7 +48,7 @@ try {
 
   // Regression 2: navigating to an invite on the same origin preserves the
   // local OTP session and recognizes existing membership without another OTP.
-  await page.goto(`${baseUrl}/?invite=${inviteCode}&journey=already-member-signed-in`, { waitUntil:"networkidle" });
+  await page.goto(`${baseUrl}/?invite=${inviteCode}&journey=already-member-signed-in`, { waitUntil:"domcontentloaded" });
   const inviteBody = await page.locator("body").innerText();
   assert.ok(!inviteBody.includes("Sign in first"), "Invite navigation must preserve the signed-in local OTP session");
   assert.ok(!inviteBody.includes("Check your email"), "Signed-in invite must not request another OTP");

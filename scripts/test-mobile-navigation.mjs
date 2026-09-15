@@ -44,7 +44,10 @@ try {
     sessionStorage.clear();
     localStorage.setItem("fero_cold_onboarding_seen", "1");
   });
-  await page.reload({ waitUntil:"networkidle" });
+  // Fero intentionally loads fonts/background assets after the document is
+  // ready, so network-idle is not a reliable readiness signal. The UI checks
+  // below are the actual test gates for this flow.
+  await page.reload({ waitUntil:"domcontentloaded" });
 
   await page.getByRole("button", { name:"Sign in", exact:true }).click();
   await page.locator('input[type="email"]').fill(existingEmail);
@@ -54,7 +57,7 @@ try {
   await page.getByRole("button", { name:"Verify" }).click();
   await page.getByText("Your Blocs", { exact:true }).waitFor({ timeout:30000 });
 
-  await page.goto(`${baseUrl}/?invite=${inviteCode}&journey=already-member-signed-in`, { waitUntil:"networkidle" });
+  await page.goto(`${baseUrl}/?invite=${inviteCode}&journey=already-member-signed-in`, { waitUntil:"domcontentloaded" });
   await page.getByRole("button", { name:"Join this Bloc" }).click();
   await page.getByText("You're already in this Bloc.", { exact:true }).waitFor();
   await page.getByRole("button", { name:"Enter the Bloc" }).click();
