@@ -7,9 +7,9 @@ const WORKOUT_TYPE_ALIASES = { Sport: "Sports", Hike: "Other", Hiking: "Other" }
 // daily cap and month close are unchanged; the activity rides along as `activity`.
 const ACTIVITY_CATEGORIES = {
   Gym: "Gym", Run: "Run", Pilates: "Pilates", Yoga: "Pilates",
-  Basketball: "Sports", Football: "Sports", Cricket: "Sports", Tennis: "Sports",
+  Badminton: "Sports", Basketball: "Sports", Football: "Sports", Cricket: "Sports", Tennis: "Sports",
   Padel: "Sports", Pickleball: "Sports", Golf: "Sports", Volleyball: "Sports",
-  Hiking: "Other", Swimming: "Other", Cycling: "Other", Rowing: "Other",
+  Hiking: "Other", Swimming: "Other", Cycling: "Other", Climbing: "Other", Rowing: "Other",
   "Home Workout": "Other", Kitesurfing: "Other", Other: "Other"
 };
 const DEFAULT_GROUP_TIME_ZONE = "Europe/Oslo";
