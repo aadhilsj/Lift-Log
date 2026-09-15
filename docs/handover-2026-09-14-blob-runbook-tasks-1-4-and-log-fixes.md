@@ -6,6 +6,11 @@ and closes out the Aadhil side of
 
 **Deveen: section 2 is yours. Section 3 lists what is still open on your side.**
 
+> **Added after this was sent — two more items for you at the end:**
+> §6, your month-close branch is ready and unmerged; §7, a database scaling
+> problem that must be solved before launch —
+> [`docs/scaling-before-launch-2026-09-15.md`](https://github.com/aadhilsj/Lift-Log/blob/main/docs/scaling-before-launch-2026-09-15.md).
+
 ---
 
 ## Plain-English summary
@@ -292,3 +297,31 @@ checked from the code and your fixture suite.
    us to open it.
 2. **Does this answer §3 item 4?** With month close reading canonical, is Task 5
    still waiting on `left_at`, or only on the open-season parity check (§3 item 1)?
+
+---
+
+## 7. Update, 2026-09-15 — the database cannot handle launch traffic yet
+
+**Deveen, this section is for you too.** Full write-up:
+[`docs/scaling-before-launch-2026-09-15.md`](https://github.com/aadhilsj/Lift-Log/blob/main/docs/scaling-before-launch-2026-09-15.md).
+
+**Plain English:** on 14 September the database was overloaded for about two
+minutes with only **2–4 phones** open. Every refresh reads all members' data
+across all Blocs (about 1.4 MB). One app-wide change counter makes every open
+phone reload after any action in any Bloc. And the server is Supabase's smallest
+paid size. As built, launch traffic would not run smoothly. It needs solving
+before launch, and it overlaps with blob retirement, so we would like you to own it.
+
+- Evidence: statement timeouts on `read_ante_core_month_history`, `PGRST003`
+  pool exhaustion, reads up to 44 s (20:51–20:53 UTC). No writes failed.
+- Main causes: `fetchReadableCurrentState()` calls every canonical reader with an
+  empty filter, and there is one global `revision_clock` row that every client
+  polls every 6 s.
+- Proposed order: scope reads to the member's Blocs → a revision per Bloc → past
+  months on demand → lighter mutations and a comment duplicate guard → longer
+  polling → blob retirement. A load test against a restored backup comes before
+  and after each step.
+
+What we need from you: read the doc, and say whether you agree with the order
+and will take it on.
+
