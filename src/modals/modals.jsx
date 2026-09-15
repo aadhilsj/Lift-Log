@@ -764,19 +764,19 @@ const LogModal = ({user,currentUserId,currentGroupId,groups,onConfirm,onClose}) 
           const active = wActivity===name && !activityFromList;
           return React.createElement('button',{key:name,onClick:()=>pickActivity(name,false),type:"button","aria-pressed":active,
             style:activityTileStyle(active,compactMobile)},
-            React.createElement('span',{style:{width:20,height:20,display:"inline-flex",alignItems:"center",justifyContent:"center"}},React.createElement(WorkoutTypeIcon,{type:name,size:19})),
+            React.createElement('span',{style:{width:18,height:18,display:"inline-flex",alignItems:"center",justifyContent:"center"}},React.createElement(WorkoutTypeIcon,{type:name,size:17})),
             React.createElement('span',{style:activityTileLabelStyle},name)
           );
         }),
         activityFromList && wActivity
           ? React.createElement('button',{key:"more",onClick:openActivityList,type:"button","aria-pressed":true,style:activityTileStyle(true,compactMobile)},
-              React.createElement('span',{style:{width:20,height:18,display:"inline-flex",alignItems:"center",justifyContent:"center"}},React.createElement(WorkoutTypeIcon,{type:wActivity,size:17})),
+              React.createElement('span',{style:{width:18,height:15,display:"inline-flex",alignItems:"center",justifyContent:"center"}},React.createElement(WorkoutTypeIcon,{type:wActivity,size:15})),
               React.createElement('span',{style:activityTileLabelStyle},wActivity),
               React.createElement('span',{style:{fontSize:9,fontWeight:700,lineHeight:1,color:"rgba(78,205,196,.75)"}},"Change")
             )
           : React.createElement('button',{key:"more",onClick:openActivityList,type:"button","aria-pressed":false,
               style:{...activityTileStyle(false,compactMobile),borderStyle:"dashed",borderColor:"rgba(78,205,196,.3)",color:"var(--text-soft)"}},
-              React.createElement('svg',{width:19,height:19,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:1.8,strokeLinecap:"round","aria-hidden":true},
+              React.createElement('svg',{width:17,height:17,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:1.8,strokeLinecap:"round","aria-hidden":true},
                 React.createElement('circle',{cx:5,cy:12,r:1.2}),React.createElement('circle',{cx:12,cy:12,r:1.2}),React.createElement('circle',{cx:19,cy:12,r:1.2})
               ),
               React.createElement('span',{style:activityTileLabelStyle},"More")
@@ -861,19 +861,19 @@ const LogModal = ({user,currentUserId,currentGroupId,groups,onConfirm,onClose}) 
 
 const activityTileStyle = (active, compactMobile) => ({
   minWidth:0,
-  height:compactMobile?56:60,
+  height:compactMobile?50:54,
   background:active?"var(--green-dim)":"rgba(25,27,36,.82)",
   border:`1px solid ${active?"var(--green)":"rgba(78,205,196,.16)"}`,
   borderRadius:10,
-  padding:"4px 2px",
+  padding:2,
   display:"flex",
   flexDirection:"column",
   alignItems:"center",
   justifyContent:"center",
-  gap:4,
+  gap:3,
   color:active?"var(--green)":"var(--text)"
 });
-const activityTileLabelStyle = {fontSize:11,fontWeight:600,lineHeight:1.1,maxWidth:"100%",padding:"0 4px",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"};
+const activityTileLabelStyle = {fontSize:10.5,fontWeight:600,lineHeight:1.1,maxWidth:"100%",padding:"0 4px",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"};
 
 // The full activity list, sliding up over the log pop-up. A–Z with search;
 // "Other" always sits last because it is the catch-all. Portalled to the body:
