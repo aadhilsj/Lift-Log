@@ -68,8 +68,22 @@ const sql = fs.readFileSync(new URL("../supabase/ante-core-founder-dashboard.sql
   "date_trunc('week'",
   "date_trunc('month'",
   "Europe/Oslo",
-  "purge_ante_core_daily_app_activity"
+  "purge_ante_core_daily_app_activity",
+  "purge_ante_core_usage_events"
 ].forEach(fragment => assert.ok(sql.includes(fragment), `dashboard privacy/metric contract is missing: ${fragment}`));
+
+const usageRetentionMigration = fs.readFileSync(new URL("../supabase/migrations/20260915160000_add_usage_event_retention.sql", import.meta.url), "utf8");
+[
+  "p_retention_days integer default 180",
+  "ante_core.app_usage_events",
+  "make_interval(days => v_retention_days)",
+  "revoke execute on function public.purge_ante_core_usage_events(integer) from public, anon, authenticated",
+  "grant execute on function public.purge_ante_core_usage_events(integer) to service_role"
+].forEach(fragment => assert.ok(usageRetentionMigration.includes(fragment), `usage-event retention migration is missing: ${fragment}`));
+
+const retentionCron = fs.readFileSync(new URL("../api/cron-purge-app-daily-activity.js", import.meta.url), "utf8");
+assert.ok(retentionCron.includes("purge_ante_core_usage_events"), "daily retention job must clean detailed usage events");
+assert.ok(retentionCron.includes("usageEventsDeleted"), "daily retention job must report detailed usage-event cleanup");
 
 const dashboardUi = fs.readFileSync(new URL("../src/pages/FounderDashboard.jsx", import.meta.url), "utf8");
 const appUi = fs.readFileSync(new URL("../src/App.jsx", import.meta.url), "utf8");

@@ -92,6 +92,28 @@ begin
 end;
 $$;
 
+-- Keep detailed, account-linked feature-use events for six months. The
+-- founder dashboard can still report current usage without retaining an
+-- indefinite person-by-person interaction history.
+create or replace function public.purge_ante_core_usage_events(
+  p_retention_days integer default 180
+)
+returns integer
+language plpgsql
+security definer
+set search_path = ante_core, public
+as $$
+declare
+  v_deleted integer := 0;
+  v_retention_days integer := greatest(30, least(coalesce(p_retention_days, 180), 365));
+begin
+  delete from ante_core.app_usage_events
+  where occurred_at < (now() - make_interval(days => v_retention_days));
+  get diagnostics v_deleted = row_count;
+  return v_deleted;
+end;
+$$;
+
 create or replace function public.read_ante_core_founder_dashboard(
   p_now timestamptz default now()
 )
@@ -320,9 +342,11 @@ $$;
 -- the app server authenticates the caller and enforces the founder allowlist.
 revoke execute on function public.record_ante_core_daily_app_activity(text, timestamptz) from public, anon, authenticated;
 revoke execute on function public.purge_ante_core_daily_app_activity(integer) from public, anon, authenticated;
+revoke execute on function public.purge_ante_core_usage_events(integer) from public, anon, authenticated;
 revoke execute on function public.read_ante_core_founder_dashboard(timestamptz) from public, anon, authenticated;
 revoke execute on function public.read_ante_core_founder_dashboard_details(timestamptz) from public, anon, authenticated;
 grant execute on function public.record_ante_core_daily_app_activity(text, timestamptz) to service_role;
 grant execute on function public.purge_ante_core_daily_app_activity(integer) to service_role;
+grant execute on function public.purge_ante_core_usage_events(integer) to service_role;
 grant execute on function public.read_ante_core_founder_dashboard(timestamptz) to service_role;
 grant execute on function public.read_ante_core_founder_dashboard_details(timestamptz) to service_role;
