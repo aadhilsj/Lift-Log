@@ -933,7 +933,7 @@ const ActivityListSheet = ({open,search,onSearch,named,hasOther,selected,onPick,
             ),
         hasOther && React.createElement(React.Fragment,null,
           React.createElement('div',{style:sectionStyle},"Not listed"),
-          row("Other","Anything else · add a note")
+          row("Other","Anything Else · Add a note")
         )
       )
     )
