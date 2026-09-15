@@ -2,6 +2,16 @@ const DEFAULT_MIN_TARGET = 12;
 const WORKOUT_TYPES = ["Gym", "Run", "Sports", "Pilates", "Other"];
 const MAX_WORKOUTS_PER_DAY = 2;
 const WORKOUT_TYPE_ALIASES = { Sport: "Sports", Hike: "Other", Hiking: "Other" };
+// Activity → category. Mirrors src/lib/activities.js; `npm run test:activities`
+// fails if the two drift. A log's `type` stays the category, so Bloc rules, the
+// daily cap and month close are unchanged; the activity rides along as `activity`.
+const ACTIVITY_CATEGORIES = {
+  Gym: "Gym", Run: "Run", Pilates: "Pilates", Yoga: "Pilates",
+  Basketball: "Sports", Football: "Sports", Cricket: "Sports", Tennis: "Sports",
+  Padel: "Sports", Pickleball: "Sports", Golf: "Sports", Volleyball: "Sports",
+  Hiking: "Other", Swimming: "Other", Cycling: "Other", Rowing: "Other",
+  "Home Workout": "Other", Kitesurfing: "Other", Other: "Other"
+};
 const DEFAULT_GROUP_TIME_ZONE = "Europe/Oslo";
 const LEAGUE_CUTOFF_HOUR = 3;
 const DEFAULT_FINE_AMOUNT = 20;
@@ -1368,6 +1378,27 @@ function normalizeWorkoutType(type) {
   return WORKOUT_TYPES.includes(normalized) ? normalized : "Other";
 }
 
+function normalizeActivityName(name) {
+  const key = String(name || "").trim().toLowerCase();
+  if (!key) return null;
+  return Object.keys(ACTIVITY_CATEGORIES).find(activity => activity.toLowerCase() === key) || null;
+}
+
+// A known activity decides the category; anything else keeps the old
+// workoutType-only behaviour, so older clients log exactly as before.
+function resolveWorkoutActivity(payload) {
+  const activity = normalizeActivityName(payload?.activity);
+  return activity
+    ? { activity, workoutType: ACTIVITY_CATEGORIES[activity] }
+    : { activity: null, workoutType: payload?.workoutType };
+}
+
+// Only the catch-all needs describing. Named activities in the Other category
+// (Hiking, Swimming…) are already specific.
+function workoutNeedsNote(workoutType, activity) {
+  return workoutType === "Other" && (!activity || activity === "Other");
+}
+
 function normalizeLoggedWorkoutType(type, logDate = "") {
   const normalized = normalizeWorkoutType(type);
   if (normalized === "Pilates" && typeof logDate === "string" && logDate && logDate < "2026-06-06") {
@@ -1388,7 +1419,8 @@ function resolveLogCreatedAt(log) {
 
 function normalizeLogEntry(log) {
   const photoUrl = typeof log?.photoUrl === "string" ? log.photoUrl : "";
-  return {
+  const activity = normalizeActivityName(log?.activity);
+  const entry = {
     ...log,
     id: log?.id || `log-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     type: normalizeLoggedWorkoutType(log?.type, log?.date),
@@ -1405,6 +1437,10 @@ function normalizeLogEntry(log) {
     decisionBy: typeof log?.decisionBy === "string" ? log.decisionBy : null,
     decisionAt: typeof log?.decisionAt === "string" ? log.decisionAt : null
   };
+  // Only a known activity is kept; logs from before activities have none.
+  if (activity) entry.activity = activity;
+  else delete entry.activity;
+  return entry;
 }
 
 function getWorkoutSessionKey(log) {
@@ -6001,7 +6037,8 @@ function applyMultiLog(current, payload) {
   const actor = String(payload?.actor || "").trim();
   const actorUserId = String(payload?.actorUserId || "").trim();
   const sourceGroupId = String(payload?.sourceGroupId || "").trim();
-  const workoutType = normalizeWorkoutType(payload?.workoutType);
+  const { activity, workoutType: requestedType } = resolveWorkoutActivity(payload);
+  const workoutType = normalizeWorkoutType(requestedType);
   const date = String(payload?.date || "").trim();
   const note = typeof payload?.note === "string" ? payload.note.slice(0, 280) : "";
   const photoUrl = typeof payload?.photoUrl === "string" ? payload.photoUrl : "";
@@ -6012,7 +6049,7 @@ function applyMultiLog(current, payload) {
     error.status = 400;
     throw error;
   }
-  if (workoutType === "Other" && !note.trim()) {
+  if (workoutNeedsNote(workoutType, activity) && !note.trim()) {
     const error = new Error("A note is required for Other workouts");
     error.status = 400;
     throw error;
@@ -6049,6 +6086,7 @@ function applyMultiLog(current, payload) {
           id: groupId === sourceGroupId ? logId : `${logId}-${groupId}`,
           date,
           type: workoutType,
+          ...(activity ? { activity } : {}),
           note,
           photoUrl,
           createdAt: new Date().toISOString(),
@@ -7416,7 +7454,8 @@ function applyAddLog(current, payload) {
   const date = String(payload?.date || "").trim();
   const note = typeof payload?.note === "string" ? payload.note : "";
   const photoUrl = typeof payload?.photoUrl === "string" ? payload.photoUrl : "";
-  const workoutType = normalizeLoggedWorkoutType(String(payload?.workoutType || "").trim(), date);
+  const { activity, workoutType: requestedType } = resolveWorkoutActivity(payload);
+  const workoutType = normalizeLoggedWorkoutType(String(requestedType || "").trim(), date);
   if (!actor || !groupId || !date || !workoutType) {
     const error = new Error("groupId, actor, date, and workoutType are required");
     error.status = 400;
@@ -7449,6 +7488,7 @@ function applyAddLog(current, payload) {
     id: createWorkoutSessionId(),
     date,
     type: workoutType,
+    activity,
     note,
     photoUrl,
     createdAt: new Date().toISOString(),
@@ -8944,6 +8984,9 @@ export {
   isMissingLocalCanonicalWorkoutRpcError,
   applyAddLog,
   applyMultiLog,
+  // Exported for the activities test suite.
+  ACTIVITY_CATEGORIES,
+  normalizeLogEntry,
   applyJoinGroup,
   applyUpsertProfile,
   scopeReadableStateForUser,

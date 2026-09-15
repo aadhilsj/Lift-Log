@@ -267,14 +267,14 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
     if(countedMyLogs.some(l=>l.date===iso))streak++;else break;
   }
 
-  const doLog=async ({ workoutType, isoDate, targetGroupIds, note, photoUrl })=>{
+  const doLog=async ({ workoutType, activity, isoDate, targetGroupIds, note, photoUrl })=>{
     if (Array.isArray(targetGroupIds) && targetGroupIds.length) {
       setShowLog(false);
-      const result = await onMultiLog({ workoutType, isoDate, targetGroupIds, note, photoUrl });
+      const result = await onMultiLog({ workoutType, activity, isoDate, targetGroupIds, note, photoUrl });
       return;
     }
     setShowLog(false);
-    onSave({ workoutType, isoDate, note, photoUrl });
+    onSave({ workoutType, activity, isoDate, note, photoUrl });
   };
 
   // Deletes from this Bloc first, then — only if asked — the same workout's
