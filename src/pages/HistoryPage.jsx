@@ -1,7 +1,6 @@
 import React from "react";
 const { useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef } = React;
 import {
-  WORKOUT_TYPES,
   DEFAULT_CURRENCY,
   NAMES,
   MIN_TARGET,
@@ -22,8 +21,10 @@ import {
   getCountedLogCount,
   isJoinedForMonth
 } from "../lib/appState.js";
-import { Avatar, WorkoutTypeIcon, Card, AppIcon, PlayerProfileErrorBoundary } from "../components/primitives.jsx";
+import { Avatar, Card, AppIcon, PlayerProfileErrorBoundary } from "../components/primitives.jsx";
 import { PlayerProfile } from "../pages/PlayerProfile.jsx";
+import { ActivityMix } from "../components/ActivityMix.jsx";
+import { getLogDisplayActivity } from "../lib/activities.js";
 
 const HISTORY_FEATURES = {
   summaryStats: true,
@@ -178,21 +179,22 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
   },[fullHistory, historicalNames]);
   const trailingMonthlyAvg=useMemo(()=>groupMonthlyAvg.slice(-12),[groupMonthlyAvg]);
 
+  // Per activity; logs from before activities count under their category.
   const groupTypeBreakdown=useMemo(()=>{
-    const c={};WORKOUT_TYPES.forEach(t=>c[t]=0);
+    const c={};
     fullHistory.forEach(month=>{
       const monthNames = getHistoricalMemberNamesForMonth(month, historicalNames);
       monthNames.forEach(name=>{
         if(!isJoinedForMonth(name, month.key)) return;
         getCountedLogs(month.logsByUser?.[name] || []).forEach(log=>{
-          if(c[log.type]!==undefined)c[log.type]++;
+          const activity=getLogDisplayActivity(log);
+          c[activity]=(c[activity]||0)+1;
         });
       });
     });
     return c;
   },[fullHistory, historicalNames]);
   const totalGroupLogs=Object.values(groupTypeBreakdown).reduce((a,b)=>a+b,0);
-  const maxTypeCount=Math.max(...Object.values(groupTypeBreakdown),1);
   const rankDeltas=useMemo(()=>{
     const closed = [...monthHistory].filter(m => m?.key).sort((a,b)=>monthOrder(a.key)-monthOrder(b.key));
     if (closed.length < 2) return {};
@@ -222,7 +224,6 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
     return {...m,total,activeCount:active.length};
   });
   const toughestMonth=[...closedMonthlyTotals].filter(m=>m.activeCount>0).sort((a,b)=>a.total-b.total)[0];
-  const sortedWorkoutTypes=[...WORKOUT_TYPES].sort((a,b)=>(groupTypeBreakdown[b]||0)-(groupTypeBreakdown[a]||0)||WORKOUT_TYPES.indexOf(a)-WORKOUT_TYPES.indexOf(b));
   const legacyRows=[
     ["Started", earliestMonth ? cleanMonthLabel(earliestMonth.label, earliestMonth.key, true) : shortDate(group?.createdAt)],
     ["Months completed", completedMonths ? String(completedMonths) : "No closed months yet"],
@@ -277,27 +278,7 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
           )
     ),
     HISTORY_FEATURES.workoutMix&&React.createElement(Card,{className:"fu4",style:{padding:"11px 12px",background:"radial-gradient(circle at 88% 0%, rgba(255,255,255,.03), transparent 34%), radial-gradient(circle at 16% 100%, rgba(78,205,196,.05), transparent 42%), linear-gradient(180deg, rgba(12,22,22,.98), rgba(8,15,15,.98))",boxShadow:"inset 0 1px 0 rgba(255,255,255,.035), 0 7px 16px rgba(0,0,0,.12)"}},
-      React.createElement('div',{style:{fontWeight:800,fontSize:13,marginBottom:10,textAlign:"center"}},"Workout Type Distribution"),
-      totalGroupLogs===0
-        ? React.createElement('div',{style:{color:"var(--muted)",fontSize:13,textAlign:"center",padding:"12px 0"}},"No workouts logged yet.")
-        : React.createElement('div',{style:{display:"flex",gap:6,alignItems:"stretch"}},
-            sortedWorkoutTypes.map(t=>{
-              const count=groupTypeBreakdown[t];
-              const rawPct=totalGroupLogs>0?(count/totalGroupLogs)*100:0;
-              const pct=count>0?Math.max(1,Math.round(rawPct)):0;
-              const barH=Math.max(count>0?6:0,Math.round((count/maxTypeCount)*56));
-              const isTop = count === maxTypeCount && count > 0;
-              return React.createElement('div',{key:t,style:{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:4,minWidth:0}},
-                React.createElement('span',{style:{fontFamily:"'Outfit', sans-serif",fontSize:9.5,fontWeight:700,color:count>0?"var(--muted)":"var(--muted2)",height:16,display:"flex",alignItems:"center"}},count>0?`${pct}%`:""),
-                React.createElement('div',{style:{width:"100%",height:56,display:"flex",alignItems:"flex-end"}},
-                  React.createElement('div',{style:{width:"100%",height:barH,background:count>0?(isTop?"rgba(78, 205, 196, 0.5)":"#0D2828"):"var(--border)",borderRadius:"3px 3px 0 0",opacity:count>0?1:.3}})
-                ),
-            React.createElement('span',{style:{width:18,height:18,display:"inline-flex",alignItems:"center",justifyContent:"center",color:"#4ECDC4"}},React.createElement(WorkoutTypeIcon,{type:t,size:16})),
-                React.createElement('span',{style:{fontSize:10,color:"var(--muted)",fontWeight:600}},t),
-                React.createElement('span',{className:"mono",style:{fontSize:11,fontWeight:700,color:count>0?"var(--text)":"var(--muted2)"}},count)
-              );
-            })
-          )
+      React.createElement(ActivityMix,{title:"Workout Type Distribution",counts:groupTypeBreakdown,variant:"history",titleStyle:{fontWeight:800}})
     ),
     HISTORY_FEATURES.allTimeLeaderboard&&React.createElement(Card,{className:"fu5",style:{overflow:"hidden"}},
       React.createElement('div',{style:{position:"relative",padding:"11px 15px",borderBottom:"1px solid var(--border)",display:"flex",alignItems:"center",justifyContent:"center"}},

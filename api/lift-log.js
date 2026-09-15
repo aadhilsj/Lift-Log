@@ -1378,10 +1378,12 @@ function normalizeWorkoutType(type) {
   return WORKOUT_TYPES.includes(normalized) ? normalized : "Other";
 }
 
+// normalizeLogEntry runs over every log on every read, so this is a map lookup.
+const ACTIVITY_NAME_BY_KEY = new Map(Object.keys(ACTIVITY_CATEGORIES).map(activity => [activity.toLowerCase(), activity]));
+
 function normalizeActivityName(name) {
-  const key = String(name || "").trim().toLowerCase();
-  if (!key) return null;
-  return Object.keys(ACTIVITY_CATEGORIES).find(activity => activity.toLowerCase() === key) || null;
+  if (!name) return null;
+  return ACTIVITY_NAME_BY_KEY.get(String(name).trim().toLowerCase()) || null;
 }
 
 // A known activity decides the category; anything else keeps the old
