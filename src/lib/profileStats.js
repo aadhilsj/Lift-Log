@@ -19,6 +19,7 @@ import {
   calcPenalties,
   getCountedLogs
 } from "./appState.js";
+import { getLogDisplayActivity } from "./activities.js";
 
 const FULL_MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 const dayIso = s => { const m = /^(\d{4}-\d{2}-\d{2})/.exec(String(s || "")); return m ? m[1] : null; };
@@ -41,7 +42,7 @@ function buildProfileStats({ groups = [], userId }) {
         const iso = dayIso(l.date); if (!iso) return;
         const ts = Date.parse(`${iso}T00:00:00`);
         if (Number.isFinite(ts) && (earliestWorkout === null || ts < earliestWorkout)) earliestWorkout = ts;
-        const t = l.type || "Other";
+        const t = getLogDisplayActivity(l);
         if (!groupDayType[iso]) groupDayType[iso] = {};
         groupDayType[iso][t] = (groupDayType[iso][t] || 0) + 1;
       });

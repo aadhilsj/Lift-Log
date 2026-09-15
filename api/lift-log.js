@@ -8800,7 +8800,9 @@ function buildFeroProfileStats(state, subjectUserId) {
         if (!iso) continue;
         const ts = Date.parse(`${iso}T00:00:00`);
         if (Number.isFinite(ts) && (earliestWorkout === null || ts < earliestWorkout)) earliestWorkout = ts;
-        const type = WORKOUT_TYPES.includes(log.type) ? log.type : "Other";
+        // Workout mix is per activity; logs from before activities count under
+        // their category, matching src/lib/activities.js getLogDisplayActivity.
+        const type = normalizeActivityName(log.activity) || (WORKOUT_TYPES.includes(log.type) ? log.type : "Other");
         if (!groupDayType[iso]) groupDayType[iso] = {};
         groupDayType[iso][type] = (groupDayType[iso][type] || 0) + 1;
       }

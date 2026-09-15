@@ -42,7 +42,7 @@ import {
   copyToClipboard
 } from "../lib/utils.js";
 import { Avatar, WorkoutTypeIcon, WorkoutCategorySelector, SettingsField, SelectField, inputShellStyle, StepperField, ModalScrim } from "../components/primitives.jsx";
-import { ACTIVITIES, activityNeedsNote, countMemberActivities, getActivityCategory, getTopActivities } from "../lib/activities.js";
+import { ACTIVITIES, activityNeedsNote, countMemberActivities, getActivityCategory, getLogDisplayActivity, getTopActivities } from "../lib/activities.js";
 
 const SETTINGS_DEFAULTS = {
   minTarget: DEFAULT_MIN_TARGET,
@@ -968,8 +968,8 @@ const DeleteModal = ({log,onConfirm,onClose,otherBlocNames=[]}) => {
     React.createElement('div',{style:{fontWeight:800,fontSize:13,marginBottom:8}},"Delete this log?"),
     React.createElement('div',{style:{background:"var(--s2)",border:"1px solid var(--border)",borderRadius:8,padding:"6px 10px",marginBottom:8,textAlign:"left"}},
       React.createElement('div',{style:{fontWeight:700,fontSize:11,marginBottom:3,display:"inline-flex",alignItems:"center",gap:5}},
-        React.createElement(WorkoutTypeIcon,{type:log.type,size:12}),
-        log.type
+        React.createElement(WorkoutTypeIcon,{type:getLogDisplayActivity(log),size:12}),
+        getLogDisplayActivity(log)
       ),
       React.createElement('div',{className:"mono",style:{fontSize:10,color:"var(--muted)"}},fmtISO(log.date))
     ),

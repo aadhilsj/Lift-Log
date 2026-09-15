@@ -1,6 +1,7 @@
 import React from "react";
 import { WORKOUT_TYPES } from "../lib/appState.js";
-import { Card, AppIcon, WorkoutTypeIcon } from "./primitives.jsx";
+import { Card, AppIcon, WorkoutTypeIcon, Bar, ModalScrim } from "./primitives.jsx";
+import { ACTIVITIES } from "../lib/activities.js";
 import { buildProfileStats } from "../lib/profileStats.js";
 
 const { useState, useRef, useEffect } = React;
@@ -114,6 +115,7 @@ const ProfileStatsPanel = ({ groups = [], userId, ownerName = "", accountCreated
   // heatmap lives in this component, so the value it depends on must too.
   const profileStartTs = agg.earliestWorkout || agg.earliestJoined || Date.parse(accountCreatedAt || "") || null;
   const [sel, setSel] = useState(null); // tapped heatmap day { iso, count }
+  const [showFullMix, setShowFullMix] = useState(false);
   const heatScrollRef = useRef(null);
   // Open the heatmap scrolled to today (data's most relevant end).
   useEffect(() => { const el = heatScrollRef.current; if (el) el.scrollLeft = el.scrollWidth; }, []);
@@ -188,9 +190,19 @@ const ProfileStatsPanel = ({ groups = [], userId, ownerName = "", accountCreated
 
 
   // ── workout mix (all-time, cross-Bloc) ─────────────────────────────────────
-  const mixSorted = [...WORKOUT_TYPES].sort((a, b) => (agg.typeMix[b] || 0) - (agg.typeMix[a] || 0) || WORKOUT_TYPES.indexOf(a) - WORKOUT_TYPES.indexOf(b));
-  const mixTotal = WORKOUT_TYPES.reduce((s, t) => s + (agg.typeMix[t] || 0), 0);
-  const mixMax = Math.max(...WORKOUT_TYPES.map(t => agg.typeMix[t] || 0), 1);
+  // Per activity. Only activities actually logged appear, most-logged first;
+  // the chart shows the top five and "See all" opens the rest.
+  const mixOrder = name => {
+    const i = ACTIVITIES.findIndex(activity => activity.name === name);
+    return i === -1 ? ACTIVITIES.length + WORKOUT_TYPES.indexOf(name) : i;
+  };
+  const mixAll = Object.keys(agg.typeMix || {})
+    .filter(t => (agg.typeMix[t] || 0) > 0)
+    .sort((a, b) => (agg.typeMix[b] - agg.typeMix[a]) || (mixOrder(a) - mixOrder(b)));
+  const mixSorted = mixAll.slice(0, 5);
+  const mixTotal = mixAll.reduce((s, t) => s + (agg.typeMix[t] || 0), 0);
+  const mixMax = Math.max(...mixAll.map(t => agg.typeMix[t] || 0), 1);
+  const mixPct = count => mixTotal > 0 && count > 0 ? Math.max(1, Math.round((count / mixTotal) * 100)) : 0;
 
   // "On Fero since" belongs with the stats rather than on the account screen,
   // and reads the same whoever is being viewed.
@@ -315,24 +327,62 @@ const ProfileStatsPanel = ({ groups = [], userId, ownerName = "", accountCreated
       ),
       mixTotal === 0
         ? React.createElement('div', { style: { color: "var(--muted)", fontSize: 13, fontWeight: REG, textAlign: "center", padding: "12px 0" } }, "No workouts logged yet.")
-        : React.createElement('div', { style: { display: "flex", gap: 6, alignItems: "stretch" } },
+        : React.createElement('div', { style: { display: "flex", gap: 6, alignItems: "stretch", justifyContent: "center" } },
             mixSorted.map(t => {
               const count = agg.typeMix[t] || 0;
-              const pct = mixTotal > 0 ? (count > 0 ? Math.max(1, Math.round((count / mixTotal) * 100)) : 0) : 0;
+              const pct = mixPct(count);
               const barH = Math.max(count > 0 ? 6 : 0, Math.round((count / mixMax) * 56));
               const isTop = count === mixMax && count > 0;
-              return React.createElement('div', { key: t, style: { flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, minWidth: 0 } },
+              return React.createElement('div', { key: t, style: { flex: "0 0 calc((100% - 24px) / 5)", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, minWidth: 0 } },
                 React.createElement('span', { style: { fontSize: 9.5, fontWeight: REG, color: count > 0 ? "var(--muted)" : "var(--muted2)", height: 16, display: "flex", alignItems: "center" } }, count > 0 ? `${pct}%` : ""),
                 React.createElement('div', { style: { width: "100%", height: 56, display: "flex", alignItems: "flex-end" } },
                   React.createElement('div', { style: { width: "100%", height: barH, background: count > 0 ? (isTop ? "#4ECDC4" : "rgba(78,205,196,.28)") : "var(--border)", borderRadius: "3px 3px 0 0", opacity: count > 0 ? 1 : .3 } })
                 ),
                 React.createElement('span', { style: { width: 18, height: 18, display: "inline-flex", alignItems: "center", justifyContent: "center", color: "#4ECDC4" } }, React.createElement(WorkoutTypeIcon, { type: t, size: 16 })),
-                React.createElement('span', { style: { fontSize: 10, fontWeight: REG, color: "var(--muted)" } }, t),
+                React.createElement('span', { style: { fontSize: 10, fontWeight: REG, color: "var(--muted)", maxWidth: "100%", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, t),
                 React.createElement('span', { style: { fontSize: 11, fontWeight: MED, color: count > 0 ? "var(--text)" : "var(--muted2)" } }, count)
               );
             })
-          )
-    )
+          ),
+      mixAll.length > 5 ? React.createElement('button', {
+        type: "button",
+        onClick: () => setShowFullMix(true),
+        style: { display: "flex", alignItems: "center", justifyContent: "center", gap: 4, margin: "12px auto 0", height: 28, padding: "0 12px", borderRadius: 999, background: "var(--s1)", border: "1px solid var(--border2)", color: "#4ECDC4", fontSize: 11.5, fontWeight: MED }
+      }, `See all ${mixAll.length}`) : null
+    ),
+    showFullMix ? React.createElement(ModalScrim, { onClose: () => setShowFullMix(false) },
+      React.createElement('div', {
+        className: "modal pi",
+        role: "dialog",
+        "aria-label": `${owns} Workout Mix`,
+        onClick: e => e.stopPropagation(),
+        style: { width: "min(360px, calc(100vw - 32px))", maxHeight: "min(72vh, 560px)", display: "flex", flexDirection: "column", padding: "16px 14px 14px" }
+      },
+        React.createElement('div', { style: { textAlign: "center", marginBottom: 12 } },
+          React.createElement('div', { style: { fontSize: 15, fontWeight: 800 } }, `${owns} Workout Mix`),
+          React.createElement('div', { style: { fontSize: 11, fontWeight: REG, color: "var(--muted)", marginTop: 2 } }, `${mixTotal} workout${mixTotal === 1 ? "" : "s"} · ${mixAll.length} activities`)
+        ),
+        React.createElement('div', { style: { overflowY: "auto", display: "grid", gap: 9, paddingRight: 2 } },
+          mixAll.map((t, index) => {
+            const count = agg.typeMix[t] || 0;
+            return React.createElement('div', { key: t, style: { display: "grid", gridTemplateColumns: "22px 100px minmax(0,1fr) auto", alignItems: "center", columnGap: 10 } },
+              React.createElement('span', { style: { width: 22, height: 22, display: "inline-flex", alignItems: "center", justifyContent: "center", color: "#4ECDC4" } }, React.createElement(WorkoutTypeIcon, { type: t, size: 16 })),
+              React.createElement('span', { style: { fontSize: 13, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, t),
+              React.createElement(Bar, { value: count, max: mixMax, color: index === 0 ? "#4ECDC4" : "#1E4040", h: 4 }),
+              React.createElement('span', { style: { display: "inline-flex", alignItems: "baseline", gap: 6, justifyContent: "flex-end", minWidth: 58 } },
+                React.createElement('span', { style: { fontSize: 13, fontWeight: 700, color: "var(--text)", fontVariantNumeric: "tabular-nums" } }, count),
+                React.createElement('span', { style: { fontSize: 10.5, fontWeight: REG, color: "var(--muted)", fontVariantNumeric: "tabular-nums", minWidth: 28, textAlign: "right" } }, `${mixPct(count)}%`)
+              )
+            );
+          })
+        ),
+        React.createElement('button', {
+          type: "button",
+          onClick: () => setShowFullMix(false),
+          style: { marginTop: 14, width: "100%", padding: "9px", borderRadius: 10, background: "var(--s2)", border: "1px solid var(--border)", color: "var(--muted)", fontSize: 12, fontWeight: 700 }
+        }, "Close")
+      )
+    ) : null
   );
 };
 
