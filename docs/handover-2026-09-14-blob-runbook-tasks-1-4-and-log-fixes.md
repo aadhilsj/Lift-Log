@@ -11,7 +11,8 @@ and closes out the Aadhil side of
 > problem that must be solved before launch —
 > [`docs/scaling-before-launch-2026-09-15.md`](https://github.com/aadhilsj/Lift-Log/blob/main/docs/scaling-before-launch-2026-09-15.md);
 > §8, workout activities are live, including a canonical migration — **read §8.4
-> before your next canonical SQL.**
+> before your next canonical SQL.** §9, **your month-close branch must merge
+> before 1 October, or September's activities are lost from the closed month.**
 
 ---
 
@@ -413,3 +414,84 @@ Postgres, PostgREST or edge logs.
   Fero set is ready. One entry each in `src/lib/workoutIcons.js`.
 - Share stickers still render the category icon. Their design is locked
   (`docs/share-sticker-reference/`), so that is the founder's call.
+
+---
+
+## 9. Update, 2026-09-16 — September's activities depend on your month-close branch
+
+**Deveen, this section is for you.** It was added after this handover was sent.
+
+**Plain English:** the activities filled in for September only reached
+canonical. The blob copy of 93 September logs has no `activity`. When September
+closes on **1 October**, `main` freezes the month from the blob, so those
+activities would be lost from the closed month for good, and September's share
+sticker would show category icons. Your branch freezes the month from canonical
+instead, which keeps them. So `blob/month-close-canonical` now matters for two
+reasons: correct counts, and keeping September's activities.
+
+### What was found (read-only queries on production, 2026-09-16)
+
+| September logs (`2026-09-*`) | Rows |
+|---|---|
+| Total, blob and canonical | 360 each |
+| `activity` set in canonical | 114 (the 112-row backfill + 2 new logs) |
+| `activity` set in the blob | 21 |
+| Joined on `id`: canonical has it, blob does not | **93** |
+| Blob has it, canonical does not | 0 |
+
+The backfill (`docs/handover-2026-09-16-activities-live.md` §4) was SQL on
+`ante_core.workout_logs` only. It is not the deploy-overlap case in §8.4 item 4,
+where the next write restores the blob: nothing rewrites these logs unless a
+member touches them.
+
+### Why it is invisible today
+
+`fetchReadableCurrentState()` overlays current-month logs from
+`fetchAnteCurrentLogs()` for every group with a canonical open season
+(`api/lift-log.js`, the `anteCurrentLogs` block). Members see the activities now.
+The blob only matters when the month is frozen.
+
+### Why it matters at month close
+
+- On `main`, rollover builds the snapshot from the blob:
+  `logsByUser: buildMonthLogsSnapshot(group.logs, relevantNames)`.
+- On `blob/month-close-canonical`, `rebuildClosedMonthSnapshotFromCanonicalLogs`
+  rebuilds `logsByUser` from `fetchAnteCurrentLogs()`. That reader carries
+  `activity`, and `normalizeLogEntry` keeps it. Traced in the code, not run
+  against a real close.
+- Share stickers are offered on closed months only (`canShareMonth` in
+  `src/pages/PlayerProfile.jsx`) and read `monthHistory[].logsByUser`.
+
+### Your branch, re-checked against today's `main`
+
+Merged into `main` at `a2c30a2` in a throwaway worktree, tested, then deleted.
+Nothing was merged, pushed or deployed.
+
+| Check | Result |
+|---|---|
+| Merge | no conflicts |
+| `npm run lint`, `npm run build` | clean |
+| 14 of 16 suites, including `test:month-close-canonical`, `test:rollover-isolation`, `test:activities` | pass |
+| `test:auth-edge-flows`, `test:mobile-navigation` | fail, **identically on plain `main`**: a fresh sandbox has no `seed-invite@local.test` account. The test setup, not your branch |
+
+### If the branch cannot merge before 1 October
+
+The fallback is `node scripts/blob-remirror.mjs --scope wave-b` before the close.
+It copies current-month logs from canonical into the blob, `activity` included.
+Not run: `.env.local` holds a redacted service key. It replaces whole
+current-month log sets, not just `activity`, so read the dry-run diff first and
+take a fresh backup before `--apply`.
+
+### Also since §8
+
+- Share stickers showing the activity icon are in PR
+  [#21](https://github.com/aadhilsj/Lift-Log/pull/21) (`feat/sticker-activities`),
+  preview only. Checked against the 12 approved PNGs: 7–65 opaque pixels differ
+  out of 1,218,240, the rest is anti-aliasing. This replaces the second bullet of §8.5.
+- Two members have logged through the new picker, both `Gym`, both still present
+  in blob and canonical.
+
+### What we need from you
+
+1. **Merge `blob/month-close-canonical` before 1 October**, or tell us if you
+   cannot, so the fallback above can be run in time.
