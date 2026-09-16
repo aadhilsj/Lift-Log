@@ -9,7 +9,10 @@ import {
   markBlocStreamReadData,
   sendBlocStreamMessageData,
   setBlocStreamRsvpData,
-  toggleBlocStreamReactionData
+  toggleBlocStreamReactionData,
+  getSafetyStatusData,
+  setUserBlockData,
+  createContentReportData
 } from "../lib/api.js";
 import { resolveStorageImageUrl } from "../lib/appState.js";
 
@@ -296,7 +299,7 @@ const Reactable = ({ msg, currentUserId, onReact, onReply, nameFor, photoFor, al
 // `showName` (received only) on the first of a run, `showAvatar` on the last,
 // and `showTime` only on the last message of a same-minute cluster. Own
 // messages never show a name. The tail corner is only on the first bubble.
-const TextBubble = ({ msg, isOwn, authorName, authorPhotoUrl, nameFor, members, replyToMsg, showName, showTime, showAvatar, firstInGroup, reactionNode }) => {
+const TextBubble = ({ msg, isOwn, authorName, authorPhotoUrl, nameFor, members, replyToMsg, showName, showTime, showAvatar, firstInGroup, reactionNode, onSafetyMenu }) => {
   const nameText = !isOwn && showName ? authorName : "";
   const timeText = showTime ? formatStamp(msg.created_at) : "";
   const radius = 18;
@@ -307,9 +310,10 @@ const TextBubble = ({ msg, isOwn, authorName, authorPhotoUrl, nameFor, members, 
       ? React.createElement('div', { style: { flexShrink: 0, paddingTop: nameText ? 18 : 0 } }, React.createElement(Avatar, { name: authorName, userId: msg.author_id, photoUrl: authorPhotoUrl, size: 28 }))
       : React.createElement('div', { style: { width: 28, flexShrink: 0 } })),
     React.createElement('div', { style: { maxWidth: isOwn ? "76%" : "74%", width: "fit-content", display: "flex", flexDirection: "column", alignItems: isOwn ? "flex-end" : "flex-start" } },
-      nameText && React.createElement('div', {
-        style: { fontFamily: "'Outfit', sans-serif", fontSize: 11, fontWeight: 500, color: C.meta, margin: "0 0 3px 4px" }
-      }, nameText),
+      nameText && React.createElement('div', {style:{display:"flex",alignItems:"center",gap:4,margin:"0 0 3px 4px"}},
+        React.createElement('span', {style:{fontFamily:"'Outfit', sans-serif",fontSize:11,fontWeight:500,color:C.meta}}, nameText),
+        !isOwn && React.createElement('button', {type:"button",onClick:()=>onSafetyMenu?.(msg),"aria-label":`Safety options for ${authorName}`,style:{border:0,background:"transparent",color:C.meta,padding:"0 3px",fontSize:15,lineHeight:1,cursor:"pointer"}}, "•••")
+      ),
       React.createElement('div', {
         style: {
           position: "relative",
@@ -656,6 +660,12 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, 
   const [pendingListAnchor, setPendingListAnchor] = useState(null);
   const [streamDragY, setStreamDragY] = useState(0);
   const [streamDragging, setStreamDragging] = useState(false);
+  const [blockedUserIds, setBlockedUserIds] = useState([]);
+  const [safetyTarget, setSafetyTarget] = useState(null);
+  const [safetyReason, setSafetyReason] = useState("harassment");
+  const [safetyDetails, setSafetyDetails] = useState("");
+  const [safetyError, setSafetyError] = useState("");
+  const [safetyBusy, setSafetyBusy] = useState(false);
   const listRef = useRef(null);
   const inputRef = useRef(null);
   const messageNodeRefs = useRef(new Map());
@@ -686,6 +696,46 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, 
 
   const nameFor = id => (activeMembers.find(m => m.id === id)?.name) || "Member";
   const photoFor = id => activeMembers.find(m => m.id === id)?.photoUrl || "";
+  const visibleMessages = messages.filter(message => !blockedUserIds.includes(String(message?.author_id || "")));
+
+  useEffect(() => {
+    if (!open || !currentUserId) return;
+    getSafetyStatusData().then(result => {
+      if (result.ok) setBlockedUserIds(result.blockedUserIds.map(String));
+    }).catch(() => {});
+  }, [open, currentUserId]);
+
+  const openSafetyMenu = message => {
+    if (!message?.author_id || message.author_id === currentUserId) return;
+    setSafetyTarget(message);
+    setSafetyReason("harassment");
+    setSafetyDetails("");
+    setSafetyError("");
+  };
+  const blockTarget = async () => {
+    if (!safetyTarget?.author_id || safetyBusy) return;
+    setSafetyBusy(true); setSafetyError("");
+    const result = await setUserBlockData(safetyTarget.author_id, true);
+    setSafetyBusy(false);
+    if (!result.ok) { setSafetyError(result.error || "Unable to block this member."); return; }
+    setBlockedUserIds(current => [...new Set([...current, String(safetyTarget.author_id)])]);
+    setSafetyTarget(null);
+  };
+  const reportTarget = async () => {
+    if (!safetyTarget?.author_id || safetyBusy) return;
+    setSafetyBusy(true); setSafetyError("");
+    const result = await createContentReportData({
+      groupId: activeBlocId,
+      reportedUserId: safetyTarget.author_id,
+      contentType: "stream_message",
+      contentId: safetyTarget.id,
+      reason: safetyReason,
+      details: safetyDetails
+    });
+    setSafetyBusy(false);
+    if (!result.ok) { setSafetyError(result.error || "Unable to submit your report."); return; }
+    setSafetyTarget(null);
+  };
 
   useEffect(() => {
     activeBlocIdRef.current = activeBlocId;
@@ -1237,11 +1287,11 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, 
         onTouchCancel:resetStreamPull,
         style: { flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", overscrollBehavior: "contain", padding: "16px 16px 20px", display: "flex", flexDirection: "column", userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none", opacity: listPositioned ? 1 : 0, transition: listPositioned ? "opacity .08s ease" : "none", touchAction:"pan-y" }
       },
-        messages.length === 0
-          ? React.createElement('div', { style: { margin: "auto", color: "var(--muted2)", fontSize: 13 } }, "No messages yet")
-          : messages.map((msg, i) => {
-              const prev = messages[i - 1];
-              const next = messages[i + 1];
+        visibleMessages.length === 0
+          ? React.createElement('div', { style: { margin: "auto", color: "var(--muted2)", fontSize: 13 } }, messages.length ? "No visible messages" : "No messages yet")
+          : visibleMessages.map((msg, i) => {
+              const prev = visibleMessages[i - 1];
+              const next = visibleMessages[i + 1];
               const isText = msg.message_type !== "system" && msg.message_type !== "event" && msg.message_type !== "log_comment";
               const sameAuthorPrev = isText && prev && prev.message_type !== "system" && prev.message_type !== "event" && prev.message_type !== "log_comment" && prev.author_id === msg.author_id;
               const sameAuthorNext = isText && next && next.message_type !== "system" && next.message_type !== "event" && next.message_type !== "log_comment" && next.author_id === msg.author_id;
@@ -1277,11 +1327,11 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, 
                 return wrap(React.createElement(LogCommentCard, { msg, onOpen: openLogComments }));
               }
               const isOwn = msg.author_id === currentUserId;
-              const replyToMsg = msg.reply_to ? messages.find(x => x.id === msg.reply_to) : null;
+              const replyToMsg = msg.reply_to ? visibleMessages.find(x => x.id === msg.reply_to) : null;
               // Time shows on the last message of a five-minute run from this sender.
               const showTime = !(sameAuthorNext && sameFiveMinuteWindow(msg.created_at, next.created_at));
               return wrap(React.createElement(Reactable, { msg, currentUserId, onReact: handleReact, onReply: handleReply, nameFor, photoFor, align: isOwn ? "right" : "left", swipeEnabled: true },
-                reactionNode => React.createElement(TextBubble, { msg, isOwn, authorName: nameFor(msg.author_id), authorPhotoUrl: photoFor(msg.author_id), nameFor, members: activeMembers, replyToMsg, showName: firstInGroup, showTime, showAvatar: !sameAuthorNext, firstInGroup, reactionNode })));
+                reactionNode => React.createElement(TextBubble, { msg, isOwn, authorName: nameFor(msg.author_id), authorPhotoUrl: photoFor(msg.author_id), nameFor, members: activeMembers, replyToMsg, showName: firstInGroup, showTime, showAvatar: !sameAuthorNext, firstInGroup, reactionNode, onSafetyMenu: openSafetyMenu })));
             })
       ),
       // Input bar
@@ -1344,7 +1394,24 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, 
       onDraftChange: setEventDraft,
       onClose: () => setShowEventSheet(false),
       onCreate: handleCreateEvent
-    })
+    }),
+    safetyTarget && React.createElement('div', {role:"dialog","aria-modal":"true","aria-label":`Safety options for ${nameFor(safetyTarget.author_id)}`,style:{position:"fixed",inset:0,zIndex:1300,display:"flex",alignItems:"flex-end",background:"rgba(0,0,0,.62)"},onMouseDown:e=>{if(e.target===e.currentTarget&&!safetyBusy)setSafetyTarget(null);}},
+      React.createElement('section', {style:{width:"100%",padding:"18px 16px calc(24px + env(safe-area-inset-bottom))",borderRadius:"18px 18px 0 0",background:C.sheetBg,borderTop:`1px solid ${C.sheetBorder}`,boxSizing:"border-box"}},
+        React.createElement('div', {style:{fontSize:16,fontWeight:800,color:"var(--text)"}}, `Safety options for ${nameFor(safetyTarget.author_id)}`),
+        React.createElement('p', {style:{margin:"6px 0 14px",fontSize:12,lineHeight:1.45,color:"var(--muted)"}}, "Reporting sends this message to Fero’s private review queue. Blocking immediately hides this person’s Stream messages for you; it does not remove either of you from the Bloc."),
+        React.createElement('label', {style:{display:"block",fontSize:11,fontWeight:800,color:"var(--text-soft)",marginBottom:5}}, "Why are you reporting this?"),
+        React.createElement('select', {value:safetyReason,onChange:e=>setSafetyReason(e.target.value),disabled:safetyBusy,style:{width:"100%",padding:"10px",borderRadius:9,border:`1px solid ${C.sheetBorder}`,background:C.inputBg,color:"var(--text)",fontSize:13}},
+          React.createElement('option',{value:"harassment"},"Harassment or bullying"), React.createElement('option',{value:"hate_or_discrimination"},"Hate or discrimination"), React.createElement('option',{value:"threat_or_safety"},"Threat or safety concern"), React.createElement('option',{value:"sexual_or_inappropriate"},"Sexual or inappropriate content"), React.createElement('option',{value:"spam"},"Spam"), React.createElement('option',{value:"other"},"Other")
+        ),
+        React.createElement('textarea', {value:safetyDetails,onChange:e=>setSafetyDetails(e.target.value),disabled:safetyBusy,maxLength:1000,placeholder:"Optional detail for the Fero team",rows:3,style:{width:"100%",boxSizing:"border-box",marginTop:8,padding:"10px",borderRadius:9,border:`1px solid ${C.sheetBorder}`,background:C.inputBg,color:"var(--text)",fontSize:13,resize:"vertical"}}),
+        safetyError && React.createElement('div', {role:"alert",style:{marginTop:8,color:"#ffd4d4",fontSize:11}}, safetyError),
+        React.createElement('div', {style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginTop:12}},
+          React.createElement('button',{type:"button",onClick:reportTarget,disabled:safetyBusy,style:{border:0,borderRadius:9,padding:"11px",background:C.accent,color:"#04110e",fontWeight:800,cursor:"pointer"}}, safetyBusy?"Working…":"Send report"),
+          React.createElement('button',{type:"button",onClick:blockTarget,disabled:safetyBusy,style:{border:"1px solid rgba(239,159,39,.5)",borderRadius:9,padding:"11px",background:"rgba(239,159,39,.1)",color:"#ffdca5",fontWeight:800,cursor:"pointer"}}, "Block member")
+        ),
+        React.createElement('button',{type:"button",onClick:()=>setSafetyTarget(null),disabled:safetyBusy,style:{width:"100%",marginTop:9,border:0,background:"transparent",color:"var(--muted)",padding:8,fontWeight:700,cursor:"pointer"}}, "Cancel")
+      )
+    )
   );
 };
 
