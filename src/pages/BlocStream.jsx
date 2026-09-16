@@ -651,6 +651,7 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, 
   const [showEventSheet, setShowEventSheet] = useState(false);
   const [replyTarget, setReplyTarget] = useState(null);
   const [mention, setMention] = useState(null); // { query, start } while typing "@…"
+  const [sendError, setSendError] = useState("");
   const [listPositioned, setListPositioned] = useState(true);
   const [pendingListAnchor, setPendingListAnchor] = useState(null);
   const [streamDragY, setStreamDragY] = useState(0);
@@ -1028,6 +1029,7 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, 
   const handleSend = async () => {
     const body = draft.trim();
     if (!body) return;
+    setSendError("");
     const mentions = activeMembers.filter(m => m.name && new RegExp("@" + escapeRegex(m.name) + "(?!\\w)").test(draft)).map(m => m.id);
     const tempId = `tmp_${Date.now().toString(36)}`;
     const optimistic = {
@@ -1057,6 +1059,7 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, 
     });
     if (!result.ok) {
       updateActiveMessages(current => current.filter(msg => msg.id !== tempId));
+      setSendError(result.error || "Unable to send message");
       return;
     }
     refreshMessages({ scroll: true });
@@ -1084,6 +1087,7 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, 
   const handleCreateEvent = async ({ activity, when, location }) => {
     const trimmedActivity = String(activity || "").trim();
     if (!trimmedActivity) return;
+    setSendError("");
     const tempId = `tmp_evt_${Date.now().toString(36)}`;
     const optimistic = {
       id: tempId,
@@ -1109,6 +1113,7 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, 
     });
     if (!result.ok) {
       updateActiveMessages(current => current.filter(msg => msg.id !== tempId));
+      setSendError(result.error || "Unable to post event");
       return;
     }
     refreshMessages({ scroll: true });
@@ -1306,6 +1311,7 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, 
         ),
         // @mention picker
         mention && mentionItems.length > 0 && React.createElement(MentionList, { items: mentionItems, onPick: pickMention }),
+        sendError && React.createElement('div', { role:"alert", style:{margin:"0 4px 8px",padding:"8px 10px",borderRadius:9,background:"rgba(212,74,74,.13)",border:"1px solid rgba(212,74,74,.3)",color:"#ffd4d4",fontSize:11,lineHeight:1.35} }, sendError),
         // Input row
         React.createElement('div', { style: { display: "flex", alignItems: "center", gap: 8 } },
           React.createElement('button', {

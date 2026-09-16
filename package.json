@@ -19,6 +19,7 @@
     "parity:gate:test": "node scripts/blob-parity-gate.test.mjs",
     "test:identity": "node scripts/test-display-name-identity.mjs",
     "test:profile-photo-storage": "node scripts/test-profile-photo-storage.mjs",
+    "test:content-safety": "node scripts/test-content-safety-filter.mjs",
     "test:auth-edge-flows": "node scripts/test-auth-edge-flows.mjs",
     "test:two-workouts": "node scripts/test-two-workouts-per-day.mjs",
     "test:training-wheels": "node scripts/test-training-wheels.mjs",

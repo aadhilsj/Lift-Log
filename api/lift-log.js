@@ -11,6 +11,13 @@ const DEFAULT_CURRENCY = "NOK";
 const DEFAULT_MIN_RUN_DISTANCE = 3;
 const DEFAULT_DISTANCE_UNIT = "km";
 const DEFAULT_STRAVA_ENABLED = true;
+// First-line UGC guardrail. This deliberately catches only clear, high-risk
+// abuse; reports and human review handle context that a word list cannot judge.
+const OBJECTIONABLE_CONTENT_PATTERNS = [
+  /\b(?:kill\s+yourself|kys)\b/i,
+  /\b(?:rape|rapist)\b/i,
+  /\b(?:nigg(?:er|a)|fagg(?:ot)?|cunt)\b/i
+];
 // One Bloc is capped at 20 members, so this comfortably covers a full roster
 // while bounding the work a single request can ask for.
 const PROFILE_STATS_MAX_SUBJECTS = 40;
@@ -5480,6 +5487,16 @@ function normalizeEmailAddress(value) {
   return String(value || "").trim().toLowerCase();
 }
 
+function assertAllowedUserContent(value, fieldName = "content") {
+  const text = String(value || "").normalize("NFKC").replace(/\s+/g, " ").trim();
+  if (!text) return;
+  if (OBJECTIONABLE_CONTENT_PATTERNS.some(pattern => pattern.test(text))) {
+    const error = new Error(`That ${fieldName} cannot be posted. Please remove abusive language and try again.`);
+    error.status = 422;
+    throw error;
+  }
+}
+
 function isProbablyEmail(value) {
   return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(value || "").trim());
 }
@@ -9069,6 +9086,7 @@ export {
   applyUpsertProfile,
   scopeReadableStateForUser,
   parseFeroStorageReference,
+  assertAllowedUserContent,
   isMissingStorageBucketResponse
 };
 
@@ -9196,6 +9214,7 @@ export default async function handler(req, res) {
 
       if (payload?.action === "stream-send") {
         const authUser = await fetchAuthenticatedUser(readBearerToken(req, payload));
+        assertAllowedUserContent(payload.body, "message");
         const result = await sendBlocStreamMessageToCanonical(
           payload.groupId,
           authUser.id,
@@ -9209,6 +9228,8 @@ export default async function handler(req, res) {
 
       if (payload?.action === "stream-create-event") {
         const authUser = await fetchAuthenticatedUser(readBearerToken(req, payload));
+        assertAllowedUserContent(payload.activity, "event title");
+        assertAllowedUserContent(payload.location, "event location");
         const result = await createBlocStreamEventInCanonical(
           payload.groupId,
           authUser.id,
@@ -9265,6 +9286,7 @@ export default async function handler(req, res) {
 
       if (payload?.action === "log-comment-create") {
         const auth = await requireAuthenticatedContext(req, payload, await getReadableCurrent());
+        assertAllowedUserContent(payload.body, "comment");
         const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
         const canonicalActor = resolveDisplayNameForUser(canonicalState, payload.groupId, auth.user.id, auth.user.email);
         const group = canonicalState.groups?.[payload.groupId];
@@ -9595,6 +9617,7 @@ export default async function handler(req, res) {
 
       if (payload?.action === "create-group") {
         const auth = await requireAuthenticatedContext(req, payload, current);
+        assertAllowedUserContent(payload.groupName, "Bloc name");
         const creatorName = auth.profile?.displayName || String(payload?.creatorName || "").trim();
         const createPayload = {
           ...payload,
@@ -9629,6 +9652,7 @@ export default async function handler(req, res) {
       if (payload?.action === "upsert-profile") {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const requestedDisplayName = String(payload?.displayName || "").trim();
+        assertAllowedUserContent(requestedDisplayName, "display name");
         const shellOldNames = collectProfileRenameOldNames(
           auth.state.groups || {},
           auth.user.id,
@@ -9890,6 +9914,7 @@ export default async function handler(req, res) {
 
       if (payload?.action === "multi-log") {
         const auth = await requireAuthenticatedContext(req, payload, current);
+        assertAllowedUserContent(payload.note, "workout note");
         const actor = resolveDisplayNameForUser(auth.state, payload.sourceGroupId, auth.user.id, auth.user.email);
         const allTargetIds = [...new Set([payload.sourceGroupId, ...(Array.isArray(payload.targetGroupIds) ? payload.targetGroupIds.filter(Boolean) : [])])];
         const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.sourceGroupId);
@@ -9964,6 +9989,7 @@ export default async function handler(req, res) {
 
       if (payload?.action === "add-log") {
         const auth = await requireAuthenticatedContext(req, payload, current);
+        assertAllowedUserContent(payload.note, "workout note");
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
         const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
         const canonicalActor = assertGroupMembershipForUser(canonicalState, payload.groupId, auth.user.id);
