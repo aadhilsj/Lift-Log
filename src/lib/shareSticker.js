@@ -14,6 +14,7 @@
 // isolation and drives both the in-app preview and the exported PNG from one code path.
 
 import { getWorkoutIcon } from "./workoutIcons.js";
+import { getLogDisplayActivity } from "./activities.js";
 
 // ── geometry, in authoring units at a 320-wide sticker ──────────────────────────
 const W = 320;
@@ -455,7 +456,9 @@ function buildDayMap(countedLogs) {
   for (const d in byDay) {
     // The icon shown is the first logged, so order by createdAt.
     byDay[d].sort((a, b) => (Date.parse(a?.createdAt) || 0) - (Date.parse(b?.createdAt) || 0));
-    byDay[d] = byDay[d].map(l => l?.type).filter(Boolean);
+    // The activity (Padel, Hiking…) is what the icon shows; a log saved before
+    // activities existed falls back to its category, exactly as the app does.
+    byDay[d] = byDay[d].map(l => getLogDisplayActivity(l)).filter(Boolean);
   }
   return byDay;
 }
