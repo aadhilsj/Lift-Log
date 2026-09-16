@@ -2,9 +2,9 @@
 //
 // Each activity belongs to one of the five workout categories. The category is
 // what a log's `type` keeps holding, so Bloc rules (accepted workout types),
-// multi-Bloc logging, the daily cap, month close and share stickers all carry on
-// reading the category unchanged. The activity is stored alongside it as
-// `log.activity`.
+// multi-Bloc logging, the daily cap and month close all carry on reading the
+// category unchanged. The activity is stored alongside it as `log.activity`.
+// Share stickers show the activity's icon (getLogDisplayActivity).
 //
 // api/lift-log.js keeps its own copy of the name → category map
 // (ACTIVITY_CATEGORIES); `npm run test:activities` fails if the two drift.

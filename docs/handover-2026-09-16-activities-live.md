@@ -204,24 +204,23 @@ code work. The founder has not upgraded yet.
 
 ## 7. What the next session picks up
 
-1. **Share stickers should show activities** — the founder asked for this and it
-   is half done on branch **`feat/sticker-activities`** (`64352e7`, not merged,
-   not deployed). One line in `buildDayMap` (`src/lib/shareSticker.js`) now reads
-   `getLogDisplayActivity(l)` instead of `l.type`.
-   **Not verified:** no sticker has been rendered, and nothing compared against
-   the approved PNGs in `docs/share-sticker-reference/`. The sticker design is
-   locked (CLAUDE.md §8), so render the four fixtures and a real month, compare,
-   then merge.
+1. ~~**Share stickers should show activities**~~ — **done, live 2026-09-16.**
+   PR [#21](https://github.com/aadhilsj/Lift-Log/pull/21), merged as `2d3fa8c`.
+   All 12 approved PNGs re-rendered and compared: 7–65 opaque pixels differ out
+   of 1,218,240, the rest is anti-aliasing. A July fixture with all 21 activities
+   plus pre-activity logs was run through `buildDayMap`: every activity has an
+   icon, old logs fall back to their category, count badges still draw. Stickers
+   are closed-months only, so the first one with activity icons is September —
+   and that depends on `blob/month-close-canonical` (see §8 item 1).
 2. **Real icons.** Every new activity uses a placeholder: Tabler Icons (MIT),
    plus a hand-drawn Padel racket and shuttlecock. Devinmin and Randy are drawing
    the real set. Swapping one in is a single entry in `src/lib/workoutIcons.js`.
 3. **Add activities on request.** Badminton and Climbing were added this way.
    Adding one means: `src/lib/activities.js`, the mirror map in `api/lift-log.js`,
    an icon, and `npm run test:activities`.
-4. **Confirm a real member's activity save.** Everything was proven on a restored
-   copy, but at handover no member had logged a workout through the new code yet.
-   Check with `select activity, count(*) from ante_core.workout_logs where
-   created_at > '2026-09-15 22:36' group by 1`.
+4. ~~**Confirm a real member's activity save.**~~ — **done, 2026-09-16.** Janek
+   (Sweat Equity) and Kisal (Go To Da Gym) each logged `Gym` just after the
+   deploy; both saved with `activity` in canonical and in the blob.
 
 ---
 
@@ -231,6 +230,11 @@ code work. The founder has not upgraded yet.
    close count from canonical, and **September closes 1 October**. It merges
    cleanly with `main` and its own suite passes (checked 2026-09-14). Deveen is
    away for a few days; see his handover §6.
+   **Update 2026-09-16:** it now also keeps September's activities. The backfill
+   reached canonical only, so 93 September logs have no `activity` in the blob,
+   and `main` freezes the closed month from the blob. Re-checked against `main`:
+   merges cleanly, 14/16 suites pass (the two browser suites fail identically on
+   plain `main`). Full write-up in his handover §9.
 2. **The scaling plan** (§6) — nobody has started it.
 3. **`codex/app-store-readiness`** is far behind `main` and now missing the whole
    activity feature. Another agent has been working in that worktree
