@@ -20,6 +20,7 @@ const ACTIVITIES = [
   { name: "Cricket", category: "Sports" },
   { name: "Tennis", category: "Sports" },
   { name: "Padel", category: "Sports" },
+  { name: "Squash", category: "Sports" },
   { name: "Pickleball", category: "Sports" },
   { name: "Golf", category: "Sports" },
   { name: "Volleyball", category: "Sports" },

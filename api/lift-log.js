@@ -12,7 +12,7 @@ const WORKOUT_TYPE_ALIASES = { Sport: "Sports", Hike: "Other", Hiking: "Other" }
 const ACTIVITY_CATEGORIES = {
   Gym: "Gym", Run: "Run", Pilates: "Pilates", Yoga: "Pilates",
   Badminton: "Sports", Basketball: "Sports", Football: "Sports", Cricket: "Sports", Tennis: "Sports",
-  Padel: "Sports", Pickleball: "Sports", Golf: "Sports", Volleyball: "Sports",
+  Padel: "Sports", Squash: "Sports", Pickleball: "Sports", Golf: "Sports", Volleyball: "Sports",
   Hiking: "Other", Swimming: "Other", Cycling: "Other", Climbing: "Other", Rowing: "Other",
   "Home Workout": "Other", Kitesurfing: "Other", Other: "Other"
 };
@@ -9027,7 +9027,9 @@ export default async function handler(req, res) {
       const authUser = await fetchAuthenticatedUser(readBearerToken(req));
       if (url.searchParams.get("revision") === "1") {
         const revisionStamp = await fetchRevisionStamp();
-        return res.status(200).json(revisionStamp);
+        // `build` lets an open app notice a newer deploy (src/App.jsx). Older
+        // clients ignore the extra field.
+        return res.status(200).json({ ...revisionStamp, build: process.env.VERCEL_GIT_COMMIT_SHA || "" });
       }
       const current = await fetchReadableCurrentState();
       return res.status(200).json(scopeReadableStateForUser(current, authUser.id));
