@@ -380,6 +380,17 @@ async function fetchData() {
   } catch(e){ console.error("Fetch error:", e); return null; }
 }
 
+// The deploy the server last reported on the revision poll ("" if unknown).
+let latestServerBuild = "";
+
+function recordServerBuild(body) {
+  if (typeof body?.build === "string") latestServerBuild = body.build.trim();
+}
+
+function getLatestServerBuild() {
+  return latestServerBuild;
+}
+
 async function fetchRevision() {
   try {
     const session = await getCurrentAuthSession();
@@ -409,6 +420,7 @@ async function fetchRevision() {
           return null;
         }
         const retryBody = await retryRes.json();
+        recordServerBuild(retryBody);
         return Number.isFinite(Number(retryBody?.revision)) ? Number(retryBody.revision) : null;
       }
       await signOutAuthSession().catch(()=>{});
@@ -416,6 +428,7 @@ async function fetchRevision() {
     }
     if(!res.ok){ console.error("Revision fetch failed:", res.status, await res.text()); return null; }
     const body = await res.json();
+    recordServerBuild(body);
     return Number.isFinite(Number(body?.revision)) ? Number(body.revision) : null;
   } catch(e){ console.error("Revision fetch error:", e); return null; }
 }
@@ -971,6 +984,7 @@ export {
   trackUsageEvent,
   fetchData,
   fetchRevision,
+  getLatestServerBuild,
   addLogData,
   claimSettlementConfirmationData,
   confirmSettlementConfirmationData,

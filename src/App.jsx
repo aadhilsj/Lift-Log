@@ -41,6 +41,7 @@ import {
   syncAuthSessionData,
   fetchData,
   fetchRevision,
+  getLatestServerBuild,
   setProfileStatsRevision,
   invalidateProfileStatsFor,
   addLogData,
@@ -170,6 +171,48 @@ const describeOtpSendFailure = (result, intentType) => {
 
 // The daily cap is the one save failure a member can act on, and blaming their
 // connection for it sends them retrying something that will never go through.
+// ── new-version reload ──────────────────────────────────────────────────────────
+// A phone left open keeps running the bundle it loaded. The revision poll reports
+// which deploy the server is on; when it differs from this bundle's, reload once so
+// the phone picks up the new version. A reload loop would be far worse than stale
+// code, so every guard below errs towards not reloading.
+const BUILD_RELOAD_SESSION_KEY = "fero-build-reload-attempted";
+const BUILD_RELOAD_IDLE_MS = 20000;
+
+// Anything typed or picked on screen (a log form, a note, a settings field) that a
+// reload would throw away.
+const hasFilledFormField = () => {
+  const skipTypes = new Set(["hidden", "checkbox", "radio", "range", "button", "submit", "reset", "color"]);
+  for (const el of document.querySelectorAll("input, textarea, [contenteditable='true']")) {
+    if (el.isContentEditable) {
+      if (el.textContent.trim()) return true;
+      continue;
+    }
+    if (el.tagName === "INPUT" && skipTypes.has(el.type)) continue;
+    if (el.type === "file" ? el.files?.length : String(el.value || "").trim()) return true;
+  }
+  return false;
+};
+
+const reloadIfNewBuild = ({ busy, lastInteractionAt }) => {
+  const runningBuild = import.meta.env.FERO_BUILD_ID || "";
+  const serverBuild = getLatestServerBuild();
+  if (!runningBuild || !serverBuild || runningBuild === serverBuild) return;
+  if (isLocalDevEnvironment()) return;
+  if (busy || document.visibilityState !== "visible") return;
+  if (Date.now() - lastInteractionAt < BUILD_RELOAD_IDLE_MS) return;
+  if (hasFilledFormField()) return;
+  // Once per session, hard limit. If the flag cannot be stored, never reload.
+  try {
+    if (sessionStorage.getItem(BUILD_RELOAD_SESSION_KEY)) return;
+    sessionStorage.setItem(BUILD_RELOAD_SESSION_KEY, serverBuild);
+    if (sessionStorage.getItem(BUILD_RELOAD_SESSION_KEY) !== serverBuild) return;
+  } catch {
+    return;
+  }
+  window.location.reload();
+};
+
 const getWorkoutSaveFailureMessage = (error) => (
   /already logged 2 workouts/i.test(String(error || ""))
     ? "You've already logged 2 workouts for this day."
@@ -397,6 +440,8 @@ const App = () => {
   const latestRevisionRef = useRef(getRevision(cached));
   const justSyncedTimerRef = useRef(null);
   const optimisticMutationRef = useRef(null);
+  const savingRef = useRef(false);
+  const lastInteractionAtRef = useRef(0);
   const logMutationQueueRef = useRef(Promise.resolve());
   const reactionMutationQueuesRef = useRef({});
   const inviteDownloadPromptTimerRef = useRef(null);
@@ -867,6 +912,15 @@ const App = () => {
     };
   }, [authSession?.userId, currentGroup?.id, currentGroup?.settlementConfirmationsEnabled, refreshNow]);
 
+  useEffect(()=>{ savingRef.current = saving; },[saving]);
+
+  useEffect(()=>{
+    const markInteraction = () => { lastInteractionAtRef.current = Date.now(); };
+    const events = ["pointerdown", "keydown", "touchstart", "scroll"];
+    events.forEach(name => window.addEventListener(name, markInteraction, { capture:true, passive:true }));
+    return () => events.forEach(name => window.removeEventListener(name, markInteraction, { capture:true }));
+  },[]);
+
   useEffect(()=>{
     const cachedData = readCachedData();
     if(cachedData){
@@ -882,6 +936,10 @@ const App = () => {
           setSyncError(true);
           return;
         }
+        reloadIfNewBuild({
+          busy: savingRef.current || !!optimisticMutationRef.current,
+          lastInteractionAt: lastInteractionAtRef.current
+        });
         // Any mutation anywhere bumps the revision, so re-keying the profile
         // stats cache on it drops every stale entry without a hand-maintained
         // list of what invalidates what.
