@@ -13,7 +13,7 @@ const ACTIVITY_CATEGORIES = {
   Gym: "Gym", Run: "Run", Pilates: "Pilates", Yoga: "Pilates",
   Badminton: "Sports", Basketball: "Sports", Football: "Sports", Cricket: "Sports", Tennis: "Sports",
   Padel: "Sports", Squash: "Sports", Pickleball: "Sports", Golf: "Sports", Volleyball: "Sports",
-  Hiking: "Other", Swimming: "Other", Cycling: "Other", Climbing: "Other", Rowing: "Other",
+  Hiking: "Other", Swimming: "Other", Cycling: "Other", Climbing: "Other", Dance: "Other", Rowing: "Other",
   "Home Workout": "Other", Kitesurfing: "Other", Other: "Other"
 };
 const DEFAULT_GROUP_TIME_ZONE = "Europe/Oslo";
