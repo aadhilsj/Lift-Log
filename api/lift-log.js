@@ -3188,6 +3188,46 @@ async function markBlocStreamReadInCanonical(legacyGroupKey, authUserId) {
   });
 }
 
+async function readUserBlocksFromCanonical(authUserId) {
+  const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_user_blocks", {
+    method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ p_auth_user_id: authUserId })
+  });
+  return await response.json();
+}
+
+async function setUserBlockInCanonical(authUserId, blockedAuthUserId, blocked) {
+  const response = await supabaseFetch("/rest/v1/rpc/set_ante_core_user_block", {
+    method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ p_auth_user_id: authUserId, p_blocked_auth_user_id: blockedAuthUserId, p_blocked: !!blocked })
+  });
+  return await response.json();
+}
+
+async function createContentReportInCanonical(authUserId, payload) {
+  const response = await supabaseFetch("/rest/v1/rpc/create_ante_core_content_report", {
+    method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ p_auth_user_id: authUserId, p_legacy_group_key: payload.groupId, p_reported_auth_user_id: payload.reportedUserId, p_content_type: payload.contentType, p_content_id: payload.contentId, p_reason: payload.reason, p_details: payload.details || "" })
+  });
+  return await response.json();
+}
+
+async function readContentReportsFromCanonical(limit = 100) {
+  const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_content_reports", {
+    method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ p_limit: limit })
+  });
+  return await response.json();
+}
+
+async function reviewContentReportInCanonical(reportId, status, reviewerAuthUserId, reviewNote = "") {
+  const response = await supabaseFetch("/rest/v1/rpc/review_ante_core_content_report", {
+    method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ p_report_id: reportId, p_status: status, p_reviewer_auth_user_id: reviewerAuthUserId, p_review_note: reviewNote })
+  });
+  return await response.json();
+}
+
 async function readWorkoutLogCommentsFromCanonical(legacyGroupKey, authUserId, logId) {
   const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_workout_log_comments", {
     method: "POST",
@@ -9200,6 +9240,24 @@ export default async function handler(req, res) {
         return res.status(200).json({ ok: true, messages: Array.isArray(messages) ? messages : [] });
       }
 
+      if (payload?.action === "safety-status") {
+        const authUser = await fetchAuthenticatedUser(readBearerToken(req, payload));
+        const blockedUserIds = await readUserBlocksFromCanonical(authUser.id);
+        return res.status(200).json({ ok: true, blockedUserIds: Array.isArray(blockedUserIds) ? blockedUserIds : [] });
+      }
+
+      if (payload?.action === "block-user") {
+        const authUser = await fetchAuthenticatedUser(readBearerToken(req, payload));
+        const result = await setUserBlockInCanonical(authUser.id, String(payload?.blockedUserId || ""), payload?.blocked !== false);
+        return res.status(200).json({ ok: true, blocked: !!result?.blocked });
+      }
+
+      if (payload?.action === "report-content") {
+        const authUser = await fetchAuthenticatedUser(readBearerToken(req, payload));
+        const result = await createContentReportInCanonical(authUser.id, payload || {});
+        return res.status(201).json({ ok: true, report: result || null });
+      }
+
       if (payload?.action === "usage-event") {
         const authUser = await fetchAuthenticatedUser(readBearerToken(req, payload));
         await recordCanonicalUsageEvent(authUser.id, payload?.eventName);
@@ -9345,6 +9403,20 @@ export default async function handler(req, res) {
         assertFounderDashboardUser(authUser);
         const dashboard = await readCanonicalFounderDashboard();
         return res.status(200).json({ ok:true, dashboard });
+      }
+
+      if (payload?.action === "founder-moderation-reports") {
+        const authUser = await fetchAuthenticatedUser(readBearerToken(req, payload));
+        assertFounderDashboardUser(authUser);
+        const reports = await readContentReportsFromCanonical(payload?.limit);
+        return res.status(200).json({ ok: true, reports: Array.isArray(reports) ? reports : [] });
+      }
+
+      if (payload?.action === "founder-review-report") {
+        const authUser = await fetchAuthenticatedUser(readBearerToken(req, payload));
+        assertFounderDashboardUser(authUser);
+        const result = await reviewContentReportInCanonical(payload?.reportId, payload?.status, authUser.id, payload?.reviewNote || "");
+        return res.status(200).json({ ok: true, report: result || null });
       }
 
       if (payload?.action === "auth-sync") {

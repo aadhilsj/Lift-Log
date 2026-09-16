@@ -887,6 +887,36 @@ async function markBlocStreamReadData(groupId) {
   return { ok:true };
 }
 
+async function getSafetyStatusData() {
+  const result = await postApi("safety-status");
+  if (!result.ok) return { ok:false, error:result.error || "Unable to load safety settings", blockedUserIds:[] };
+  return { ok:true, blockedUserIds:Array.isArray(result.body?.blockedUserIds) ? result.body.blockedUserIds : [] };
+}
+
+async function setUserBlockData(blockedUserId, blocked = true) {
+  const result = await postApi("block-user", { blockedUserId, blocked });
+  if (!result.ok) return { ok:false, error:result.error || "Unable to update block", blocked:!blocked };
+  return { ok:true, blocked:!!result.body?.blocked };
+}
+
+async function createContentReportData(payload) {
+  const result = await postApi("report-content", payload);
+  if (!result.ok) return { ok:false, error:result.error || "Unable to submit report" };
+  return { ok:true, report:result.body?.report || null };
+}
+
+async function listFounderModerationReportsData(limit = 100) {
+  const result = await postApi("founder-moderation-reports", { limit });
+  if (!result.ok) return { ok:false, status:result.status || 0, error:result.error || "Unable to load reports", reports:[] };
+  return { ok:true, reports:Array.isArray(result.body?.reports) ? result.body.reports : [] };
+}
+
+async function reviewFounderModerationReportData(reportId, status, reviewNote = "") {
+  const result = await postApi("founder-review-report", { reportId, status, reviewNote });
+  if (!result.ok) return { ok:false, error:result.error || "Unable to review report" };
+  return { ok:true, report:result.body?.report || null };
+}
+
 async function listLogCommentsData(groupId, logId) {
   const result = await postApi("log-comments-list", { groupId, logId });
   if (!result.ok) return { ok:false, error: result.error || "Unable to load comments", comments: [] };
@@ -969,6 +999,11 @@ export {
   refreshAuthSession,
   postApi,
   fetchFounderDashboardData,
+  getSafetyStatusData,
+  setUserBlockData,
+  createContentReportData,
+  listFounderModerationReportsData,
+  reviewFounderModerationReportData,
   trackUsageEvent,
   fetchData,
   fetchRevision,
