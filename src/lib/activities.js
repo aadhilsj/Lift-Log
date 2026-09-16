@@ -27,6 +27,7 @@ const ACTIVITIES = [
   { name: "Hiking", category: "Other" },
   { name: "Swimming", category: "Other" },
   { name: "Climbing", category: "Other" },
+  { name: "Dance", category: "Other" },
   { name: "Cycling", category: "Other" },
   { name: "Rowing", category: "Other" },
   { name: "Home Workout", category: "Other" },
