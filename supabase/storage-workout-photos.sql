@@ -12,7 +12,7 @@
 -- ─────────────────────────────────────────────────────────────────────────────
 --
 --   Name:             workout-photos
---   Public:           true  (files served via public URL, no auth needed to read)
+--   Public:           false (files are delivered through short-lived signed URLs)
 --   File size limit:  5 MB
 --   Allowed MIME:     image/jpeg, image/png, image/gif, image/webp, image/*
 --
@@ -79,7 +79,7 @@
 -- ─────────────────────────────────────────────────────────────────────────────
 --
 --   The ante_core.workout_logs table has a photo_url text column ready to
---   receive Storage URLs. Once the workout logs dual-write slice is implemented,
+--   receive durable internal Storage references. Once the workout logs dual-write slice is implemented,
 --   photo_url will be written there alongside the rest of the log data.
 --   No schema change needed — the column already exists.
 --

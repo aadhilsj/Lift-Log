@@ -29,6 +29,8 @@ const DEFAULT_JOINED_MONTH_BY_NAME = { Abhishek: "2026-4" };
 const SUPABASE_URL = process.env.SUPABASE_URL || "";
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_PUBLISHABLE_KEY || "";
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+const PRIVATE_PHOTO_BUCKETS = new Set(["profile-photos", "workout-photos"]);
+const PHOTO_SIGNED_URL_TTL_SECONDS = 15 * 60;
 // Server-only allowlist. Do not expose this through getClientAuthConfig or a VITE_ variable.
 const FOUNDER_DASHBOARD_USER_IDS = new Set(
   String(process.env.FOUNDER_DASHBOARD_USER_IDS || "")
@@ -692,6 +694,120 @@ function scopeReadableStateForUser(state, userId) {
     defaultGroupId: deriveDefaultGroupId(nextGroupOrder),
     profiles: nextProfiles
   };
+}
+
+function parseFeroStorageReference(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return null;
+
+  let bucket = "";
+  let path = "";
+  const internalMatch = /^fero-storage:\/\/(profile-photos|workout-photos)\/(.+)$/i.exec(raw);
+  if (internalMatch) {
+    bucket = internalMatch[1];
+    path = internalMatch[2];
+  } else if (SUPABASE_URL) {
+    try {
+      const target = new URL(raw);
+      const supabase = new URL(SUPABASE_URL);
+      const prefix = "/storage/v1/object/public/";
+      if (target.origin !== supabase.origin || !target.pathname.startsWith(prefix)) return null;
+      const segments = target.pathname.slice(prefix.length).split("/");
+      bucket = segments.shift() || "";
+      path = segments.join("/");
+    } catch {
+      return null;
+    }
+  }
+
+  if (!PRIVATE_PHOTO_BUCKETS.has(bucket) || !path) return null;
+  let decodedPath;
+  try {
+    decodedPath = decodeURIComponent(path);
+  } catch {
+    return null;
+  }
+  if (
+    !decodedPath
+    || decodedPath.startsWith("/")
+    || decodedPath.includes("\\0")
+    || decodedPath.split("/").some(segment => !segment || segment === "." || segment === "..")
+  ) return null;
+  return { bucket, path: decodedPath };
+}
+
+function collectScopedPhotoReferences(state) {
+  const references = new Map();
+  const add = value => {
+    const reference = parseFeroStorageReference(value);
+    if (reference) references.set(`${reference.bucket}/${reference.path}`, reference);
+  };
+  Object.values(state?.profiles || {}).forEach(profile => add(profile?.profilePhotoUrl));
+  Object.values(state?.groups || {}).forEach(group => {
+    Object.values(group?.logs || {}).forEach(logs => (Array.isArray(logs) ? logs : []).forEach(log => add(log?.photoUrl)));
+    (Array.isArray(group?.monthHistory) ? group.monthHistory : []).forEach(month => {
+      Object.values(month?.logsByUser || {}).forEach(logs => (Array.isArray(logs) ? logs : []).forEach(log => add(log?.photoUrl)));
+    });
+  });
+  return references;
+}
+
+async function createScopedPhotoSignedUrls(references) {
+  const byReference = new Map();
+  const byBucket = new Map();
+  references.forEach(reference => {
+    const paths = byBucket.get(reference.bucket) || [];
+    paths.push(reference.path);
+    byBucket.set(reference.bucket, paths);
+  });
+  const client = await getSupabaseAdminClient();
+  for (const [bucket, paths] of byBucket.entries()) {
+    const { data, error } = await client.storage
+      .from(bucket)
+      .createSignedUrls(paths, PHOTO_SIGNED_URL_TTL_SECONDS);
+    if (error) throw error;
+    (Array.isArray(data) ? data : []).forEach((item, index) => {
+      const signedUrl = String(item?.signedUrl || "").trim();
+      if (signedUrl) byReference.set(`${bucket}/${paths[index]}`, signedUrl);
+    });
+  }
+  return byReference;
+}
+
+function replaceScopedPhotoUrls(state, signedUrls) {
+  const resolve = value => {
+    const reference = parseFeroStorageReference(value);
+    if (!reference) return value;
+    return signedUrls.get(`${reference.bucket}/${reference.path}`) || "";
+  };
+  const replaceLogs = logs => (Array.isArray(logs) ? logs : []).map(log => ({ ...log, photoUrl: resolve(log?.photoUrl) }));
+  const groups = Object.fromEntries(Object.entries(state?.groups || {}).map(([groupId, group]) => [groupId, {
+    ...group,
+    logs: Object.fromEntries(Object.entries(group?.logs || {}).map(([owner, logs]) => [owner, replaceLogs(logs)])),
+    monthHistory: (Array.isArray(group?.monthHistory) ? group.monthHistory : []).map(month => ({
+      ...month,
+      logsByUser: Object.fromEntries(Object.entries(month?.logsByUser || {}).map(([owner, logs]) => [owner, replaceLogs(logs)]))
+    }))
+  }]));
+  const profiles = Object.fromEntries(Object.entries(state?.profiles || {}).map(([userId, profile]) => [userId, {
+    ...profile,
+    profilePhotoUrl: resolve(profile?.profilePhotoUrl)
+  }]));
+  return { ...state, groups, profiles };
+}
+
+async function scopeAndSignReadableStateForUser(state, userId) {
+  const scoped = scopeReadableStateForUser(state, userId);
+  const references = collectScopedPhotoReferences(scoped);
+  if (!references.size) return scoped;
+  try {
+    return replaceScopedPhotoUrls(scoped, await createScopedPhotoSignedUrls(references));
+  } catch (error) {
+    // Never fall back to a durable public URL when signing fails. The app can
+    // safely omit a photo and recover on the next state refresh instead.
+    console.error("Unable to sign scoped photo URLs:", error);
+    return replaceScopedPhotoUrls(scoped, new Map());
+  }
 }
 
 function normalizeSettlementConfirmations(rows) {
@@ -4967,7 +5083,7 @@ async function persistAndScopeReadableStateForUser(nextState, reason, action, us
   const readable = action && shouldSkipBlobMirrorForAction(action)
     ? persisted
     : await fetchReadableCurrentState();
-  const scoped = scopeReadableStateForUser(readable, userId);
+  const scoped = await scopeAndSignReadableStateForUser(readable, userId);
   return applyEffectiveRevision(scoped, {
     revision: Math.max(
       Number(scoped?.meta?.revision) || 0,
@@ -5433,7 +5549,7 @@ async function ensureProfilePhotosBucket() {
     body: JSON.stringify({
       id: "profile-photos",
       name: "profile-photos",
-      public: true,
+      public: false,
       file_size_limit: 5242880,
       allowed_mime_types: ["image/jpeg", "image/png", "image/gif", "image/webp"]
     })
@@ -5465,7 +5581,7 @@ async function ensureWorkoutPhotosBucket() {
     body: JSON.stringify({
       id: "workout-photos",
       name: "workout-photos",
-      public: true,
+      public: false,
       file_size_limit: 5242880,
       allowed_mime_types: ["image/jpeg", "image/png", "image/webp"]
     })
@@ -5513,7 +5629,7 @@ async function uploadProfilePhotoToStorage(authUserId, dataUrl) {
     error.status = response.status;
     throw error;
   }
-  return `${SUPABASE_URL}/storage/v1/object/public/profile-photos/${path}`;
+  return `fero-storage://profile-photos/${path}`;
 }
 
 async function uploadWorkoutPhotoToStorage(authUserId, dataUrl) {
@@ -5535,50 +5651,7 @@ async function uploadWorkoutPhotoToStorage(authUserId, dataUrl) {
     error.status = response.status;
     throw error;
   }
-  return `${SUPABASE_URL}/storage/v1/object/public/workout-photos/${path}`;
-}
-
-function parseAllowedStorageImageUrl(value) {
-  const raw = String(value || "").trim();
-  if (!raw || !SUPABASE_URL) return null;
-  try {
-    const target = new URL(raw);
-    const supabase = new URL(SUPABASE_URL);
-    if (target.origin !== supabase.origin) return null;
-    const prefix = "/storage/v1/object/public/";
-    if (!target.pathname.startsWith(prefix)) return null;
-    const bucket = target.pathname.slice(prefix.length).split("/")[0];
-    if (!["workout-photos", "profile-photos"].includes(bucket)) return null;
-    return target;
-  } catch {
-    return null;
-  }
-}
-
-async function proxyStorageImage(req, res, imageUrl) {
-  const target = parseAllowedStorageImageUrl(imageUrl);
-  if (!target) return res.status(400).json({ error: "Unsupported image URL" });
-  const response = await fetch(target.toString(), {
-    headers: {
-      Accept: "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8"
-    }
-  });
-  if (!response.ok) {
-    const text = await response.text().catch(() => "");
-    res.status(response.status);
-    return res.end(text || "Unable to load image");
-  }
-  const contentType = response.headers.get("content-type") || "application/octet-stream";
-  if (!contentType.toLowerCase().startsWith("image/")) {
-    return res.status(415).json({ error: "Unsupported image response" });
-  }
-  const body = Buffer.from(await response.arrayBuffer());
-  res.setHeader("Content-Type", contentType);
-  res.setHeader("Content-Length", String(body.length));
-  res.setHeader("Cache-Control", "public, max-age=3600, stale-while-revalidate=86400");
-  res.setHeader("X-Content-Type-Options", "nosniff");
-  res.status(200);
-  return res.end(body);
+  return `fero-storage://workout-photos/${path}`;
 }
 
 function assertSupabaseConfigured() {
@@ -8995,6 +9068,7 @@ export {
   applyJoinGroup,
   applyUpsertProfile,
   scopeReadableStateForUser,
+  parseFeroStorageReference,
   isMissingStorageBucketResponse
 };
 
@@ -9023,9 +9097,6 @@ export default async function handler(req, res) {
   try {
     if (req.method === "GET") {
       const url = new URL(req.url || "/", "http://localhost");
-      if (url.searchParams.has("image")) {
-        return proxyStorageImage(req, res, url.searchParams.get("image"));
-      }
       if (url.searchParams.get("config") === "auth") {
         return res.status(200).json(getClientAuthConfig());
       }
@@ -9035,7 +9106,7 @@ export default async function handler(req, res) {
         return res.status(200).json(revisionStamp);
       }
       const current = await fetchReadableCurrentState();
-      return res.status(200).json(scopeReadableStateForUser(current, authUser.id));
+      return res.status(200).json(await scopeAndSignReadableStateForUser(current, authUser.id));
     }
 
     if (req.method === "PUT") {
@@ -9283,7 +9354,7 @@ export default async function handler(req, res) {
         await recordCanonicalDailyAppActivity(authUser.id);
         return res.status(200).json({
           ok: true,
-          state: scopeReadableStateForUser(state, authUser.id),
+          state: await scopeAndSignReadableStateForUser(state, authUser.id),
           session: synced.session,
           founderDashboardAvailable: isFounderDashboardUser(authUser)
         });
@@ -9383,7 +9454,7 @@ export default async function handler(req, res) {
         );
         await bumpCanonicalRevision(`stream-system:settlement-paid:${payload.groupId}:${String(payload?.monthKey || "").trim()}`, null);
         const readable = await fetchReadableCurrentState();
-        return res.status(200).json(scopeReadableStateForUser(readable, auth.user.id));
+        return res.status(200).json(await scopeAndSignReadableStateForUser(readable, auth.user.id));
       }
 
       if (payload?.action === "settlement-confirm-paid") {
@@ -9430,7 +9501,7 @@ export default async function handler(req, res) {
         );
         await bumpCanonicalRevision(`stream-system:settlement-confirmed:${payload.groupId}:${String(payload?.monthKey || "").trim()}`, null);
         const readable = await fetchReadableCurrentState();
-        return res.status(200).json(scopeReadableStateForUser(readable, auth.user.id));
+        return res.status(200).json(await scopeAndSignReadableStateForUser(readable, auth.user.id));
       }
 
       if (payload?.action === "settlement-dispute-paid") {
@@ -9461,7 +9532,7 @@ export default async function handler(req, res) {
           receiverAuthUserId: participants.receiverMembership.userId
         });
         const readable = await fetchReadableCurrentState();
-        return res.status(200).json(scopeReadableStateForUser(readable, auth.user.id));
+        return res.status(200).json(await scopeAndSignReadableStateForUser(readable, auth.user.id));
       }
 
       if (payload?.action === "write-hydration-parity-report") {
@@ -9615,6 +9686,9 @@ export default async function handler(req, res) {
       if (payload?.action === "update-profile-photo") {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const profilePhotoUrl = String(payload?.profilePhotoUrl || "").trim();
+        if (profilePhotoUrl && !parseFeroStorageReference(profilePhotoUrl)) {
+          return res.status(400).json({ error: "Use the profile photo upload flow to save a photo" });
+        }
         const canonicalState = await buildCanonicalWritableStateForAuthenticatedGlobalMutation(auth);
         const currentProfile = canonicalState.profiles?.[auth.user.id] || auth.state.profiles?.[auth.user.id] || {};
         const displayName = String(currentProfile.displayName || "").trim();
@@ -9661,7 +9735,10 @@ export default async function handler(req, res) {
           { throwOnError: true }
         );
         const readableState = await persistAndScopeReadableStateForUser(updated, `profile-photo:${auth.user.id}`, null, auth.user.id);
-        return res.status(200).json({ state: readableState, profilePhotoUrl });
+        return res.status(200).json({
+          state: readableState,
+          profilePhotoUrl: String(readableState?.profiles?.[auth.user.id]?.profilePhotoUrl || "").trim()
+        });
       }
 
       if (payload?.action === "upload-workout-photo") {
@@ -9799,7 +9876,7 @@ export default async function handler(req, res) {
           );
           await persistOrSkipBlobMirror(updated, `leave-bloc:${payload.groupId}:${auth.user.id}`, "leave-bloc");
           const readable = await fetchReadableCurrentState();
-          return res.status(200).json({ ok: true, state: scopeReadableStateForUser(readable, auth.user.id), leftGroupId: payload.groupId });
+          return res.status(200).json({ ok: true, state: await scopeAndSignReadableStateForUser(readable, auth.user.id), leftGroupId: payload.groupId });
         }
 
         // Last-member deletion:
@@ -9808,7 +9885,7 @@ export default async function handler(req, res) {
         await deleteBlocFromCanonical(payload.groupId, { throwOnError: true });
         await persistOrSkipBlobMirror(updated, `leave-bloc:${payload.groupId}:${auth.user.id}`, "leave-bloc");
         const readable = await fetchReadableCurrentState();
-        return res.status(200).json({ ok: true, state: scopeReadableStateForUser(readable, auth.user.id), leftGroupId: payload.groupId });
+        return res.status(200).json({ ok: true, state: await scopeAndSignReadableStateForUser(readable, auth.user.id), leftGroupId: payload.groupId });
       }
 
       if (payload?.action === "multi-log") {
@@ -9819,7 +9896,7 @@ export default async function handler(req, res) {
         const canonicalActor = assertGroupMembershipForUser(canonicalState, payload.sourceGroupId, auth.user.id);
         // Every multi-log writes the source Bloc, so a repeat always matches there.
         if (findRepeatedWorkoutSave(canonicalState, payload.sourceGroupId, canonicalActor, payload.date, payload.photoUrl)) {
-          return res.status(200).json(scopeReadableStateForUser(await fetchReadableCurrentState(), auth.user.id));
+          return res.status(200).json(await scopeAndSignReadableStateForUser(await fetchReadableCurrentState(), auth.user.id));
         }
         let shadowBlobUpdated = null;
         try {
@@ -9893,7 +9970,7 @@ export default async function handler(req, res) {
         // Before any cap check: a repeat of a save that already landed would
         // otherwise count against the daily limit and report a failure.
         if (findRepeatedWorkoutSave(canonicalState, payload.groupId, canonicalActor, payload.date, payload.photoUrl)) {
-          return res.status(200).json(scopeReadableStateForUser(await fetchReadableCurrentState(), auth.user.id));
+          return res.status(200).json(await scopeAndSignReadableStateForUser(await fetchReadableCurrentState(), auth.user.id));
         }
         let shadowBlobUpdated = null;
         try {

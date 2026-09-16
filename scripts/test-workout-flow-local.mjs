@@ -33,25 +33,25 @@ try {
   await page.goto(base, { waitUntil:"networkidle" });
   const jpeg = await page.screenshot({ type:"jpeg" });
   const uploaded = await post("upload-workout-photo", { dataUrl:`data:image/jpeg;base64,${jpeg.toString("base64")}` });
-  const url = new URL(uploaded.workoutPhotoUrl);
-  assert.equal(url.origin, status.API_URL);
-  photoPath = url.pathname.split("/storage/v1/object/public/workout-photos/")[1];
+  assert.match(uploaded.workoutPhotoUrl, /^fero-storage:\/\/workout-photos\//);
+  photoPath = uploaded.workoutPhotoUrl.slice("fero-storage://workout-photos/".length);
   assert.ok(photoPath?.startsWith(`${sync.session.userId}/`));
-  const imageUrl = `${base}/api/lift-log?image=${encodeURIComponent(uploaded.workoutPhotoUrl)}`;
-  assert.equal(await page.evaluate(async src => {
-    const img = new Image(); img.src = src; await img.decode(); return img.naturalWidth;
-  }, imageUrl), 390);
 
   const date = new Intl.DateTimeFormat("en-CA", { timeZone:"Europe/Oslo", year:"numeric", month:"2-digit", day:"2-digit" }).format(new Date());
   const payload = { groupId, date, workoutType:"Gym", note:"Disposable release QA", photoUrl:uploaded.workoutPhotoUrl };
-  await post("add-log", payload);
+  const firstSave = await post("add-log", payload);
+  const firstSignedUrl = firstSave.groups[groupId].logs["Release QA"][0].photoUrl;
+  assert.match(firstSignedUrl, /\/storage\/v1\/object\/sign\/workout-photos\//);
+  assert.equal(await page.evaluate(async src => {
+    const img = new Image(); img.src = src; await img.decode(); return img.naturalWidth;
+  }, firstSignedUrl), 390);
   await post("add-log", payload);
   const third = await post("add-log", payload, 409);
   assert.match(third.details || third.error, /Already logged 2 workouts for this date/);
   const read = async () => (await (await fetch(`${base}/api/lift-log`, { headers })).json()).groups[groupId].logs["Release QA"];
   const logs = await read();
   assert.equal(logs.length, 2);
-  assert.ok(logs.every(log => log.photoUrl === uploaded.workoutPhotoUrl));
+  assert.ok(logs.every(log => /\/storage\/v1\/object\/sign\/workout-photos\//.test(log.photoUrl)));
   await post("delete-log", { groupId, owner:"Release QA", logId:logs[0].id });
   assert.deepEqual((await read()).map(log => log.id), [logs[1].id]);
   await post("add-log", payload);

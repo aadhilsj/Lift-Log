@@ -17,7 +17,10 @@ assert.ok(apiOrigin.includes("Capacitor.isNativePlatform()"), "native builds mus
 assert.ok(apiOrigin.includes("VITE_FERO_API_ORIGIN"), "native API origin must be configurable per release environment");
 assert.ok(apiOrigin.includes("https://lift-log-nu.vercel.app"), "native builds need a current deployed API fallback");
 assert.equal((client.match(/fetch\(getApiUrl\(/g) || []).length, 10, "all client API calls must use the native-safe URL helper");
-assert.ok(appState.includes("getApiUrl(`/api/lift-log?image="), "native storage image requests must use the API URL helper");
+assert.ok(server.includes("createSignedUrls(paths, PHOTO_SIGNED_URL_TTL_SECONDS)"), "photo delivery must use short-lived signed Storage URLs");
+assert.ok(server.includes("public: false"), "new photo buckets must be private by default");
+assert.ok(!server.includes("proxyStorageImage"), "the unauthenticated image proxy must stay retired");
+assert.ok(!appState.includes("/api/lift-log?image="), "the client must not recreate the retired image proxy route");
 assert.ok(server.includes('"capacitor://localhost"'), "server must allow the iOS Capacitor origin");
 assert.ok(server.includes('"http://localhost"'), "server must allow Android-compatible Capacitor local origin");
 assert.ok(server.includes("applyNativeWebviewCors(req, res)"), "server must apply native WebView CORS headers");

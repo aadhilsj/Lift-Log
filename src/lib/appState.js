@@ -88,6 +88,7 @@ const resolveAvatarPhotoUrl = (name, explicitUserId = "") => {
 const resolveStorageImageUrl = url => {
   const raw = String(url || "").trim();
   if (!raw || raw.startsWith("data:") || raw.startsWith("blob:")) return raw;
+  if (raw.startsWith("fero-storage://")) return "";
   try {
     const parsed = new URL(raw);
     const allowedHosts = new Set([
@@ -98,7 +99,10 @@ const resolveStorageImageUrl = url => {
     ]);
     const allowedPath = "/storage/v1/object/public/";
     if (allowedHosts.has(parsed.hostname) && parsed.pathname.startsWith(allowedPath)) {
-      return getApiUrl(`/api/lift-log?image=${encodeURIComponent(raw)}`);
+      // Old cached state may contain a public-style reference. The server
+      // replaces it with a short-lived signed URL on the next authenticated
+      // refresh; do not revive the retired unauthenticated image proxy.
+      return "";
     }
   } catch {}
   return raw;
