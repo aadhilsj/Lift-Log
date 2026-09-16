@@ -2,6 +2,7 @@ import React from "react";
 import { createPortal } from "react-dom";
 const { useState, useEffect, useMemo, useCallback, useRef } = React;
 import {
+  DISPLAY_NAME_MAX_LENGTH,
   WORKOUT_TYPES,
   MAX_WORKOUTS_PER_DAY,
   DEFAULT_MIN_TARGET,
@@ -231,12 +232,12 @@ const GroupCreateModal = ({onCreate,onClose,creating,defaultCreatorName="",defau
       React.createElement('div',{style:{fontFamily:DISPLAY_FONT,fontWeight:800,fontSize:22,letterSpacing:0,lineHeight:1.08,marginBottom:6}},"Create a Bloc"),
       React.createElement('div',{style:{fontFamily:UI_FONT,color:"var(--muted)",fontSize:13,lineHeight:1.35,marginBottom:17,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},"Start the Bloc now. Tune the rules after."),
       [
-        ["Bloc Name",groupName,setGroupName,"Sunday Runners"],
-        ...(!lockCreatorName && requireCreatorName ? [["Your Name",creatorName,setCreatorName,"Aadhil"]] : [])
-      ].map(([label,value,setter,placeholder])=>
+        ["Bloc Name",groupName,setGroupName,"Sunday Runners",null],
+        ...(!lockCreatorName && requireCreatorName ? [["Your Name",creatorName,setCreatorName,"Aadhil",DISPLAY_NAME_MAX_LENGTH]] : [])
+      ].map(([label,value,setter,placeholder,limit])=>
         React.createElement('label',{key:label,style:{display:"block",marginBottom:14}},
           React.createElement('div',{style:setupFieldTitleStyle},label),
-          React.createElement('input',{value,onChange:e=>setter(e.target.value),placeholder,style:{...inputShellStyle,width:"100%",fontFamily:UI_FONT,fontSize:14,borderRadius:10}})
+          React.createElement('input',{value,onChange:e=>setter(limit ? e.target.value.slice(0,limit) : e.target.value),...(limit ? {maxLength:limit} : {}),placeholder,style:{...inputShellStyle,width:"100%",fontFamily:UI_FONT,fontSize:14,borderRadius:10}})
         )
       ),
       React.createElement('div',{style:{marginBottom:14}},

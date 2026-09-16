@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import {
   applyAddLog,
   applyMultiLog,
+  applyUpsertProfile,
   ACTIVITY_CATEGORIES,
+  DISPLAY_NAME_MAX_LENGTH,
+  capDisplayName,
   normalizeLogEntry
 } from "../api/lift-log.js";
 import {
@@ -16,6 +19,7 @@ import {
   getTopActivities
 } from "../src/lib/activities.js";
 import { getWorkoutIcon } from "../src/lib/workoutIcons.js";
+import { DISPLAY_NAME_MAX_LENGTH as CLIENT_DISPLAY_NAME_MAX_LENGTH } from "../src/lib/appState.js";
 
 const ALL_CATEGORIES = ["Gym", "Run", "Sports", "Pilates", "Other"];
 
@@ -187,5 +191,21 @@ assert.throws(
 assert.equal(normalizeLogEntry({ id: "x", date: TODAY, type: "Sports", activity: "Padel" }).activity, "Padel");
 assert.equal("activity" in normalizeLogEntry({ id: "x", date: TODAY, type: "Sports", activity: "nonsense" }), false);
 assert.equal("activity" in normalizeLogEntry({ id: "x", date: TODAY, type: "Gym" }), false);
+
+// ── Display names are capped so they never overflow a layout ──────────────
+assert.equal(DISPLAY_NAME_MAX_LENGTH, 16);
+assert.equal(CLIENT_DISPLAY_NAME_MAX_LENGTH, DISPLAY_NAME_MAX_LENGTH, "the app and the server must cap names the same");
+assert.equal(capDisplayName("  Dasha the Legend  "), "Dasha the Legend", "the longest existing name is untouched");
+assert.equal(capDisplayName("Bartholomew Fitzgerald III").length, 16);
+{
+  const state = {
+    version: 2, groups: {}, groupOrder: [], defaultGroupId: null,
+    profiles: {}, meta: { revision: 1, updatedAt: new Date().toISOString() }
+  };
+  const next = applyUpsertProfile(state, {
+    userId: USER_ID, email: "long@example.com", displayName: "Bartholomew Fitzgerald III"
+  });
+  assert.equal(next.profiles[USER_ID].displayName, "Bartholomew Fitz", "the server caps the name it stores");
+}
 
 console.log("All activity checks passed.");

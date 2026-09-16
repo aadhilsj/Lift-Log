@@ -107,6 +107,8 @@ const avatarColor = (name, explicitUserId = "") => {
   if (ACTIVE_SESSION_USER_ID && userId === ACTIVE_SESSION_USER_ID) return "#E8A23A";
   return AVATAR_COLORS[hashString(userId) % AVATAR_COLORS.length];
 };
+// Keep in step with DISPLAY_NAME_MAX_LENGTH in api/lift-log.js.
+const DISPLAY_NAME_MAX_LENGTH = 16;
 const WORKOUT_TYPE_ALIASES = {
   Sport: "Sports",
   Hike: "Other",
@@ -2145,6 +2147,7 @@ export {
   resolveStorageImageUrl,
   avatarColor,
   WORKOUT_TYPE_ALIASES,
+  DISPLAY_NAME_MAX_LENGTH,
   CURRENCY_OPTIONS,
   DISTANCE_UNIT_OPTIONS,
   QUICK_REACTIONS,

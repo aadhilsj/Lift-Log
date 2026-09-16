@@ -1,6 +1,10 @@
 const DEFAULT_MIN_TARGET = 12;
 const WORKOUT_TYPES = ["Gym", "Run", "Sports", "Pilates", "Other"];
 const MAX_WORKOUTS_PER_DAY = 2;
+// Display names are capped so they never overflow the leaderboard, Week's MVP
+// tile, Month leader card or the History table. Mirrors DISPLAY_NAME_MAX_LENGTH
+// in src/lib/appState.js.
+const DISPLAY_NAME_MAX_LENGTH = 16;
 const WORKOUT_TYPE_ALIASES = { Sport: "Sports", Hike: "Other", Hiking: "Other" };
 // Activity → category. Mirrors src/lib/activities.js; `npm run test:activities`
 // fails if the two drift. A log's `type` stays the category, so Bloc rules, the
@@ -1417,6 +1421,10 @@ function resolveLogCreatedAt(log) {
   }
   if (typeof log?.date === "string" && log.date) return `${log.date}T00:00:00.000Z`;
   return new Date().toISOString();
+}
+
+function capDisplayName(name) {
+  return String(name || "").trim().slice(0, DISPLAY_NAME_MAX_LENGTH);
 }
 
 function normalizeLogEntry(log) {
@@ -5960,7 +5968,7 @@ function applyCreateGroup(current, payload) {
   const actorUserId = String(payload?.actorUserId || "").trim();
   const profiles = current?.profiles || {};
   const creatorProfile = actorUserId ? profiles[actorUserId] : null;
-  const creatorName = String(payload?.creatorName || creatorProfile?.displayName || "").trim();
+  const creatorName = capDisplayName(payload?.creatorName || creatorProfile?.displayName);
   const extraMembers = parseExtraMembers(payload?.extraMembers);
   const settings = buildNormalizedSettings({
     minTarget: payload?.minTarget,
@@ -8297,7 +8305,7 @@ function normalizePaymentMethodsInput(value) {
 function applyUpsertProfile(current, payload) {
   const userId = String(payload?.userId || "").trim();
   const email = String(payload?.email || "").trim().toLowerCase();
-  const displayName = String(payload?.displayName || "").trim();
+  const displayName = capDisplayName(payload?.displayName);
   if (!userId || !email || !displayName) {
     const error = new Error("userId, email, and display name are required");
     error.status = 400;
@@ -8412,7 +8420,7 @@ function applyRepairDisplayName(current, payload) {
   const userId  = String(payload?.userId  || "").trim();
   const groupId = String(payload?.groupId || "").trim();
   const oldName = String(payload?.oldName || "").trim();
-  const newName = String(payload?.newName || "").trim();
+  const newName = capDisplayName(payload?.newName);
   if (!userId || !groupId || !oldName || !newName) {
     const error = new Error("userId, groupId, oldName, and newName are required");
     error.status = 400;
@@ -8993,6 +9001,8 @@ export {
   isMissingLocalCanonicalWorkoutRpcError,
   applyAddLog,
   applyMultiLog,
+  DISPLAY_NAME_MAX_LENGTH,
+  capDisplayName,
   // Exported for the activities test suite.
   ACTIVITY_CATEGORIES,
   normalizeLogEntry,
@@ -9509,7 +9519,7 @@ export default async function handler(req, res) {
 
       if (payload?.action === "create-group") {
         const auth = await requireAuthenticatedContext(req, payload, current);
-        const creatorName = auth.profile?.displayName || String(payload?.creatorName || "").trim();
+        const creatorName = auth.profile?.displayName || capDisplayName(payload?.creatorName);
         const createPayload = {
           ...payload,
           actorUserId: auth.user.id,
