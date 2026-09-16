@@ -12,7 +12,7 @@ const WORKOUT_TYPE_ALIASES = { Sport: "Sports", Hike: "Other", Hiking: "Other" }
 const ACTIVITY_CATEGORIES = {
   Gym: "Gym", Run: "Run", Pilates: "Pilates", Yoga: "Pilates",
   Badminton: "Sports", Basketball: "Sports", Football: "Sports", Cricket: "Sports", Tennis: "Sports",
-  Padel: "Sports", Pickleball: "Sports", Golf: "Sports", Volleyball: "Sports",
+  Padel: "Sports", Squash: "Sports", Pickleball: "Sports", Golf: "Sports", Volleyball: "Sports",
   Hiking: "Other", Swimming: "Other", Cycling: "Other", Climbing: "Other", Rowing: "Other",
   "Home Workout": "Other", Kitesurfing: "Other", Other: "Other"
 };
