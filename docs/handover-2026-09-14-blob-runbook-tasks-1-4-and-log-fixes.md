@@ -13,6 +13,8 @@ and closes out the Aadhil side of
 > §8, workout activities are live, including a canonical migration — **read §8.4
 > before your next canonical SQL.** §9, **your month-close branch must merge
 > before 1 October, or September's activities are lost from the closed month.**
+> §10, canonical-only activity backfill for June–September, a reload on every
+> deploy, and two new activities — read before running parity reports.
 
 ---
 
@@ -495,3 +497,41 @@ take a fresh backup before `--apply`.
 
 1. **Merge `blob/month-close-canonical` before 1 October**, or tell us if you
    cannot, so the fallback above can be run in time.
+
+---
+
+## 10. Update, 2026-09-17 — backfill, reload on deploy, Squash and Dance
+
+**Deveen, this section is for you.** It was added after this handover was sent.
+Full detail: `docs/handover-2026-09-17-squash-dance-reload-and-backfill.md`.
+
+**Plain English:** 246 past workouts (310 rows) from June to September were given
+their activity in canonical only, from notes the founder approved one by one.
+Nine of them also moved category. Counts and payments are unaffected. Separately,
+an open app now reloads once when a new version is deployed, and Squash and Dance
+were added.
+
+1. **The blob is further behind canonical.** June–August `monthHistory` in the
+   blob keeps the old `type` and has no `activity` on those rows. The readable state
+   shows canonical wherever `buildCanonicalMonthHistoryForGroup` accepts the month.
+   For September, three more current-month rows (Coach P, Varun ×2) join the 93
+   in §9, and they depend on your month-close branch the same way.
+2. **`scripts/canonical-parity-report.mjs` will flag 10 rows.** It keys logs on
+   `workout_type`, and these category moves are intentional:
+   - Varun 27 Jun: Other → Sports
+   - Bananaaaa 15 and 17 Aug: Other → Sports
+   - Rishane 15 Aug, 2 Blocs: Sports → Other
+   - Nishara 6, 14 and 25 Jun: Other → Run
+   - Monika 8 Aug: Other → Gym
+   - Bianković 11 Jul: Sports → Other
+
+   `scripts/blob-parity-gate.mjs` does not compare category and is unaffected.
+3. **Every deploy now makes open apps reload once** (idle 20 s, no save or filled
+   form, once per session). Each reload is a full state load, so expect a small
+   burst after each release. Relevant to the scaling plan, and a reason not to
+   deploy on top of month close.
+4. **`GET /api/lift-log?revision=1` now includes `build`** (`VERCEL_GIT_COMMIT_SHA`).
+5. **`ACTIVITY_CATEGORIES` gained `Squash: "Sports"` and `Dance: "Other"`.**
+6. **New table `ante_core.backup_activity_backfill_2026_09_17`** (RLS on). It is the
+   undo for the backfill. Do not carry it into migrations; the founder will decide
+   when to drop it.
