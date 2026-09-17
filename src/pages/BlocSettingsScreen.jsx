@@ -384,7 +384,7 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
       : React.createElement('button',{type:"button",onClick:()=>setConfirmLeave(true),style:{width:"100%",background:"transparent",border:"1px solid rgba(212,74,74,.24)",color:"rgba(212,74,74,.85)",padding:"10px",borderRadius:9,fontSize:12,fontWeight:800,fontFamily:UI_FONT}},"Leave Bloc")
   );
 
-  const renderMembers = () => (
+  const renderMembers = () => React.createElement(React.Fragment,null,
     React.createElement('div',{style:{display:"grid",gap:8}},
       pendingSitOuts.length>0 && isAdmin && React.createElement('div',{style:{marginBottom:10,padding:"11px 12px",borderRadius:12,background:"#080F0F",border:"0.5px solid #163d36",display:"grid",gap:8}},
         React.createElement('div',{style:{fontWeight:900,fontSize:12}},"Pending sit-out requests"),
