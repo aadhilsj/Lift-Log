@@ -156,6 +156,50 @@ A quiet Bloc gets no such rescue.
 3. **Delete the inert preview `BLOB_MIRROR_SKIP_ACTIONS`** on
    `codex/create-group-canon`, if you agree.
 4. **Task 5 sequencing** — does `left_at` move month close onto canonical?
+5. **Database access-control audit and RLS rollout — App Store blocker.**
+   This is separate from the blob-parity work, but belongs with the canonical
+   database owner because it covers the same `ante_core` tables and
+   service-role-only RPC model.
+
+   **What was found (2026-09-18):** Supabase reports Row Level Security (RLS)
+   disabled on seven older canonical tables: `revision_clock`, `bloc_messages`,
+   `bloc_message_reactions`, `bloc_message_reads`, `workout_log_comments`,
+   `workout_log_comment_reactions`, and `solo_requests`. In plain English, an
+   RLS-disabled table can be directly reachable through the public Supabase
+   data API if its schema and grants permit it, bypassing the app server’s
+   intended membership checks. The intended design is already documented in
+   this repo: browser users must not directly access `ante_core`; the app server
+   uses its service-role key and the approved RPCs.
+
+   **What was deliberately not done:** do **not** run Supabase's generic
+   “enable RLS” fix directly against Production. With no matching policies or
+   grants review, that could break the live Stream, comments, reactions, unread
+   counts, or solo mode. This is the same caution recorded in the 2026-07-19
+   App Store handover.
+
+   **Required safe sequence:**
+
+   1. Inventory the affected tables' exposed schema membership, table grants,
+      RPC grants, and every server call site. Confirm the browser has no valid
+      direct-table path and identify any legacy exception.
+   2. Write one reviewable, additive migration that enables RLS and removes
+      direct `anon` / `authenticated` table access while preserving only the
+      server's service-role path. Do not create broad client policies merely to
+      silence the Supabase warning.
+   3. Apply and test it in a Supabase development copy first. Exercise Stream
+      read/send/reaction/unread, workout comments/reactions, solo mode, and
+      normal app bootstrap with real authentication.
+   4. Only after those checks pass, schedule the production rollout with a
+      current backup and an immediate rollback plan. Re-run the Supabase
+      security advisor and explicitly verify that anonymous and authenticated
+      roles cannot select from the seven tables or execute protected RPCs.
+
+   **Related App Store work already live:** the new UGC safety tables
+   `ante_core.user_blocks` and `ante_core.content_reports` were added on
+   2026-09-16. They already have RLS enabled; direct `anon` and
+   `authenticated` table/RPC access was verified denied. They are a good
+   reference for the desired end-state, not a reason to rush the older-table
+   rollout.
 
 ---
 
