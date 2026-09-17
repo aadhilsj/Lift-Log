@@ -9,7 +9,7 @@ import {
   getMonthKeyFromISO,
   isSoloForMonth
 } from "../lib/appState.js";
-import { getLogCommentCountsData } from "../lib/api.js";
+import { getLogCommentCountsData, getSafetyStatusData, setUserBlockData, createContentReportData } from "../lib/api.js";
 import {
   formatShortDate,
   formatCompactRelativeTime,
@@ -46,6 +46,12 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
   const [imageTarget,setImageTarget]=useState(null);
   const [commentCounts,setCommentCounts]=useState({});
   const [notice,setNotice]=useState(null);
+  const [blockedUserIds,setBlockedUserIds]=useState([]);
+  const [safetyTarget,setSafetyTarget]=useState(null);
+  const [safetyReason,setSafetyReason]=useState("harassment");
+  const [safetyDetails,setSafetyDetails]=useState("");
+  const [safetyBusy,setSafetyBusy]=useState(false);
+  const [safetyError,setSafetyError]=useState("");
   const reactionPressTimer = useRef(null);
   const reactionLongPressKey = useRef("");
   const reactionSuppressClickKey = useRef("");
@@ -69,7 +75,7 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
       else delete reactions[override.emoji];
     });
     return { ...post, reactions };
-  }),[activeReactionOverrides, baseFeedPosts, group?.id]);
+  }).filter(post => !blockedUserIds.includes(String(userIdForOwner(post.owner) || ""))),[activeReactionOverrides, baseFeedPosts, blockedUserIds, group?.id, userIdForOwner]);
   const photoFeedPosts = useMemo(()=>feedPosts.filter(post=>post.photoUrl),[feedPosts]);
   const isAdmin = group?.adminName === currentUser;
   const approvedFlagCount = countApprovedFlagsForActor(group, currentUser);
@@ -77,6 +83,31 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
   const compactFeed = isMobile();
   const soloBadge = React.createElement(SoloFlagIcon,{size:12});
   const isPostSolo = post => !!post && isSoloForMonth(group, post.owner, getMonthKeyFromISO(post.date));
+  useEffect(()=>{
+    if (!currentUserId) return;
+    getSafetyStatusData().then(result=>{ if (result.ok) setBlockedUserIds(result.blockedUserIds.map(String)); }).catch(()=>{});
+  },[currentUserId]);
+  const openSafetyMenu = post => {
+    const userId = userIdForOwner(post?.owner);
+    if (!userId || userId === currentUserId) return;
+    setSafetyTarget({...post, reportedUserId:userId}); setSafetyReason("harassment"); setSafetyDetails(""); setSafetyError("");
+  };
+  const blockTarget = async () => {
+    if (!safetyTarget?.reportedUserId || safetyBusy) return;
+    setSafetyBusy(true); setSafetyError("");
+    const result = await setUserBlockData(safetyTarget.reportedUserId, true);
+    setSafetyBusy(false);
+    if (!result.ok) { setSafetyError(result.error || "Unable to block this member."); return; }
+    setBlockedUserIds(current=>[...new Set([...current,String(safetyTarget.reportedUserId)])]); setSafetyTarget(null);
+  };
+  const reportTarget = async () => {
+    if (!safetyTarget?.reportedUserId || safetyBusy) return;
+    setSafetyBusy(true); setSafetyError("");
+    const result = await createContentReportData({groupId:group?.id,reportedUserId:safetyTarget.reportedUserId,contentType:"workout_log",contentId:safetyTarget.id,reason:safetyReason,details:safetyDetails});
+    setSafetyBusy(false);
+    if (!result.ok) { setSafetyError(result.error || "Unable to submit your report."); return; }
+    setSafetyTarget(null);
+  };
   const getCommentCount = useCallback(post => {
     const key = String(post?.id || "");
     const appOverride = commentCountOverrides[key];
@@ -415,6 +446,22 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
       onClose:()=>{ setResponseTarget(null); setResponseText(""); },
       onConfirm:()=>{ onRespond(responseTarget.owner, responseTarget.id, responseText.trim()); setResponseTarget(null); setResponseText(""); }
     }),
+    safetyTarget && React.createElement('div',{role:"dialog","aria-modal":"true","aria-label":`Safety options for ${safetyTarget.owner}`,style:{position:"fixed",inset:0,zIndex:1300,display:"flex",alignItems:"flex-end",background:"rgba(0,0,0,.62)"},onMouseDown:event=>{if(event.target===event.currentTarget&&!safetyBusy)setSafetyTarget(null);}},
+      React.createElement('section',{style:{width:"100%",padding:"18px 16px calc(24px + env(safe-area-inset-bottom))",borderRadius:"18px 18px 0 0",background:"#081110",borderTop:"1px solid #1b332e",boxSizing:"border-box"}},
+        React.createElement('div',{style:{fontSize:16,fontWeight:800,color:"var(--text)"}},`Safety options for ${safetyTarget.owner}`),
+        React.createElement('p',{style:{margin:"6px 0 14px",fontSize:12,lineHeight:1.45,color:"var(--muted)"}},"Reporting sends this workout post to Fero’s private review queue. Blocking hides this person’s activity for you; it does not remove either person from the Bloc."),
+        React.createElement('select',{value:safetyReason,onChange:event=>setSafetyReason(event.target.value),disabled:safetyBusy,"aria-label":"Report reason",style:{width:"100%",padding:"10px",borderRadius:9,border:"1px solid #1b332e",background:"#0b1413",color:"var(--text)",fontSize:13}},
+          React.createElement('option',{value:"harassment"},"Harassment or bullying"),React.createElement('option',{value:"hate_or_discrimination"},"Hate or discrimination"),React.createElement('option',{value:"threat_or_safety"},"Threat or safety concern"),React.createElement('option',{value:"sexual_or_inappropriate"},"Sexual or inappropriate content"),React.createElement('option',{value:"spam"},"Spam"),React.createElement('option',{value:"other"},"Other")
+        ),
+        React.createElement('textarea',{value:safetyDetails,onChange:event=>setSafetyDetails(event.target.value),disabled:safetyBusy,maxLength:1000,placeholder:"Optional detail for the Fero team",rows:3,style:{width:"100%",boxSizing:"border-box",marginTop:8,padding:"10px",borderRadius:9,border:"1px solid #1b332e",background:"#0b1413",color:"var(--text)",fontSize:13,resize:"vertical"}}),
+        safetyError && React.createElement('div',{role:"alert",style:{marginTop:8,color:"#ffd4d4",fontSize:11}},safetyError),
+        React.createElement('div',{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginTop:12}},
+          React.createElement('button',{type:"button",onClick:reportTarget,disabled:safetyBusy,style:{border:0,borderRadius:9,padding:"11px",background:"#4ECDC4",color:"#04110e",fontWeight:800,cursor:"pointer"}},safetyBusy?"Working…":"Send report"),
+          React.createElement('button',{type:"button",onClick:blockTarget,disabled:safetyBusy,style:{border:"1px solid rgba(239,159,39,.5)",borderRadius:9,padding:"11px",background:"rgba(239,159,39,.1)",color:"#ffdca5",fontWeight:800,cursor:"pointer"}},"Block member")
+        ),
+        React.createElement('button',{type:"button",onClick:()=>setSafetyTarget(null),disabled:safetyBusy,style:{width:"100%",marginTop:9,border:0,background:"transparent",color:"var(--muted)",padding:8,fontWeight:700,cursor:"pointer"}},"Cancel")
+      )
+    ),
     React.createElement(Card,{style:{overflow:"visible",position:"relative",zIndex:reactionTarget ? 2 : "auto"}},
       React.createElement('div',{style:{padding:"12px 15px",borderBottom:"1px solid var(--border)",display:"flex",alignItems:"center",justifyContent:"space-between"}},
         React.createElement('div',{style:{fontWeight:800,fontSize:15,textAlign:"left"}},"Activity Feed")
@@ -461,6 +508,7 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
                               React.createElement('span',{className:"mono",style:{fontSize:9,color:"var(--muted2)",letterSpacing:"-.01em",flexShrink:0}},formatShortDate(displayDate))
                             ),
                             React.createElement('div',{style:{display:"flex",alignItems:"center",gap:5,flexShrink:0,marginLeft:6}},
+                              !isOwner && React.createElement('button',{type:"button",onClick:()=>openSafetyMenu(post),"aria-label":`Safety options for ${post.owner}`,style:{border:0,background:"transparent",color:"var(--muted)",padding:"0 2px",fontSize:15,lineHeight:1,cursor:"pointer"}},"•••"),
                               post.verifiedVia==="strava" && React.createElement('span',{className:"mono",style:{fontSize:9,color:"var(--cyan)",letterSpacing:".05em",textTransform:"uppercase"}},"Strava")
                             )
                           ),
@@ -492,6 +540,7 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
                         React.createElement('span',{className:"mono",style:{fontSize:9,color:"var(--muted2)",letterSpacing:"-.01em",flexShrink:0}},formatShortDate(displayDate))
                       ),
                       React.createElement('div',{style:{display:"flex",alignItems:"center",gap:5,flexShrink:0,marginLeft:6}},
+                        !isOwner && React.createElement('button',{type:"button",onClick:()=>openSafetyMenu(post),"aria-label":`Safety options for ${post.owner}`,style:{border:0,background:"transparent",color:"var(--muted)",padding:"0 2px",fontSize:15,lineHeight:1,cursor:"pointer"}},"•••"),
                         compactRelativeTime && React.createElement('span',{className:"mono",style:{fontSize:8,color:"var(--muted)",opacity:0.58}},compactRelativeTime),
                         post.verifiedVia==="strava" && React.createElement('span',{className:"mono",style:{fontSize:9,color:"var(--cyan)",letterSpacing:".05em",textTransform:"uppercase",flexShrink:0}},"Strava")
                       )
