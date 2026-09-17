@@ -54,7 +54,7 @@ import {
   buildLocalWeeklyMvpPreview
 } from "../lib/utils.js";
 import { Avatar, WorkoutTypeIcon, ChevronRightIcon, TargetHitHexIcon, StatusBadge, RankIcon, Bar, Card, AppIcon, PlayerProfileErrorBoundary, RedemptionShieldIcon, MemberTag, TrainingSproutIcon, SoloFlagIcon } from "../components/primitives.jsx";
-import { LogModal, DeleteModal, SitOutModal, SoloModal, NoticeModal } from "../modals/modals.jsx";
+import { LogModal, DeleteModal, SitOutModal, SoloModal } from "../modals/modals.jsx";
 import { getLogDisplayActivity } from "../lib/activities.js";
 import { PlayerProfile } from "../pages/PlayerProfile.jsx";
 import { buildPaymentTargets } from "../lib/paymentLinks.js";
@@ -69,7 +69,6 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
   const [sitOutSubmitting,setSitOutSubmitting]=useState(false);
   const [sitOutError,setSitOutError]=useState("");
   const [showSolo,setShowSolo]=useState(false);
-  const [showSoloLocked,setShowSoloLocked]=useState(false);
   const [soloSubmitting,setSoloSubmitting]=useState(false);
   const [soloError,setSoloError]=useState("");
   const [viewPlayer,setViewPlayer]=useState(null);
@@ -193,26 +192,11 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
     ? null
     : (recentSitOutCount >= 1 ? "exceptional" : ((monthSummary?.day || DAY_OF_MON) <= 5 ? "instant" : "request"));
   const soloMinimumTarget = currentGroup ? Math.max(1, Math.ceil(getMemberTargetInfoForMonth(currentGroup, user, curKey).target * 0.25)) : 1;
-  const soloRequestWindowClosed = (monthSummary?.day || DAY_OF_MON) > 10;
-  const soloMode = currentSoloRequest?.status === "pending" || isExcused || isSolo || soloRequestWindowClosed
+  // Instant in the first 10 days; after that it goes to the admin as a request.
+  const soloMode = currentSoloRequest?.status === "pending" || isExcused || isSolo
     ? null
-    : (recentSoloCount >= 1 ? "exceptional" : "request");
-  const soloPreviewOverride = (() => {
-    try {
-      const host = window.location.hostname.toLowerCase();
-      const params = new URLSearchParams(window.location.search);
-      return params.get("soloPreview") === "1"
-        || (host.includes("vercel.app") && (host.includes("reco") || host.includes("reconcile") || host.includes("codex")));
-    } catch {
-      return false;
-    }
-  })();
-  const soloPreviewMode = soloPreviewOverride
-    && soloRequestWindowClosed
-    && !currentSoloRequest?.status
-    && !isExcused
-    && !isSolo;
-  const visibleSoloMode = soloMode || (soloPreviewMode ? "request" : null);
+    : (recentSoloCount >= 1 ? "exceptional" : ((monthSummary?.day || DAY_OF_MON) <= 10 ? "request" : "late"));
+  const visibleSoloMode = soloMode;
 
   const board=NAMES.filter(name=>isJoinedForMonth(name, curKey)).map(name=>{
     const count=getCountedLogCount(logs[name]||[]);
@@ -318,10 +302,6 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
 
   const submitSolo = async ({ personalTarget, reason }) => {
     if (!onSoloRequest || !visibleSoloMode) return;
-    if (soloPreviewMode && !soloMode) {
-      setSoloError("Preview only. Real Solo requests are locked after day 10.");
-      return;
-    }
     setSoloSubmitting(true);
     setSoloError("");
     const result = await onSoloRequest({
@@ -575,10 +555,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
     : React.createElement('div',{style:{display:"flex",gap:6,flexWrap:"nowrap",justifyContent:"flex-end",alignItems:"center",flexShrink:0}},
         React.createElement('button',{
           onClick:()=>{
-            if (!visibleSoloMode) {
-              setShowSoloLocked(true);
-              return;
-            }
+            if (!visibleSoloMode) return;
             setSoloError("");
             setShowSolo(true);
           },
@@ -1275,9 +1252,9 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
               React.createElement('div',{style:{height:"100%",width:`${pct}%`,borderRadius:999,background:"#4ECDC4"}})
             )
           ),
-          React.createElement('div',{style:{display:"grid",justifyItems:"end",gap:2}},
-            React.createElement('span',{style:{fontSize:13,fontWeight:800,color:"#4ECDC4"}},`${u.count}/${u.soloTarget || u.target}`),
-            React.createElement('span',{style:{fontSize:8,color:"var(--muted)",fontWeight:700}},`${pct}%`)
+          // minHeight keeps the row the height it had with the percentage line under the count.
+          React.createElement('div',{style:{display:"grid",justifyItems:"end",alignContent:"center",gap:2,minHeight:28.5}},
+            React.createElement('span',{style:{fontSize:13,fontWeight:800,color:"#4ECDC4"}},`${u.count}/${u.soloTarget || u.target}`)
           )
         )
       );
@@ -1459,7 +1436,6 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
     deleteTarget && React.createElement(DeleteModal,{log:deleteTarget,otherBlocNames:[...new Set(findWorkoutCopiesInOtherBlocs(groups, currentGroupId, currentUserId, deleteTarget).map(copy => copy.groupName))],onClose:()=>setDeleteTarget(null),onConfirm:async(options)=>{ const log = deleteTarget; setDeleteTarget(null); await deleteOwnLog(log, options); }}),
     showExcuse && sitOutMode && React.createElement(SitOutModal,{mode:sitOutMode,monthName:modalMonthName,onClose:()=>{setShowExcuse(false);setSitOutError("");},onSubmit:submitSitOut,submitting:sitOutSubmitting,error:sitOutError}),
     showSolo && visibleSoloMode && React.createElement(SoloModal,{mode:visibleSoloMode,monthName:modalMonthName,minimumTarget:soloMinimumTarget,maximumTarget:effectiveTarget,defaultTarget:Math.max(soloMinimumTarget, Math.ceil(effectiveTarget * .5)),onClose:()=>{setShowSolo(false);setSoloError("");},onSubmit:submitSolo,submitting:soloSubmitting,error:soloError}),
-    showSoloLocked && React.createElement(NoticeModal,{title:"Solo Mode is locked",body:"Solo Mode is only available in the first 10 days of the month.",onClose:()=>setShowSoloLocked(false)}),
     linkPaymentModal,
     settlementDisputePrompt,
     settlementClaimPrompt,

@@ -1041,6 +1041,12 @@ const SoloModal = ({mode,monthName,minimumTarget,maximumTarget,defaultTarget,onC
         body:["Solo is meant to be used only once every three months.","If you want to go Solo again, your request will be sent to the Bloc admin for approval."],
         cta:"Send request"
       }
+    : mode === "late"
+    ? {
+        title:`Request Solo for ${monthName}?`,
+        body:["After day 10, Solo needs the Bloc admin's approval.","Your request will be sent to the Bloc admin."],
+        cta:"Send request"
+      }
     : {
         title:`Go Solo for ${monthName}?`,
         body:["You keep logging, but you are out of the reward / penalty system for the month.","This action can't be undone."],

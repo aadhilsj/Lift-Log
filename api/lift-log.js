@@ -7750,11 +7750,9 @@ function applySoloRequest(current, payload) {
     throw error;
   }
   const month = getCurrentMonthSummary(group.settings?.timeZone);
-  if (month.day > 10) {
-    const error = new Error("Solo Mode requests close after day 10 of the month");
-    error.status = 403;
-    throw error;
-  }
+  // Solo is instant only in the first 10 days. After that it is still allowed,
+  // but it goes to the admin as a request, like a sit-out after day 5.
+  const soloWindowOpen = month.day <= 10;
   if (group.excused?.[actor]?.[month.monthKey]) {
     const error = new Error("You're sitting out this month");
     error.status = 400;
@@ -7786,7 +7784,7 @@ function applySoloRequest(current, payload) {
     error.status = 400;
     throw error;
   }
-  if (recentCount < 1 && !exceptional) {
+  if (soloWindowOpen && recentCount < 1 && !exceptional) {
     const nextSolo = normalizeSolo(group.solo, group.memberOrder);
     const nextGroup = normalizeGroup({
       ...group,
