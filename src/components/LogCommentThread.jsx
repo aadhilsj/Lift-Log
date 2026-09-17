@@ -5,7 +5,10 @@ import { ReactionChip } from "./ReactionRoster.jsx";
 import {
   createLogCommentData,
   listLogCommentsData,
-  toggleLogCommentReactionData
+  toggleLogCommentReactionData,
+  getSafetyStatusData,
+  setUserBlockData,
+  createContentReportData
 } from "../lib/api.js";
 import { QUICK_REACTIONS, resolveStorageImageUrl } from "../lib/appState.js";
 import { formatShortDate } from "../lib/utils.js";
@@ -136,6 +139,12 @@ function LogCommentThread({ groupId, log, currentUserId, currentUserName, onClos
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
   const [reactionTarget, setReactionTarget] = useState(null);
+  const [blockedUserIds, setBlockedUserIds] = useState([]);
+  const [safetyTarget, setSafetyTarget] = useState(null);
+  const [safetyReason, setSafetyReason] = useState("harassment");
+  const [safetyDetails, setSafetyDetails] = useState("");
+  const [safetyError, setSafetyError] = useState("");
+  const [safetyBusy, setSafetyBusy] = useState(false);
   const [dragX, setDragX] = useState(0);
   const [dragging, setDragging] = useState(false);
   const commentGestureRef = useRef(new Map());
@@ -147,6 +156,7 @@ function LogCommentThread({ groupId, log, currentUserId, currentUserName, onClos
   const cacheKey = groupId && logId ? `${groupId}:${logId}` : "";
   const knownCommentCount = Number.isFinite(Number(log?.commentCount)) ? Math.max(0, Number(log.commentCount)) : 0;
   const count = Math.max(comments.length, knownCommentCount);
+  const visibleComments = comments.filter(comment => !blockedUserIds.includes(String(comment?.commenterUserId || "")));
   const normalizedLog = useMemo(() => ({
     id: logId,
     owner: log?.owner || log?.ownerDisplayName || "Member",
@@ -205,6 +215,35 @@ function LogCommentThread({ groupId, log, currentUserId, currentUserName, onClos
     const id = window.setInterval(refresh, 3000);
     return () => window.clearInterval(id);
   }, [groupId, logId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!currentUserId) return;
+    getSafetyStatusData().then(result => {
+      if (result.ok) setBlockedUserIds(result.blockedUserIds.map(String));
+    }).catch(() => {});
+  }, [currentUserId]);
+
+  const openSafetyMenu = comment => {
+    if (!comment?.commenterUserId || comment.commenterUserId === currentUserId) return;
+    setSafetyTarget(comment); setSafetyReason("harassment"); setSafetyDetails(""); setSafetyError("");
+  };
+  const blockTarget = async () => {
+    if (!safetyTarget?.commenterUserId || safetyBusy) return;
+    setSafetyBusy(true); setSafetyError("");
+    const result = await setUserBlockData(safetyTarget.commenterUserId, true);
+    setSafetyBusy(false);
+    if (!result.ok) { setSafetyError(result.error || "Unable to block this member."); return; }
+    setBlockedUserIds(current => [...new Set([...current, String(safetyTarget.commenterUserId)])]);
+    setSafetyTarget(null);
+  };
+  const reportTarget = async () => {
+    if (!safetyTarget?.commenterUserId || safetyBusy) return;
+    setSafetyBusy(true); setSafetyError("");
+    const result = await createContentReportData({ groupId, reportedUserId:safetyTarget.commenterUserId, contentType:"workout_comment", contentId:safetyTarget.id, reason:safetyReason, details:safetyDetails });
+    setSafetyBusy(false);
+    if (!result.ok) { setSafetyError(result.error || "Unable to submit your report."); return; }
+    setSafetyTarget(null);
+  };
 
   useEffect(() => {
     resizeComposer(inputRef.current);
@@ -501,20 +540,23 @@ function LogCommentThread({ groupId, log, currentUserId, currentUserName, onClos
       React.createElement('div', { style: { flex: 1, minHeight: 0, overflowY: "auto", WebkitOverflowScrolling: "touch", overscrollBehavior: "contain" } },
         React.createElement(LogHeader, { log: normalizedLog }),
         error && React.createElement('div', { style: { margin: 14, padding: "9px 11px", borderRadius: 10, background: "rgba(232,69,69,.08)", border: "1px solid rgba(232,69,69,.22)", color: "#ffd7d7", fontSize: 12 } }, error),
-        comments.length === 0 && !loaded && knownCommentCount > 0
+        visibleComments.length === 0 && !loaded && knownCommentCount > 0
           ? React.createElement(CommentThreadSkeleton, { count: knownCommentCount })
-          : comments.length === 0
-          ? React.createElement('div', { style: { padding: "22px 14px", color: "var(--muted2)", fontSize: 13, textAlign: "center" } }, "No comments yet")
+          : visibleComments.length === 0
+          ? React.createElement('div', { style: { padding: "22px 14px", color: "var(--muted2)", fontSize: 13, textAlign: "center" } }, comments.length ? "No visible comments" : "No comments yet")
           : React.createElement('div', { style: { display: "flex", flexDirection: "column", gap: 6, padding: "12px 12px 18px" } },
-              comments.map((comment, index) => {
+              visibleComments.map((comment, index) => {
                 const isOwn = Boolean((currentUserId && comment.commenterUserId === currentUserId) || (!currentUserId && currentUserName && comment.commenterName === currentUserName));
-                const previous = comments[index - 1];
+                const previous = visibleComments[index - 1];
                 const showName = !isOwn && previous?.commenterUserId !== comment.commenterUserId;
                 const previousIsDifferentUser = Boolean(previous && previous.commenterUserId !== comment.commenterUserId);
                 return React.createElement('div', { key: comment.id, style: { display: "flex", alignItems: "flex-end", justifyContent: isOwn ? "flex-end" : "flex-start", gap: 7, marginTop: previousIsDifferentUser ? 3.5 : 0 } },
                   !isOwn ? React.createElement(Avatar, { name: comment.commenterName, userId: comment.commenterUserId, size: 22 }) : null,
                   React.createElement('div', { style: { minWidth: 0, maxWidth: "76%", display: "flex", flexDirection: "column", alignItems: isOwn ? "flex-end" : "flex-start" } },
-                    showName ? React.createElement('div', { style: { color: "#3d5e59", fontSize: 9, fontWeight: 700, lineHeight: 1.2, margin: "0 0 2px 4px" } }, comment.commenterName) : null,
+                    showName ? React.createElement('div', { style: { display:"flex",alignItems:"center",gap:3,color:"#3d5e59", fontSize: 9, fontWeight: 700, lineHeight: 1.2, margin: "0 0 2px 4px" } },
+                      React.createElement('span', null, comment.commenterName),
+                      !isOwn && React.createElement('button', {type:"button",onClick:()=>openSafetyMenu(comment),"aria-label":`Safety options for ${comment.commenterName}`,style:{border:0,background:"transparent",color:"#3d5e59",padding:"0 2px",fontSize:13,lineHeight:1,cursor:"pointer"}}, "•••")
+                    ) : null,
                     React.createElement('div', {
                       onDoubleClick: () => {
                         const gesture = commentGestureRef.current.get(comment.id);
@@ -562,7 +604,23 @@ function LogCommentThread({ groupId, log, currentUserId, currentUserName, onClos
           style: { width: 40, height: 40, borderRadius: 999, background: draft.trim() && !sending ? "#4ECDC4" : "#0D1F1E", border: `1px solid ${draft.trim() && !sending ? "#4ECDC4" : "#163d36"}`, color: draft.trim() && !sending ? "#04110e" : "#3d5e59", display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 0, flexShrink: 0 }
         }, React.createElement(AppIcon, { name: "chevron-right", size: 18, stroke: "currentColor" }))
       ),
-      renderReactionPicker()
+      renderReactionPicker(),
+      safetyTarget && React.createElement('div', {role:"dialog","aria-modal":"true","aria-label":`Safety options for ${safetyTarget.commenterName}`,style:{position:"fixed",inset:0,zIndex:14000,display:"flex",alignItems:"flex-end",background:"rgba(0,0,0,.62)"},onMouseDown:event=>{if(event.target===event.currentTarget&&!safetyBusy)setSafetyTarget(null);}},
+        React.createElement('section', {style:{width:"100%",padding:"18px 16px calc(24px + env(safe-area-inset-bottom))",borderRadius:"18px 18px 0 0",background:"#081110",borderTop:"1px solid #1b332e",boxSizing:"border-box"}},
+          React.createElement('div', {style:{fontSize:16,fontWeight:800,color:"var(--text)"}}, `Safety options for ${safetyTarget.commenterName}`),
+          React.createElement('p', {style:{margin:"6px 0 14px",fontSize:12,lineHeight:1.45,color:"var(--muted)"}}, "Reporting sends this comment to Fero’s private review queue. Blocking hides this person’s comments for you; it does not remove either person from the Bloc."),
+          React.createElement('select', {value:safetyReason,onChange:event=>setSafetyReason(event.target.value),disabled:safetyBusy,"aria-label":"Report reason",style:{width:"100%",padding:"10px",borderRadius:9,border:"1px solid #1b332e",background:"#0b1413",color:"var(--text)",fontSize:13}},
+            React.createElement('option',{value:"harassment"},"Harassment or bullying"), React.createElement('option',{value:"hate_or_discrimination"},"Hate or discrimination"), React.createElement('option',{value:"threat_or_safety"},"Threat or safety concern"), React.createElement('option',{value:"sexual_or_inappropriate"},"Sexual or inappropriate content"), React.createElement('option',{value:"spam"},"Spam"), React.createElement('option',{value:"other"},"Other")
+          ),
+          React.createElement('textarea', {value:safetyDetails,onChange:event=>setSafetyDetails(event.target.value),disabled:safetyBusy,maxLength:1000,placeholder:"Optional detail for the Fero team",rows:3,style:{width:"100%",boxSizing:"border-box",marginTop:8,padding:"10px",borderRadius:9,border:"1px solid #1b332e",background:"#0b1413",color:"var(--text)",fontSize:13,resize:"vertical"}}),
+          safetyError && React.createElement('div', {role:"alert",style:{marginTop:8,color:"#ffd4d4",fontSize:11}}, safetyError),
+          React.createElement('div', {style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginTop:12}},
+            React.createElement('button',{type:"button",onClick:reportTarget,disabled:safetyBusy,style:{border:0,borderRadius:9,padding:"11px",background:"#4ECDC4",color:"#04110e",fontWeight:800,cursor:"pointer"}}, safetyBusy?"Working…":"Send report"),
+            React.createElement('button',{type:"button",onClick:blockTarget,disabled:safetyBusy,style:{border:"1px solid rgba(239,159,39,.5)",borderRadius:9,padding:"11px",background:"rgba(239,159,39,.1)",color:"#ffdca5",fontWeight:800,cursor:"pointer"}}, "Block member")
+          ),
+          React.createElement('button',{type:"button",onClick:()=>setSafetyTarget(null),disabled:safetyBusy,style:{width:"100%",marginTop:9,border:0,background:"transparent",color:"var(--muted)",padding:8,fontWeight:700,cursor:"pointer"}}, "Cancel")
+        )
+      )
     )
   );
 }
