@@ -497,6 +497,13 @@ async function requestSitOutData(payload) {
   return { ok:true, data: normalizeAppState(result.body) };
 }
 
+async function cancelRequestData(payload) {
+  const action = payload?.kind === "solo" ? "solo-cancel" : "sitout-cancel";
+  const result = await postApi(action, payload);
+  if (!result.ok) return { ok:false, error: result.error || "Unable to cancel that request" };
+  return result;
+}
+
 async function reviewSitOutData(payload) {
   const result = await postApi("sitout-review", payload);
   if (!result.ok) return { ok:false, error: result.error || "Unable to review sit-out" };
@@ -994,6 +1001,7 @@ export {
   saveSeasonProrationChoice,
   requestSitOutData,
   reviewSitOutData,
+  cancelRequestData,
   requestSoloData,
   reviewSoloData,
   setTrainingChoiceData,

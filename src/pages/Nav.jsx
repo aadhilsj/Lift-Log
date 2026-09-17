@@ -15,7 +15,9 @@ const StreamIconButton = ({ onOpenStream, unreadCount = 0, size }) => {
   );
 };
 
-const Nav = ({page,setPage,user,groupName,canEditGroup,onOpenSettings,onOpenProfile,onOpenStream,streamUnreadCount=0,onSwitchUser,onSwitchGroup,onOpenLog,syncing,lastSyncedAt,syncError,onRefresh,showJustSynced,activityAlertCount=0,hideMobileBottomNav=false,onlyMobileBottomNav=false,mobileBottomDragX=0,mobileBottomDragging=false,mobileBottomNavRef=null,currentUserId="",profilePhotoUrl=""}) => {
+const SettingsDot = () => React.createElement('span',{style:{position:"absolute",top:2,right:2,width:7,height:7,borderRadius:999,background:"#4ECDC4",boxShadow:"0 0 0 1.5px #050909"}});
+
+const Nav = ({page,setPage,user,groupName,canEditGroup,onOpenSettings,settingsAlert=false,onOpenProfile,onOpenStream,streamUnreadCount=0,onSwitchUser,onSwitchGroup,onOpenLog,syncing,lastSyncedAt,syncError,onRefresh,showJustSynced,activityAlertCount=0,hideMobileBottomNav=false,onlyMobileBottomNav=false,mobileBottomDragX=0,mobileBottomDragging=false,mobileBottomNavRef=null,currentUserId="",profilePhotoUrl=""}) => {
   const navItems = [["today","Today","today"],["activity","Activity","activity"],["month","Month","results"],["history","History","history"]];
   const mobilePageSlots = { today: 0, activity: 1, month: 3, history: 4 };
   const mobileActiveSlot = mobilePageSlots[page] ?? 0;
@@ -64,7 +66,7 @@ const Nav = ({page,setPage,user,groupName,canEditGroup,onOpenSettings,onOpenProf
     ),
     React.createElement('div',{style:{display:"flex",alignItems:"center",gap:8}},
       React.createElement(StreamIconButton,{onOpenStream,unreadCount:streamUnreadCount}),
-      React.createElement('button',{onClick:onOpenSettings,className:"icon-btn live-icon-btn",title:"Bloc settings"},React.createElement(AppIcon,{name:"settings",size:14})),
+      React.createElement('button',{onClick:onOpenSettings,className:"icon-btn live-icon-btn",title:"Bloc settings",style:{position:"relative"}},React.createElement(AppIcon,{name:"settings",size:14}),settingsAlert&&React.createElement(SettingsDot,null)),
       // The in-Bloc account button was removed: account settings live on the
       // Bloc Switcher, and your own profile is reached by tapping yourself on
       // the leaderboard. Keeping it here duplicated both.
@@ -88,7 +90,7 @@ const Nav = ({page,setPage,user,groupName,canEditGroup,onOpenSettings,onOpenProf
       ),
       React.createElement('div',{style:{display:"flex",alignItems:"center",gap:4,flexShrink:0}},
         React.createElement(StreamIconButton,{onOpenStream,unreadCount:streamUnreadCount,size:28}),
-        React.createElement('button',{onClick:onOpenSettings,className:"icon-btn live-icon-btn",title:"Bloc settings",style:{width:28,height:28,display:"inline-flex",alignItems:"center",justifyContent:"center"}},React.createElement(AppIcon,{name:"settings",size:18})),
+        React.createElement('button',{onClick:onOpenSettings,className:"icon-btn live-icon-btn",title:"Bloc settings",style:{width:28,height:28,display:"inline-flex",alignItems:"center",justifyContent:"center",position:"relative"}},React.createElement(AppIcon,{name:"settings",size:18}),settingsAlert&&React.createElement(SettingsDot,null)),
         null
       )
     )

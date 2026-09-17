@@ -3,6 +3,8 @@ const { useState, useEffect, useMemo, useCallback, useRef } = React;
 import {
   MIN_TARGET,
   curKey,
+  normalizeSitOutRequests,
+  normalizeSoloRequests,
   INSTALL_DISMISSED_KEY,
   LOCAL_GROUP_KEY,
   LOCAL_DEV_IMPERSONATION_KEY,
@@ -53,6 +55,7 @@ import {
   saveSeasonProrationChoice,
   requestSitOutData,
   reviewSitOutData,
+  cancelRequestData,
   requestSoloData,
   reviewSoloData,
   setTrainingChoiceData,
@@ -621,6 +624,12 @@ const App = () => {
   const currentMembership = currentGroup ? getMembershipForUser(currentGroup, effectiveAuthSession, effectiveProfile) : null;
   const currentUser = currentMembership?.displayName || null;
   const isGroupAdmin = currentGroup ? (currentGroup.adminUserId ? currentGroup.adminUserId === effectiveAuthSession?.userId : currentGroup.adminName === currentUser) : false;
+  // A dot on the settings icon is the only way an admin learns a request is
+  // waiting: nothing else on the in-Bloc screens mentions one.
+  const pendingRequestCount = isGroupAdmin && currentGroup
+    ? Object.values(normalizeSitOutRequests(currentGroup.sitOutRequests)?.[curKey] || {}).filter(request => request.status === "pending").length
+      + Object.values(normalizeSoloRequests(currentGroup.soloRequests)?.[curKey] || {}).filter(request => request.status === "pending").length
+    : 0;
   const prorationGroup = pendingProrationGroupId ? appState.groups?.[pendingProrationGroupId] || null : null;
 
   // The joiner's one-time question. Only in a Bloc that has already closed a
@@ -1501,6 +1510,29 @@ const App = () => {
         memberName: payload.memberName,
         monthKey: payload.monthKey,
         decision: payload.decision
+      });
+      if (result?.ok && result.data) {
+        const applied = applyData(result.data);
+        if (applied) {
+          setLastSyncedAt(new Date());
+          setSyncError(false);
+        }
+      }
+      return result;
+    } finally {
+      setSaving(false);
+    }
+  },[selectedGroupId,currentUser,authSession,applyData]);
+
+  const handleCancelRequest = useCallback(async(payload)=>{
+    if (!selectedGroupId || !currentUser) return { ok:false, error:"No Bloc selected" };
+    setSaving(true);
+    try {
+      const result = await cancelRequestData({
+        kind: payload?.kind,
+        groupId: selectedGroupId,
+        actor: currentUser,
+        actorUserId: authSession?.userId
       });
       if (result?.ok && result.data) {
         const applied = applyData(result.data);
@@ -3231,7 +3263,7 @@ const App = () => {
     style:{paddingBottom:isMobileView?"calc(108px + env(safe-area-inset-bottom))":0}
   },
     pageName==="today"  &&React.createElement(TodayPageErrorBoundary,{resetKey:`${selectedGroupId}:${navResetToken}:${currentUser}`},
-      React.createElement(TodayPage,  {user:currentUser,currentUserId:effectiveAuthSession?.userId,currentGroupId:selectedGroupId,groups,profiles:appState?.profiles||{},accountCreatedAt:profile?.createdAt,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,saving,onSave:handleSave,onMultiLog:handleMultiLog,onLogMutation:handleLogMutation,clockTick,onViewLastMonth:()=>{setMonthInitialIdx(0);setPage("month");},onSitOutRequest:handleSitOutRequest,onSoloRequest:handleSoloRequest,onSettlementClaimPaid:handleSettlementClaimPaid,onSettlementConfirmPaid:handleSettlementConfirmPaid,onSettlementDisputePaid:handleSettlementDisputePaid,onOpenSetupReview:()=>setShowSettings(true),onOpenAccount:()=>setShowProfile(true),navResetToken,showLog:showTodayLog,setShowLog:setShowTodayLog,onTrackUsage:trackUsage,currentPaymentMethods:effectiveProfile?.paymentMethods||[],onSavePayment:handleSavePaymentHandle,savingPayment:paymentSaving,paymentError:paymentError})
+      React.createElement(TodayPage,  {user:currentUser,currentUserId:effectiveAuthSession?.userId,currentGroupId:selectedGroupId,groups,profiles:appState?.profiles||{},accountCreatedAt:profile?.createdAt,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,saving,onSave:handleSave,onMultiLog:handleMultiLog,onLogMutation:handleLogMutation,clockTick,onViewLastMonth:()=>{setMonthInitialIdx(0);setPage("month");},onSettlementClaimPaid:handleSettlementClaimPaid,onSettlementConfirmPaid:handleSettlementConfirmPaid,onSettlementDisputePaid:handleSettlementDisputePaid,onOpenSetupReview:()=>setShowSettings(true),onOpenAccount:()=>setShowProfile(true),navResetToken,showLog:showTodayLog,setShowLog:setShowTodayLog,onTrackUsage:trackUsage,currentPaymentMethods:effectiveProfile?.paymentMethods||[],onSavePayment:handleSavePaymentHandle,savingPayment:paymentSaving,paymentError:paymentError})
     ),
     pageName==="activity"&&React.createElement(InBlocPageErrorBoundary,{pageLabel:"Activity",resetKey:`${selectedGroupId}:${navResetToken}:${currentUser}`},
       React.createElement(ActivityPage,{group:currentGroup,currentUser,currentUserId:effectiveAuthSession?.userId,onLogMutation:handleLogMutation,clockTick,reactionOverrides,setReactionOverrides,commentCountOverrides:logCommentCountOverrides,onCommentCountsLoaded:setLogCommentCountOverrides,onOpenLogComments:handleOpenLogComments,onTrackUsage:trackUsage})
@@ -3340,12 +3372,12 @@ const App = () => {
       touchAction:"pan-y"
     }
   },
-    React.createElement(Nav,{page,setPage:handleNavSelect,user:currentUser,currentUserId:effectiveAuthSession?.userId||"",profilePhotoUrl:effectiveProfile?.profilePhotoUrl||"",groupName:currentGroup.name,canEditGroup:isGroupAdmin,onOpenSettings:()=>{trackUsage("settings_opened");setShowSettings(true)},onOpenStream:handleOpenStream,streamUnreadCount,onSwitchUser:handleSwitchUser,onSwitchGroup:handleSwitchGroup,onOpenLog:()=>{setPage("today");setShowTodayLog(true);},syncing,lastSyncedAt,syncError,onRefresh:refreshNow,showJustSynced,activityAlertCount,hideMobileBottomNav:true}),
+    React.createElement(Nav,{page,setPage:handleNavSelect,user:currentUser,currentUserId:effectiveAuthSession?.userId||"",profilePhotoUrl:effectiveProfile?.profilePhotoUrl||"",groupName:currentGroup.name,canEditGroup:isGroupAdmin,settingsAlert:pendingRequestCount>0,onOpenSettings:()=>{trackUsage("settings_opened");setShowSettings(true)},onOpenStream:handleOpenStream,streamUnreadCount,onSwitchUser:handleSwitchUser,onSwitchGroup:handleSwitchGroup,onOpenLog:()=>{setPage("today");setShowTodayLog(true);},syncing,lastSyncedAt,syncError,onRefresh:refreshNow,showJustSynced,activityAlertCount,hideMobileBottomNav:true}),
     localDevMode && React.createElement(LocalDevImpersonationBar,{options:devImpersonationOptions,value:effectiveAuthSession?.devImpersonationActive?effectiveAuthSession.userId:"",onChange:handleSelectDevImpersonation}),
     React.createElement('div',{style:{position:"relative",overflow:"hidden",height:inBlocViewportHeight,minHeight:0}},
       showSettings && React.createElement('div',{style:{position:"absolute",inset:"0 0 auto 0",zIndex:1,pointerEvents:"none"}},renderInBlocPage(page,{swipePreview:true})),
       showSettings
-        ? React.createElement(BlocSettingsScreen,{group:currentGroup,actor:currentUser,actorUserId:authSession?.userId,isAdmin:isGroupAdmin,onSave:handleUpdateGroupSettings,onClose:()=>setShowSettings(false),saving:savingSettings,onReviewSetup:isGroupAdmin?handleReviewSetupDefaults:null,onReviewSitOut:isGroupAdmin?handleSitOutReview:null,onReviewSolo:isGroupAdmin?handleSoloReview:null,onKickMember:isGroupAdmin?handleKickMember:null,onLeaveBloc:handleLeaveBloc,localDevMode})
+        ? React.createElement(BlocSettingsScreen,{group:currentGroup,actor:currentUser,actorUserId:authSession?.userId,isAdmin:isGroupAdmin,onSave:handleUpdateGroupSettings,onClose:()=>setShowSettings(false),saving:savingSettings,onReviewSetup:isGroupAdmin?handleReviewSetupDefaults:null,onReviewSitOut:isGroupAdmin?handleSitOutReview:null,onReviewSolo:isGroupAdmin?handleSoloReview:null,onKickMember:isGroupAdmin?handleKickMember:null,onLeaveBloc:handleLeaveBloc,onSitOutRequest:handleSitOutRequest,onSoloRequest:handleSoloRequest,onCancelRequest:handleCancelRequest,localDevMode})
         : activePageLayer
     ),
     showInstallBanner && React.createElement(InstallBanner,{
@@ -3378,7 +3410,7 @@ const App = () => {
     }),
     page==="today"&&(blocDragging||Math.abs(Number(blocDragXRef.current)||0)>0)&&renderGroupSwitcherSurface({ inert:true, suppressIntro:true }),
     activeBlocSurface,
-    !showSettings && React.createElement(Nav,{onlyMobileBottomNav:true,page,setPage:handleNavSelect,user:currentUser,currentUserId:effectiveAuthSession?.userId||"",profilePhotoUrl:effectiveProfile?.profilePhotoUrl||"",groupName:currentGroup.name,canEditGroup:isGroupAdmin,onOpenSettings:()=>{trackUsage("settings_opened");setShowSettings(true)},onOpenStream:handleOpenStream,streamUnreadCount,onSwitchUser:handleSwitchUser,onSwitchGroup:handleSwitchGroup,onOpenLog:()=>{setPage("today");setShowTodayLog(true);},syncing,lastSyncedAt,syncError,onRefresh:refreshNow,showJustSynced,activityAlertCount,mobileBottomDragX:blocDragXRef.current,mobileBottomNavRef:blocBottomNavRef,mobileBottomDragging:blocDragging}),
+    !showSettings && React.createElement(Nav,{onlyMobileBottomNav:true,page,setPage:handleNavSelect,user:currentUser,currentUserId:effectiveAuthSession?.userId||"",profilePhotoUrl:effectiveProfile?.profilePhotoUrl||"",groupName:currentGroup.name,canEditGroup:isGroupAdmin,settingsAlert:pendingRequestCount>0,onOpenSettings:()=>{trackUsage("settings_opened");setShowSettings(true)},onOpenStream:handleOpenStream,streamUnreadCount,onSwitchUser:handleSwitchUser,onSwitchGroup:handleSwitchGroup,onOpenLog:()=>{setPage("today");setShowTodayLog(true);},syncing,lastSyncedAt,syncError,onRefresh:refreshNow,showJustSynced,activityAlertCount,mobileBottomDragX:blocDragXRef.current,mobileBottomNavRef:blocBottomNavRef,mobileBottomDragging:blocDragging}),
     renderInviteJoinToast(),
     renderProfilePhotoToast(),
     renderInviteDownloadPrompt(),

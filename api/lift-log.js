@@ -2884,6 +2884,27 @@ async function upsertSeasonOverrideInCanonical(legacyGroupKey, monthKey, prorate
   }
 }
 
+async function deleteRequestInCanonical(kind, legacyGroupKey, monthKey, memberName, options = {}) {
+  // A cancelled request leaves no trace: the member simply never asked.
+  if (!legacyGroupKey || !monthKey || !memberName) return;
+  const { throwOnError = false } = options;
+  const rpc = kind === "solo" ? "delete_ante_core_solo_request" : "delete_ante_core_sit_out_request";
+  try {
+    await supabaseFetch(`/rest/v1/rpc/${rpc}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({
+        p_legacy_group_key: legacyGroupKey,
+        p_month_key:        monthKey,
+        p_display_name:     memberName
+      })
+    });
+  } catch (err) {
+    if (throwOnError) throw err;
+    console.error(`Canonical ${kind === "solo" ? "Solo" : "sit-out"} request delete failed:`, err?.message || err);
+  }
+}
+
 async function upsertSitOutRequestInCanonical(legacyGroupKey, monthKey, memberName, request, options = {}) {
   // memberName is passed explicitly from the blob map key — do not rely on request.memberName.
   if (!legacyGroupKey || !monthKey || !memberName) return;
@@ -7725,6 +7746,56 @@ function applySitOutReview(current, payload) {
   };
 }
 
+// Cancelling your own pending request. Only your own, only while it is pending,
+// and only for the current month - a decided request is history, not a draft.
+function applyRequestCancel(current, payload, kind) {
+  const actor = String(payload?.actor || "").trim();
+  const actorUserId = String(payload?.actorUserId || "").trim();
+  const groupId = String(payload?.groupId || "").trim();
+  const base = rolloverStateIfNeeded(current);
+  const group = base.groups[groupId];
+  if (!group) {
+    const error = new Error("Bloc not found");
+    error.status = 404;
+    throw error;
+  }
+  if (!isCurrentGroupMember(group, actor, actorUserId)) {
+    const error = new Error("Only Bloc members can cancel a request");
+    error.status = 403;
+    throw error;
+  }
+  const monthKey = group.lastMonth || getCurrentMonthSummary(group.settings?.timeZone).monthKey;
+  const key = kind === "solo" ? "soloRequests" : "sitOutRequests";
+  const requests = kind === "solo"
+    ? normalizeSoloRequests(group.soloRequests)
+    : normalizeSitOutRequests(group.sitOutRequests);
+  const existing = requests?.[monthKey]?.[actor];
+  if (!existing) {
+    const error = new Error("There's no request to cancel");
+    error.status = 404;
+    throw error;
+  }
+  if (existing.status !== "pending") {
+    const error = new Error("That request has already been answered");
+    error.status = 400;
+    throw error;
+  }
+  const monthRequests = { ...(requests[monthKey] || {}) };
+  delete monthRequests[actor];
+  const nextRequests = { ...requests };
+  if (Object.keys(monthRequests).length > 0) nextRequests[monthKey] = monthRequests;
+  else delete nextRequests[monthKey];
+  const nextGroup = normalizeGroup({ ...group, [key]: nextRequests });
+  return {
+    state: {
+      ...base,
+      groups: { ...base.groups, [groupId]: nextGroup },
+      meta: { revision: base.meta.revision + 1, updatedAt: new Date().toISOString() }
+    },
+    monthKey
+  };
+}
+
 function applySoloRequest(current, payload) {
   const actor = String(payload?.actor || "").trim();
   const actorUserId = String(payload?.actorUserId || "").trim();
@@ -10201,6 +10272,20 @@ export default async function handler(req, res) {
           );
         }
         const readableState = await persistAndScopeReadableStateForUser(updated, `solo-request:${payload.groupId}:${canonicalActor || actor || auth.user.id}`, null, auth.user.id);
+        return res.status(200).json(readableState);
+      }
+
+      if (payload?.action === "sitout-cancel" || payload?.action === "solo-cancel") {
+        const kind = payload.action === "solo-cancel" ? "solo" : "sitout";
+        const auth = await requireAuthenticatedContext(req, payload, current);
+        const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
+        // Canonical writable state is the authority; the blob mirror follows
+        // through persistAndScopeReadableStateForUser below.
+        const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
+        const canonicalActor = assertGroupMembershipForUser(canonicalState, payload.groupId, auth.user.id);
+        const { state: updated, monthKey } = applyRequestCancel(canonicalState, { ...payload, actor: canonicalActor, actorUserId: auth.user.id }, kind);
+        await deleteRequestInCanonical(kind, payload.groupId, monthKey, canonicalActor, { throwOnError: true });
+        const readableState = await persistAndScopeReadableStateForUser(updated, `${payload.action}:${payload.groupId}:${canonicalActor || actor || auth.user.id}`, null, auth.user.id);
         return res.status(200).json(readableState);
       }
 

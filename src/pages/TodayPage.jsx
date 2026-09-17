@@ -24,8 +24,6 @@ import {
   getMemberTargetInfoForMonth,
   getCurrentSitOutRequest,
   getCurrentSoloRequest,
-  getRecentSitOutCount,
-  getRecentSoloCount,
   isSoloForMonth,
   isTrainingForMonth,
   getSoloTargetForMonth,
@@ -54,7 +52,7 @@ import {
   buildLocalWeeklyMvpPreview
 } from "../lib/utils.js";
 import { Avatar, WorkoutTypeIcon, ChevronRightIcon, TargetHitHexIcon, StatusBadge, RankIcon, Bar, Card, AppIcon, PlayerProfileErrorBoundary, RedemptionShieldIcon, MemberTag, TrainingSproutIcon, SoloFlagIcon } from "../components/primitives.jsx";
-import { LogModal, DeleteModal, SitOutModal, SoloModal } from "../modals/modals.jsx";
+import { LogModal, DeleteModal } from "../modals/modals.jsx";
 import { getLogDisplayActivity } from "../lib/activities.js";
 import { PlayerProfile } from "../pages/PlayerProfile.jsx";
 import { buildPaymentTargets } from "../lib/paymentLinks.js";
@@ -64,13 +62,7 @@ import { PaymentHandleSection } from "../components/PaymentHandleSection.jsx";
 
 const FULL_MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
-const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCreatedAt,logs,excused,monthHistory,saving,onSave,onMultiLog,onLogMutation,clockTick,onViewLastMonth,onSitOutRequest,onSoloRequest,onSettlementClaimPaid,onSettlementConfirmPaid,onSettlementDisputePaid,onOpenSetupReview,onOpenAccount,navResetToken,showLog,setShowLog,onTrackUsage,currentPaymentMethods=[],onSavePayment,savingPayment=false,paymentError=""}) => {
-  const [showExcuse,setShowExcuse]=useState(false);
-  const [sitOutSubmitting,setSitOutSubmitting]=useState(false);
-  const [sitOutError,setSitOutError]=useState("");
-  const [showSolo,setShowSolo]=useState(false);
-  const [soloSubmitting,setSoloSubmitting]=useState(false);
-  const [soloError,setSoloError]=useState("");
+const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCreatedAt,logs,excused,monthHistory,saving,onSave,onMultiLog,onLogMutation,clockTick,onViewLastMonth,onSettlementClaimPaid,onSettlementConfirmPaid,onSettlementDisputePaid,onOpenSetupReview,onOpenAccount,navResetToken,showLog,setShowLog,onTrackUsage,currentPaymentMethods=[],onSavePayment,savingPayment=false,paymentError=""}) => {
   const [viewPlayer,setViewPlayer]=useState(null);
   const [deleteTarget,setDeleteTarget]=useState(null);
   const [statDetail,setStatDetail]=useState(null);
@@ -168,9 +160,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
   const groupSettings = currentGroup?.settings || buildNormalizedSettings({});
   const monthSummary = currentGroup ? getCurrentMonthSummary(currentGroup) : null;
   const currentSitOutRequest = currentGroup ? getCurrentSitOutRequest(currentGroup, user, curKey) : null;
-  const recentSitOutCount = currentGroup ? getRecentSitOutCount(currentGroup, user, curKey) : 0;
   const currentSoloRequest = currentGroup ? getCurrentSoloRequest(currentGroup, user, curKey) : null;
-  const recentSoloCount = currentGroup ? getRecentSoloCount(currentGroup, user, curKey) : 0;
   const currentSoloTarget = currentGroup ? getSoloTargetForMonth(currentGroup, user, curKey) : null;
   const isSolo = currentGroup ? isSoloForMonth(currentGroup, user, curKey) : false;
   const currentMonthOverride = currentGroup ? getSeasonOverrideForMonth(currentGroup, curKey) : null;
@@ -188,16 +178,6 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
     ? Math.floor((effectiveTarget / myProratedDays) * Math.max(0, DAY_OF_MON - myJoinDay + 1))
     : getExpected(effectiveTarget);
   const myDaysActive = myProratedDays ? Math.max(0, DAY_OF_MON - myJoinDay + 1) : DAY_OF_MON;
-  const sitOutMode = currentSitOutRequest?.status === "pending"
-    ? null
-    : (recentSitOutCount >= 1 ? "exceptional" : ((monthSummary?.day || DAY_OF_MON) <= 5 ? "instant" : "request"));
-  const soloMinimumTarget = currentGroup ? Math.max(1, Math.ceil(getMemberTargetInfoForMonth(currentGroup, user, curKey).target * 0.25)) : 1;
-  // Instant in the first 10 days; after that it goes to the admin as a request.
-  const soloMode = currentSoloRequest?.status === "pending" || isExcused || isSolo
-    ? null
-    : (recentSoloCount >= 1 ? "exceptional" : ((monthSummary?.day || DAY_OF_MON) <= 10 ? "request" : "late"));
-  const visibleSoloMode = soloMode;
-
   const board=NAMES.filter(name=>isJoinedForMonth(name, curKey)).map(name=>{
     const count=getCountedLogCount(logs[name]||[]);
     const isOut=excused[name]?.[curKey]||false;
@@ -282,39 +262,6 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
       if (!result?.ok) failed += 1;
     }
     if (failed) window.alert(`Deleted here, but it couldn't be removed from ${failed === 1 ? "one of your other Blocs" : `${failed} of your other Blocs`}. Please try again from there.`);
-  };
-
-  const submitSitOut = async (reason) => {
-    if (!onSitOutRequest || !sitOutMode) return;
-    setSitOutSubmitting(true);
-    setSitOutError("");
-    const result = await onSitOutRequest({
-      reason,
-      exceptional: sitOutMode === "exceptional"
-    });
-    setSitOutSubmitting(false);
-    if (!result?.ok) {
-      setSitOutError(result?.error || "Unable to submit sit-out request.");
-      return;
-    }
-    setShowExcuse(false);
-  };
-
-  const submitSolo = async ({ personalTarget, reason }) => {
-    if (!onSoloRequest || !visibleSoloMode) return;
-    setSoloSubmitting(true);
-    setSoloError("");
-    const result = await onSoloRequest({
-      personalTarget,
-      reason,
-      exceptional: soloMode === "exceptional"
-    });
-    setSoloSubmitting(false);
-    if (!result?.ok) {
-      setSoloError(result?.error || "Unable to submit Solo Mode request.");
-      return;
-    }
-    setShowSolo(false);
   };
 
   const [previewSettlementCards, setPreviewSettlementCards] = useState([]);
@@ -457,7 +404,6 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
   const currentMonthKey = `${CUR_YEAR}-${CUR_MONTH}`;
   const currentMonthLabel = `${FULL_MONTH_NAMES[CUR_MONTH] || MONTH_NAMES[CUR_MONTH]} '${String(CUR_YEAR).slice(-2)}`;
   const todayHeaderMonthName = FULL_MONTH_NAMES[CUR_MONTH] || MONTH_NAMES[CUR_MONTH];
-  const modalMonthName = FULL_MONTH_NAMES[CUR_MONTH] || monthSummary?.monthName || MONTH_NAMES[CUR_MONTH];
   const expandMonthLabel = label => String(label || "").replace(/^([A-Z][a-z]{2})\s+'(\d{2})$/, (_, shortName, year) => `${FULL_MONTH_NAMES[MONTH_NAMES.indexOf(shortName)] || shortName} '${year}`);
   const blocMonthHistoryRows = useMemo(() => {
     const closedRows = [...monthHistory]
@@ -548,42 +494,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
         ? React.createElement('div',{style:{fontSize:12,color:"var(--muted)",fontWeight:700,lineHeight:1.35}},"Sit-out was declined.")
         : currentSoloRequest?.status === "declined"
           ? React.createElement('div',{style:{fontSize:12,color:"var(--muted)",fontWeight:700,lineHeight:1.35}},"Solo Mode was declined.")
-        : React.createElement('div',{style:{flex:"1 1 auto",minWidth:0,fontSize:11,color:"var(--muted)",fontWeight:700,lineHeight:1.35,whiteSpace:"nowrap",overflow:"visible"}},"Injured, traveling, or got a busy month ahead?");
-
-  const competitionAction = isExcused || isSolo || currentSitOutRequest?.status === "pending" || currentSoloRequest?.status === "pending"
-    ? null
-    : React.createElement('div',{style:{display:"flex",gap:6,flexWrap:"nowrap",justifyContent:"flex-end",alignItems:"center",flexShrink:0}},
-        React.createElement('button',{
-          onClick:()=>{
-            if (!visibleSoloMode) return;
-            setSoloError("");
-            setShowSolo(true);
-          },
-          style:{
-            background:visibleSoloMode ? "rgba(255,255,255,.018)" : "rgba(255,255,255,.025)",
-            border:`1px solid ${visibleSoloMode ? "rgba(148,163,184,.20)" : "rgba(148,163,184,.18)"}`,
-            color:visibleSoloMode ? "rgba(143,174,170,.66)" : "rgba(148,163,184,.48)",
-            padding:"6px 8px",
-            borderRadius:999,
-            fontSize:11,
-            fontWeight:800,
-            whiteSpace:"nowrap"
-          }
-        },"Solo"),
-        React.createElement('button',{
-          onClick:()=>{ setSitOutError(""); setShowExcuse(true); },
-          style:{
-            background:"transparent",
-            border:"1px solid rgba(148,163,184,.22)",
-            color:"var(--muted)",
-            padding:"6px 8px",
-            borderRadius:999,
-            fontSize:11,
-            fontWeight:800,
-            whiteSpace:"nowrap"
-          }
-        },currentSitOutRequest?.status === "declined"?"Request again":"Sit out")
-      );
+        : null;
 
   const paceDelta = me.count - expected;
   const earlyMonthPaceQuiet = isEarlyMonthNeutralWindow() && me.count === 0;
@@ -1330,10 +1241,9 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
       }),
       renderSoloSection())
     ),
-    (competitionStatusBody || competitionAction) && React.createElement(Card,{style:{padding:"9px 10px",background:"rgba(8,15,15,.72)",border:"0.5px solid rgba(78,205,196,.12)"}},
+    competitionStatusBody && React.createElement(Card,{style:{padding:"9px 10px",background:"rgba(8,15,15,.72)",border:"0.5px solid rgba(78,205,196,.12)"}},
       React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,minHeight:30}},
-        competitionStatusBody,
-        competitionAction
+        competitionStatusBody
       )
     )
   );
@@ -1420,10 +1330,9 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
         renderSoloSection())
       ),
       React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:10}},
-        (competitionStatusBody || competitionAction) && React.createElement(Card,{style:{padding:"9px 10px",background:"rgba(8,15,15,.72)",border:"0.5px solid rgba(78,205,196,.12)"}},
+        competitionStatusBody && React.createElement(Card,{style:{padding:"9px 10px",background:"rgba(8,15,15,.72)",border:"0.5px solid rgba(78,205,196,.12)"}},
           React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,minHeight:30}},
-            competitionStatusBody,
-            competitionAction
+            competitionStatusBody
           )
         ),
         desktopCalendarCard
@@ -1434,8 +1343,6 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
   const todayContent = React.createElement('div',{ref:todayRootRef,style:{position:"relative",minHeight:"calc(100vh - 44px)",backgroundColor:"#070C0C",background:"var(--bg-gradient)",backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)",overscrollBehavior:"contain",overscrollBehaviorY:"contain",overflowX:"hidden",isolation:"isolate"}},
     showLog&&React.createElement(LogModal,{user,currentUserId,currentGroupId,groups,onConfirm:doLog,onClose:()=>setShowLog(false)}),
     deleteTarget && React.createElement(DeleteModal,{log:deleteTarget,otherBlocNames:[...new Set(findWorkoutCopiesInOtherBlocs(groups, currentGroupId, currentUserId, deleteTarget).map(copy => copy.groupName))],onClose:()=>setDeleteTarget(null),onConfirm:async(options)=>{ const log = deleteTarget; setDeleteTarget(null); await deleteOwnLog(log, options); }}),
-    showExcuse && sitOutMode && React.createElement(SitOutModal,{mode:sitOutMode,monthName:modalMonthName,onClose:()=>{setShowExcuse(false);setSitOutError("");},onSubmit:submitSitOut,submitting:sitOutSubmitting,error:sitOutError}),
-    showSolo && visibleSoloMode && React.createElement(SoloModal,{mode:visibleSoloMode,monthName:modalMonthName,minimumTarget:soloMinimumTarget,maximumTarget:effectiveTarget,defaultTarget:Math.max(soloMinimumTarget, Math.ceil(effectiveTarget * .5)),onClose:()=>{setShowSolo(false);setSoloError("");},onSubmit:submitSolo,submitting:soloSubmitting,error:soloError}),
     linkPaymentModal,
     settlementDisputePrompt,
     settlementClaimPrompt,
