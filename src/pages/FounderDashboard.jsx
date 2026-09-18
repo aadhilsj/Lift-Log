@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { fetchFounderDashboardData, listFounderModerationReportsData, reviewFounderModerationReportData } from "../lib/api.js";
+import { fetchFounderDashboardData, listFounderModerationReportsData, reviewFounderModerationReportData, moderateFounderReportedContentData } from "../lib/api.js";
 import { summarizeSystemHealth } from "../lib/systemHealth.js";
 
 const number = value => new Intl.NumberFormat("en-GB").format(Math.max(0, Number(value) || 0));
@@ -148,6 +148,17 @@ const FounderDashboard = ({onClose}) => {
     if (!result.ok) { setReportsError(result.error || "Unable to update report."); return; }
     setReports(current=>current.map(report=>report.id === reportId ? {...report,status:nextStatus,reviewedAt:new Date().toISOString()} : report));
   },[]);
+  const moderateReportedContent = useCallback(async(reportId, action)=>{
+    setReportsError("");
+    const result = await moderateFounderReportedContentData(reportId, action);
+    if (!result.ok) { setReportsError(result.error || "Unable to change content visibility."); return; }
+    setReports(current=>current.map(report=>report.id === reportId ? {
+      ...report,
+      status:"reviewed",
+      reviewedAt:new Date().toISOString(),
+      moderationHidden:action === "hide"
+    } : report));
+  },[]);
   const range = useMemo(()=>dashboard?.range || {},[dashboard]);
   const growthRange = useMemo(()=>dashboard?.growth?.range || {},[dashboard]);
   const activeTrackingStarted = calendarDate(range.activeUserTrackingStarted, {day:"numeric",month:"long",year:"numeric"});
@@ -249,7 +260,7 @@ const FounderDashboard = ({onClose}) => {
           )
         ),
         tab === "moderation" && React.createElement("section", {style:{marginBottom:20,textAlign:"left"}},
-          React.createElement("p", {style:{margin:"0 0 12px",fontSize:11,lineHeight:1.45,color:"var(--muted)"}}, "Member reports appear here. Mark a report reviewed after you have dealt with it, or dismiss it when it does not need action. This does not automatically delete a member or their content."),
+          React.createElement("p", {style:{margin:"0 0 12px",fontSize:11,lineHeight:1.45,color:"var(--muted)"}}, "Member reports appear here. You can hide a reported Stream message or workout comment from members, then restore it if you made a mistake. Nothing is deleted. Other report types can still be reviewed or dismissed."),
           reportsStatus === "loading" && React.createElement("p", {style:{color:"var(--muted)",fontSize:12}}, "Loading reports…"),
           reportsStatus === "error" && React.createElement("div", null,
             React.createElement("p", {style:{color:"#f5b5b5",fontSize:12}}, reportsError),
@@ -263,6 +274,10 @@ const FounderDashboard = ({onClose}) => {
             ),
             React.createElement("div", {style:{marginTop:5,fontSize:11,lineHeight:1.45,color:"var(--text-soft)"}}, `${report.contentType || "content"} in ${report.blocName || "a Bloc"} · reported by ${report.reporterName || "Deleted account"}`),
             report.details && React.createElement("div", {style:{marginTop:7,fontSize:11,lineHeight:1.45,color:"var(--muted)",whiteSpace:"pre-wrap"}}, report.details),
+            ["stream_message","workout_comment"].includes(report.contentType) && React.createElement("div", {style:{marginTop:7,fontSize:10,fontWeight:800,color:report.moderationHidden ? "#EF9F27" : "var(--text-faint)"}}, report.moderationHidden ? "Hidden from members" : "Visible to members"),
+            ["stream_message","workout_comment"].includes(report.contentType) && React.createElement("div", {style:{display:"flex",gap:7,marginTop:10}},
+              React.createElement("button", {type:"button",onClick:()=>moderateReportedContent(report.id,report.moderationHidden ? "restore" : "hide"),style:{border:0,borderRadius:8,padding:"8px 10px",fontSize:11,fontWeight:800,background:report.moderationHidden ? "rgba(78,205,196,.16)" : "#EF9F27",color:report.moderationHidden ? "var(--text)" : "#161006",cursor:"pointer"}}, report.moderationHidden ? "Restore content" : "Hide from members")
+            ),
             report.status === "open" && React.createElement("div", {style:{display:"flex",gap:7,marginTop:10}},
               React.createElement("button", {type:"button",onClick:()=>reviewReport(report.id,"reviewed"),style:{border:0,borderRadius:8,padding:"8px 10px",fontSize:11,fontWeight:800,background:"#4ECDC4",color:"#061010",cursor:"pointer"}}, "Mark reviewed"),
               React.createElement("button", {type:"button",onClick:()=>reviewReport(report.id,"dismissed"),style:{border:"1px solid rgba(255,255,255,.16)",borderRadius:8,padding:"8px 10px",fontSize:11,fontWeight:800,background:"transparent",color:"var(--text-soft)",cursor:"pointer"}}, "Dismiss")

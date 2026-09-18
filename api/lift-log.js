@@ -3228,6 +3228,14 @@ async function reviewContentReportInCanonical(reportId, status, reviewerAuthUser
   return await response.json();
 }
 
+async function moderateReportedContentInCanonical(reportId, action, reviewerAuthUserId, reviewNote = "") {
+  const response = await supabaseFetch("/rest/v1/rpc/moderate_ante_core_report_content", {
+    method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ p_report_id: reportId, p_action: action, p_reviewer_auth_user_id: reviewerAuthUserId, p_review_note: reviewNote })
+  });
+  return await response.json();
+}
+
 async function readWorkoutLogCommentsFromCanonical(legacyGroupKey, authUserId, logId) {
   const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_workout_log_comments", {
     method: "POST",
@@ -9416,6 +9424,13 @@ export default async function handler(req, res) {
         const authUser = await fetchAuthenticatedUser(readBearerToken(req, payload));
         assertFounderDashboardUser(authUser);
         const result = await reviewContentReportInCanonical(payload?.reportId, payload?.status, authUser.id, payload?.reviewNote || "");
+        return res.status(200).json({ ok: true, report: result || null });
+      }
+
+      if (payload?.action === "founder-moderate-reported-content") {
+        const authUser = await fetchAuthenticatedUser(readBearerToken(req, payload));
+        assertFounderDashboardUser(authUser);
+        const result = await moderateReportedContentInCanonical(payload?.reportId, payload?.actionType, authUser.id, payload?.reviewNote || "");
         return res.status(200).json({ ok: true, report: result || null });
       }
 

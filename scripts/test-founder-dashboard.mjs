@@ -126,4 +126,20 @@ const retentionMigration = fs.readFileSync(new URL("../supabase/migrations/20260
   "case when v_previous_active_month = 0"
 ].forEach(fragment => assert.ok(retentionMigration.includes(fragment), `retention migration is missing: ${fragment}`));
 
+const moderationMigration = fs.readFileSync(new URL("../supabase/migrations/20260918090000_add_founder_content_removal.sql", import.meta.url), "utf8");
+[
+  "content_moderation_actions",
+  "moderation_hidden_at",
+  "moderate_ante_core_report_content",
+  "v_action not in ('hide', 'restore')",
+  "where m.bloc_id = v_bloc_id and m.moderation_hidden_at is null",
+  "where c.workout_log_id = v_workout_log_id and c.moderation_hidden_at is null",
+  "revoke all on function public.moderate_ante_core_report_content(uuid, text, text, text) from public, anon, authenticated",
+  "grant execute on function public.moderate_ante_core_report_content(uuid, text, text, text) to service_role"
+].forEach(fragment => assert.ok(moderationMigration.includes(fragment), `content-moderation migration is missing: ${fragment}`));
+assert.ok(apiSource.includes('payload?.action === "founder-moderate-reported-content"'), "founder content moderation API route is missing");
+assert.ok(apiSource.includes("assertFounderDashboardUser(authUser);"), "founder content moderation must use the founder allowlist");
+assert.ok(dashboardUi.includes('"Hide from members"'), "founder dashboard must expose the reversible hide action");
+assert.ok(dashboardUi.includes('"Restore content"'), "founder dashboard must expose the restore action");
+
 console.log("Founder dashboard contract checks passed.");

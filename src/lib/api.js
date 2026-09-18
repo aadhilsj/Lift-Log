@@ -917,6 +917,12 @@ async function reviewFounderModerationReportData(reportId, status, reviewNote = 
   return { ok:true, report:result.body?.report || null };
 }
 
+async function moderateFounderReportedContentData(reportId, action, reviewNote = "") {
+  const result = await postApi("founder-moderate-reported-content", { reportId, actionType:action, reviewNote });
+  if (!result.ok) return { ok:false, error:result.error || "Unable to change content visibility" };
+  return { ok:true, report:result.body?.report || null };
+}
+
 async function listLogCommentsData(groupId, logId) {
   const result = await postApi("log-comments-list", { groupId, logId });
   if (!result.ok) return { ok:false, error: result.error || "Unable to load comments", comments: [] };
@@ -1004,6 +1010,7 @@ export {
   createContentReportData,
   listFounderModerationReportsData,
   reviewFounderModerationReportData,
+  moderateFounderReportedContentData,
   trackUsageEvent,
   fetchData,
   fetchRevision,
