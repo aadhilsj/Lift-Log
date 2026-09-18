@@ -23,6 +23,32 @@ final device/TestFlight testing.
 **Current App Store review readiness: 77%.** This is a planning measure, not an
 Apple approval estimate.
 
+## ⚠ Correction (added 2026-09-18 by Claude): the live database change was not inert
+
+`20260918100000_add_workout_post_moderation.sql` replaced
+`public.read_ante_core_current_logs` in production (04:06 UTC) using a copy of
+the function older than `20260916090000_add_workout_log_activity.sql`. The
+`'activity', wl.activity` line was lost, so every current-month workout reached
+the app without its activity and showed only its category (Sports, Other…) in
+the feed, calendars, profiles and stats, for every member, until it was fixed.
+
+- **Fixed in production** by `20260918120000_restore_activity_in_current_logs.sql`
+  (on `main`), which is the live definition plus that one line. Verified: 153 of
+  401 open-month rows carry an activity, matching the table exactly.
+- **The Preview copy of `20260918100000_add_workout_post_moderation.sql` still
+  has the bug.** Before it is ever re-run, merged or used to build another
+  database, add `'activity', wl.activity,` to its `read_ante_core_current_logs`
+  object, or run the `20260918120000` migration after it.
+- **Rule for next time:** before replacing a live function, start from
+  `pg_get_functiondef` in production, not from an older migration file, and diff
+  the two.
+- The other replaced readers (`read_ante_core_bloc_stream`,
+  `read_ante_core_workout_log_comments`,
+  `read_ante_core_workout_log_comment_counts`) were checked field by field
+  against their previous versions: only the moderation filter changed. No
+  content was hidden, reported or blocked, and the photo buckets were not made
+  private in production.
+
 ## Non-negotiable working rules
 
 Read `AGENTS.md` first. In particular:

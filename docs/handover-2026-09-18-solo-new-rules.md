@@ -36,6 +36,13 @@ and the freed space went into the gaps (16px around the divider). At 375×667:
 request sheets 538px, day 1–10 sheet 488px, against a 547px limit. The Sit out
 sheet heading is still Outfit (not asked to change).
 
+**Activity regression (fixed, DB only):** the App Store session's
+`add_workout_post_moderation` migration dropped `activity` from
+`read_ante_core_current_logs` in production, so all September workouts showed
+their category instead of the activity. Restored by
+`20260918120000_restore_activity_in_current_logs.sql`, applied by Claude on the
+founder's instruction. Details in the App Store handover's correction section.
+
 ## How it works
 
 - **The marker.** A new Solo entry is stored as
