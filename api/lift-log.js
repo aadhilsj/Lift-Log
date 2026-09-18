@@ -7685,7 +7685,7 @@ function applySitOutRequest(current, payload) {
   const actor = String(payload?.actor || "").trim();
   const actorUserId = String(payload?.actorUserId || "").trim();
   const groupId = String(payload?.groupId || "").trim();
-  const reason = typeof payload?.reason === "string" ? payload.reason.slice(0, 280) : "";
+  const reason = typeof payload?.reason === "string" ? payload.reason.trim().slice(0, 280) : "";
   const exceptional = !!payload?.exceptional;
   const base = rolloverStateIfNeeded(current);
   const group = base.groups[groupId];
@@ -7697,6 +7697,11 @@ function applySitOutRequest(current, payload) {
   if (!isCurrentGroupMember(group, actor, actorUserId)) {
     const error = new Error("Only Bloc members can request a sit-out");
     error.status = 403;
+    throw error;
+  }
+  if (!reason) {
+    const error = new Error("Sitting out requires a reason");
+    error.status = 400;
     throw error;
   }
   const month = getCurrentMonthSummary(group.settings?.timeZone);
@@ -10218,7 +10223,8 @@ export default async function handler(req, res) {
                 memberUserId: auth.user.id,
                 memberDisplayName: canonicalActor,
                 monthKey: sitOutMonthKey,
-                reviewerUserId: nextRequest.decidedByUserId || auth.user.id
+                reviewerUserId: nextRequest.decidedByUserId || auth.user.id,
+                reason: nextRequest.reason || ""
               },
               `sit_out_approved:${payload.groupId}:${sitOutMonthKey}:${auth.user.id}`,
               nextRequest.decidedAt || null,
@@ -10280,7 +10286,8 @@ export default async function handler(req, res) {
                 memberUserId: reviewedRequest.requestedByUserId || null,
                 memberDisplayName: payload.memberName,
                 monthKey: payload.monthKey,
-                reviewerUserId: auth.user.id
+                reviewerUserId: auth.user.id,
+                reason: reviewedRequest.reason || ""
               },
               `sit_out_approved:${payload.groupId}:${payload.monthKey}:${reviewedRequest.requestedByUserId || payload.memberName}`,
               reviewedRequest.decidedAt || null,
@@ -10335,7 +10342,7 @@ export default async function handler(req, res) {
           await insertBlocSystemMomentInCanonical(
             payload.groupId,
             "solo_started",
-            `${canonicalActor} went Solo for the month: ${soloReason}`,
+            `${canonicalActor} went Solo for the month.`,
             {
               memberUserId: auth.user.id,
               memberDisplayName: canonicalActor,
@@ -10426,7 +10433,7 @@ export default async function handler(req, res) {
             await insertBlocSystemMomentInCanonical(
               payload.groupId,
               "solo_started",
-              `${payload.memberName} went Solo for the month: ${reviewedRequest.reason}`,
+              `${payload.memberName} went Solo for the month.`,
               {
                 memberUserId: reviewedRequest.requestedByUserId || null,
                 memberDisplayName: payload.memberName,

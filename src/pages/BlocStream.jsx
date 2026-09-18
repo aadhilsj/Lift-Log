@@ -385,6 +385,15 @@ const SystemCard = ({ msg, onSeasonClosedTap }) => {
 
   const toneColor = msg.tone === "warning" ? C.warning : msg.tone === "neutral" ? C.meta : C.positive;
   const tappable = msg.payload?.action === "season_results" && onSeasonClosedTap;
+  // A Solo or Sit out note sits on its own quoted line under the sentence.
+  // Older Solo moments had it glued onto the body ("…for the month: work").
+  const note = (msg.system_kind === "solo_started" || msg.system_kind === "sit_out_approved")
+    ? String(msg.payload?.reason || "").trim()
+    : "";
+  const noteSuffix = note ? `: ${note}` : "";
+  const bodyText = noteSuffix && typeof msg.body === "string" && msg.body.endsWith(noteSuffix)
+    ? `${msg.body.slice(0, -noteSuffix.length)}.`
+    : msg.body;
   const content = React.createElement(React.Fragment, null,
     React.createElement('div', {
       style: { fontFamily: "'Outfit', sans-serif", fontSize: 10, fontWeight: 700, color: C.meta, letterSpacing: ".09em", textTransform: "uppercase", marginBottom: 4, textAlign: "center" }
@@ -392,12 +401,15 @@ const SystemCard = ({ msg, onSeasonClosedTap }) => {
     React.createElement('div', {
       style: { display: "flex", alignItems: "center", justifyContent: "center", gap: 5, fontSize: 13, fontWeight: 600, color: toneColor, lineHeight: 1.3 }
     },
-      React.createElement('span', null, msg.body),
+      React.createElement('span', null, bodyText),
       tappable && React.createElement(AppIcon, { name: "chevron-right", size: 13, stroke: toneColor })
     ),
     msg.sub && React.createElement('div', {
       style: { fontSize: 11, color: C.meta, marginTop: 3, lineHeight: 1.3 }
-    }, msg.sub)
+    }, msg.sub),
+    note && React.createElement('div', {
+      style: { fontSize: 12, fontStyle: "italic", color: "var(--muted)", lineHeight: 1.4, marginTop: 6, paddingTop: 6, borderTop: `1px solid ${C.rcvBorder}`, wordBreak: "break-word" }
+    }, `\u201C${note}\u201D`)
   );
   return React.createElement('div', { style: { display: "flex", flexDirection: "column", alignItems: "center", padding: "4px 0" } },
     tappable

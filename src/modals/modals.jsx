@@ -989,8 +989,25 @@ const DeleteModal = ({log,onConfirm,onClose,otherBlocNames=[]}) => {
 
 // ─── EXCUSE MODAL ─────────────────────────────────────────────────────────────
 
+// The reason on a Solo or Sit out request is posted to the Bloc Stream once it
+// is approved, so the label says so on the same line (no extra height: the
+// Solo sheet only has a few pixels to spare on an iPhone SE).
+const REASON_EYE_PATHS = [["path",{d:"M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"}],["circle",{cx:12,cy:12,r:3}]];
+const ReasonLabelRow = ({labelStyle}) => React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:5}},
+  React.createElement('span',{style:{...labelStyle,display:"inline",marginBottom:0}},"Reason"),
+  // lineHeight 1 and the icon's negative margin keep this row as tall as the
+  // bare label was (11.5px), so neither sheet grows.
+  React.createElement('span',{style:{display:"inline-flex",alignItems:"center",gap:4,fontFamily:UI_FONT,fontSize:11,lineHeight:1,color:"var(--muted)",whiteSpace:"nowrap"}},
+    React.createElement('svg',{width:12,height:12,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round","aria-hidden":true,style:{margin:"-1px 0"}},
+      REASON_EYE_PATHS.map(([tag,attrs],i)=>React.createElement(tag,{key:i,...attrs}))
+    ),
+    "Your Bloc will see this"
+  )
+);
+
 const SitOutModal = ({mode,monthName,onClose,onSubmit,submitting,error}) => {
   const [reason,setReason] = React.useState("");
+  const sitOutReasonReady = reason.trim().length > 0;
   const competitionModalLabelStyle = {display:"block",marginBottom:5,fontFamily:UI_FONT,fontSize:9,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".08em",fontWeight:800};
   const config = mode === "instant"
     ? {
@@ -1016,13 +1033,13 @@ const SitOutModal = ({mode,monthName,onClose,onSubmit,submitting,error}) => {
         config.body.map(line=>React.createElement('div',{key:line},line))
       ),
       React.createElement('label',{style:{display:"block",marginBottom:16}},
-        React.createElement('span',{style:competitionModalLabelStyle},"Reason (optional)"),
+        React.createElement(ReasonLabelRow,{labelStyle:competitionModalLabelStyle}),
         React.createElement('textarea',{value:reason,onChange:e=>setReason(e.target.value),placeholder:"e.g. travelling, injured",rows:3,style:{width:"100%",background:"var(--s2)",border:"1px solid var(--border)",borderRadius:10,padding:"12px 13px",color:"var(--text)",fontFamily:UI_FONT,fontSize:14,outline:"none",resize:"none"}})
       ),
       error && React.createElement('div',{style:{fontFamily:UI_FONT,fontSize:12,color:"var(--red)",marginBottom:14}},error),
       React.createElement('div',{style:{display:"flex",gap:9}},
         React.createElement('button',{onClick:onClose,style:{flex:1,background:"var(--s2)",border:"1px solid var(--border)",color:"var(--muted)",padding:"14px",borderRadius:10,fontFamily:UI_FONT,fontSize:15,fontWeight:600}},"Cancel"),
-        React.createElement('button',{onClick:()=>onSubmit(reason),style:{flex:1,background:"#4ECDC4",color:"#050909",padding:"14px",borderRadius:10,fontFamily:UI_FONT,fontSize:15,fontWeight:800}},submitting?"Sending...":config.cta)
+        React.createElement('button',{onClick:()=>onSubmit(reason),disabled:submitting||!sitOutReasonReady,style:{flex:1,background:sitOutReasonReady?"#4ECDC4":"var(--s3)",color:sitOutReasonReady?"#050909":"var(--muted2)",padding:"14px",borderRadius:10,fontFamily:UI_FONT,fontSize:15,fontWeight:800,opacity:submitting ? .75 : 1}},submitting?"Sending...":config.cta)
       )
     )
   );
@@ -1094,7 +1111,7 @@ const SoloModal = ({mode,monthName,target,blocTarget,onClose,onSubmit,submitting
         React.createElement('span',null,config.note)
       ),
       React.createElement('label',{style:{display:"block",marginBottom:16}},
-        React.createElement('span',{style:formLabelStyle},"Reason"),
+        React.createElement(ReasonLabelRow,{labelStyle:formLabelStyle}),
         React.createElement('textarea',{value:reason,onChange:e=>setReason(e.target.value),placeholder:"e.g. travel month, work sprint",rows:2,style:{width:"100%",background:"var(--s2)",border:"1px solid var(--border)",borderRadius:10,padding:"10px 13px",color:"var(--text)",fontFamily:UI_FONT,fontSize:14,outline:"none",resize:"none"}})
       ),
       error && React.createElement('div',{style:{fontFamily:UI_FONT,fontSize:12,color:"var(--red)",marginBottom:14}},error),
