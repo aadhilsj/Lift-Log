@@ -3,6 +3,15 @@
 **Start here.** Everything in §1 is live in production. §8 is what the next
 session picks up.
 
+> **Before anything else:** the shared folder
+> `/Users/aadhilsj/Documents/Codex Space/Fero` was left on an old `main`
+> (`086c907`), so its copy of this file and every handover is out of date.
+> Run `git fetch origin` and read from `origin/main`
+> (`git show origin/main:docs/handover-2026-09-18-solo-new-rules.md`), or make
+> your own worktree from `origin/main` per `AGENTS.md` §12. Only run
+> `git pull` in the shared folder if `git status` there is clean and no other
+> agent is working in it. Never switch its branch.
+
 | For | Read |
 |---|---|
 | The session before this one | `docs/handover-2026-09-18-settings-redesign-and-solo-unlock.md` |
