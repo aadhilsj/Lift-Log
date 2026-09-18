@@ -40,7 +40,7 @@ import { DeleteModal } from "../modals/modals.jsx";
 import { ProfileStatsPanel } from "../components/ProfileStatsPanel.jsx";
 import { ShareSticker } from "../components/ShareSticker.jsx";
 import { buildStickerData } from "../lib/shareSticker.js";
-import { fetchProfileStatsData } from "../lib/api.js";
+import { fetchProfileStatsData, setUserBlockData, createContentReportData } from "../lib/api.js";
 import {
   cancelSwipeFrame,
   releaseSwipeBack,
@@ -73,6 +73,11 @@ const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevea
   const [feroStats,setFeroStats]=useState(null);
   const [feroStatsState,setFeroStatsState]=useState("idle"); // idle | loading | ready | error
   const [feroStatsAttempt,setFeroStatsAttempt]=useState(0);
+  const [showSafetySheet,setShowSafetySheet]=useState(false);
+  const [safetyReason,setSafetyReason]=useState("harassment");
+  const [safetyDetails,setSafetyDetails]=useState("");
+  const [safetyBusy,setSafetyBusy]=useState(false);
+  const [safetyError,setSafetyError]=useState("");
   // Guards one request per member. Deliberately a ref, not state: putting the
   // status in the effect's dependencies made the status change re-run the
   // effect, whose cleanup then cancelled the in-flight request, so the result
@@ -317,6 +322,27 @@ const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevea
   // Viewing yourself needs no request at all: your client already holds every
   // Bloc you are in, so the local aggregation is already the complete answer.
   const isSelf = Boolean(memberUserId) && memberUserId === currentUserId;
+  const openSafetySheet = () => {
+    if (isSelf || !memberUserId) return;
+    setSafetyReason("harassment"); setSafetyDetails(""); setSafetyError(""); setShowSafetySheet(true);
+  };
+  const blockMember = async () => {
+    if (!memberUserId || safetyBusy) return;
+    setSafetyBusy(true); setSafetyError("");
+    const result = await setUserBlockData(memberUserId, true);
+    setSafetyBusy(false);
+    if (!result.ok) { setSafetyError(result.error || "Unable to block this member."); return; }
+    setShowSafetySheet(false);
+    onBack?.();
+  };
+  const reportProfile = async () => {
+    if (!memberUserId || safetyBusy) return;
+    setSafetyBusy(true); setSafetyError("");
+    const result = await createContentReportData({groupId:group?.id,reportedUserId:memberUserId,contentType:"profile",contentId:memberUserId,reason:safetyReason,details:safetyDetails});
+    setSafetyBusy(false);
+    if (!result.ok) { setSafetyError(result.error || "Unable to submit your report."); return; }
+    setShowSafetySheet(false);
+  };
 
   // Fetch a member's genuine cross-Bloc stats when the tab is first opened.
   // Deferred rather than fetched on mount so opening a profile stays cheap;
@@ -587,13 +613,30 @@ const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevea
         React.createElement('button',{type:"button",onClick:()=>setDeleteChoices(null),style:{width:"100%",marginTop:9,background:"transparent",border:"1px solid var(--border)",color:"var(--muted)",padding:"8px",borderRadius:8,fontSize:11,fontWeight:700}},"Cancel")
       )
     ),
+    showSafetySheet && React.createElement('div',{role:"dialog","aria-modal":"true","aria-label":`Safety options for ${name}`,style:{position:"fixed",inset:0,zIndex:1400,display:"flex",alignItems:"flex-end",background:"rgba(0,0,0,.62)"},onMouseDown:event=>{if(event.target===event.currentTarget&&!safetyBusy)setShowSafetySheet(false);}},
+      React.createElement('section',{style:{width:"100%",padding:"18px 16px calc(24px + env(safe-area-inset-bottom))",borderRadius:"18px 18px 0 0",background:"#081110",borderTop:"1px solid #1b332e",boxSizing:"border-box"}},
+        React.createElement('div',{style:{fontSize:16,fontWeight:800,color:"var(--text)"}},`Safety options for ${name}`),
+        React.createElement('p',{style:{margin:"6px 0 14px",fontSize:12,lineHeight:1.45,color:"var(--muted)"}},"Reporting sends this member profile to Fero’s private review queue. Blocking hides this person’s social content for you; it does not remove either of you from the Bloc."),
+        React.createElement('select',{value:safetyReason,onChange:event=>setSafetyReason(event.target.value),disabled:safetyBusy,"aria-label":"Report reason",style:{width:"100%",padding:"10px",borderRadius:9,border:"1px solid #1b332e",background:"#0b1413",color:"var(--text)",fontSize:13}},
+          React.createElement('option',{value:"harassment"},"Harassment or bullying"),React.createElement('option',{value:"hate_or_discrimination"},"Hate or discrimination"),React.createElement('option',{value:"threat_or_safety"},"Threat or safety concern"),React.createElement('option',{value:"sexual_or_inappropriate"},"Sexual or inappropriate content"),React.createElement('option',{value:"spam"},"Spam"),React.createElement('option',{value:"other"},"Other")
+        ),
+        React.createElement('textarea',{value:safetyDetails,onChange:event=>setSafetyDetails(event.target.value),disabled:safetyBusy,maxLength:1000,placeholder:"Optional detail for the Fero team",rows:3,style:{width:"100%",boxSizing:"border-box",marginTop:8,padding:"10px",borderRadius:9,border:"1px solid #1b332e",background:"#0b1413",color:"var(--text)",fontSize:13,resize:"vertical"}}),
+        safetyError && React.createElement('div',{role:"alert",style:{marginTop:8,color:"#ffd4d4",fontSize:11}},safetyError),
+        React.createElement('div',{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginTop:12}},
+          React.createElement('button',{type:"button",onClick:reportProfile,disabled:safetyBusy,style:{border:0,borderRadius:9,padding:"11px",background:"#4ECDC4",color:"#04110e",fontWeight:800,cursor:"pointer"}},safetyBusy?"Working…":"Send report"),
+          React.createElement('button',{type:"button",onClick:blockMember,disabled:safetyBusy,style:{border:"1px solid rgba(239,159,39,.5)",borderRadius:9,padding:"11px",background:"rgba(239,159,39,.1)",color:"#ffdca5",fontWeight:800,cursor:"pointer"}},"Block member")
+        ),
+        React.createElement('button',{type:"button",onClick:()=>setShowSafetySheet(false),disabled:safetyBusy,style:{width:"100%",marginTop:9,border:0,background:"transparent",color:"var(--muted)",padding:8,fontWeight:700,cursor:"pointer"}},"Cancel")
+      )
+    ),
     React.createElement('div',{style:{maxWidth:740,margin:"0 auto",padding:"16px",display:"flex",flexDirection:"column",gap:12}},
     // Header row
 		    React.createElement('div',{className:"fu",style:{display:"grid",gridTemplateColumns:"96px minmax(0,1fr) 96px",alignItems:"center",gap:8}},
 	      React.createElement('div',{style:{justifySelf:"start"}},backButton),
 	      React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"center",gap:8,minWidth:0,textAlign:"center"}},
-		        React.createElement(Avatar,{name,size:24}),
-		        React.createElement('div',{style:{minWidth:0,fontFamily:"'Outfit',sans-serif",fontSize:16,fontWeight:800,lineHeight:1.08,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},name)
+	        React.createElement(Avatar,{name,size:24}),
+	        React.createElement('div',{style:{minWidth:0,fontFamily:"'Outfit',sans-serif",fontSize:16,fontWeight:800,lineHeight:1.08,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},name),
+          !isSelf && memberUserId && React.createElement('button',{type:"button",onClick:openSafetySheet,"aria-label":`Safety options for ${name}`,style:{border:0,background:"transparent",color:"var(--muted)",padding:"0 2px",fontSize:15,lineHeight:1,cursor:"pointer"}},"•••")
 	      ),
 	      React.createElement('div',{style:{justifySelf:"end"}},monthSelector)
 	    ),
