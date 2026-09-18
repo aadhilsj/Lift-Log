@@ -51,7 +51,9 @@ const SUPABASE_URL = process.env.SUPABASE_URL || "";
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_PUBLISHABLE_KEY || "";
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 const PRIVATE_PHOTO_BUCKETS = new Set(["profile-photos", "workout-photos"]);
-const PHOTO_SIGNED_URL_TTL_SECONDS = 15 * 60;
+// 24 hours avoids forcing a full state refresh just to renew photos for an app
+// left open. Trade-off: a copied signed link remains usable for longer.
+const PHOTO_SIGNED_URL_TTL_SECONDS = 24 * 60 * 60;
 // Server-only allowlist. Do not expose this through getClientAuthConfig or a VITE_ variable.
 const FOUNDER_DASHBOARD_USER_IDS = new Set(
   String(process.env.FOUNDER_DASHBOARD_USER_IDS || "")

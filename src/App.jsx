@@ -1993,12 +1993,7 @@ const App = () => {
     const t = e.touches?.[0];
     if (!t) return;
     if (page === "today" && t.clientX <= 96) return;
-    // React's touch target can occasionally be the page layer rather than the
-    // table under a moving finger. Confirm against the actual point as well so
-    // a horizontal leaderboard gesture never leaks into page-tab navigation.
-    const priorityTarget = e.target?.closest?.("[data-page-swipe-priority='horizontal-scroll']")
-      || document.elementFromPoint(t.clientX, t.clientY)?.closest?.("[data-page-swipe-priority='horizontal-scroll']");
-    pageSwipeRef.current = {sx:t.clientX, sy:t.clientY, st:performance.now(), active:true, mode:null, target:null,priority:priorityTarget ? "horizontal-scroll" : null};
+    pageSwipeRef.current = {sx:t.clientX, sy:t.clientY, st:performance.now(), active:true, mode:null, target:null,priority:e.target?.closest?.("[data-page-swipe-priority='horizontal-scroll']") ? "horizontal-scroll" : null};
   },[authStep, logCommentScreen, needsTrainingChoice, page, pageTapTransition, prorationGroup, showJoinModal, showProfileModal, showSettings, showStream, showTodayLog]);
   const movePageSwipe = useCallback((e) => {
     const s = pageSwipeRef.current;

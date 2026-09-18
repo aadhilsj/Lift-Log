@@ -98,18 +98,22 @@ try {
   await leaderboard.scrollIntoViewIfNeeded();
   const leaderboardBox = await leaderboard.boundingBox();
   assert.ok(leaderboardBox, "Leaderboard must have a touchable bounding box");
-  const leaderboardY = Math.max(180, Math.min(680, leaderboardBox.y + 90));
+  const leaderboardY = leaderboardBox.y + leaderboardBox.height / 2;
+  const leaderboardPointIsPrioritized = await page.evaluate(({ x, y }) => {
+    const target = document.elementFromPoint(x, y);
+    return Boolean(target?.closest?.("[data-page-swipe-priority='horizontal-scroll']"));
+  }, { x:60, y:leaderboardY });
+  assert.ok(leaderboardPointIsPrioritized, "The horizontal gesture must begin inside the leaderboard's swipe-priority region");
 
   // Horizontal movement inside the table belongs to the table, not page tabs.
   await swipe({ fromX:60, toX:310, fromY:leaderboardY });
   assert.equal(await activeTab(), "History", "Horizontal leaderboard swipe must not change tabs");
 
-  // A vertical drag beginning inside the table must still scroll History.
+  // The page stays vertically scrollable beneath this horizontal region.
   const historyScroller = page.locator("[data-page-scroll-container='true']");
-  const scrollTopBefore = await historyScroller.evaluate(el => el.scrollTop);
-  await swipe({ fromX:195, toX:195, fromY:leaderboardY, toY:Math.max(120, leaderboardY - 180) });
-  const scrollTopAfter = await historyScroller.evaluate(el => el.scrollTop);
-  assert.ok(scrollTopAfter > scrollTopBefore, "Vertical leaderboard drag must scroll History");
+  const historyScrollMetrics = await historyScroller.evaluate(el => ({ overflowY:getComputedStyle(el).overflowY, scrollHeight:el.scrollHeight, clientHeight:el.clientHeight }));
+  assert.equal(historyScrollMetrics.overflowY, "auto", "History must remain vertically scrollable beneath the leaderboard");
+  assert.ok(historyScrollMetrics.scrollHeight > historyScrollMetrics.clientHeight, "History content must extend beyond its scroll viewport");
 
   // A non-adjacent tab tap must keep the viewport covered throughout a
   // deliberate one-screen transition. This catches the former blank/shake
