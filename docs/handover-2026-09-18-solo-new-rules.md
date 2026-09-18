@@ -29,6 +29,13 @@ approval note on the two request sheets. The founder chose "agreed" over
 a 375×667 iPhone SE without scrolling: the modal's max height there is 547px;
 request sheets are 523px and the day 1–10 sheet is 478px.
 
+**Third follow-up (`72124f1`, live):** the Solo heading and goal number now use
+Raleway (`DISPLAY_FONT`), like other sheet headings; the body stays Outfit. The
+goal card is smaller (18px number, 11.5px subline), the reason box is 2 rows,
+and the freed space went into the gaps (16px around the divider). At 375×667:
+request sheets 538px, day 1–10 sheet 488px, against a 547px limit. The Sit out
+sheet heading is still Outfit (not asked to change).
+
 ## How it works
 
 - **The marker.** A new Solo entry is stored as
