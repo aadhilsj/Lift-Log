@@ -1028,19 +1028,19 @@ const SitOutModal = ({mode,monthName,onClose,onSubmit,submitting,error}) => {
   );
 };
 
-const SoloModal = ({mode,monthName,target,onClose,onSubmit,submitting,error}) => {
+const SoloModal = ({mode,monthName,target,blocTarget,onClose,onSubmit,submitting,error}) => {
   const [reason,setReason] = React.useState("");
   const formLabelStyle = {display:"block",marginBottom:5,fontFamily:UI_FONT,fontSize:9,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".08em",fontWeight:800};
   const config = mode === "exceptional"
     ? {
         title:`Request Solo for ${monthName}?`,
-        body:["Solo is meant to be used only once every three months.","Your request will be sent to the Bloc Admin for approval.",`If approved, your automatic goal will be ${target} workouts. If you fall short, you pay the standard monthly penalty.`,"Solo members can avoid a penalty by reaching their goal, but they can't receive a reward this month."],
+        body:["Solo is meant for once every three months, so this one goes to the Bloc Admin for approval.",`If approved, reach ${target} and you're clear. If you fall short, you pay the standard monthly penalty.`,"Solo members can avoid a penalty by reaching their goal, but they can't receive a reward this month."],
         cta:"Send request"
       }
     : mode === "late"
     ? {
         title:`Request Solo for ${monthName}?`,
-        body:["After day 10, Solo needs the Bloc Admin's approval.","Your request will be sent to the Bloc Admin.",`If approved, your automatic goal will be ${target} workouts. If you fall short, you pay the standard monthly penalty.`,"Solo members can avoid a penalty by reaching their goal, but they can't receive a reward this month."],
+        body:["After day 10, your request goes to the Bloc Admin for approval.",`If approved, reach ${target} and you're clear. If you fall short, you pay the standard monthly penalty.`,"Solo members can avoid a penalty by reaching their goal, but they can't receive a reward this month."],
         cta:"Send request"
       }
     : {
@@ -1054,13 +1054,16 @@ const SoloModal = ({mode,monthName,target,onClose,onSubmit,submitting,error}) =>
     React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{maxWidth:420,fontFamily:UI_FONT}},
       React.createElement('div',{style:{fontFamily:UI_FONT,fontWeight:800,fontSize:20,lineHeight:1.1,letterSpacing:0,marginBottom:12}},config.title),
       React.createElement('div',{style:{display:"grid",gap:7,padding:"11px 12px",borderRadius:12,background:"linear-gradient(180deg, rgba(13,31,30,.96), rgba(8,15,15,.86))",border:"1px solid rgba(78,205,196,.34)",boxShadow:"0 0 0 1px rgba(78,205,196,.08), inset 0 1px 0 rgba(255,255,255,.04)",marginBottom:14}},
-        [
-          `Automatic goal: ${target} workouts.`,
-          "Keep logging as normal."
-        ].map(line=>React.createElement('div',{key:line,style:{display:"flex",alignItems:"flex-start",gap:8,fontFamily:UI_FONT,fontSize:12.5,color:"var(--text)",lineHeight:1.35,fontWeight:650}},
+        // The goal leads, with where it comes from right under it, so the
+        // number never looks arbitrary.
+        React.createElement('div',null,
+          React.createElement('div',{style:{fontFamily:UI_FONT,fontSize:22,fontWeight:800,lineHeight:1.1,color:"var(--text)"}},`${target} workouts`),
+          blocTarget ? React.createElement('div',{style:{fontFamily:UI_FONT,fontSize:12.5,fontWeight:650,lineHeight:1.35,color:"#4ECDC4",marginTop:3}},`Half your Bloc's usual ${blocTarget}`) : null
+        ),
+        React.createElement('div',{style:{display:"flex",alignItems:"flex-start",gap:8,fontFamily:UI_FONT,fontSize:12.5,color:"var(--text)",lineHeight:1.35,fontWeight:650}},
           React.createElement('span',{style:{width:5,height:5,borderRadius:999,background:"#4ECDC4",marginTop:7,flexShrink:0}}),
-          React.createElement('span',null,line)
-        ))
+          React.createElement('span',null,"Keep logging as normal.")
+        )
       ),
       React.createElement('div',{style:{display:"grid",gap:4,color:"var(--muted)",fontFamily:UI_FONT,fontSize:13,lineHeight:1.55,marginBottom:16}},
         config.body.map(line=>React.createElement('div',{key:line},line))
