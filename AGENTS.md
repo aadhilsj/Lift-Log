@@ -230,3 +230,117 @@ import. An un-imported identifier has shipped a blank screen more than once.
 on an area, read the most recent handover on that topic instead of re-deriving
 state. When a session gets long, write the next handover — they rely on these to
 carry context between chats.
+
+---
+
+## 12. The working loop the founder has approved
+
+This is how sessions that went well actually ran. Follow it end to end. Sections
+1–11 are the rules; this is the method.
+
+### Start of a session
+- Get up to speed before touching anything. Run `git fetch`, list the branches
+  and worktrees, see what is ahead of or behind `main`, read the latest
+  handover, and check what is actually deployed:
+  `gh api "repos/aadhilsj/Lift-Log/deployments?per_page=3"`.
+- Report in plain English: where things stand, anything broken, and anything
+  worth cleaning up. Recommend one path. Do nothing destructive until the
+  founder says yes.
+- Cleanup is fine when approved, but triple-check it. Before deleting a branch,
+  confirm it is 0 commits ahead of `origin/main` and is an ancestor of it.
+  Delete with `--force-with-lease=<ref>:<sha>`. Never touch a worktree another
+  agent is using.
+
+### Work in your own worktree, never the shared folder
+- `git worktree add -b <branch> /Users/aadhilsj/Documents/FERO/<name> origin/main`.
+- Then symlink `node_modules` from the main folder and copy `.env.local` in.
+- If you remove that worktree later, delete the `node_modules` symlink first so
+  the shared folder is not harmed.
+
+### Find the real cause, with evidence
+- **Production data:** read-only SQL through the Supabase MCP
+  (`execute_sql`, project `bpvvvqjsfwmmfjvvijkd`) is how questions like "did
+  Rahul's request go through?" get answered.
+  - Before calling any function, read its definition with `pg_get_functiondef`,
+    and check that it only reads.
+  - Write to production only when the founder explicitly says to, in that
+    session. For DDL, use `apply_migration` with a matching file in
+    `supabase/migrations/`.
+  - After any write, verify it: the object exists, the grants are right
+    (`anon` and `authenticated` must not be able to call it), and row counts
+    are unchanged.
+- **Reproduce the bug in the sandbox before fixing it** (§10).
+  1. `npm run build`, then `npm run sandbox` and `npm run sandbox:seed`.
+  2. Drive the real API with small Node scripts: POST to `/api/lift-log` with
+     `Authorization: Bearer local-dev:<base64url of an @local.test email>`.
+     That gets you joins, requests, reviews and logs.
+  3. Then look at it in the browser pane at 375×812. Sign in with any
+     `@local.test` address, code `000000`.
+  4. The "Local test identity" dropdown switches the acting member without
+     signing out.
+  5. Fake a server date with `NODE_OPTIONS="--import <file overriding Date>"`.
+  6. The sandbox answers every canonical RPC with `[]`. Canonical behaviour
+     needs the restored-copy route in the 2026-09-16 handover.
+- **Test every role and every state:** admin and member; pending, approved,
+  declined and cancelled; Solo and sitting out. Bugs hide in the states nobody
+  clicked. A final pass found a shipped empty button this way.
+
+### Measure, do not eyeball
+- For layout claims, compare `scrollWidth` with `clientWidth`, and measure row
+  heights before and after a change. If removing something shrinks a row, put
+  the height back unless the founder asked for it to change.
+- Any sheet opened from a screen that carries a transform must portal to
+  `document.body`, then be checked to cover the exact viewport. See the
+  recurring debugging playbook.
+
+### Before handing anything over
+- `npm run lint` and `npm run build`, plus every `test:*` script. Say which ones
+  were not run, and why.
+- Review the full `git diff`. Stage by explicit path. Write commit messages
+  that say why, not just what.
+
+### Shipping
+- At the start of each implementation session, ask: preview first, or straight
+  to `main`? Since 2026-09-17 the answer has been `main`. Preview deployments
+  write to the production database anyway.
+- Before pushing:
+  - `git fetch`, and confirm `origin/main` is an ancestor of your branch.
+  - If `main` moved, look at what landed, rebase onto it, and never overwrite
+    it.
+  - Push with `--force-with-lease=refs/heads/main:<sha you checked>`.
+- After pushing:
+  - Watch the deployment until Vercel reports success.
+  - `curl` the live bundle and grep for a string from the change.
+  - Load `https://lift-log-nu.vercel.app` and confirm there are no console
+    errors.
+  - Say clearly that it is live.
+- **Schema changes go first.** Apply them before the code that needs them, and
+  make them backward compatible.
+
+### Talking to the founder
+- **Keep them informed:**
+  - When work runs long, send a one-line progress update.
+  - For design work, show a visual mockup before building. Iterate, and
+    recommend one option.
+  - Plan and build are separate turns.
+- **Be honest:**
+  - If something you said turns out to be wrong, correct it immediately, in
+    plain words. Example: "cancelling needs one small database function after
+    all".
+  - If you find a bug during a final check, fix it only if it is inside the
+    task, and say so.
+- **End with facts:** what is live, how it was verified, what was not verified,
+  the files changed, "nothing else was modified", and at most one question.
+- **Copy preferences recorded so far:**
+  - one-word tab names ("Status")
+  - compact cards
+  - money kept out of the foreground
+  - never name the admin ("Waiting on admin")
+  - "Bloc Admin" capitalised
+  - copy written to survive planned rule changes, so it is not rewritten twice
+
+### End of a session
+- Stop sandboxes by the PID on ports 3000 and 54321. Never use `pkill -f`.
+- Remove scratch worktrees and reset the browser viewport.
+- Write the dated handover in `docs/`. Add a section to Deveen's active handover
+  only if something affects his area; otherwise leave his plate alone.
