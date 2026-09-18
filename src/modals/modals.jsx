@@ -1028,47 +1028,72 @@ const SitOutModal = ({mode,monthName,onClose,onSubmit,submitting,error}) => {
   );
 };
 
+// Small line icons for the Solo sheet's rule list. Stroke only, so they take
+// the colour they are given.
+const SOLO_RULE_ICON_PATHS = {
+  activity: [["polyline",{points:"22 12 18 12 15 21 9 3 6 12 2 12"}]],
+  check: [["circle",{cx:12,cy:12,r:9}],["path",{d:"M8 12.5l2.7 2.7L16 9.8"}]],
+  alert: [["circle",{cx:12,cy:12,r:9}],["path",{d:"M12 7.5v5.5"}],["path",{d:"M12 16.5h.01"}]],
+  minus: [["circle",{cx:12,cy:12,r:9}],["path",{d:"M8 12h8"}]],
+  approver: [["circle",{cx:9,cy:8,r:4}],["path",{d:"M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"}],["path",{d:"M16 11l2 2 4-4"}]]
+};
+const SoloRuleIcon = ({kind,color,size=15}) => React.createElement('svg',{width:size,height:size,viewBox:"0 0 24 24",fill:"none",stroke:color,strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round","aria-hidden":true,style:{flexShrink:0,marginTop:1}},
+  (SOLO_RULE_ICON_PATHS[kind] || []).map(([tag,attrs],i)=>React.createElement(tag,{key:i,...attrs}))
+);
+
 const SoloModal = ({mode,monthName,target,blocTarget,onClose,onSubmit,submitting,error}) => {
   const [reason,setReason] = React.useState("");
   const formLabelStyle = {display:"block",marginBottom:5,fontFamily:UI_FONT,fontSize:9,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".08em",fontWeight:800};
+  // Only the heading, the approval note and the button differ between modes;
+  // the goal, the intro and the rules are the same on every sheet.
   const config = mode === "exceptional"
     ? {
         title:`Request Solo for ${monthName}?`,
-        body:["Solo is meant for once every three months, so this one goes to the Bloc Admin for approval.",`If approved, reach ${target} and you're clear. If you fall short, you pay the standard monthly penalty.`,"Solo members can avoid a penalty by reaching their goal, but they can't receive a reward this month."],
+        note:"Solo is meant for once every three months, so this one goes to the Bloc Admin for approval.",
         cta:"Send request"
       }
     : mode === "late"
     ? {
         title:`Request Solo for ${monthName}?`,
-        body:["After day 10, your request goes to the Bloc Admin for approval.",`If approved, reach ${target} and you're clear. If you fall short, you pay the standard monthly penalty.`,"Solo members can avoid a penalty by reaching their goal, but they can't receive a reward this month."],
+        note:"After the 10th of the month, your request goes to the Bloc Admin for approval.",
         cta:"Send request"
       }
     : {
         title:`Go Solo for ${monthName}?`,
-        body:["Solo is for a heavier month — when you still want to keep showing up, but need a lighter goal.",`Your goal will be ${target} workouts, half of your Bloc's usual target. You'll keep logging as normal. Reach your Solo goal and you're clear. If you fall short, you pay the standard monthly penalty.`,"Solo members can avoid a penalty by reaching their goal, but they can't receive a reward this month."],
+        note:null,
         cta:"Go Solo"
       };
+  const rules = [
+    { kind:"activity", good:true, text:"You keep logging as normal." },
+    { kind:"check", good:true, text:`Reach ${target} and you're clear.` },
+    { kind:"alert", good:false, text:"If you fall short, the agreed monthly penalty applies." },
+    { kind:"minus", good:false, text:"You can't receive a reward in a Solo month." }
+  ];
   const reasonReady = reason.trim().length > 0;
   const submit = () => onSubmit({ personalTarget: target, reason });
   return React.createElement('div',{className:`overlay${isMobile() ? " center-mobile" : ""}`,onClick:onClose},
     React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{maxWidth:420,fontFamily:UI_FONT}},
-      React.createElement('div',{style:{fontFamily:UI_FONT,fontWeight:800,fontSize:20,lineHeight:1.1,letterSpacing:0,marginBottom:12}},config.title),
-      React.createElement('div',{style:{display:"grid",gap:7,padding:"11px 12px",borderRadius:12,background:"linear-gradient(180deg, rgba(13,31,30,.96), rgba(8,15,15,.86))",border:"1px solid rgba(78,205,196,.34)",boxShadow:"0 0 0 1px rgba(78,205,196,.08), inset 0 1px 0 rgba(255,255,255,.04)",marginBottom:14}},
-        // The goal leads, with where it comes from right under it, so the
-        // number never looks arbitrary.
-        React.createElement('div',null,
-          React.createElement('div',{style:{fontFamily:UI_FONT,fontSize:22,fontWeight:800,lineHeight:1.1,color:"var(--text)"}},`${target} workouts`),
-          blocTarget ? React.createElement('div',{style:{fontFamily:UI_FONT,fontSize:12.5,fontWeight:650,lineHeight:1.35,color:"#4ECDC4",marginTop:3}},`Half your Bloc's usual ${blocTarget}`) : null
-        ),
-        React.createElement('div',{style:{display:"flex",alignItems:"flex-start",gap:8,fontFamily:UI_FONT,fontSize:12.5,color:"var(--text)",lineHeight:1.35,fontWeight:650}},
-          React.createElement('span',{style:{width:5,height:5,borderRadius:999,background:"#4ECDC4",marginTop:7,flexShrink:0}}),
-          React.createElement('span',null,"Keep logging as normal.")
-        )
+      React.createElement('div',{style:{fontFamily:UI_FONT,fontWeight:800,fontSize:20,lineHeight:1.1,letterSpacing:0,marginBottom:10}},config.title),
+      React.createElement('div',{style:{padding:"9px 12px",borderRadius:12,background:"linear-gradient(180deg, rgba(13,31,30,.96), rgba(8,15,15,.86))",border:"1px solid rgba(78,205,196,.34)",boxShadow:"0 0 0 1px rgba(78,205,196,.08), inset 0 1px 0 rgba(255,255,255,.04)",marginBottom:12}},
+        // The goal leads, labelled, with where it comes from right under it,
+        // so the number never looks arbitrary.
+        React.createElement('div',{style:{fontFamily:UI_FONT,fontSize:9,fontWeight:800,color:"#4ECDC4",textTransform:"uppercase",letterSpacing:".08em",marginBottom:4}},"Your Solo goal"),
+        React.createElement('div',{style:{fontFamily:UI_FONT,fontSize:22,fontWeight:800,lineHeight:1.1,color:"var(--text)"}},`${target} workouts`),
+        blocTarget ? React.createElement('div',{style:{fontFamily:UI_FONT,fontSize:12.5,fontWeight:650,lineHeight:1.35,color:"#4ECDC4",marginTop:3}},`Half your Bloc's usual ${blocTarget}`) : null
       ),
-      React.createElement('div',{style:{display:"grid",gap:4,color:"var(--muted)",fontFamily:UI_FONT,fontSize:13,lineHeight:1.55,marginBottom:16}},
-        config.body.map(line=>React.createElement('div',{key:line},line))
+      React.createElement('div',{style:{fontFamily:UI_FONT,fontSize:13.5,lineHeight:1.5,color:"var(--text)",opacity:.88,marginBottom:10}},"Solo is for a heavier month — when you still want to keep showing up, but need a lighter goal."),
+      React.createElement('div',{style:{display:"grid",gap:6,marginBottom:10}},
+        rules.map(rule=>React.createElement('div',{key:rule.kind,style:{display:"flex",alignItems:"flex-start",gap:9,fontFamily:UI_FONT,fontSize:12.5,lineHeight:1.4,color:"var(--muted)"}},
+          React.createElement(SoloRuleIcon,{kind:rule.kind,color:rule.good ? "#4ECDC4" : "rgba(232,69,69,.72)"}),
+          React.createElement('span',null,rule.text)
+        ))
       ),
-      React.createElement('label',{style:{display:"block",marginBottom:16}},
+      React.createElement('div',{style:{height:1,background:"var(--border)",marginBottom:10}}),
+      config.note && React.createElement('div',{style:{display:"flex",alignItems:"flex-start",gap:8,fontFamily:UI_FONT,fontSize:12,lineHeight:1.45,color:"var(--muted)",opacity:.85,marginBottom:10}},
+        React.createElement(SoloRuleIcon,{kind:"approver",color:"var(--muted)",size:14}),
+        React.createElement('span',null,config.note)
+      ),
+      React.createElement('label',{style:{display:"block",marginBottom:12}},
         React.createElement('span',{style:formLabelStyle},"Reason"),
         React.createElement('textarea',{value:reason,onChange:e=>setReason(e.target.value),placeholder:"e.g. travel month, work sprint",rows:3,style:{width:"100%",background:"var(--s2)",border:"1px solid var(--border)",borderRadius:10,padding:"12px 13px",color:"var(--text)",fontFamily:UI_FONT,fontSize:14,outline:"none",resize:"none"}})
       ),
