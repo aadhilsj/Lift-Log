@@ -12,16 +12,35 @@ report a Stream message, workout comment, workout post, or profile, and a
 founder can hide a reported message/comment/workout post from members without
 deleting it. The founder can restore it if the decision was wrong.
 
-The Preview-only App Store branch contains this work. The database additions
-were intentionally applied to the live Supabase project because they are
-additive and inert until a founder uses them; no existing content was changed.
+The App Store branch contains this work. Some database additions were applied
+to the live Supabase project; a function replacement unintentionally removed
+the workout `activity` output and was subsequently repaired, as detailed in the
+correction below. No moderation actions were taken on member content.
 The remaining major technical blocker is the older database access-control/RLS
 rollout owned by Deveen. The remaining founder-owned blockers are public legal
 pages, a support email/domain, App Store Connect setup, reviewer access, and
 final device/TestFlight testing.
 
-**Current App Store review readiness: 77%.** This is a planning measure, not an
-Apple approval estimate.
+**Current App Store review readiness: 55%.** This is a planning measure, not an
+Apple approval estimate. The build has not yet been archived or installed via
+TestFlight on a real iPhone; the App Store server code is still Preview-only;
+and legal, seller and App Store Connect setup are not started.
+
+### Readiness breakdown — 2026-09-18
+
+- **Done — Codex:** App Store Preview code, UGC report/block/moderation paths,
+  private-photo signing code, Premium label removal, activity-reader correction,
+  and camera/photo permission strings.
+- **In progress — Codex:** finish branch verification and propose a photo-link
+  expiry fix. **Deveen:** RLS rollout and month-close merge before 1 October.
+  **Founder/Deveen:** launch scaling work and the agreed load test.
+- **Not started — Codex + founder approval:** merge App Store server code to
+  `main` before submission. **Founder:** provide Apple signing/account access
+  and a real iPhone; Codex can prepare/archive the build, then the founder
+  installs it through TestFlight. **Founder/legal:** support email/domain,
+  public legal pages, account-deletion policy and seller identity. **Founder
+  with Codex support:** App Store Connect setup, reviewer account and truthful
+  screenshots.
 
 ## ⚠ Correction (added 2026-09-18 by Claude): the live database change was not inert
 
@@ -35,19 +54,25 @@ the feed, calendars, profiles and stats, for every member, until it was fixed.
 - **Fixed in production** by `20260918120000_restore_activity_in_current_logs.sql`
   (on `main`), which is the live definition plus that one line. Verified: 153 of
   401 open-month rows carry an activity, matching the table exactly.
-- **The Preview copy of `20260918100000_add_workout_post_moderation.sql` still
-  has the bug.** Before it is ever re-run, merged or used to build another
-  database, add `'activity', wl.activity,` to its `read_ante_core_current_logs`
-  object, or run the `20260918120000` migration after it.
+- **The App Store branch copy of `20260918100000_add_workout_post_moderation.sql`
+  was corrected on 2026-09-18** to preserve `'activity', wl.activity,` in its
+  `read_ante_core_current_logs` object. The standalone RPC source was corrected
+  too. Both still need review as part of the branch's normal release checks.
 - **Rule for next time:** before replacing a live function, start from
   `pg_get_functiondef` in production, not from an older migration file, and diff
   the two.
 - The other replaced readers (`read_ante_core_bloc_stream`,
   `read_ante_core_workout_log_comments`,
   `read_ante_core_workout_log_comment_counts`) were checked field by field
-  against their previous versions: only the moderation filter changed. No
-  content was hidden, reported or blocked, and the photo buckets were not made
-  private in production.
+  against production. Their existing row fields are preserved; the intended
+  differences are the moderation visibility filters and the added
+  `moderationHidden` report metadata. `read_ante_core_current_logs` was the one
+  actual existing-field mismatch: it omitted `activity`, now restored in both
+  the App Store migration and standalone reader. The other functions replaced
+  across the three moderation migrations were also compared with production;
+  no other pre-existing response-field differences were identified. No content
+  was hidden, reported or blocked, and the photo buckets were not made private
+  in production.
 
 ## Non-negotiable working rules
 
@@ -59,6 +84,9 @@ Read `AGENTS.md` first. In particular:
 - Claude/other agents can be in this repository. Never switch the shared
   worktree's branch, never use `git add -A`, and stage only named files.
 - Never deploy production without an explicit request.
+- Before replacing any live database function, start from the production
+  `pg_get_functiondef`, compare it with the proposed replacement, and preserve
+  every existing output field. Never rebuild a function from an old migration.
 - The `ios/App/App.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/`
   directory is untracked, pre-existing workspace material. Do not add or remove
   it.
@@ -73,9 +101,9 @@ Read `AGENTS.md` first. In particular:
 | --- | --- |
 | Repository | `https://github.com/aadhilsj/Lift-Log.git` |
 | Preview branch | `codex/app-store-readiness` |
-| Preview HEAD | `30ca4f9 Add founder moderation for workout posts` |
-| Latest main observed | `3672231 docs: section 12 in AGENTS.md — the working loop the founder approved` |
-| Preview/main relationship | They have diverged substantially. Do **not** merge Preview into main. When the founder says main is stable, merge **main into Preview** and resolve/test there. |
+| Preview HEAD at this handover edit | `858a2ca` (merge of `origin/main`; local release fixes are uncommitted) |
+| Latest main observed | `6a66dff docs: Deveen's handover §12 — Solo payments live now, activity regression, RLS findings` |
+| Preview/main relationship | Latest `origin/main` is merged into Preview. Do **not** merge Preview into main without founder approval; continue testing here. |
 | Main documentation already added from Preview | `33de0ce` (docs-only cherry-pick of the blob/RLS handover). No Preview app code was moved with it. |
 | Current release target | Free, invite-only Fero V1. No in-app purchases or premium gate in the submission build. |
 
@@ -205,8 +233,9 @@ migration so the source/reference reader matches the live behavior.
 
 ## Verification completed
 
-All following checks passed against the local Fero/Lift-Log Preview checkout
-after the final workout-post change:
+The following checks passed earlier against the local Fero/Lift-Log Preview
+checkout after the final workout-post change; the expanded release suite for
+the current branch must be rerun before handoff:
 
 ```bash
 npm run test:founder-dashboard
@@ -236,9 +265,10 @@ It still shows the pre-existing RLS rollout findings and the existing leaked
 password protection warning described below.
 
 Not yet completed: a real browser/TestFlight founder hide-then-restore flow.
-The code/database contracts passed, but that manual flow should be run once a
-Preview deployment is available with a dedicated test founder and reportable
-seeded content. Do not test by hiding a real member's production content.
+The code/database contracts passed, but this database-backed manual flow needs
+a dedicated restored-backup/development Supabase copy and seeded test content;
+a Vercel Preview cannot use the Production-only database credentials. Do not
+test by hiding a real member's production content.
 
 ## App Store preparation already completed or drafted
 
@@ -333,7 +363,15 @@ After Deveen's rollout reaches a stable `main`:
 2. Re-run the full relevant suite, including mobile navigation, sign-in and
    account deletion flows. The known local browser commands are described in
    `docs/review-environment-setup-2026-09-01.md`.
-3. Deploy/test a Vercel Preview (not production) and manually test:
+3. **Do not use a Vercel Preview for database-backed QA.** The latest
+   production handover confirms `SUPABASE_URL` and
+   `SUPABASE_SERVICE_ROLE_KEY` are Production-only, so Preview cannot sign in or
+   reach member data. Run the founder hide/restore and block flows against a
+   dedicated restored-backup/development Supabase copy, using a local app/API
+   configured only for that copy. A local sandbox may cover UI-only checks, but
+   its canonical RPCs return empty results and it cannot prove these database
+   flows. Never point QA at production data or hide a real member's content.
+   Manually test:
    - sign in with a dedicated founder test account;
    - report a seeded Stream message/comment/workout post;
    - hide it in Founder Dashboard; refresh as a normal member and confirm it is
@@ -386,6 +424,30 @@ After Deveen's rollout reaches a stable `main`:
   version; an older compatible Xcode download path was explored. Reconfirm the
   locally installed Xcode version and iOS signing state before attempting an
   archive.
+- iOS photo permission strings are required: camera capture uses an image file
+  input with `capture="environment"`, and profile/workout photo selection uses
+  image file inputs. `NSPhotoLibraryAddUsageDescription` is not needed because
+  Fero reads selected photos and uploads them; it does not save images into the
+  user's library. No other native permission string is currently indicated by
+  the reviewed source.
+- Vercel environment-variable scope recorded in Deveen's latest handover is
+  Production-only for `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`; do not
+  assume a Preview deployment can access member data. Use a dedicated restored
+  backup/development Supabase copy for database-backed founder hide/restore QA.
+  The Vercel CLI/project link and an authenticated dashboard session were not
+  available in this checkout, so this is confirmed from the latest saved
+  environment-scope handover, not a fresh live-dashboard inspection.
+- Photo links currently expire after 15 minutes. They are signed in batches by
+  bucket on each state response, after collecting/deduplicating scoped profile,
+  current-log and history photo references. A full state refresh is already
+  expensive (about 1.4 MB read across the app, including 604 kB blob, 597 kB
+  month history and 192 kB current logs in the 2026-09-15 scaling snapshot).
+  Proposed, not implemented: increase the signed-link lifetime (for example to
+  24 hours) to avoid a refresh loop; it adds no state reads per expiry, while
+  each ordinary state response continues its existing batched signing work.
+  Tradeoff: a copied signed URL remains usable longer. Re-signing by refreshing
+  the entire state on image error would add one full, costly state read per
+  affected recovery.
 
 ## What not to accidentally change
 
@@ -409,4 +471,3 @@ After Deveen's rollout reaches a stable `main`:
 > what you verified against the local Fero/Lift-Log repo. At the end of every
 > response, state the recommended next action and `App Store review readiness:
 > X%`.
-

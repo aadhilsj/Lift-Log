@@ -53,6 +53,7 @@ begin
         'owner_display_name', wl.owner_display_name,
         'workout_date',       to_char(wl.workout_date, 'YYYY-MM-DD'),
         'workout_type',       wl.workout_type,
+        'activity',           wl.activity,
         'note',               wl.note,
         'photo_url',          wl.photo_url,
         'created_at',         to_char(wl.created_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
