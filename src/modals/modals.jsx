@@ -1,6 +1,8 @@
 import React from "react";
+import { createPortal } from "react-dom";
 const { useState, useEffect, useMemo, useCallback, useRef } = React;
 import {
+  DISPLAY_NAME_MAX_LENGTH,
   WORKOUT_TYPES,
   MAX_WORKOUTS_PER_DAY,
   DEFAULT_MIN_TARGET,
@@ -41,6 +43,7 @@ import {
   copyToClipboard
 } from "../lib/utils.js";
 import { Avatar, WorkoutTypeIcon, WorkoutCategorySelector, SettingsField, SelectField, inputShellStyle, StepperField, ModalScrim } from "../components/primitives.jsx";
+import { ACTIVITIES, activityNeedsNote, countMemberActivities, getActivityCategory, getLogDisplayActivity, getTopActivities } from "../lib/activities.js";
 
 const SETTINGS_DEFAULTS = {
   minTarget: DEFAULT_MIN_TARGET,
@@ -229,12 +232,12 @@ const GroupCreateModal = ({onCreate,onClose,creating,defaultCreatorName="",defau
       React.createElement('div',{style:{fontFamily:DISPLAY_FONT,fontWeight:800,fontSize:22,letterSpacing:0,lineHeight:1.08,marginBottom:6}},"Create a Bloc"),
       React.createElement('div',{style:{fontFamily:UI_FONT,color:"var(--muted)",fontSize:13,lineHeight:1.35,marginBottom:17,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},"Start the Bloc now. Tune the rules after."),
       [
-        ["Bloc Name",groupName,setGroupName,"Sunday Runners"],
-        ...(!lockCreatorName && requireCreatorName ? [["Your Name",creatorName,setCreatorName,"Aadhil"]] : [])
-      ].map(([label,value,setter,placeholder])=>
+        ["Bloc Name",groupName,setGroupName,"Sunday Runners",null],
+        ...(!lockCreatorName && requireCreatorName ? [["Your Name",creatorName,setCreatorName,"Aadhil",DISPLAY_NAME_MAX_LENGTH]] : [])
+      ].map(([label,value,setter,placeholder,limit])=>
         React.createElement('label',{key:label,style:{display:"block",marginBottom:14}},
           React.createElement('div',{style:setupFieldTitleStyle},label),
-          React.createElement('input',{value,onChange:e=>setter(e.target.value),placeholder,style:{...inputShellStyle,width:"100%",fontFamily:UI_FONT,fontSize:14,borderRadius:10}})
+          React.createElement('input',{value,onChange:e=>setter(limit ? e.target.value.slice(0,limit) : e.target.value),...(limit ? {maxLength:limit} : {}),placeholder,style:{...inputShellStyle,width:"100%",fontFamily:UI_FONT,fontSize:14,borderRadius:10}})
         )
       ),
       React.createElement('div',{style:{marginBottom:14}},
@@ -597,7 +600,13 @@ const CropModal = ({imageSrc, onConfirm, onCancel}) => {
 
 const LogModal = ({user,currentUserId,currentGroupId,groups,onConfirm,onClose}) => {
   const compactMobile = isMobile();
-  const [wType,setWType]=useState(null);
+  // The member picks an activity; its category is what Bloc rules and the log's
+  // `type` use. An activity chosen from the full list takes the sixth tile.
+  const [wActivity,setWActivity]=useState(null);
+  const [activityFromList,setActivityFromList]=useState(false);
+  const [showActivityList,setShowActivityList]=useState(false);
+  const [activitySearch,setActivitySearch]=useState("");
+  const wType = wActivity ? getActivityCategory(wActivity) : null;
   const [selDate,setSelDate]=useState(TODAY_ISO);
   const [note,setNote]=useState("");
   const [photoUrl,setPhotoUrl]=useState("");
@@ -608,6 +617,33 @@ const LogModal = ({user,currentUserId,currentGroupId,groups,onConfirm,onClose}) 
   const choosePhotoInputRef = useRef(null);
   const currentGroup = groups.find(group => group.id === currentGroupId) || null;
   const visibleWorkoutTypes = getAcceptedWorkoutTypes(currentGroup);
+  const topActivities = useMemo(
+    () => getTopActivities(countMemberActivities(groups, currentUserId), visibleWorkoutTypes),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [groups, currentUserId, visibleWorkoutTypes.join("|")]
+  );
+  const listActivities = useMemo(() => {
+    const accepted = new Set(visibleWorkoutTypes);
+    const query = activitySearch.trim().toLowerCase();
+    const allowed = ACTIVITIES.filter(activity => accepted.has(activity.category));
+    return {
+      named: allowed
+        .filter(activity => activity.name !== "Other" && (!query || activity.name.toLowerCase().includes(query)))
+        .map(activity => activity.name)
+        .sort((a, b) => a.localeCompare(b)),
+      hasOther: allowed.some(activity => activity.name === "Other")
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activitySearch, visibleWorkoutTypes.join("|")]);
+  const pickActivity = (name, fromList) => {
+    setWActivity(name);
+    setActivityFromList(Boolean(fromList) && !topActivities.includes(name));
+    setShowActivityList(false);
+  };
+  const openActivityList = () => {
+    setActivitySearch("");
+    setShowActivityList(true);
+  };
   const timeContext = currentGroup ? getTimeContextForGroup(currentGroup) : getTimeContextForGroup(null);
   const isCurrentMonthSelection = getMonthKeyFromISO(selDate) === timeContext.monthKey;
   const workoutsLoggedForDate = useMemo(
@@ -692,8 +728,8 @@ const LogModal = ({user,currentUserId,currentGroupId,groups,onConfirm,onClose}) 
 
   const handleCropCancel = () => setCropSource(null);
 
-  const needsNote = wType === "Other";
-  const canSubmit = Boolean(wType && photoUrl && !alreadyLogged && (!needsNote || note.trim()));
+  const needsNote = activityNeedsNote(wActivity);
+  const canSubmit = Boolean(wActivity && wType && photoUrl && !alreadyLogged && (!needsNote || note.trim()));
   const modalFrameStyle = compactMobile
     ? { position:"fixed", top:"50%", left:"50%", transform:"translate(-50%,-50%)", zIndex:1000, width:"calc(100% - 32px)", maxWidth:440, maxHeight:"calc(100dvh - 170px - env(safe-area-inset-bottom))", overflowY:"auto", background:"radial-gradient(circle at 50% -18%, rgba(78,205,196,.13), transparent 34%), linear-gradient(180deg, rgba(10,24,23,.99), rgba(8,15,15,.99))", border:"0.5px solid rgba(78,205,196,.2)", borderRadius:20, padding:"16px 14px", boxSizing:"border-box", boxShadow:"inset 0 1px 0 rgba(255,255,255,.055), 0 24px 62px rgba(0,0,0,.58), 0 0 34px rgba(78,205,196,.07)", fontFamily:UI_FONT }
     : { position:"fixed", top:"50%", left:"50%", transform:"translate(-50%,-50%)", zIndex:1000, width:"calc(100% - 32px)", maxWidth:440, maxHeight:"85vh", overflowY:"auto", background:"radial-gradient(circle at 50% -18%, rgba(78,205,196,.13), transparent 34%), linear-gradient(180deg, rgba(10,24,23,.99), rgba(8,15,15,.99))", border:"0.5px solid rgba(78,205,196,.2)", borderRadius:20, padding:"20px 18px", boxSizing:"border-box", boxShadow:"inset 0 1px 0 rgba(255,255,255,.055), 0 24px 62px rgba(0,0,0,.58), 0 0 34px rgba(78,205,196,.07)", fontFamily:UI_FONT };
@@ -724,12 +760,28 @@ const LogModal = ({user,currentUserId,currentGroupId,groups,onConfirm,onClose}) 
         style:{width:"100%",maxWidth:"100%",minWidth:0,display:"block",height:34,background:"var(--s1)",border:`1px solid ${alreadyLogged?"var(--red)":"rgba(13,31,30,.8)"}`,borderRadius:10,padding:"7px 10px",color:"#9BA6B5",fontSize:13,lineHeight:"18px",marginBottom:alreadyLogged?4:(compactMobile?7:10),outline:"none",boxSizing:"border-box",appearance:"none",WebkitAppearance:"none",opacity:0.92,fontFamily:UI_FONT}}),
       alreadyLogged&&React.createElement('div',{style:{color:"var(--red)",fontSize:compactMobile?11:12,fontFamily:UI_FONT,fontWeight:700,marginBottom:compactMobile?7:10}},"Already logged 2 workouts for this date"),
       React.createElement('span',{style:logFieldLabelStyle},"Workout type"),
-      React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(5,minmax(0,1fr))",gap:compactMobile?5:6,marginBottom:compactMobile?8:12}},
-        visibleWorkoutTypes.map(t=>React.createElement('button',{key:t,onClick:()=>setWType(t),type:"button",
-          style:{minWidth:0,background:wType===t?"var(--green-dim)":"rgba(25,27,36,.82)",border:`1px solid ${wType===t?"var(--green)":"rgba(78,205,196,.16)"}`,borderRadius:10,padding:compactMobile?"7px 2px":"8px 4px",display:"flex",flexDirection:"column",alignItems:"center",gap:compactMobile?3:4,color:wType===t?"var(--green)":"var(--text)"}},
-          React.createElement('span',{style:{width:compactMobile?24:30,height:compactMobile?24:30,display:"inline-flex",alignItems:"center",justifyContent:"center"}},React.createElement(WorkoutTypeIcon,{type:t,size:compactMobile?18:22})),
-          React.createElement('span',{style:{fontSize:compactMobile?10:11,fontWeight:600,lineHeight:1.1}},t)
-        ))
+      React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:6,marginBottom:compactMobile?8:12}},
+        topActivities.map(name=>{
+          const active = wActivity===name && !activityFromList;
+          return React.createElement('button',{key:name,onClick:()=>pickActivity(name,false),type:"button","aria-pressed":active,
+            style:activityTileStyle(active,compactMobile)},
+            React.createElement('span',{style:{width:18,height:18,display:"inline-flex",alignItems:"center",justifyContent:"center"}},React.createElement(WorkoutTypeIcon,{type:name,size:17})),
+            React.createElement('span',{style:activityTileLabelStyle},name)
+          );
+        }),
+        activityFromList && wActivity
+          ? React.createElement('button',{key:"more",onClick:openActivityList,type:"button","aria-pressed":true,style:activityTileStyle(true,compactMobile)},
+              React.createElement('span',{style:{width:18,height:15,display:"inline-flex",alignItems:"center",justifyContent:"center"}},React.createElement(WorkoutTypeIcon,{type:wActivity,size:15})),
+              React.createElement('span',{style:activityTileLabelStyle},wActivity),
+              React.createElement('span',{style:{fontSize:9,fontWeight:700,lineHeight:1,color:"rgba(78,205,196,.75)"}},"Change")
+            )
+          : React.createElement('button',{key:"more",onClick:openActivityList,type:"button","aria-pressed":false,
+              style:{...activityTileStyle(false,compactMobile),borderStyle:"dashed",borderColor:"rgba(78,205,196,.3)",color:"var(--text-soft)"}},
+              React.createElement('svg',{width:17,height:17,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:1.8,strokeLinecap:"round","aria-hidden":true},
+                React.createElement('circle',{cx:5,cy:12,r:1.2}),React.createElement('circle',{cx:12,cy:12,r:1.2}),React.createElement('circle',{cx:19,cy:12,r:1.2})
+              ),
+              React.createElement('span',{style:activityTileLabelStyle},"More")
+            )
       ),
       React.createElement('span',{style:logFieldLabelStyle},"Photo"),
       React.createElement('input',{ref:takePhotoInputRef,type:"file",accept:"image/*",capture:"environment",onChange:handlePhotoPick,style:{display:"none"}}),
@@ -755,7 +807,7 @@ const LogModal = ({user,currentUserId,currentGroupId,groups,onConfirm,onClose}) 
       photoError && React.createElement('div',{style:{fontSize:12,color:"var(--red)",marginBottom:7}},photoError),
       React.createElement('span',{style:logFieldLabelStyle},needsNote?"Describe your workout":"Add a note (optional)"),
       React.createElement('div',{style:{position:"relative",marginBottom:compactMobile?8:12}},
-        React.createElement('textarea',{value:note,onChange:e=>setNote(e.target.value.slice(0,WORKOUT_NOTE_LIMIT)),rows:compactMobile?2:3,placeholder:needsNote?"e.g. swim, home workout, martial arts":"e.g. trail run, home workout, yoga",style:{width:"100%",resize:"none",background:"var(--s2)",border:`1px solid ${needsNote&&!note.trim()?"rgba(240,165,0,.28)":"var(--border)"}`,borderRadius:10,padding:compactMobile?"9px 44px 16px 11px":"10px 48px 17px 13px",color:"var(--text)",fontSize:compactMobile?13:14,outline:"none",boxSizing:"border-box",fontFamily:UI_FONT,display:"block"}}),
+        React.createElement('textarea',{value:note,onChange:e=>setNote(e.target.value.slice(0,WORKOUT_NOTE_LIMIT)),rows:compactMobile?2:3,placeholder:needsNote?"e.g. martial arts, dance, climbing":"e.g. new PR, easy recovery day",style:{width:"100%",resize:"none",background:"var(--s2)",border:`1px solid ${needsNote&&!note.trim()?"rgba(240,165,0,.28)":"var(--border)"}`,borderRadius:10,padding:compactMobile?"9px 44px 16px 11px":"10px 48px 17px 13px",color:"var(--text)",fontSize:compactMobile?13:14,outline:"none",boxSizing:"border-box",fontFamily:UI_FONT,display:"block"}}),
         React.createElement('div',{style:{position:"absolute",right:9,bottom:5,fontFamily:UI_FONT,fontSize:8.5,color:"var(--muted2)",pointerEvents:"none"}},`${note.length}/${WORKOUT_NOTE_LIMIT}`)
       ),
       wType && eligibleGroups.length > 0 && React.createElement('div',{style:{marginBottom:compactMobile?10:16}},
@@ -790,12 +842,103 @@ const LogModal = ({user,currentUserId,currentGroupId,groups,onConfirm,onClose}) 
       ),
       React.createElement('div',{style:{display:"flex",gap:9,paddingTop:6}},
         React.createElement('button',{onClick:onClose,style:{flex:1,background:"transparent",border:"1px solid #163d36",color:"var(--muted)",padding:compactMobile?"12px":"14px",borderRadius:10,fontSize:compactMobile?14:15,fontWeight:700}},"Cancel"),
-        React.createElement('button',{onClick:()=>canSubmit&&onConfirm({ workoutType:wType, isoDate:selDate, targetGroupIds:isCurrentMonthSelection?selectedGroupIds:[], note:note.trim(), photoUrl }),
+        React.createElement('button',{onClick:()=>canSubmit&&onConfirm({ workoutType:wType, activity:wActivity, isoDate:selDate, targetGroupIds:isCurrentMonthSelection?selectedGroupIds:[], note:note.trim(), photoUrl }),
           style:{flex:2,background:canSubmit?"var(--green)":"var(--s3)",color:canSubmit?"#000":"var(--muted2)",padding:compactMobile?"12px":"14px",borderRadius:10,fontSize:compactMobile?14:15,fontWeight:800,animation:canSubmit?"glow 2s infinite":"none",cursor:canSubmit?"pointer":"default"}},
           uploading?"Processing photo...":"Log workout")
       )
-    )
+    ),
+    React.createElement(ActivityListSheet,{
+      open:showActivityList,
+      search:activitySearch,
+      onSearch:setActivitySearch,
+      named:listActivities.named,
+      hasOther:listActivities.hasOther,
+      selected:wActivity,
+      onPick:name=>pickActivity(name,true),
+      onClose:()=>setShowActivityList(false)
+    })
   );
+};
+
+const activityTileStyle = (active, compactMobile) => ({
+  minWidth:0,
+  height:compactMobile?50:54,
+  background:active?"var(--green-dim)":"rgba(25,27,36,.82)",
+  border:`1px solid ${active?"var(--green)":"rgba(78,205,196,.16)"}`,
+  borderRadius:10,
+  padding:2,
+  display:"flex",
+  flexDirection:"column",
+  alignItems:"center",
+  justifyContent:"center",
+  gap:3,
+  color:active?"var(--green)":"var(--text)"
+});
+const activityTileLabelStyle = {fontSize:10.5,fontWeight:600,lineHeight:1.1,maxWidth:"100%",padding:"0 4px",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"};
+
+// The full activity list, sliding up over the log pop-up. A–Z with search;
+// "Other" always sits last because it is the catch-all. Portalled to the body:
+// the log pop-up renders inside the page's stacking context, which sits below
+// the mobile bottom nav, so a sheet left there is covered by the nav.
+const ActivityListSheet = ({open,search,onSearch,named,hasOther,selected,onPick,onClose}) => {
+  const listRef = useRef(null);
+  useEffect(() => {
+    if (open && listRef.current) listRef.current.scrollTop = 0;
+  }, [open]);
+  const trimmed = search.trim();
+  const row = (name, hint) => {
+    const isSelected = selected === name;
+    return React.createElement('button',{key:name,type:"button",onClick:()=>onPick(name),"aria-selected":isSelected,
+      style:{width:"100%",display:"flex",alignItems:"center",gap:12,padding:10,borderRadius:12,textAlign:"left",background:"transparent",border:"none",color:"var(--text)"}},
+      React.createElement('span',{style:{width:36,height:36,borderRadius:10,background:"rgba(25,27,36,.82)",border:`1px solid ${isSelected?"var(--green)":"rgba(78,205,196,.14)"}`,display:"inline-flex",alignItems:"center",justifyContent:"center",flexShrink:0,color:isSelected?"var(--green)":"var(--text)"}},
+        React.createElement(WorkoutTypeIcon,{type:name,size:20})
+      ),
+      React.createElement('span',{style:{minWidth:0,flex:1}},
+        React.createElement('span',{style:{display:"block",fontSize:15,fontWeight:600,color:isSelected?"var(--green)":"var(--text)"}},name),
+        hint && React.createElement('span',{style:{display:"block",fontSize:11,color:"var(--muted)",marginTop:1}},hint)
+      ),
+      isSelected && React.createElement('span',{style:{color:"var(--green)",fontWeight:800,fontSize:14}},"✓")
+    );
+  };
+  const sectionStyle = {fontFamily:UI_FONT,fontSize:10,fontWeight:800,letterSpacing:".1em",textTransform:"uppercase",color:"var(--muted)",padding:"12px 10px 6px"};
+  if (typeof document === "undefined") return null;
+  return createPortal(React.createElement(React.Fragment,null,
+    React.createElement('div',{onClick:onClose,style:{position:"fixed",inset:0,zIndex:1001,background:"rgba(0,0,0,.45)",opacity:open?1:0,pointerEvents:open?"auto":"none",transition:"opacity .2s ease"}}),
+    React.createElement('div',{role:"dialog","aria-modal":true,"aria-label":"All activities","aria-hidden":!open,
+      style:{position:"fixed",left:0,right:0,bottom:0,margin:"0 auto",maxWidth:480,height:"86dvh",zIndex:1002,display:"flex",flexDirection:"column",
+        borderRadius:"22px 22px 0 0",background:"linear-gradient(180deg,#0b1a19,#070d0d)",borderTop:"0.5px solid rgba(78,205,196,.28)",boxShadow:"0 -20px 50px rgba(0,0,0,.55)",
+        transform:open?"translateY(0)":"translateY(104%)",transition:"transform .28s cubic-bezier(.2,.8,.2,1)",pointerEvents:open?"auto":"none",fontFamily:UI_FONT}},
+      React.createElement('div',{style:{width:38,height:4,borderRadius:4,background:"rgba(245,247,251,.18)",margin:"9px auto 4px"}}),
+      React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 16px 10px"}},
+        React.createElement('div',{style:{fontFamily:DISPLAY_FONT,fontWeight:800,fontSize:18,color:"var(--text)"}},"All activities"),
+        React.createElement('button',{type:"button",onClick:onClose,"aria-label":"Close",style:{width:30,height:30,borderRadius:999,background:"var(--s2)",border:"0.5px solid var(--border2)",display:"inline-flex",alignItems:"center",justifyContent:"center",color:"var(--text-soft)",fontSize:15}},"✕")
+      ),
+      React.createElement('div',{style:{margin:"0 16px 8px",position:"relative"}},
+        React.createElement('svg',{width:18,height:18,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2,strokeLinecap:"round","aria-hidden":true,style:{position:"absolute",left:11,top:11,color:"var(--muted)"}},
+          React.createElement('circle',{cx:11,cy:11,r:7}),React.createElement('path',{d:"M20 20l-3.5-3.5"})
+        ),
+        // 16px keeps iOS Safari from zooming the page when the field is focused.
+        React.createElement('input',{id:"activity-search",type:"search",value:search,onChange:e=>onSearch(e.target.value),placeholder:"Search activities",autoComplete:"off","aria-label":"Search activities",
+          style:{width:"100%",height:40,borderRadius:12,background:"var(--s1)",border:"1px solid var(--border2)",padding:"0 12px 0 36px",color:"var(--text)",fontSize:16,fontFamily:UI_FONT,outline:"none",boxSizing:"border-box"}})
+      ),
+      React.createElement('div',{ref:listRef,style:{overflowY:"auto",padding:"4px 8px calc(24px + env(safe-area-inset-bottom))",flex:1,touchAction:"pan-y",WebkitOverflowScrolling:"touch"}},
+        named.length
+          ? React.createElement(React.Fragment,null,
+              !trimmed && React.createElement('div',{style:sectionStyle},"A–Z"),
+              named.map(name=>row(name,""))
+            )
+          : React.createElement('div',{style:{padding:"18px 12px",fontSize:13,color:"var(--text-soft)",lineHeight:1.5}},
+              hasOther
+                ? `No activity called “${trimmed}” yet. Choose Other and describe it.`
+                : `No activity called “${trimmed}” in this Bloc.`
+            ),
+        hasOther && React.createElement(React.Fragment,null,
+          React.createElement('div',{style:sectionStyle},"Not listed"),
+          row("Other","Anything Else · Add a note")
+        )
+      )
+    )
+  ), document.body);
 };
 
 // ─── DELETE MODAL ─────────────────────────────────────────────────────────────
@@ -826,8 +969,8 @@ const DeleteModal = ({log,onConfirm,onClose,otherBlocNames=[]}) => {
     React.createElement('div',{style:{fontWeight:800,fontSize:13,marginBottom:8}},"Delete this log?"),
     React.createElement('div',{style:{background:"var(--s2)",border:"1px solid var(--border)",borderRadius:8,padding:"6px 10px",marginBottom:8,textAlign:"left"}},
       React.createElement('div',{style:{fontWeight:700,fontSize:11,marginBottom:3,display:"inline-flex",alignItems:"center",gap:5}},
-        React.createElement(WorkoutTypeIcon,{type:log.type,size:12}),
-        log.type
+        React.createElement(WorkoutTypeIcon,{type:getLogDisplayActivity(log),size:12}),
+        getLogDisplayActivity(log)
       ),
       React.createElement('div',{className:"mono",style:{fontSize:10,color:"var(--muted)"}},fmtISO(log.date))
     ),
@@ -858,12 +1001,12 @@ const SitOutModal = ({mode,monthName,onClose,onSubmit,submitting,error}) => {
     : mode === "exceptional"
       ? {
           title:"You've already sat out recently.",
-          body:[`Your next sit-out is available in ${monthName}.`,"If you have exceptional circumstances, you can send a request to the bloc admin."],
+          body:[`Your next sit-out is available in ${monthName}.`,"If you have exceptional circumstances, you can send a request to the Bloc Admin."],
           cta:"Send exceptional request"
         }
       : {
           title:`Request sit-out for ${monthName}?`,
-          body:["Your request will be sent to the bloc admin for approval."],
+          body:["Your request will be sent to the Bloc Admin for approval."],
           cta:"Send request"
         };
   return React.createElement('div',{className:`overlay${isMobile() ? " center-mobile" : ""}`,onClick:onClose},
@@ -885,34 +1028,35 @@ const SitOutModal = ({mode,monthName,onClose,onSubmit,submitting,error}) => {
   );
 };
 
-const SoloModal = ({mode,monthName,minimumTarget,maximumTarget,defaultTarget,onClose,onSubmit,submitting,error}) => {
+const SoloModal = ({mode,monthName,target,onClose,onSubmit,submitting,error}) => {
   const [reason,setReason] = React.useState("");
-  const minTarget = Math.max(1, Number(minimumTarget || 1));
-  const maxTarget = Math.max(minTarget, Math.round(Number(maximumTarget || defaultTarget || minTarget)));
-  const initialTarget = Math.max(minTarget, Math.min(maxTarget, Math.round(Number(defaultTarget || minTarget))));
-  const [target,setTarget] = React.useState(initialTarget);
-  const competitionModalLabelStyle = {display:"block",marginBottom:5,fontFamily:UI_FONT,fontSize:9,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".08em",fontWeight:800};
+  const formLabelStyle = {display:"block",marginBottom:5,fontFamily:UI_FONT,fontSize:9,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".08em",fontWeight:800};
   const config = mode === "exceptional"
     ? {
         title:`Request Solo for ${monthName}?`,
-        body:["Solo is meant to be used only once every three months.","If you want to go Solo again, your request will be sent to the Bloc admin for approval."],
+        body:["Solo is meant to be used only once every three months.","Your request will be sent to the Bloc Admin for approval.",`If approved, your automatic goal will be ${target} workouts. If you fall short, you pay the standard monthly penalty.`,"Solo members can avoid a penalty by reaching their goal, but they can't receive a reward this month."],
+        cta:"Send request"
+      }
+    : mode === "late"
+    ? {
+        title:`Request Solo for ${monthName}?`,
+        body:["After day 10, Solo needs the Bloc Admin's approval.","Your request will be sent to the Bloc Admin.",`If approved, your automatic goal will be ${target} workouts. If you fall short, you pay the standard monthly penalty.`,"Solo members can avoid a penalty by reaching their goal, but they can't receive a reward this month."],
         cta:"Send request"
       }
     : {
         title:`Go Solo for ${monthName}?`,
-        body:["You keep logging, but you are out of the reward / penalty system for the month.","This action can't be undone."],
+        body:["Solo is for a heavier month — when you still want to keep showing up, but need a lighter goal.",`Your goal will be ${target} workouts, half of your Bloc's usual target. You'll keep logging as normal. Reach your Solo goal and you're clear. If you fall short, you pay the standard monthly penalty.`,"Solo members can avoid a penalty by reaching their goal, but they can't receive a reward this month."],
         cta:"Go Solo"
       };
   const reasonReady = reason.trim().length > 0;
-  const adjustTarget = delta => setTarget(current => Math.max(minTarget, Math.min(maxTarget, Number(current || minTarget) + delta)));
-  const submit = () => onSubmit({ personalTarget: Math.max(minTarget, Math.min(maxTarget, Math.round(Number(target || minTarget)))), reason });
+  const submit = () => onSubmit({ personalTarget: target, reason });
   return React.createElement('div',{className:`overlay${isMobile() ? " center-mobile" : ""}`,onClick:onClose},
     React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{maxWidth:420,fontFamily:UI_FONT}},
       React.createElement('div',{style:{fontFamily:UI_FONT,fontWeight:800,fontSize:20,lineHeight:1.1,letterSpacing:0,marginBottom:12}},config.title),
       React.createElement('div',{style:{display:"grid",gap:7,padding:"11px 12px",borderRadius:12,background:"linear-gradient(180deg, rgba(13,31,30,.96), rgba(8,15,15,.86))",border:"1px solid rgba(78,205,196,.34)",boxShadow:"0 0 0 1px rgba(78,205,196,.08), inset 0 1px 0 rgba(255,255,255,.04)",marginBottom:14}},
         [
-          "Keep logging with a personal target.",
-          "Step out of this month's potential reward / penalty."
+          `Automatic goal: ${target} workouts.`,
+          "Keep logging as normal."
         ].map(line=>React.createElement('div',{key:line,style:{display:"flex",alignItems:"flex-start",gap:8,fontFamily:UI_FONT,fontSize:12.5,color:"var(--text)",lineHeight:1.35,fontWeight:650}},
           React.createElement('span',{style:{width:5,height:5,borderRadius:999,background:"#4ECDC4",marginTop:7,flexShrink:0}}),
           React.createElement('span',null,line)
@@ -921,17 +1065,8 @@ const SoloModal = ({mode,monthName,minimumTarget,maximumTarget,defaultTarget,onC
       React.createElement('div',{style:{display:"grid",gap:4,color:"var(--muted)",fontFamily:UI_FONT,fontSize:13,lineHeight:1.55,marginBottom:16}},
         config.body.map(line=>React.createElement('div',{key:line},line))
       ),
-      React.createElement('label',{style:{display:"block",marginBottom:14}},
-        React.createElement('span',{style:competitionModalLabelStyle},"Solo target"),
-        React.createElement('div',{style:{display:"grid",gridTemplateColumns:"44px 1fr 44px",height:46,background:"var(--s2)",border:"1px solid var(--border)",borderRadius:10,overflow:"hidden"}},
-          React.createElement('button',{type:"button",onClick:()=>adjustTarget(-1),disabled:target <= minTarget,style:{background:"transparent",borderRight:"1px solid var(--border)",color:target <= minTarget ? "var(--muted2)" : "var(--text)",fontFamily:UI_FONT,fontSize:20,fontWeight:900,opacity:target <= minTarget ? .5 : 1}},"-"),
-          React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"center",fontFamily:UI_FONT,fontSize:15,fontWeight:800,color:"var(--text)"}},target),
-          React.createElement('button',{type:"button",onClick:()=>adjustTarget(1),disabled:target >= maxTarget,style:{background:"transparent",borderLeft:"1px solid var(--border)",color:target >= maxTarget ? "var(--muted2)" : "#4ECDC4",fontFamily:UI_FONT,fontSize:20,fontWeight:900,opacity:target >= maxTarget ? .5 : 1}},"+")
-        ),
-        React.createElement('span',{style:{display:"block",marginTop:6,fontFamily:UI_FONT,fontSize:11,color:"var(--muted)"}},"Minimum ",minTarget," workouts")
-      ),
       React.createElement('label',{style:{display:"block",marginBottom:16}},
-        React.createElement('span',{style:competitionModalLabelStyle},"Reason"),
+        React.createElement('span',{style:formLabelStyle},"Reason"),
         React.createElement('textarea',{value:reason,onChange:e=>setReason(e.target.value),placeholder:"e.g. travel month, work sprint",rows:3,style:{width:"100%",background:"var(--s2)",border:"1px solid var(--border)",borderRadius:10,padding:"12px 13px",color:"var(--text)",fontFamily:UI_FONT,fontSize:14,outline:"none",resize:"none"}})
       ),
       error && React.createElement('div',{style:{fontFamily:UI_FONT,fontSize:12,color:"var(--red)",marginBottom:14}},error),

@@ -1,7 +1,6 @@
 import React from "react";
 const { useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef } = React;
 import {
-  WORKOUT_TYPES,
   DEFAULT_CURRENCY,
   NAMES,
   MIN_TARGET,
@@ -22,8 +21,10 @@ import {
   getCountedLogCount,
   isJoinedForMonth
 } from "../lib/appState.js";
-import { Avatar, WorkoutTypeIcon, Card, AppIcon, PlayerProfileErrorBoundary } from "../components/primitives.jsx";
+import { Avatar, Card, AppIcon, PlayerProfileErrorBoundary } from "../components/primitives.jsx";
 import { PlayerProfile } from "../pages/PlayerProfile.jsx";
+import { ActivityMix } from "../components/ActivityMix.jsx";
+import { getLogDisplayActivity } from "../lib/activities.js";
 
 const HISTORY_FEATURES = {
   summaryStats: true,
@@ -178,21 +179,22 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
   },[fullHistory, historicalNames]);
   const trailingMonthlyAvg=useMemo(()=>groupMonthlyAvg.slice(-12),[groupMonthlyAvg]);
 
+  // Per activity; logs from before activities count under their category.
   const groupTypeBreakdown=useMemo(()=>{
-    const c={};WORKOUT_TYPES.forEach(t=>c[t]=0);
+    const c={};
     fullHistory.forEach(month=>{
       const monthNames = getHistoricalMemberNamesForMonth(month, historicalNames);
       monthNames.forEach(name=>{
         if(!isJoinedForMonth(name, month.key)) return;
         getCountedLogs(month.logsByUser?.[name] || []).forEach(log=>{
-          if(c[log.type]!==undefined)c[log.type]++;
+          const activity=getLogDisplayActivity(log);
+          c[activity]=(c[activity]||0)+1;
         });
       });
     });
     return c;
   },[fullHistory, historicalNames]);
   const totalGroupLogs=Object.values(groupTypeBreakdown).reduce((a,b)=>a+b,0);
-  const maxTypeCount=Math.max(...Object.values(groupTypeBreakdown),1);
   const rankDeltas=useMemo(()=>{
     const closed = [...monthHistory].filter(m => m?.key).sort((a,b)=>monthOrder(a.key)-monthOrder(b.key));
     if (closed.length < 2) return {};
@@ -222,7 +224,6 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
     return {...m,total,activeCount:active.length};
   });
   const toughestMonth=[...closedMonthlyTotals].filter(m=>m.activeCount>0).sort((a,b)=>a.total-b.total)[0];
-  const sortedWorkoutTypes=[...WORKOUT_TYPES].sort((a,b)=>(groupTypeBreakdown[b]||0)-(groupTypeBreakdown[a]||0)||WORKOUT_TYPES.indexOf(a)-WORKOUT_TYPES.indexOf(b));
   const legacyRows=[
     ["Started", earliestMonth ? cleanMonthLabel(earliestMonth.label, earliestMonth.key, true) : shortDate(group?.createdAt)],
     ["Months completed", completedMonths ? String(completedMonths) : "No closed months yet"],
@@ -277,27 +278,7 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
           )
     ),
     HISTORY_FEATURES.workoutMix&&React.createElement(Card,{className:"fu4",style:{padding:"11px 12px",background:"radial-gradient(circle at 88% 0%, rgba(255,255,255,.03), transparent 34%), radial-gradient(circle at 16% 100%, rgba(78,205,196,.05), transparent 42%), linear-gradient(180deg, rgba(12,22,22,.98), rgba(8,15,15,.98))",boxShadow:"inset 0 1px 0 rgba(255,255,255,.035), 0 7px 16px rgba(0,0,0,.12)"}},
-      React.createElement('div',{style:{fontWeight:800,fontSize:13,marginBottom:10,textAlign:"center"}},"Workout Type Distribution"),
-      totalGroupLogs===0
-        ? React.createElement('div',{style:{color:"var(--muted)",fontSize:13,textAlign:"center",padding:"12px 0"}},"No workouts logged yet.")
-        : React.createElement('div',{style:{display:"flex",gap:6,alignItems:"stretch"}},
-            sortedWorkoutTypes.map(t=>{
-              const count=groupTypeBreakdown[t];
-              const rawPct=totalGroupLogs>0?(count/totalGroupLogs)*100:0;
-              const pct=count>0?Math.max(1,Math.round(rawPct)):0;
-              const barH=Math.max(count>0?6:0,Math.round((count/maxTypeCount)*56));
-              const isTop = count === maxTypeCount && count > 0;
-              return React.createElement('div',{key:t,style:{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:4,minWidth:0}},
-                React.createElement('span',{style:{fontFamily:"'Outfit', sans-serif",fontSize:9.5,fontWeight:700,color:count>0?"var(--muted)":"var(--muted2)",height:16,display:"flex",alignItems:"center"}},count>0?`${pct}%`:""),
-                React.createElement('div',{style:{width:"100%",height:56,display:"flex",alignItems:"flex-end"}},
-                  React.createElement('div',{style:{width:"100%",height:barH,background:count>0?(isTop?"rgba(78, 205, 196, 0.5)":"#0D2828"):"var(--border)",borderRadius:"3px 3px 0 0",opacity:count>0?1:.3}})
-                ),
-            React.createElement('span',{style:{width:18,height:18,display:"inline-flex",alignItems:"center",justifyContent:"center",color:"#4ECDC4"}},React.createElement(WorkoutTypeIcon,{type:t,size:16})),
-                React.createElement('span',{style:{fontSize:10,color:"var(--muted)",fontWeight:600}},t),
-                React.createElement('span',{className:"mono",style:{fontSize:11,fontWeight:700,color:count>0?"var(--text)":"var(--muted2)"}},count)
-              );
-            })
-          )
+      React.createElement(ActivityMix,{title:"Workout Type Distribution",counts:groupTypeBreakdown,variant:"history",titleStyle:{fontWeight:800}})
     ),
     HISTORY_FEATURES.allTimeLeaderboard&&React.createElement(Card,{className:"fu5",style:{overflow:"hidden"}},
       React.createElement('div',{style:{position:"relative",padding:"11px 15px",borderBottom:"1px solid var(--border)",display:"flex",alignItems:"center",justifyContent:"center"}},
@@ -307,8 +288,8 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
       React.createElement('div',{style:{position:"relative"}},
         React.createElement('div',{style:{position:"absolute",top:0,right:0,bottom:0,width:28,pointerEvents:"none",background:"linear-gradient(to right, rgba(8,15,15,0), #080F0F)",zIndex:1}}),
         React.createElement('div',{"data-page-swipe-priority":"horizontal-scroll",style:{overflowX:"auto",WebkitOverflowScrolling:"touch",touchAction:"pan-x pan-y"}},
-        React.createElement('div',{style:{minWidth:520,padding:"7px"}},
-          React.createElement('div',{style:{display:"grid",gridTemplateColumns:"21px 24px 120px 44px 38px 46px 34px 56px 56px",padding:"6px 8px",borderBottom:"1px solid rgba(255,255,255,.055)",gap:5,fontFamily:"'Outfit', sans-serif",fontSize:8,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".055em",fontWeight:800}},
+        React.createElement('div',{style:{minWidth:550,padding:"7px"}},
+          React.createElement('div',{style:{display:"grid",gridTemplateColumns:"21px 24px 150px 44px 38px 46px 34px 56px 56px",padding:"6px 8px",borderBottom:"1px solid rgba(255,255,255,.055)",gap:5,fontFamily:"'Outfit', sans-serif",fontSize:8,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".055em",fontWeight:800}},
             ["#","","Name","Total","AVG","Months","Wins",null,null].map((h,i)=>React.createElement('div',{key:i,style:{textAlign:i>2?"right":"left",display:"flex",alignItems:"center",justifyContent:i>2?"flex-end":"flex-start",gap:3}},
               i===7||i===8
                 ? React.createElement(React.Fragment,null,React.createElement(AppIcon,{name:"money-bag",size:10,stroke:"rgba(214,226,224,.72)"}),React.createElement('span',null,i===7?"Won":"Lost"))
@@ -320,11 +301,11 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
             const isMe = u.name === currentUser;
             const rankGlow = i === 0 ? "rgba(245,166,35,.075)" : i === 1 ? "rgba(214,226,224,.055)" : i === 2 ? "rgba(78,205,196,.045)" : "rgba(255,255,255,.02)";
             return React.createElement('button',{key:u.name,type:"button",onClick:()=>openPlayerProfile(u.name),
-            style:{display:"grid",gridTemplateColumns:"21px 24px 120px 44px 38px 46px 34px 56px 56px",width:"100%",padding:"8px 8px",gap:5,alignItems:"center",background:`radial-gradient(circle at 8% 0%, ${rankGlow}, transparent 42%), radial-gradient(circle at 92% 0%, rgba(78,205,196,.045), transparent 38%), linear-gradient(180deg, rgba(18,31,31,.82), rgba(8,15,15,.62))`,border:`0.5px solid ${isMe?"rgba(78,205,196,.24)":"rgba(255,255,255,.065)"}`,borderRadius:9,boxShadow:`inset 0 1px 0 rgba(255,255,255,.055), 0 8px 18px rgba(0,0,0,.16)${isMe?", 0 0 0 1px rgba(78,205,196,.035)":""}`,textAlign:"left",fontFamily:"'Outfit', sans-serif",color:"var(--text)",cursor:"pointer"}},
+            style:{display:"grid",gridTemplateColumns:"21px 24px 150px 44px 38px 46px 34px 56px 56px",width:"100%",padding:"8px 8px",gap:5,alignItems:"center",background:`radial-gradient(circle at 8% 0%, ${rankGlow}, transparent 42%), radial-gradient(circle at 92% 0%, rgba(78,205,196,.045), transparent 38%), linear-gradient(180deg, rgba(18,31,31,.82), rgba(8,15,15,.62))`,border:`0.5px solid ${isMe?"rgba(78,205,196,.24)":"rgba(255,255,255,.065)"}`,borderRadius:9,boxShadow:`inset 0 1px 0 rgba(255,255,255,.055), 0 8px 18px rgba(0,0,0,.16)${isMe?", 0 0 0 1px rgba(78,205,196,.035)":""}`,textAlign:"left",fontFamily:"'Outfit', sans-serif",color:"var(--text)",cursor:"pointer"}},
             React.createElement('div',{style:{fontSize:10,fontWeight:700,color:"var(--muted)",textAlign:"center"}},`#${i+1}`),
             React.createElement(Avatar,{name:u.name,size:21}),
-            React.createElement('div',{style:{fontWeight:700,fontSize:12.5,display:"flex",alignItems:"baseline",gap:5,flexWrap:"nowrap",color:"var(--text)",minWidth:0,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},
-              React.createElement('span',{style:{minWidth:0,overflow:"hidden",textOverflow:"ellipsis"}},u.name),
+            React.createElement('div',{style:{fontWeight:700,fontSize:12.5,display:"flex",alignItems:"baseline",gap:5,flexWrap:"nowrap",color:"var(--text)",minWidth:0,whiteSpace:"nowrap"}},
+              React.createElement('span',null,u.name),
               rankDeltaNode(rankDeltas[u.name]),
               isMe&&React.createElement('span',{className:"mono",style:{fontSize:7.5,color:"#3d5e59",flexShrink:0}},"you")
             ),
@@ -338,7 +319,7 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
             React.createElement('span',{style:{fontSize:10,fontWeight:700,textAlign:"right",color:hasClosedHistory&&u.moneyLost>0?"var(--red)":"var(--muted)"}},hasClosedHistory&&u.moneyLost>0?`-${fmtCurrency(u.moneyLost, currency)}`:"—")
           )})
         ),
-        sortedAll.length>5&&React.createElement('button',{type:"button",onClick:()=>setShowAllLeaderboard(v=>!v),style:{width:"100%",minWidth:520,margin:"5px 7px 7px",padding:"8px",background:"transparent",border:"1px solid var(--border)",borderRadius:8,color:"var(--text)",fontSize:11,fontWeight:800,textAlign:"center"}},
+        sortedAll.length>5&&React.createElement('button',{type:"button",onClick:()=>setShowAllLeaderboard(v=>!v),style:{width:"100%",minWidth:550,margin:"5px 7px 7px",padding:"8px",background:"transparent",border:"1px solid var(--border)",borderRadius:8,color:"var(--text)",fontSize:11,fontWeight:800,textAlign:"center"}},
           showAllLeaderboard?"Show Less":`Show ${sortedAll.length-5} More`
         )
       ))

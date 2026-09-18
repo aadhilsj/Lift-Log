@@ -5,6 +5,9 @@ import {
   DAY_OF_MON,
   MONTH_NAMES,
   calcPenalties,
+  addStandardSoloPenalties,
+  getStandardSoloMisses,
+  getSoloTargetForMonth,
   getLoserAmount,
   buildSettlementPairsForMonth,
   buildSettlementPairState,
@@ -49,7 +52,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
       count: Number(month.counts[name] || 0),
       target: blocTargetFor(name)
     }));
-  const penalties = calcPenalties(activeCounts, month.settings);
+  const penalties = addStandardSoloPenalties(calcPenalties(activeCounts, month.settings), getStandardSoloMisses(month, relevantNames), month.settings);
   const {winners, losers, perWinner} = penalties;
   const settlementPairs = buildSettlementPairsForMonth(month);
   // Perfect means everyone who was actually training hit the Bloc's target.
@@ -70,7 +73,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
   const sortedActive = [...activeCounts].sort((a,b) => b.count - a.count || a.name.localeCompare(b.name));
   const userRank = sortedActive.findIndex(m => m.name === currentUser) + 1 || 1;
   const currency = month.settings?.currency || "USD";
-  const mas = month.memberTargets?.[currentUser] || month.settings?.minTarget || MIN_TARGET;
+  const mas = getSoloTargetForMonth(month, currentUser, month.key) || month.memberTargets?.[currentUser] || month.settings?.minTarget || MIN_TARGET;
   const userOwes = getLoserAmount(penalties, currentUser);
 
   const incomingRows = settlementPairs.filter(pair => pair.receiverDisplayName === currentUser);
@@ -391,7 +394,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
   const renderLedger = () => {
     const exemptNotes = [
       ...trainingNames.filter(name => name !== currentUser).map(name => `${name} \u2014 first month, no penalty.`),
-      ...soloNames.filter(name => name !== currentUser).map(name => `${name} \u2014 on solo mode.`)
+      ...soloNames.filter(name => name !== currentUser && !losers.some(l => l.name === name)).map(name => `${name} \u2014 on solo mode.`)
     ];
     if (isBlocPerfect && exemptNotes.length === 0) return null;
     if (!incomingRows.length && !outgoingRows.length && exemptNotes.length === 0) return null;

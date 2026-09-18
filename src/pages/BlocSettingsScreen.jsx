@@ -1,4 +1,5 @@
 import React from "react";
+import { createPortal } from "react-dom";
 const { useEffect, useMemo, useRef, useState } = React;
 import {
   WORKOUT_TYPES,
@@ -12,12 +13,24 @@ import {
   DEFAULT_STRAVA_ENABLED,
   DEFAULT_TRAINING_WHEELS,
   curKey,
+  CUR_MONTH,
+  DAY_OF_MON,
+  MONTH_NAMES,
   buildNormalizedSettings,
   normalizeSitOutRequests,
   normalizeSoloRequests,
   normalizeEscalationStepAmount,
   getCurrentGroupMemberNames,
-  getSetupReviewPendingFields
+  getSetupReviewPendingFields,
+  getCurrentMonthSummary,
+  getMemberTargetInfoForMonth,
+  getEffectiveTargetForMonth,
+  getCurrentSitOutRequest,
+  getRecentSitOutCount,
+  getCurrentSoloRequest,
+  getRecentSoloCount,
+  isSoloForMonth,
+  getSoloTargetForMonth
 } from "../lib/appState.js";
 import { copyToClipboard, isMobile } from "../lib/utils.js";
 import {
@@ -28,7 +41,7 @@ import {
   StepperField,
   inputShellStyle
 } from "../components/primitives.jsx";
-import { TIME_ZONE_OPTIONS } from "../modals/modals.jsx";
+import { TIME_ZONE_OPTIONS, SitOutModal, SoloModal } from "../modals/modals.jsx";
 
 const UI_FONT = "'Outfit', sans-serif";
 const DISPLAY_FONT = "'Raleway', sans-serif";
@@ -104,9 +117,18 @@ const EditableField = ({title,description,children}) => (
   )
 );
 
-const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,saving,onReviewSetup,onReviewSitOut,onReviewSolo,onKickMember,onLeaveBloc,localDevMode=false}) => {
+const FULL_MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+
+const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,saving,onReviewSetup,onReviewSitOut,onReviewSolo,onKickMember,onLeaveBloc,onSitOutRequest,onSoloRequest,onCancelRequest,localDevMode=false}) => {
   const compactMobile = isMobile();
-  const [tab,setTab]=useState("rules");
+  const [tab,setTab]=useState("invite");
+  const [showSitOut,setShowSitOut]=useState(false);
+  const [sitOutSubmitting,setSitOutSubmitting]=useState(false);
+  const [sitOutError,setSitOutError]=useState("");
+  const [showSolo,setShowSolo]=useState(false);
+  const [soloSubmitting,setSoloSubmitting]=useState(false);
+  const [soloError,setSoloError]=useState("");
+  const [cancelling,setCancelling]=useState("");
   const [groupName,setGroupName]=useState(group?.name || "");
   const [settings,setSettings]=useState({...SETTINGS_DEFAULTS,...group?.settings});
   const [submitAttempted,setSubmitAttempted]=useState(false);
@@ -127,6 +149,67 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
   const normalizedSettings = buildNormalizedSettings(settings);
   const escalationStepMissing = normalizedSettings.feeModel === "escalating" && normalizedSettings.escalationStepAmount === null;
   const canSave = isAdmin && groupName.trim() && normalizedSettings.acceptedWorkoutTypes.length > 0 && !saving;
+
+  // Your own month: the Solo and Sit out surface that used to sit on the Today screen.
+  const monthSummary = group ? getCurrentMonthSummary(group) : null;
+  const monthDay = monthSummary?.day || DAY_OF_MON;
+  const monthName = FULL_MONTH_NAMES[CUR_MONTH] || MONTH_NAMES[CUR_MONTH];
+  const myTarget = group ? getMemberTargetInfoForMonth(group, actor, curKey).target : DEFAULT_MIN_TARGET;
+  const mySitOutRequest = group ? getCurrentSitOutRequest(group, actor, curKey) : null;
+  const mySoloRequest = group ? getCurrentSoloRequest(group, actor, curKey) : null;
+  const isExcused = !!group?.excused?.[actor]?.[curKey];
+  const isSolo = group ? isSoloForMonth(group, actor, curKey) : false;
+  const mySoloTarget = group ? getSoloTargetForMonth(group, actor, curKey) : null;
+  const sitOutPending = mySitOutRequest?.status === "pending";
+  const soloPending = mySoloRequest?.status === "pending";
+  const sitOutMode = sitOutPending || soloPending || isExcused || isSolo
+    ? null
+    : (getRecentSitOutCount(group, actor, curKey) >= 1 ? "exceptional" : (monthDay <= 5 ? "instant" : "request"));
+  const soloMode = soloPending || sitOutPending || isExcused || isSolo
+    ? null
+    : (getRecentSoloCount(group, actor, curKey) >= 1 ? "exceptional" : (monthDay <= 10 ? "request" : "late"));
+  // Same rule the server applies in applySoloRequest: half the Bloc target,
+  // rounded up.
+  const soloGoal = Math.max(1, Math.ceil((group ? getEffectiveTargetForMonth(group, curKey) : myTarget) * 0.5));
+  const tabs = isAdmin ? ["invite","status","members","rules"] : ["invite","status","rules"];
+
+  const submitSitOut = async reason => {
+    if (!onSitOutRequest || !sitOutMode) return;
+    setSitOutSubmitting(true);
+    setSitOutError("");
+    const result = await onSitOutRequest({ reason, exceptional: sitOutMode === "exceptional" });
+    setSitOutSubmitting(false);
+    if (!result?.ok) {
+      setSitOutError(result?.error || "Unable to submit sit-out request.");
+      return;
+    }
+    setShowSitOut(false);
+  };
+
+  const submitSolo = async ({ personalTarget, reason }) => {
+    if (!onSoloRequest || !soloMode) return;
+    setSoloSubmitting(true);
+    setSoloError("");
+    const result = await onSoloRequest({ personalTarget, reason, exceptional: soloMode === "exceptional" });
+    setSoloSubmitting(false);
+    if (!result?.ok) {
+      setSoloError(result?.error || "Unable to submit Solo Mode request.");
+      return;
+    }
+    setShowSolo(false);
+  };
+
+  const cancelRequest = async kind => {
+    if (!onCancelRequest || cancelling) return;
+    setCancelling(kind);
+    const result = await onCancelRequest({ kind });
+    setCancelling("");
+    if (!result?.ok) window.alert(result?.error || "Couldn't cancel that request. Please try again.");
+  };
+
+  useEffect(()=>{
+    if (!isAdmin && tab === "members") setTab("invite");
+  },[isAdmin,tab]);
 
   useEffect(()=>{
     setGroupName(group?.name || "");
@@ -257,7 +340,7 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
           )
         ),
         React.createElement(ReadOnlyField,{title:"Time Zone",value:readonlySettings.timeZone || DEFAULT_GROUP_TIME_ZONE}),
-        React.createElement('div',{style:{fontSize:11,color:"var(--muted)",lineHeight:1.5,marginTop:14}},"Only the Bloc admin can edit these.")
+        React.createElement('div',{style:{fontSize:11,color:"var(--muted)",lineHeight:1.5,marginTop:14}},"Only the Bloc Admin can edit these.")
       );
     }
     const miniWorkoutTypeSelector = React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(5, minmax(0, 1fr))",gap:7,alignItems:"stretch",width:"100%"}},
@@ -384,7 +467,7 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
       : React.createElement('button',{type:"button",onClick:()=>setConfirmLeave(true),style:{width:"100%",background:"transparent",border:"1px solid rgba(212,74,74,.24)",color:"rgba(212,74,74,.85)",padding:"10px",borderRadius:9,fontSize:12,fontWeight:800,fontFamily:UI_FONT}},"Leave Bloc")
   );
 
-  const renderMembers = () => (
+  const renderMembers = () => React.createElement(React.Fragment,null,
     React.createElement('div',{style:{display:"grid",gap:8}},
       pendingSitOuts.length>0 && isAdmin && React.createElement('div',{style:{marginBottom:10,padding:"11px 12px",borderRadius:12,background:"#080F0F",border:"0.5px solid #163d36",display:"grid",gap:8}},
         React.createElement('div',{style:{fontWeight:900,fontSize:12}},"Pending sit-out requests"),
@@ -430,12 +513,31 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
           )
         );
       })
-    ),
-    renderLeaveBloc()
+    )
   );
+
+  const inviteHero = () => {
+    const names = getCurrentGroupMemberNames(group).slice(0, 3);
+    return React.createElement('div',{style:{display:"grid",justifyItems:"center",gap:14,padding:"26px 0 22px",fontFamily:UI_FONT}},
+      React.createElement('div',{style:{display:"flex",alignItems:"center"}},
+        names.map((displayName, index) => {
+          const membershipEntry = Object.values(group?.memberships||{}).find(m=>m.displayName===displayName);
+          return React.createElement('span',{key:displayName,style:{marginLeft:index===0?0:-14,display:"inline-flex"}},
+            React.createElement(Avatar,{name:displayName,size:52,userId:membershipEntry?.userId||null})
+          );
+        }),
+        React.createElement('span',{style:{marginLeft:names.length?-14:0,width:52,height:52,borderRadius:999,border:"1.5px dashed #2f4b48",color:"#4ECDC4",display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:24,fontWeight:400,lineHeight:1,background:"#0a1313"}},"+")
+      ),
+      React.createElement('div',{style:{display:"grid",justifyItems:"center",gap:6,textAlign:"center"}},
+        React.createElement('div',{style:{fontFamily:DISPLAY_FONT,fontSize:19,fontWeight:800,color:"#f5f7ff",lineHeight:1.15}},"A Bloc is better full"),
+        React.createElement('div',{style:{fontSize:12,color:"var(--muted)",lineHeight:1.45}},"Bring in the ones who'll show up.")
+      )
+    );
+  };
 
   const renderInvite = () => (
     React.createElement('div',{style:{display:"grid",gap:14}},
+      inviteHero(),
       React.createElement('div',null,
         React.createElement('div',{style:fieldTitleStyle},"Invite Code"),
         React.createElement('div',{style:{display:"grid",gridTemplateColumns:"1fr auto",gap:8}},
@@ -453,7 +555,98 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
     )
   );
 
-  const content = tab === "members" ? renderMembers() : tab === "invite" ? renderInvite() : renderRules();
+  const statusCard = ({accent,title,description,actionLabel,onAction,busy}) => React.createElement('div',{
+    style:{
+      borderRadius:12,
+      background:"#0D1F1E",
+      border:`0.5px solid ${accent ? "rgba(78,205,196,.26)" : "#24343a"}`,
+      padding:"11px 12px",
+      display:"flex",
+      alignItems:"center",
+      gap:10,
+      fontFamily:UI_FONT
+    }
+  },
+    React.createElement('div',{style:{minWidth:0,display:"grid",gap:3}},
+      React.createElement('div',{style:{fontSize:13,fontWeight:800,color:"#f5f7ff"}},title),
+      React.createElement('div',{style:{fontSize:11,color:"var(--muted)",lineHeight:1.35}},description)
+    ),
+    actionLabel && React.createElement('button',{
+      type:"button",
+      className:"setup-press",
+      disabled:!!busy,
+      onClick:onAction,
+      style:{
+        marginLeft:"auto",
+        flexShrink:0,
+        borderRadius:999,
+        padding:"7px 13px",
+        fontSize:12,
+        fontWeight:800,
+        whiteSpace:"nowrap",
+        background:accent ? "rgba(78,205,196,.12)" : "transparent",
+        border:`0.5px solid ${accent ? "rgba(78,205,196,.3)" : "rgba(148,163,184,.24)"}`,
+        color:accent ? "#4ECDC4" : "var(--muted)"
+      }
+    },actionLabel)
+  );
+
+  const renderStatus = () => React.createElement('div',{style:{display:"grid",gap:9}},
+    React.createElement('div',{style:{fontFamily:UI_FONT,fontSize:11,color:"var(--muted)",fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",marginBottom:1}},"Injured, traveling, or got a busy month ahead?"),
+
+    isSolo
+      ? statusCard({accent:true,title:`Solo for ${monthName}`,description:mySoloTarget ? `Your target is ${mySoloTarget}.` : "You're logging on your own target."})
+      : soloPending
+        ? statusCard({
+            accent:true,
+            title:"Solo requested",
+            description:"Waiting on admin",
+            actionLabel:cancelling==="solo" ? "Cancelling…" : "Cancel",
+            busy:!!cancelling,
+            onAction:()=>cancelRequest("solo")
+          })
+        : sitOutPending
+          ? statusCard({title:"Solo",description:"Not available while a sit-out request is pending."})
+          : isExcused
+          ? statusCard({title:"Solo",description:"Not available while you're sitting out."})
+          : statusCard({
+              accent:true,
+              title:"Solo",
+              description:"A lighter target for a heavy month.",
+              actionLabel:"Go Solo",
+              busy:!soloMode,
+              onAction:()=>{ if(!soloMode) return; setSoloError(""); setShowSolo(true); }
+            }),
+
+    isExcused
+      ? statusCard({title:`Sitting out ${monthName}`,description:"You're out of this month."})
+      : sitOutPending
+        ? statusCard({
+            title:"Sit out requested",
+            description:"Waiting on admin",
+            actionLabel:cancelling==="sitout" ? "Cancelling…" : "Cancel",
+            busy:!!cancelling,
+            onAction:()=>cancelRequest("sitout")
+          })
+        : soloPending
+          ? statusCard({title:"Sit out",description:"Not available while a Solo request is pending."})
+          : isSolo
+          ? statusCard({title:"Sit out",description:"Not available while you're Solo."})
+          : statusCard({
+            title:"Sit out",
+            description:`Take ${monthName} off entirely.`,
+            actionLabel:mySitOutRequest?.status==="declined" ? "Request again" : "Sit out",
+            busy:!sitOutMode,
+            onAction:()=>{ if(!sitOutMode) return; setSitOutError(""); setShowSitOut(true); }
+          }),
+
+    renderLeaveBloc()
+  );
+
+  const content = tab === "members" ? renderMembers()
+    : tab === "status" ? renderStatus()
+    : tab === "invite" ? renderInvite()
+    : renderRules();
   const surfaceHeight = localDevMode ? "calc(100dvh - 130px)" : "calc(100dvh - 64px)";
 
   return React.createElement('div',{
@@ -470,8 +663,8 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
         React.createElement('div',{style:{fontFamily:DISPLAY_FONT,fontSize:18,fontWeight:800,letterSpacing:0,lineHeight:1,color:"#f5f7ff",textAlign:"center"}},"Bloc Settings"),
         React.createElement('div')
       ),
-      React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:5,marginBottom:10,padding:3,borderRadius:12,background:"rgba(8,20,19,.76)",border:"0.5px solid rgba(22,61,54,.72)"}},
-        ["rules","members","invite"].map(value => {
+      React.createElement('div',{style:{display:"grid",gridTemplateColumns:`repeat(${tabs.length},1fr)`,gap:5,marginBottom:10,padding:3,borderRadius:12,background:"rgba(8,20,19,.76)",border:"0.5px solid rgba(22,61,54,.72)"}},
+        tabs.map(value => {
           const active = tab === value;
           const label = value.charAt(0).toUpperCase()+value.slice(1);
           return React.createElement('button',{key:value,type:"button",className:"setup-press",onClick:()=>setTab(value),style:{minHeight:31,borderRadius:9,background:active?"rgba(78,205,196,.12)":"transparent",color:active?"#4ECDC4":"var(--muted)",fontFamily:UI_FONT,fontSize:9.5,fontWeight:900,textTransform:"uppercase",letterSpacing:".055em"}},label);
@@ -480,7 +673,12 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
       React.createElement('div',{style:{borderRadius:14,background:"rgba(8,15,15,.58)",border:"0.5px solid rgba(22,61,54,.5)",padding:"11px 11px",boxShadow:"inset 0 1px 0 rgba(255,255,255,.025)"}},
         content
       )
-    )
+    ),
+    // This screen carries a transform for the back-swipe, and Safari makes any
+    // transform the containing block for position:fixed. Both sheets portal to
+    // document.body so they centre on the viewport, not on this box.
+    showSitOut && sitOutMode && createPortal(React.createElement(SitOutModal,{mode:sitOutMode,monthName,onClose:()=>{setShowSitOut(false);setSitOutError("");},onSubmit:submitSitOut,submitting:sitOutSubmitting,error:sitOutError}), document.body),
+    showSolo && soloMode && createPortal(React.createElement(SoloModal,{mode:soloMode,monthName,target:soloGoal,onClose:()=>{setShowSolo(false);setSoloError("");},onSubmit:submitSolo,submitting:soloSubmitting,error:soloError}), document.body)
   );
 };
 

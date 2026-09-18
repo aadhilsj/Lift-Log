@@ -6,6 +6,16 @@ and closes out the Aadhil side of
 
 **Deveen: section 2 is yours. Section 3 lists what is still open on your side.**
 
+> **Added after this was sent — three more items for you at the end:**
+> §6, your month-close branch is ready and unmerged; §7, a database scaling
+> problem that must be solved before launch —
+> [`docs/scaling-before-launch-2026-09-15.md`](https://github.com/aadhilsj/Lift-Log/blob/main/docs/scaling-before-launch-2026-09-15.md);
+> §8, workout activities are live, including a canonical migration — **read §8.4
+> before your next canonical SQL.** §9, **your month-close branch must merge
+> before 1 October, or September's activities are lost from the closed month.**
+> §10, canonical-only activity backfill for June–September, a reload on every
+> deploy, and two new activities — read before running parity reports.
+
 ---
 
 ## Plain-English summary
@@ -336,3 +346,268 @@ checked from the code and your fixture suite.
    us to open it.
 2. **Does this answer §3 item 4?** With month close reading canonical, is Task 5
    still waiting on `left_at`, or only on the open-season parity check (§3 item 1)?
+
+---
+
+## 7. Update, 2026-09-15 — the database cannot handle launch traffic yet
+
+**Deveen, this section is for you too.** Full write-up:
+[`docs/scaling-before-launch-2026-09-15.md`](https://github.com/aadhilsj/Lift-Log/blob/main/docs/scaling-before-launch-2026-09-15.md).
+
+**Plain English:** on 14 September the database was overloaded for about two
+minutes with only **2–4 phones** open. Every refresh reads all members' data
+across all Blocs (about 1.4 MB). One app-wide change counter makes every open
+phone reload after any action in any Bloc. And the server is Supabase's smallest
+paid size. As built, launch traffic would not run smoothly. It needs solving
+before launch, and it overlaps with blob retirement, so we would like you to own it.
+
+- Evidence: statement timeouts on `read_ante_core_month_history`, `PGRST003`
+  pool exhaustion, reads up to 44 s (20:51–20:53 UTC). No writes failed.
+- Main causes: `fetchReadableCurrentState()` calls every canonical reader with an
+  empty filter, and there is one global `revision_clock` row that every client
+  polls every 6 s.
+- Proposed order: scope reads to the member's Blocs → a revision per Bloc → past
+  months on demand → lighter mutations and a comment duplicate guard → longer
+  polling → blob retirement. A load test against a restored backup comes before
+  and after each step.
+
+What we need from you: read the doc, and say whether you agree with the order
+and will take it on.
+
+---
+
+## 8. Update, 2026-09-16 — workout activities are live (canonical change inside)
+
+**Deveen, §8.4 is the part that touches your work.** PR
+[#20](https://github.com/aadhilsj/Lift-Log/pull/20), merged to `main` as
+`496e5cc`, deployed to production 2026-09-15 22:36 UTC.
+
+### 8.1 What shipped
+
+Members now pick a specific **activity** when logging — Padel, Hiking,
+Basketball, Yoga, Kitesurfing and so on — instead of only the five categories.
+The log pop-up offers their five most-logged activities plus a searchable A–Z
+list. The activity shows on the feed, calendars, comment screen, delete
+confirmation, Bloc stream card, profile and History page, and both mix charts
+count per activity.
+
+**Every activity belongs to one of the five existing categories**, and a log's
+`type` still holds that category. Bloc `acceptedWorkoutTypes`, multi-Bloc
+logging, the two-a-day cap, month close and share stickers are unchanged. Only
+"Other" requires a note; named Other-category activities (Hiking, Swimming) do
+not. Logs saved before this show their category, so an old Sports log reads
+"Sports".
+
+### 8.2 The canonical change — already applied to production
+
+`supabase/migrations/20260916090000_add_workout_log_activity.sql`, run on
+production **2026-09-15 22:32 UTC**, before the code deploy:
+
+| | |
+|---|---|
+| `ante_core.workout_logs` | new nullable `activity text` column |
+| `upsert_ante_core_workout_log` | new `p_activity text default null`, appended last. The old 17-argument version was dropped (two overloads with a default make every call ambiguous) |
+| `read_ante_core_current_logs`, `read_ante_core_month_history` | return `activity` |
+| `insert_ante_core_workout_log_comment` | `activity` in the log_comment stream payload |
+
+Function bodies are the **live definitions read with `pg_get_functiondef` that
+morning**, with only the activity lines added. Grants are unchanged (`postgres`,
+`service_role`). On conflict the column is written as
+`coalesce(excluded.activity, workout_logs.activity)`: a re-save that does not
+carry an activity — a flag, a repair script, older code — never erases a stored
+one.
+
+Verified on production after the run: one upsert version, grants intact, all
+1,577 logs unchanged, both readers returning `activity`, no errors in the
+Postgres, PostgREST or edge logs.
+
+### 8.3 How it was tested before touching production
+
+- The 2026-09-15 backup was restored into a scratch project
+  (`fero-activity-test`, deleted straight after) and the migration applied there
+  first.
+- Against that copy: 12/12 end-to-end checks on the new code (add-log,
+  multi-log, a Bloc without Sports refusing a sport, the Other note rule, the
+  daily cap, the comment card payload, profile stats, delete, existing logs
+  untouched).
+- **The then-deployed `main` (`8156ef3`) was run against the migrated copy too**
+  — add-log, multi-log, cap, comment and delete all worked. That is what made
+  SQL-before-deploy safe.
+- `npm run parity:gate` against the copy: **8 checks, 0 failures, 0 warnings.**
+- Lint, build and all 14 suites, including the new `npm run test:activities`,
+  which fails if the app's activity list and the server's copy ever drift.
+
+### 8.4 What this means for your work
+
+1. **Your next canonical SQL must build on the current definitions.** Those four
+   functions now carry `activity`. Recreating any of them from an older copy
+   would silently drop it from reads — no data lost (the column keeps it), but
+   activities would stop appearing. `pg_get_functiondef` is the source of truth;
+   the repo migration above matches production exactly.
+2. **`scripts/blob-remirror.mjs` now carries `activity`** in `LOG_FIELDS`, so a
+   re-added log keeps it. Its self-test still passes 13/13.
+3. **`blob/month-close-canonical` merges cleanly with this** and picks activities
+   up for free: it rebuilds the closing snapshot from `fetchAnteCurrentLogs`,
+   which now includes `activity`. Nothing to change there.
+4. **Known and accepted:** if code without this change writes while activities
+   exist (a deploy overlap, or a rollback), the **blob** copy of the logs loses
+   `activity` — canonical keeps it, and the next write by current code restores
+   the blob. Both directions were observed on the scratch project.
+
+### 8.5 Still open
+
+- Activity icons are placeholders (Tabler, MIT; Padel drawn by hand) until the
+  Fero set is ready. One entry each in `src/lib/workoutIcons.js`.
+- Share stickers still render the category icon. Their design is locked
+  (`docs/share-sticker-reference/`), so that is the founder's call.
+
+---
+
+## 9. Update, 2026-09-16 — September's activities depend on your month-close branch
+
+**Deveen, this section is for you.** It was added after this handover was sent.
+
+**Plain English:** the activities filled in for September only reached
+canonical. The blob copy of 93 September logs has no `activity`. When September
+closes on **1 October**, `main` freezes the month from the blob, so those
+activities would be lost from the closed month for good, and September's share
+sticker would show category icons. Your branch freezes the month from canonical
+instead, which keeps them. So `blob/month-close-canonical` now matters for two
+reasons: correct counts, and keeping September's activities.
+
+### What was found (read-only queries on production, 2026-09-16)
+
+| September logs (`2026-09-*`) | Rows |
+|---|---|
+| Total, blob and canonical | 360 each |
+| `activity` set in canonical | 114 (the 112-row backfill + 2 new logs) |
+| `activity` set in the blob | 21 |
+| Joined on `id`: canonical has it, blob does not | **93** |
+| Blob has it, canonical does not | 0 |
+
+The backfill (`docs/handover-2026-09-16-activities-live.md` §4) was SQL on
+`ante_core.workout_logs` only. It is not the deploy-overlap case in §8.4 item 4,
+where the next write restores the blob: nothing rewrites these logs unless a
+member touches them.
+
+### Why it is invisible today
+
+`fetchReadableCurrentState()` overlays current-month logs from
+`fetchAnteCurrentLogs()` for every group with a canonical open season
+(`api/lift-log.js`, the `anteCurrentLogs` block). Members see the activities now.
+The blob only matters when the month is frozen.
+
+### Why it matters at month close
+
+- On `main`, rollover builds the snapshot from the blob:
+  `logsByUser: buildMonthLogsSnapshot(group.logs, relevantNames)`.
+- On `blob/month-close-canonical`, `rebuildClosedMonthSnapshotFromCanonicalLogs`
+  rebuilds `logsByUser` from `fetchAnteCurrentLogs()`. That reader carries
+  `activity`, and `normalizeLogEntry` keeps it. Traced in the code, not run
+  against a real close.
+- Share stickers are offered on closed months only (`canShareMonth` in
+  `src/pages/PlayerProfile.jsx`) and read `monthHistory[].logsByUser`.
+
+### Your branch, re-checked against today's `main`
+
+Merged into `main` at `a2c30a2` in a throwaway worktree, tested, then deleted.
+Nothing was merged, pushed or deployed.
+
+| Check | Result |
+|---|---|
+| Merge | no conflicts |
+| `npm run lint`, `npm run build` | clean |
+| 14 of 16 suites, including `test:month-close-canonical`, `test:rollover-isolation`, `test:activities` | pass |
+| `test:auth-edge-flows`, `test:mobile-navigation` | fail, **identically on plain `main`**: a fresh sandbox has no `seed-invite@local.test` account. The test setup, not your branch |
+
+### If the branch cannot merge before 1 October
+
+The fallback is `node scripts/blob-remirror.mjs --scope wave-b` before the close.
+It copies current-month logs from canonical into the blob, `activity` included.
+Not run: `.env.local` holds a redacted service key. It replaces whole
+current-month log sets, not just `activity`, so read the dry-run diff first and
+take a fresh backup before `--apply`.
+
+### Also since §8
+
+- Share stickers showing the activity icon are in PR
+  [#21](https://github.com/aadhilsj/Lift-Log/pull/21) (`feat/sticker-activities`),
+  preview only. Checked against the 12 approved PNGs: 7–65 opaque pixels differ
+  out of 1,218,240, the rest is anti-aliasing. This replaces the second bullet of §8.5.
+- Two members have logged through the new picker, both `Gym`, both still present
+  in blob and canonical.
+
+### What we need from you
+
+1. **Merge `blob/month-close-canonical` before 1 October**, or tell us if you
+   cannot, so the fallback above can be run in time.
+
+---
+
+## 10. Update, 2026-09-17 — backfill, reload on deploy, Squash and Dance
+
+**Deveen, this section is for you.** It was added after this handover was sent.
+Full detail: `docs/handover-2026-09-17-squash-dance-reload-and-backfill.md`.
+
+**Plain English:** 246 past workouts (310 rows) from June to September were given
+their activity in canonical only, from notes the founder approved one by one.
+Nine of them also moved category. Counts and payments are unaffected. Separately,
+an open app now reloads once when a new version is deployed, and Squash and Dance
+were added.
+
+1. **The blob is further behind canonical.** June–August `monthHistory` in the
+   blob keeps the old `type` and has no `activity` on those rows. The readable state
+   shows canonical wherever `buildCanonicalMonthHistoryForGroup` accepts the month.
+   For September, three more current-month rows (Coach P, Varun ×2) join the 93
+   in §9, and they depend on your month-close branch the same way.
+2. **`scripts/canonical-parity-report.mjs` will flag 10 rows.** It keys logs on
+   `workout_type`, and these category moves are intentional:
+   - Varun 27 Jun: Other → Sports
+   - Bananaaaa 15 and 17 Aug: Other → Sports
+   - Rishane 15 Aug, 2 Blocs: Sports → Other
+   - Nishara 6, 14 and 25 Jun: Other → Run
+   - Monika 8 Aug: Other → Gym
+   - Bianković 11 Jul: Sports → Other
+
+   `scripts/blob-parity-gate.mjs` does not compare category and is unaffected.
+3. **Every deploy now makes open apps reload once** (idle 20 s, no save or filled
+   form, once per session). Each reload is a full state load, so expect a small
+   burst after each release. Relevant to the scaling plan, and a reason not to
+   deploy on top of month close.
+4. **`GET /api/lift-log?revision=1` now includes `build`** (`VERCEL_GIT_COMMIT_SHA`).
+5. **`ACTIVITY_CATEGORIES` gained `Squash: "Sports"` and `Dance: "Other"`.**
+6. **New table `ante_core.backup_activity_backfill_2026_09_17`** (RLS on). It is the
+   undo for the backfill. Do not carry it into migrations; the founder will decide
+   when to drop it.
+
+---
+
+## 11. Update, 2026-09-18 — request cancel, two new RPCs, Solo joins payments in November
+
+**Deveen, this section is for you.** It was added after this handover was sent.
+Full detail: `docs/handover-2026-09-18-settings-redesign-and-solo-unlock.md`.
+
+**Plain English:** members can now cancel their own pending sit-out or Solo
+request, and Solo after day 10 is a request instead of being blocked. Nothing
+here needs action from you beyond the month-close merge. Your branch still
+merges cleanly with today's `main` (`b4bc285`), and `test:month-close-canonical`,
+`test:rollover-isolation` and `test:activities` pass on the merge.
+
+1. **Two new production RPCs:** `delete_ante_core_sit_out_request(text, text, text)`
+   and `delete_ante_core_solo_request(text, text, text)`. They delete **pending**
+   rows only, for (legacy group key, month key, display name), and are granted to
+   `postgres` and `service_role` only. Migration:
+   `supabase/migrations/20260918090000_delete_request_rpcs.sql`, applied
+   2026-09-18. No data changed.
+2. **Two new actions, `sitout-cancel` and `solo-cancel`.** They compute from
+   canonical writable state, delete canonically, then mirror through
+   `persistAndScopeReadableStateForUser`, so the request disappears from both.
+   They are not in `WRITE_HYDRATION_PARITY_DEFAULT_ACTIONS` or the mirror-policy
+   lists; add them if you want parity probes on them.
+3. **`solo_requests` gets more pending rows**, because every Solo after day 10 is
+   now a request. It is one of the seven RLS-disabled tables in item 5 above.
+4. **Heads-up for November:** Solo members will join the penalty from
+   1 November. They'll have an automatic reduced target, pay the normal penalty
+   if they miss it, and can never win the pot. That changes `calcPenalties`,
+   `buildDefaultSettlements`, `isExemptFromStakes` and month close. It will be
+   built on top of your branch after it merges, not alongside it.

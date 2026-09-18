@@ -12,6 +12,8 @@ import {
   getDaysLeft,
   getLeaderboardDiffText,
   calcPenalties,
+  addStandardSoloPenalties,
+  isStandardPenaltySoloForMonth,
   getLoserAmount,
   getCurrentMemberTargetInfo,
   isSoloForMonth,
@@ -70,7 +72,9 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
 
   const activeCounts=counts.filter(u=>!u.isOut&&!u.isSolo&&!u.isTraining);
   const sorted=[...counts].sort((a,b)=>{if(a.isOut&&!b.isOut)return 1;if(!a.isOut&&b.isOut)return -1;if(a.isSolo&&!b.isSolo)return 1;if(!a.isSolo&&b.isSolo)return -1;return b.count-a.count;});
-  const penalties = calcPenalties(activeCounts, isCurrent ? groupSettings || {} : selMonth?.settings || {});
+  const monthSettings = isCurrent ? groupSettings || {} : selMonth?.settings || {};
+  const soloMisses = counts.filter(u=>u.isSolo&&!u.isOut&&!u.isTraining&&u.soloTarget&&u.count<u.soloTarget&&isStandardPenaltySoloForMonth(isCurrent?group:selMonth,u.name,isCurrent?curKey:selMonth.key));
+  const penalties = addStandardSoloPenalties(calcPenalties(activeCounts, monthSettings), soloMisses, monthSettings);
   const {winners,losers,perWinner}=penalties;
   const hasActivity=activeCounts.some(u=>u.count>0);
   const currentUserEntry = currentUser ? counts.find(u=>u.name===currentUser) : null;
@@ -273,7 +277,7 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
             React.createElement('span',{style:{display:"inline-flex",color:"#F5A623",flexShrink:0}},React.createElement(TrophyIcon,{size:18,color:"#F5A623"})),
             React.createElement('div',{style:{minWidth:0,display:"flex",alignItems:"center",justifyContent:"center",gap:8}},
               React.createElement('div',{style:{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",justifyContent:"center",minWidth:0}},
-                winners.map(w=>React.createElement('div',{key:w.name,style:{display:"flex",alignItems:"center",gap:5,justifyContent:"center",minWidth:0}},React.createElement(Avatar,{name:w.name,size:18}),React.createElement('span',{style:{fontSize:winners.length>1?12:14,fontWeight:700,color:"var(--text)",lineHeight:1.05,maxWidth:104,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},w.name))),
+                winners.map(w=>React.createElement('div',{key:w.name,style:{display:"flex",alignItems:"center",gap:5,justifyContent:"center",minWidth:0}},React.createElement(Avatar,{name:w.name,size:18}),React.createElement('span',{style:{fontSize:winners.length>1?12:14,fontWeight:700,color:"var(--text)",lineHeight:1.05,whiteSpace:"nowrap"}},w.name))),
                 React.createElement('span',{style:{fontFamily:"'Outfit', sans-serif",fontSize:9.5,fontWeight:500,color:"#F5A623",letterSpacing:".04em",textTransform:"lowercase",whiteSpace:"nowrap",lineHeight:1.05}},winners.length>1?"current leaders":"current leader")
               )
             )

@@ -1,7 +1,21 @@
 const DEFAULT_MIN_TARGET = 12;
 const WORKOUT_TYPES = ["Gym", "Run", "Sports", "Pilates", "Other"];
 const MAX_WORKOUTS_PER_DAY = 2;
+// Display names are capped so they never overflow the leaderboard, Week's MVP
+// tile, Month leader card or the History table. Mirrors DISPLAY_NAME_MAX_LENGTH
+// in src/lib/appState.js.
+const DISPLAY_NAME_MAX_LENGTH = 16;
 const WORKOUT_TYPE_ALIASES = { Sport: "Sports", Hike: "Other", Hiking: "Other" };
+// Activity → category. Mirrors src/lib/activities.js; `npm run test:activities`
+// fails if the two drift. A log's `type` stays the category, so Bloc rules, the
+// daily cap and month close are unchanged; the activity rides along as `activity`.
+const ACTIVITY_CATEGORIES = {
+  Gym: "Gym", Run: "Run", Pilates: "Pilates", Yoga: "Pilates",
+  Badminton: "Sports", Basketball: "Sports", Football: "Sports", Cricket: "Sports", Tennis: "Sports",
+  Padel: "Sports", Squash: "Sports", Pickleball: "Sports", Golf: "Sports", Volleyball: "Sports",
+  Hiking: "Other", Swimming: "Other", Cycling: "Other", Climbing: "Other", Dance: "Other", Rowing: "Other",
+  "Home Workout": "Other", Kitesurfing: "Other", Other: "Other"
+};
 const DEFAULT_GROUP_TIME_ZONE = "Europe/Oslo";
 const LEAGUE_CUTOFF_HOUR = 3;
 const DEFAULT_FINE_AMOUNT = 20;
@@ -1401,7 +1415,8 @@ function normalizeSolo(solo, memberOrder = []) {
           .map(([monthKey, value]) => {
             const target = Number(value?.target || value?.personalTarget || value || 0);
             if (!monthKey || !Number.isFinite(target) || target < 1) return null;
-            return [monthKey, { target: Math.round(target) }];
+            const entry = { target: Math.round(target) };
+            return [monthKey, value?.rule === "standard_penalty" ? { ...entry, rule: "standard_penalty" } : entry];
           })
           .filter(Boolean)
       )];
@@ -1455,6 +1470,61 @@ function isSoloForMonth(groupOrMonth, memberName, monthKey) {
   return !!groupOrMonth?.solo?.[memberName]?.[monthKey];
 }
 
+// Every Solo from October 2026 is on the new rules. September 2026 is the one
+// mixed month (Tobias kept the old rules), so there the entry's own marker
+// decides. Month keys are 0-indexed: "2026-9" is October. Mirrors
+// src/lib/appState.js.
+const SOLO_STANDARD_PENALTY_FROM = "2026-9";
+
+// New-rules Solo: a miss of the Solo goal costs the standard monthly penalty.
+// Old-rules Solo pays nothing either way.
+function isStandardPenaltySoloForMonth(groupOrMonth, memberName, monthKey) {
+  if (!isSoloForMonth(groupOrMonth, memberName, monthKey)) return false;
+  return groupOrMonth?.solo?.[memberName]?.[monthKey]?.rule === "standard_penalty"
+    || compareMonthKeys(monthKey, SOLO_STANDARD_PENALTY_FROM) >= 0;
+}
+
+// The Solo entry a snapshot keeps. Canonical rows have no rule column, so the
+// blob's marker has to be carried across every rebuild, or a September
+// new-rules Solo would silently turn back into old rules.
+function buildSoloSnapshotEntry(sourceEntry, target) {
+  return sourceEntry?.rule === "standard_penalty"
+    ? { target, rule: "standard_penalty" }
+    : { target };
+}
+
+// New-rules Solo members who fell short of their Solo goal, on a closed-month
+// snapshot shape (excused[name] is a boolean).
+function getStandardSoloMisses(month, names) {
+  const monthKey = month?.key;
+  return (names || [])
+    .filter(name => !month?.excused?.[name]
+      && !isTrainingForMonth(month, name, monthKey)
+      && isStandardPenaltySoloForMonth(month, name, monthKey))
+    .map(name => ({ name, count: Number(month?.counts?.[name] || 0), target: getSoloTargetForMonth(month, name, monthKey) }))
+    .filter(member => member.target && member.count < member.target);
+}
+
+// Solo members stay out of calcPenalties, so they never win and never raise
+// anyone's escalating fine. Each new-rules Solo miss is added on top at the
+// fixed standard penalty. Mirrors addStandardSoloPenalties in appState.js.
+function addStandardSoloPenalties(penalties, soloMisses, settings) {
+  if (!soloMisses?.length) return { ...penalties, soloLosers: [] };
+  const baseFine = Number(settings?.fineAmount || DEFAULT_FINE_AMOUNT);
+  const loserAmounts = { ...(penalties.loserAmounts || {}) };
+  soloMisses.forEach(member => { loserAmounts[member.name] = baseFine; });
+  const totalPot = Object.values(loserAmounts).reduce((sum, amount) => sum + amount, 0);
+  const winners = penalties.winners || [];
+  return {
+    ...penalties,
+    losers: [...(penalties.losers || []), ...soloMisses],
+    soloLosers: soloMisses,
+    loserAmounts,
+    totalPot,
+    perWinner: winners.length > 0 && totalPot > 0 ? Math.floor(totalPot / winners.length) : 0
+  };
+}
+
 function getSoloTargetForMonth(groupOrMonth, memberName, monthKey) {
   const value = groupOrMonth?.solo?.[memberName]?.[monthKey];
   const target = Number(value?.target || value?.personalTarget || value || 0);
@@ -1496,6 +1566,29 @@ function normalizeWorkoutType(type) {
   return WORKOUT_TYPES.includes(normalized) ? normalized : "Other";
 }
 
+// normalizeLogEntry runs over every log on every read, so this is a map lookup.
+const ACTIVITY_NAME_BY_KEY = new Map(Object.keys(ACTIVITY_CATEGORIES).map(activity => [activity.toLowerCase(), activity]));
+
+function normalizeActivityName(name) {
+  if (!name) return null;
+  return ACTIVITY_NAME_BY_KEY.get(String(name).trim().toLowerCase()) || null;
+}
+
+// A known activity decides the category; anything else keeps the old
+// workoutType-only behaviour, so older clients log exactly as before.
+function resolveWorkoutActivity(payload) {
+  const activity = normalizeActivityName(payload?.activity);
+  return activity
+    ? { activity, workoutType: ACTIVITY_CATEGORIES[activity] }
+    : { activity: null, workoutType: payload?.workoutType };
+}
+
+// Only the catch-all needs describing. Named activities in the Other category
+// (Hiking, Swimming…) are already specific.
+function workoutNeedsNote(workoutType, activity) {
+  return workoutType === "Other" && (!activity || activity === "Other");
+}
+
 function normalizeLoggedWorkoutType(type, logDate = "") {
   const normalized = normalizeWorkoutType(type);
   if (normalized === "Pilates" && typeof logDate === "string" && logDate && logDate < "2026-06-06") {
@@ -1514,9 +1607,14 @@ function resolveLogCreatedAt(log) {
   return new Date().toISOString();
 }
 
+function capDisplayName(name) {
+  return String(name || "").trim().slice(0, DISPLAY_NAME_MAX_LENGTH);
+}
+
 function normalizeLogEntry(log) {
   const photoUrl = typeof log?.photoUrl === "string" ? log.photoUrl : "";
-  return {
+  const activity = normalizeActivityName(log?.activity);
+  const entry = {
     ...log,
     id: log?.id || `log-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     type: normalizeLoggedWorkoutType(log?.type, log?.date),
@@ -1533,6 +1631,10 @@ function normalizeLogEntry(log) {
     decisionBy: typeof log?.decisionBy === "string" ? log.decisionBy : null,
     decisionAt: typeof log?.decisionAt === "string" ? log.decisionAt : null
   };
+  // Only a known activity is kept; logs from before activities have none.
+  if (activity) entry.activity = activity;
+  else delete entry.activity;
+  return entry;
 }
 
 function getWorkoutSessionKey(log) {
@@ -1763,7 +1865,7 @@ function normalizeMonthHistory(monthHistory, memberOrder, joinedMonthByName, set
       relevantNames
         .map(name => {
           const target = getSoloTargetForMonth(month, name, monthKey);
-          return target ? [name, { [monthKey]: { target } }] : null;
+          return target ? [name, { [monthKey]: buildSoloSnapshotEntry(month?.solo?.[name]?.[monthKey], target) }] : null;
         })
         .filter(Boolean)
     );
@@ -2066,7 +2168,7 @@ function buildCanonicalMonthHistoryForGroup(group, canonicalSeasons) {
       excused[name] = m ? !!m.excused : false;
       const soloTarget = Number(m?.solo_target || 0);
       if (m?.solo && Number.isFinite(soloTarget) && soloTarget > 0) {
-        solo[name] = { [monthKey]: { target: Math.round(soloTarget) } };
+        solo[name] = { [monthKey]: buildSoloSnapshotEntry(blobMonth?.solo?.[name]?.[monthKey], Math.round(soloTarget)) };
       }
       // A closed month is rebuilt from canonical here, replacing the blob's
       // copy wholesale. Anything not carried across is silently dropped, which
@@ -2085,6 +2187,7 @@ function buildCanonicalMonthHistoryForGroup(group, canonicalSeasons) {
       logsByUser[owner].push(normalizeLogEntry({
         id:           log.id,
         type:         log.workout_type,
+        activity:     log.activity,
         date:         log.workout_date,
         note:         log.note,
         photoUrl:     "",
@@ -2219,7 +2322,11 @@ function buildDefaultSettlements(month, relevantNames, settings, memberTargets =
   const activeCounts = relevantNames
     .filter(name => !(month.excused?.[name]) && !isExemptFromStakes(month, name, month.key))
     .map(name => ({ name, count: month.counts?.[name] || 0, target: memberTargets?.[name] || Number(settings?.minTarget || DEFAULT_MIN_TARGET) }));
-  const { losers } = calcPenalties(activeCounts, settings);
+  const { losers } = addStandardSoloPenalties(
+    calcPenalties(activeCounts, settings),
+    getStandardSoloMisses(month, relevantNames),
+    settings
+  );
   return Object.fromEntries(
     losers.map(loser => [
       loser.name,
@@ -2366,7 +2473,7 @@ function rolloverGroupIfNeeded(group) {
     relevantNames
       .map(name => {
         const target = getSoloTargetForMonth(group, name, group.lastMonth);
-        return target ? [name, { [group.lastMonth]: { target } }] : null;
+        return target ? [name, { [group.lastMonth]: buildSoloSnapshotEntry(group.solo?.[name]?.[group.lastMonth], target) }] : null;
       })
       .filter(Boolean)
   );
@@ -3008,6 +3115,27 @@ async function upsertSeasonOverrideInCanonical(legacyGroupKey, monthKey, prorate
   }
 }
 
+async function deleteRequestInCanonical(kind, legacyGroupKey, monthKey, memberName, options = {}) {
+  // A cancelled request leaves no trace: the member simply never asked.
+  if (!legacyGroupKey || !monthKey || !memberName) return;
+  const { throwOnError = false } = options;
+  const rpc = kind === "solo" ? "delete_ante_core_solo_request" : "delete_ante_core_sit_out_request";
+  try {
+    await supabaseFetch(`/rest/v1/rpc/${rpc}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({
+        p_legacy_group_key: legacyGroupKey,
+        p_month_key:        monthKey,
+        p_display_name:     memberName
+      })
+    });
+  } catch (err) {
+    if (throwOnError) throw err;
+    console.error(`Canonical ${kind === "solo" ? "Solo" : "sit-out"} request delete failed:`, err?.message || err);
+  }
+}
+
 async function upsertSitOutRequestInCanonical(legacyGroupKey, monthKey, memberName, request, options = {}) {
   // memberName is passed explicitly from the blob map key — do not rely on request.memberName.
   if (!legacyGroupKey || !monthKey || !memberName) return;
@@ -3552,7 +3680,10 @@ async function upsertWorkoutLogToCanonical(group, monthKey, ownerDisplayName, ow
         p_flag_response:      log.flagResponse || "",
         p_flagged_by:         log.flaggedBy || null,
         p_decision_by:        log.decisionBy || null,
-        p_decision_at:        log.decisionAt || null
+        p_decision_at:        log.decisionAt || null,
+        // Requires migration 20260916090000_add_workout_log_activity. The
+        // database keeps a stored activity when this is null.
+        p_activity:           normalizeActivityName(log.activity)
       })
     });
   } catch (err) {
@@ -3848,6 +3979,7 @@ async function fetchAnteCurrentLogs() {
         ownerDisplayName: row.owner_display_name,
         id:               row.id,
         type:             row.workout_type,
+        ...(row.activity ? { activity: row.activity } : {}),
         date:             row.workout_date,
         note:             row.note,
         photoUrl:         row.photo_url,
@@ -4324,7 +4456,10 @@ async function fetchReadableCurrentState() {
           if (!soloByName[row.displayName]) soloByName[row.displayName] = {};
           const target = Number(row.target || 0);
           if (row.solo && Number.isFinite(target) && target > 0) {
-            soloByName[row.displayName][row.monthKey] = { target: Math.round(target) };
+            soloByName[row.displayName][row.monthKey] = buildSoloSnapshotEntry(
+              group?.solo?.[row.displayName]?.[row.monthKey],
+              Math.round(target)
+            );
           }
         }
         nextGroup = {
@@ -4665,7 +4800,10 @@ async function buildCanonicalWritableStateForGroup(groupId, baseStateOverride = 
     const target = Number(row.target || 0);
     if (!Number.isFinite(target) || target < 1) continue;
     if (!canonicalSoloByName[row.displayName]) canonicalSoloByName[row.displayName] = {};
-    canonicalSoloByName[row.displayName][row.monthKey] = { target: Math.round(target) };
+    canonicalSoloByName[row.displayName][row.monthKey] = buildSoloSnapshotEntry(
+      historicalSolo?.[row.displayName]?.[row.monthKey],
+      Math.round(target)
+    );
   }
   const canonicalSolo = Object.fromEntries(
     uniqueNames([...Object.keys(historicalSolo), ...canonicalMemberOrder]).map(name => {
@@ -6103,7 +6241,7 @@ function applyCreateGroup(current, payload) {
   const actorUserId = String(payload?.actorUserId || "").trim();
   const profiles = current?.profiles || {};
   const creatorProfile = actorUserId ? profiles[actorUserId] : null;
-  const creatorName = String(payload?.creatorName || creatorProfile?.displayName || "").trim();
+  const creatorName = capDisplayName(payload?.creatorName || creatorProfile?.displayName);
   const extraMembers = parseExtraMembers(payload?.extraMembers);
   const settings = buildNormalizedSettings({
     minTarget: payload?.minTarget,
@@ -6187,7 +6325,8 @@ function applyMultiLog(current, payload) {
   const actor = String(payload?.actor || "").trim();
   const actorUserId = String(payload?.actorUserId || "").trim();
   const sourceGroupId = String(payload?.sourceGroupId || "").trim();
-  const workoutType = normalizeWorkoutType(payload?.workoutType);
+  const { activity, workoutType: requestedType } = resolveWorkoutActivity(payload);
+  const workoutType = normalizeWorkoutType(requestedType);
   const date = String(payload?.date || "").trim();
   const note = typeof payload?.note === "string" ? payload.note.slice(0, 280) : "";
   const photoUrl = typeof payload?.photoUrl === "string" ? payload.photoUrl : "";
@@ -6198,7 +6337,7 @@ function applyMultiLog(current, payload) {
     error.status = 400;
     throw error;
   }
-  if (workoutType === "Other" && !note.trim()) {
+  if (workoutNeedsNote(workoutType, activity) && !note.trim()) {
     const error = new Error("A note is required for Other workouts");
     error.status = 400;
     throw error;
@@ -6235,6 +6374,7 @@ function applyMultiLog(current, payload) {
           id: groupId === sourceGroupId ? logId : `${logId}-${groupId}`,
           date,
           type: workoutType,
+          ...(activity ? { activity } : {}),
           note,
           photoUrl,
           createdAt: new Date().toISOString(),
@@ -7602,7 +7742,8 @@ function applyAddLog(current, payload) {
   const date = String(payload?.date || "").trim();
   const note = typeof payload?.note === "string" ? payload.note : "";
   const photoUrl = typeof payload?.photoUrl === "string" ? payload.photoUrl : "";
-  const workoutType = normalizeLoggedWorkoutType(String(payload?.workoutType || "").trim(), date);
+  const { activity, workoutType: requestedType } = resolveWorkoutActivity(payload);
+  const workoutType = normalizeLoggedWorkoutType(String(requestedType || "").trim(), date);
   if (!actor || !groupId || !date || !workoutType) {
     const error = new Error("groupId, actor, date, and workoutType are required");
     error.status = 400;
@@ -7635,6 +7776,7 @@ function applyAddLog(current, payload) {
     id: createWorkoutSessionId(),
     date,
     type: workoutType,
+    activity,
     note,
     photoUrl,
     createdAt: new Date().toISOString(),
@@ -7750,6 +7892,12 @@ function applySitOutRequest(current, payload) {
     error.status = 400;
     throw error;
   }
+  const soloRequest = normalizeSoloRequests(group.soloRequests)?.[month.monthKey]?.[actor];
+  if (isSoloForMonth(group, actor, month.monthKey) || soloRequest?.status === "pending") {
+    const error = new Error("You can't request a sit-out while Solo Mode is active or pending");
+    error.status = 400;
+    throw error;
+  }
   const recentCount = getRecentSitOutCount(group, actor, month.monthKey);
   if (recentCount >= 1 && !exceptional) {
     const error = new Error(`You've already sat out recently. Your next sit-out is available in ${MONTH_NAMES[(month.month + 3) % 12]}.`);
@@ -7827,6 +7975,11 @@ function applySitOutReview(current, payload) {
     error.status = 403;
     throw error;
   }
+  if (decision === "approved" && isSoloForMonth(group, memberName, monthKey)) {
+    const error = new Error("This member is already Solo this month");
+    error.status = 400;
+    throw error;
+  }
   const nextExcused = { ...(group.excused || {}) };
   if (decision === "approved") {
     nextExcused[memberName] = { ...(nextExcused[memberName] || {}), [monthKey]: true };
@@ -7856,13 +8009,62 @@ function applySitOutReview(current, payload) {
   };
 }
 
+// Cancelling your own pending request. Only your own, only while it is pending,
+// and only for the current month - a decided request is history, not a draft.
+function applyRequestCancel(current, payload, kind) {
+  const actor = String(payload?.actor || "").trim();
+  const actorUserId = String(payload?.actorUserId || "").trim();
+  const groupId = String(payload?.groupId || "").trim();
+  const base = rolloverStateIfNeeded(current);
+  const group = base.groups[groupId];
+  if (!group) {
+    const error = new Error("Bloc not found");
+    error.status = 404;
+    throw error;
+  }
+  if (!isCurrentGroupMember(group, actor, actorUserId)) {
+    const error = new Error("Only Bloc members can cancel a request");
+    error.status = 403;
+    throw error;
+  }
+  const monthKey = group.lastMonth || getCurrentMonthSummary(group.settings?.timeZone).monthKey;
+  const key = kind === "solo" ? "soloRequests" : "sitOutRequests";
+  const requests = kind === "solo"
+    ? normalizeSoloRequests(group.soloRequests)
+    : normalizeSitOutRequests(group.sitOutRequests);
+  const existing = requests?.[monthKey]?.[actor];
+  if (!existing) {
+    const error = new Error("There's no request to cancel");
+    error.status = 404;
+    throw error;
+  }
+  if (existing.status !== "pending") {
+    const error = new Error("That request has already been answered");
+    error.status = 400;
+    throw error;
+  }
+  const monthRequests = { ...(requests[monthKey] || {}) };
+  delete monthRequests[actor];
+  const nextRequests = { ...requests };
+  if (Object.keys(monthRequests).length > 0) nextRequests[monthKey] = monthRequests;
+  else delete nextRequests[monthKey];
+  const nextGroup = normalizeGroup({ ...group, [key]: nextRequests });
+  return {
+    state: {
+      ...base,
+      groups: { ...base.groups, [groupId]: nextGroup },
+      meta: { revision: base.meta.revision + 1, updatedAt: new Date().toISOString() }
+    },
+    monthKey
+  };
+}
+
 function applySoloRequest(current, payload) {
   const actor = String(payload?.actor || "").trim();
   const actorUserId = String(payload?.actorUserId || "").trim();
   const groupId = String(payload?.groupId || "").trim();
   const reason = typeof payload?.reason === "string" ? payload.reason.trim().slice(0, 280) : "";
   const exceptional = !!payload?.exceptional;
-  const requestedTarget = Number(payload?.personalTarget || payload?.target || 0);
   const base = rolloverStateIfNeeded(current);
   const group = base.groups[groupId];
   if (!group) {
@@ -7881,13 +8083,17 @@ function applySoloRequest(current, payload) {
     throw error;
   }
   const month = getCurrentMonthSummary(group.settings?.timeZone);
-  if (month.day > 10) {
-    const error = new Error("Solo Mode requests close after day 10 of the month");
-    error.status = 403;
-    throw error;
-  }
+  // Solo is instant only in the first 10 days. After that it is still allowed,
+  // but it goes to the admin as a request, like a sit-out after day 5.
+  const soloWindowOpen = month.day <= 10;
   if (group.excused?.[actor]?.[month.monthKey]) {
     const error = new Error("You're sitting out this month");
+    error.status = 400;
+    throw error;
+  }
+  const sitOutRequest = normalizeSitOutRequests(group.sitOutRequests)?.[month.monthKey]?.[actor];
+  if (sitOutRequest?.status === "pending") {
+    const error = new Error("You can't request Solo Mode while a sit-out request is pending");
     error.status = 400;
     throw error;
   }
@@ -7897,18 +8103,9 @@ function applySoloRequest(current, payload) {
     throw error;
   }
   const baseTarget = getEffectiveTargetForMonth(group, month.monthKey, group.settings);
-  const minimumTarget = Math.max(1, Math.ceil(baseTarget * 0.25));
-  const personalTarget = Number.isFinite(requestedTarget) ? Math.max(1, Math.round(requestedTarget)) : 0;
-  if (personalTarget < minimumTarget) {
-    const error = new Error(`Solo target must be at least ${minimumTarget}`);
-    error.status = 400;
-    throw error;
-  }
-  if (personalTarget > baseTarget) {
-    const error = new Error(`Solo target can't be above your normal target of ${baseTarget}`);
-    error.status = 400;
-    throw error;
-  }
+  // Solo targets are automatic: half the Bloc target, rounded up so the
+  // member never has to choose or can be assigned a lower value by a client.
+  const personalTarget = Math.max(1, Math.ceil(baseTarget * 0.5));
   const recentCount = getRecentSoloCount(group, actor, month.monthKey);
   const existingRequests = normalizeSoloRequests(group.soloRequests);
   const existing = existingRequests?.[month.monthKey]?.[actor];
@@ -7917,7 +8114,7 @@ function applySoloRequest(current, payload) {
     error.status = 400;
     throw error;
   }
-  if (recentCount < 1 && !exceptional) {
+  if (soloWindowOpen && recentCount < 1 && !exceptional) {
     const nextSolo = normalizeSolo(group.solo, group.memberOrder);
     const nextGroup = normalizeGroup({
       ...group,
@@ -7925,7 +8122,7 @@ function applySoloRequest(current, payload) {
         ...nextSolo,
         [actor]: {
           ...(nextSolo[actor] || {}),
-          [month.monthKey]: { target: personalTarget }
+          [month.monthKey]: { target: personalTarget, rule: "standard_penalty" }
         }
       }
     });
@@ -8052,11 +8249,16 @@ function applySoloReview(current, payload) {
     error.status = 403;
     throw error;
   }
+  if (decision === "approved" && group.excused?.[memberName]?.[monthKey]) {
+    const error = new Error("This member is already sitting out this month");
+    error.status = 400;
+    throw error;
+  }
   const nextSolo = normalizeSolo(group.solo, group.memberOrder);
   if (decision === "approved") {
     nextSolo[memberName] = {
       ...(nextSolo[memberName] || {}),
-      [monthKey]: { target: request.personalTarget }
+      [monthKey]: { target: request.personalTarget, rule: "standard_penalty" }
     };
   }
   const requests = normalizeSoloRequests(group.soloRequests);
@@ -8436,7 +8638,7 @@ function normalizePaymentMethodsInput(value) {
 function applyUpsertProfile(current, payload) {
   const userId = String(payload?.userId || "").trim();
   const email = String(payload?.email || "").trim().toLowerCase();
-  const displayName = String(payload?.displayName || "").trim();
+  const displayName = capDisplayName(payload?.displayName);
   if (!userId || !email || !displayName) {
     const error = new Error("userId, email, and display name are required");
     error.status = 400;
@@ -8551,7 +8753,7 @@ function applyRepairDisplayName(current, payload) {
   const userId  = String(payload?.userId  || "").trim();
   const groupId = String(payload?.groupId || "").trim();
   const oldName = String(payload?.oldName || "").trim();
-  const newName = String(payload?.newName || "").trim();
+  const newName = capDisplayName(payload?.newName);
   if (!userId || !groupId || !oldName || !newName) {
     const error = new Error("userId, groupId, oldName, and newName are required");
     error.status = 400;
@@ -8946,7 +9148,9 @@ function buildFeroProfileStats(state, subjectUserId) {
         if (!iso) continue;
         const ts = Date.parse(`${iso}T00:00:00`);
         if (Number.isFinite(ts) && (earliestWorkout === null || ts < earliestWorkout)) earliestWorkout = ts;
-        const type = WORKOUT_TYPES.includes(log.type) ? log.type : "Other";
+        // Workout mix is per activity; logs from before activities count under
+        // their category, matching src/lib/activities.js getLogDisplayActivity.
+        const type = normalizeActivityName(log.activity) || (WORKOUT_TYPES.includes(log.type) ? log.type : "Other");
         if (!groupDayType[iso]) groupDayType[iso] = {};
         groupDayType[iso][type] = (groupDayType[iso][type] || 0) + 1;
       }
@@ -9130,6 +9334,21 @@ export {
   isMissingLocalCanonicalWorkoutRpcError,
   applyAddLog,
   applyMultiLog,
+  applySitOutRequest,
+  applySoloRequest,
+  applySitOutReview,
+  applySoloReview,
+  applyRequestCancel,
+  // Exported for the Solo standard-penalty test suite.
+  buildDefaultSettlements,
+  buildCanonicalMonthHistoryForGroup,
+  normalizeMonthHistory,
+  normalizeSolo,
+  DISPLAY_NAME_MAX_LENGTH,
+  capDisplayName,
+  // Exported for the activities test suite.
+  ACTIVITY_CATEGORIES,
+  normalizeLogEntry,
   applyJoinGroup,
   applyUpsertProfile,
   scopeReadableStateForUser,
@@ -9169,7 +9388,9 @@ export default async function handler(req, res) {
       const authUser = await fetchAuthenticatedUser(readBearerToken(req));
       if (url.searchParams.get("revision") === "1") {
         const revisionStamp = await fetchRevisionStamp();
-        return res.status(200).json(revisionStamp);
+        // `build` lets an open app notice a newer deploy (src/App.jsx). Older
+        // clients ignore the extra field.
+        return res.status(200).json({ ...revisionStamp, build: process.env.VERCEL_GIT_COMMIT_SHA || "" });
       }
       const current = await fetchReadableCurrentState();
       return res.status(200).json(await scopeAndSignReadableStateForUser(current, authUser.id));
@@ -9705,7 +9926,7 @@ export default async function handler(req, res) {
       if (payload?.action === "create-group") {
         const auth = await requireAuthenticatedContext(req, payload, current);
         assertAllowedUserContent(payload.groupName, "Bloc name");
-        const creatorName = auth.profile?.displayName || String(payload?.creatorName || "").trim();
+        const creatorName = auth.profile?.displayName || capDisplayName(payload?.creatorName);
         const createPayload = {
           ...payload,
           actorUserId: auth.user.id,
@@ -10396,6 +10617,20 @@ export default async function handler(req, res) {
           );
         }
         const readableState = await persistAndScopeReadableStateForUser(updated, `solo-request:${payload.groupId}:${canonicalActor || actor || auth.user.id}`, null, auth.user.id);
+        return res.status(200).json(readableState);
+      }
+
+      if (payload?.action === "sitout-cancel" || payload?.action === "solo-cancel") {
+        const kind = payload.action === "solo-cancel" ? "solo" : "sitout";
+        const auth = await requireAuthenticatedContext(req, payload, current);
+        const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
+        // Canonical writable state is the authority; the blob mirror follows
+        // through persistAndScopeReadableStateForUser below.
+        const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
+        const canonicalActor = assertGroupMembershipForUser(canonicalState, payload.groupId, auth.user.id);
+        const { state: updated, monthKey } = applyRequestCancel(canonicalState, { ...payload, actor: canonicalActor, actorUserId: auth.user.id }, kind);
+        await deleteRequestInCanonical(kind, payload.groupId, monthKey, canonicalActor, { throwOnError: true });
+        const readableState = await persistAndScopeReadableStateForUser(updated, `${payload.action}:${payload.groupId}:${canonicalActor || actor || auth.user.id}`, null, auth.user.id);
         return res.status(200).json(readableState);
       }
 

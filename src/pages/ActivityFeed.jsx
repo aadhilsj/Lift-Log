@@ -1,6 +1,7 @@
 import React from "react";
 const { useState, useEffect, useMemo, useCallback, useRef } = React;
 import { createPortal } from "react-dom";
+import { getLogDisplayActivity } from "../lib/activities.js";
 import {
   QUICK_REACTIONS,
   countApprovedFlagsForActor,
@@ -383,7 +384,8 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
   const renderExpandedPhoto = () => {
     if (!imagePost) return null;
     const canFlag = imagePost.owner !== currentUser && imagePost.verifiedVia !== "strava";
-    const categoryIcon = React.createElement(WorkoutTypeIcon,{type:imagePost.type,size:13});
+    const imageActivity = getLogDisplayActivity(imagePost);
+    const categoryIcon = React.createElement(WorkoutTypeIcon,{type:imageActivity,size:13});
     const overlay = React.createElement('div',{onClick:closeImage,style:{position:"fixed",inset:0,background:"rgba(0,0,0,0.92)",zIndex:1200,display:"flex",alignItems:"center",justifyContent:"center",padding:compactFeed?"18px 14px":"24px"}},
       React.createElement('button',{type:"button",onClick:closeImage,style:{position:"fixed",top:16,right:16,zIndex:2,width:40,height:40,borderRadius:999,background:"rgba(7,7,10,.82)",border:"1px solid rgba(255,255,255,.12)",color:"#fff",fontSize:18,fontWeight:800}},"×"),
       canFlag && React.createElement('button',{type:"button",onClick:e=>{e.stopPropagation();closeImage();setFlagTarget(imagePost);},style:{position:"fixed",bottom:28,right:20,zIndex:2,display:"flex",alignItems:"center",gap:6,padding:"9px 14px",borderRadius:999,background:"rgba(7,7,10,.82)",border:"1px solid rgba(255,255,255,.1)",color:"rgba(255,255,255,.55)",fontSize:12,fontWeight:600,letterSpacing:".01em"}},
@@ -399,11 +401,11 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
           isPostSolo(imagePost) && soloBadge,
           React.createElement('span',{style:{display:"inline-flex",alignItems:"center",gap:4,color:"var(--muted)",fontSize:11.5,flexShrink:0}},
             React.createElement('span',{style:{display:"inline-flex",alignItems:"center",justifyContent:"center",color:"var(--cyan)",width:14}},categoryIcon),
-            React.createElement('span',null,imagePost.type)
+            React.createElement('span',null,imageActivity)
           ),
           React.createElement('span',{className:"mono",style:{fontSize:8,color:"var(--muted2)",letterSpacing:"-.01em",flexShrink:0}},formatShortDate(imagePost.date))
         ),
-        React.createElement('img',{src:resolveStorageImageUrl(imagePost.photoUrl),alt:`${imagePost.owner} ${imagePost.type}`,onClick:e=>e.stopPropagation(),style:{display:"block",width:"100%",maxHeight:compactFeed?"62vh":"68vh",objectFit:"contain",borderRadius:12,background:"#050507",boxShadow:"0 24px 60px rgba(0,0,0,.45)",cursor:"default"}}),
+        React.createElement('img',{src:resolveStorageImageUrl(imagePost.photoUrl),alt:`${imagePost.owner} ${imageActivity}`,onClick:e=>e.stopPropagation(),style:{display:"block",width:"100%",maxHeight:compactFeed?"62vh":"68vh",objectFit:"contain",borderRadius:12,background:"#050507",boxShadow:"0 24px 60px rgba(0,0,0,.45)",cursor:"default"}}),
         React.createElement('div',{onClick:e=>e.stopPropagation(),style:{padding:"0 2px"}},renderReactionRow(imagePost,false,false,true)),
         imagePost.note && React.createElement('div',{style:{fontSize:14,lineHeight:1.45,color:"var(--text-soft)",fontStyle:"italic",whiteSpace:"pre-wrap",padding:"0 2px",overflowY:"auto",maxHeight:"18vh",textAlign:"center"}},imagePost.note)
       )
@@ -474,7 +476,8 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
               const showDateHeader = index === 0 || feedPosts[index - 1]?.date !== displayDate;
               const hasThumbnail = Boolean(post.photoUrl);
               const isOwner = post.owner === currentUser;
-              const categoryIcon = React.createElement(WorkoutTypeIcon,{type:post.type,size:13});
+              const postActivity = getLogDisplayActivity(post);
+              const categoryIcon = React.createElement(WorkoutTypeIcon,{type:postActivity,size:13});
               const showRelativeTime = isRecentPastTimestamp(post.createdAt, clockTick || Date.now());
               const compactRelativeTime = showRelativeTime ? formatCompactRelativeTime(post.createdAt) : "";
               return React.createElement(React.Fragment,{key:`${post.owner}-${post.id}`},
@@ -499,13 +502,12 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
                           React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,minWidth:0,whiteSpace:"nowrap"}},
                             React.createElement('div',{style:{display:"flex",alignItems:"center",gap:7,minWidth:0,flex:1}},
                               React.createElement(Avatar,{name:post.owner,userId:userIdForOwner(post.owner),size:28}),
-                              React.createElement('span',{style:{fontWeight:600,fontSize:13,color:"#fff",minWidth:0,overflow:"hidden",textOverflow:"ellipsis",flex:"0 1 auto",maxWidth:hasThumbnail?(compactFeed?96:180):(compactFeed?116:220)}},post.owner),
+                              React.createElement('span',{style:{fontWeight:600,fontSize:13,color:"#fff",flexShrink:0}},post.owner),
                               isPostSolo(post) && soloBadge,
                               React.createElement('span',{style:{display:"inline-flex",alignItems:"center",gap:4,color:"var(--muted)",fontSize:11.5,flexShrink:0}},
                                 React.createElement('span',{style:{display:"inline-flex",alignItems:"center",justifyContent:"center",color:"var(--cyan)",width:14}},categoryIcon),
-                                React.createElement('span',null,post.type)
+                                React.createElement('span',null,postActivity)
                               ),
-                              React.createElement('span',{className:"mono",style:{fontSize:9,color:"var(--muted2)",letterSpacing:"-.01em",flexShrink:0}},formatShortDate(displayDate))
                             ),
                             React.createElement('div',{style:{display:"flex",alignItems:"center",gap:5,flexShrink:0,marginLeft:6}},
                               !isOwner && React.createElement('button',{type:"button",onClick:()=>openSafetyMenu(post),"aria-label":`Safety options for ${post.owner}`,style:{border:0,background:"transparent",color:"var(--muted)",padding:"0 2px",fontSize:15,lineHeight:1,cursor:"pointer"}},"•••"),
@@ -522,7 +524,7 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
                           renderCommentChip(post,true)
                         ),
                         React.createElement('button',{type:"button",onClick:e=>{e.stopPropagation();setImageTarget(post);},style:{gridColumn:2,gridRow:"1 / span 2",display:"block",width:72,height:72,padding:0,borderRadius:8,overflow:"hidden",background:"#050507",border:"1px solid rgba(255,255,255,.08)",flexShrink:0}},
-                          React.createElement('img',{src:resolveStorageImageUrl(post.photoUrl),alt:`${post.owner} ${post.type}`,loading:"eager",decoding:"async",style:{display:"block",width:"100%",height:"100%",objectFit:"cover"}})
+                          React.createElement('img',{src:resolveStorageImageUrl(post.photoUrl),alt:`${post.owner} ${postActivity}`,loading:"eager",decoding:"async",style:{display:"block",width:"100%",height:"100%",objectFit:"cover"}})
                         )
                       )
                     ),
@@ -531,13 +533,12 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
                     React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,minWidth:0}},
                       React.createElement('div',{style:{display:"flex",alignItems:"center",gap:7,minWidth:0,flex:1}},
                         React.createElement(Avatar,{name:post.owner,userId:userIdForOwner(post.owner),size:22}),
-                        React.createElement('span',{style:{fontWeight:600,fontSize:13,color:"#fff",minWidth:0,overflow:"hidden",textOverflow:"ellipsis",flex:"0 1 auto",maxWidth:compactFeed?116:220}},post.owner),
+                        React.createElement('span',{style:{fontWeight:600,fontSize:13,color:"#fff",flexShrink:0}},post.owner),
                         isPostSolo(post) && soloBadge,
                         React.createElement('span',{style:{display:"inline-flex",alignItems:"center",gap:4,color:"var(--muted)",fontSize:11.5,flexShrink:0}},
                           React.createElement('span',{style:{display:"inline-flex",alignItems:"center",justifyContent:"center",color:"var(--cyan)",width:14}},categoryIcon),
-                          React.createElement('span',null,post.type)
+                          React.createElement('span',null,postActivity)
                         ),
-                        React.createElement('span',{className:"mono",style:{fontSize:9,color:"var(--muted2)",letterSpacing:"-.01em",flexShrink:0}},formatShortDate(displayDate))
                       ),
                       React.createElement('div',{style:{display:"flex",alignItems:"center",gap:5,flexShrink:0,marginLeft:6}},
                         !isOwner && React.createElement('button',{type:"button",onClick:()=>openSafetyMenu(post),"aria-label":`Safety options for ${post.owner}`,style:{border:0,background:"transparent",color:"var(--muted)",padding:"0 2px",fontSize:15,lineHeight:1,cursor:"pointer"}},"•••"),
@@ -554,7 +555,7 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
                   ),
                   post.flagStatus==="rejected" && React.createElement('div',{style:{padding:"9px 11px",borderRadius:10,background:"rgba(232,69,69,.08)",border:"1px solid rgba(232,69,69,.22)",marginBottom:8,fontSize:12,color:"#ffd7d7"}},
                     isAdmin && post.flaggedBy && React.createElement('div',{style:{marginBottom:6,color:"var(--amber)"}},React.createElement('strong',null,"Original flag by: "),post.flaggedBy),
-                    "The bloc admin rejected this workout."
+                    "The Bloc Admin rejected this workout."
                   ),
                   React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"flex-end",gap:8,flexWrap:"wrap",marginTop:post.flagStatus ? 8 : 0}},
                     React.createElement('div',{style:{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}},

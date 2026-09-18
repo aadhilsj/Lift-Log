@@ -24,8 +24,6 @@ import {
   getMemberTargetInfoForMonth,
   getCurrentSitOutRequest,
   getCurrentSoloRequest,
-  getRecentSitOutCount,
-  getRecentSoloCount,
   isSoloForMonth,
   isTrainingForMonth,
   getSoloTargetForMonth,
@@ -54,7 +52,8 @@ import {
   buildLocalWeeklyMvpPreview
 } from "../lib/utils.js";
 import { Avatar, WorkoutTypeIcon, ChevronRightIcon, TargetHitHexIcon, StatusBadge, RankIcon, Bar, Card, AppIcon, PlayerProfileErrorBoundary, RedemptionShieldIcon, MemberTag, TrainingSproutIcon, SoloFlagIcon } from "../components/primitives.jsx";
-import { LogModal, DeleteModal, SitOutModal, SoloModal, NoticeModal } from "../modals/modals.jsx";
+import { LogModal, DeleteModal } from "../modals/modals.jsx";
+import { getLogDisplayActivity } from "../lib/activities.js";
 import { PlayerProfile } from "../pages/PlayerProfile.jsx";
 import { buildPaymentTargets } from "../lib/paymentLinks.js";
 import { prefetchProfileStatsData } from "../lib/api.js";
@@ -63,14 +62,7 @@ import { PaymentHandleSection } from "../components/PaymentHandleSection.jsx";
 
 const FULL_MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
-const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCreatedAt,logs,excused,monthHistory,saving,onSave,onMultiLog,onLogMutation,clockTick,onViewLastMonth,onSitOutRequest,onSoloRequest,onSettlementClaimPaid,onSettlementConfirmPaid,onSettlementDisputePaid,onOpenSetupReview,onOpenAccount,navResetToken,showLog,setShowLog,onTrackUsage,currentPaymentMethods=[],onSavePayment,savingPayment=false,paymentError=""}) => {
-  const [showExcuse,setShowExcuse]=useState(false);
-  const [sitOutSubmitting,setSitOutSubmitting]=useState(false);
-  const [sitOutError,setSitOutError]=useState("");
-  const [showSolo,setShowSolo]=useState(false);
-  const [showSoloLocked,setShowSoloLocked]=useState(false);
-  const [soloSubmitting,setSoloSubmitting]=useState(false);
-  const [soloError,setSoloError]=useState("");
+const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCreatedAt,logs,excused,monthHistory,saving,onSave,onMultiLog,onLogMutation,clockTick,onViewLastMonth,onSettlementClaimPaid,onSettlementConfirmPaid,onSettlementDisputePaid,onOpenSetupReview,onOpenAccount,navResetToken,showLog,setShowLog,onTrackUsage,currentPaymentMethods=[],onSavePayment,savingPayment=false,paymentError=""}) => {
   const [viewPlayer,setViewPlayer]=useState(null);
   const [deleteTarget,setDeleteTarget]=useState(null);
   const [statDetail,setStatDetail]=useState(null);
@@ -168,9 +160,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
   const groupSettings = currentGroup?.settings || buildNormalizedSettings({});
   const monthSummary = currentGroup ? getCurrentMonthSummary(currentGroup) : null;
   const currentSitOutRequest = currentGroup ? getCurrentSitOutRequest(currentGroup, user, curKey) : null;
-  const recentSitOutCount = currentGroup ? getRecentSitOutCount(currentGroup, user, curKey) : 0;
   const currentSoloRequest = currentGroup ? getCurrentSoloRequest(currentGroup, user, curKey) : null;
-  const recentSoloCount = currentGroup ? getRecentSoloCount(currentGroup, user, curKey) : 0;
   const currentSoloTarget = currentGroup ? getSoloTargetForMonth(currentGroup, user, curKey) : null;
   const isSolo = currentGroup ? isSoloForMonth(currentGroup, user, curKey) : false;
   const currentMonthOverride = currentGroup ? getSeasonOverrideForMonth(currentGroup, curKey) : null;
@@ -188,31 +178,6 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
     ? Math.floor((effectiveTarget / myProratedDays) * Math.max(0, DAY_OF_MON - myJoinDay + 1))
     : getExpected(effectiveTarget);
   const myDaysActive = myProratedDays ? Math.max(0, DAY_OF_MON - myJoinDay + 1) : DAY_OF_MON;
-  const sitOutMode = currentSitOutRequest?.status === "pending"
-    ? null
-    : (recentSitOutCount >= 1 ? "exceptional" : ((monthSummary?.day || DAY_OF_MON) <= 5 ? "instant" : "request"));
-  const soloMinimumTarget = currentGroup ? Math.max(1, Math.ceil(getMemberTargetInfoForMonth(currentGroup, user, curKey).target * 0.25)) : 1;
-  const soloRequestWindowClosed = (monthSummary?.day || DAY_OF_MON) > 10;
-  const soloMode = currentSoloRequest?.status === "pending" || isExcused || isSolo || soloRequestWindowClosed
-    ? null
-    : (recentSoloCount >= 1 ? "exceptional" : "request");
-  const soloPreviewOverride = (() => {
-    try {
-      const host = window.location.hostname.toLowerCase();
-      const params = new URLSearchParams(window.location.search);
-      return params.get("soloPreview") === "1"
-        || (host.includes("vercel.app") && (host.includes("reco") || host.includes("reconcile") || host.includes("codex")));
-    } catch {
-      return false;
-    }
-  })();
-  const soloPreviewMode = soloPreviewOverride
-    && soloRequestWindowClosed
-    && !currentSoloRequest?.status
-    && !isExcused
-    && !isSolo;
-  const visibleSoloMode = soloMode || (soloPreviewMode ? "request" : null);
-
   const board=NAMES.filter(name=>isJoinedForMonth(name, curKey)).map(name=>{
     const count=getCountedLogCount(logs[name]||[]);
     const isOut=excused[name]?.[curKey]||false;
@@ -267,14 +232,14 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
     if(countedMyLogs.some(l=>l.date===iso))streak++;else break;
   }
 
-  const doLog=async ({ workoutType, isoDate, targetGroupIds, note, photoUrl })=>{
+  const doLog=async ({ workoutType, activity, isoDate, targetGroupIds, note, photoUrl })=>{
     if (Array.isArray(targetGroupIds) && targetGroupIds.length) {
       setShowLog(false);
-      const result = await onMultiLog({ workoutType, isoDate, targetGroupIds, note, photoUrl });
+      const result = await onMultiLog({ workoutType, activity, isoDate, targetGroupIds, note, photoUrl });
       return;
     }
     setShowLog(false);
-    onSave({ workoutType, isoDate, note, photoUrl });
+    onSave({ workoutType, activity, isoDate, note, photoUrl });
   };
 
   // Deletes from this Bloc first, then — only if asked — the same workout's
@@ -297,43 +262,6 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
       if (!result?.ok) failed += 1;
     }
     if (failed) window.alert(`Deleted here, but it couldn't be removed from ${failed === 1 ? "one of your other Blocs" : `${failed} of your other Blocs`}. Please try again from there.`);
-  };
-
-  const submitSitOut = async (reason) => {
-    if (!onSitOutRequest || !sitOutMode) return;
-    setSitOutSubmitting(true);
-    setSitOutError("");
-    const result = await onSitOutRequest({
-      reason,
-      exceptional: sitOutMode === "exceptional"
-    });
-    setSitOutSubmitting(false);
-    if (!result?.ok) {
-      setSitOutError(result?.error || "Unable to submit sit-out request.");
-      return;
-    }
-    setShowExcuse(false);
-  };
-
-  const submitSolo = async ({ personalTarget, reason }) => {
-    if (!onSoloRequest || !visibleSoloMode) return;
-    if (soloPreviewMode && !soloMode) {
-      setSoloError("Preview only. Real Solo requests are locked after day 10.");
-      return;
-    }
-    setSoloSubmitting(true);
-    setSoloError("");
-    const result = await onSoloRequest({
-      personalTarget,
-      reason,
-      exceptional: soloMode === "exceptional"
-    });
-    setSoloSubmitting(false);
-    if (!result?.ok) {
-      setSoloError(result?.error || "Unable to submit Solo Mode request.");
-      return;
-    }
-    setShowSolo(false);
   };
 
   const [previewSettlementCards, setPreviewSettlementCards] = useState([]);
@@ -476,7 +404,6 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
   const currentMonthKey = `${CUR_YEAR}-${CUR_MONTH}`;
   const currentMonthLabel = `${FULL_MONTH_NAMES[CUR_MONTH] || MONTH_NAMES[CUR_MONTH]} '${String(CUR_YEAR).slice(-2)}`;
   const todayHeaderMonthName = FULL_MONTH_NAMES[CUR_MONTH] || MONTH_NAMES[CUR_MONTH];
-  const modalMonthName = FULL_MONTH_NAMES[CUR_MONTH] || monthSummary?.monthName || MONTH_NAMES[CUR_MONTH];
   const expandMonthLabel = label => String(label || "").replace(/^([A-Z][a-z]{2})\s+'(\d{2})$/, (_, shortName, year) => `${FULL_MONTH_NAMES[MONTH_NAMES.indexOf(shortName)] || shortName} '${year}`);
   const blocMonthHistoryRows = useMemo(() => {
     const closedRows = [...monthHistory]
@@ -567,45 +494,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
         ? React.createElement('div',{style:{fontSize:12,color:"var(--muted)",fontWeight:700,lineHeight:1.35}},"Sit-out was declined.")
         : currentSoloRequest?.status === "declined"
           ? React.createElement('div',{style:{fontSize:12,color:"var(--muted)",fontWeight:700,lineHeight:1.35}},"Solo Mode was declined.")
-        : React.createElement('div',{style:{flex:"1 1 auto",minWidth:0,fontSize:11,color:"var(--muted)",fontWeight:700,lineHeight:1.35,whiteSpace:"nowrap",overflow:"visible"}},"Injured, traveling, or got a busy month ahead?");
-
-  const competitionAction = isExcused || isSolo || currentSitOutRequest?.status === "pending" || currentSoloRequest?.status === "pending"
-    ? null
-    : React.createElement('div',{style:{display:"flex",gap:6,flexWrap:"nowrap",justifyContent:"flex-end",alignItems:"center",flexShrink:0}},
-        React.createElement('button',{
-          onClick:()=>{
-            if (!visibleSoloMode) {
-              setShowSoloLocked(true);
-              return;
-            }
-            setSoloError("");
-            setShowSolo(true);
-          },
-          style:{
-            background:visibleSoloMode ? "rgba(255,255,255,.018)" : "rgba(255,255,255,.025)",
-            border:`1px solid ${visibleSoloMode ? "rgba(148,163,184,.20)" : "rgba(148,163,184,.18)"}`,
-            color:visibleSoloMode ? "rgba(143,174,170,.66)" : "rgba(148,163,184,.48)",
-            padding:"6px 8px",
-            borderRadius:999,
-            fontSize:11,
-            fontWeight:800,
-            whiteSpace:"nowrap"
-          }
-        },"Solo"),
-        React.createElement('button',{
-          onClick:()=>{ setSitOutError(""); setShowExcuse(true); },
-          style:{
-            background:"transparent",
-            border:"1px solid rgba(148,163,184,.22)",
-            color:"var(--muted)",
-            padding:"6px 8px",
-            borderRadius:999,
-            fontSize:11,
-            fontWeight:800,
-            whiteSpace:"nowrap"
-          }
-        },currentSitOutRequest?.status === "declined"?"Request again":"Sit out")
-      );
+        : null;
 
   const paceDelta = me.count - expected;
   const earlyMonthPaceQuiet = isEarlyMonthNeutralWindow() && me.count === 0;
@@ -678,7 +567,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
               ? null
               : log
                 ? React.createElement('span',{style:{position:"relative",width:20,height:20,display:"inline-flex",alignItems:"center",justifyContent:"center"}},
-                    React.createElement(WorkoutTypeIcon,{type:log.type,size:16}),
+                    React.createElement(WorkoutTypeIcon,{type:getLogDisplayActivity(log),size:16}),
                     dayLogs.length > 1 && React.createElement('span',{style:{position:"absolute",right:-5,top:-5,minWidth:13,height:13,padding:"0 2px",borderRadius:999,display:"inline-flex",alignItems:"center",justifyContent:"center",background:"#4ECDC4",border:"1px solid #1A2E4A",color:"#071010",fontFamily:"'Outfit',sans-serif",fontSize:8,fontWeight:900,lineHeight:1}},Math.min(dayLogs.length,2))
                   )
                 : day
@@ -751,8 +640,16 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
   const weeklyMvpDisplayLeaders = localWeeklyMvpPreview?.currentWeekLeaders || weeklyStripLeaders;
   const weeklyMvpDisplayHistory = localWeeklyMvpPreview?.previousWeeks || weeklyMvpHistoryRows;
   const currentWeekRangeLabel = formatWeekRangeLabel(currentWeekStart, currentWeekEnd);
+  // The MVP tile is one of four across a phone screen — about 60px inside. A
+  // long display name cannot fit there legibly at any size, so it falls back to
+  // the first name rather than being clipped mid-word.
+  const weeklyMvpTileValue = weeklyMvpDisplayValue.length > 13
+    ? (weeklyMvpDisplayValue.split(" ")[0] || weeklyMvpDisplayValue)
+    : weeklyMvpDisplayValue;
   const weeklyMvpValueStyle = {
-    fontSize: weeklyMvpDisplayValue.length > 11 ? 10.5 : weeklyMvpDisplayValue.length > 8 ? 11.5 : 12,
+    // The ladder runs down to the longest display names so an MVP's name is
+    // never clipped in this tile.
+    fontSize: weeklyMvpTileValue.length > 11 ? 10.5 : weeklyMvpTileValue.length > 8 ? 11.5 : 12,
     lineHeight: 1.05,
     whiteSpace: "nowrap",
     justifyContent: "center",
@@ -795,7 +692,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
       ? {kind:"target",label:"Target",valueNode:React.createElement(TargetHitHexIcon,{size:22}),sub:"target hit!",meta:targetCardMeta}
       : {kind:"target",label:"Target",val:needed,sub:"more to go",meta:targetCardMeta,color:"#4ECDC4"},
     {kind:"pace",label:"Pace Check",val:paceDeltaText,sub:todayTargetText,color:paceDeltaColor,valueStyle:paceValueStyle},
-    {kind:"week-mvp",label:"Week's MVP",val:weeklyMvpDisplayValue,sub:"most logs this week",color:"var(--text)",valueStyle:weeklyMvpValueStyle},
+    {kind:"week-mvp",label:"Week's MVP",val:weeklyMvpTileValue,sub:"most logs this week",color:"var(--text)",valueStyle:weeklyMvpValueStyle},
     {kind:"bloc-month",label:"Bloc Month",val:blocMonthCount,sub:"workouts logged",color:"var(--text)",valueStyle:blocMonthValueStyle}
   ];
   const desktopLogsByDay = {};
@@ -1074,7 +971,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
               }},
                 React.createElement('span',{className:"mono",style:{fontSize:8,color:isToday ? "#8EE7DF" : "var(--muted)",lineHeight:1}},date.getDate()),
                 React.createElement('span',{style:{position:"relative",width:16,height:16,display:"inline-flex",alignItems:"center",justifyContent:"center",color:"#4ECDC4"}},
-                  React.createElement(WorkoutTypeIcon,{type:log.type,size:13}),
+                  React.createElement(WorkoutTypeIcon,{type:getLogDisplayActivity(log),size:13}),
                   dayLogs.length > 1 && React.createElement('span',{style:{position:"absolute",right:-5,top:-5,minWidth:12,height:12,padding:"0 2px",borderRadius:999,display:"inline-flex",alignItems:"center",justifyContent:"center",background:"#4ECDC4",border:"1px solid #0B1B1A",color:"#071010",fontFamily:"'Outfit',sans-serif",fontSize:7.5,fontWeight:900,lineHeight:1}},Math.min(dayLogs.length,2))
                 )
               )
@@ -1258,7 +1155,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
           React.createElement(Avatar,{name:u.name,size:22}),
           React.createElement('div',{style:{display:"grid",gap:5,minWidth:0}},
             React.createElement('div',{style:{display:"flex",alignItems:"center",gap:7,minWidth:0}},
-              React.createElement('span',{style:{fontSize:13,fontWeight:700,color:"var(--text)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},u.name),
+              React.createElement('span',{style:{fontSize:13,fontWeight:700,color:"var(--text)",whiteSpace:"nowrap"}},u.name),
               u.name===user&&React.createElement('span',{className:"mono",style:{fontSize:8,color:"#3d5e59"}},"you"),
               soloTag
             ),
@@ -1266,9 +1163,9 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
               React.createElement('div',{style:{height:"100%",width:`${pct}%`,borderRadius:999,background:"#4ECDC4"}})
             )
           ),
-          React.createElement('div',{style:{display:"grid",justifyItems:"end",gap:2}},
-            React.createElement('span',{style:{fontSize:13,fontWeight:800,color:"#4ECDC4"}},`${u.count}/${u.soloTarget || u.target}`),
-            React.createElement('span',{style:{fontSize:8,color:"var(--muted)",fontWeight:700}},`${pct}%`)
+          // minHeight keeps the row the height it had with the percentage line under the count.
+          React.createElement('div',{style:{display:"grid",justifyItems:"end",alignContent:"center",gap:2,minHeight:28.5}},
+            React.createElement('span',{style:{fontSize:13,fontWeight:800,color:"#4ECDC4"}},`${u.count}/${u.soloTarget || u.target}`)
           )
         )
       );
@@ -1312,8 +1209,8 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
               React.createElement('div',{style:{display:"flex",alignItems:"center",gap:8,width:"100%"}},
                 React.createElement('div',{style:{minWidth:20}},u.isOut?React.createElement('span',{style:{fontSize:12,color:"#2A4040"}},"💤"):React.createElement(RankIcon,{rank:aIdx+1})),
                 React.createElement(Avatar,{name:u.name,size:22,muted:u.isOut}),
-                React.createElement('div',{style:{flex:1,minWidth:0,textAlign:"left",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",display:"inline-flex",alignItems:"center",gap:6,fontWeight:600,fontSize:13,color:u.isOut?"#2A4040":"var(--text)"}},
-                  React.createElement('span',null,u.name),
+                React.createElement('div',{style:{flex:1,minWidth:0,textAlign:"left",display:"flex",flexWrap:"wrap",alignItems:"center",gap:6,rowGap:2,fontWeight:600,fontSize:13,color:u.isOut?"#2A4040":"var(--text)"}},
+                  React.createElement('span',{style:{whiteSpace:"nowrap"}},u.name),
                   u.redemptionMark&&React.createElement(RedemptionShieldIcon,{size:13,redeemed:u.redemptionMark === "redeemed"}),
                   u.isTraining&&React.createElement(TrainingSproutIcon,{size:13}),
                   isMe&&React.createElement('span',{className:"mono",style:{fontSize:8,color:"#3d5e59",marginLeft:6}},"you"),
@@ -1344,10 +1241,9 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
       }),
       renderSoloSection())
     ),
-    (competitionStatusBody || competitionAction) && React.createElement(Card,{style:{padding:"9px 10px",background:"rgba(8,15,15,.72)",border:"0.5px solid rgba(78,205,196,.12)"}},
+    competitionStatusBody && React.createElement(Card,{style:{padding:"9px 10px",background:"rgba(8,15,15,.72)",border:"0.5px solid rgba(78,205,196,.12)"}},
       React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,minHeight:30}},
-        competitionStatusBody,
-        competitionAction
+        competitionStatusBody
       )
     )
   );
@@ -1403,8 +1299,8 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
                 React.createElement('div',{style:{display:"flex",alignItems:"center",gap:9,width:"100%"}},
                   React.createElement('div',{style:{minWidth:22}},u.isOut?React.createElement('span',{style:{fontSize:13,color:"#2A4040"}},"💤"):React.createElement(RankIcon,{rank:aIdx+1})),
                   React.createElement(Avatar,{name:u.name,size:24,muted:u.isOut}),
-                  React.createElement('div',{style:{flex:1,minWidth:0,textAlign:"left",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",display:"inline-flex",alignItems:"center",gap:7,fontWeight:600,fontSize:14,color:u.isOut?"#2A4040":"var(--text)"}},
-                    React.createElement('span',null,u.name),
+                  React.createElement('div',{style:{flex:1,minWidth:0,textAlign:"left",display:"flex",flexWrap:"wrap",alignItems:"center",gap:7,rowGap:2,fontWeight:600,fontSize:14,color:u.isOut?"#2A4040":"var(--text)"}},
+                    React.createElement('span',{style:{whiteSpace:"nowrap"}},u.name),
                     isMe&&React.createElement('span',{className:"mono",style:{fontSize:8,color:"#3d5e59",marginLeft:7}},"you"),
                     u.prorated&&!u.isOut&&React.createElement(MemberTag,{tone:"prorated"},"Prorated")
                   )
@@ -1434,10 +1330,9 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
         renderSoloSection())
       ),
       React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:10}},
-        (competitionStatusBody || competitionAction) && React.createElement(Card,{style:{padding:"9px 10px",background:"rgba(8,15,15,.72)",border:"0.5px solid rgba(78,205,196,.12)"}},
+        competitionStatusBody && React.createElement(Card,{style:{padding:"9px 10px",background:"rgba(8,15,15,.72)",border:"0.5px solid rgba(78,205,196,.12)"}},
           React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,minHeight:30}},
-            competitionStatusBody,
-            competitionAction
+            competitionStatusBody
           )
         ),
         desktopCalendarCard
@@ -1448,9 +1343,6 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
   const todayContent = React.createElement('div',{ref:todayRootRef,style:{position:"relative",minHeight:"calc(100vh - 44px)",backgroundColor:"#070C0C",background:"var(--bg-gradient)",backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)",overscrollBehavior:"contain",overscrollBehaviorY:"contain",overflowX:"hidden",isolation:"isolate"}},
     showLog&&React.createElement(LogModal,{user,currentUserId,currentGroupId,groups,onConfirm:doLog,onClose:()=>setShowLog(false)}),
     deleteTarget && React.createElement(DeleteModal,{log:deleteTarget,otherBlocNames:[...new Set(findWorkoutCopiesInOtherBlocs(groups, currentGroupId, currentUserId, deleteTarget).map(copy => copy.groupName))],onClose:()=>setDeleteTarget(null),onConfirm:async(options)=>{ const log = deleteTarget; setDeleteTarget(null); await deleteOwnLog(log, options); }}),
-    showExcuse && sitOutMode && React.createElement(SitOutModal,{mode:sitOutMode,monthName:modalMonthName,onClose:()=>{setShowExcuse(false);setSitOutError("");},onSubmit:submitSitOut,submitting:sitOutSubmitting,error:sitOutError}),
-    showSolo && visibleSoloMode && React.createElement(SoloModal,{mode:visibleSoloMode,monthName:modalMonthName,minimumTarget:soloMinimumTarget,maximumTarget:effectiveTarget,defaultTarget:Math.max(soloMinimumTarget, Math.ceil(effectiveTarget * .5)),onClose:()=>{setShowSolo(false);setSoloError("");},onSubmit:submitSolo,submitting:soloSubmitting,error:soloError}),
-    showSoloLocked && React.createElement(NoticeModal,{title:"Solo Mode is locked",body:"Solo Mode is only available in the first 10 days of the month.",onClose:()=>setShowSoloLocked(false)}),
     linkPaymentModal,
     settlementDisputePrompt,
     settlementClaimPrompt,

@@ -12,6 +12,9 @@ import {
   curKey,
   MONTH_NAMES,
   calcPenalties,
+  addStandardSoloPenalties,
+  getStandardSoloMisses,
+  isStandardPenaltySoloForMonth,
   getLoserAmount,
   normalizeSeasonOverrides,
   getCurrentMemberTarget,
@@ -38,6 +41,7 @@ import {
 import { Avatar, WorkoutTypeIcon, Bar, Card, SelectField, TargetHitHexIcon, AppIcon , RedemptionShieldIcon, RedemptionNoteModal, TrainingSproutIcon, SoloFlagIcon, TrainingNoteModal, SoloNoteModal } from "../components/primitives.jsx";
 import { DeleteModal } from "../modals/modals.jsx";
 import { ProfileStatsPanel } from "../components/ProfileStatsPanel.jsx";
+import { ACTIVITIES, getLogDisplayActivity } from "../lib/activities.js";
 import { ShareSticker } from "../components/ShareSticker.jsx";
 import { buildStickerData } from "../lib/shareSticker.js";
 import { fetchProfileStatsData, setUserBlockData, createContentReportData } from "../lib/api.js";
@@ -128,9 +132,11 @@ const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevea
       // no more count towards this member's money than a solo month does.
       const memberIsExempt = isExemptFromStakes(m, name, m.key);
       closedTotal+=m.counts[name]||0;
-      if (memberIsExempt) return;
+      // A new-rules Solo miss is the one exempt case that still costs money.
+      if (memberIsExempt && !isStandardPenaltySoloForMonth(m, name, m.key)) return;
       const ac=monthNames.filter(n=>isJoinedForMonth(n, m.key) && !m.excused?.[n] && !isExemptFromStakes(m, n, m.key)).map(n=>({name:n,count:m.counts[n]||0,target:m.memberTargets?.[n] || m.settings?.minTarget || MIN_TARGET}));
-      const penalties = calcPenalties(ac, m.settings || {});
+      const soloMisses = getStandardSoloMisses(m, monthNames.filter(n=>isJoinedForMonth(n, m.key)));
+      const penalties = addStandardSoloPenalties(calcPenalties(ac, m.settings || {}), soloMisses, m.settings || {});
       const {winners,losers,perWinner}=penalties;
       if(winners.find(w=>w.name===name)){wins++;moneyWon+=perWinner;}
       if(losers.find(l=>l.name===name)){moneyLost+=getLoserAmount(penalties, name);}
@@ -226,10 +232,13 @@ const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevea
     ? getCurrentMemberTarget(name, curKey, MIN_TARGET)
     : (selHistMonth?.memberTargets?.[name] || selHistMonth?.settings?.minTarget || MIN_TARGET);
   const needed=Math.max(0,selectedTarget-selCount);
-  const tBreak={};WORKOUT_TYPES.forEach(t=>tBreak[t]=0);
-  visibleSelLogs.forEach(l=>{if(tBreak[l.type]!==undefined)tBreak[l.type]++;});
+  // Per activity. Logs from before activities fall under their category name,
+  // so an old Sports log counts as "Sports".
+  const tBreak={};
+  visibleSelLogs.forEach(l=>{const a=getLogDisplayActivity(l);tBreak[a]=(tBreak[a]||0)+1;});
   const maxT=Math.max(...Object.values(tBreak),1);
-  const workoutBreakdownRows = WORKOUT_TYPES.filter(t=>tBreak[t] > 0);
+  const breakdownOrder = name => { const i = ACTIVITIES.findIndex(activity => activity.name === name); return i === -1 ? ACTIVITIES.length + WORKOUT_TYPES.indexOf(name) : i; };
+  const workoutBreakdownRows = Object.keys(tBreak).filter(t=>tBreak[t] > 0).sort((a,b)=>(tBreak[b]-tBreak[a])||(breakdownOrder(a)-breakdownOrder(b)));
   const selYear = isCurMonth ? CUR_YEAR : (selHistMonth?.year ?? CUR_YEAR);
   const selMonthNum = isCurMonth ? CUR_MONTH : (selHistMonth?.month ?? CUR_MONTH);
   const selDaysInMonth = new Date(selYear, selMonthNum + 1, 0).getDate();
@@ -577,6 +586,7 @@ const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevea
       isSelf: currentUserId ? memberUserId === currentUserId : false,
       monthName: PROFILE_FULL_MONTH_NAMES[selMonthNum] || "",
       target: selSoloTarget,
+      standardPenalty: selIsSolo && isStandardPenaltySoloForMonth(selMonthSource, name, selectedMonthKey),
       onClose: ()=>setOpenStatusNote(null)
     }),
     showRedemptionNote && React.createElement(RedemptionNoteModal,{
@@ -598,9 +608,9 @@ const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevea
         React.createElement('div',{style:{color:"var(--muted)",fontSize:10.5,marginBottom:11}},"Select the workout you want to delete."),
         React.createElement('div',{style:{display:"grid",gap:7}},
           deleteChoices.map((log,index)=>React.createElement('button',{key:log.id,type:"button",onClick:()=>{setDeleteChoices(null);setDeleteTarget(log);},style:{width:"100%",display:"flex",alignItems:"center",gap:9,textAlign:"left",background:"var(--s2)",border:"1px solid var(--border)",borderRadius:9,padding:"9px 10px",color:"var(--text)"}},
-            React.createElement('span',{style:{width:25,height:25,borderRadius:999,display:"inline-flex",alignItems:"center",justifyContent:"center",background:"rgba(78,205,196,.08)",color:"#4ECDC4",flexShrink:0}},React.createElement(WorkoutTypeIcon,{type:log.type,size:15})),
+            React.createElement('span',{style:{width:25,height:25,borderRadius:999,display:"inline-flex",alignItems:"center",justifyContent:"center",background:"rgba(78,205,196,.08)",color:"#4ECDC4",flexShrink:0}},React.createElement(WorkoutTypeIcon,{type:getLogDisplayActivity(log),size:15})),
             React.createElement('span',{style:{display:"grid",gap:2,minWidth:0}},
-              React.createElement('span',{style:{fontSize:12,fontWeight:800}},`${index+1}. ${log.type}`),
+              React.createElement('span',{style:{fontSize:12,fontWeight:800}},`${index+1}. ${getLogDisplayActivity(log)}`),
               log.note && React.createElement('span',{style:{fontSize:10,color:"var(--muted)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},log.note)
             )
           ))
@@ -702,7 +712,7 @@ const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevea
 	          if(!day) return React.createElement('div',{key:`e${i}`});
 	          const isToday=isCurMonth&&day===DAY_OF_MON,dayLogs=logsByDay[day]||[],log=dayLogs[0]||null,isFuture=isCurMonth&&day>DAY_OF_MON;
 	          const canDelete = dayLogs.length > 0 && isCurMonth && !!onDeleteLog;
-	          return React.createElement('div',{key:day, onClick: canDelete ? ()=>dayLogs.length===1?setDeleteTarget(log):setDeleteChoices(dayLogs) : undefined, style:{aspectRatio:"1",display:"flex",alignItems:"center",justifyContent:"center",borderRadius:5,fontSize:log?11:9,fontFamily:log?"inherit":"'JetBrains Mono',monospace",fontWeight:log?700:400,background:log?"#1A2E4A":isToday?"var(--s2)":"transparent",color:log?"#4ECDC4":isFuture?"var(--muted2)":isToday?"var(--text)":"var(--muted)",border:isToday&&!log?"1px solid var(--border2)":"1px solid transparent",cursor:canDelete?"pointer":"default"}},log?React.createElement('span',{style:{position:"relative",width:19,height:19,display:"inline-flex",alignItems:"center",justifyContent:"center"}},React.createElement(WorkoutTypeIcon,{type:log.type,size:15}),dayLogs.length>1&&React.createElement('span',{style:{position:"absolute",right:-5,top:-5,minWidth:12,height:12,padding:"0 2px",borderRadius:999,display:"inline-flex",alignItems:"center",justifyContent:"center",background:"#4ECDC4",border:"1px solid #1A2E4A",color:"#071010",fontFamily:"'Outfit',sans-serif",fontSize:7.5,fontWeight:900,lineHeight:1}},Math.min(dayLogs.length,2))):day);
+	          return React.createElement('div',{key:day, onClick: canDelete ? ()=>dayLogs.length===1?setDeleteTarget(log):setDeleteChoices(dayLogs) : undefined, style:{aspectRatio:"1",display:"flex",alignItems:"center",justifyContent:"center",borderRadius:5,fontSize:log?11:9,fontFamily:log?"inherit":"'JetBrains Mono',monospace",fontWeight:log?700:400,background:log?"#1A2E4A":isToday?"var(--s2)":"transparent",color:log?"#4ECDC4":isFuture?"var(--muted2)":isToday?"var(--text)":"var(--muted)",border:isToday&&!log?"1px solid var(--border2)":"1px solid transparent",cursor:canDelete?"pointer":"default"}},log?React.createElement('span',{style:{position:"relative",width:19,height:19,display:"inline-flex",alignItems:"center",justifyContent:"center"}},React.createElement(WorkoutTypeIcon,{type:getLogDisplayActivity(log),size:15}),dayLogs.length>1&&React.createElement('span',{style:{position:"absolute",right:-5,top:-5,minWidth:12,height:12,padding:"0 2px",borderRadius:999,display:"inline-flex",alignItems:"center",justifyContent:"center",background:"#4ECDC4",border:"1px solid #1A2E4A",color:"#071010",fontFamily:"'Outfit',sans-serif",fontSize:7.5,fontWeight:900,lineHeight:1}},Math.min(dayLogs.length,2))):day);
 	        })
 	      )
 	      )

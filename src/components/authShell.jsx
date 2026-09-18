@@ -7,7 +7,8 @@ import {
   MIN_TARGET,
   avatarColor,
   getCountedLogCount,
-  getCurrentGroupMemberNames
+  getCurrentGroupMemberNames,
+  DISPLAY_NAME_MAX_LENGTH
 } from "../lib/appState.js";
 import {
   getAcceptedWorkoutTypes,
@@ -197,7 +198,7 @@ const InvalidInviteScreen = ({message}) => (
       React.createElement(AnteWordmark,{size:76}),
       React.createElement('div',{style:{display:"grid",gap:9,justifyItems:"center"}},
         React.createElement('h1',{style:{margin:0,fontFamily:"'Raleway', sans-serif",fontSize:34,fontWeight:900,lineHeight:1.02,letterSpacing:0}},"This invite link doesn't work."),
-        React.createElement('p',{style:{margin:0,fontFamily:"'Outfit', sans-serif",fontSize:15,fontWeight:700,lineHeight:1.45,color:"var(--text-soft)",maxWidth:340}},message || "Ask the Bloc admin for a fresh invite link.")
+        React.createElement('p',{style:{margin:0,fontFamily:"'Outfit', sans-serif",fontSize:15,fontWeight:700,lineHeight:1.45,color:"var(--text-soft)",maxWidth:340}},message || "Ask the Bloc Admin for a fresh invite link.")
       )
     )
   )
@@ -286,7 +287,7 @@ const ProfileModal = ({email,onSignOut,onClose,showDisplayName,currentDisplayNam
         : React.createElement(React.Fragment,null,
             onSaveDisplayName && React.createElement('label',{style:{display:"block",marginBottom:12}},
               React.createElement('span',{className:"lbl",style:{marginBottom:6}},"Display name"),
-              React.createElement('input',{value:name,onChange:e=>setName(e.target.value),placeholder:"Your name",style:{width:"100%",background:"var(--s2)",border:"1px solid var(--border)",borderRadius:10,padding:"12px 13px",color:"var(--text)",fontSize:15,outline:"none",boxSizing:"border-box"}})
+              React.createElement('input',{value:name,onChange:e=>setName(e.target.value.slice(0,DISPLAY_NAME_MAX_LENGTH)),maxLength:DISPLAY_NAME_MAX_LENGTH,placeholder:"Your name",style:{width:"100%",background:"var(--s2)",border:"1px solid var(--border)",borderRadius:10,padding:"12px 13px",color:"var(--text)",fontSize:15,outline:"none",boxSizing:"border-box"}})
             ),
             saveError && React.createElement('div',{style:{fontSize:11,color:"var(--red)",marginBottom:8}},saveError),
             onSaveDisplayName && React.createElement('button',{disabled:!name.trim()||saving||name.trim()===currentDisplayName,onClick:()=>onSaveDisplayName(name.trim()),style:{width:"100%",background:name.trim()&&name.trim()!==currentDisplayName&&!saving?"var(--green)":"var(--s3)",color:name.trim()&&name.trim()!==currentDisplayName&&!saving?"#000":"var(--muted2)",padding:"12px",borderRadius:10,fontSize:14,fontWeight:800,border:"none",marginBottom:14,cursor:"pointer"}},saving?"Saving...":"Save name"),
@@ -381,7 +382,7 @@ const AuthFlowModal = ({step,mode="signin",intent="",email,setEmail,code,setCode
     ),
     step==="name" && React.createElement('label',{style:{display:"block",marginBottom:18}},
       React.createElement('span',{className:"lbl"},"Display name"),
-      React.createElement('input',{value:displayName,onChange:e=>setDisplayName(e.target.value),placeholder:"Your name",style:{width:"100%",background:"var(--s2)",border:"1px solid var(--border)",borderRadius:10,padding:"12px 13px",color:"var(--text)",fontSize:15,outline:"none"}})
+      React.createElement('input',{value:displayName,onChange:e=>setDisplayName(e.target.value.slice(0,DISPLAY_NAME_MAX_LENGTH)),maxLength:DISPLAY_NAME_MAX_LENGTH,placeholder:"Your name",style:{width:"100%",background:"var(--s2)",border:"1px solid var(--border)",borderRadius:10,padding:"12px 13px",color:"var(--text)",fontSize:15,outline:"none"}})
     ),
     resendCooldown > 0 && React.createElement('div',{style:{fontSize:12,color:"var(--text-soft)",marginBottom:16,lineHeight:1.5}},
       "Too many code requests. You can ask for another in ",
@@ -450,7 +451,7 @@ const DisplayNameSetupScreen = ({displayName,setDisplayName,onSave,saving,error}
           React.createElement('span',null,photoBusy ? "Loading Photo..." : (profilePhotoDataUrl ? "Change Photo" : "Add Photo"))
         ),
         photoError && React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontSize:11,fontWeight:700,color:"var(--red)",lineHeight:1.35,textAlign:"center",whiteSpace:"pre-wrap"}},photoError),
-        React.createElement('input',{value:displayName,onChange:event=>setDisplayName(event.target.value),placeholder:"Display name",autoFocus:true,style:{width:"100%",boxSizing:"border-box",height:52,borderRadius:14,background:"rgba(18,27,34,.98)",border:"0.5px solid rgba(78,205,196,.28)",boxShadow:"inset 0 1px 0 rgba(255,255,255,.06)",color:"var(--text)",fontFamily:"'Outfit', sans-serif",fontSize:16,fontWeight:800,outline:"none",padding:"0 14px"}}),
+        React.createElement('input',{value:displayName,onChange:event=>setDisplayName(event.target.value.slice(0,DISPLAY_NAME_MAX_LENGTH)),maxLength:DISPLAY_NAME_MAX_LENGTH,placeholder:"Display name",autoFocus:true,style:{width:"100%",boxSizing:"border-box",height:52,borderRadius:14,background:"rgba(18,27,34,.98)",border:"0.5px solid rgba(78,205,196,.28)",boxShadow:"inset 0 1px 0 rgba(255,255,255,.06)",color:"var(--text)",fontFamily:"'Outfit', sans-serif",fontSize:16,fontWeight:800,outline:"none",padding:"0 14px"}}),
         error && React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontSize:12,fontWeight:700,color:"var(--red)",lineHeight:1.4,textAlign:"left",whiteSpace:"pre-wrap"}},error),
         React.createElement('button',{type:"button",className:"setup-press",disabled:!displayName.trim()||saving,onClick:()=>onSave?.({profilePhotoDataUrl}),style:{minHeight:50,borderRadius:14,background:displayName.trim()&&!saving?"#4ECDC4":"var(--s3)",color:displayName.trim()&&!saving?"#050909":"var(--muted2)",fontFamily:"'Outfit', sans-serif",fontSize:15,fontWeight:900}},
           saving ? "Saving..." : "Continue"

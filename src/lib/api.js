@@ -381,6 +381,17 @@ async function fetchData() {
   } catch(e){ console.error("Fetch error:", e); return null; }
 }
 
+// The deploy the server last reported on the revision poll ("" if unknown).
+let latestServerBuild = "";
+
+function recordServerBuild(body) {
+  if (typeof body?.build === "string") latestServerBuild = body.build.trim();
+}
+
+function getLatestServerBuild() {
+  return latestServerBuild;
+}
+
 async function fetchRevision() {
   try {
     const session = await getCurrentAuthSession();
@@ -410,6 +421,7 @@ async function fetchRevision() {
           return null;
         }
         const retryBody = await retryRes.json();
+        recordServerBuild(retryBody);
         return Number.isFinite(Number(retryBody?.revision)) ? Number(retryBody.revision) : null;
       }
       await signOutAuthSession().catch(()=>{});
@@ -417,6 +429,7 @@ async function fetchRevision() {
     }
     if(!res.ok){ console.error("Revision fetch failed:", res.status, await res.text()); return null; }
     const body = await res.json();
+    recordServerBuild(body);
     return Number.isFinite(Number(body?.revision)) ? Number(body.revision) : null;
   } catch(e){ console.error("Revision fetch error:", e); return null; }
 }
@@ -482,6 +495,13 @@ async function saveSeasonProrationChoice(payload) {
 async function requestSitOutData(payload) {
   const result = await postApi("sitout-request", payload);
   if (!result.ok) return { ok:false, error: result.error || "Unable to request sit-out" };
+  return { ok:true, data: normalizeAppState(result.body) };
+}
+
+async function cancelRequestData(payload) {
+  const action = payload?.kind === "solo" ? "solo-cancel" : "sitout-cancel";
+  const result = await postApi(action, payload);
+  if (!result.ok) return { ok:false, error: result.error || "Unable to cancel that request" };
   return { ok:true, data: normalizeAppState(result.body) };
 }
 
@@ -1014,6 +1034,7 @@ export {
   trackUsageEvent,
   fetchData,
   fetchRevision,
+  getLatestServerBuild,
   addLogData,
   claimSettlementConfirmationData,
   confirmSettlementConfirmationData,
@@ -1023,6 +1044,7 @@ export {
   saveSeasonProrationChoice,
   requestSitOutData,
   reviewSitOutData,
+  cancelRequestData,
   requestSoloData,
   reviewSoloData,
   setTrainingChoiceData,

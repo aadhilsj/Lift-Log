@@ -5,6 +5,8 @@ const isNativeShell = Capacitor.isNativePlatform();
 import {
   MIN_TARGET,
   curKey,
+  normalizeSitOutRequests,
+  normalizeSoloRequests,
   INSTALL_DISMISSED_KEY,
   LOCAL_GROUP_KEY,
   LOCAL_DEV_IMPERSONATION_KEY,
@@ -43,6 +45,7 @@ import {
   syncAuthSessionData,
   fetchData,
   fetchRevision,
+  getLatestServerBuild,
   setProfileStatsRevision,
   invalidateProfileStatsFor,
   addLogData,
@@ -54,6 +57,7 @@ import {
   saveSeasonProrationChoice,
   requestSitOutData,
   reviewSitOutData,
+  cancelRequestData,
   requestSoloData,
   reviewSoloData,
   setTrainingChoiceData,
@@ -172,6 +176,48 @@ const describeOtpSendFailure = (result, intentType) => {
 
 // The daily cap is the one save failure a member can act on, and blaming their
 // connection for it sends them retrying something that will never go through.
+// ── new-version reload ──────────────────────────────────────────────────────────
+// A phone left open keeps running the bundle it loaded. The revision poll reports
+// which deploy the server is on; when it differs from this bundle's, reload once so
+// the phone picks up the new version. A reload loop would be far worse than stale
+// code, so every guard below errs towards not reloading.
+const BUILD_RELOAD_SESSION_KEY = "fero-build-reload-attempted";
+const BUILD_RELOAD_IDLE_MS = 20000;
+
+// Anything typed or picked on screen (a log form, a note, a settings field) that a
+// reload would throw away.
+const hasFilledFormField = () => {
+  const skipTypes = new Set(["hidden", "checkbox", "radio", "range", "button", "submit", "reset", "color"]);
+  for (const el of document.querySelectorAll("input, textarea, [contenteditable='true']")) {
+    if (el.isContentEditable) {
+      if (el.textContent.trim()) return true;
+      continue;
+    }
+    if (el.tagName === "INPUT" && skipTypes.has(el.type)) continue;
+    if (el.type === "file" ? el.files?.length : String(el.value || "").trim()) return true;
+  }
+  return false;
+};
+
+const reloadIfNewBuild = ({ busy, lastInteractionAt }) => {
+  const runningBuild = import.meta.env.FERO_BUILD_ID || "";
+  const serverBuild = getLatestServerBuild();
+  if (!runningBuild || !serverBuild || runningBuild === serverBuild) return;
+  if (isLocalDevEnvironment()) return;
+  if (busy || document.visibilityState !== "visible") return;
+  if (Date.now() - lastInteractionAt < BUILD_RELOAD_IDLE_MS) return;
+  if (hasFilledFormField()) return;
+  // Once per session, hard limit. If the flag cannot be stored, never reload.
+  try {
+    if (sessionStorage.getItem(BUILD_RELOAD_SESSION_KEY)) return;
+    sessionStorage.setItem(BUILD_RELOAD_SESSION_KEY, serverBuild);
+    if (sessionStorage.getItem(BUILD_RELOAD_SESSION_KEY) !== serverBuild) return;
+  } catch {
+    return;
+  }
+  window.location.reload();
+};
+
 const getWorkoutSaveFailureMessage = (error) => (
   /already logged 2 workouts/i.test(String(error || ""))
     ? "You've already logged 2 workouts for this day."
@@ -399,6 +445,8 @@ const App = () => {
   const latestRevisionRef = useRef(getRevision(cached));
   const justSyncedTimerRef = useRef(null);
   const optimisticMutationRef = useRef(null);
+  const savingRef = useRef(false);
+  const lastInteractionAtRef = useRef(0);
   const logMutationQueueRef = useRef(Promise.resolve());
   const reactionMutationQueuesRef = useRef({});
   const inviteDownloadPromptTimerRef = useRef(null);
@@ -579,6 +627,12 @@ const App = () => {
   const currentMembership = currentGroup ? getMembershipForUser(currentGroup, effectiveAuthSession, effectiveProfile) : null;
   const currentUser = currentMembership?.displayName || null;
   const isGroupAdmin = currentGroup ? (currentGroup.adminUserId ? currentGroup.adminUserId === effectiveAuthSession?.userId : currentGroup.adminName === currentUser) : false;
+  // A dot on the settings icon is the only way an admin learns a request is
+  // waiting: nothing else on the in-Bloc screens mentions one.
+  const pendingRequestCount = isGroupAdmin && currentGroup
+    ? Object.values(normalizeSitOutRequests(currentGroup.sitOutRequests)?.[curKey] || {}).filter(request => request.status === "pending").length
+      + Object.values(normalizeSoloRequests(currentGroup.soloRequests)?.[curKey] || {}).filter(request => request.status === "pending").length
+    : 0;
   const prorationGroup = pendingProrationGroupId ? appState.groups?.[pendingProrationGroupId] || null : null;
 
   // The joiner's one-time question. Only in a Bloc that has already closed a
@@ -870,6 +924,15 @@ const App = () => {
     };
   }, [authSession?.userId, currentGroup?.id, currentGroup?.settlementConfirmationsEnabled, refreshNow]);
 
+  useEffect(()=>{ savingRef.current = saving; },[saving]);
+
+  useEffect(()=>{
+    const markInteraction = () => { lastInteractionAtRef.current = Date.now(); };
+    const events = ["pointerdown", "keydown", "touchstart", "scroll"];
+    events.forEach(name => window.addEventListener(name, markInteraction, { capture:true, passive:true }));
+    return () => events.forEach(name => window.removeEventListener(name, markInteraction, { capture:true }));
+  },[]);
+
   useEffect(()=>{
     const cachedData = readCachedData();
     if(cachedData){
@@ -885,6 +948,10 @@ const App = () => {
           setSyncError(true);
           return;
         }
+        reloadIfNewBuild({
+          busy: savingRef.current || !!optimisticMutationRef.current,
+          lastInteractionAt: lastInteractionAtRef.current
+        });
         // Any mutation anywhere bumps the revision, so re-keying the profile
         // stats cache on it drops every stale entry without a hand-maintained
         // list of what invalidates what.
@@ -1034,7 +1101,7 @@ const App = () => {
     } catch {}
   },[]);
 
-  const handleSave=useCallback(async({ workoutType, isoDate, note, photoUrl })=>{
+  const handleSave=useCallback(async({ workoutType, activity, isoDate, note, photoUrl })=>{
     if(!selectedGroupId || !currentGroup || !currentUser) return;
     // Drop your own cached stats immediately rather than waiting for the next
     // revision poll, so your profile reflects the workout you just logged.
@@ -1043,6 +1110,7 @@ const App = () => {
       id:`opt-${Date.now()}`,
       date:isoDate,
       type:workoutType,
+      ...(activity ? { activity } : {}),
       note:note||"",
       photoUrl:photoUrl||"",
       createdAt:new Date().toISOString(),
@@ -1076,6 +1144,7 @@ const App = () => {
         actor: currentUser,
         actorUserId: authSession?.userId,
         workoutType,
+        activity,
         date: isoDate,
         note,
         photoUrl
@@ -1102,12 +1171,12 @@ const App = () => {
     setSaving(false);
   },[addLogData, applyData, authSession?.userId, beginOptimisticMutation, buildOptimisticState, clearOptimisticMutation, currentGroup, currentUser, refreshNow, selectedGroupId]);
 
-  const handleMultiLog = useCallback(async({ workoutType, isoDate, targetGroupIds, note, photoUrl }) => {
+  const handleMultiLog = useCallback(async({ workoutType, activity, isoDate, targetGroupIds, note, photoUrl }) => {
     invalidateProfileStatsFor(effectiveAuthSession?.userId);
     if(!selectedGroupId || !currentUser) return { ok:false, error:"No Bloc selected" };
     // Optimistic update: add log to UI immediately so the screen responds instantly.
     if(currentGroup) {
-      const optimisticLog = { id:`opt-${Date.now()}`, date:isoDate, type:workoutType, note:note||"", photoUrl:photoUrl||"", createdAt:new Date().toISOString(), verifiedVia:"manual", reactions:{} };
+      const optimisticLog = { id:`opt-${Date.now()}`, date:isoDate, type:workoutType, ...(activity ? { activity } : {}), note:note||"", photoUrl:photoUrl||"", createdAt:new Date().toISOString(), verifiedVia:"manual", reactions:{} };
       const userLogs = Array.isArray(currentGroup.logs?.[currentUser]) ? currentGroup.logs[currentUser] : [];
       beginOptimisticMutation();
       applyData(buildOptimisticState({ groupId:selectedGroupId, group:{ ...currentGroup, logs:{ ...currentGroup.logs, [currentUser]:[...userLogs, optimisticLog] } } }), { optimistic:true });
@@ -1119,6 +1188,7 @@ const App = () => {
         actorUserId: authSession?.userId,
         sourceGroupId: selectedGroupId,
         workoutType,
+        activity,
         date: isoDate,
         note,
         photoUrl,
@@ -1443,6 +1513,29 @@ const App = () => {
         memberName: payload.memberName,
         monthKey: payload.monthKey,
         decision: payload.decision
+      });
+      if (result?.ok && result.data) {
+        const applied = applyData(result.data);
+        if (applied) {
+          setLastSyncedAt(new Date());
+          setSyncError(false);
+        }
+      }
+      return result;
+    } finally {
+      setSaving(false);
+    }
+  },[selectedGroupId,currentUser,authSession,applyData]);
+
+  const handleCancelRequest = useCallback(async(payload)=>{
+    if (!selectedGroupId || !currentUser) return { ok:false, error:"No Bloc selected" };
+    setSaving(true);
+    try {
+      const result = await cancelRequestData({
+        kind: payload?.kind,
+        groupId: selectedGroupId,
+        actor: currentUser,
+        actorUserId: authSession?.userId
       });
       if (result?.ok && result.data) {
         const applied = applyData(result.data);
@@ -3040,7 +3133,7 @@ const App = () => {
   if(inviteContextLoading && !inviteContext) return React.createElement(Spinner,{label:"Loading invite..."});
   if(!authStep && urlInviteCode && inviteError && !inviteContext) {
     return React.createElement(InvalidInviteScreen,{
-      message:inviteError || "Ask the Bloc admin for a fresh invite link."
+      message:inviteError || "Ask the Bloc Admin for a fresh invite link."
     });
   }
   if(authStep === "name") {
@@ -3176,7 +3269,7 @@ const App = () => {
     style:{paddingBottom:isMobileView?"calc(108px + env(safe-area-inset-bottom))":0}
   },
     pageName==="today"  &&React.createElement(TodayPageErrorBoundary,{resetKey:`${selectedGroupId}:${navResetToken}:${currentUser}`},
-      React.createElement(TodayPage,  {user:currentUser,currentUserId:effectiveAuthSession?.userId,currentGroupId:selectedGroupId,groups,profiles:appState?.profiles||{},accountCreatedAt:profile?.createdAt,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,saving,onSave:handleSave,onMultiLog:handleMultiLog,onLogMutation:handleLogMutation,clockTick,onViewLastMonth:()=>{setMonthInitialIdx(0);setPage("month");},onSitOutRequest:handleSitOutRequest,onSoloRequest:handleSoloRequest,onSettlementClaimPaid:handleSettlementClaimPaid,onSettlementConfirmPaid:handleSettlementConfirmPaid,onSettlementDisputePaid:handleSettlementDisputePaid,onOpenSetupReview:()=>setShowSettings(true),onOpenAccount:()=>setShowProfile(true),navResetToken,showLog:showTodayLog,setShowLog:setShowTodayLog,onTrackUsage:trackUsage,currentPaymentMethods:effectiveProfile?.paymentMethods||[],onSavePayment:handleSavePaymentHandle,savingPayment:paymentSaving,paymentError:paymentError})
+      React.createElement(TodayPage,  {user:currentUser,currentUserId:effectiveAuthSession?.userId,currentGroupId:selectedGroupId,groups,profiles:appState?.profiles||{},accountCreatedAt:profile?.createdAt,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,saving,onSave:handleSave,onMultiLog:handleMultiLog,onLogMutation:handleLogMutation,clockTick,onViewLastMonth:()=>{setMonthInitialIdx(0);setPage("month");},onSettlementClaimPaid:handleSettlementClaimPaid,onSettlementConfirmPaid:handleSettlementConfirmPaid,onSettlementDisputePaid:handleSettlementDisputePaid,onOpenSetupReview:()=>setShowSettings(true),onOpenAccount:()=>setShowProfile(true),navResetToken,showLog:showTodayLog,setShowLog:setShowTodayLog,onTrackUsage:trackUsage,currentPaymentMethods:effectiveProfile?.paymentMethods||[],onSavePayment:handleSavePaymentHandle,savingPayment:paymentSaving,paymentError:paymentError})
     ),
     pageName==="activity"&&React.createElement(InBlocPageErrorBoundary,{pageLabel:"Activity",resetKey:`${selectedGroupId}:${navResetToken}:${currentUser}`},
       React.createElement(ActivityPage,{group:currentGroup,currentUser,currentUserId:effectiveAuthSession?.userId,onLogMutation:handleLogMutation,clockTick,reactionOverrides,setReactionOverrides,commentCountOverrides:logCommentCountOverrides,onCommentCountsLoaded:setLogCommentCountOverrides,onOpenLogComments:handleOpenLogComments,onTrackUsage:trackUsage})
@@ -3285,12 +3378,12 @@ const App = () => {
       touchAction:"pan-y"
     }
   },
-    React.createElement(Nav,{page,setPage:handleNavSelect,user:currentUser,currentUserId:effectiveAuthSession?.userId||"",profilePhotoUrl:effectiveProfile?.profilePhotoUrl||"",groupName:currentGroup.name,canEditGroup:isGroupAdmin,onOpenSettings:()=>{trackUsage("settings_opened");setShowSettings(true)},onOpenStream:handleOpenStream,streamUnreadCount,onSwitchUser:handleSwitchUser,onSwitchGroup:handleSwitchGroup,onOpenLog:()=>{setPage("today");setShowTodayLog(true);},syncing,lastSyncedAt,syncError,onRefresh:refreshNow,showJustSynced,activityAlertCount,hideMobileBottomNav:true}),
+    React.createElement(Nav,{page,setPage:handleNavSelect,user:currentUser,currentUserId:effectiveAuthSession?.userId||"",profilePhotoUrl:effectiveProfile?.profilePhotoUrl||"",groupName:currentGroup.name,canEditGroup:isGroupAdmin,settingsAlert:pendingRequestCount>0,onOpenSettings:()=>{trackUsage("settings_opened");setShowSettings(true)},onOpenStream:handleOpenStream,streamUnreadCount,onSwitchUser:handleSwitchUser,onSwitchGroup:handleSwitchGroup,onOpenLog:()=>{setPage("today");setShowTodayLog(true);},syncing,lastSyncedAt,syncError,onRefresh:refreshNow,showJustSynced,activityAlertCount,hideMobileBottomNav:true}),
     localDevMode && React.createElement(LocalDevImpersonationBar,{options:devImpersonationOptions,value:effectiveAuthSession?.devImpersonationActive?effectiveAuthSession.userId:"",onChange:handleSelectDevImpersonation}),
     React.createElement('div',{style:{position:"relative",overflow:"hidden",height:inBlocViewportHeight,minHeight:0}},
       showSettings && React.createElement('div',{style:{position:"absolute",inset:"0 0 auto 0",zIndex:1,pointerEvents:"none"}},renderInBlocPage(page,{swipePreview:true})),
       showSettings
-        ? React.createElement(BlocSettingsScreen,{group:currentGroup,actor:currentUser,actorUserId:authSession?.userId,isAdmin:isGroupAdmin,onSave:handleUpdateGroupSettings,onClose:()=>setShowSettings(false),saving:savingSettings,onReviewSetup:isGroupAdmin?handleReviewSetupDefaults:null,onReviewSitOut:isGroupAdmin?handleSitOutReview:null,onReviewSolo:isGroupAdmin?handleSoloReview:null,onKickMember:isGroupAdmin?handleKickMember:null,onLeaveBloc:handleLeaveBloc,localDevMode})
+        ? React.createElement(BlocSettingsScreen,{group:currentGroup,actor:currentUser,actorUserId:authSession?.userId,isAdmin:isGroupAdmin,onSave:handleUpdateGroupSettings,onClose:()=>setShowSettings(false),saving:savingSettings,onReviewSetup:isGroupAdmin?handleReviewSetupDefaults:null,onReviewSitOut:isGroupAdmin?handleSitOutReview:null,onReviewSolo:isGroupAdmin?handleSoloReview:null,onKickMember:isGroupAdmin?handleKickMember:null,onLeaveBloc:handleLeaveBloc,onSitOutRequest:handleSitOutRequest,onSoloRequest:handleSoloRequest,onCancelRequest:handleCancelRequest,localDevMode})
         : activePageLayer
     ),
     showInstallBanner && React.createElement(InstallBanner,{
@@ -3323,7 +3416,7 @@ const App = () => {
     }),
     page==="today"&&(blocDragging||Math.abs(Number(blocDragXRef.current)||0)>0)&&renderGroupSwitcherSurface({ inert:true, suppressIntro:true }),
     activeBlocSurface,
-    !showSettings && React.createElement(Nav,{onlyMobileBottomNav:true,page,setPage:handleNavSelect,user:currentUser,currentUserId:effectiveAuthSession?.userId||"",profilePhotoUrl:effectiveProfile?.profilePhotoUrl||"",groupName:currentGroup.name,canEditGroup:isGroupAdmin,onOpenSettings:()=>{trackUsage("settings_opened");setShowSettings(true)},onOpenStream:handleOpenStream,streamUnreadCount,onSwitchUser:handleSwitchUser,onSwitchGroup:handleSwitchGroup,onOpenLog:()=>{setPage("today");setShowTodayLog(true);},syncing,lastSyncedAt,syncError,onRefresh:refreshNow,showJustSynced,activityAlertCount,mobileBottomDragX:blocDragXRef.current,mobileBottomNavRef:blocBottomNavRef,mobileBottomDragging:blocDragging}),
+    !showSettings && React.createElement(Nav,{onlyMobileBottomNav:true,page,setPage:handleNavSelect,user:currentUser,currentUserId:effectiveAuthSession?.userId||"",profilePhotoUrl:effectiveProfile?.profilePhotoUrl||"",groupName:currentGroup.name,canEditGroup:isGroupAdmin,settingsAlert:pendingRequestCount>0,onOpenSettings:()=>{trackUsage("settings_opened");setShowSettings(true)},onOpenStream:handleOpenStream,streamUnreadCount,onSwitchUser:handleSwitchUser,onSwitchGroup:handleSwitchGroup,onOpenLog:()=>{setPage("today");setShowTodayLog(true);},syncing,lastSyncedAt,syncError,onRefresh:refreshNow,showJustSynced,activityAlertCount,mobileBottomDragX:blocDragXRef.current,mobileBottomNavRef:blocBottomNavRef,mobileBottomDragging:blocDragging}),
     renderInviteJoinToast(),
     renderProfilePhotoToast(),
     renderInviteDownloadPrompt(),

@@ -1,6 +1,7 @@
 import React from "react";
 const { useEffect, useMemo, useRef, useState } = React;
 import { Avatar, AppIcon, WorkoutTypeIcon } from "./primitives.jsx";
+import { getLogDisplayActivity } from "../lib/activities.js";
 import { ReactionChip } from "./ReactionRoster.jsx";
 import {
   createLogCommentData,
@@ -100,7 +101,7 @@ function LogThumb({ log }) {
     },
       React.createElement('img', {
         src: displayPhotoUrl,
-        alt: `${log.owner || "Member"} ${log.type || "workout"}`,
+        alt: `${log.owner || "Member"} ${getLogDisplayActivity(log)}`,
         onError: () => setImageExpired(true),
         style: { width: "100%", height: "100%", objectFit: "contain", display: "block" }
       })
@@ -108,7 +109,7 @@ function LogThumb({ log }) {
   }
   return React.createElement('div', {
     style: { height: 116, borderRadius: 12, background: "#0D1F1E", border: "0.5px solid #163d36", display: "flex", alignItems: "center", justifyContent: "center", color: "#4ECDC4", flexShrink: 0 }
-  }, React.createElement(WorkoutTypeIcon, { type: log?.type, size: 36 }));
+  }, React.createElement(WorkoutTypeIcon, { type: getLogDisplayActivity(log), size: 36 }));
 }
 
 function LogHeader({ log }) {
@@ -123,8 +124,8 @@ function LogHeader({ log }) {
       ),
       React.createElement('div', { style: { display: "flex", alignItems: "center", gap: 6, color: "var(--muted)", fontSize: 10.5, minWidth: 0, flexShrink: 0 } },
         React.createElement('span', { style: { display: "inline-flex", alignItems: "center", gap: 4, minWidth: 0 } },
-          React.createElement('span', { style: { color: "#4ECDC4", display: "inline-flex" } }, React.createElement(WorkoutTypeIcon, { type: log?.type, size: 11 })),
-          React.createElement('span', { style: { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 80 } }, log?.type || "Workout")
+          React.createElement('span', { style: { color: "#4ECDC4", display: "inline-flex" } }, React.createElement(WorkoutTypeIcon, { type: getLogDisplayActivity(log), size: 11 })),
+          React.createElement('span', { style: { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 96 } }, getLogDisplayActivity(log))
         ),
         React.createElement('span', { className: "mono", style: { fontSize: 8.5, color: "var(--muted2)", flexShrink: 0 } }, formatShortDate(log?.date || log?.workoutDate || ""))
       )
@@ -161,6 +162,7 @@ function LogCommentThread({ groupId, log, currentUserId, currentUserName, onClos
     id: logId,
     owner: log?.owner || log?.ownerDisplayName || "Member",
     type: log?.type || log?.workoutType || "Workout",
+    activity: log?.activity || "",
     date: log?.date || log?.workoutDate || "",
     photoUrl: log?.photoUrl || ""
   }), [log, logId]);
