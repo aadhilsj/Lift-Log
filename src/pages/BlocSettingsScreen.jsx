@@ -338,7 +338,7 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
           )
         ),
         React.createElement(ReadOnlyField,{title:"Time Zone",value:readonlySettings.timeZone || DEFAULT_GROUP_TIME_ZONE}),
-        React.createElement('div',{style:{fontSize:11,color:"var(--muted)",lineHeight:1.5,marginTop:14}},"Only the Bloc admin can edit these.")
+        React.createElement('div',{style:{fontSize:11,color:"var(--muted)",lineHeight:1.5,marginTop:14}},"Only the Bloc Admin can edit these.")
       );
     }
     const miniWorkoutTypeSelector = React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(5, minmax(0, 1fr))",gap:7,alignItems:"stretch",width:"100%"}},
@@ -569,7 +569,7 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
       React.createElement('div',{style:{fontSize:13,fontWeight:800,color:"#f5f7ff"}},title),
       React.createElement('div',{style:{fontSize:11,color:"var(--muted)",lineHeight:1.35}},description)
     ),
-    React.createElement('button',{
+    actionLabel && React.createElement('button',{
       type:"button",
       className:"setup-press",
       disabled:!!busy,
@@ -603,14 +603,16 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
             busy:!!cancelling,
             onAction:()=>cancelRequest("solo")
           })
-        : statusCard({
-            accent:true,
-            title:"Solo",
-            description:"A lighter target for a heavy month.",
-            actionLabel:"Go Solo",
-            busy:!soloMode,
-            onAction:()=>{ if(!soloMode) return; setSoloError(""); setShowSolo(true); }
-          }),
+        : isExcused
+          ? statusCard({title:"Solo",description:"Not available while you're sitting out."})
+          : statusCard({
+              accent:true,
+              title:"Solo",
+              description:"A lighter target for a heavy month.",
+              actionLabel:"Go Solo",
+              busy:!soloMode,
+              onAction:()=>{ if(!soloMode) return; setSoloError(""); setShowSolo(true); }
+            }),
 
     isExcused
       ? statusCard({title:`Sitting out ${monthName}`,description:"You're out of this month."})
@@ -622,7 +624,9 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
             busy:!!cancelling,
             onAction:()=>cancelRequest("sitout")
           })
-        : statusCard({
+        : isSolo
+          ? statusCard({title:"Sit out",description:"Not available while you're Solo."})
+          : statusCard({
             title:"Sit out",
             description:`Take ${monthName} off entirely.`,
             actionLabel:mySitOutRequest?.status==="declined" ? "Request again" : "Sit out",
