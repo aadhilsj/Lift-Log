@@ -3127,7 +3127,7 @@ const App = () => {
   if(inviteContextLoading && !inviteContext) return React.createElement(Spinner,{label:"Loading invite..."});
   if(!authStep && urlInviteCode && inviteError && !inviteContext) {
     return React.createElement(InvalidInviteScreen,{
-      message:inviteError || "Ask the Bloc admin for a fresh invite link."
+      message:inviteError || "Ask the Bloc Admin for a fresh invite link."
     });
   }
   if(authStep === "name") {

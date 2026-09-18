@@ -1038,13 +1038,13 @@ const SoloModal = ({mode,monthName,minimumTarget,maximumTarget,defaultTarget,onC
   const config = mode === "exceptional"
     ? {
         title:`Request Solo for ${monthName}?`,
-        body:["Solo is meant to be used only once every three months.","If you want to go Solo again, your request will be sent to the Bloc admin for approval."],
+        body:["Solo is meant to be used only once every three months.","If you want to go Solo again, your request will be sent to the Bloc Admin for approval."],
         cta:"Send request"
       }
     : mode === "late"
     ? {
         title:`Request Solo for ${monthName}?`,
-        body:["After day 10, Solo needs the Bloc admin's approval.","Your request will be sent to the Bloc admin."],
+        body:["After day 10, Solo needs the Bloc Admin's approval.","Your request will be sent to the Bloc Admin."],
         cta:"Send request"
       }
     : {

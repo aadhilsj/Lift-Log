@@ -198,7 +198,7 @@ const InvalidInviteScreen = ({message}) => (
       React.createElement(AnteWordmark,{size:76}),
       React.createElement('div',{style:{display:"grid",gap:9,justifyItems:"center"}},
         React.createElement('h1',{style:{margin:0,fontFamily:"'Raleway', sans-serif",fontSize:34,fontWeight:900,lineHeight:1.02,letterSpacing:0}},"This invite link doesn't work."),
-        React.createElement('p',{style:{margin:0,fontFamily:"'Outfit', sans-serif",fontSize:15,fontWeight:700,lineHeight:1.45,color:"var(--text-soft)",maxWidth:340}},message || "Ask the Bloc admin for a fresh invite link.")
+        React.createElement('p',{style:{margin:0,fontFamily:"'Outfit', sans-serif",fontSize:15,fontWeight:700,lineHeight:1.45,color:"var(--text-soft)",maxWidth:340}},message || "Ask the Bloc Admin for a fresh invite link.")
       )
     )
   )
