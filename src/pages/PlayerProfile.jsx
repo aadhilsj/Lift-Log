@@ -47,7 +47,6 @@ import {
   releaseSwipeForward
 } from "../lib/swipeRelease.js";
 
-const PLAYER_PROFILE_PREMIUM_GATE = false; // Built now; flip to true when premium gating is wired.
 const FULL_MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 const profileMonthLabel = month => month ? `${FULL_MONTH_NAMES[month.month] || MONTH_NAMES[month.month]} ${month.year}` : "—";
 const profileMonthOptionLabel = month => month ? `${MONTH_NAMES[month.month]} '${String(month.year).slice(2)}` : "—";
@@ -530,11 +529,7 @@ const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevea
   });
   const sparkPoints = sparkCoords.map(p=>`${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
   const selectedSparkMonth = sparkMonths.find(m=>m.key===sparkDetailKey);
-  const premiumSection = !PLAYER_PROFILE_PREMIUM_GATE && isJoinedThisMonth&&!isExcusedThisMonth && React.createElement(React.Fragment,null,
-    React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"center",gap:6,marginTop:2}},
-      React.createElement(AppIcon,{name:"sparkles",size:12,stroke:"#EF9F27"}),
-      React.createElement('span',{style:{fontFamily:"'Outfit',sans-serif",fontSize:9.5,color:"#EF9F27",letterSpacing:".1em",textTransform:"uppercase",fontWeight:700}},"Premium · This Bloc")
-    ),
+  const profileInsightsSection = isJoinedThisMonth&&!isExcusedThisMonth && React.createElement(React.Fragment,null,
     React.createElement('div',{className:"fu2",style:{display:"grid",gridTemplateColumns:compactMobile?"1fr":"repeat(2,1fr)",gap:8}},
       React.createElement(Card,{style:{padding:"13px 12px",textAlign:"center"}},
         React.createElement('span',{style:{...labelStyle,fontSize:9,display:"block",textAlign:"center",marginBottom:8}},"Best Month"),
@@ -725,7 +720,7 @@ const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevea
 	            React.createElement('span',{className:"mono",style:{fontSize:13,fontWeight:700,minWidth:18,textAlign:"right",color:tBreak[t]>0?"var(--text)":"var(--muted2)"}},tBreak[t])
 	          ))
 	    ),
-	    premiumSection
+	    profileInsightsSection
 	      )
 	  ));
 };

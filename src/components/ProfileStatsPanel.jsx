@@ -226,13 +226,6 @@ const ProfileStatsPanel = ({ groups = [], userId, ownerName = "", accountCreated
     // Per-Bloc settlement figures remain on the settlement and month screens,
     // where the currency and context are unambiguous.
 
-    // ── Premium block (PROFILE_PREMIUM_GATE) — all built & visible now ─────────
-    React.createElement('div', { style: { display: "flex", alignItems: "center", gap: 8, marginTop: 4 } },
-      React.createElement('div', { style: { height: 1, flex: 1, background: "rgba(245,166,35,.18)" } }),
-      React.createElement('span', { style: { fontSize: 9.5, fontWeight: MED, color: "#F5A623", textTransform: "uppercase", letterSpacing: ".12em" } }, "Premium"),
-      React.createElement('div', { style: { height: 1, flex: 1, background: "rgba(245,166,35,.18)" } })
-    ),
-
     // Heatmap card
     React.createElement(Card, { style: { padding: "12px 13px" } },
       React.createElement('div', { style: { display: "grid", justifyItems: "center", gap: 3, marginBottom: dayDetail ? 6 : 10 } },
@@ -275,7 +268,7 @@ const ProfileStatsPanel = ({ groups = [], userId, ownerName = "", accountCreated
           )
     ),
 
-    // Hit rate — premium visual
+    // Hit-rate visual
     React.createElement(Card, { style: { padding: "9px 12px" } },
       React.createElement('div', { style: { display: "flex", alignItems: "center", justifyContent: "center", gap: 10 } },
         React.createElement('div', { style: { position: "relative", width: 46, height: 46, flexShrink: 0 } },

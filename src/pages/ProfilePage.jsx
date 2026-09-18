@@ -11,11 +11,6 @@ import {
   releaseSwipeForward
 } from "../lib/swipeRelease.js";
 
-// Premium block (everything under the "Premium" divider). Built fully
-// & shown to everyone now. Flip this to add the paywall later without a rebuild —
-// the single switch point, mirroring the History screen.
-const PROFILE_PREMIUM_GATE = false; // eslint-disable-line no-unused-vars
-
 const isoOf = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
 // Brand font system: inherited sans-serif, two weights only — 400 and 500.
 const REG = 400, MED = 500;
