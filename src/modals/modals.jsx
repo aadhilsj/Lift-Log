@@ -1001,12 +1001,12 @@ const SitOutModal = ({mode,monthName,onClose,onSubmit,submitting,error}) => {
     : mode === "exceptional"
       ? {
           title:"You've already sat out recently.",
-          body:[`Your next sit-out is available in ${monthName}.`,"If you have exceptional circumstances, you can send a request to the bloc admin."],
+          body:[`Your next sit-out is available in ${monthName}.`,"If you have exceptional circumstances, you can send a request to the Bloc Admin."],
           cta:"Send exceptional request"
         }
       : {
           title:`Request sit-out for ${monthName}?`,
-          body:["Your request will be sent to the bloc admin for approval."],
+          body:["Your request will be sent to the Bloc Admin for approval."],
           cta:"Send request"
         };
   return React.createElement('div',{className:`overlay${isMobile() ? " center-mobile" : ""}`,onClick:onClose},
