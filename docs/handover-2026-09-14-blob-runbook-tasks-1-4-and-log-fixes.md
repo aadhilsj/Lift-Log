@@ -611,3 +611,45 @@ merges cleanly with today's `main` (`b4bc285`), and `test:month-close-canonical`
    if they miss it, and can never win the pot. That changes `calcPenalties`,
    `buildDefaultSettlements`, `isExemptFromStakes` and month close. It will be
    built on top of your branch after it merges, not alongside it.
+
+---
+
+## 12. Update, 2026-09-18 (later) — Solo payments shipped now, and an activity regression
+
+**Deveen, this section is for you.** Details:
+`docs/handover-2026-09-18-solo-new-rules.md`.
+
+1. **§11 item 4 is superseded.** The founder moved the new Solo rules to
+   **now**, not November, and they are live on `main` (`f7356aa`). They were not
+   built on your branch. `origin/blob/month-close-canonical` still merges into
+   today's `main` with no conflicts (checked with `git merge-tree`, nothing
+   written). Your `rebuildClosedMonthSnapshotFromCanonicalLogs` keeps
+   `snapshot.solo` and calls `buildDefaultSettlements`, so it inherits the new
+   rules as is.
+2. **What changed in your area:**
+   - A new-rules Solo entry is `{ target, rule: "standard_penalty" }`; no marker
+     means old rules. From October (`"2026-9"`) every Solo is new-rules by month.
+   - Canonical has no rule column, so the marker is carried from the blob in
+     `rolloverGroupIfNeeded`, `normalizeMonthHistory`,
+     `buildCanonicalMonthHistoryForGroup` (from `blobMonth`),
+     `fetchReadableCurrentState` and `buildCanonicalWritableStateForGroup`.
+     If blob retirement replaces any of these, the September marker has to come
+     with it (or add a `solo_rule` column).
+   - `buildDefaultSettlements` now adds each new-rules Solo miss at the flat
+     `fineAmount` via `addStandardSoloPenalties`; Solo never joins
+     `calcPenalties`. Test: `npm run test:solo-standard-penalty`.
+3. **Activity regression, fixed:** the App Store session's
+   `add_workout_post_moderation` migration (applied 2026-09-18 04:06 UTC)
+   rebuilt `read_ante_core_current_logs` from a pre-activity copy, which is the
+   exact case §8.4 warned about. It was restored by
+   `20260918120000_restore_activity_in_current_logs.sql`. It matters to you
+   because your month close reads `fetchAnteCurrentLogs`: had it stayed broken
+   until 1 October, September would have closed without activities.
+4. **RLS, for your rollout (§3 item 5):** checked read-only on production. The
+   seven RLS-disabled tables grant nothing to `anon` or `authenticated`, and
+   `anon` has no usage on `ante_core`. So the exposure is currently nil, and
+   enabling RLS with no policies should not affect the server
+   (service_role and the security-definer RPC owner bypass RLS). It still wants
+   your test-copy run. Separately, the old `public.lift_log_projection_*` tables
+   grant `anon` select/update but have RLS on with zero policies, so they deny
+   everything; they hold stale early data and are candidates to drop.
