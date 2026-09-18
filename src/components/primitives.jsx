@@ -752,14 +752,22 @@ const TrainingNoteModal = ({memberName="",isSelf=false,blocOpening=false,onClose
   });
 };
 
-const SoloNoteModal = ({memberName="",isSelf=false,monthName="",target=null,onClose}) => {
+const SoloNoteModal = ({memberName="",isSelf=false,monthName="",target=null,standardPenalty=false,onClose}) => {
   const when = monthName ? ` this ${monthName}` : "";
   const targetPart = Number.isFinite(Number(target)) && Number(target) > 0
     ? `, with a personal target of ${Math.round(Number(target))}`
     : "";
+  // New-rules Solo: reaching the goal clears the month, falling short costs the
+  // standard monthly penalty. Old-rules Solo keeps its original line.
+  const outcome = standardPenalty
+    ? "Reach it and they're clear. Fall short and it's the standard monthly penalty."
+    : "No penalty either way.";
+  const selfOutcome = standardPenalty
+    ? "Reach it and you're clear. Fall short and you pay the standard monthly penalty."
+    : outcome;
   const body = isSelf
-    ? `You're on solo mode${when}${targetPart}. No penalty either way.`
-    : `${memberName || "They"} is on solo mode${when}${targetPart}. No penalty either way.`;
+    ? `You're on solo mode${when}${targetPart}. ${selfOutcome}`
+    : `${memberName || "They"} is on solo mode${when}${targetPart}. ${outcome}`;
   return React.createElement(StatusNoteModal,{
     icon: React.createElement(SoloFlagIcon,{size:30}),
     title: "Solo mode",

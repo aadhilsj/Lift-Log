@@ -24,6 +24,7 @@ import {
   getSetupReviewPendingFields,
   getCurrentMonthSummary,
   getMemberTargetInfoForMonth,
+  getEffectiveTargetForMonth,
   getCurrentSitOutRequest,
   getRecentSitOutCount,
   getCurrentSoloRequest,
@@ -167,8 +168,9 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
   const soloMode = soloPending || sitOutPending || isExcused || isSolo
     ? null
     : (getRecentSoloCount(group, actor, curKey) >= 1 ? "exceptional" : (monthDay <= 10 ? "request" : "late"));
-  const soloMinimumTarget = Math.max(1, Math.ceil(myTarget * 0.25));
-  const soloMaximumTarget = isSolo && mySoloTarget ? mySoloTarget : myTarget;
+  // Same rule the server applies in applySoloRequest: half the Bloc target,
+  // rounded up.
+  const soloGoal = Math.max(1, Math.ceil((group ? getEffectiveTargetForMonth(group, curKey) : myTarget) * 0.5));
   const tabs = isAdmin ? ["invite","status","members","rules"] : ["invite","status","rules"];
 
   const submitSitOut = async reason => {
@@ -676,7 +678,7 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
     // transform the containing block for position:fixed. Both sheets portal to
     // document.body so they centre on the viewport, not on this box.
     showSitOut && sitOutMode && createPortal(React.createElement(SitOutModal,{mode:sitOutMode,monthName,onClose:()=>{setShowSitOut(false);setSitOutError("");},onSubmit:submitSitOut,submitting:sitOutSubmitting,error:sitOutError}), document.body),
-    showSolo && soloMode && createPortal(React.createElement(SoloModal,{mode:soloMode,monthName,minimumTarget:soloMinimumTarget,maximumTarget:soloMaximumTarget,defaultTarget:Math.max(soloMinimumTarget, Math.ceil(soloMaximumTarget * .5)),onClose:()=>{setShowSolo(false);setSoloError("");},onSubmit:submitSolo,submitting:soloSubmitting,error:soloError}), document.body)
+    showSolo && soloMode && createPortal(React.createElement(SoloModal,{mode:soloMode,monthName,target:soloGoal,onClose:()=>{setShowSolo(false);setSoloError("");},onSubmit:submitSolo,submitting:soloSubmitting,error:soloError}), document.body)
   );
 };
 

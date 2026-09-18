@@ -1287,7 +1287,8 @@ function normalizeSolo(solo, memberOrder = []) {
           .map(([monthKey, value]) => {
             const target = Number(value?.target || value?.personalTarget || value || 0);
             if (!monthKey || !Number.isFinite(target) || target < 1) return null;
-            return [monthKey, { target: Math.round(target) }];
+            const entry = { target: Math.round(target) };
+            return [monthKey, value?.rule === "standard_penalty" ? { ...entry, rule: "standard_penalty" } : entry];
           })
           .filter(Boolean)
       )];
@@ -1339,6 +1340,61 @@ function isExemptFromStakes(groupOrMonth, memberName, monthKey) {
 function isSoloForMonth(groupOrMonth, memberName, monthKey) {
   if (!groupOrMonth || !memberName || !monthKey) return false;
   return !!groupOrMonth?.solo?.[memberName]?.[monthKey];
+}
+
+// Every Solo from October 2026 is on the new rules. September 2026 is the one
+// mixed month (Tobias kept the old rules), so there the entry's own marker
+// decides. Month keys are 0-indexed: "2026-9" is October. Mirrors
+// src/lib/appState.js.
+const SOLO_STANDARD_PENALTY_FROM = "2026-9";
+
+// New-rules Solo: a miss of the Solo goal costs the standard monthly penalty.
+// Old-rules Solo pays nothing either way.
+function isStandardPenaltySoloForMonth(groupOrMonth, memberName, monthKey) {
+  if (!isSoloForMonth(groupOrMonth, memberName, monthKey)) return false;
+  return groupOrMonth?.solo?.[memberName]?.[monthKey]?.rule === "standard_penalty"
+    || compareMonthKeys(monthKey, SOLO_STANDARD_PENALTY_FROM) >= 0;
+}
+
+// The Solo entry a snapshot keeps. Canonical rows have no rule column, so the
+// blob's marker has to be carried across every rebuild, or a September
+// new-rules Solo would silently turn back into old rules.
+function buildSoloSnapshotEntry(sourceEntry, target) {
+  return sourceEntry?.rule === "standard_penalty"
+    ? { target, rule: "standard_penalty" }
+    : { target };
+}
+
+// New-rules Solo members who fell short of their Solo goal, on a closed-month
+// snapshot shape (excused[name] is a boolean).
+function getStandardSoloMisses(month, names) {
+  const monthKey = month?.key;
+  return (names || [])
+    .filter(name => !month?.excused?.[name]
+      && !isTrainingForMonth(month, name, monthKey)
+      && isStandardPenaltySoloForMonth(month, name, monthKey))
+    .map(name => ({ name, count: Number(month?.counts?.[name] || 0), target: getSoloTargetForMonth(month, name, monthKey) }))
+    .filter(member => member.target && member.count < member.target);
+}
+
+// Solo members stay out of calcPenalties, so they never win and never raise
+// anyone's escalating fine. Each new-rules Solo miss is added on top at the
+// fixed standard penalty. Mirrors addStandardSoloPenalties in appState.js.
+function addStandardSoloPenalties(penalties, soloMisses, settings) {
+  if (!soloMisses?.length) return { ...penalties, soloLosers: [] };
+  const baseFine = Number(settings?.fineAmount || DEFAULT_FINE_AMOUNT);
+  const loserAmounts = { ...(penalties.loserAmounts || {}) };
+  soloMisses.forEach(member => { loserAmounts[member.name] = baseFine; });
+  const totalPot = Object.values(loserAmounts).reduce((sum, amount) => sum + amount, 0);
+  const winners = penalties.winners || [];
+  return {
+    ...penalties,
+    losers: [...(penalties.losers || []), ...soloMisses],
+    soloLosers: soloMisses,
+    loserAmounts,
+    totalPot,
+    perWinner: winners.length > 0 && totalPot > 0 ? Math.floor(totalPot / winners.length) : 0
+  };
 }
 
 function getSoloTargetForMonth(groupOrMonth, memberName, monthKey) {
@@ -1681,7 +1737,7 @@ function normalizeMonthHistory(monthHistory, memberOrder, joinedMonthByName, set
       relevantNames
         .map(name => {
           const target = getSoloTargetForMonth(month, name, monthKey);
-          return target ? [name, { [monthKey]: { target } }] : null;
+          return target ? [name, { [monthKey]: buildSoloSnapshotEntry(month?.solo?.[name]?.[monthKey], target) }] : null;
         })
         .filter(Boolean)
     );
@@ -1984,7 +2040,7 @@ function buildCanonicalMonthHistoryForGroup(group, canonicalSeasons) {
       excused[name] = m ? !!m.excused : false;
       const soloTarget = Number(m?.solo_target || 0);
       if (m?.solo && Number.isFinite(soloTarget) && soloTarget > 0) {
-        solo[name] = { [monthKey]: { target: Math.round(soloTarget) } };
+        solo[name] = { [monthKey]: buildSoloSnapshotEntry(blobMonth?.solo?.[name]?.[monthKey], Math.round(soloTarget)) };
       }
       // A closed month is rebuilt from canonical here, replacing the blob's
       // copy wholesale. Anything not carried across is silently dropped, which
@@ -2138,7 +2194,11 @@ function buildDefaultSettlements(month, relevantNames, settings, memberTargets =
   const activeCounts = relevantNames
     .filter(name => !(month.excused?.[name]) && !isExemptFromStakes(month, name, month.key))
     .map(name => ({ name, count: month.counts?.[name] || 0, target: memberTargets?.[name] || Number(settings?.minTarget || DEFAULT_MIN_TARGET) }));
-  const { losers } = calcPenalties(activeCounts, settings);
+  const { losers } = addStandardSoloPenalties(
+    calcPenalties(activeCounts, settings),
+    getStandardSoloMisses(month, relevantNames),
+    settings
+  );
   return Object.fromEntries(
     losers.map(loser => [
       loser.name,
@@ -2285,7 +2345,7 @@ function rolloverGroupIfNeeded(group) {
     relevantNames
       .map(name => {
         const target = getSoloTargetForMonth(group, name, group.lastMonth);
-        return target ? [name, { [group.lastMonth]: { target } }] : null;
+        return target ? [name, { [group.lastMonth]: buildSoloSnapshotEntry(group.solo?.[name]?.[group.lastMonth], target) }] : null;
       })
       .filter(Boolean)
   );
@@ -4177,7 +4237,10 @@ async function fetchReadableCurrentState() {
           if (!soloByName[row.displayName]) soloByName[row.displayName] = {};
           const target = Number(row.target || 0);
           if (row.solo && Number.isFinite(target) && target > 0) {
-            soloByName[row.displayName][row.monthKey] = { target: Math.round(target) };
+            soloByName[row.displayName][row.monthKey] = buildSoloSnapshotEntry(
+              group?.solo?.[row.displayName]?.[row.monthKey],
+              Math.round(target)
+            );
           }
         }
         nextGroup = {
@@ -4518,7 +4581,10 @@ async function buildCanonicalWritableStateForGroup(groupId, baseStateOverride = 
     const target = Number(row.target || 0);
     if (!Number.isFinite(target) || target < 1) continue;
     if (!canonicalSoloByName[row.displayName]) canonicalSoloByName[row.displayName] = {};
-    canonicalSoloByName[row.displayName][row.monthKey] = { target: Math.round(target) };
+    canonicalSoloByName[row.displayName][row.monthKey] = buildSoloSnapshotEntry(
+      historicalSolo?.[row.displayName]?.[row.monthKey],
+      Math.round(target)
+    );
   }
   const canonicalSolo = Object.fromEntries(
     uniqueNames([...Object.keys(historicalSolo), ...canonicalMemberOrder]).map(name => {
@@ -7813,7 +7879,6 @@ function applySoloRequest(current, payload) {
   const groupId = String(payload?.groupId || "").trim();
   const reason = typeof payload?.reason === "string" ? payload.reason.trim().slice(0, 280) : "";
   const exceptional = !!payload?.exceptional;
-  const requestedTarget = Number(payload?.personalTarget || payload?.target || 0);
   const base = rolloverStateIfNeeded(current);
   const group = base.groups[groupId];
   if (!group) {
@@ -7852,18 +7917,9 @@ function applySoloRequest(current, payload) {
     throw error;
   }
   const baseTarget = getEffectiveTargetForMonth(group, month.monthKey, group.settings);
-  const minimumTarget = Math.max(1, Math.ceil(baseTarget * 0.25));
-  const personalTarget = Number.isFinite(requestedTarget) ? Math.max(1, Math.round(requestedTarget)) : 0;
-  if (personalTarget < minimumTarget) {
-    const error = new Error(`Solo target must be at least ${minimumTarget}`);
-    error.status = 400;
-    throw error;
-  }
-  if (personalTarget > baseTarget) {
-    const error = new Error(`Solo target can't be above your normal target of ${baseTarget}`);
-    error.status = 400;
-    throw error;
-  }
+  // Solo targets are automatic: half the Bloc target, rounded up so the
+  // member never has to choose or can be assigned a lower value by a client.
+  const personalTarget = Math.max(1, Math.ceil(baseTarget * 0.5));
   const recentCount = getRecentSoloCount(group, actor, month.monthKey);
   const existingRequests = normalizeSoloRequests(group.soloRequests);
   const existing = existingRequests?.[month.monthKey]?.[actor];
@@ -7880,7 +7936,7 @@ function applySoloRequest(current, payload) {
         ...nextSolo,
         [actor]: {
           ...(nextSolo[actor] || {}),
-          [month.monthKey]: { target: personalTarget }
+          [month.monthKey]: { target: personalTarget, rule: "standard_penalty" }
         }
       }
     });
@@ -8016,7 +8072,7 @@ function applySoloReview(current, payload) {
   if (decision === "approved") {
     nextSolo[memberName] = {
       ...(nextSolo[memberName] || {}),
-      [monthKey]: { target: request.personalTarget }
+      [monthKey]: { target: request.personalTarget, rule: "standard_penalty" }
     };
   }
   const requests = normalizeSoloRequests(group.soloRequests);
@@ -9097,6 +9153,11 @@ export {
   applySitOutReview,
   applySoloReview,
   applyRequestCancel,
+  // Exported for the Solo standard-penalty test suite.
+  buildDefaultSettlements,
+  buildCanonicalMonthHistoryForGroup,
+  normalizeMonthHistory,
+  normalizeSolo,
   DISPLAY_NAME_MAX_LENGTH,
   capDisplayName,
   // Exported for the activities test suite.

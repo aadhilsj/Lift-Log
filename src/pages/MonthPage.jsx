@@ -12,6 +12,8 @@ import {
   getDaysLeft,
   getLeaderboardDiffText,
   calcPenalties,
+  addStandardSoloPenalties,
+  isStandardPenaltySoloForMonth,
   getLoserAmount,
   getCurrentMemberTargetInfo,
   isSoloForMonth,
@@ -70,7 +72,9 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
 
   const activeCounts=counts.filter(u=>!u.isOut&&!u.isSolo&&!u.isTraining);
   const sorted=[...counts].sort((a,b)=>{if(a.isOut&&!b.isOut)return 1;if(!a.isOut&&b.isOut)return -1;if(a.isSolo&&!b.isSolo)return 1;if(!a.isSolo&&b.isSolo)return -1;return b.count-a.count;});
-  const penalties = calcPenalties(activeCounts, isCurrent ? groupSettings || {} : selMonth?.settings || {});
+  const monthSettings = isCurrent ? groupSettings || {} : selMonth?.settings || {};
+  const soloMisses = counts.filter(u=>u.isSolo&&!u.isOut&&!u.isTraining&&u.soloTarget&&u.count<u.soloTarget&&isStandardPenaltySoloForMonth(isCurrent?group:selMonth,u.name,isCurrent?curKey:selMonth.key));
+  const penalties = addStandardSoloPenalties(calcPenalties(activeCounts, monthSettings), soloMisses, monthSettings);
   const {winners,losers,perWinner}=penalties;
   const hasActivity=activeCounts.some(u=>u.count>0);
   const currentUserEntry = currentUser ? counts.find(u=>u.name===currentUser) : null;

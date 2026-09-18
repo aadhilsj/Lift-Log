@@ -12,6 +12,9 @@ import {
   curKey,
   MONTH_NAMES,
   calcPenalties,
+  addStandardSoloPenalties,
+  getStandardSoloMisses,
+  isStandardPenaltySoloForMonth,
   getLoserAmount,
   normalizeSeasonOverrides,
   getCurrentMemberTarget,
@@ -125,9 +128,11 @@ const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevea
       // no more count towards this member's money than a solo month does.
       const memberIsExempt = isExemptFromStakes(m, name, m.key);
       closedTotal+=m.counts[name]||0;
-      if (memberIsExempt) return;
+      // A new-rules Solo miss is the one exempt case that still costs money.
+      if (memberIsExempt && !isStandardPenaltySoloForMonth(m, name, m.key)) return;
       const ac=monthNames.filter(n=>isJoinedForMonth(n, m.key) && !m.excused?.[n] && !isExemptFromStakes(m, n, m.key)).map(n=>({name:n,count:m.counts[n]||0,target:m.memberTargets?.[n] || m.settings?.minTarget || MIN_TARGET}));
-      const penalties = calcPenalties(ac, m.settings || {});
+      const soloMisses = getStandardSoloMisses(m, monthNames.filter(n=>isJoinedForMonth(n, m.key)));
+      const penalties = addStandardSoloPenalties(calcPenalties(ac, m.settings || {}), soloMisses, m.settings || {});
       const {winners,losers,perWinner}=penalties;
       if(winners.find(w=>w.name===name)){wins++;moneyWon+=perWinner;}
       if(losers.find(l=>l.name===name)){moneyLost+=getLoserAmount(penalties, name);}
@@ -560,6 +565,7 @@ const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevea
       isSelf: currentUserId ? memberUserId === currentUserId : false,
       monthName: PROFILE_FULL_MONTH_NAMES[selMonthNum] || "",
       target: selSoloTarget,
+      standardPenalty: selIsSolo && isStandardPenaltySoloForMonth(selMonthSource, name, selectedMonthKey),
       onClose: ()=>setOpenStatusNote(null)
     }),
     showRedemptionNote && React.createElement(RedemptionNoteModal,{

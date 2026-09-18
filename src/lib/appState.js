@@ -419,7 +419,8 @@ function normalizeSolo(solo, memberOrder = []) {
         .map(([monthKey, value]) => {
           const target = typeof value === "object" ? Number(value?.target ?? value?.personalTarget) : Number(value);
           if (!monthKey || !Number.isFinite(target)) return null;
-          return [monthKey, { target: Math.max(1, Math.round(target)) }];
+          const entry = { target: Math.max(1, Math.round(target)) };
+          return [monthKey, value?.rule === "standard_penalty" ? { ...entry, rule: "standard_penalty" } : entry];
         })
         .filter(Boolean)
     );
@@ -481,6 +482,61 @@ function isExemptFromStakes(groupOrMonth, memberName, monthKey) {
 function isSoloForMonth(groupOrMonth, memberName, monthKey) {
   if (!memberName || !monthKey) return false;
   return !!groupOrMonth?.solo?.[memberName]?.[monthKey];
+}
+
+// Every Solo from October 2026 is on the new rules. September 2026 is the one
+// mixed month (Tobias kept the old rules), so there the entry's own marker
+// decides. Month keys are 0-indexed: "2026-9" is October.
+const SOLO_STANDARD_PENALTY_FROM = "2026-9";
+
+// New-rules Solo: a miss of the Solo goal costs the standard monthly penalty.
+// Old-rules Solo pays nothing either way.
+function isStandardPenaltySoloForMonth(groupOrMonth, memberName, monthKey) {
+  if (!isSoloForMonth(groupOrMonth, memberName, monthKey)) return false;
+  return groupOrMonth?.solo?.[memberName]?.[monthKey]?.rule === "standard_penalty"
+    || compareMonthKeys(monthKey, SOLO_STANDARD_PENALTY_FROM) >= 0;
+}
+
+// The Solo entry a closed-month snapshot keeps. The rule marker has to travel
+// with it, or a September new-rules Solo would read as old rules once closed.
+function buildSoloSnapshotEntry(groupOrMonth, memberName, monthKey, target) {
+  return groupOrMonth?.solo?.[memberName]?.[monthKey]?.rule === "standard_penalty"
+    ? { target, rule: "standard_penalty" }
+    : { target };
+}
+
+// New-rules Solo members who fell short of their Solo goal. `month` is a
+// closed-month snapshot shape: excused[name] is a boolean.
+function getStandardSoloMisses(month, names) {
+  const monthKey = month?.key;
+  return (names || [])
+    .filter(name => !month?.excused?.[name]
+      && !isTrainingForMonth(month, name, monthKey)
+      && isStandardPenaltySoloForMonth(month, name, monthKey))
+    .map(name => ({ name, count: Number(month?.counts?.[name] || 0), target: getSoloTargetForMonth(month, name, monthKey) }))
+    .filter(member => member.target && member.count < member.target);
+}
+
+// Solo members stay out of calcPenalties, so they can never win and never
+// raise anyone's escalating fine. Each new-rules Solo miss is then added on top
+// at the fixed standard penalty, shared among the regular winners like any
+// other fine. With no regular winner the penalty is still owed; who receives
+// it in an everyone-misses month is deliberately undecided.
+function addStandardSoloPenalties(penalties, soloMisses, settings = {}) {
+  if (!soloMisses?.length) return { ...penalties, soloLosers: [] };
+  const baseFine = Number(settings?.fineAmount || DEFAULT_FINE_AMOUNT);
+  const loserAmounts = { ...(penalties.loserAmounts || {}) };
+  soloMisses.forEach(member => { loserAmounts[member.name] = baseFine; });
+  const totalPot = Object.values(loserAmounts).reduce((sum, amount) => sum + amount, 0);
+  const winners = penalties.winners || [];
+  return {
+    ...penalties,
+    losers: [...(penalties.losers || []), ...soloMisses],
+    soloLosers: soloMisses,
+    loserAmounts,
+    totalPot,
+    perWinner: winners.length > 0 && totalPot > 0 ? Math.floor(totalPot / winners.length) : 0
+  };
 }
 
 function getSoloTargetForMonth(groupOrMonth, memberName, monthKey) {
@@ -781,7 +837,11 @@ function buildSettlementMap(counts, excusedByName, settings = {}, memberTargets 
     .filter(name => Object.prototype.hasOwnProperty.call(counts || {}, name))
     .filter(name => !excusedByName?.[name] && !(monthKey && (soloByName?.[name]?.[monthKey] || trainingByName?.[name]?.[monthKey])))
     .map(name => ({ name, count: counts?.[name] || 0, target: memberTargets?.[name] || Number(settings?.minTarget || MIN_TARGET) }));
-  const { losers } = calcPenalties(activeCounts, settings);
+  const soloMisses = getStandardSoloMisses(
+    { key: monthKey, counts, excused: excusedByName, solo: soloByName, training: trainingByName },
+    NAMES.filter(name => Object.prototype.hasOwnProperty.call(counts || {}, name))
+  );
+  const { losers } = addStandardSoloPenalties(calcPenalties(activeCounts, settings), soloMisses, settings);
   return Object.fromEntries(
     losers.map(loser => [
       loser.name,
@@ -805,7 +865,7 @@ function buildSettlementPairsForMonth(month) {
   const activeCounts = relevantNames
     .filter(name => !excused?.[name] && !isExemptFromStakes(month, name, month.key))
     .map(name => ({ name, count: counts?.[name] || 0, target: memberTargets?.[name] || Number(settings?.minTarget || MIN_TARGET) }));
-  const penalties = calcPenalties(activeCounts, settings);
+  const penalties = addStandardSoloPenalties(calcPenalties(activeCounts, settings), getStandardSoloMisses(month, relevantNames), settings);
   const { winners, losers } = penalties;
   if (!winners.length || !losers.length) return [];
   return losers.flatMap((loser, loserIndex) => winners
@@ -1518,7 +1578,7 @@ function normalizeMonthHistoryState(monthHistory, memberOrder, joinedMonthByName
       relevantNames
         .map(name => {
           const target = getSoloTargetForMonth(month, name, monthKey);
-          return target ? [name, { [monthKey]: { target } }] : null;
+          return target ? [name, { [monthKey]: buildSoloSnapshotEntry(month, name, monthKey, target) }] : null;
         })
         .filter(Boolean)
     );
@@ -2022,7 +2082,7 @@ function checkRollover(data) {
     relevantNames
       .map(name => {
         const target = getSoloTargetForMonth(data, name, prevKey);
-        return target ? [name, { [prevKey]: { target } }] : null;
+        return target ? [name, { [prevKey]: buildSoloSnapshotEntry(data, name, prevKey, target) }] : null;
       })
       .filter(Boolean)
   );
@@ -2185,6 +2245,9 @@ export {
   pruneSoloRequestsForRead,
   normalizeSolo,
   isSoloForMonth,
+  isStandardPenaltySoloForMonth,
+  getStandardSoloMisses,
+  addStandardSoloPenalties,
   getSoloTargetForMonth,
   isTrainingForMonth,
   isExemptFromStakes,
