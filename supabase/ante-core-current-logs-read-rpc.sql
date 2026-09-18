@@ -29,6 +29,7 @@
 -- Filters:
 --   - s.status = 'open'               — open seasons only
 --   - b.legacy_group_key is not null  — only blocs with a blob counterpart
+--   - wl.moderation_hidden_at is null — founder-hidden posts stay private
 --
 -- Timestamps are formatted as ISO 8601 UTC strings to match the blob shape
 -- expected by resolveLogCreatedAt() and shouldKeepLogPhoto() in lift-log.js.
@@ -83,6 +84,7 @@ begin
                                 select count(*)::integer
                                 from ante_core.workout_log_comments c
                                 where c.workout_log_id = wl.id
+                                  and c.moderation_hidden_at is null
                               )
       )
       order by wl.created_at asc
@@ -96,7 +98,8 @@ begin
   join ante_core.blocs b
     on b.id = wl.bloc_id
   where s.status = 'open'
-    and b.legacy_group_key is not null;
+    and b.legacy_group_key is not null
+    and wl.moderation_hidden_at is null;
 
   return result;
 end;

@@ -274,8 +274,8 @@ const FounderDashboard = ({onClose}) => {
             ),
             React.createElement("div", {style:{marginTop:5,fontSize:11,lineHeight:1.45,color:"var(--text-soft)"}}, `${report.contentType || "content"} in ${report.blocName || "a Bloc"} · reported by ${report.reporterName || "Deleted account"}`),
             report.details && React.createElement("div", {style:{marginTop:7,fontSize:11,lineHeight:1.45,color:"var(--muted)",whiteSpace:"pre-wrap"}}, report.details),
-            ["stream_message","workout_comment"].includes(report.contentType) && React.createElement("div", {style:{marginTop:7,fontSize:10,fontWeight:800,color:report.moderationHidden ? "#EF9F27" : "var(--text-faint)"}}, report.moderationHidden ? "Hidden from members" : "Visible to members"),
-            ["stream_message","workout_comment"].includes(report.contentType) && React.createElement("div", {style:{display:"flex",gap:7,marginTop:10}},
+            ["stream_message","workout_comment","workout_log"].includes(report.contentType) && React.createElement("div", {style:{marginTop:7,fontSize:10,fontWeight:800,color:report.moderationHidden ? "#EF9F27" : "var(--text-faint)"}}, report.moderationHidden ? "Hidden from members" : "Visible to members"),
+            ["stream_message","workout_comment","workout_log"].includes(report.contentType) && React.createElement("div", {style:{display:"flex",gap:7,marginTop:10}},
               React.createElement("button", {type:"button",onClick:()=>moderateReportedContent(report.id,report.moderationHidden ? "restore" : "hide"),style:{border:0,borderRadius:8,padding:"8px 10px",fontSize:11,fontWeight:800,background:report.moderationHidden ? "rgba(78,205,196,.16)" : "#EF9F27",color:report.moderationHidden ? "var(--text)" : "#161006",cursor:"pointer"}}, report.moderationHidden ? "Restore content" : "Hide from members")
             ),
             report.status === "open" && React.createElement("div", {style:{display:"flex",gap:7,marginTop:10}},

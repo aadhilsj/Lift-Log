@@ -137,9 +137,22 @@ const moderationMigration = fs.readFileSync(new URL("../supabase/migrations/2026
   "revoke all on function public.moderate_ante_core_report_content(uuid, text, text, text) from public, anon, authenticated",
   "grant execute on function public.moderate_ante_core_report_content(uuid, text, text, text) to service_role"
 ].forEach(fragment => assert.ok(moderationMigration.includes(fragment), `content-moderation migration is missing: ${fragment}`));
+const workoutPostModerationMigration = fs.readFileSync(new URL("../supabase/migrations/20260918100000_add_workout_post_moderation.sql", import.meta.url), "utf8");
+[
+  "alter table ante_core.workout_logs",
+  "moderation_hidden_at",
+  "when 'workout_log' then exists",
+  "v_report.content_type not in ('stream_message', 'workout_comment', 'workout_log')",
+  "wl.id = v_report.content_id and wl.bloc_id = v_report.bloc_id and wl.profile_id = v_report.reported_profile_id",
+  "wl.moderation_hidden_at is null"
+].forEach(fragment => assert.ok(workoutPostModerationMigration.includes(fragment), `workout-post moderation migration is missing: ${fragment}`));
+const currentLogReader = fs.readFileSync(new URL("../supabase/ante-core-current-logs-read-rpc.sql", import.meta.url), "utf8");
+assert.ok(currentLogReader.includes("and wl.moderation_hidden_at is null;"), "current-log source reader must exclude founder-hidden posts");
+assert.ok(currentLogReader.includes("and c.moderation_hidden_at is null"), "current-log source reader must not count founder-hidden comments");
 assert.ok(apiSource.includes('payload?.action === "founder-moderate-reported-content"'), "founder content moderation API route is missing");
 assert.ok(apiSource.includes("assertFounderDashboardUser(authUser);"), "founder content moderation must use the founder allowlist");
 assert.ok(dashboardUi.includes('"Hide from members"'), "founder dashboard must expose the reversible hide action");
 assert.ok(dashboardUi.includes('"Restore content"'), "founder dashboard must expose the restore action");
+assert.ok(dashboardUi.includes('"workout_log"'), "founder dashboard must expose the workout-post moderation action");
 
 console.log("Founder dashboard contract checks passed.");
