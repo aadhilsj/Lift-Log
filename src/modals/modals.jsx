@@ -1073,29 +1073,29 @@ const SoloModal = ({mode,monthName,target,blocTarget,onClose,onSubmit,submitting
   const submit = () => onSubmit({ personalTarget: target, reason });
   return React.createElement('div',{className:`overlay${isMobile() ? " center-mobile" : ""}`,onClick:onClose},
     React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{maxWidth:420,fontFamily:UI_FONT}},
-      React.createElement('div',{style:{fontFamily:UI_FONT,fontWeight:800,fontSize:20,lineHeight:1.1,letterSpacing:0,marginBottom:10}},config.title),
-      React.createElement('div',{style:{padding:"9px 12px",borderRadius:12,background:"linear-gradient(180deg, rgba(13,31,30,.96), rgba(8,15,15,.86))",border:"1px solid rgba(78,205,196,.34)",boxShadow:"0 0 0 1px rgba(78,205,196,.08), inset 0 1px 0 rgba(255,255,255,.04)",marginBottom:12}},
+      React.createElement('div',{style:{fontFamily:DISPLAY_FONT,fontWeight:800,fontSize:20,lineHeight:1.1,letterSpacing:0,marginBottom:14}},config.title),
+      React.createElement('div',{style:{padding:"10px 12px",borderRadius:12,background:"linear-gradient(180deg, rgba(13,31,30,.96), rgba(8,15,15,.86))",border:"1px solid rgba(78,205,196,.34)",boxShadow:"0 0 0 1px rgba(78,205,196,.08), inset 0 1px 0 rgba(255,255,255,.04)",marginBottom:16}},
         // The goal leads, labelled, with where it comes from right under it,
         // so the number never looks arbitrary.
-        React.createElement('div',{style:{fontFamily:UI_FONT,fontSize:9,fontWeight:800,color:"#4ECDC4",textTransform:"uppercase",letterSpacing:".08em",marginBottom:4}},"Your Solo goal"),
-        React.createElement('div',{style:{fontFamily:UI_FONT,fontSize:22,fontWeight:800,lineHeight:1.1,color:"var(--text)"}},`${target} workouts`),
-        blocTarget ? React.createElement('div',{style:{fontFamily:UI_FONT,fontSize:12.5,fontWeight:650,lineHeight:1.35,color:"#4ECDC4",marginTop:3}},`Half your Bloc's usual ${blocTarget}`) : null
+        React.createElement('div',{style:{fontFamily:UI_FONT,fontSize:9,fontWeight:800,color:"#4ECDC4",textTransform:"uppercase",letterSpacing:".08em",marginBottom:3}},"Your Solo goal"),
+        React.createElement('div',{style:{fontFamily:DISPLAY_FONT,fontSize:18,fontWeight:800,lineHeight:1.1,color:"var(--text)"}},`${target} workouts`),
+        blocTarget ? React.createElement('div',{style:{fontFamily:UI_FONT,fontSize:11.5,fontWeight:650,lineHeight:1.35,color:"#4ECDC4",marginTop:3}},`Half your Bloc's usual ${blocTarget}`) : null
       ),
-      React.createElement('div',{style:{fontFamily:UI_FONT,fontSize:13.5,lineHeight:1.5,color:"var(--text)",opacity:.88,marginBottom:10}},"Solo is for a heavier month — when you still want to keep showing up, but need a lighter goal."),
-      React.createElement('div',{style:{display:"grid",gap:6,marginBottom:10}},
+      React.createElement('div',{style:{fontFamily:UI_FONT,fontSize:13.5,lineHeight:1.5,color:"var(--text)",opacity:.88,marginBottom:16}},"Solo is for a heavier month — when you still want to keep showing up, but need a lighter goal."),
+      React.createElement('div',{style:{display:"grid",gap:8,marginBottom:16}},
         rules.map(rule=>React.createElement('div',{key:rule.kind,style:{display:"flex",alignItems:"flex-start",gap:9,fontFamily:UI_FONT,fontSize:12.5,lineHeight:1.4,color:"var(--muted)"}},
           React.createElement(SoloRuleIcon,{kind:rule.kind,color:rule.good ? "#4ECDC4" : "rgba(232,69,69,.72)"}),
           React.createElement('span',null,rule.text)
         ))
       ),
-      React.createElement('div',{style:{height:1,background:"var(--border)",marginBottom:10}}),
-      config.note && React.createElement('div',{style:{display:"flex",alignItems:"flex-start",gap:8,fontFamily:UI_FONT,fontSize:12,lineHeight:1.45,color:"var(--muted)",opacity:.85,marginBottom:10}},
+      React.createElement('div',{style:{height:1,background:"var(--border)",marginBottom:16}}),
+      config.note && React.createElement('div',{style:{display:"flex",alignItems:"flex-start",gap:8,fontFamily:UI_FONT,fontSize:12,lineHeight:1.45,color:"var(--muted)",opacity:.85,marginBottom:16}},
         React.createElement(SoloRuleIcon,{kind:"approver",color:"var(--muted)",size:14}),
         React.createElement('span',null,config.note)
       ),
-      React.createElement('label',{style:{display:"block",marginBottom:12}},
+      React.createElement('label',{style:{display:"block",marginBottom:16}},
         React.createElement('span',{style:formLabelStyle},"Reason"),
-        React.createElement('textarea',{value:reason,onChange:e=>setReason(e.target.value),placeholder:"e.g. travel month, work sprint",rows:3,style:{width:"100%",background:"var(--s2)",border:"1px solid var(--border)",borderRadius:10,padding:"12px 13px",color:"var(--text)",fontFamily:UI_FONT,fontSize:14,outline:"none",resize:"none"}})
+        React.createElement('textarea',{value:reason,onChange:e=>setReason(e.target.value),placeholder:"e.g. travel month, work sprint",rows:2,style:{width:"100%",background:"var(--s2)",border:"1px solid var(--border)",borderRadius:10,padding:"10px 13px",color:"var(--text)",fontFamily:UI_FONT,fontSize:14,outline:"none",resize:"none"}})
       ),
       error && React.createElement('div',{style:{fontFamily:UI_FONT,fontSize:12,color:"var(--red)",marginBottom:14}},error),
       React.createElement('div',{style:{display:"flex",gap:9}},
