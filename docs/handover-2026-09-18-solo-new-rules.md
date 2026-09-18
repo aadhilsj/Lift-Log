@@ -12,6 +12,37 @@ you pay the standard monthly penalty. A Solo miss never raises anyone else's
 escalating fine, and Solo members can't receive a reward. Tobias (OSI H3,
 September) stays on the old rules. No database change was made.
 
+**Follow-up (`789a2e8`, live):** the Solo sheet's goal box now reads "6
+workouts / Half your Bloc's usual 12" (founder chose "half" over "50%"), and
+each request sheet mentions the Bloc Admin once. Sheet heights at 375×812:
+late and second-Solo sheets 484px (was 460px), day 1–10 sheet 524px (was
+497px). All fit on screen.
+
+**Second follow-up (`d0ee6e4`, live):** the sheet was redesigned to read less
+like a paragraph. Order: a "Your Solo goal" card (6 workouts / Half your Bloc's
+usual 12), the intro line "Solo is for a heavier month…" on every sheet, the
+four rules as an icon list ("You keep logging as normal." / "Reach 6 and
+you're clear." / "If you fall short, the agreed monthly penalty applies." /
+"You can't receive a reward in a Solo month."), a divider, then the Bloc Admin
+approval note on the two request sheets. The founder chose "agreed" over
+"standard" for the penalty wording. Spacing was tightened so every sheet fits
+a 375×667 iPhone SE without scrolling: the modal's max height there is 547px;
+request sheets are 523px and the day 1–10 sheet is 478px.
+
+**Third follow-up (`72124f1`, live):** the Solo heading and goal number now use
+Raleway (`DISPLAY_FONT`), like other sheet headings; the body stays Outfit. The
+goal card is smaller (18px number, 11.5px subline), the reason box is 2 rows,
+and the freed space went into the gaps (16px around the divider). At 375×667:
+request sheets 538px, day 1–10 sheet 488px, against a 547px limit. The Sit out
+sheet heading is still Outfit (not asked to change).
+
+**Activity regression (fixed, DB only):** the App Store session's
+`add_workout_post_moderation` migration dropped `activity` from
+`read_ante_core_current_logs` in production, so all September workouts showed
+their category instead of the activity. Restored by
+`20260918120000_restore_activity_in_current_logs.sql`, applied by Claude on the
+founder's instruction. Details in the App Store handover's correction section.
+
 ## How it works
 
 - **The marker.** A new Solo entry is stored as
