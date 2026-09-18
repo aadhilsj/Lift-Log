@@ -7640,6 +7640,12 @@ function applySitOutRequest(current, payload) {
     error.status = 400;
     throw error;
   }
+  const soloRequest = normalizeSoloRequests(group.soloRequests)?.[month.monthKey]?.[actor];
+  if (isSoloForMonth(group, actor, month.monthKey) || soloRequest?.status === "pending") {
+    const error = new Error("You can't request a sit-out while Solo Mode is active or pending");
+    error.status = 400;
+    throw error;
+  }
   const recentCount = getRecentSitOutCount(group, actor, month.monthKey);
   if (recentCount >= 1 && !exceptional) {
     const error = new Error(`You've already sat out recently. Your next sit-out is available in ${MONTH_NAMES[(month.month + 3) % 12]}.`);
@@ -7715,6 +7721,11 @@ function applySitOutReview(current, payload) {
   if (!canReviewSitOutRequest(group, request, memberName, actorUserId, actor)) {
     const error = new Error("You can't review this sit-out request");
     error.status = 403;
+    throw error;
+  }
+  if (decision === "approved" && isSoloForMonth(group, memberName, monthKey)) {
+    const error = new Error("This member is already Solo this month");
+    error.status = 400;
     throw error;
   }
   const nextExcused = { ...(group.excused || {}) };
@@ -7826,6 +7837,12 @@ function applySoloRequest(current, payload) {
   const soloWindowOpen = month.day <= 10;
   if (group.excused?.[actor]?.[month.monthKey]) {
     const error = new Error("You're sitting out this month");
+    error.status = 400;
+    throw error;
+  }
+  const sitOutRequest = normalizeSitOutRequests(group.sitOutRequests)?.[month.monthKey]?.[actor];
+  if (sitOutRequest?.status === "pending") {
+    const error = new Error("You can't request Solo Mode while a sit-out request is pending");
     error.status = 400;
     throw error;
   }
@@ -7988,6 +8005,11 @@ function applySoloReview(current, payload) {
   if (!canReviewSitOutRequest(group, request, memberName, actorUserId, actor)) {
     const error = new Error("You can't review this Solo Mode request");
     error.status = 403;
+    throw error;
+  }
+  if (decision === "approved" && group.excused?.[memberName]?.[monthKey]) {
+    const error = new Error("This member is already sitting out this month");
+    error.status = 400;
     throw error;
   }
   const nextSolo = normalizeSolo(group.solo, group.memberOrder);
@@ -9070,6 +9092,11 @@ export {
   isMissingLocalCanonicalWorkoutRpcError,
   applyAddLog,
   applyMultiLog,
+  applySitOutRequest,
+  applySoloRequest,
+  applySitOutReview,
+  applySoloReview,
+  applyRequestCancel,
   DISPLAY_NAME_MAX_LENGTH,
   capDisplayName,
   // Exported for the activities test suite.

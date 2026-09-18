@@ -161,10 +161,10 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
   const mySoloTarget = group ? getSoloTargetForMonth(group, actor, curKey) : null;
   const sitOutPending = mySitOutRequest?.status === "pending";
   const soloPending = mySoloRequest?.status === "pending";
-  const sitOutMode = sitOutPending || isExcused || isSolo
+  const sitOutMode = sitOutPending || soloPending || isExcused || isSolo
     ? null
     : (getRecentSitOutCount(group, actor, curKey) >= 1 ? "exceptional" : (monthDay <= 5 ? "instant" : "request"));
-  const soloMode = soloPending || isExcused || isSolo
+  const soloMode = soloPending || sitOutPending || isExcused || isSolo
     ? null
     : (getRecentSoloCount(group, actor, curKey) >= 1 ? "exceptional" : (monthDay <= 10 ? "request" : "late"));
   const soloMinimumTarget = Math.max(1, Math.ceil(myTarget * 0.25));
@@ -603,7 +603,9 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
             busy:!!cancelling,
             onAction:()=>cancelRequest("solo")
           })
-        : isExcused
+        : sitOutPending
+          ? statusCard({title:"Solo",description:"Not available while a sit-out request is pending."})
+          : isExcused
           ? statusCard({title:"Solo",description:"Not available while you're sitting out."})
           : statusCard({
               accent:true,
@@ -624,7 +626,9 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
             busy:!!cancelling,
             onAction:()=>cancelRequest("sitout")
           })
-        : isSolo
+        : soloPending
+          ? statusCard({title:"Sit out",description:"Not available while a Solo request is pending."})
+          : isSolo
           ? statusCard({title:"Sit out",description:"Not available while you're Solo."})
           : statusCard({
             title:"Sit out",

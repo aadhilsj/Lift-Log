@@ -501,7 +501,7 @@ async function cancelRequestData(payload) {
   const action = payload?.kind === "solo" ? "solo-cancel" : "sitout-cancel";
   const result = await postApi(action, payload);
   if (!result.ok) return { ok:false, error: result.error || "Unable to cancel that request" };
-  return result;
+  return { ok:true, data: normalizeAppState(result.body) };
 }
 
 async function reviewSitOutData(payload) {
