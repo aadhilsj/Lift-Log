@@ -579,3 +579,35 @@ were added.
 6. **New table `ante_core.backup_activity_backfill_2026_09_17`** (RLS on). It is the
    undo for the backfill. Do not carry it into migrations; the founder will decide
    when to drop it.
+
+---
+
+## 11. Update, 2026-09-18 — request cancel, two new RPCs, Solo joins payments in November
+
+**Deveen, this section is for you.** It was added after this handover was sent.
+Full detail: `docs/handover-2026-09-18-settings-redesign-and-solo-unlock.md`.
+
+**Plain English:** members can now cancel their own pending sit-out or Solo
+request, and Solo after day 10 is a request instead of being blocked. Nothing
+here needs action from you beyond the month-close merge. Your branch still
+merges cleanly with today's `main` (`b4bc285`), and `test:month-close-canonical`,
+`test:rollover-isolation` and `test:activities` pass on the merge.
+
+1. **Two new production RPCs:** `delete_ante_core_sit_out_request(text, text, text)`
+   and `delete_ante_core_solo_request(text, text, text)`. They delete **pending**
+   rows only, for (legacy group key, month key, display name), and are granted to
+   `postgres` and `service_role` only. Migration:
+   `supabase/migrations/20260918090000_delete_request_rpcs.sql`, applied
+   2026-09-18. No data changed.
+2. **Two new actions, `sitout-cancel` and `solo-cancel`.** They compute from
+   canonical writable state, delete canonically, then mirror through
+   `persistAndScopeReadableStateForUser`, so the request disappears from both.
+   They are not in `WRITE_HYDRATION_PARITY_DEFAULT_ACTIONS` or the mirror-policy
+   lists; add them if you want parity probes on them.
+3. **`solo_requests` gets more pending rows**, because every Solo after day 10 is
+   now a request. It is one of the seven RLS-disabled tables in item 5 above.
+4. **Heads-up for November:** Solo members will join the penalty from
+   1 November. They'll have an automatic reduced target, pay the normal penalty
+   if they miss it, and can never win the pot. That changes `calcPenalties`,
+   `buildDefaultSettlements`, `isExemptFromStakes` and month close. It will be
+   built on top of your branch after it merges, not alongside it.
