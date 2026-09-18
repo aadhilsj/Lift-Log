@@ -23,16 +23,19 @@ final device/TestFlight testing.
 
 **Current App Store review readiness: 55%.** This is a planning measure, not an
 Apple approval estimate. The build has not yet been archived or installed via
-TestFlight on a real iPhone; the App Store server code is still Preview-only;
-and legal, seller and App Store Connect setup are not started.
+TestFlight on a real iPhone; the App Store server code is not on `main` while
+the iOS app talks to production; and legal, seller and App Store Connect setup
+are not started.
 
 ### Readiness breakdown — 2026-09-18
 
-- **Done — Codex:** App Store Preview code, UGC report/block/moderation paths,
-  private-photo signing code, Premium label removal, activity-reader correction,
-  and camera/photo permission strings.
-- **In progress — Codex:** finish branch verification and propose a photo-link
-  expiry fix. **Deveen:** RLS rollout and month-close merge before 1 October.
+- **Done — Codex:** App Store branch code, UGC report/block/moderation paths,
+  Capacitor CORS support, private-photo signing code with a 24-hour signed-link
+  lifetime, Premium label removal, activity-reader correction, and camera/photo
+  permission strings.
+- **In progress — Codex:** finish branch verification and prepare a tested,
+  founder-approved promotion of the App Store server code to `main` before
+  submission. **Deveen:** RLS rollout and month-close merge before 1 October.
   **Founder/Deveen:** launch scaling work and the agreed load test.
 - **Not started — Codex + founder approval:** merge App Store server code to
   `main` before submission. **Founder:** provide Apple signing/account access
@@ -80,13 +83,23 @@ Read `AGENTS.md` first. In particular:
 
 - Explain in plain English; the founder is not a developer.
 - Keep App Store feature work on Preview. Do not merge Preview app code to
-  `main`. The founder promotes a tested Preview release later.
+  `main` quietly. The App Store server code (report/block/moderation,
+  `capacitor://` CORS and signed photo links) is not on `main`, while the iOS
+  app talks to production; it must reach `main` before submission through a
+  founder-approved, tested promotion. Do not merge or deploy it without that
+  approval.
 - Claude/other agents can be in this repository. Never switch the shared
   worktree's branch, never use `git add -A`, and stage only named files.
 - Never deploy production without an explicit request.
-- Before replacing any live database function, start from the production
-  `pg_get_functiondef`, compare it with the proposed replacement, and preserve
-  every existing output field. Never rebuild a function from an old migration.
+- Before changing any live database function, read its current production
+  definition with `pg_get_functiondef`, diff the proposed change against it,
+  preserve every existing output field, and ask the founder before applying.
+  Never rebuild a live function from an older migration file.
+- When Deveen starts launch-scaling work, explicitly flag that every full state
+  response also signs the scoped profile/workout photo references. This adds
+  work on every state read alongside the scaling costs in
+  `docs/scaling-before-launch-2026-09-15.md`; discuss whether photo signing
+  should be narrowed or cached as part of that work.
 - The `ios/App/App.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/`
   directory is untracked, pre-existing workspace material. Do not add or remove
   it.
@@ -101,9 +114,9 @@ Read `AGENTS.md` first. In particular:
 | --- | --- |
 | Repository | `https://github.com/aadhilsj/Lift-Log.git` |
 | Preview branch | `codex/app-store-readiness` |
-| Preview HEAD at this handover edit | `858a2ca` (merge of `origin/main`; local release fixes are uncommitted) |
+| Preview HEAD at this handover edit | `cbdb813` (latest pushed App Store readiness commit) |
 | Latest main observed | `6a66dff docs: Deveen's handover §12 — Solo payments live now, activity regression, RLS findings` |
-| Preview/main relationship | Latest `origin/main` is merged into Preview. Do **not** merge Preview into main without founder approval; continue testing here. |
+| Preview/main relationship | Latest `origin/main` is merged into Preview. The App Store server changes reach `main` only through a founder-approved, tested promotion; no quiet merge. |
 | Main documentation already added from Preview | `33de0ce` (docs-only cherry-pick of the blob/RLS handover). No Preview app code was moved with it. |
 | Current release target | Free, invite-only Fero V1. No in-app purchases or premium gate in the submission build. |
 
@@ -292,11 +305,15 @@ Read these before writing public legal/App Store material:
   Bloc and selected analytics/insights are intended paid features.
 - Do **not** build the paywall for this submission. Before submission, remove
   or rename every user-facing Premium label so nobody is promised a tier that
-  does not work. Keep the internal feature map for later implementation.
+  does not work. This is complete on the App Store branch; run a final
+  screenshot/text audit against the signed submission build. Keep the internal
+  feature map for later implementation.
 - Launch intent is all App Store countries/regions, subject to final legal and
   App Store Connect review.
-- Private photo delivery before launch was approved in principle. The visible
-  UI should not change; only image access should become authorised/short-lived.
+- Private photo delivery before launch was approved in principle. The App Store
+  branch code uses scoped 24-hour signed links without changing the visible UI.
+  The production bucket-privacy migration is not confirmed applied; treat that
+  as an open owner-run rollout, not a completed protection.
 - Detailed account-linked usage events are approved for a six-month retention
   rule. Daily activity summary data has a separate 90-day cleanup rule.
 - Fero does not process, hold, route or verify member money. It records
@@ -357,9 +374,10 @@ already appended to
 
 After Deveen's rollout reaches a stable `main`:
 
-1. Fetch main and merge **main into `codex/app-store-readiness`**. Never merge
-   Preview into main. Preserve unrelated local work and resolve only genuine
-   conflicts.
+1. Fetch main and merge **main into `codex/app-store-readiness`**. Preserve
+   unrelated local work and resolve only genuine conflicts. Do not promote the
+   App Store server changes to `main` until the founder explicitly approves
+   that promotion and the release checks have passed; never do it quietly.
 2. Re-run the full relevant suite, including mobile navigation, sign-in and
    account deletion flows. The known local browser commands are described in
    `docs/review-environment-setup-2026-09-01.md`.
@@ -380,12 +398,14 @@ After Deveen's rollout reaches a stable `main`:
      that person's content;
    - verify a profile report can be reviewed/dismissed;
    - confirm no real member data is used as review test content.
-4. Re-check photo delivery against `docs/private-photo-delivery-rollout-2026-09-16.md`.
-   The repository migration is
-   `supabase/migrations/20260916120000_make_photo_buckets_private.sql`; this
-   handover does not confirm it has been applied to production. Treat it as an
-   open launch check, not complete merely because Preview code exists.
-5. Remove/rename visible Premium labels, then run a screenshot/text audit.
+4. Follow `docs/private-photo-delivery-rollout-2026-09-16.md` and the safe-copy
+   test checklist in `docs/app-store-safe-copy-test-checklist-2026-09-18.md`.
+   The migration
+   `supabase/migrations/20260916120000_make_photo_buckets_private.sql` is not
+   confirmed applied to production. Test on an isolated copy first; production
+   Storage changes require a fresh backup and the founder's explicit approval.
+5. Premium labels have been removed on the branch; run the final screenshot
+   and text audit on the signed build.
 6. Once founder inputs are available, create/publish the public Privacy Policy,
    Terms, Support and Community Rules pages. The wording must exactly match the
    actual deletion, photo, moderation and payment-handle behavior.
@@ -394,6 +414,13 @@ After Deveen's rollout reaches a stable `main`:
 8. Complete App Store Connect: seller/legal entity, availability, age rating,
    privacy questionnaire, support/privacy URLs, review contact/notes and export
    compliance. Submit only after the final signed build is tested.
+9. On a real iPhone with the signed TestFlight build, open History and drag up
+   and down over the All-Time Leaderboard. Confirm the History page scrolls
+   vertically while horizontal drags remain within the table.
+10. Complete the real-device checklist in
+    `docs/app-store-safe-copy-test-checklist-2026-09-18.md`; keep all
+    database-backed QA on an isolated copy, never a Vercel Preview or
+    production.
 
 ### Still worth improving, but not a reason to delay the immediate RLS work
 
@@ -437,17 +464,14 @@ After Deveen's rollout reaches a stable `main`:
   The Vercel CLI/project link and an authenticated dashboard session were not
   available in this checkout, so this is confirmed from the latest saved
   environment-scope handover, not a fresh live-dashboard inspection.
-- Photo links currently expire after 15 minutes. They are signed in batches by
-  bucket on each state response, after collecting/deduplicating scoped profile,
-  current-log and history photo references. A full state refresh is already
-  expensive (about 1.4 MB read across the app, including 604 kB blob, 597 kB
-  month history and 192 kB current logs in the 2026-09-15 scaling snapshot).
-  Proposed, not implemented: increase the signed-link lifetime (for example to
-  24 hours) to avoid a refresh loop; it adds no state reads per expiry, while
-  each ordinary state response continues its existing batched signing work.
-  Tradeoff: a copied signed URL remains usable longer. Re-signing by refreshing
-  the entire state on image error would add one full, costly state read per
-  affected recovery.
+- Photo links now expire after 24 hours (`PHOTO_SIGNED_URL_TTL_SECONDS` in
+  `api/lift-log.js`) to avoid frequent renewal for an app left open. Each full
+  state response still signs every unique scoped profile/workout photo
+  reference, batched by bucket. That work accompanies an already expensive full
+  read (about 1.4 MB across the app: 604 kB blob, 597 kB month history and 192
+  kB current logs in the 2026-09-15 scaling snapshot). A copied signed URL now
+  remains usable longer. When Deveen begins scaling work, review this per-read
+  signing load with him; do not add full-state refreshes just to renew a photo.
 
 ## What not to accidentally change
 
@@ -465,9 +489,10 @@ After Deveen's rollout reaches a stable `main`:
 
 > Read `AGENTS.md` and `docs/handover-2026-09-18-app-store-preview-session.md`
 > in full. We are continuing Fero App Store preparation on
-> `codex/app-store-readiness`. Do not merge Preview into main or deploy
-> production. First inspect current `main`, Preview, Deveen's RLS status, and
-> these handover checks. Explain the current state in plain English, including
+> `codex/app-store-readiness`. Do not promote the App Store server changes to
+> `main` without explicit founder approval and completed release checks, and do
+> not deploy production. First inspect current `main`, Preview, Deveen's RLS
+> status, and these handover checks. Explain the current state in plain English, including
 > what you verified against the local Fero/Lift-Log repo. At the end of every
 > response, state the recommended next action and `App Store review readiness:
 > X%`.

@@ -653,3 +653,6 @@ merges cleanly with today's `main` (`b4bc285`), and `test:month-close-canonical`
    your test-copy run. Separately, the old `public.lift_log_projection_*` tables
    grant `anon` select/update but have RLS on with zero policies, so they deny
    everything; they hold stale early data and are candidates to drop.
+
+For Sunday's isolated-copy rehearsal, use the App Store safe-copy checklist:
+[`docs/app-store-safe-copy-test-checklist-2026-09-18.md`](app-store-safe-copy-test-checklist-2026-09-18.md).

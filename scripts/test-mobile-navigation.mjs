@@ -160,7 +160,7 @@ try {
     activeTabReselect:"passed",
     reversePageSwipes:"passed",
     leaderboardHorizontalContainment:"passed",
-    leaderboardVerticalScroll:"passed",
+    historyScrollable:"passed",
     blankFrameFreeTabTransition:"passed",
     singleScreenTabTravel:"passed"
   }, null, 2));
