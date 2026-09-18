@@ -18,6 +18,17 @@ each request sheet mentions the Bloc Admin once. Sheet heights at 375×812:
 late and second-Solo sheets 484px (was 460px), day 1–10 sheet 524px (was
 497px). All fit on screen.
 
+**Second follow-up (`d0ee6e4`, live):** the sheet was redesigned to read less
+like a paragraph. Order: a "Your Solo goal" card (6 workouts / Half your Bloc's
+usual 12), the intro line "Solo is for a heavier month…" on every sheet, the
+four rules as an icon list ("You keep logging as normal." / "Reach 6 and
+you're clear." / "If you fall short, the agreed monthly penalty applies." /
+"You can't receive a reward in a Solo month."), a divider, then the Bloc Admin
+approval note on the two request sheets. The founder chose "agreed" over
+"standard" for the penalty wording. Spacing was tightened so every sheet fits
+a 375×667 iPhone SE without scrolling: the modal's max height there is 547px;
+request sheets are 523px and the day 1–10 sheet is 478px.
+
 ## How it works
 
 - **The marker.** A new Solo entry is stored as
