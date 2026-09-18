@@ -12,6 +12,12 @@ you pay the standard monthly penalty. A Solo miss never raises anyone else's
 escalating fine, and Solo members can't receive a reward. Tobias (OSI H3,
 September) stays on the old rules. No database change was made.
 
+**Follow-up (`789a2e8`, live):** the Solo sheet's goal box now reads "6
+workouts / Half your Bloc's usual 12" (founder chose "half" over "50%"), and
+each request sheet mentions the Bloc Admin once. Sheet heights at 375×812:
+late and second-Solo sheets 484px (was 460px), day 1–10 sheet 524px (was
+497px). All fit on screen.
+
 ## How it works
 
 - **The marker.** A new Solo entry is stored as
