@@ -459,7 +459,13 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
 
   const mvpCount = sortedActive[0]?.count || 0;
   const mvpNames = sortedActive.filter(member => member.count === mvpCount && mvpCount > 0).map(member => member.name);
-  const behindRows = activeCounts.map(member => ({...member, miss: Math.max(0, member.target - member.count)})).sort((a,b) => b.miss - a.miss || a.name.localeCompare(b.name));
+  // A new-rules Solo member who missed is measured against their own Solo
+  // goal, so they can be furthest behind. Old-rules Solo stays out: a miss
+  // cost them nothing.
+  const behindRows = [
+    ...activeCounts,
+    ...getStandardSoloMisses(month, relevantNames).map(member => ({...member, solo: true}))
+  ].map(member => ({...member, miss: Math.max(0, member.target - member.count)})).sort((a,b) => b.miss - a.miss || a.name.localeCompare(b.name));
   const furthestBehind = behindRows[0]?.miss > 0 ? behindRows[0] : null;
   // Most Diverse: how many different kinds of training someone did, not how
   // much. Replaces "Most Consistent", which was never computed — it simply
@@ -504,7 +510,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
     {title:"Bloc Champ", name:mvpNames.length ? mvpNames.join(" & ") : "No winner", detail:mvpNames.length ? workoutsLabel(mvpCount) : "No workouts", tone:"gold", gradient:"linear-gradient(135deg, rgba(245,166,35,.13), rgba(255,224,132,.048))"},
     {title:"Most Diverse", name:mostDiverse ? mostDiverse.name : "No one", detail:mostDiverse ? `${mostDiverse.variety} kinds of training` : "One kind of training", tone:"violet", gradient:"linear-gradient(135deg, rgba(135,113,255,.13), rgba(78,112,205,.056))"},
     {title:"Biggest Turnaround", name:biggestTurnaround ? biggestTurnaround.name : "No one", detail:biggestTurnaround ? `${biggestTurnaround.before} to ${biggestTurnaround.after} workouts` : "No previous month", tone:"cyan", gradient:"linear-gradient(135deg, rgba(78,205,196,.115), rgba(71,118,230,.048))"},
-    {title:"Furthest Behind", name:furthestBehind ? furthestBehind.name : "No one", detail:furthestBehind ? `${furthestBehind.miss} short of target` : "Everyone hit target", tone:furthestBehind ? "red" : "silver", gradient:"linear-gradient(135deg, rgba(185,50,50,.115), rgba(245,166,35,.045))"}
+    {title:"Furthest Behind", name:furthestBehind ? furthestBehind.name : "No one", detail:furthestBehind ? `${furthestBehind.miss} short of ${furthestBehind.solo ? "Solo goal" : "target"}` : "Everyone hit target", tone:furthestBehind ? "red" : "silver", gradient:"linear-gradient(135deg, rgba(185,50,50,.115), rgba(245,166,35,.045))"}
   ];
 
   const renderAwards = () => React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(138px,1fr))",gap:7}},

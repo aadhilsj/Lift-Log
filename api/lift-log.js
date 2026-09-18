@@ -10206,20 +10206,8 @@ export default async function handler(req, res) {
         if (sitOutGroup && sitOutMonthKey && nextRequest) {
           await syncSeasonToCanonical(sitOutGroup, sitOutMonthKey, "open", null, { throwOnError: true });
           await upsertSitOutRequestInCanonical(payload.groupId, sitOutMonthKey, canonicalActor, nextRequest, { throwOnError: true });
-          await insertBlocSystemMomentInCanonical(
-            payload.groupId,
-            "sit_out_requested",
-            `${canonicalActor} requested to sit out this month.`,
-            {
-              memberUserId: auth.user.id,
-              memberDisplayName: canonicalActor,
-              monthKey: sitOutMonthKey,
-              exceptional: !!nextRequest.exceptional
-            },
-            `sit_out_requested:${payload.groupId}:${sitOutMonthKey}:${auth.user.id}`,
-            nextRequest.requestedAt || null,
-            { throwOnError: true }
-          );
+          // No Bloc Stream moment for the request itself: the Bloc only hears
+          // about a sit-out once it is approved (founder, 2026-09-18).
           if (nextRequest.status === "approved" && nextRequest.autoApproved) {
             await upsertSeasonMemberExcusedInCanonical(payload.groupId, sitOutMonthKey, canonicalActor, auth.user.id, { throwOnError: true });
             await insertBlocSystemMomentInCanonical(
