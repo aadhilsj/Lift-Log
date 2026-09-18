@@ -32,4 +32,5 @@ Solo penalty.
 > keep logging as normal. Reach your Solo goal and you're clear. If you fall
 > short, you pay the standard monthly penalty.
 >
-> You won't be eligible for a Bloc reward this month.
+> Solo members can avoid a penalty by reaching their goal, but they can't
+> receive a reward this month.
