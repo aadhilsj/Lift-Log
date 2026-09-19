@@ -152,8 +152,13 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
   const pendingSitOuts = Object.values(normalizeSitOutRequests(group?.sitOutRequests)?.[curKey] || {}).filter(request => request.status === "pending");
   const pendingSolos = Object.values(normalizeSoloRequests(group?.soloRequests)?.[curKey] || {}).filter(request => request.status === "pending");
   const normalizedSettings = buildNormalizedSettings(settings);
+  const savedSettings = useMemo(()=>buildNormalizedSettings(group?.settings || {}),[group?.settings]);
+  const rulesDirty = isAdmin && (
+    groupName.trim() !== String(group?.name || "").trim()
+    || JSON.stringify(normalizedSettings) !== JSON.stringify(savedSettings)
+  );
   const escalationStepMissing = normalizedSettings.feeModel === "escalating" && normalizedSettings.escalationStepAmount === null;
-  const canSave = isAdmin && groupName.trim() && normalizedSettings.acceptedWorkoutTypes.length > 0 && !saving;
+  const canSave = isAdmin && rulesDirty && groupName.trim() && normalizedSettings.acceptedWorkoutTypes.length > 0 && !saving;
 
   // Your own month: the Solo and Sit out surface that used to sit on the Today screen.
   const monthSummary = group ? getCurrentMonthSummary(group) : null;
@@ -175,7 +180,7 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
   const soloNeedsApproval = allowanceOn ? allowance.soloLeft < 1 : getRecentSoloCount(group, actor, curKey) >= 1;
   const sitOutMode = sitOutPending || soloPending || isExcused || isSolo
     ? null
-    : (sitOutNeedsApproval ? "exceptional" : (monthDay <= 5 ? "instant" : "request"));
+    : (sitOutNeedsApproval ? "exceptional" : (monthDay <= 10 ? "instant" : "request"));
   const soloMode = soloPending || sitOutPending || isExcused || isSolo
     ? null
     : (soloNeedsApproval ? "exceptional" : (monthDay <= 10 ? "request" : "late"));
@@ -478,7 +483,7 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
   // Leaving is a Bloc action, so it belongs here rather than beside account
   // deletion in the profile. Keeping the two apart stops an irreversible
   // account action sitting next to a reversible Bloc one.
-  const renderLeaveBloc = () => onLeaveBloc && React.createElement('div',{style:{marginTop:6,paddingTop:12,borderTop:"1px solid rgba(212,74,74,.14)"}},
+  const renderLeaveBloc = () => onLeaveBloc && React.createElement('div',{style:{marginTop:28,marginBottom:14,paddingTop:16,borderTop:"1px solid rgba(212,74,74,.14)"}},
     confirmLeave
       ? React.createElement('div',{style:{display:"grid",gap:9,padding:"11px 12px",borderRadius:12,background:"rgba(60,10,10,.28)",border:"1px solid rgba(212,74,74,.22)"}},
           React.createElement('div',{style:{fontSize:11.5,lineHeight:1.5,color:"rgba(220,170,170,.88)",fontFamily:UI_FONT}},

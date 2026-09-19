@@ -142,15 +142,15 @@ test("the app counts exactly what the server counts", () => {
 
 console.log("\nSit out, from September");
 
-test("with one left, a sit-out on the 3rd is instant", () => {
-  setToday("2026-10-03");
+test("with one left, a sit-out on the 10th is instant", () => {
+  setToday("2026-10-10");
   const next = applySitOutRequest(state("2026-9", [closed("2026-3", { sat: ["Member"] })]), member);
   assert.equal(next.groups[GROUP_ID].sitOutRequests["2026-9"].Member.status, "approved");
   assert.equal(next.groups[GROUP_ID].excused.Member["2026-9"], true);
 });
 
-test("with one left, a sit-out after the 5th goes for approval", () => {
-  setToday("2026-10-20");
+test("with one left, a sit-out after the 10th goes for approval", () => {
+  setToday("2026-10-11");
   const next = applySitOutRequest(state("2026-9", [closed("2026-3", { sat: ["Member"] })]), member);
   assert.equal(next.groups[GROUP_ID].sitOutRequests["2026-9"].Member.status, "pending");
 });

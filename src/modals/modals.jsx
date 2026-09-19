@@ -1034,7 +1034,7 @@ const SitOutModal = ({mode,monthName,allowance=false,onClose,onSubmit,submitting
         }
       : {
           title:`Request sit-out for ${monthName}?`,
-          note:"After the 5th of the month, your request goes to the Bloc Admin for approval.",
+          note:"After the 10th of the month, your request goes to the Bloc Admin for approval.",
           cta:"Send request"
         };
   const rules = [

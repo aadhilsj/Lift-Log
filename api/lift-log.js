@@ -7744,7 +7744,9 @@ function applySitOutRequest(current, payload) {
   const deputy = getDeputyAdmin(group);
   const actorIsAdmin = isGroupAdminActor(group, actorUserId, actor);
   const targetApprover = actorIsAdmin ? deputy : (group.adminUserId ? group.memberships?.[group.adminUserId] : null);
-  const shouldAutoApprove = month.day <= 5 && !exceptional && !actorIsAdmin && !needsApproval;
+  // Sit out follows Solo's first-ten-days window. After day 10 it remains
+  // available, but becomes a request for the Bloc Admin.
+  const shouldAutoApprove = month.day <= 10 && !exceptional && !actorIsAdmin && !needsApproval;
   const nextExcused = { ...(group.excused || {}) };
   if (shouldAutoApprove) {
     nextExcused[actor] = { ...(nextExcused[actor] || {}), [month.monthKey]: true };
