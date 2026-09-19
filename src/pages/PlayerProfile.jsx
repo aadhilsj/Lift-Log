@@ -42,7 +42,7 @@ import {
 import {
   isMobile
 } from "../lib/utils.js";
-import { Avatar, WorkoutTypeIcon, Bar, Card, SelectField, TargetHitHexIcon, AppIcon , RedemptionShieldIcon, RedemptionNoteModal, TrainingSproutIcon, SoloFlagIcon, TrainingNoteModal, SoloNoteModal } from "../components/primitives.jsx";
+import { Avatar, WorkoutTypeIcon, Bar, Card, SelectField, TargetHitHexIcon, AppIcon , RedemptionShieldIcon, RedemptionNoteModal, TrainingSproutIcon, SoloFlagIcon, TrainingNoteModal, SoloNoteModal, ModalScrim } from "../components/primitives.jsx";
 import { DeleteModal } from "../modals/modals.jsx";
 import { ProfileStatsPanel } from "../components/ProfileStatsPanel.jsx";
 import { ACTIVITIES, getLogDisplayActivity } from "../lib/activities.js";
@@ -605,7 +605,7 @@ const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevea
       onClose:()=>setShowShareSticker(false)
     }),
     deleteTarget && React.createElement(DeleteModal,{log:deleteTarget,otherBlocNames:[...new Set(findWorkoutCopiesInOtherBlocs(visibleGroups, group?.id, currentUserId, deleteTarget).map(copy => copy.groupName))],onClose:()=>setDeleteTarget(null),onConfirm:async(options)=>{ const log = deleteTarget; setDeleteTarget(null); await onDeleteLog(log, options); }}),
-    deleteChoices && React.createElement('div',{className:"overlay center-mobile",onClick:()=>setDeleteChoices(null)},
+    deleteChoices && React.createElement(ModalScrim,{onClose:()=>setDeleteChoices(null)},
       React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{textAlign:"center",maxWidth:300,padding:"15px 14px"}},
         React.createElement('div',{style:{fontWeight:800,fontSize:14,marginBottom:4}},"Choose a workout"),
         React.createElement('div',{style:{color:"var(--muted)",fontSize:10.5,marginBottom:11}},"Select the workout you want to delete."),

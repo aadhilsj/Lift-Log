@@ -953,13 +953,15 @@ const ActivityListSheet = ({open,search,onSearch,named,hasOther,selected,onPick,
 // the viewport, which put this down by the nav bar with the page still
 // scrolling behind. ModalScrim portals it out to the body and locks the scroll.
 const DeleteModal = ({log,onConfirm,onClose,otherBlocNames=[]}) => {
-  // Logged to several Blocs at once, it should leave them together too, so the
-  // default is yes. Unticking keeps the other Blocs' copies.
-  const [alsoOtherBlocs,setAlsoOtherBlocs] = React.useState(true);
+  const [confirmOtherBlocs,setConfirmOtherBlocs] = React.useState(false);
   const otherCount = otherBlocNames.length;
   const otherLabel = otherCount <= 2
-    ? `Also delete from ${otherBlocNames.join(" and ")}`
-    : `Also delete from your ${otherCount} other Blocs`;
+    ? `Delete it from ${otherBlocNames.join(" and ")} too?`
+    : `Delete it from your ${otherCount} other Blocs too?`;
+  const confirmLocalDelete = () => {
+    if (otherCount > 0) { setConfirmOtherBlocs(true); return; }
+    onConfirm({ alsoOtherBlocs:false });
+  };
   return React.createElement(ModalScrim,{onClose},
   React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{textAlign:"center",maxWidth:280,padding:"14px 14px"}},
     React.createElement('div',{style:{marginBottom:6,display:"flex",justifyContent:"center"}},
@@ -971,23 +973,30 @@ const DeleteModal = ({log,onConfirm,onClose,otherBlocNames=[]}) => {
         React.createElement('path',{d:"M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"})
       )
     ),
-    React.createElement('div',{style:{fontWeight:800,fontSize:13,marginBottom:8}},"Delete this log?"),
-    React.createElement('div',{style:{background:"var(--s2)",border:"1px solid var(--border)",borderRadius:8,padding:"6px 10px",marginBottom:8,textAlign:"left"}},
-      React.createElement('div',{style:{fontWeight:700,fontSize:11,marginBottom:3,display:"inline-flex",alignItems:"center",gap:5}},
-        React.createElement(WorkoutTypeIcon,{type:getLogDisplayActivity(log),size:12}),
-        getLogDisplayActivity(log)
-      ),
-      React.createElement('div',{className:"mono",style:{fontSize:10,color:"var(--muted)"}},fmtISO(log.date))
-    ),
-    otherCount > 0 && React.createElement('label',{style:{display:"flex",alignItems:"center",gap:7,textAlign:"left",background:"var(--s2)",border:"1px solid var(--border)",borderRadius:8,padding:"6px 10px",marginBottom:8,fontSize:10.5,fontWeight:600,color:"var(--text)",cursor:"pointer"}},
-      React.createElement('input',{type:"checkbox",checked:alsoOtherBlocs,onChange:e=>setAlsoOtherBlocs(e.target.checked),style:{accentColor:"var(--red)",margin:0,flexShrink:0}}),
-      React.createElement('span',{style:{minWidth:0}},otherLabel)
-    ),
-    React.createElement('div',{style:{color:"var(--muted)",fontSize:10,marginBottom:10}},"This will permanently remove this workout."),
-    React.createElement('div',{style:{display:"flex",gap:6}},
-      React.createElement('button',{onClick:onClose,style:{flex:1,background:"var(--s2)",border:"1px solid var(--border)",color:"var(--muted)",padding:"7px",borderRadius:7,fontSize:11,fontWeight:600}},"Keep it"),
-      React.createElement('button',{onClick:()=>onConfirm({ alsoOtherBlocs: otherCount > 0 && alsoOtherBlocs }),style:{flex:1,background:"var(--red-bg)",border:"1px solid var(--red)",color:"var(--red)",padding:"7px",borderRadius:7,fontSize:11,fontWeight:800}},"Delete")
-    )
+    confirmOtherBlocs
+      ? React.createElement(React.Fragment,null,
+          React.createElement('div',{style:{fontWeight:800,fontSize:13,marginBottom:8}},"Delete from your other Blocs too?"),
+          React.createElement('div',{style:{color:"var(--muted)",fontSize:11,lineHeight:1.4,marginBottom:10}},otherLabel),
+          React.createElement('div',{style:{display:"flex",gap:6}},
+            React.createElement('button',{onClick:()=>onConfirm({alsoOtherBlocs:false}),style:{flex:1,background:"var(--s2)",border:"1px solid var(--border)",color:"var(--muted)",padding:"7px",borderRadius:7,fontSize:11,fontWeight:600}},"Only this Bloc"),
+            React.createElement('button',{onClick:()=>onConfirm({alsoOtherBlocs:true}),style:{flex:1,background:"var(--red-bg)",border:"1px solid var(--red)",color:"var(--red)",padding:"7px",borderRadius:7,fontSize:11,fontWeight:800}},"Delete everywhere")
+          )
+        )
+      : React.createElement(React.Fragment,null,
+          React.createElement('div',{style:{fontWeight:800,fontSize:13,marginBottom:8}},"Delete this workout?"),
+          React.createElement('div',{style:{background:"var(--s2)",border:"1px solid var(--border)",borderRadius:8,padding:"6px 10px",marginBottom:8,textAlign:"left"}},
+            React.createElement('div',{style:{fontWeight:700,fontSize:11,marginBottom:3,display:"inline-flex",alignItems:"center",gap:5}},
+              React.createElement(WorkoutTypeIcon,{type:getLogDisplayActivity(log),size:12}),
+              getLogDisplayActivity(log)
+            ),
+            React.createElement('div',{className:"mono",style:{fontSize:10,color:"var(--muted)"}},fmtISO(log.date))
+          ),
+          React.createElement('div',{style:{color:"var(--muted)",fontSize:10,marginBottom:10}},"This will permanently remove this workout."),
+          React.createElement('div',{style:{display:"flex",gap:6}},
+            React.createElement('button',{onClick:onClose,style:{flex:1,background:"var(--s2)",border:"1px solid var(--border)",color:"var(--muted)",padding:"7px",borderRadius:7,fontSize:11,fontWeight:600}},"Keep it"),
+            React.createElement('button',{onClick:confirmLocalDelete,style:{flex:1,background:"var(--red-bg)",border:"1px solid var(--red)",color:"var(--red)",padding:"7px",borderRadius:7,fontSize:11,fontWeight:800}},"Delete workout")
+          )
+        )
   )
   );
 };
