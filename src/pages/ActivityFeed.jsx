@@ -45,6 +45,8 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
   const [reactionPopover,setReactionPopover]=useState(null);
   const [localReactionOverrides,setLocalReactionOverrides]=useState({});
   const [imageTarget,setImageTarget]=useState(null);
+  const [photoZoom,setPhotoZoom]=useState(1);
+  const [photoPan,setPhotoPan]=useState({x:0,y:0});
   const [commentCounts,setCommentCounts]=useState({});
   const [notice,setNotice]=useState(null);
   const reactionPressTimer = useRef(null);
@@ -52,8 +54,8 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
   const reactionSuppressClickKey = useRef("");
   const reactionPopoverRef = useRef(null);
   const reactionPickerRef = useRef(null);
-  const photoSwipeStart = useRef(null);
-  const photoSwipeHandled = useRef(false);
+  const photoPointers = useRef(new Map());
+  const photoGesture = useRef(null);
   const activeReactionOverrides = reactionOverrides || localReactionOverrides;
   const updateReactionOverrides = setReactionOverrides || setLocalReactionOverrides;
   const baseFeedPosts = useMemo(()=>flattenFeedPosts(group),[group]);
@@ -310,6 +312,12 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
     ? photoFeedPosts.find(post=>post.owner===imageTarget.owner && post.id===imageTarget.id) || imageTarget
     : null;
   const imageIndex = imagePost ? photoFeedPosts.findIndex(post=>post.owner===imagePost.owner && post.id===imagePost.id) : -1;
+  useEffect(()=>{
+    setPhotoZoom(1);
+    setPhotoPan({x:0,y:0});
+    photoPointers.current.clear();
+    photoGesture.current = null;
+  },[imageTarget?.id]);
   const closeImage = () => {
     setImageTarget(null);
     setReactionTarget(null);
@@ -326,29 +334,83 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
     setReactionPopover(null);
     setImageTarget(nextPost);
   };
+  const clamp = (value,min,max) => Math.max(min,Math.min(max,value));
+  const pointerDistance = points => Math.hypot(points[0].x-points[1].x,points[0].y-points[1].y);
   const handlePhotoPointerDown = event => {
-    photoSwipeStart.current = {x:event.clientX,y:event.clientY};
-    photoSwipeHandled.current = false;
-  };
-  const handlePhotoPointerUp = event => {
-    const start = photoSwipeStart.current;
-    photoSwipeStart.current = null;
-    if (!start) return;
-    const dx = event.clientX - start.x;
-    const dy = event.clientY - start.y;
-    if (Math.abs(dx) < 48 || Math.abs(dx) < Math.abs(dy) * 1.2) return;
-    photoSwipeHandled.current = true;
-    navigateImage(dx < 0 ? 1 : -1);
-  };
-  const handlePhotoTap = event => {
     event.stopPropagation();
-    if (photoSwipeHandled.current) {
-      photoSwipeHandled.current = false;
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    photoPointers.current.set(event.pointerId,{x:event.clientX,y:event.clientY});
+    const points = [...photoPointers.current.values()];
+    if (points.length === 2) {
+      photoGesture.current = {mode:"pinch",startDistance:pointerDistance(points),startZoom:photoZoom};
       return;
     }
+    photoGesture.current = {mode:"single",x:event.clientX,y:event.clientY,startPan:photoPan,moved:false};
+  };
+  const handlePhotoPointerMove = event => {
+    if (!photoPointers.current.has(event.pointerId)) return;
+    event.stopPropagation();
+    photoPointers.current.set(event.pointerId,{x:event.clientX,y:event.clientY});
+    const points = [...photoPointers.current.values()];
+    const gesture = photoGesture.current;
+    if (!gesture) return;
+    if (points.length >= 2) {
+      const scale = pointerDistance(points) / Math.max(1,gesture.startDistance || 1);
+      const nextZoom = clamp(gesture.startZoom * scale,1,3);
+      setPhotoZoom(nextZoom);
+      if (nextZoom === 1) setPhotoPan({x:0,y:0});
+      gesture.mode = "pinch";
+      return;
+    }
+    const dx = event.clientX - gesture.x;
+    const dy = event.clientY - gesture.y;
+    if (photoZoom <= 1) {
+      if (Math.abs(dx) > 4 || Math.abs(dy) > 4) gesture.moved = true;
+      return;
+    }
+    gesture.mode = "pan";
+    gesture.moved = true;
     const rect = event.currentTarget.getBoundingClientRect();
-    const tappedLeft = event.clientX - rect.left < rect.width / 2;
-    navigateImage(tappedLeft ? -1 : 1);
+    const maxX = rect.width * (photoZoom - 1) / 2;
+    const maxY = rect.height * (photoZoom - 1) / 2;
+    setPhotoPan({x:clamp(gesture.startPan.x+dx,-maxX,maxX),y:clamp(gesture.startPan.y+dy,-maxY,maxY)});
+  };
+  const handlePhotoPointerUp = event => {
+    const gesture = photoGesture.current;
+    if (!gesture) return;
+    event.stopPropagation();
+    const dx = event.clientX - gesture.x;
+    const dy = event.clientY - gesture.y;
+    const wasPinching = gesture.mode === "pinch" || photoPointers.current.size > 1;
+    photoPointers.current.delete(event.pointerId);
+    if (wasPinching || photoZoom > 1) {
+      if (photoPointers.current.size === 1) {
+        const [{x,y}] = photoPointers.current.values();
+        photoGesture.current = {mode:"pan",x,y,startPan:photoPan,moved:false};
+      } else photoGesture.current = null;
+      return;
+    }
+    photoGesture.current = null;
+    if (Math.abs(dx) >= 48 && Math.abs(dx) >= Math.abs(dy) * 1.2) {
+      navigateImage(dx < 0 ? 1 : -1);
+      return;
+    }
+    if (gesture.moved) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const edge = rect.width * 0.3;
+    if (x <= edge) navigateImage(-1);
+    else if (x >= rect.width-edge) navigateImage(1);
+  };
+  const handlePhotoPointerCancel = event => {
+    event.stopPropagation();
+    photoPointers.current.delete(event.pointerId);
+    photoGesture.current = null;
+  };
+  const togglePhotoZoom = event => {
+    event.stopPropagation();
+    setPhotoZoom(current => current > 1 ? 1 : 2);
+    setPhotoPan({x:0,y:0});
   };
   const containExpandedPhotoTouch = event => {
     event.stopPropagation();
@@ -359,7 +421,7 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
     const canFlag = imagePost.owner !== currentUser && imagePost.verifiedVia !== "strava";
     const imageActivity = getLogDisplayActivity(imagePost);
     const categoryIcon = React.createElement(WorkoutTypeIcon,{type:imageActivity,size:13});
-    const overlay = React.createElement('div',{"data-activity-image-lightbox":"true",onClick:handlePhotoTap,onTouchStart:containExpandedPhotoTouch,onTouchMove:containExpandedPhotoTouch,onTouchEnd:containExpandedPhotoTouch,onTouchCancel:containExpandedPhotoTouch,style:{position:"fixed",inset:0,background:"rgba(0,0,0,0.92)",zIndex:1200,display:"flex",alignItems:"center",justifyContent:"center",padding:compactFeed?"18px 14px":"24px",touchAction:"none",overscrollBehavior:"contain"}},
+    const overlay = React.createElement('div',{"data-activity-image-lightbox":"true",onClick:closeImage,onTouchStart:containExpandedPhotoTouch,onTouchMove:containExpandedPhotoTouch,onTouchEnd:containExpandedPhotoTouch,onTouchCancel:containExpandedPhotoTouch,style:{position:"fixed",inset:0,background:"rgba(0,0,0,0.92)",zIndex:1200,display:"flex",alignItems:"center",justifyContent:"center",padding:compactFeed?"18px 14px":"24px",touchAction:"none",overscrollBehavior:"contain"}},
       React.createElement('button',{type:"button",onClick:e=>{e.stopPropagation();closeImage();},style:{position:"fixed",top:16,right:16,zIndex:2,width:40,height:40,borderRadius:999,background:"rgba(7,7,10,.82)",border:"1px solid rgba(255,255,255,.12)",color:"#fff",fontSize:18,fontWeight:800}},"×"),
       canFlag && React.createElement('button',{type:"button",onClick:e=>{e.stopPropagation();closeImage();setFlagTarget(imagePost);},style:{position:"fixed",bottom:28,right:20,zIndex:2,display:"flex",alignItems:"center",gap:6,padding:"9px 14px",borderRadius:999,background:"rgba(7,7,10,.82)",border:"1px solid rgba(255,255,255,.1)",color:"rgba(255,255,255,.55)",fontSize:12,fontWeight:600,letterSpacing:".01em"}},
         React.createElement('svg',{width:13,height:13,viewBox:"0 0 24 24",fill:"currentColor",xmlns:"http://www.w3.org/2000/svg"},
@@ -367,7 +429,7 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
         ),
         "Report"
       ),
-      React.createElement('div',{onPointerDown:handlePhotoPointerDown,onPointerUp:handlePhotoPointerUp,style:{width:"100%",maxWidth:720,maxHeight:"92vh",display:"flex",flexDirection:"column",gap:10}},
+      React.createElement('div',{style:{width:"100%",maxWidth:720,maxHeight:"92vh",display:"flex",flexDirection:"column",gap:10}},
         React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"center",gap:7,minWidth:0,whiteSpace:"nowrap",padding:"0 2px",textAlign:"center"}},
           React.createElement(Avatar,{name:imagePost.owner,userId:userIdForOwner(imagePost.owner),size:28}),
           React.createElement('span',{style:{fontWeight:600,fontSize:13,color:"#fff",minWidth:0,overflow:"hidden",textOverflow:"ellipsis",flex:"0 1 auto",maxWidth:compactFeed?118:220}},imagePost.owner),
@@ -378,7 +440,9 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
           ),
           React.createElement('span',{className:"mono",style:{fontSize:8,color:"var(--muted2)",letterSpacing:"-.01em",flexShrink:0}},formatShortDate(imagePost.date))
         ),
-        React.createElement('img',{src:resolveStorageImageUrl(imagePost.photoUrl),alt:`${imagePost.owner} ${imageActivity}`,style:{display:"block",width:"100%",maxHeight:compactFeed?"62vh":"68vh",objectFit:"contain",borderRadius:12,background:"#050507",boxShadow:"0 24px 60px rgba(0,0,0,.45)",cursor:"pointer"}}),
+        React.createElement('div',{onClick:e=>e.stopPropagation(),onDoubleClick:togglePhotoZoom,onPointerDown:handlePhotoPointerDown,onPointerMove:handlePhotoPointerMove,onPointerUp:handlePhotoPointerUp,onPointerCancel:handlePhotoPointerCancel,style:{alignSelf:"center",maxWidth:"100%",maxHeight:compactFeed?"62vh":"68vh",overflow:"hidden",borderRadius:12,background:"#050507",boxShadow:"0 24px 60px rgba(0,0,0,.45)",cursor:photoZoom>1?"grab":"pointer",touchAction:"none"}},
+          React.createElement('img',{src:resolveStorageImageUrl(imagePost.photoUrl),alt:`${imagePost.owner} ${imageActivity}`,style:{display:"block",maxWidth:"100%",maxHeight:compactFeed?"62vh":"68vh",objectFit:"contain",transform:`translate(${photoPan.x}px, ${photoPan.y}px) scale(${photoZoom})`,transformOrigin:"center",transition:photoPointers.current.size?"none":"transform .16s ease"}})
+        ),
         React.createElement('div',{onClick:e=>e.stopPropagation(),style:{padding:"0 2px"}},renderReactionRow(imagePost,false,false,true)),
         imagePost.note && React.createElement('div',{style:{fontSize:14,lineHeight:1.45,color:"var(--text-soft)",fontStyle:"italic",whiteSpace:"pre-wrap",padding:"0 2px",overflowY:"auto",maxHeight:"18vh",textAlign:"center"}},imagePost.note)
       )
