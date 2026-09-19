@@ -653,3 +653,20 @@ merges cleanly with today's `main` (`b4bc285`), and `test:month-close-canonical`
    your test-copy run. Separately, the old `public.lift_log_projection_*` tables
    grant `anon` select/update but have RLS on with zero policies, so they deny
    everything; they hold stale early data and are candidates to drop.
+
+## 13. Update, 2026-09-19 — the yearly allowance reads closed months
+
+Live at `03d25df`. Nothing for you to do beyond keeping one thing true.
+
+1. **From October 2026** each member gets 2 sit-outs and 3 Solo months per
+   calendar year in each Bloc (`getYearlyAllowanceUsage`, mirrored in
+   `api/lift-log.js` and `src/lib/appState.js`). It replaces the three-month
+   rule, which only ever saw the open month.
+2. **It counts closed months from `monthHistory`:** `month.excused[name]`
+   (boolean) and `month.solo[name][key]`. So your month-close rebuild and any
+   blob retirement must keep `excused` and `solo` on every closed-month
+   snapshot. If they go missing, every member silently gets their full
+   allowance back. Test: `npm run test:yearly-allowance`.
+3. **Sitting out now blocks logging:** `applyAddLog` refuses a workout for a
+   month the member is excused in, and `applyMultiLog` skips that Bloc (it
+   refuses only if the source Bloc is the excused one).
