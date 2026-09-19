@@ -48,6 +48,7 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
   const [photoZoom,setPhotoZoom]=useState(1);
   const [photoPan,setPhotoPan]=useState({x:0,y:0});
   const [photoZoomOrigin,setPhotoZoomOrigin]=useState({x:50,y:50});
+  const [photoZoomResetting,setPhotoZoomResetting]=useState(false);
   const [commentCounts,setCommentCounts]=useState({});
   const [notice,setNotice]=useState(null);
   const reactionPressTimer = useRef(null);
@@ -317,6 +318,7 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
     setPhotoZoom(1);
     setPhotoPan({x:0,y:0});
     setPhotoZoomOrigin({x:50,y:50});
+    setPhotoZoomResetting(false);
     photoPointers.current.clear();
     photoGesture.current = null;
   },[imageTarget?.id]);
@@ -350,6 +352,7 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
   const handlePhotoPointerDown = event => {
     event.stopPropagation();
     event.currentTarget.setPointerCapture?.(event.pointerId);
+    setPhotoZoomResetting(false);
     photoPointers.current.set(event.pointerId,{x:event.clientX,y:event.clientY});
     const points = [...photoPointers.current.values()];
     if (points.length === 2) {
@@ -367,6 +370,7 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
     const gesture = photoGesture.current;
     if (!gesture) return;
     if (points.length >= 2) {
+      setPhotoZoomResetting(false);
       updatePhotoZoomOrigin(event.currentTarget,points);
       const scale = pointerDistance(points) / Math.max(1,gesture.startDistance || 1);
       const nextZoom = clamp(gesture.startZoom * scale,1,3);
@@ -402,9 +406,9 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
     // Pinch zoom is only for a quick closer look. Releasing either finger
     // returns the photo to normal rather than leaving the feed in a zoomed state.
     if (wasPinching) {
+      setPhotoZoomResetting(true);
       setPhotoZoom(1);
       setPhotoPan({x:0,y:0});
-      setPhotoZoomOrigin({x:50,y:50});
       photoGesture.current = null;
       return;
     }
@@ -431,12 +435,13 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
     event.stopPropagation();
     photoPointers.current.delete(event.pointerId);
     photoGesture.current = null;
+    setPhotoZoomResetting(true);
     setPhotoZoom(1);
     setPhotoPan({x:0,y:0});
-    setPhotoZoomOrigin({x:50,y:50});
   };
   const togglePhotoZoom = event => {
     event.stopPropagation();
+    setPhotoZoomResetting(false);
     setPhotoZoom(current => current > 1 ? 1 : 2);
     setPhotoPan({x:0,y:0});
     setPhotoZoomOrigin({x:50,y:50});
@@ -470,7 +475,7 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
           React.createElement('span',{className:"mono",style:{fontSize:8,color:"var(--muted2)",letterSpacing:"-.01em",flexShrink:0}},formatShortDate(imagePost.date))
         ),
         React.createElement('div',{onClick:e=>e.stopPropagation(),onDoubleClick:togglePhotoZoom,onPointerDown:handlePhotoPointerDown,onPointerMove:handlePhotoPointerMove,onPointerUp:handlePhotoPointerUp,onPointerCancel:handlePhotoPointerCancel,style:{alignSelf:"center",maxWidth:"100%",maxHeight:compactFeed?"62vh":"68vh",overflow:"hidden",borderRadius:12,background:"#050507",boxShadow:"0 24px 60px rgba(0,0,0,.45)",cursor:photoZoom>1?"grab":"pointer",touchAction:"none"}},
-          React.createElement('img',{src:resolveStorageImageUrl(imagePost.photoUrl),alt:`${imagePost.owner} ${imageActivity}`,style:{display:"block",maxWidth:"100%",maxHeight:compactFeed?"62vh":"68vh",objectFit:"contain",transform:`translate(${photoPan.x}px, ${photoPan.y}px) scale(${photoZoom})`,transformOrigin:`${photoZoomOrigin.x}% ${photoZoomOrigin.y}%`,transition:photoPointers.current.size?"none":"transform .16s ease"}})
+          React.createElement('img',{src:resolveStorageImageUrl(imagePost.photoUrl),alt:`${imagePost.owner} ${imageActivity}`,style:{display:"block",maxWidth:"100%",maxHeight:compactFeed?"62vh":"68vh",objectFit:"contain",transform:`translate(${photoPan.x}px, ${photoPan.y}px) scale(${photoZoom})`,transformOrigin:`${photoZoomOrigin.x}% ${photoZoomOrigin.y}%`,transition:photoZoomResetting?"transform .32s cubic-bezier(.22,1,.36,1)":photoPointers.current.size?"none":"transform .16s ease"}})
         ),
         React.createElement('div',{onClick:e=>e.stopPropagation(),style:{padding:"0 2px"}},renderReactionRow(imagePost,false,false,true)),
         imagePost.note && React.createElement('div',{style:{fontSize:14,lineHeight:1.45,color:"var(--text-soft)",fontStyle:"italic",whiteSpace:"pre-wrap",padding:"0 2px",overflowY:"auto",maxHeight:"18vh",textAlign:"center"}},imagePost.note)
