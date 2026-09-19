@@ -377,13 +377,24 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
   };
   const handlePhotoPointerUp = event => {
     const gesture = photoGesture.current;
-    if (!gesture) return;
+    if (!gesture) {
+      photoPointers.current.delete(event.pointerId);
+      return;
+    }
     event.stopPropagation();
     const dx = event.clientX - gesture.x;
     const dy = event.clientY - gesture.y;
     const wasPinching = gesture.mode === "pinch" || photoPointers.current.size > 1;
     photoPointers.current.delete(event.pointerId);
-    if (wasPinching || photoZoom > 1) {
+    // Pinch zoom is only for a quick closer look. Releasing either finger
+    // returns the photo to normal rather than leaving the feed in a zoomed state.
+    if (wasPinching) {
+      setPhotoZoom(1);
+      setPhotoPan({x:0,y:0});
+      photoGesture.current = null;
+      return;
+    }
+    if (photoZoom > 1) {
       if (photoPointers.current.size === 1) {
         const [{x,y}] = photoPointers.current.values();
         photoGesture.current = {mode:"pan",x,y,startPan:photoPan,moved:false};
@@ -406,6 +417,8 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
     event.stopPropagation();
     photoPointers.current.delete(event.pointerId);
     photoGesture.current = null;
+    setPhotoZoom(1);
+    setPhotoPan({x:0,y:0});
   };
   const togglePhotoZoom = event => {
     event.stopPropagation();
