@@ -656,6 +656,11 @@ const LogModal = ({user,currentUserId,currentGroupId,groups,onConfirm,onClose}) 
     if (!wType || !isCurrentMonthSelection) return [];
     return groups
       .filter(group => group.id !== currentGroupId && getCurrentGroupMemberNames(group).includes(user) && groupCountsWorkoutType(group, wType))
+      // A Bloc you're sitting out this month takes no workouts (the server skips it too).
+      .filter(group => {
+        const [y, m] = String(selDate || "").split("-").map(Number);
+        return !(Number.isFinite(y) && Number.isFinite(m) && group?.excused?.[user]?.[`${y}-${m - 1}`]);
+      })
       .map(group => {
         return {
           id: group.id,
@@ -1005,32 +1010,51 @@ const ReasonLabelRow = ({labelStyle}) => React.createElement('div',{style:{displ
   )
 );
 
-const SitOutModal = ({mode,monthName,onClose,onSubmit,submitting,error}) => {
+// allowance: true from October 2026, when the yearly allowance replaces the
+// three-month rule; "exceptional" then means the member has none left.
+const SitOutModal = ({mode,monthName,allowance=false,onClose,onSubmit,submitting,error}) => {
   const [reason,setReason] = React.useState("");
   const sitOutReasonReady = reason.trim().length > 0;
   const competitionModalLabelStyle = {display:"block",marginBottom:5,fontFamily:UI_FONT,fontSize:9,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".08em",fontWeight:800};
+  // Only the heading, the approval note and the button differ between modes;
+  // the rules are the same on every sheet.
   const config = mode === "instant"
     ? {
         title:`Sit out ${monthName}?`,
-        body:["You won't pay or collect anything this month."],
+        note:null,
         cta:"Confirm sit-out"
       }
     : mode === "exceptional"
       ? {
-          title:"You've already sat out recently.",
-          body:[`Your next sit-out is available in ${monthName}.`,"If you have exceptional circumstances, you can send a request to the Bloc Admin."],
-          cta:"Send exceptional request"
+          title:`Request sit-out for ${monthName}?`,
+          note:allowance
+            ? "This one needs approval before it takes effect."
+            : "You've sat out recently, so this one goes to the Bloc Admin for approval.",
+          cta:"Send request"
         }
       : {
           title:`Request sit-out for ${monthName}?`,
-          body:["Your request will be sent to the Bloc Admin for approval."],
+          note:"After the 5th of the month, your request goes to the Bloc Admin for approval.",
           cta:"Send request"
         };
+  const rules = [
+    { kind:"ban", good:false, text:"You can't log workouts this month." },
+    { kind:"check", good:true, text:"You're removed from this month's penalty." },
+    { kind:"calendar", good:true, text:"You're back in automatically next month." }
+  ];
   return React.createElement('div',{className:`overlay${isMobile() ? " center-mobile" : ""}`,onClick:onClose},
     React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{maxWidth:420,fontFamily:UI_FONT}},
-      React.createElement('div',{style:{fontFamily:UI_FONT,fontWeight:800,fontSize:20,marginBottom:10}},config.title),
-      React.createElement('div',{style:{display:"grid",gap:4,color:"var(--muted)",fontFamily:UI_FONT,fontSize:13,lineHeight:1.55,marginBottom:16}},
-        config.body.map(line=>React.createElement('div',{key:line},line))
+      React.createElement('div',{style:{fontFamily:UI_FONT,fontWeight:800,fontSize:20,marginBottom:14}},config.title),
+      React.createElement('div',{style:{display:"grid",gap:8,marginBottom:16}},
+        rules.map(rule=>React.createElement('div',{key:rule.kind,style:{display:"flex",alignItems:"flex-start",gap:9,fontFamily:UI_FONT,fontSize:12.5,lineHeight:1.4,color:"var(--muted)"}},
+          React.createElement(SoloRuleIcon,{kind:rule.kind,color:rule.good ? "#4ECDC4" : "rgba(232,69,69,.72)"}),
+          React.createElement('span',null,rule.text)
+        ))
+      ),
+      React.createElement('div',{style:{height:1,background:"var(--border)",marginBottom:16}}),
+      config.note && React.createElement('div',{style:{display:"flex",alignItems:"flex-start",gap:8,fontFamily:UI_FONT,fontSize:12,lineHeight:1.45,color:"var(--muted)",opacity:.85,marginBottom:16}},
+        React.createElement(SoloRuleIcon,{kind:"approver",color:"var(--muted)",size:14}),
+        React.createElement('span',null,config.note)
       ),
       React.createElement('label',{style:{display:"block",marginBottom:16}},
         React.createElement(ReasonLabelRow,{labelStyle:competitionModalLabelStyle}),
@@ -1045,6 +1069,47 @@ const SitOutModal = ({mode,monthName,onClose,onSubmit,submitting,error}) => {
   );
 };
 
+// Shown before the request sheet when a member has used this year's
+// allowance: one extra tap, so an over-the-limit request is a deliberate one.
+const AllowanceUsedModal = ({kind,year,onClose,onContinue}) => {
+  const isSolo = kind === "solo";
+  const total = isSolo ? 3 : 2;
+  return React.createElement('div',{className:`overlay${isMobile() ? " center-mobile" : ""}`,onClick:onClose},
+    React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{maxWidth:420,fontFamily:UI_FONT}},
+      React.createElement('div',{style:{display:"flex",gap:4,marginBottom:12}},
+        Array.from({length:total}).map((_,i)=>React.createElement('span',{key:i,style:{width:8,height:8,borderRadius:"50%",border:"1px solid rgba(148,163,184,.4)",boxSizing:"border-box"}}))
+      ),
+      // 17px keeps the longer Solo heading on one line at 375px wide.
+      React.createElement('div',{style:{fontFamily:UI_FONT,fontWeight:800,fontSize:17,lineHeight:1.2,marginBottom:10,whiteSpace:"nowrap"}},
+        isSolo ? `You've used all 3 Solo months for ${year}` : `You've used both sit-outs for ${year}`),
+      React.createElement('div',{style:{display:"grid",gap:10,fontFamily:UI_FONT,fontSize:13,lineHeight:1.55,color:"var(--muted)",marginBottom:18}},
+        React.createElement('div',null,isSolo
+          ? "Solo months are limited so everyone in the Bloc plays by the same rules, and a lighter month is saved for when it's unavoidable."
+          : "Sit-outs are limited so everyone in the Bloc plays by the same rules, and a month off is saved for when it's unavoidable."),
+        React.createElement('div',null,"If something serious has come up, like an injury, illness or a family emergency, you may still request one.")
+      ),
+      React.createElement('div',{style:{display:"flex",gap:9}},
+        React.createElement('button',{onClick:onClose,style:{flex:1,background:"var(--s2)",border:"1px solid var(--border)",color:"var(--muted)",padding:"14px",borderRadius:10,fontFamily:UI_FONT,fontSize:15,fontWeight:600}},"Not now"),
+        React.createElement('button',{onClick:onContinue,style:{flex:1,background:"#4ECDC4",color:"#050909",padding:"14px",borderRadius:10,fontFamily:UI_FONT,fontSize:15,fontWeight:800}},"Request")
+      )
+    )
+  );
+};
+
+// Tapping "+" while sitting out: nothing to log, so say why instead.
+const SittingOutNotice = ({monthName,nextMonthName,onClose}) => React.createElement('div',{className:`overlay${isMobile() ? " center-mobile" : ""}`,onClick:onClose},
+  React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{maxWidth:380,fontFamily:UI_FONT,textAlign:"center"}},
+    React.createElement('div',{style:{width:40,height:40,borderRadius:"50%",background:"rgba(239,159,39,.14)",display:"flex",alignItems:"center",justifyContent:"center",margin:"2px auto 12px"}},
+      React.createElement('svg',{width:20,height:20,viewBox:"0 0 24 24",fill:"none",stroke:"#EF9F27",strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round","aria-hidden":true},
+        React.createElement('path',{d:"M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5z"})
+      )
+    ),
+    React.createElement('div',{style:{fontFamily:UI_FONT,fontWeight:800,fontSize:20,lineHeight:1.2,marginBottom:8}},`You're sitting out ${monthName}`),
+    React.createElement('div',{style:{fontFamily:UI_FONT,fontSize:13,lineHeight:1.55,color:"var(--muted)",marginBottom:18}},`You can't log workouts this month. You're back in on 1\u00A0${nextMonthName}.`),
+    React.createElement('button',{onClick:onClose,style:{width:"100%",background:"#4ECDC4",color:"#050909",padding:"14px",borderRadius:10,fontFamily:UI_FONT,fontSize:15,fontWeight:800}},"Got it")
+  )
+);
+
 // Small line icons for the Solo sheet's rule list. Stroke only, so they take
 // the colour they are given.
 const SOLO_RULE_ICON_PATHS = {
@@ -1052,13 +1117,15 @@ const SOLO_RULE_ICON_PATHS = {
   check: [["circle",{cx:12,cy:12,r:9}],["path",{d:"M8 12.5l2.7 2.7L16 9.8"}]],
   alert: [["circle",{cx:12,cy:12,r:9}],["path",{d:"M12 7.5v5.5"}],["path",{d:"M12 16.5h.01"}]],
   minus: [["circle",{cx:12,cy:12,r:9}],["path",{d:"M8 12h8"}]],
-  approver: [["circle",{cx:9,cy:8,r:4}],["path",{d:"M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"}],["path",{d:"M16 11l2 2 4-4"}]]
+  approver: [["circle",{cx:9,cy:8,r:4}],["path",{d:"M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"}],["path",{d:"M16 11l2 2 4-4"}]],
+  ban: [["circle",{cx:12,cy:12,r:9}],["path",{d:"M5.7 5.7l12.6 12.6"}]],
+  calendar: [["rect",{x:3.5,y:5,width:17,height:15.5,rx:2}],["path",{d:"M3.5 10h17"}],["path",{d:"M8 3v4"}],["path",{d:"M16 3v4"}]]
 };
 const SoloRuleIcon = ({kind,color,size=15}) => React.createElement('svg',{width:size,height:size,viewBox:"0 0 24 24",fill:"none",stroke:color,strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round","aria-hidden":true,style:{flexShrink:0,marginTop:1}},
   (SOLO_RULE_ICON_PATHS[kind] || []).map(([tag,attrs],i)=>React.createElement(tag,{key:i,...attrs}))
 );
 
-const SoloModal = ({mode,monthName,target,blocTarget,onClose,onSubmit,submitting,error}) => {
+const SoloModal = ({mode,monthName,target,blocTarget,allowance=false,onClose,onSubmit,submitting,error}) => {
   const [reason,setReason] = React.useState("");
   const formLabelStyle = {display:"block",marginBottom:5,fontFamily:UI_FONT,fontSize:9,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".08em",fontWeight:800};
   // Only the heading, the approval note and the button differ between modes;
@@ -1066,7 +1133,9 @@ const SoloModal = ({mode,monthName,target,blocTarget,onClose,onSubmit,submitting
   const config = mode === "exceptional"
     ? {
         title:`Request Solo for ${monthName}?`,
-        note:"Solo is meant for once every three months, so this one goes to the Bloc Admin for approval.",
+        note:allowance
+          ? "This one needs approval before it takes effect."
+          : "Solo is meant for once every three months, so this one goes to the Bloc Admin for approval.",
         cta:"Send request"
       }
     : mode === "late"
@@ -1250,4 +1319,4 @@ const PinModal = ({prompt, onConfirm, onClose}) => {
 
 // ─── SETTLEMENT SCREEN ───────────────────────────────────────────────────────
 
-export { SETTINGS_DEFAULTS, TIME_ZONE_OPTIONS, GroupSettingsFields, GroupCreateModal, GroupSettingsModal, CropModal, LogModal, DeleteModal, SitOutModal, SoloModal, ProrationChoiceModal, TrainingChoiceModal, TextEntryModal, NoticeModal, ImageLightbox, PinModal };
+export { SETTINGS_DEFAULTS, TIME_ZONE_OPTIONS, GroupSettingsFields, GroupCreateModal, GroupSettingsModal, CropModal, LogModal, DeleteModal, SitOutModal, SoloModal, AllowanceUsedModal, SittingOutNotice, ProrationChoiceModal, TrainingChoiceModal, TextEntryModal, NoticeModal, ImageLightbox, PinModal };

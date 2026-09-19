@@ -30,7 +30,11 @@ import {
   getCurrentSoloRequest,
   getRecentSoloCount,
   isSoloForMonth,
-  getSoloTargetForMonth
+  getSoloTargetForMonth,
+  isYearlyAllowanceMonth,
+  getYearlyAllowanceUsage,
+  SIT_OUTS_PER_YEAR,
+  SOLO_MONTHS_PER_YEAR
 } from "../lib/appState.js";
 import { copyToClipboard, isMobile } from "../lib/utils.js";
 import {
@@ -41,7 +45,7 @@ import {
   StepperField,
   inputShellStyle
 } from "../components/primitives.jsx";
-import { TIME_ZONE_OPTIONS, SitOutModal, SoloModal } from "../modals/modals.jsx";
+import { TIME_ZONE_OPTIONS, SitOutModal, SoloModal, AllowanceUsedModal } from "../modals/modals.jsx";
 
 const UI_FONT = "'Outfit', sans-serif";
 const DISPLAY_FONT = "'Raleway', sans-serif";
@@ -128,6 +132,7 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
   const [showSolo,setShowSolo]=useState(false);
   const [soloSubmitting,setSoloSubmitting]=useState(false);
   const [soloError,setSoloError]=useState("");
+  const [allowanceGate,setAllowanceGate]=useState(null);
   const [cancelling,setCancelling]=useState("");
   const [groupName,setGroupName]=useState(group?.name || "");
   const [settings,setSettings]=useState({...SETTINGS_DEFAULTS,...group?.settings});
@@ -162,12 +167,31 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
   const mySoloTarget = group ? getSoloTargetForMonth(group, actor, curKey) : null;
   const sitOutPending = mySitOutRequest?.status === "pending";
   const soloPending = mySoloRequest?.status === "pending";
+  // From October 2026 the yearly allowance replaces the three-month rule.
+  const allowanceOn = !!group && isYearlyAllowanceMonth(curKey);
+  const allowanceYear = String(curKey).split("-")[0];
+  const allowance = allowanceOn ? getYearlyAllowanceUsage(group, actor, curKey) : null;
+  const sitOutNeedsApproval = allowanceOn ? allowance.sitOutsLeft < 1 : getRecentSitOutCount(group, actor, curKey) >= 1;
+  const soloNeedsApproval = allowanceOn ? allowance.soloLeft < 1 : getRecentSoloCount(group, actor, curKey) >= 1;
   const sitOutMode = sitOutPending || soloPending || isExcused || isSolo
     ? null
-    : (getRecentSitOutCount(group, actor, curKey) >= 1 ? "exceptional" : (monthDay <= 5 ? "instant" : "request"));
+    : (sitOutNeedsApproval ? "exceptional" : (monthDay <= 5 ? "instant" : "request"));
   const soloMode = soloPending || sitOutPending || isExcused || isSolo
     ? null
-    : (getRecentSoloCount(group, actor, curKey) >= 1 ? "exceptional" : (monthDay <= 10 ? "request" : "late"));
+    : (soloNeedsApproval ? "exceptional" : (monthDay <= 10 ? "request" : "late"));
+  // None left: one extra tap explaining the limit before the request sheet.
+  const openSitOut = () => {
+    if (!sitOutMode) return;
+    setSitOutError("");
+    if (allowanceOn && sitOutMode === "exceptional") { setAllowanceGate("sitout"); return; }
+    setShowSitOut(true);
+  };
+  const openSolo = () => {
+    if (!soloMode) return;
+    setSoloError("");
+    if (allowanceOn && soloMode === "exceptional") { setAllowanceGate("solo"); return; }
+    setShowSolo(true);
+  };
   // Same rule the server applies in applySoloRequest: half the Bloc target,
   // rounded up.
   const soloBlocTarget = group ? getEffectiveTargetForMonth(group, curKey) : myTarget;
@@ -556,7 +580,14 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
     )
   );
 
-  const statusCard = ({accent,title,description,actionLabel,onAction,busy}) => React.createElement('div',{
+  // Filled = still available, hollow = used this year; filled always first.
+  // The profile line draws the same dots the same way.
+  const allowanceDots = (left, total, color) => React.createElement('span',{style:{display:"inline-flex",alignItems:"center",gap:3}},
+    Array.from({length:total}).map((_,i)=>React.createElement('span',{key:i,style:i < left
+      ? {width:6,height:6,borderRadius:"50%",background:color}
+      : {width:6,height:6,borderRadius:"50%",border:"1px solid #3a5651",boxSizing:"border-box"}}))
+  );
+  const statusCard = ({accent,title,description,actionLabel,onAction,busy,dots}) => React.createElement('div',{
     style:{
       borderRadius:12,
       background:"#0D1F1E",
@@ -569,7 +600,13 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
     }
   },
     React.createElement('div',{style:{minWidth:0,display:"grid",gap:3}},
-      React.createElement('div',{style:{fontSize:13,fontWeight:800,color:"#f5f7ff"}},title),
+      dots
+        ? React.createElement('div',{style:{display:"flex",alignItems:"center",gap:7,whiteSpace:"nowrap"}},
+            React.createElement('span',{style:{fontSize:13,fontWeight:800,color:"#f5f7ff"}},title),
+            allowanceDots(dots.left, dots.total, dots.color),
+            React.createElement('span',{style:{fontSize:11,fontWeight:600,color:"var(--muted)"}},dots.left > 0 ? `${dots.left} left` : "None left")
+          )
+        : React.createElement('div',{style:{fontSize:13,fontWeight:800,color:"#f5f7ff"}},title),
       React.createElement('div',{style:{fontSize:11,color:"var(--muted)",lineHeight:1.35}},description)
     ),
     actionLabel && React.createElement('button',{
@@ -592,14 +629,47 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
     },actionLabel)
   );
 
+  const soloDots = allowanceOn ? {left:allowance.soloLeft,total:SOLO_MONTHS_PER_YEAR,color:"#4ECDC4"} : null;
+  const sitOutDots = allowanceOn ? {left:allowance.sitOutsLeft,total:SIT_OUTS_PER_YEAR,color:"#EF9F27"} : null;
+  // "Your 2026": every month this year, sat out in amber, Solo in teal.
+  const renderAllowanceYear = () => {
+    const sitOutMonths = new Set(allowance.sitOutMonths);
+    const soloMonths = new Set(allowance.soloMonths);
+    const shortName = key => MONTH_NAMES[Number(String(key).split("-")[1])] || "";
+    const parts = [
+      allowance.sitOutMonths.length ? React.createElement('span',{key:"s"},React.createElement('span',{style:{color:"#EF9F27"}},"Sat out"),` ${allowance.sitOutMonths.map(shortName).join(", ")}`) : null,
+      allowance.soloMonths.length ? React.createElement('span',{key:"o"},React.createElement('span',{style:{color:"#4ECDC4"}},"Solo"),` ${allowance.soloMonths.map(shortName).join(", ")}`) : null
+    ].filter(Boolean);
+    return React.createElement('div',{style:{borderRadius:12,background:"#0a1513",border:"0.5px solid #1b332e",padding:"10px 12px",fontFamily:UI_FONT}},
+      React.createElement('div',{style:{fontSize:10,fontWeight:800,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".08em",marginBottom:8}},`Your ${allowanceYear}`),
+      React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(12,minmax(0,1fr))",gap:3}},
+        MONTH_NAMES.map((name,i)=>{
+          const key = `${allowanceYear}-${i}`;
+          const sat = sitOutMonths.has(key);
+          const solo = soloMonths.has(key);
+          return React.createElement('div',{key,style:{
+            height:24,borderRadius:5,display:"flex",alignItems:"center",justifyContent:"center",
+            fontSize:10.5,fontWeight:sat||solo?800:600,
+            background:sat ? "rgba(239,159,39,.18)" : solo ? "rgba(78,205,196,.16)" : "#101c1b",
+            color:sat ? "#EF9F27" : solo ? "#4ECDC4" : "#56706b",
+            boxShadow:key === curKey ? "inset 0 0 0 1px #3a5651" : "none"
+          }},name.charAt(0));
+        })
+      ),
+      React.createElement('div',{style:{fontSize:11,color:"var(--muted)",marginTop:8,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},
+        parts.length ? parts.reduce((acc, part, i) => i ? [...acc, " · ", part] : [part], []) : "Nothing used yet this year")
+    );
+  };
+
   const renderStatus = () => React.createElement('div',{style:{display:"grid",gap:9}},
     React.createElement('div',{style:{fontFamily:UI_FONT,fontSize:11,color:"var(--muted)",fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",marginBottom:1}},"Injured, traveling, or got a busy month ahead?"),
 
     isSolo
-      ? statusCard({accent:true,title:`Solo for ${monthName}`,description:mySoloTarget ? `Your target is ${mySoloTarget}.` : "You're logging on your own target."})
+      ? statusCard({accent:true,dots:soloDots,title:`Solo for ${monthName}`,description:mySoloTarget ? `Your target is ${mySoloTarget}.` : "You're logging on your own target."})
       : soloPending
         ? statusCard({
             accent:true,
+            dots:soloDots,
             title:"Solo requested",
             description:"Waiting on admin",
             actionLabel:cancelling==="solo" ? "Cancelling…" : "Cancel",
@@ -607,22 +677,24 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
             onAction:()=>cancelRequest("solo")
           })
         : sitOutPending
-          ? statusCard({title:"Solo",description:"Not available while a sit-out request is pending."})
+          ? statusCard({dots:soloDots,title:"Solo",description:"Not available while a sit-out request is pending."})
           : isExcused
-          ? statusCard({title:"Solo",description:"Not available while you're sitting out."})
+          ? statusCard({dots:soloDots,title:"Solo",description:"Not available while you're sitting out."})
           : statusCard({
               accent:true,
+              dots:soloDots,
               title:"Solo",
               description:"A lighter target for a heavy month.",
-              actionLabel:"Go Solo",
+              actionLabel:allowanceOn && soloNeedsApproval ? "Request" : "Go Solo",
               busy:!soloMode,
-              onAction:()=>{ if(!soloMode) return; setSoloError(""); setShowSolo(true); }
+              onAction:openSolo
             }),
 
     isExcused
-      ? statusCard({title:`Sitting out ${monthName}`,description:"You're out of this month."})
+      ? statusCard({dots:sitOutDots,title:`Sitting out ${monthName}`,description:"You're out of this month."})
       : sitOutPending
         ? statusCard({
+            dots:sitOutDots,
             title:"Sit out requested",
             description:"Waiting on admin",
             actionLabel:cancelling==="sitout" ? "Cancelling…" : "Cancel",
@@ -630,16 +702,19 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
             onAction:()=>cancelRequest("sitout")
           })
         : soloPending
-          ? statusCard({title:"Sit out",description:"Not available while a Solo request is pending."})
+          ? statusCard({dots:sitOutDots,title:"Sit out",description:"Not available while a Solo request is pending."})
           : isSolo
-          ? statusCard({title:"Sit out",description:"Not available while you're Solo."})
+          ? statusCard({dots:sitOutDots,title:"Sit out",description:"Not available while you're Solo."})
           : statusCard({
+            dots:sitOutDots,
             title:"Sit out",
             description:`Take ${monthName} off entirely.`,
-            actionLabel:mySitOutRequest?.status==="declined" ? "Request again" : "Sit out",
+            actionLabel:allowanceOn && sitOutNeedsApproval ? "Request" : mySitOutRequest?.status==="declined" ? "Request again" : "Sit out",
             busy:!sitOutMode,
-            onAction:()=>{ if(!sitOutMode) return; setSitOutError(""); setShowSitOut(true); }
+            onAction:openSitOut
           }),
+
+    allowanceOn && renderAllowanceYear(),
 
     renderLeaveBloc()
   );
@@ -678,8 +753,9 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
     // This screen carries a transform for the back-swipe, and Safari makes any
     // transform the containing block for position:fixed. Both sheets portal to
     // document.body so they centre on the viewport, not on this box.
-    showSitOut && sitOutMode && createPortal(React.createElement(SitOutModal,{mode:sitOutMode,monthName,onClose:()=>{setShowSitOut(false);setSitOutError("");},onSubmit:submitSitOut,submitting:sitOutSubmitting,error:sitOutError}), document.body),
-    showSolo && soloMode && createPortal(React.createElement(SoloModal,{mode:soloMode,monthName,target:soloGoal,blocTarget:soloBlocTarget,onClose:()=>{setShowSolo(false);setSoloError("");},onSubmit:submitSolo,submitting:soloSubmitting,error:soloError}), document.body)
+    allowanceGate && createPortal(React.createElement(AllowanceUsedModal,{kind:allowanceGate,year:allowanceYear,onClose:()=>setAllowanceGate(null),onContinue:()=>{ const kind = allowanceGate; setAllowanceGate(null); if (kind === "solo") setShowSolo(true); else setShowSitOut(true); }}), document.body),
+    showSitOut && sitOutMode && createPortal(React.createElement(SitOutModal,{mode:sitOutMode,monthName,allowance:allowanceOn,onClose:()=>{setShowSitOut(false);setSitOutError("");},onSubmit:submitSitOut,submitting:sitOutSubmitting,error:sitOutError}), document.body),
+    showSolo && soloMode && createPortal(React.createElement(SoloModal,{mode:soloMode,monthName,allowance:allowanceOn,target:soloGoal,blocTarget:soloBlocTarget,onClose:()=>{setShowSolo(false);setSoloError("");},onSubmit:submitSolo,submitting:soloSubmitting,error:soloError}), document.body)
   );
 };
 

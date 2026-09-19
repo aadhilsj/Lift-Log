@@ -800,6 +800,43 @@ function getRecentSoloCount(group, memberName, monthKey = curKey) {
   ), 0);
 }
 
+// Yearly allowance: 2 sit-outs and 3 Solo months per calendar year in each
+// Bloc, from October 2026. Mirrors api/lift-log.js; the server enforces it.
+const YEARLY_ALLOWANCE_FROM = "2026-9";
+const SIT_OUTS_PER_YEAR = 2;
+const SOLO_MONTHS_PER_YEAR = 3;
+
+function isYearlyAllowanceMonth(monthKey = curKey) {
+  return !!monthKey && compareMonthKeys(monthKey, YEARLY_ALLOWANCE_FROM) >= 0;
+}
+
+function getYearlyAllowanceUsage(group, memberName, monthKey = curKey) {
+  const year = String(monthKey || "").split("-")[0];
+  const inYear = key => !!key && String(key).split("-")[0] === year && compareMonthKeys(key, monthKey) <= 0;
+  const sitOut = new Set();
+  const solo = new Set();
+  (Array.isArray(group?.monthHistory) ? group.monthHistory : []).forEach(month => {
+    const key = month?.key;
+    if (!inYear(key)) return;
+    if (month?.excused?.[memberName]) sitOut.add(key);
+    else if (isSoloForMonth(month, memberName, key)) solo.add(key);
+  });
+  Object.entries(group?.excused?.[memberName] || {}).forEach(([key, value]) => {
+    if (value && inYear(key)) sitOut.add(key);
+  });
+  Object.keys(group?.solo?.[memberName] || {}).forEach(key => {
+    if (inYear(key) && !sitOut.has(key) && isSoloForMonth(group, memberName, key)) solo.add(key);
+  });
+  const sitOutMonths = [...sitOut].sort(compareMonthKeys);
+  const soloMonths = [...solo].filter(key => !sitOut.has(key)).sort(compareMonthKeys);
+  return {
+    sitOutMonths,
+    soloMonths,
+    sitOutsLeft: Math.max(0, SIT_OUTS_PER_YEAR - sitOutMonths.length),
+    soloLeft: Math.max(0, SOLO_MONTHS_PER_YEAR - soloMonths.length)
+  };
+}
+
 function getDeputyAdmin(group) {
   const memberships = Object.values(group?.memberships || {})
     .filter(membership => membership?.role !== "admin" && membership?.displayName);
@@ -2273,6 +2310,10 @@ export {
   getMonthKeyWindow,
   getRecentSitOutCount,
   getRecentSoloCount,
+  SIT_OUTS_PER_YEAR,
+  SOLO_MONTHS_PER_YEAR,
+  isYearlyAllowanceMonth,
+  getYearlyAllowanceUsage,
   getDeputyAdmin,
   getCurrentMonthSummary,
   shouldPromptProration,
