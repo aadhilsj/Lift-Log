@@ -1,4 +1,4 @@
-// Yearly allowance: from October 2026 each member gets 2 sit-outs and 3 Solo
+// Yearly allowance: from September 2026 each member gets 2 sit-outs and 3 Solo
 // months per calendar year in each Bloc. Past the allowance a request still
 // goes through, but always needs approval. Sitting out also means no logging.
 //
@@ -136,11 +136,11 @@ test("the app counts exactly what the server counts", () => {
       getYearlyAllowanceUsage(group, "Member", group.lastMonth)
     );
   });
-  assert.equal(client.isYearlyAllowanceMonth("2026-8"), false);
-  assert.equal(client.isYearlyAllowanceMonth("2026-9"), true);
+  assert.equal(client.isYearlyAllowanceMonth("2026-7"), false);
+  assert.equal(client.isYearlyAllowanceMonth("2026-8"), true);
 });
 
-console.log("\nSit out, from October");
+console.log("\nSit out, from September");
 
 test("with one left, a sit-out on the 3rd is instant", () => {
   setToday("2026-10-03");
@@ -169,13 +169,14 @@ test("in January the same member is instant again", () => {
   assert.equal(next.groups[GROUP_ID].sitOutRequests["2027-0"].Member.status, "approved");
 });
 
-test("September keeps the old three-month rule", () => {
+test("September immediately uses the yearly allowance", () => {
   setToday("2026-09-03");
-  const next = applySitOutRequest(state("2026-8", NISHARA.slice(0, 2)), member);
-  assert.equal(next.groups[GROUP_ID].sitOutRequests["2026-8"].Member.status, "approved");
+  assert.throws(() => applySitOutRequest(state("2026-8", NISHARA.slice(0, 2)), member), /used both sit-outs for 2026/);
+  const next = applySitOutRequest(state("2026-8", NISHARA.slice(0, 2)), { ...member, exceptional: true });
+  assert.equal(next.groups[GROUP_ID].sitOutRequests["2026-8"].Member.status, "pending");
 });
 
-console.log("\nSolo, from October");
+console.log("\nSolo, from September");
 
 test("with Solo months left, Solo on the 3rd is instant", () => {
   setToday("2026-10-03");

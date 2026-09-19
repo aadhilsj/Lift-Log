@@ -1010,7 +1010,7 @@ const ReasonLabelRow = ({labelStyle}) => React.createElement('div',{style:{displ
   )
 );
 
-// allowance: true from October 2026, when the yearly allowance replaces the
+// allowance: true from September 2026, when the yearly allowance replaces the
 // three-month rule; "exceptional" then means the member has none left.
 const SitOutModal = ({mode,monthName,allowance=false,onClose,onSubmit,submitting,error}) => {
   const [reason,setReason] = React.useState("");

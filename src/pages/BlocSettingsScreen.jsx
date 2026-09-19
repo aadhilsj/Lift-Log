@@ -167,7 +167,7 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
   const mySoloTarget = group ? getSoloTargetForMonth(group, actor, curKey) : null;
   const sitOutPending = mySitOutRequest?.status === "pending";
   const soloPending = mySoloRequest?.status === "pending";
-  // From October 2026 the yearly allowance replaces the three-month rule.
+  // From September 2026 the yearly allowance replaces the three-month rule.
   const allowanceOn = !!group && isYearlyAllowanceMonth(curKey);
   const allowanceYear = String(curKey).split("-")[0];
   const allowance = allowanceOn ? getYearlyAllowanceUsage(group, actor, curKey) : null;

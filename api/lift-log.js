@@ -10792,11 +10792,11 @@ function getRecentSoloCount(group, memberName, monthKey) {
   ), 0);
 }
 
-// Yearly allowance (founder, 2026-09-19): from October 2026 each member gets
+// Yearly allowance (founder, 2026-09-20): from September 2026 each member gets
 // 2 sit-outs and 3 Solo months per calendar year in each Bloc, replacing the
 // once-every-three-months rule. Once one is used up, a request still goes
 // through, but needs approval. Mirrored in src/lib/appState.js.
-const YEARLY_ALLOWANCE_FROM = "2026-9";
+const YEARLY_ALLOWANCE_FROM = "2026-8";
 const SIT_OUTS_PER_YEAR = 2;
 const SOLO_MONTHS_PER_YEAR = 3;
 

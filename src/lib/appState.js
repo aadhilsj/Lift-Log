@@ -801,8 +801,8 @@ function getRecentSoloCount(group, memberName, monthKey = curKey) {
 }
 
 // Yearly allowance: 2 sit-outs and 3 Solo months per calendar year in each
-// Bloc, from October 2026. Mirrors api/lift-log.js; the server enforces it.
-const YEARLY_ALLOWANCE_FROM = "2026-9";
+// Bloc, from September 2026. Mirrors api/lift-log.js; the server enforces it.
+const YEARLY_ALLOWANCE_FROM = "2026-8";
 const SIT_OUTS_PER_YEAR = 2;
 const SOLO_MONTHS_PER_YEAR = 3;
 
