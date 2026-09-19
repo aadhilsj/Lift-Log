@@ -112,7 +112,7 @@ function LogThumb({ log }) {
 function LogHeader({ log }) {
   const caption = String(log?.note || log?.caption || "").trim();
   return React.createElement('div', {
-    style: { position: "sticky", top: 0, zIndex: 2, display: "flex", flexDirection: "column", gap: 8, padding: "10px 12px 11px", background: "rgba(8,15,15,.98)", borderBottom: "1px solid rgba(22,61,54,.9)", backdropFilter: "blur(8px)" }
+    style: { flexShrink: 0, display: "flex", flexDirection: "column", gap: 8, padding: "10px 12px 11px", background: "rgba(8,15,15,.98)", borderBottom: "1px solid rgba(22,61,54,.9)", backdropFilter: "blur(8px)" }
   },
     React.createElement(LogThumb, { log }),
     React.createElement('div', { style: { width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, minWidth: 0 } },
@@ -128,7 +128,7 @@ function LogHeader({ log }) {
         React.createElement('span', { className: "mono", style: { fontSize: 8.5, color: "var(--muted2)", flexShrink: 0 } }, formatShortDate(log?.date || log?.workoutDate || ""))
       )
     ),
-    caption && React.createElement('div', { style: { padding: "7px 9px", borderRadius: 8, background: "rgba(78,205,196,.055)", border: "1px solid rgba(78,205,196,.12)", color: "var(--text-soft)", fontSize: 12, lineHeight: 1.4, whiteSpace: "pre-wrap", wordBreak: "break-word", maxHeight: "5.6em", overflowY: "auto" } }, caption)
+    caption && React.createElement('div', { style: { padding: "0 2px", color: "var(--muted)", fontSize: 11.5, lineHeight: 1.4, whiteSpace: "pre-wrap", wordBreak: "break-word", maxHeight: "5.6em", overflowY: "auto" } }, caption)
   );
 }
 
@@ -516,11 +516,12 @@ function LogCommentThread({ groupId, log, currentUserId, currentUserName, onClos
         borderRight: "1px solid rgba(22,61,54,.72)"
       }
     },
+      React.createElement(LogHeader, { log: normalizedLog }),
       React.createElement('div', { ref: commentListRef, onScroll: event => {
         const list = event.currentTarget;
         stickToLatestRef.current = list.scrollHeight - list.scrollTop - list.clientHeight < 56;
       }, style: { flex: 1, minHeight: 0, overflowY: "auto", WebkitOverflowScrolling: "touch", overscrollBehavior: "contain" } },
-        React.createElement(LogHeader, { log: normalizedLog }),
+        React.createElement('div', { style: { minHeight: "100%", display: "flex", flexDirection: "column", justifyContent: "flex-end" } },
         error && React.createElement('div', { style: { margin: 14, padding: "9px 11px", borderRadius: 10, background: "rgba(232,69,69,.08)", border: "1px solid rgba(232,69,69,.22)", color: "#ffd7d7", fontSize: 12 } }, error),
         comments.length === 0 && !loaded && knownCommentCount > 0
           ? React.createElement(CommentThreadSkeleton, { count: knownCommentCount })
@@ -557,6 +558,7 @@ function LogCommentThread({ groupId, log, currentUserId, currentUserName, onClos
                 )
               })
             )
+        )
       ),
       React.createElement('form', { onSubmit: event => { event.preventDefault(); submit(); }, style: { flexShrink: 0, display: "flex", alignItems: "flex-end", gap: 8, padding: "10px 12px calc(28px + env(safe-area-inset-bottom))", borderTop: "1px solid rgba(78,205,196,.18)", background: "rgba(5,9,10,.96)", backdropFilter: "blur(8px)", boxSizing: "border-box" } },
         React.createElement('textarea', {
