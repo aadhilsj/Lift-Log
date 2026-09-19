@@ -1985,6 +1985,10 @@ const App = () => {
     setPageSwipeTarget(null);
   },[applyPageTransforms]);
   const startPageSwipe = useCallback((e) => {
+    if (e.target?.closest?.("[data-activity-image-lightbox]")) {
+      e.stopPropagation();
+      return;
+    }
     if (pageTapTransition || showSettings || showTodayLog || showProfileModal || showStream || showJoinModal || authStep || prorationGroup || needsTrainingChoice || logCommentScreen) return;
     if (e.target?.closest?.(".in-bloc-profile-layer,input,textarea,select,[contenteditable='true']")) return;
     const t = e.touches?.[0];
@@ -1993,6 +1997,11 @@ const App = () => {
     pageSwipeRef.current = {sx:t.clientX, sy:t.clientY, st:performance.now(), active:true, mode:null, target:null,priority:e.target?.closest?.("[data-page-swipe-priority='horizontal-scroll']") ? "horizontal-scroll" : null};
   },[authStep, logCommentScreen, needsTrainingChoice, page, pageTapTransition, prorationGroup, showJoinModal, showProfileModal, showSettings, showStream, showTodayLog]);
   const movePageSwipe = useCallback((e) => {
+    if (e.target?.closest?.("[data-activity-image-lightbox]")) {
+      e.stopPropagation();
+      if (e.cancelable) e.preventDefault();
+      return;
+    }
     const s = pageSwipeRef.current;
     const t = e.touches?.[0];
     if (!s.active || !t) return;
@@ -2032,6 +2041,10 @@ const App = () => {
     }
   },[adjacentInBlocPage, applyPageTransforms, schedulePageTransforms]);
   const endPageSwipe = useCallback((e) => {
+    if (e.target?.closest?.("[data-activity-image-lightbox]")) {
+      e.stopPropagation();
+      return;
+    }
     const s = pageSwipeRef.current;
     const t = e.changedTouches?.[0];
     pageSwipeRef.current = {sx:0,sy:0,active:false,mode:null,target:null,priority:null};

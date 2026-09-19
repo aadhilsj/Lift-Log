@@ -350,13 +350,17 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
     const tappedLeft = event.clientX - rect.left < rect.width / 2;
     navigateImage(tappedLeft ? -1 : 1);
   };
+  const containExpandedPhotoTouch = event => {
+    event.stopPropagation();
+    if (event.type === "touchmove" && event.cancelable) event.preventDefault();
+  };
   const renderExpandedPhoto = () => {
     if (!imagePost) return null;
     const canFlag = imagePost.owner !== currentUser && imagePost.verifiedVia !== "strava";
     const imageActivity = getLogDisplayActivity(imagePost);
     const categoryIcon = React.createElement(WorkoutTypeIcon,{type:imageActivity,size:13});
-    const overlay = React.createElement('div',{onClick:closeImage,style:{position:"fixed",inset:0,background:"rgba(0,0,0,0.92)",zIndex:1200,display:"flex",alignItems:"center",justifyContent:"center",padding:compactFeed?"18px 14px":"24px"}},
-      React.createElement('button',{type:"button",onClick:closeImage,style:{position:"fixed",top:16,right:16,zIndex:2,width:40,height:40,borderRadius:999,background:"rgba(7,7,10,.82)",border:"1px solid rgba(255,255,255,.12)",color:"#fff",fontSize:18,fontWeight:800}},"×"),
+    const overlay = React.createElement('div',{"data-activity-image-lightbox":"true",onClick:handlePhotoTap,onTouchStart:containExpandedPhotoTouch,onTouchMove:containExpandedPhotoTouch,onTouchEnd:containExpandedPhotoTouch,onTouchCancel:containExpandedPhotoTouch,style:{position:"fixed",inset:0,background:"rgba(0,0,0,0.92)",zIndex:1200,display:"flex",alignItems:"center",justifyContent:"center",padding:compactFeed?"18px 14px":"24px",touchAction:"none",overscrollBehavior:"contain"}},
+      React.createElement('button',{type:"button",onClick:e=>{e.stopPropagation();closeImage();},style:{position:"fixed",top:16,right:16,zIndex:2,width:40,height:40,borderRadius:999,background:"rgba(7,7,10,.82)",border:"1px solid rgba(255,255,255,.12)",color:"#fff",fontSize:18,fontWeight:800}},"×"),
       canFlag && React.createElement('button',{type:"button",onClick:e=>{e.stopPropagation();closeImage();setFlagTarget(imagePost);},style:{position:"fixed",bottom:28,right:20,zIndex:2,display:"flex",alignItems:"center",gap:6,padding:"9px 14px",borderRadius:999,background:"rgba(7,7,10,.82)",border:"1px solid rgba(255,255,255,.1)",color:"rgba(255,255,255,.55)",fontSize:12,fontWeight:600,letterSpacing:".01em"}},
         React.createElement('svg',{width:13,height:13,viewBox:"0 0 24 24",fill:"currentColor",xmlns:"http://www.w3.org/2000/svg"},
           React.createElement('path',{d:"M4 21V4l1 1 2-2 2 2 2-2 2 2 2-2 2 2 1-1v13l-1-1-2 2-2-2-2 2-2-2-2 2-2-2-1 1z"})
@@ -374,7 +378,7 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
           ),
           React.createElement('span',{className:"mono",style:{fontSize:8,color:"var(--muted2)",letterSpacing:"-.01em",flexShrink:0}},formatShortDate(imagePost.date))
         ),
-        React.createElement('img',{src:resolveStorageImageUrl(imagePost.photoUrl),alt:`${imagePost.owner} ${imageActivity}`,onClick:e=>e.stopPropagation(),style:{display:"block",width:"100%",maxHeight:compactFeed?"62vh":"68vh",objectFit:"contain",borderRadius:12,background:"#050507",boxShadow:"0 24px 60px rgba(0,0,0,.45)",cursor:"default"}}),
+        React.createElement('img',{src:resolveStorageImageUrl(imagePost.photoUrl),alt:`${imagePost.owner} ${imageActivity}`,style:{display:"block",width:"100%",maxHeight:compactFeed?"62vh":"68vh",objectFit:"contain",borderRadius:12,background:"#050507",boxShadow:"0 24px 60px rgba(0,0,0,.45)",cursor:"pointer"}}),
         React.createElement('div',{onClick:e=>e.stopPropagation(),style:{padding:"0 2px"}},renderReactionRow(imagePost,false,false,true)),
         imagePost.note && React.createElement('div',{style:{fontSize:14,lineHeight:1.45,color:"var(--text-soft)",fontStyle:"italic",whiteSpace:"pre-wrap",padding:"0 2px",overflowY:"auto",maxHeight:"18vh",textAlign:"center"}},imagePost.note)
       )
