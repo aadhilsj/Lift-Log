@@ -303,11 +303,11 @@ const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevea
     );
     const leftLabel = left => left > 0 ? `${left} left` : "None left";
     return React.createElement('div',{className:"fu2",style:{display:"flex",alignItems:"center",gap:7,padding:"8px 11px",borderRadius:10,background:"#0a1513",border:"1px solid #1b332e",fontFamily:"'Outfit',sans-serif",fontSize:11,color:"var(--muted)",whiteSpace:"nowrap",overflow:"hidden"}},
-      React.createElement('span',{style:{fontSize:10,fontWeight:800,letterSpacing:".06em"}},String(curKey).split("-")[0]),
+      React.createElement('span',{style:{fontSize:10,fontWeight:800,letterSpacing:".06em"}},`${String(curKey).split("-")[0]}:`),
       React.createElement('span',{style:{flex:1}}),
       "Solo", dots(usage.soloLeft, SOLO_MONTHS_PER_YEAR, "#4ECDC4"), leftLabel(usage.soloLeft),
       React.createElement('span',{style:{color:"#2c4541"}},"·"),
-      "Sit out", dots(usage.sitOutsLeft, SIT_OUTS_PER_YEAR, "#EF9F27"), leftLabel(usage.sitOutsLeft)
+      "Sit out", dots(usage.sitOutsLeft, SIT_OUTS_PER_YEAR, "#4ECDC4"), leftLabel(usage.sitOutsLeft)
     );
   };
 
@@ -650,8 +650,7 @@ const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevea
 	    isJoinedThisMonth&&!isExcusedThisMonth&&React.createElement('div',{className:"fu2",style:{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}},
 	      stats.map(renderStatCard)
 	    ),
-	    renderAllowanceLine(),
-		    isJoinedThisMonth&&!isExcusedThisMonth&&React.createElement(Card,{className:"fu4",style:{padding:"13px 14px",background:"radial-gradient(circle at 12% 0%, rgba(255,255,255,.032), transparent 34%), radial-gradient(circle at 88% 100%, rgba(78,205,196,.052), transparent 42%), linear-gradient(180deg, rgba(10,19,19,.98), rgba(7,14,14,.98))",boxShadow:"inset 0 1px 0 rgba(255,255,255,.035), 0 7px 16px rgba(0,0,0,.12)"}},
+	    isJoinedThisMonth&&!isExcusedThisMonth&&React.createElement(Card,{className:"fu4",style:{padding:"13px 14px",background:"radial-gradient(circle at 12% 0%, rgba(255,255,255,.032), transparent 34%), radial-gradient(circle at 88% 100%, rgba(78,205,196,.052), transparent 42%), linear-gradient(180deg, rgba(10,19,19,.98), rgba(7,14,14,.98))",boxShadow:"inset 0 1px 0 rgba(255,255,255,.035), 0 7px 16px rgba(0,0,0,.12)"}},
 	      React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,marginBottom:12}},
 	        React.createElement('div',{style:{display:"flex",alignItems:"center",gap:7,minWidth:0}},
 	          React.createElement('div',{style:{fontWeight:800,fontSize:14}},`${selLabel} · Log`),
@@ -717,6 +716,7 @@ const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevea
 	            React.createElement('span',{className:"mono",style:{fontSize:13,fontWeight:700,minWidth:18,textAlign:"right",color:tBreak[t]>0?"var(--text)":"var(--muted2)"}},tBreak[t])
 	          ))
 	    ),
+	    renderAllowanceLine(),
 	    premiumSection
 	      )
 	  ));
