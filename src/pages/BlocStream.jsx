@@ -1175,6 +1175,7 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, 
         activity: payload.activity || "",
         date: payload.workoutDate || "",
         photoUrl: payload.photoUrl || "",
+        note: payload.note || "",
         commentCount: payload.commentCount
       }
     });
