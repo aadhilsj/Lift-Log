@@ -98,6 +98,55 @@ const ProfileStatsSkeleton = ({ ownerName = "" }) => {
   );
 };
 
+// Derived from the cross-Bloc daily totals, so copied workouts are never
+// double-counted and the trend follows the member across every Bloc.
+const AllBlocProgress = ({ agg }) => {
+  const monthlyTotals = {};
+  Object.entries(agg.logsByDate || {}).forEach(([iso, count]) => {
+    const key = String(iso).slice(0, 7);
+    if (key.length === 7) monthlyTotals[key] = (monthlyTotals[key] || 0) + Number(count || 0);
+  });
+  const firstKey = Object.keys(monthlyTotals).sort()[0];
+  const startTs = agg.earliestJoined || agg.earliestWorkout || (firstKey ? Date.parse(`${firstKey}-01T00:00:00`) : null);
+  const start = startTs ? new Date(startTs) : null;
+  const now = new Date();
+  const trendMonths = [];
+  if (start && !Number.isNaN(start.getTime())) {
+    const cursor = new Date(start.getFullYear(), start.getMonth(), 1);
+    const end = new Date(now.getFullYear(), now.getMonth(), 1);
+    while (cursor <= end) {
+      const key = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}`;
+      trendMonths.push({ key, month: cursor.getMonth(), count: monthlyTotals[key] || 0 });
+      cursor.setMonth(cursor.getMonth() + 1);
+    }
+  }
+  const axisMax = Math.max(20, Math.ceil(Math.max(1, ...trendMonths.map(month => month.count)) / 5) * 5);
+  const points = trendMonths.map((month, index) => {
+    const x = trendMonths.length === 1 ? 50 : (index / (trendMonths.length - 1)) * 100;
+    return `${x.toFixed(1)},${(68 - (month.count / axisMax) * 56).toFixed(1)}`;
+  }).join(" ");
+  return React.createElement('div', { style: { display: 'grid', gridTemplateColumns: 'minmax(0,.82fr) minmax(0,1.18fr)', gap: 8 } },
+    React.createElement(Card, { style: { padding: '13px 10px', textAlign: 'center', display: 'grid', alignContent: 'center' } },
+      React.createElement('span', { style: { fontSize: 9, fontWeight: MED, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.075em', marginBottom: 8 } }, 'Best Month'),
+      React.createElement('div', { style: { fontSize: 17, fontWeight: MED, lineHeight: 1.1, marginBottom: 6 } }, agg.bestMonth ? `${agg.bestMonth.label} '${String(agg.bestMonth.key).slice(2, 4)}` : '—'),
+      React.createElement('div', { style: { fontSize: 11, color: 'var(--muted)' } }, agg.bestMonth ? `${agg.bestMonth.count} workouts` : 'No workouts yet')
+    ),
+    React.createElement(Card, { style: { padding: '13px 11px 10px', textAlign: 'center', overflow: 'hidden' } },
+      React.createElement('span', { style: { fontSize: 9, fontWeight: MED, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.075em', display: 'block', marginBottom: 7 } }, 'Workout Trend'),
+      trendMonths.length
+        ? React.createElement(React.Fragment, null,
+            React.createElement('svg', { width: '100%', height: 78, viewBox: '0 0 100 76', preserveAspectRatio: 'none', style: { display: 'block', overflow: 'visible' } },
+              React.createElement('line', { x1: 0, y1: 68, x2: 100, y2: 68, stroke: 'rgba(78,205,196,.18)', strokeWidth: 1, vectorEffect: 'non-scaling-stroke' }),
+              React.createElement('polyline', { points, fill: 'none', stroke: '#4ECDC4', strokeWidth: 2.2, strokeLinecap: 'round', strokeLinejoin: 'round', vectorEffect: 'non-scaling-stroke' }),
+              trendMonths.map((month, index) => React.createElement('circle', { key: month.key, cx: trendMonths.length === 1 ? 50 : (index / (trendMonths.length - 1)) * 100, cy: 68 - (month.count / axisMax) * 56, r: 1.8, fill: '#fff', stroke: '#071010', strokeWidth: .7 }))
+            ),
+            React.createElement('div', { style: { display: 'grid', gridTemplateColumns: `repeat(${trendMonths.length}, minmax(18px,1fr))`, minWidth: trendMonths.length * 25, gap: 2, marginTop: 1, fontSize: 8, color: 'var(--muted)' } }, trendMonths.map(month => React.createElement('span', { key: month.key }, FULL_MONTH_NAMES[month.month].slice(0, 3))))
+          )
+        : React.createElement('div', { style: { color: 'var(--muted)', fontSize: 11, padding: '20px 0' } }, 'No monthly data yet.')
+    )
+  );
+};
+
 const ProfileStatsPanel = ({ groups = [], userId, ownerName = "", accountCreatedAt = null, scopeNote = "", serverStats = null, loading = false }) => {
   // Section headings are possessive: they read as the viewer's own on the
   // account profile, and as the member's name when viewing someone else.
@@ -227,6 +276,8 @@ const ProfileStatsPanel = ({ groups = [], userId, ownerName = "", accountCreated
       React.createElement('span', { style: { fontSize: 9.5, fontWeight: MED, color: "#F5A623", textTransform: "uppercase", letterSpacing: ".12em" } }, "Premium"),
       React.createElement('div', { style: { height: 1, flex: 1, background: "rgba(245,166,35,.18)" } })
     ),
+
+    React.createElement(AllBlocProgress, { agg }),
 
     // Heatmap card
     React.createElement(Card, { style: { padding: "12px 13px" } },

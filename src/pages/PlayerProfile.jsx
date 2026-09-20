@@ -72,7 +72,6 @@ const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevea
   const [deleteChoices,setDeleteChoices]=useState(null);
   const [workoutDetail,setWorkoutDetail]=useState(null);
   const [workoutChoices,setWorkoutChoices]=useState(null);
-  const [sparkDetailKey,setSparkDetailKey]=useState(null);
   const [dragging,setDragging]=useState(false);
   const swipeRef=useRef({sx:0,sy:0,active:false,mode:null});
   const surfaceRef=useRef(null);
@@ -106,16 +105,6 @@ const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevea
       appliedInitialMonthKeyRef.current = selectionKey;
     }
   }, [name, initialMonthKey, visibleHistoryMonths]);
-  useEffect(()=>{
-    if (!sparkDetailKey) return;
-    const clearTrendDetail = event => {
-      if (!event.target?.closest?.('[data-workout-trend-dot="true"]')) {
-        setSparkDetailKey(null);
-      }
-    };
-    document.addEventListener("pointerdown", clearTrendDetail);
-    return ()=>document.removeEventListener("pointerdown", clearTrendDetail);
-  },[sparkDetailKey]);
   const isCurMonth=selMonthIdx===null;
   const selHistMonth=isCurMonth?null:visibleHistoryMonths[selMonthIdx];
   const selectedMonthKey = isCurMonth ? curKey : selHistMonth?.key;
@@ -205,15 +194,6 @@ const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevea
     }
     return { count:perfectMonths.length, activeStreak };
   },[name,profileMonths,historicalNames]);
-
-  const bestBlocMonth = useMemo(()=>{
-    const eligible = profileMonths.filter(m=>Number.isFinite(Number(m.count)));
-    if (!eligible.length) return null;
-    return eligible.reduce((best,m)=>Number(m.count) > Number(best.count) ? m : best, eligible[0]);
-  },[profileMonths]);
-
-  const sparkMonths = profileMonths.slice(-8);
-  const sparkMax = Math.max(1, ...sparkMonths.map(m=>Number(m.count || 0)));
 
   // Selected month data
   const selCount = isCurMonth
@@ -536,57 +516,6 @@ const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevea
     x.sub&&React.createElement('div',{style:{fontFamily:"'Outfit',sans-serif",fontSize:x.subSize||10,color:x.subColor||"var(--muted)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",textAlign:"center"}},x.sub),
     x.subNote&&React.createElement('div',{style:{fontFamily:"'Outfit',sans-serif",fontSize:8,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".08em",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},x.subNote)
   );
-  // Twenty is the usual ceiling, but never clip a member's actual best month.
-  // Five-workout steps keep the labels legible at 25, 30, and beyond.
-  const TREND_AXIS_MAX = Math.max(20, Math.ceil(sparkMax / 5) * 5);
-  const trendTicks = Array.from({length:(TREND_AXIS_MAX / 5) + 1},(_,index)=>TREND_AXIS_MAX - (index * 5));
-  const sparkCoords = sparkMonths.map((m,i)=>{
-    const x = sparkMonths.length === 1 ? 50 : (i/(sparkMonths.length-1))*100;
-    const y = 112 - (Math.min(Number(m.count || 0), TREND_AXIS_MAX)/TREND_AXIS_MAX)*96;
-    return { month:m, x, y };
-  });
-  const sparkPoints = sparkCoords.map(p=>`${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
-  const selectedSparkMonth = sparkMonths.find(m=>m.key===sparkDetailKey);
-  const premiumSection = !PLAYER_PROFILE_PREMIUM_GATE && isJoinedThisMonth&&!isExcusedThisMonth && React.createElement(React.Fragment,null,
-    React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"center",gap:6,marginTop:2}},
-      React.createElement(AppIcon,{name:"sparkles",size:12,stroke:"#EF9F27"}),
-      React.createElement('span',{style:{fontFamily:"'Outfit',sans-serif",fontSize:9.5,color:"#EF9F27",letterSpacing:".1em",textTransform:"uppercase",fontWeight:700}},"Premium · This Bloc")
-    ),
-    React.createElement('div',{className:"fu2",style:{display:"grid",gridTemplateColumns:compactMobile?"1fr":"repeat(2,1fr)",gap:8}},
-      React.createElement(Card,{style:{padding:"13px 12px",textAlign:"center"}},
-        React.createElement('span',{style:{...labelStyle,fontSize:9,display:"block",textAlign:"center",marginBottom:8}},"Best Month"),
-        React.createElement('div',{style:{fontFamily:"'Outfit',sans-serif",fontSize:18,fontWeight:800,lineHeight:1,color:"var(--text)",marginBottom:7}},bestBlocMonth ? profileMonthLabel(bestBlocMonth) : "—"),
-        React.createElement('div',{style:{fontFamily:"'Outfit',sans-serif",fontSize:11,color:"var(--muted)"}},bestBlocMonth ? `${bestBlocMonth.count} workouts` : "No workouts yet")
-      ),
-      React.createElement(Card,{style:{padding:"14px 12px 13px",textAlign:"center",background:"radial-gradient(circle at 16% 0%, rgba(255,255,255,.032), transparent 34%), radial-gradient(circle at 92% 100%, rgba(78,205,196,.052), transparent 42%), linear-gradient(180deg, rgba(10,19,19,.99), rgba(7,14,14,.99))",boxShadow:"inset 0 1px 0 rgba(255,255,255,.04), 0 8px 18px rgba(0,0,0,.14)"}},
-        React.createElement('span',{style:{...labelStyle,fontSize:9,display:"block",textAlign:"center",marginBottom:10}},"Workout Trend: 2026"),
-        sparkMonths.length
-          ? React.createElement(React.Fragment,null,
-              React.createElement('div',{style:{display:"grid",gridTemplateColumns:"20px minmax(0,1fr)",gap:8,alignItems:"stretch"}},
-                React.createElement('div',{style:{display:"grid",gridTemplateRows:`repeat(${trendTicks.length},1fr)`,alignItems:"center",justifyItems:"end",height:122,padding:"0 0 18px",fontFamily:"'Outfit',sans-serif",fontSize:8.5,color:"var(--muted)"}},
-                  trendTicks.map(t=>React.createElement('span',{key:t},t))
-                ),
-                React.createElement('div',{style:{position:"relative"}},
-              React.createElement('svg',{width:"100%",height:128,viewBox:"0 0 100 124",preserveAspectRatio:"none",style:{display:"block",overflow:"visible"}},
-                React.createElement('line',{x1:0,y1:112,x2:100,y2:112,stroke:"rgba(78,205,196,.18)",strokeWidth:1,vectorEffect:"non-scaling-stroke"}),
-                React.createElement('line',{x1:0,y1:16,x2:0,y2:112,stroke:"rgba(78,205,196,.18)",strokeWidth:1,vectorEffect:"non-scaling-stroke"}),
-                React.createElement('polyline',{points:sparkPoints,fill:"none",stroke:"#4ECDC4",strokeWidth:2.2,strokeLinecap:"round",strokeLinejoin:"round",vectorEffect:"non-scaling-stroke"})
-              ),
-              sparkCoords.map(p=>React.createElement('button',{key:p.month.key,type:"button","data-workout-trend-dot":"true",onClick:()=>setSparkDetailKey(k=>k===p.month.key?null:p.month.key),style:{position:"absolute",left:`${p.x}%`,top:`${(p.y/124)*128}px`,width:24,height:24,transform:"translate(-50%,-50%)",border:"none",background:"transparent",padding:0,display:"inline-flex",alignItems:"center",justifyContent:"center",cursor:"pointer",touchAction:"manipulation"}},
-                React.createElement('span',{style:{width:p.month.key===sparkDetailKey?6:5,height:p.month.key===sparkDetailKey?6:5,borderRadius:999,background:p.month.key===sparkDetailKey?"#FFFFFF":"rgba(255,255,255,.86)",border:"1px solid rgba(5,12,12,.95)",boxShadow:p.month.key===sparkDetailKey?"0 1px 5px rgba(255,255,255,.36)":"0 1px 3px rgba(255,255,255,.24)",display:"block"}})
-              )),
-              React.createElement('div',{style:{display:"grid",gridTemplateColumns:`repeat(${sparkMonths.length},1fr)`,gap:2,marginTop:3}},
-                sparkMonths.map(m=>React.createElement('span',{key:m.key,style:{fontFamily:"'Outfit',sans-serif",fontSize:8.5,color:"var(--muted)",textAlign:"center"}},MONTH_NAMES[m.month]?.slice(0,3)||"—"))
-              )
-                )
-              ),
-              selectedSparkMonth&&React.createElement('div',{style:{fontFamily:"'Outfit',sans-serif",fontSize:11,color:"var(--text)",marginTop:7,textAlign:"center"}},`${profileMonthLabel(selectedSparkMonth)} · ${selectedSparkMonth.count} workouts`)
-            )
-          : React.createElement('div',{style:{fontSize:12,color:"var(--muted)",padding:"9px 0",textAlign:"center"}},"No monthly data yet.")
-      )
-    )
-  );
-
   return React.createElement('div',{ref:surfaceRef,onTouchStart:startSwipeBack,onTouchMove:moveSwipeBack,onTouchEnd:endSwipeBack,onTouchCancel:e=>{e.stopPropagation();swipeRef.current={sx:0,sy:0,active:false,mode:null};onSwipeRevealChange?.(false);setDragging(false);resetSwipeTransform();},style:{minHeight:"100dvh",background:"var(--bg-gradient)",backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)",transform:dragXRef.current?`translateX(${dragXRef.current}px)`:"translateX(0)",transition:dragging?"none":"transform .08s ease-out",boxShadow:dragXRef.current?"-18px 0 34px rgba(0,0,0,.28)":"none",willChange:dragging||dragXRef.current?"transform":"auto",touchAction:"pan-y",overscrollBehavior:"contain"}},
     openStatusNote === "training" && React.createElement(TrainingNoteModal,{
       memberName: name,
@@ -758,8 +687,7 @@ const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevea
 	    ),
     // A past sit-out month is historical context only. Its banner is the whole
     // story; today's yearly allowance belongs on the active month instead.
-    (isCurMonth || !isExcusedThisMonth) && renderAllowanceLine(),
-	    premiumSection
+    (isCurMonth || !isExcusedThisMonth) && renderAllowanceLine()
 	      )
 	  ));
 };
