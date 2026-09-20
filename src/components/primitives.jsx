@@ -760,14 +760,16 @@ const SoloNoteModal = ({memberName="",isSelf=false,monthName="",target=null,stan
   // New-rules Solo: reaching the goal clears the month, falling short costs the
   // standard monthly penalty. Old-rules Solo keeps its original line.
   const outcome = standardPenalty
-    ? "Reach it and they're clear. Fall short and it's the standard monthly penalty."
-    : "No penalty either way.";
-  const selfOutcome = standardPenalty
-    ? "Reach it and you're clear. Fall short and you pay the standard monthly penalty."
-    : outcome;
-  const body = isSelf
-    ? `Your target${when} is ${targetText} — a lighter target for a heavier month. ${selfOutcome}`
-    : `${memberName || "They"}'s target${when} is ${targetText} — a lighter target for a heavier month. ${outcome}`;
+    ? "Hitting it clears the month. Missing it carries the standard monthly penalty."
+    : "There is no penalty either way.";
+  const targetLine = isSelf
+    ? `Your target${when} is ${targetText}.`
+    : `${memberName || "They"}'s target${when} is ${targetText}.`;
+  const body = React.createElement('div',{style:{display:"grid",gap:7}},
+    React.createElement('div',null,targetLine),
+    React.createElement('div',{style:{color:"var(--muted)"}},"A lighter target for a heavier month."),
+    React.createElement('div',null,outcome)
+  );
   return React.createElement(StatusNoteModal,{
     icon: React.createElement(SoloFlagIcon,{size:30}),
     title: "Solo Mode",
