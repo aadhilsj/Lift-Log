@@ -253,7 +253,11 @@ const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevea
     const d = Number(String(l?.date || "").split("-")[2]);
     if (Number.isFinite(d)) logsByDay[d]=[...(logsByDay[d] || []),l];
   });
-  const selLabel=isCurMonth?`${MONTH_NAMES[CUR_MONTH]} ${CUR_YEAR}`:profileMonthLabel(selHistMonth);
+  // Keep the calendar heading readable and consistent: the open month should
+  // use the same full month label as archived months.
+  const selLabel=isCurMonth
+    ? profileMonthLabel({month:CUR_MONTH,year:CUR_YEAR})
+    : profileMonthLabel(selHistMonth);
   // The one place the mark gets its name. Kept off the leaderboard rows, where
   // the shield alone has to sit beside a name without crowding it.
   const [showRedemptionNote,setShowRedemptionNote]=useState(false);
