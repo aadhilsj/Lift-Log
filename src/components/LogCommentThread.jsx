@@ -86,10 +86,10 @@ function LogThumb({ log }) {
   if (log?.photoUrl) {
     if (imageExpired) {
       return React.createElement('div', {
-        style: { width: "100%", aspectRatio: "1 / 1", maxHeight: 178, borderRadius: 12, overflow: "hidden", background: "rgba(13,31,30,.72)", flexShrink: 0, display: "flex", flexDirection: "column", gap: 7, alignItems: "center", justifyContent: "center", border: "1px solid rgba(78,205,196,.18)", color: "#6f918c", textAlign: "center", padding: 16, boxSizing: "border-box" }
+        style: { height: 116, borderRadius: 12, overflow: "hidden", background: "#0D1F1E", flexShrink: 0, display: "flex", flexDirection: "column", gap: 6, alignItems: "center", justifyContent: "center", border: "0.5px solid #163d36", color: "#4ECDC4", textAlign: "center" }
       },
-        React.createElement('div', { style: { fontSize: 12, fontWeight: 700, color: "var(--text-soft)" } }, "Image expired"),
-        React.createElement('div', { style: { fontSize: 10.5, lineHeight: 1.35 } }, "The workout and its comments are still here.")
+        React.createElement(WorkoutTypeIcon, { type: getLogDisplayActivity(log), size: 36 }),
+        React.createElement('div', { style: { fontSize: 10, fontWeight: 700, color: "var(--muted)", letterSpacing: ".02em" } }, "Image expired")
       );
     }
     const displayPhotoUrl = resolveStorageImageUrl(log.photoUrl);
