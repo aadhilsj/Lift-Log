@@ -649,7 +649,7 @@ const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevea
         React.createElement('span',{style:{width:34,height:34,borderRadius:999,display:"inline-flex",alignItems:"center",justifyContent:"center",background:"rgba(78,205,196,.1)",color:"#4ECDC4",marginBottom:9}},React.createElement(WorkoutTypeIcon,{type:getLogDisplayActivity(workoutDetail),size:20})),
         React.createElement('div',{style:{fontWeight:800,fontSize:15,marginBottom:4}},getLogDisplayActivity(workoutDetail)),
         React.createElement('div',{className:"mono",style:{fontSize:11,color:"var(--muted)",marginBottom:workoutDetail.note?13:16}},formatWorkoutDetailDate(workoutDetail.date)),
-        workoutDetail.note && React.createElement('div',{style:{textAlign:"left",background:"var(--s2)",border:"1px solid var(--border)",borderRadius:9,padding:"10px 11px",fontSize:12,lineHeight:1.5,color:"var(--text)",whiteSpace:"pre-wrap",marginBottom:14}},workoutDetail.note),
+        workoutDetail.note && React.createElement('div',{style:{fontSize:12,lineHeight:1.5,color:"var(--muted)",whiteSpace:"pre-wrap",margin:"0 auto 16px",maxWidth:270}},workoutDetail.note),
         React.createElement('button',{type:"button",onClick:()=>setWorkoutDetail(null),style:{width:"100%",background:"var(--s2)",border:"1px solid var(--border)",color:"var(--text)",padding:"9px",borderRadius:8,fontSize:11,fontWeight:750}},"Close")
       )
     ),
