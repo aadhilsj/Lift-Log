@@ -229,9 +229,12 @@ const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevea
   const hasDetailedLogs = isCurMonth || Boolean(selHistMonth?.logsByUser);
   const hasHistory=monthHistory.length>0;
   const netPL=closedStats.moneyWon-closedStats.moneyLost;
-  const selectedTarget = isCurMonth
-    ? getCurrentMemberTarget(name, curKey, MIN_TARGET)
-    : (selHistMonth?.memberTargets?.[name] || selHistMonth?.settings?.minTarget || MIN_TARGET);
+  // Solo replaces the Bloc target for this person's selected month. The
+  // profile summary must therefore use the same target as the leaderboard.
+  const selectedTarget = getSoloTargetForMonth(isCurMonth ? group : selHistMonth, name, selectedMonthKey)
+    || (isCurMonth
+      ? getCurrentMemberTarget(name, curKey, MIN_TARGET)
+      : (selHistMonth?.memberTargets?.[name] || selHistMonth?.settings?.minTarget || MIN_TARGET));
   const needed=Math.max(0,selectedTarget-selCount);
   // Per activity. Logs from before activities fall under their category name,
   // so an old Sports log counts as "Sports".

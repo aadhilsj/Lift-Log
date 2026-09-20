@@ -1146,26 +1146,33 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
   );
 
   const soloTag = React.createElement(SoloFlagIcon,{size:13});
-  const renderSoloSection = () => soloLeaderboardRows.length > 0 && React.createElement('div',{style:{display:"grid",gap:6,padding:"8px",borderTop:"1px solid rgba(78,205,196,.10)"}},
-    React.createElement('div',{style:{fontSize:9,color:"#4ECDC4",fontWeight:800,letterSpacing:".12em",textTransform:"uppercase",padding:"4px 2px 2px"}},"Solo this month"),
+  const soloStatusBadge = React.createElement('span',{style:{background:"rgba(78,205,196,.10)",color:"#4ECDC4",border:"0.5px solid rgba(78,205,196,.35)",padding:"1px 7px",borderRadius:999,fontSize:9,fontFamily:"'Outfit',sans-serif",fontWeight:700,letterSpacing:".04em",textTransform:"uppercase",whiteSpace:"nowrap"}},"Solo");
+  const renderSoloSection = () => soloLeaderboardRows.length > 0 && React.createElement('div',{style:{display:"grid",gap:4,padding:"8px",borderTop:"1px solid rgba(78,205,196,.10)"}},
     soloLeaderboardRows.map(u=>{
-      const pct = Math.max(0, Math.min(100, Math.round((u.count / Math.max(1, u.soloTarget || u.target || 1)) * 100)));
-      return React.createElement('button',{key:`solo-${u.key || u.name}`,type:"button",onClick:()=>openPlayerProfile(u.name),style:{...leaderboardRowBaseStyle,borderColor:"rgba(78,205,196,.18)",background:"rgba(78,205,196,.045)",boxShadow:"inset 0 1px 0 rgba(255,255,255,.04)"}},
-        React.createElement('div',{style:{display:"grid",gridTemplateColumns:"auto minmax(0,1fr) auto",gap:9,alignItems:"center"}},
-          React.createElement(Avatar,{name:u.name,size:22}),
-          React.createElement('div',{style:{display:"grid",gap:5,minWidth:0}},
-            React.createElement('div',{style:{display:"flex",alignItems:"center",gap:7,minWidth:0}},
-              React.createElement('span',{style:{fontSize:13,fontWeight:700,color:"var(--text)",whiteSpace:"nowrap"}},u.name),
-              u.name===user&&React.createElement('span',{className:"mono",style:{fontSize:8,color:"#3d5e59"}},"you"),
-              soloTag
-            ),
-            React.createElement('div',{style:{height:5,borderRadius:999,background:"rgba(78,205,196,.10)",overflow:"hidden"}},
-              React.createElement('div',{style:{height:"100%",width:`${pct}%`,borderRadius:999,background:"#4ECDC4"}})
+      const last = lastWorkout(logs[u.name]);
+      const lastColor = last === "today" ? "var(--green)" : last === "1 day ago" ? "var(--amber)" : "#C97B2E";
+      return React.createElement('button',{key:`solo-${u.key || u.name}`,type:"button",onClick:()=>openPlayerProfile(u.name),style:leaderboardRowBaseStyle},
+        React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10}},
+          React.createElement('div',{style:{flex:1,minWidth:0,display:"flex",alignItems:"center",alignSelf:"stretch"}},
+            React.createElement('div',{style:{display:"flex",alignItems:"center",gap:8,width:"100%"}},
+              React.createElement('div',{style:{minWidth:20,display:"inline-flex",alignItems:"center",justifyContent:"center",color:"#4ECDC4"}},soloTag),
+              React.createElement(Avatar,{name:u.name,size:22}),
+              React.createElement('div',{style:{flex:1,minWidth:0,textAlign:"left",display:"grid",gap:2,fontWeight:600,fontSize:13,color:"var(--text)"}},
+                React.createElement('div',{style:{display:"flex",flexWrap:"wrap",alignItems:"center",gap:6,rowGap:2,minWidth:0}},
+                  React.createElement('span',{style:{whiteSpace:"nowrap"}},u.name),
+                  u.name===user&&React.createElement('span',{className:"mono",style:{fontSize:8,color:"#3d5e59",marginLeft:6}},"you")
+                ),
+                React.createElement('span',{style:{fontSize:8,color:"var(--muted)",fontFamily:"'Outfit',sans-serif",fontWeight:700,letterSpacing:".04em",textTransform:"uppercase"}},`Target: ${u.soloTarget || u.target}`)
+              )
             )
           ),
-          // minHeight keeps the row the height it had with the percentage line under the count.
-          React.createElement('div',{style:{display:"grid",justifyItems:"end",alignContent:"center",gap:2,minHeight:28.5}},
-            React.createElement('span',{style:{fontSize:13,fontWeight:800,color:"#4ECDC4"}},`${u.count}/${u.soloTarget || u.target}`)
+          React.createElement('div',{style:{display:"grid",gridTemplateColumns:"auto minmax(92px, auto)",gridTemplateRows:"1fr auto",columnGap:6,rowGap:4,alignItems:"center",alignSelf:"stretch"}},
+            React.createElement('span',{style:{fontSize:16,fontWeight:700,color:"#4ECDC4",minWidth:20,textAlign:"right",display:"inline-block",fontFamily:"'Outfit',sans-serif",gridRow:"1 / span 2",alignSelf:"center"}},u.count),
+            React.createElement('span',{style:{display:"inline-flex",alignItems:"center",gap:7,minWidth:92,justifyContent:"flex-end",gridColumn:"2",gridRow:"1"}},
+              soloStatusBadge,
+              React.createElement(ChevronRightIcon,null)
+            ),
+            React.createElement('span',{style:{fontSize:8,fontWeight:700,color:lastColor,fontFamily:"'Outfit',sans-serif",minWidth:92,textAlign:"center",gridColumn:"2",gridRow:"2"}},last?`last: ${last}`:"no logs")
           )
         )
       );
