@@ -1170,9 +1170,9 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
           ),
           React.createElement('div',{style:{display:"grid",gridTemplateColumns:"auto minmax(92px, auto)",gridTemplateRows:"1fr auto",columnGap:6,rowGap:4,alignItems:"center",alignSelf:"stretch"}},
             React.createElement('span',{style:{fontSize:16,fontWeight:700,color:"#4ECDC4",minWidth:20,textAlign:"right",display:"inline-block",fontFamily:"'Outfit',sans-serif",gridRow:"1 / span 2",alignSelf:"center"}},u.count),
-            React.createElement('span',{style:{display:"inline-flex",alignItems:"center",gap:7,minWidth:92,justifyContent:"flex-end",gridColumn:"2",gridRow:"1"}},
+            React.createElement('span',{style:{display:"inline-flex",alignItems:"center",minWidth:92,justifyContent:"center",gridColumn:"2",gridRow:"1",position:"relative"}},
               soloStatusBadge,
-              React.createElement(ChevronRightIcon,null)
+              React.createElement('span',{style:{position:"absolute",right:0,display:"inline-flex",alignItems:"center"}},React.createElement(ChevronRightIcon,null))
             ),
             React.createElement('span',{style:{fontSize:8,fontWeight:700,color:lastColor,fontFamily:"'Outfit',sans-serif",minWidth:92,textAlign:"center",gridColumn:"2",gridRow:"2"}},last?`last: ${last}`:"no logs")
           )
