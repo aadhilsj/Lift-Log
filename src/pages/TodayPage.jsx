@@ -1147,11 +1147,13 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
 
   const soloTag = React.createElement(SoloFlagIcon,{size:13});
   const soloStatusBadge = React.createElement('span',{style:{background:"rgba(78,205,196,.10)",color:"#4ECDC4",border:"0.5px solid rgba(78,205,196,.35)",padding:"1px 7px",borderRadius:999,fontSize:9,fontFamily:"'Outfit',sans-serif",fontWeight:700,letterSpacing:".04em",textTransform:"uppercase",whiteSpace:"nowrap"}},"Solo");
-  const renderSoloSection = () => soloLeaderboardRows.length > 0 && React.createElement('div',{style:{display:"grid",gap:4,padding:"8px",borderTop:"1px solid rgba(78,205,196,.10)"}},
+  const renderSoloSection = () => soloLeaderboardRows.length > 0 && React.createElement('div',{style:{display:"grid",gap:4,paddingTop:4,marginTop:4,borderTop:"1px solid rgba(78,205,196,.10)"}},
     soloLeaderboardRows.map(u=>{
       const last = lastWorkout(logs[u.name]);
       const lastColor = last === "today" ? "var(--green)" : last === "1 day ago" ? "var(--amber)" : "#C97B2E";
-      return React.createElement('button',{key:`solo-${u.key || u.name}`,type:"button",onClick:()=>openPlayerProfile(u.name),style:leaderboardRowBaseStyle},
+      const isMe = u.name === user;
+      return React.createElement('button',{key:`solo-${u.key || u.name}`,type:"button",onClick:()=>openPlayerProfile(u.name),style:{...leaderboardRowBaseStyle,borderColor:leaderboardRowBorderColor("starting-soon",isMe,false),background:leaderboardRowBackground("starting-soon"),boxShadow:leaderboardRowBoxShadow("starting-soon")},
+        onMouseEnter:e=>e.currentTarget.style.borderColor=leaderboardRowHoverBorderColor("starting-soon",isMe,false),onMouseLeave:e=>e.currentTarget.style.borderColor=leaderboardRowBorderColor("starting-soon",isMe,false)},
         React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10}},
           React.createElement('div',{style:{flex:1,minWidth:0,display:"flex",alignItems:"center",alignSelf:"stretch"}},
             React.createElement('div',{style:{display:"flex",alignItems:"center",gap:8,width:"100%"}},
