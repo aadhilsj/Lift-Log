@@ -767,7 +767,7 @@ const SoloNoteModal = ({memberName="",isSelf=false,monthName="",target=null,stan
     : `${memberName || "They"}'s target${when} is ${targetText}.`;
   const body = React.createElement('div',{style:{display:"grid",gap:7}},
     React.createElement('div',null,targetLine),
-    React.createElement('div',{style:{color:"rgba(216,229,225,.82)"}},"A lighter target for a heavier month."),
+    React.createElement('div',{style:{color:"var(--muted)"}},"A lighter target for a heavier month."),
     React.createElement('div',null,outcome)
   );
   return React.createElement(StatusNoteModal,{

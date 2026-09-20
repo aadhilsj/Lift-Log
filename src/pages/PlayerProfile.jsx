@@ -684,7 +684,7 @@ const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevea
 	    isJoinedThisMonth&&!isExcusedThisMonth&&React.createElement(Card,{className:"fu4",style:{padding:"13px 14px",background:"radial-gradient(circle at 12% 0%, rgba(255,255,255,.032), transparent 34%), radial-gradient(circle at 88% 100%, rgba(78,205,196,.052), transparent 42%), linear-gradient(180deg, rgba(10,19,19,.98), rgba(7,14,14,.98))",boxShadow:"inset 0 1px 0 rgba(255,255,255,.035), 0 7px 16px rgba(0,0,0,.12)"}},
 	      React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,marginBottom:12}},
 	        React.createElement('div',{style:{display:"flex",alignItems:"center",gap:7,minWidth:0}},
-	          React.createElement('div',{style:{fontWeight:800,fontSize:14}},`${selLabel} · Log`),
+          React.createElement('div',{style:{fontWeight:800,fontSize:14}},selLabel),
 	          selIsTraining&&React.createElement('button',{
 	            type:"button",
 	            onClick:()=>setOpenStatusNote("training"),
