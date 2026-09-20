@@ -5,7 +5,6 @@ import {
   DEFAULT_CURRENCY,
   NAMES,
   MIN_TARGET,
-  ACTIVE_SEASON_OVERRIDES,
   CUR_MONTH,
   CUR_YEAR,
   DAY_OF_MON,
@@ -16,9 +15,7 @@ import {
   getStandardSoloMisses,
   isStandardPenaltySoloForMonth,
   getLoserAmount,
-  normalizeSeasonOverrides,
   getCurrentMemberTarget,
-  getCurrentMemberTargetInfo,
   getHistoricalMemberNamesForMonth,
   getHistoricalGroupMemberNames,
   isSoloForMonth,
@@ -125,9 +122,6 @@ const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevea
   const isJoinedThisMonth = isCurMonth
     ? isJoinedForMonth(name, selectedMonthKey)
     : !!selHistMonth && getHistoricalMemberNamesForMonth(selHistMonth, historicalNames).includes(name);
-  const currentTargetInfo = isCurMonth ? getCurrentMemberTargetInfo(name, curKey, MIN_TARGET) : null;
-  const currentMonthOverride = isCurMonth ? (normalizeSeasonOverrides(ACTIVE_SEASON_OVERRIDES)?.[curKey] || null) : null;
-
   // Closed month all-time stats
   const closedStats=useMemo(()=>{
     let wins=0,moneyWon=0,moneyLost=0,closedTotal=0;
@@ -349,10 +343,10 @@ const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevea
   const stats=[
     {label:"Workouts",val:selCount||"—",sub:null,color:"var(--text)"},
     {label:"Average",val:closedStats.avg,sub:null,color:"var(--text)"},
-    {label:"Target",valueNode:needed===0?React.createElement(TargetHitHexIcon,{size:22}):needed,sub:needed===0?"target hit!":`more to go`,subNote:isCurMonth&&currentTargetInfo?.prorationSource==="member"?"joined mid-month":isCurMonth&&currentMonthOverride?.prorated?"prorated":null,color:"#4ECDC4"},
+    {label:needed===0?"Target Hit":"To Target",valueNode:needed===0?React.createElement(TargetHitHexIcon,{size:22}):needed,sub:null,color:"#4ECDC4"},
     {label:"Perfect Months",val:perfectMonthStats.count||"—",sub:null,color:"var(--text)"},
+    {label:"Net",val:hasHistory&&netPL!==0?`${netPL>0?"+":"-"}${fmtCurrency(Math.abs(netPL),currency)}`:"—",sub:null,valueSize:13,color:hasHistory?(netPL>0?"var(--green)":netPL<0?"var(--red)":"var(--muted)"):"var(--muted)"},
     {label:"Months Won",val:hasHistory?(closedStats.wins||"—"):"—",sub:null,color:hasHistory&&closedStats.wins>0?"var(--gold)":"var(--muted)"},
-    {label:"Net",val:hasHistory?(netPL===0?fmtCurrency(0,currency):`${netPL>0?"+":"-"}${fmtCurrency(Math.abs(netPL),currency)}`):"—",sub:null,color:hasHistory?(netPL>0?"var(--green)":netPL<0?"var(--red)":"var(--muted)"):"var(--muted)"},
   ];
   // Viewing yourself needs no request at all: your client already holds every
   // Bloc you are in, so the local aggregation is already the complete answer.
@@ -531,12 +525,14 @@ const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevea
       x.icon,
       x.label
     ),
-    React.createElement('div',{style:{fontFamily:"'Outfit',sans-serif",fontSize:15,fontWeight:800,color:x.color,lineHeight:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",display:"flex",alignItems:"center",justifyContent:"center"}},x.valueNode||x.val),
+    React.createElement('div',{style:{fontFamily:"'Outfit',sans-serif",fontSize:x.valueSize||15,fontWeight:800,color:x.color,lineHeight:1,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",display:"flex",alignItems:"center",justifyContent:"center"}},x.valueNode||x.val),
     x.sub&&React.createElement('div',{style:{fontFamily:"'Outfit',sans-serif",fontSize:x.subSize||10,color:x.subColor||"var(--muted)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",textAlign:"center"}},x.sub),
     x.subNote&&React.createElement('div',{style:{fontFamily:"'Outfit',sans-serif",fontSize:8,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".08em",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},x.subNote)
   );
-  const TREND_AXIS_MAX = 20;
-  const trendTicks = [20, 15, 10, 5, 0];
+  // Twenty is the usual ceiling, but never clip a member's actual best month.
+  // Five-workout steps keep the labels legible at 25, 30, and beyond.
+  const TREND_AXIS_MAX = Math.max(20, Math.ceil(sparkMax / 5) * 5);
+  const trendTicks = Array.from({length:(TREND_AXIS_MAX / 5) + 1},(_,index)=>TREND_AXIS_MAX - (index * 5));
   const sparkCoords = sparkMonths.map((m,i)=>{
     const x = sparkMonths.length === 1 ? 50 : (i/(sparkMonths.length-1))*100;
     const y = 112 - (Math.min(Number(m.count || 0), TREND_AXIS_MAX)/TREND_AXIS_MAX)*96;
@@ -560,7 +556,7 @@ const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevea
         sparkMonths.length
           ? React.createElement(React.Fragment,null,
               React.createElement('div',{style:{display:"grid",gridTemplateColumns:"20px minmax(0,1fr)",gap:8,alignItems:"stretch"}},
-                React.createElement('div',{style:{display:"grid",gridTemplateRows:"repeat(5,1fr)",alignItems:"center",justifyItems:"end",height:122,padding:"0 0 18px",fontFamily:"'Outfit',sans-serif",fontSize:8.5,color:"var(--muted)"}},
+                React.createElement('div',{style:{display:"grid",gridTemplateRows:`repeat(${trendTicks.length},1fr)`,alignItems:"center",justifyItems:"end",height:122,padding:"0 0 18px",fontFamily:"'Outfit',sans-serif",fontSize:8.5,color:"var(--muted)"}},
                   trendTicks.map(t=>React.createElement('span',{key:t},t))
                 ),
                 React.createElement('div',{style:{position:"relative"}},
