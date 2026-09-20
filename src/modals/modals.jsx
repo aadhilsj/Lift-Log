@@ -963,7 +963,7 @@ const DeleteModal = ({log,onConfirm,onClose,otherBlocNames=[]}) => {
     onConfirm({ alsoOtherBlocs:false });
   };
   return React.createElement(ModalScrim,{onClose},
-  React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{textAlign:"center",maxWidth:280,padding:"14px 14px"}},
+  React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{textAlign:"center",maxWidth:340,padding:"20px 18px"}},
     React.createElement('div',{style:{marginBottom:6,display:"flex",justifyContent:"center"}},
       React.createElement('svg',{xmlns:"http://www.w3.org/2000/svg",width:20,height:20,viewBox:"0 0 24 24",fill:"none",stroke:"var(--red)",strokeWidth:"1.8",strokeLinecap:"round",strokeLinejoin:"round"},
         React.createElement('path',{d:"M10 11v6"}),
@@ -975,11 +975,11 @@ const DeleteModal = ({log,onConfirm,onClose,otherBlocNames=[]}) => {
     ),
     confirmOtherBlocs
       ? React.createElement(React.Fragment,null,
-          React.createElement('div',{style:{fontWeight:800,fontSize:13,marginBottom:8}},"Delete from your other Blocs too?"),
-          React.createElement('div',{style:{color:"var(--muted)",fontSize:11,lineHeight:1.4,marginBottom:10}},otherLabel),
-          React.createElement('div',{style:{display:"flex",gap:6}},
-            React.createElement('button',{onClick:()=>onConfirm({alsoOtherBlocs:false}),style:{flex:1,background:"var(--s2)",border:"1px solid var(--border)",color:"var(--muted)",padding:"7px",borderRadius:7,fontSize:11,fontWeight:600}},"Only this Bloc"),
-            React.createElement('button',{onClick:()=>onConfirm({alsoOtherBlocs:true}),style:{flex:1,background:"var(--red-bg)",border:"1px solid var(--red)",color:"var(--red)",padding:"7px",borderRadius:7,fontSize:11,fontWeight:800}},"Delete everywhere")
+          React.createElement('div',{style:{fontWeight:800,fontSize:15,marginBottom:9}},"Also delete it from your other Blocs?"),
+          React.createElement('div',{style:{color:"var(--muted)",fontSize:12,lineHeight:1.5,margin:"0 auto 15px",maxWidth:285}},otherLabel),
+          React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:9}},
+            React.createElement('button',{onClick:()=>onConfirm({alsoOtherBlocs:false}),style:{width:"100%",background:"var(--s1)",border:"1px solid var(--red)",color:"var(--text)",padding:"11px 12px",borderRadius:9,fontSize:12,fontWeight:750}},"Delete only from this Bloc"),
+            React.createElement('button',{onClick:()=>onConfirm({alsoOtherBlocs:true}),style:{width:"100%",background:"var(--red-bg)",border:"1px solid var(--red)",color:"var(--red)",padding:"11px 12px",borderRadius:9,fontSize:12,fontWeight:800}},"Delete from every Bloc")
           )
         )
       : React.createElement(React.Fragment,null,
