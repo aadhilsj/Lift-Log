@@ -8964,6 +8964,7 @@ function buildFeroProfileStats(state, subjectUserId) {
   const typeMix = {};
   const dayTypeMax = {};
   const monthTotals = {};
+  const sitOutMonths = new Set();
 
   const isoOfLog = value => {
     const m = /^(\d{4}-\d{2}-\d{2})/.exec(String(value || ""));
@@ -9005,7 +9006,10 @@ function buildFeroProfileStats(state, subjectUserId) {
       tally(month.logsByUser?.[displayName] || []);
       const target = Number(month?.memberTargets?.[displayName] || month?.settings?.minTarget || DEFAULT_MIN_TARGET);
       const count = Number(month?.counts?.[displayName] ?? getCountedLogCount(month?.logsByUser?.[displayName] || []));
-      if (month?.excused?.[displayName]) continue;
+      if (month?.excused?.[displayName]) {
+        if (month?.key) sitOutMonths.add(month.key);
+        continue;
+      }
       targetEligibleMonths += 1;
       if (count >= target) targetHitMonths += 1;
       const activeCounts = Object.keys(month?.counts || {})
@@ -9058,6 +9062,7 @@ function buildFeroProfileStats(state, subjectUserId) {
     weekday,
     typeMix,
     logsByDate,
+    sitOutMonths: [...sitOutMonths],
     bestMonth: bestEntry ? { key: bestEntry[0], count: bestEntry[1] } : null
   };
 }
