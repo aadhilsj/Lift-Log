@@ -756,7 +756,9 @@ const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevea
 	            React.createElement('span',{className:"mono",style:{fontSize:13,fontWeight:700,minWidth:18,textAlign:"right",color:tBreak[t]>0?"var(--text)":"var(--muted2)"}},tBreak[t])
 	          ))
 	    ),
-	    renderAllowanceLine(),
+    // A past sit-out month is historical context only. Its banner is the whole
+    // story; today's yearly allowance belongs on the active month instead.
+    (isCurMonth || !isExcusedThisMonth) && renderAllowanceLine(),
 	    premiumSection
 	      )
 	  ));
