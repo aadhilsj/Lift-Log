@@ -635,7 +635,9 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
   );
 
   const soloDots = allowanceOn ? {left:allowance.soloLeft,total:SOLO_MONTHS_PER_YEAR,color:"#4ECDC4"} : null;
-  const sitOutDots = allowanceOn ? {left:allowance.sitOutsLeft,total:SIT_OUTS_PER_YEAR,color:"#EF9F27"} : null;
+  // Both allowances use the same cyan: a filled dot means the same thing on
+  // the Status tab and on a profile, which is where these dots also appear.
+  const sitOutDots = allowanceOn ? {left:allowance.sitOutsLeft,total:SIT_OUTS_PER_YEAR,color:"#4ECDC4"} : null;
   // "Your 2026": every month this year, sat out in amber, Solo in teal.
   const renderAllowanceYear = () => {
     const sitOutMonths = new Set(allowance.sitOutMonths);
