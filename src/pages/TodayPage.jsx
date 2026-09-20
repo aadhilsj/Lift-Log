@@ -1209,11 +1209,13 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
               React.createElement('div',{style:{display:"flex",alignItems:"center",gap:8,width:"100%"}},
                 React.createElement('div',{style:{minWidth:20}},u.isOut?React.createElement('span',{style:{fontSize:12,color:"#2A4040"}},"💤"):React.createElement(RankIcon,{rank:aIdx+1})),
                 React.createElement(Avatar,{name:u.name,size:22,muted:u.isOut}),
-                React.createElement('div',{style:{flex:1,minWidth:0,textAlign:"left",display:"flex",flexWrap:"wrap",alignItems:"center",gap:6,rowGap:2,fontWeight:600,fontSize:13,color:u.isOut?"#2A4040":"var(--text)"}},
-                  React.createElement('span',{style:{whiteSpace:"nowrap"}},u.name),
-                  u.redemptionMark&&React.createElement(RedemptionShieldIcon,{size:13,redeemed:u.redemptionMark === "redeemed"}),
-                  u.isTraining&&React.createElement(TrainingSproutIcon,{size:13}),
-                  isMe&&React.createElement('span',{className:"mono",style:{fontSize:8,color:"#3d5e59",marginLeft:6}},"you"),
+                React.createElement('div',{style:{flex:1,minWidth:0,textAlign:"left",display:"grid",gap:u.prorated&&!u.isOut?2:0,fontWeight:600,fontSize:13,color:u.isOut?"#2A4040":"var(--text)"}},
+                  React.createElement('div',{style:{display:"flex",flexWrap:"wrap",alignItems:"center",gap:6,rowGap:2,minWidth:0}},
+                    React.createElement('span',{style:{whiteSpace:"nowrap"}},u.name),
+                    u.redemptionMark&&React.createElement(RedemptionShieldIcon,{size:13,redeemed:u.redemptionMark === "redeemed"}),
+                    u.isTraining&&React.createElement(TrainingSproutIcon,{size:13}),
+                    isMe&&React.createElement('span',{className:"mono",style:{fontSize:8,color:"#3d5e59",marginLeft:6}},"you")
+                  ),
                   u.prorated&&!u.isOut&&React.createElement(MemberTag,{tone:"prorated"},"Prorated")
                 )
               )
@@ -1299,9 +1301,11 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
                 React.createElement('div',{style:{display:"flex",alignItems:"center",gap:9,width:"100%"}},
                   React.createElement('div',{style:{minWidth:22}},u.isOut?React.createElement('span',{style:{fontSize:13,color:"#2A4040"}},"💤"):React.createElement(RankIcon,{rank:aIdx+1})),
                   React.createElement(Avatar,{name:u.name,size:24,muted:u.isOut}),
-                  React.createElement('div',{style:{flex:1,minWidth:0,textAlign:"left",display:"flex",flexWrap:"wrap",alignItems:"center",gap:7,rowGap:2,fontWeight:600,fontSize:14,color:u.isOut?"#2A4040":"var(--text)"}},
-                    React.createElement('span',{style:{whiteSpace:"nowrap"}},u.name),
-                    isMe&&React.createElement('span',{className:"mono",style:{fontSize:8,color:"#3d5e59",marginLeft:7}},"you"),
+                  React.createElement('div',{style:{flex:1,minWidth:0,textAlign:"left",display:"grid",gap:u.prorated&&!u.isOut?2:0,fontWeight:600,fontSize:14,color:u.isOut?"#2A4040":"var(--text)"}},
+                    React.createElement('div',{style:{display:"flex",flexWrap:"wrap",alignItems:"center",gap:7,rowGap:2,minWidth:0}},
+                      React.createElement('span',{style:{whiteSpace:"nowrap"}},u.name),
+                      isMe&&React.createElement('span',{className:"mono",style:{fontSize:8,color:"#3d5e59",marginLeft:7}},"you")
+                    ),
                     u.prorated&&!u.isOut&&React.createElement(MemberTag,{tone:"prorated"},"Prorated")
                   )
                 )

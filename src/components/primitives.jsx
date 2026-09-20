@@ -724,7 +724,7 @@ const RedemptionNoteModal = ({redeemed=false,memberName="",isSelf=false,monthNam
   const who = isSelf ? "You" : (memberName || "They");
   const slowLine = monthName ? `had a slow ${monthName}` : "had a slow month";
   const body = redeemed
-    ? (isSelf ? `You ${slowLine}. You redeemed it this month.` : `${who} ${slowLine}, and redeemed it this month.`)
+    ? `${who} ${slowLine} and bounced back this month.`
     : (isSelf ? `You ${slowLine}. This month is your chance to redeem it.` : `${who} ${slowLine}. This month is their chance to redeem it.`);
   return React.createElement(StatusNoteModal,{
     icon: React.createElement(RedemptionShieldIcon,{size:30,redeemed}),
