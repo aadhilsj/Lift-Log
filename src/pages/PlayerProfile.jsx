@@ -63,11 +63,18 @@ const profileMonthOptionLabel = month => month ? `${MONTH_NAMES[month.month]} '$
 // The shared MONTH_NAMES list is the short form used in compact labels. The
 // redemption note is a sentence, so it needs the month spelled out.
 const PROFILE_FULL_MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+const formatWorkoutDetailDate = isoDate => {
+  const [year,month,day] = String(isoDate || "").split("-").map(Number);
+  if (!year || !month || !day) return String(isoDate || "");
+  return `${day} ${PROFILE_FULL_MONTH_NAMES[month - 1]} ${year}`;
+};
 
 const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevealChange,groupSettings,onDeleteLog,initialMonthKey,memberUserId,currentUserId,visibleGroups,accountCreatedAt,profilePhotoUrl}) => {
   const compactMobile = isMobile();
   const [deleteTarget,setDeleteTarget]=useState(null);
   const [deleteChoices,setDeleteChoices]=useState(null);
+  const [workoutDetail,setWorkoutDetail]=useState(null);
+  const [workoutChoices,setWorkoutChoices]=useState(null);
   const [sparkDetailKey,setSparkDetailKey]=useState(null);
   const [dragging,setDragging]=useState(false);
   const swipeRef=useRef({sx:0,sy:0,active:false,mode:null});
@@ -621,6 +628,31 @@ const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevea
         React.createElement('button',{type:"button",onClick:()=>setDeleteChoices(null),style:{width:"100%",marginTop:9,background:"transparent",border:"1px solid var(--border)",color:"var(--muted)",padding:"8px",borderRadius:8,fontSize:11,fontWeight:700}},"Cancel")
       )
     ),
+    workoutChoices && React.createElement(ModalScrim,{onClose:()=>setWorkoutChoices(null)},
+      React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{textAlign:"center",maxWidth:300,padding:"15px 14px"}},
+        React.createElement('div',{style:{fontWeight:800,fontSize:14,marginBottom:4}},"Choose a workout"),
+        React.createElement('div',{style:{color:"var(--muted)",fontSize:10.5,marginBottom:11}},"Select a workout to view its details."),
+        React.createElement('div',{style:{display:"grid",gap:7}},
+          workoutChoices.map((log,index)=>React.createElement('button',{key:log.id,type:"button",onClick:()=>{setWorkoutChoices(null);setWorkoutDetail(log);},style:{width:"100%",display:"flex",alignItems:"center",gap:9,textAlign:"left",background:"var(--s2)",border:"1px solid var(--border)",borderRadius:9,padding:"9px 10px",color:"var(--text)"}},
+            React.createElement('span',{style:{width:25,height:25,borderRadius:999,display:"inline-flex",alignItems:"center",justifyContent:"center",background:"rgba(78,205,196,.08)",color:"#4ECDC4",flexShrink:0}},React.createElement(WorkoutTypeIcon,{type:getLogDisplayActivity(log),size:15})),
+            React.createElement('span',{style:{display:"grid",gap:2,minWidth:0}},
+              React.createElement('span',{style:{fontSize:12,fontWeight:800}},`${index+1}. ${getLogDisplayActivity(log)}`),
+              log.note && React.createElement('span',{style:{fontSize:10,color:"var(--muted)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},log.note)
+            )
+          ))
+        ),
+        React.createElement('button',{type:"button",onClick:()=>setWorkoutChoices(null),style:{width:"100%",marginTop:9,background:"transparent",border:"1px solid var(--border)",color:"var(--muted)",padding:"8px",borderRadius:8,fontSize:11,fontWeight:700}},"Close")
+      )
+    ),
+    workoutDetail && React.createElement(ModalScrim,{onClose:()=>setWorkoutDetail(null)},
+      React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{textAlign:"center",maxWidth:320,padding:"18px 16px"}},
+        React.createElement('span',{style:{width:34,height:34,borderRadius:999,display:"inline-flex",alignItems:"center",justifyContent:"center",background:"rgba(78,205,196,.1)",color:"#4ECDC4",marginBottom:9}},React.createElement(WorkoutTypeIcon,{type:getLogDisplayActivity(workoutDetail),size:20})),
+        React.createElement('div',{style:{fontWeight:800,fontSize:15,marginBottom:4}},getLogDisplayActivity(workoutDetail)),
+        React.createElement('div',{className:"mono",style:{fontSize:11,color:"var(--muted)",marginBottom:workoutDetail.note?13:16}},formatWorkoutDetailDate(workoutDetail.date)),
+        workoutDetail.note && React.createElement('div',{style:{textAlign:"left",background:"var(--s2)",border:"1px solid var(--border)",borderRadius:9,padding:"10px 11px",fontSize:12,lineHeight:1.5,color:"var(--text)",whiteSpace:"pre-wrap",marginBottom:14}},workoutDetail.note),
+        React.createElement('button',{type:"button",onClick:()=>setWorkoutDetail(null),style:{width:"100%",background:"var(--s2)",border:"1px solid var(--border)",color:"var(--text)",padding:"9px",borderRadius:8,fontSize:11,fontWeight:750}},"Close")
+      )
+    ),
     React.createElement('div',{style:{maxWidth:740,margin:"0 auto",padding:"16px",display:"flex",flexDirection:"column",gap:12}},
     // Header row
 		    React.createElement('div',{className:"fu",style:{display:"grid",gridTemplateColumns:"96px minmax(0,1fr) 96px",alignItems:"center",gap:8}},
@@ -697,8 +729,13 @@ const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevea
 	        calDays.map((day,i)=>{
 	          if(!day) return React.createElement('div',{key:`e${i}`});
 	          const isToday=isCurMonth&&day===DAY_OF_MON,dayLogs=logsByDay[day]||[],log=dayLogs[0]||null,isFuture=isCurMonth&&day>DAY_OF_MON;
-	          const canDelete = dayLogs.length > 0 && isCurMonth && !!onDeleteLog;
-	          return React.createElement('div',{key:day, onClick: canDelete ? ()=>dayLogs.length===1?setDeleteTarget(log):setDeleteChoices(dayLogs) : undefined, style:{aspectRatio:"1",display:"flex",alignItems:"center",justifyContent:"center",borderRadius:5,fontSize:log?11:9,fontFamily:log?"inherit":"'JetBrains Mono',monospace",fontWeight:log?700:400,background:log?"#1A2E4A":isToday?"var(--s2)":"transparent",color:log?"#4ECDC4":isFuture?"var(--muted2)":isToday?"var(--text)":"var(--muted)",border:isToday&&!log?"1px solid var(--border2)":"1px solid transparent",cursor:canDelete?"pointer":"default"}},log?React.createElement('span',{style:{position:"relative",width:19,height:19,display:"inline-flex",alignItems:"center",justifyContent:"center"}},React.createElement(WorkoutTypeIcon,{type:getLogDisplayActivity(log),size:15}),dayLogs.length>1&&React.createElement('span',{style:{position:"absolute",right:-5,top:-5,minWidth:12,height:12,padding:"0 2px",borderRadius:999,display:"inline-flex",alignItems:"center",justifyContent:"center",background:"#4ECDC4",border:"1px solid #1A2E4A",color:"#071010",fontFamily:"'Outfit',sans-serif",fontSize:7.5,fontWeight:900,lineHeight:1}},Math.min(dayLogs.length,2))):day);
+          const canDelete = dayLogs.length > 0 && isCurMonth && !!onDeleteLog;
+          const canInspect = dayLogs.length > 0;
+          const openDayLog = () => {
+            if (canDelete) { dayLogs.length === 1 ? setDeleteTarget(log) : setDeleteChoices(dayLogs); return; }
+            dayLogs.length === 1 ? setWorkoutDetail(log) : setWorkoutChoices(dayLogs);
+          };
+          return React.createElement('div',{key:day, onClick: canInspect ? openDayLog : undefined, style:{aspectRatio:"1",display:"flex",alignItems:"center",justifyContent:"center",borderRadius:5,fontSize:log?11:9,fontFamily:log?"inherit":"'JetBrains Mono',monospace",fontWeight:log?700:400,background:log?"#1A2E4A":isToday?"var(--s2)":"transparent",color:log?"#4ECDC4":isFuture?"var(--muted2)":isToday?"var(--text)":"var(--muted)",border:isToday&&!log?"1px solid var(--border2)":"1px solid transparent",cursor:canInspect?"pointer":"default"}},log?React.createElement('span',{style:{position:"relative",width:19,height:19,display:"inline-flex",alignItems:"center",justifyContent:"center"}},React.createElement(WorkoutTypeIcon,{type:getLogDisplayActivity(log),size:15}),dayLogs.length>1&&React.createElement('span',{style:{position:"absolute",right:-5,top:-5,minWidth:12,height:12,padding:"0 2px",borderRadius:999,display:"inline-flex",alignItems:"center",justifyContent:"center",background:"#4ECDC4",border:"1px solid #1A2E4A",color:"#071010",fontFamily:"'Outfit',sans-serif",fontSize:7.5,fontWeight:900,lineHeight:1}},Math.min(dayLogs.length,2))):day);
 	        })
 	      )
 	      )
