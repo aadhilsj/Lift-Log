@@ -1486,11 +1486,14 @@ function capDisplayName(name) {
 function normalizeLogEntry(log) {
   const photoUrl = typeof log?.photoUrl === "string" ? log.photoUrl : "";
   const activity = normalizeActivityName(log?.activity);
+  const note = typeof log?.note === "string" && log.note.trim()
+    ? log.note
+    : (typeof log?.caption === "string" ? log.caption : "");
   const entry = {
     ...log,
     id: log?.id || `log-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     type: normalizeLoggedWorkoutType(log?.type, log?.date),
-    note: typeof log?.note === "string" ? log.note.slice(0, 280) : "",
+    note: note.slice(0, 280),
     photoUrl: shouldKeepLogPhoto(log) ? photoUrl : "",
     createdAt: resolveLogCreatedAt(log),
     verifiedVia: log?.verifiedVia === "strava" ? "strava" : "photo",

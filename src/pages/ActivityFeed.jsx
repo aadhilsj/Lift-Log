@@ -599,6 +599,7 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
                         post.verifiedVia==="strava" && React.createElement('span',{className:"mono",style:{fontSize:9,color:"var(--cyan)",letterSpacing:".05em",textTransform:"uppercase",flexShrink:0}},"Strava")
                       )
                     ),
+                    post.note && React.createElement('div',{style:{fontSize:12,lineHeight:1.4,color:"var(--text-soft)",fontStyle:"italic",whiteSpace:"pre-wrap",padding:"0 1px"}},post.note),
                     renderReactionRow(post,true,Boolean(imagePost))
                   ),
                   post.flagStatus==="flagged" && React.createElement('div',{style:{padding:"9px 11px",borderRadius:10,background:"rgba(232,69,69,.08)",border:"1px solid rgba(232,69,69,.22)",marginBottom:8}},

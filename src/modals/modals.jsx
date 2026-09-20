@@ -991,6 +991,7 @@ const DeleteModal = ({log,onConfirm,onClose,otherBlocNames=[]}) => {
             ),
             React.createElement('div',{className:"mono",style:{fontSize:10,color:"var(--muted)"}},fmtISO(log.date))
           ),
+          log.note && React.createElement('div',{style:{fontSize:11.5,lineHeight:1.45,color:"var(--muted)",whiteSpace:"pre-wrap",margin:"0 3px 10px"}},log.note),
           React.createElement('div',{style:{color:"var(--muted)",fontSize:10,marginBottom:10}},"This will permanently remove this workout."),
           React.createElement('div',{style:{display:"flex",gap:6}},
             React.createElement('button',{onClick:onClose,style:{flex:1,background:"var(--s2)",border:"1px solid var(--border)",color:"var(--muted)",padding:"7px",borderRadius:7,fontSize:11,fontWeight:600}},"Keep it"),
