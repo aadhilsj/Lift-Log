@@ -84,9 +84,10 @@ const Nav = ({page,setPage,user,groupName,canEditGroup,onOpenSettings,settingsAl
       React.createElement('div',{style:{display:"flex",alignItems:"center",minWidth:0,flexShrink:0}},
         React.createElement(AnteWordmark,{size:20})
       ),
-      React.createElement('button',{type:"button",onClick:onSwitchGroup,style:{position:"absolute",left:"50%",transform:"translateX(-50%)",padding:0,background:"transparent",color:"#4ECDC4",fontSize:13,fontWeight:500,fontFamily:"'Outfit', sans-serif",lineHeight:1,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:"calc(100% - 132px)",display:"inline-flex",alignItems:"center",gap:3}},
+      React.createElement('button',{type:"button",onClick:onSwitchGroup,style:{position:"absolute",left:"50%",transform:"translateX(-50%)",minHeight:32,padding:"6px 8px",background:"transparent",border:"none",color:"#4ECDC4",fontSize:13,fontWeight:500,fontFamily:"'Outfit', sans-serif",lineHeight:1,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:"calc(100% - 132px)",display:"inline-flex",alignItems:"center",gap:4}},
         React.createElement(AppIcon,{name:"home",size:14,stroke:"#4ECDC4"}),
-        groupName
+        groupName,
+        React.createElement('span',{style:{fontSize:12,lineHeight:1,color:"rgba(162,226,220,.88)",marginLeft:1}},"⌄")
       ),
       React.createElement('div',{style:{display:"flex",alignItems:"center",gap:4,flexShrink:0}},
         React.createElement(StreamIconButton,{onOpenStream,unreadCount:streamUnreadCount,size:28}),
