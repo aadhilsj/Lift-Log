@@ -583,7 +583,7 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
                       )
                     ),
                   )
-                : React.createElement('div',{style:{padding:"8px 12px",display:"flex",flexDirection:"column",gap:14}},
+                : React.createElement('div',{style:{padding:"8px 12px",display:"flex",flexDirection:"column",gap:post.note?7:10}},
                     React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,minWidth:0}},
                       React.createElement('div',{style:{display:"flex",alignItems:"center",gap:7,minWidth:0,flex:1}},
                         React.createElement(Avatar,{name:post.owner,userId:userIdForOwner(post.owner),size:22}),
@@ -599,7 +599,7 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
                         post.verifiedVia==="strava" && React.createElement('span',{className:"mono",style:{fontSize:9,color:"var(--cyan)",letterSpacing:".05em",textTransform:"uppercase",flexShrink:0}},"Strava")
                       )
                     ),
-                    post.note && React.createElement('div',{style:{fontSize:12,lineHeight:1.4,color:"var(--text-soft)",fontStyle:"italic",whiteSpace:"pre-wrap",padding:"0 1px"}},post.note),
+                    post.note && React.createElement('div',{style:{fontSize:11.5,lineHeight:1.35,color:"var(--text-soft)",fontStyle:"italic",whiteSpace:"pre-wrap",padding:"0 1px"}},post.note),
                     renderReactionRow(post,true,Boolean(imagePost))
                   ),
                   post.flagStatus==="flagged" && React.createElement('div',{style:{padding:"9px 11px",borderRadius:10,background:"rgba(232,69,69,.08)",border:"1px solid rgba(232,69,69,.22)",marginBottom:8}},
