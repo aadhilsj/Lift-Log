@@ -124,6 +124,7 @@ const AllBlocProgress = ({ agg }) => {
     }
   }
   const axisMax = Math.max(20, Math.ceil(Math.max(1, ...trendMonths.map(month => month.count)) / 5) * 5);
+  const axisTicks = Array.from({ length: (axisMax / 5) + 1 }, (_, index) => axisMax - (index * 5));
   const points = trendMonths.map((month, index) => {
     const x = trendMonths.length === 1 ? 50 : (index / (trendMonths.length - 1)) * 100;
     return `${x.toFixed(1)},${(68 - (month.count / axisMax) * 56).toFixed(1)}`;
@@ -139,12 +140,18 @@ const AllBlocProgress = ({ agg }) => {
       React.createElement('span', { style: { fontSize: 9, fontWeight: MED, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.075em', display: 'block', marginBottom: 7 } }, 'Workout Trend'),
       trendMonths.length
         ? React.createElement(React.Fragment, null,
-            React.createElement('svg', { width: '100%', height: 128, viewBox: '0 0 100 76', preserveAspectRatio: 'none', style: { display: 'block', overflow: 'visible' } },
-              React.createElement('line', { x1: 0, y1: 68, x2: 100, y2: 68, stroke: 'rgba(78,205,196,.18)', strokeWidth: 1, vectorEffect: 'non-scaling-stroke' }),
-              React.createElement('polyline', { points, fill: 'none', stroke: '#4ECDC4', strokeWidth: 2.2, strokeLinecap: 'round', strokeLinejoin: 'round', vectorEffect: 'non-scaling-stroke' }),
-              trendMonths.map((month, index) => React.createElement('circle', { key: month.key, cx: trendMonths.length === 1 ? 50 : (index / (trendMonths.length - 1)) * 100, cy: 68 - (month.count / axisMax) * 56, r: selectedKey === month.key ? 3 : 1.8, fill: '#fff', stroke: '#071010', strokeWidth: .7, style: { cursor: 'pointer' }, onClick: () => setSelectedKey(key => key === month.key ? null : month.key) }))
-            ),
-            React.createElement('div', { style: { display: 'grid', gridTemplateColumns: `repeat(${trendMonths.length}, minmax(18px,1fr))`, minWidth: trendMonths.length * 25, gap: 2, marginTop: 1, fontSize: 8, color: 'var(--muted)' } }, trendMonths.map(month => React.createElement('span', { key: month.key }, FULL_MONTH_NAMES[month.month].slice(0, 3))))
+            React.createElement('div', { style: { display: 'grid', gridTemplateColumns: '24px minmax(0,1fr)', gap: 8, alignItems: 'stretch' } },
+              React.createElement('div', { style: { display: 'grid', gridTemplateRows: `repeat(${axisTicks.length},1fr)`, alignItems: 'center', justifyItems: 'end', height: 128, paddingBottom: 18, fontSize: 8.5, color: 'var(--muted)' } }, axisTicks.map(tick => React.createElement('span', { key: tick }, tick))),
+              React.createElement('div', { style: { minWidth: 0 } },
+                React.createElement('svg', { width: '100%', height: 128, viewBox: '0 0 100 76', preserveAspectRatio: 'none', style: { display: 'block', overflow: 'visible' } },
+                  React.createElement('line', { x1: 0, y1: 68, x2: 100, y2: 68, stroke: 'rgba(78,205,196,.18)', strokeWidth: 1, vectorEffect: 'non-scaling-stroke' }),
+                  React.createElement('line', { x1: 0, y1: 12, x2: 0, y2: 68, stroke: 'rgba(78,205,196,.18)', strokeWidth: 1, vectorEffect: 'non-scaling-stroke' }),
+                  React.createElement('polyline', { points, fill: 'none', stroke: '#4ECDC4', strokeWidth: 2.2, strokeLinecap: 'round', strokeLinejoin: 'round', vectorEffect: 'non-scaling-stroke' }),
+                  trendMonths.map((month, index) => React.createElement('circle', { key: month.key, cx: trendMonths.length === 1 ? 50 : (index / (trendMonths.length - 1)) * 100, cy: 68 - (month.count / axisMax) * 56, r: selectedKey === month.key ? 3 : 1.8, fill: '#fff', stroke: '#071010', strokeWidth: .7, style: { cursor: 'pointer' }, onClick: () => setSelectedKey(key => key === month.key ? null : month.key) }))
+                ),
+                React.createElement('div', { style: { display: 'grid', gridTemplateColumns: `repeat(${trendMonths.length}, minmax(18px,1fr))`, minWidth: trendMonths.length * 25, gap: 2, marginTop: 1, fontSize: 8, color: 'var(--muted)' } }, trendMonths.map(month => React.createElement('span', { key: month.key }, FULL_MONTH_NAMES[month.month].slice(0, 3))))
+              )
+            )
           )
         : React.createElement('div', { style: { color: 'var(--muted)', fontSize: 11, padding: '20px 0' } }, 'No monthly data yet.'),
       selected && React.createElement('div', { style: { fontSize: 11, color: 'var(--text)', marginTop: 7 } }, selected.satOut ? `${FULL_MONTH_NAMES[selected.month]} ${selected.key.slice(0, 4)} · Sat out this month` : `${FULL_MONTH_NAMES[selected.month]} ${selected.key.slice(0, 4)} · ${selected.count} workouts`)
