@@ -593,7 +593,7 @@ const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevea
 		        React.createElement(Avatar,{name,size:24}),
 		        React.createElement('div',{style:{minWidth:0,fontFamily:"'Outfit',sans-serif",fontSize:16,fontWeight:800,lineHeight:1.08,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},name)
 	      ),
-	      React.createElement('div',{style:{justifySelf:"end"}},monthSelector)
+	      profileTab === "bloc" && React.createElement('div',{style:{justifySelf:"end"}},monthSelector)
 	    ),
 	    // This Bloc / All Blocs tabs. The pair differs by scope, not by time:
 	    // the left tab is this Bloc's month, the right one the cross-Bloc stats
