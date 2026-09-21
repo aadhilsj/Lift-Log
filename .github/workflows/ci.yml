@@ -1,0 +1,116 @@
+# Runs lint, build and every offline test suite on each pull request.
+#
+# Why this exists: the repo had 19 test suites and nothing that ran them.
+# Merges depended on someone remembering, and a crash that a suite would have
+# caught still reached a pull request (a `const` in the temporal dead zone,
+# which `lint` does not flag). Four suites were also orphaned with no npm
+# script at all, so nobody ran them even deliberately.
+#
+# Read-only and offline by design: no secrets, no deploys, no database. Every
+# suite listed here stubs whatever it needs. The two Supabase-backed suites
+# are excluded on purpose — see the end of this file.
+#
+# Adding a suite: add it to `npm run` in package.json AND to the list below.
+# The list is written out rather than globbed so a new suite has to be added
+# consciously, and so an orphaned file cannot hide behind a passing run.
+
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# A new push to the same branch cancels the previous run.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # Node 22 LTS, matching Vercel's current default runtime. The repo
+          # has no `engines` field; if that is ever added, keep the two in step.
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+      - name: Run offline test suites
+        run: |
+          # Every suite runs even if an earlier one fails, so a single CI run
+          # reports every problem rather than only the first.
+          suites=(
+            test:activities
+            test:fero-profile-stats
+            test:founder-dashboard
+            test:identity
+            test:month-awards
+            test:month-close-canonical
+            test:month-sit-out-card
+            test:otp-errors
+            test:profile-photo-storage
+            test:profile-stats-cache
+            test:remirror
+            test:rollover-isolation
+            test:solo-sitout-exclusion
+            test:solo-standard-penalty
+            test:stream-moments
+            test:system-health
+            test:training-wheels
+            test:two-workouts
+            test:yearly-allowance
+            parity:gate:test
+          )
+          failed=()
+          for suite in "${suites[@]}"; do
+            echo "::group::$suite"
+            if npm run --silent "$suite"; then
+              echo "PASS $suite"
+            else
+              echo "FAIL $suite"
+              failed+=("$suite")
+            fi
+            echo "::endgroup::"
+          done
+          echo
+          echo "ran ${#suites[@]} suites, ${#failed[@]} failed"
+          if [ ${#failed[@]} -gt 0 ]; then
+            printf 'failed: %s\n' "${failed[@]}"
+            exit 1
+          fi
+
+# Not run here, and why:
+#
+#   test:auth-edge-flows, test:mobile-navigation
+#     Playwright browser suites. Three things stop them running on a Linux
+#     runner as written: they hardcode
+#     executablePath: "/Applications/Google Chrome.app/..." (macOS only), they
+#     drive a live app at http://127.0.0.1:3000, and they expect seeded
+#     fixtures (seed-invite@local.test, invite ALHK05). Making them run in CI
+#     means dropping the hardcoded path, `npx playwright install chromium`,
+#     and starting `npm run sandbox` + `npm run sandbox:seed` first. Worth
+#     doing later; out of scope here. Run them on a Mac with the sandbox up.
+#
+#   test:workout-flow-local, test:workout-race-local
+#     Both need a running local Supabase (`npx supabase start`) and write
+#     fixture rows. They refuse a remote database by design. Run them locally
+#     before shipping anything that touches logging or the daily cap.
+#
+#   parity:gate, audit:rollover-counts
+#     Both read live production through the service-role key. They belong in a
+#     terminal with credentials, never in CI.
