@@ -84,10 +84,10 @@ const Nav = ({page,setPage,user,groupName,canEditGroup,onOpenSettings,settingsAl
       React.createElement('div',{style:{display:"flex",alignItems:"center",minWidth:0,flexShrink:0}},
         React.createElement(AnteWordmark,{size:20})
       ),
-      React.createElement('button',{type:"button",onClick:onSwitchGroup,style:{position:"absolute",left:"50%",transform:"translateX(-50%)",minHeight:32,padding:"6px 8px",background:"transparent",border:"none",color:"#4ECDC4",fontSize:13,fontWeight:500,fontFamily:"'Outfit', sans-serif",lineHeight:1,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:"calc(100% - 132px)",display:"inline-flex",alignItems:"center",gap:4}},
-        React.createElement(AppIcon,{name:"home",size:14,stroke:"#4ECDC4"}),
+      React.createElement('button',{type:"button",onClick:onSwitchGroup,style:{position:"absolute",left:"50%",transform:"translateX(-50%)",background:"transparent",color:"#4ECDC4",fontFamily:"'Outfit', sans-serif",lineHeight:1,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:"calc(100% - 132px)",display:"inline-flex",alignItems:"center",minHeight:32,padding:"6px 4px",border:"none",fontSize:14,fontWeight:500,gap:2}},
         groupName,
-        React.createElement('span',{style:{fontSize:12,lineHeight:1,color:"rgba(162,226,220,.88)",marginLeft:1}},"⌄")
+        // Nudged down to the centre of the lowercase letters; box-centred it lines up with the capitals and reads high.
+        React.createElement('span',{style:{display:"inline-flex",transform:"translateY(.1em)"}},React.createElement(AppIcon,{name:"chevron-down",size:16,stroke:"#4ECDC4",strokeWidth:"2.5"}))
       ),
       React.createElement('div',{style:{display:"flex",alignItems:"center",gap:4,flexShrink:0}},
         React.createElement(StreamIconButton,{onOpenStream,unreadCount:streamUnreadCount,size:28}),

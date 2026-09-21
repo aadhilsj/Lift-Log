@@ -254,8 +254,8 @@ const Bar = ({value,max,color="var(--green)",h=2}) => React.createElement('div',
 const Card = ({children,style={},className="",...props}) => React.createElement('div',{className:`card ${className}`,style,...props},children);
 
 
-const AppIcon = ({name,size=18,stroke="currentColor"}) => {
-  const common = { width:size, height:size, viewBox:"0 0 24 24", fill:"none", stroke, strokeWidth:"1.8", strokeLinecap:"round", strokeLinejoin:"round" };
+const AppIcon = ({name,size=18,stroke="currentColor",strokeWidth="1.8"}) => {
+  const common = { width:size, height:size, viewBox:"0 0 24 24", fill:"none", stroke, strokeWidth, strokeLinecap:"round", strokeLinejoin:"round" };
   if (name==="today") return React.createElement('svg',common,
     React.createElement('path',{d:"M12 3v18"}),
     React.createElement('path',{d:"M7 8l5-5 5 5"}),
@@ -372,6 +372,9 @@ const AppIcon = ({name,size=18,stroke="currentColor"}) => {
   );
   if (name==="chevron-right") return React.createElement('svg',common,
     React.createElement('path',{d:"M9 6l6 6-6 6"})
+  );
+  if (name==="chevron-down") return React.createElement('svg',common,
+    React.createElement('path',{d:"M6 9l6 6 6-6"})
   );
   if (name==="flame") return React.createElement('svg',common,
     React.createElement('path',{d:"M12 21c3.4 0 6-2.4 6-5.8 0-2.3-1.1-4.1-3.3-5.7.1 1.6-.5 2.8-1.6 3.7.2-2.9-1-5.2-3.5-7.2.1 2.7-1.1 4.2-2.2 5.5A5.8 5.8 0 0 0 6 15.2C6 18.6 8.6 21 12 21z"}),
