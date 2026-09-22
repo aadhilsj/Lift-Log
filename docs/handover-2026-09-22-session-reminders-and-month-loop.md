@@ -163,3 +163,42 @@ link. The ✕ dispute is not on results (never was; disputes stay on Today).
 Nothing here touches his area (RLS, staging, month close). The only overlap:
 `AGENTS.md` now states previews can't reach the live database, which is his
 runbook Task 4 result. No change to his handover.
+
+## 7. Continuation — Month polish after live review (22 September)
+
+The founder reviewed the live Month tab with real data. Four small, agreed
+changes shipped directly to production in `155aa7e` (`Refine Month loop labels
+and spacing`):
+
+- **Prorated notes now follow Today's exact rule.** The Month page now calls
+  the same per-Bloc target helper as Today's leaderboard. Someone who joined
+  during the month is labelled **Prorated** only when their own target is
+  genuinely lower; joining early enough to keep the normal target does not
+  earn the label. Jannick in Sweat Equity was the real-data example.
+- **The Month composition moved down by 32px** (roughly two text lines),
+  including the month switcher and every element below it. The closed-month
+  results view moves by the same amount.
+- **Empty ring ticks are slightly more visible** against the dark dial, while
+  staying deliberately quiet.
+- **Every slice has a fine dark seam at its boundary.** The base ring is
+  continuous, so incomplete neighbouring slices could otherwise visually
+  merge. The seams keep each person's empty/unfinished section distinct.
+
+The centre percentage was checked and deliberately **not** changed. It reads
+`N% to a perfect month` only when the loop can still be perfect: at least 75%
+of members are participating and there is no Solo member. A "Cooked" member
+does not suppress it; a Solo member does.
+
+### Deployment lesson from this continuation
+
+`155aa7e` was pushed to `main` and GitHub's `verify` check passed, but Vercel
+did **not** automatically create a production deployment for it. The public
+site therefore continued serving the prior `7e89ec1` bundle. The founder signed
+into Vercel; Codex used **Deployments → Create Deployment**, supplied
+`155aa7e89942ba7af0045d4d3d2fc3ec47c64bc8`, and selected **Deploy to
+Production**. The manual Vercel deployment reached **Ready** and the public
+bundle was checked for the new empty-tick colour before calling it live.
+
+For future direct-to-live work: verify all three separately — the commit is on
+`main`, Vercel has a deployment for that exact SHA, and the production bundle
+contains the changed code. A green GitHub check alone is not a release.
