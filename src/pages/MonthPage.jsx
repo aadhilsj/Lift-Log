@@ -121,8 +121,9 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
 
   // ── Closed month → settlement screen ───────────────────────────────────────
   if (!isCurrent && selMonth && currentUser) {
-    return React.createElement('div',{style:{position:"relative",maxWidth:840,margin:"0 auto",padding:"36px 12px 16px",display:"flex",flexDirection:"column",gap:6,background:"radial-gradient(ellipse 95% 72% at 50% 62%, rgba(78,205,196,.075), rgba(78,205,196,.025) 46%, transparent 76%)",borderRadius:16}},
-      monthStepper(null),
+    return React.createElement('div',{style:{position:"relative",maxWidth:840,margin:"0 auto",padding:`${STEPPER_TOP}px 12px 16px`,display:"flex",flexDirection:"column",gap:6,background:"radial-gradient(ellipse 95% 72% at 50% 62%, rgba(78,205,196,.075), rgba(78,205,196,.025) 46%, transparent 76%)",borderRadius:16}},
+      // The switcher sits one line higher than before; the results below it keep their place.
+      React.createElement('div',{style:{marginBottom:36-STEPPER_TOP}}, monthStepper(null)),
       React.createElement(SettlementScreen,{
         group, month:selMonth, currentUser, currentUserId, monthHistory, profiles, onOpenAccount, onSettlementClaimPaid, onSettlementConfirmPaid, onTrackUsage,
         currentPaymentMethods, onSavePayment, savingPayment, paymentError,
@@ -149,7 +150,9 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
   const totals = loopTotals(loopMembers);
   const focusMember = focus ? loopMembers.find(m => m.name === focus && !m.isOut) : null;
   const toggleFocus = name => setFocus(prev => prev === name ? null : name);
-  const readoutLine = !totals.canBePerfect ? null : totals.done === 0 && DAY_OF_MON === 1 ? "Day one" : `${Math.round(totals.done / Math.max(1, totals.total) * 100)}% to a perfect month`;
+  // A Solo month (or too few in the month) can't be perfect. Say so in the
+  // middle, muted, where the percentage would be.
+  const readoutLine = !totals.canBePerfect ? "Can't be perfect" : totals.done === 0 && DAY_OF_MON === 1 ? "Day one" : `${Math.round(totals.done / Math.max(1, totals.total) * 100)}% to a perfect month`;
   const daysLeft = getDaysLeft();
 
   const labelStyle = { fontFamily: LOOP_FONTS.body, fontSize: 8.5, fontWeight: 700, letterSpacing: ".12em", textTransform: "uppercase", color: "#6B9690" };
@@ -159,17 +162,22 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
     text
   );
 
-  const renderNotes = () => {
-    const rows = [
-      ...loopMembers.filter(m => m.isOut).map(m => noteRow(`out-${m.name}`, "Sitting out", m, m.name)),
-      ...loopMembers.filter(m => m.isSolo && !m.isOut).map(m => noteRow(`solo-${m.name}`, "On Solo", m, `${m.name}, aiming for ${m.fillable}`)),
-      ...loopMembers.filter(m => m.prorated && !m.isOut).map(m => noteRow(`pro-${m.name}`, "Prorated", m, `${m.name}, ${m.target} after joining on the ${ordinalDay(m.joinDay)}`))
-    ];
-    return React.createElement(React.Fragment, null,
-      rows,
-      React.createElement('div', { style: { fontFamily: LOOP_FONTS.body, fontSize: 9, fontWeight: 500, color: "#6B9690", opacity: .8, textAlign: "center", marginTop: 24 } }, "Tap a slice to see someone's month")
-    );
-  };
+  const noteRows = [
+    ...loopMembers.filter(m => m.isOut).map(m => noteRow(`out-${m.name}`, "Sitting out", m, m.name)),
+    ...loopMembers.filter(m => m.isSolo && !m.isOut).map(m => noteRow(`solo-${m.name}`, "On Solo", m, `${m.name}, aiming for ${m.fillable}`)),
+    ...loopMembers.filter(m => m.prorated && !m.isOut).map(m => noteRow(`pro-${m.name}`, "Prorated", m, `${m.name}, ${m.target} after joining on the ${ordinalDay(m.joinDay)}`))
+  ];
+  const hasNotes = noteRows.length > 0;
+  // With no notes, the caption sits two lines lower and the hint a line and a
+  // half higher, so the space between them reads as meant.
+  const renderNotes = () => React.createElement(React.Fragment, null,
+    hasNotes && React.createElement('div', { style: { padding: "0 6px", display: "flex", flexDirection: "column", gap: 8 } }, noteRows),
+    React.createElement('div', { style: { fontFamily: LOOP_FONTS.body, fontSize: 9, fontWeight: 500, lineHeight: "12px", color: "#6B9690", opacity: .8, textAlign: "center", marginTop: hasNotes ? 26 : 0, paddingBottom: hasNotes ? 0 : 22 } }, "Tap a slice to see someone's month")
+  );
+  // A small row of ticks, echoing the ring, between the caption and what's under it.
+  const separator = React.createElement('div', { "aria-hidden": true, style: { display: "flex", justifyContent: "center", alignItems: "center", gap: 4, height: 6 } },
+    [0, 1, 2, 3, 4, 5, 6].map(i => React.createElement('span', { key: i, style: { width: 1, height: i === 3 ? 6 : 4, background: i === 3 ? "rgba(78,205,196,.45)" : "#2A3B38" } }))
+  );
 
   const renderPanel = m => {
     const perDay = perDayCounts(logs[m.name] || [], CUR_YEAR, CUR_MONTH);
@@ -263,21 +271,49 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
     );
   };
 
-  // Extra room at the bottom: the track record is the last row and must clear the floating nav.
-  return React.createElement('div',{style:{position:"relative",minHeight:"calc(100vh - 136px)",padding:"0 0 72px",background:"radial-gradient(ellipse 95% 72% at 50% 62%, rgba(78,205,196,.055), rgba(78,205,196,.018) 46%, transparent 76%)"}},
-  React.createElement('div',{style:{maxWidth:840,margin:"0 auto",padding:"36px 12px 16px",display:"flex",flexDirection:"column",gap:6,background:"transparent",borderRadius:16}},
+  // The app already leaves room for the floating nav under every page, so the
+  // Month page adds none of its own: with a person open it ends right after
+  // their track record, like Today and Activity. With nobody open it fills the
+  // screen exactly, so the hint sits just above the nav with no scroll.
+  const restingView = !focusMember;
+  const captionLow = restingView && !hasNotes;
+  return React.createElement('div',{style:{position:"relative",background:"radial-gradient(ellipse 95% 72% at 50% 62%, rgba(78,205,196,.055), rgba(78,205,196,.018) 46%, transparent 76%)"}},
+  React.createElement('div',{style:{
+    maxWidth:840,margin:"0 auto",padding:`${STEPPER_TOP}px 12px 0`,display:"flex",flexDirection:"column",gap:6,background:"transparent",borderRadius:16,boxSizing:"border-box",
+    ...(restingView ? { minHeight: RESTING_MIN_HEIGHT, marginBottom: RESTING_OVERLAP } : null)
+  }},
     monthStepper(`${daysLeft} ${daysLeft === 1 ? "day" : "days"} left`),
-    React.createElement(MonthDial,{
-      members: loopMembers, perfect: false, focus, onToggle: toggleFocus,
-      readout: React.createElement(LoopReadout,{ focusMember, perfect:false, done: totals.done, total: totals.total, line: readoutLine })
-    }),
-    React.createElement(LoopCaption,{ lines: loopCaption(loopMembers, { ended:false, dayOne: DAY_OF_MON === 1 }) }),
-    React.createElement('div',{style:{borderTop:"0.5px solid #0D1F1E",padding:"12px 6px 0",display:"flex",flexDirection:"column",gap:8,minHeight:118}},
+    // The ring grew; this keeps its centre where it was.
+    React.createElement('div',{style:{marginTop:4}},
+      React.createElement(MonthDial,{
+        members: loopMembers, perfect: false, focus, onToggle: toggleFocus, live: true,
+        readout: React.createElement(LoopReadout,{ focusMember, perfect:false, done: totals.done, total: totals.total, line: readoutLine, lineMuted: !totals.canBePerfect })
+      })
+    ),
+    React.createElement('div',{style:{marginTop:captionLow ? 30 : 0,transition:"margin-top .3s cubic-bezier(.16,1,.3,1)"}},
+      React.createElement(LoopCaption,{ lines: loopCaption(loopMembers, { ended:false, dayOne: DAY_OF_MON === 1 }) })
+    ),
+    React.createElement('div',{style:restingView
+      ? { flex: "1 0 auto", minHeight: 40, display: "flex", alignItems: "center", justifyContent: "center" }
+      : { padding: "14px 0 12px" }}, separator),
+    React.createElement('div',{style:{padding:restingView ? 0 : "0 6px",display:"flex",flexDirection:"column",gap:8}},
       focusMember ? renderPanel(focusMember) : renderNotes()
     )
   )
   );
 };
+
+// The month switcher's distance from the top of the page, shared by the live
+// month and the results so the switcher never moves when you change month.
+const STEPPER_TOP = 20;
+// The resting Month page fills the screen down to just above the floating nav:
+// the viewport, less the Bloc header (45px + the top safe area) and the nav with
+// its plus button and a small gap (105px + the bottom safe area). The app pads
+// every page by 108px + the bottom safe area, inside a scroller that is
+// 100dvh - 64px tall (inBlocViewportHeight in App.jsx). Overlapping that padding
+// by 22px makes the resting page fit the scroller exactly, so it never scrolls.
+const RESTING_MIN_HEIGHT = "calc(100dvh - 150px - env(safe-area-inset-top) - env(safe-area-inset-bottom))";
+const RESTING_OVERLAP = -22;
 
 const ordinalDay = n => { const s = ["th","st","nd","rd"], v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]); };
 

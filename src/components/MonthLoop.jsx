@@ -27,6 +27,8 @@ const CHALK = "#E8F6F3";
 // Empty places should remain quiet, but need enough contrast to read as
 // intentional workout slots rather than disappearing into the dial.
 const TICK_EMPTY = "#2A3B38";
+const LIVE_OPEN_ARC = "rgba(78,205,196,.34)";
+const LIVE_OPEN_TICK = "rgba(78,205,196,.40)";
 export const LOOP_FONTS = {
   display: "'Raleway', sans-serif",
   body: "'Outfit', sans-serif",
@@ -181,10 +183,20 @@ export function loopTotals(members) {
 export function loopCaption(members, { ended, dayOne }) {
   const t = loopTotals(members);
   const clearedLine = [{ strong: `${t.cleared.length} of ${t.regulars.length}` }, " slices cleared."];
+  // Every slice that can clear has cleared, but the loop still can't close:
+  // a Solo month, or too few in the month. Name the rule, never the person.
+  const allClearedLine = t.regulars.length > 1 ? ["All ", { strong: String(t.regulars.length) }, " slices cleared."]
+    : t.regulars.length === 1 ? ["The one slice cleared."] : ["Everyone is on Solo."];
   if (t.perfect) return [["Every slice cleared."], ["Nobody left the loop open."]];
-  if (ended) return [clearedLine, [{ strong: String(t.stillNeeded) }, " workouts from a perfect month."]];
+  if (ended) {
+    const firstLine = t.open.length ? clearedLine : allClearedLine;
+    if (t.anySolo) return [firstLine, ["A Solo month kept the loop from closing."]];
+    if (!t.eligible) return [firstLine, ["Too few were in the month for it to be perfect."]];
+    return [clearedLine, [{ strong: String(t.stillNeeded) }, " workouts from a perfect month."]];
+  }
   if (!t.eligible) return [["Only ", { strong: `${t.inLoop.length} of ${members.length}` }, " are in this month."], ["The loop still counts, but it can't be perfect."]];
-  if (dayOne && t.done === 0) return [["A fresh loop."], ["The Bloc needs ", { strong: String(t.stillNeeded) }, " workouts."]];
+  if (dayOne && t.done === 0) return [["A fresh loop."], ["Your Bloc needs ", { strong: String(t.stillNeeded) }, " workouts."]];
+  if (!t.open.length) return [allClearedLine, ["A Solo month keeps the loop from closing."]];
   const needs = m => `${m.target - m.count} more`;
   if (t.open.length === 1) return [clearedLine, ["It's down to ", { strong: t.open[0].name }, `: ${needs(t.open[0])}.`]];
   if (t.open.length <= 3) {
@@ -193,7 +205,7 @@ export function loopCaption(members, { ended, dayOne }) {
     parts.push(".");
     return [clearedLine, parts];
   }
-  return [clearedLine, ["The Bloc needs ", { strong: String(t.stillNeeded) }, " more workouts."]];
+  return [clearedLine, ["Your Bloc needs ", { strong: String(t.stillNeeded) }, " more workouts."]];
 }
 
 const renderLine = (line, key) => React.createElement('span', { key, style: { display: "block" } },
@@ -206,7 +218,18 @@ export const LoopCaption = ({ lines }) => React.createElement('div', {
 
 // ─── The dial ──────────────────────────────────────────────────────────────────
 
-const C = 200, R_ARC = 124, R_T1 = 134, R_T2 = 147, R_X1 = 153, R_X2 = 159, R_ROW = 8, MAX_ROWS = 2, R_FACE = 179, GAP = 4.2;
+const C = 200, R_ARC = 124, R_T1 = 134, MAX_ROWS = 2, GAP = 4.2;
+// Two geometries. The results screen keeps the original ring. The live Month
+// page draws it wider (edge to edge), pulls the extra-workout rows in a little,
+// and sizes faces by how many people are in the loop, so a face never sits on
+// the extra-workout ticks: 8 units of clear space, even with 20 people.
+const RING_CLASSIC = { R_T2: 147, R_X1: 153, R_X2: 159, R_ROW: 8, R_FACE: 179 };
+const RING_LIVE = { R_T2: 146, R_X1: 150, R_X2: 155, R_ROW: 7 };
+const LIVE_FACE_CLEARANCE = 8;
+// The smallest phone the ring is drawn on, in px. Sizing the clearance for it
+// keeps the gap at least that wide on every bigger screen.
+const LIVE_MIN_BOX = 375;
+export const liveFaceSize = count => (count <= 12 ? 24 : Math.max(16, Math.round(24 - (count - 12) * 0.9)));
 const pt = (r, deg) => { const a = (deg - 90) * Math.PI / 180; return [C + r * Math.cos(a), C + r * Math.sin(a)]; };
 const arcPath = (r, a0, a1) => { const [x0, y0] = pt(r, a0), [x1, y1] = pt(r, a1); return `M${x0.toFixed(2)} ${y0.toFixed(2)} A${r} ${r} 0 ${a1 - a0 > 180 ? 1 : 0} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`; };
 const wedge = (r0, r1, a0, a1) => {
@@ -216,8 +239,12 @@ const wedge = (r0, r1, a0, a1) => {
 
 // members: [{ name, userId, isMe, isOut, isSolo, target, fillable, count }]
 // readout: React node for the middle. `focus` dims everyone else.
-export const MonthDial = ({ members, perfect, focus, onToggle, readout }) => {
+// `live`: the current month's wider ring, with cleared slices lit and the rest dimmed.
+export const MonthDial = ({ members, perfect, focus, onToggle, readout, live = false }) => {
   const inLoop = members.filter(m => !m.isOut);
+  const faceSize = live ? liveFaceSize(inLoop.length) : 24;
+  const { R_T2, R_X1, R_X2, R_ROW } = live ? RING_LIVE : RING_CLASSIC;
+  const R_FACE = live ? R_X2 + LIVE_FACE_CLEARANCE + (faceSize / 2) * (400 / LIVE_MIN_BOX) : RING_CLASSIC.R_FACE;
   const total = inLoop.reduce((sum, m) => sum + m.target, 0) || 1;
   const usable = 360 - GAP * inLoop.length;
   const [glow, setGlow] = React.useState(false);
@@ -235,6 +262,7 @@ export const MonthDial = ({ members, perfect, focus, onToggle, readout }) => {
   const slices = inLoop.map(m => {
     const span = usable * m.target / total, step = span / m.target;
     const counted = Math.min(m.count, m.fillable), extra = Math.max(0, m.count - m.fillable);
+    // On Solo, clearing the Solo goal lights the half that could fill.
     const cleared = counted >= m.fillable;
     const faceR = R_FACE + (extra > m.target ? R_ROW : 0);
     const slice = { m, a0: angle, span, step, counted, extra, cleared, faceR, mid: angle + span / 2 };
@@ -249,6 +277,13 @@ export const MonthDial = ({ members, perfect, focus, onToggle, readout }) => {
         React.createElement('stop', { offset: "0%", stopColor: CYAN, stopOpacity: 0.30 }),
         React.createElement('stop', { offset: "70%", stopColor: CYAN, stopOpacity: 0.10 }),
         React.createElement('stop', { offset: "100%", stopColor: CYAN, stopOpacity: 0.02 })
+      ),
+      live && React.createElement('filter', { id: "fero-loop-glow", x: "-20%", y: "-20%", width: "140%", height: "140%" },
+        React.createElement('feGaussianBlur', { stdDeviation: 2.4, result: "blur" }),
+        React.createElement('feMerge', null,
+          React.createElement('feMergeNode', { in: "blur" }),
+          React.createElement('feMergeNode', { in: "SourceGraphic" })
+        )
       )
     ),
     React.createElement('circle', { cx: C, cy: C, r: R_ARC - 4, fill: "url(#fero-loop-fill)", opacity: perfect && glow ? 1 : 0, style: { transition: "opacity .9s cubic-bezier(.16,1,.3,1)" } }),
@@ -264,9 +299,13 @@ export const MonthDial = ({ members, perfect, focus, onToggle, readout }) => {
           // Solo's places beyond their Solo target are outlines that can never fill.
           return k >= m.fillable
             ? React.createElement('line', { key: k, x1, y1, x2, y2, stroke: "#2B3D3B", strokeWidth: 1.3, strokeDasharray: "2 2" })
-            : React.createElement('line', { key: k, x1, y1, x2, y2, stroke: k < counted ? CYAN : TICK_EMPTY, strokeWidth: 1.4 });
+            : React.createElement('line', { key: k, x1, y1, x2, y2, stroke: k < counted ? (live && !cleared ? LIVE_OPEN_TICK : CYAN) : TICK_EMPTY, strokeWidth: 1.4 });
         }),
-        counted > 0 && React.createElement('path', { d: arcPath(R_ARC, a0, a0 + step * counted), fill: "none", stroke: cleared ? CYAN : "rgba(78,205,196,.55)", strokeWidth: cleared ? (perfect ? 7 : 6) : 4 }),
+        counted > 0 && (live
+          // Live: a cleared slice is full cyan with a soft glow; an open one is a dim teal,
+          // so who has cleared reads at a glance.
+          ? React.createElement('path', { d: arcPath(R_ARC, a0, a0 + step * counted), fill: "none", stroke: cleared ? CYAN : LIVE_OPEN_ARC, strokeWidth: cleared ? (perfect ? 7 : 6.5) : 3.5, filter: cleared ? "url(#fero-loop-glow)" : undefined })
+          : React.createElement('path', { d: arcPath(R_ARC, a0, a0 + step * counted), fill: "none", stroke: cleared ? CYAN : "rgba(78,205,196,.55)", strokeWidth: cleared ? (perfect ? 7 : 6) : 4 })),
         Array.from({ length: Math.min(extra, m.target * MAX_ROWS) }, (_, k) => {
           const row = Math.floor(k / m.target), a = a0 + step * ((k % m.target) + 0.5);
           const [x1, y1] = pt(R_X1 + row * R_ROW, a), [x2, y2] = pt(R_X2 + row * R_ROW, a);
@@ -287,20 +326,28 @@ export const MonthDial = ({ members, perfect, focus, onToggle, readout }) => {
   // Faces are real avatars (photos included) laid over the drawing.
   const faces = slices.map(({ m, mid, faceR, cleared }) => {
     const [x, y] = pt(faceR, mid);
+    const ring = live
+      ? (cleared ? `0 0 0 2px ${CYAN}, 0 0 10px rgba(78,205,196,.55)` : "0 0 0 1.5px #0A1412")
+      : (cleared && !m.isSolo ? `0 0 0 1.5px ${CYAN}` : "0 0 0 1.5px #0A1412");
     return React.createElement('button', {
       key: `face-${m.name}`, type: "button", "data-loop-keep": "1",
       "aria-label": `${m.name}'s month`,
       onClick: e => { e.stopPropagation(); onToggle?.(m.name); },
       style: {
         position: "absolute", left: `${x / 4}%`, top: `${y / 4}%`, transform: "translate(-50%,-50%)",
-        width: 24, height: 24, padding: 0, border: "none", borderRadius: "50%", background: "transparent",
+        width: faceSize, height: faceSize, padding: 0, border: "none", borderRadius: "50%", background: "transparent",
         cursor: onToggle ? "pointer" : "default", opacity: dim(m.name) ? 0.22 : 1, transition: "opacity .25s ease",
-        boxShadow: cleared && !m.isSolo ? `0 0 0 1.5px ${CYAN}` : "0 0 0 1.5px #0A1412"
+        boxShadow: ring
       }
-    }, React.createElement(Avatar, { name: m.name, userId: m.userId || "", size: 24 }));
+    }, React.createElement(Avatar, { name: m.name, userId: m.userId || "", size: faceSize }));
   });
 
-  return React.createElement('div', { style: { width: "100%", maxWidth: 380, margin: "0 auto", aspectRatio: "1 / 1", position: "relative" } },
+  // Live: the ring runs into the page's 12px side padding (edge to edge on a
+  // phone) and stays centred on anything wider.
+  const boxStyle = live
+    ? { width: "calc(100% + 24px)", maxWidth: 404, marginLeft: "max(-12px, calc((100% - 404px) / 2))", aspectRatio: "1 / 1", position: "relative" }
+    : { width: "100%", maxWidth: 380, margin: "0 auto", aspectRatio: "1 / 1", position: "relative" };
+  return React.createElement('div', { style: boxStyle },
     svg,
     React.createElement('div', { style: { position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", pointerEvents: "none", textAlign: "center" } }, readout),
     faces
