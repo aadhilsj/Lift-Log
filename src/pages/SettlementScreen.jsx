@@ -460,7 +460,9 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
   const pbBody = personalBestCard(myBest, userCount, { satOut: userSatOut });
   const myRecord = trackRecordOf(monthHistory, currentUser, month.key, { includeKey: true });
   const recordParts = trackRecordParts({ months: myRecord, highlightLast: true, compact: true, firstMonth: myRecord.length <= 1 && !myBest });
-  const renderReport = () => React.createElement('div',{style:{border:"0.5px solid #163d36",background:"#0A1412",borderRadius:14,padding:"14px 14px 12px",display:"flex",flexDirection:"column",alignItems:"center",textAlign:"center",gap:6}},
+  // Someone who wasn't in this month (joined later) has no report to show.
+  const userInMonth = !!currentUser && Object.prototype.hasOwnProperty.call(month.counts || {}, currentUser);
+  const renderReport = () => !userInMonth ? null : React.createElement('div',{style:{border:"0.5px solid #163d36",background:"#0A1412",borderRadius:14,padding:"14px 14px 12px",display:"flex",flexDirection:"column",alignItems:"center",textAlign:"center",gap:6}},
     React.createElement('div',{style:{fontFamily:LOOP_FONTS.body,fontSize:11,fontWeight:900,letterSpacing:".14em",textTransform:"uppercase",color:heroTagColor}},hero.tag),
     React.createElement('div',{style:{fontFamily:LOOP_FONTS.body,fontSize:"clamp(26px, 7.5vw, 32px)",fontWeight:900,lineHeight:1.05,color:hero.tone === "neutral" ? "var(--text)" : heroColor,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:"100%"}},hero.stat),
     heroLines.length > 0 && React.createElement('div',{style:{fontFamily:LOOP_FONTS.body,fontSize:12,fontWeight:500,lineHeight:1.45,color:"#B8C7C4"}},
