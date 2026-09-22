@@ -225,7 +225,11 @@ export const MonthDial = ({ members, perfect, focus, onToggle, readout }) => {
     return () => cancelAnimationFrame(id);
   }, [perfect]);
 
-  let angle = GAP / 2;
+  // Turn the ring so the first slice is centred at 12 o'clock. With equal
+  // targets the faces then sit evenly: a plus for four, a pentagon for five,
+  // a hexagon for six.
+  const firstSpan = inLoop.length ? usable * inLoop[0].target / total : 0;
+  let angle = -firstSpan / 2;
   const slices = inLoop.map(m => {
     const span = usable * m.target / total, step = span / m.target;
     const counted = Math.min(m.count, m.fillable), extra = Math.max(0, m.count - m.fillable);
