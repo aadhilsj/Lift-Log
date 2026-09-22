@@ -2,8 +2,9 @@
 
 ## Status
 
-**On a preview branch, not live.** Branch `feat/month-loop`. The founder tests
-the Vercel preview first; nothing goes to `main` until they say so.
+**On a branch, not live.** Branch `feat/month-loop`. The founder tests on the
+sandbox from their phone; nothing goes to `main` until they say so. (The
+Vercel preview can't sign in or load data: previews have no database keys.)
 
 No database data or schema was changed. No new API calls.
 
@@ -84,7 +85,8 @@ cyan Confirm, muted Mark as paid, amber amount while pending.
 
 ## Not verified
 
-- Real data with photos, Solo, sit-outs, prorated joins together — needs the
-  preview (which reads production data).
+- Real data with photos, Solo, sit-outs, prorated joins together. No test
+  surface has real data before `main` (staging isn't built); check live
+  straight after release.
 - Swipe navigation between tabs on a real phone (Playwright unavailable).
 - Desktop layout: same component, not tuned (mobile-only product).
