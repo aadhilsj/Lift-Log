@@ -19,7 +19,7 @@ import {
   getCountedLogs,
   getMonthPartsFromKey
 } from "../lib/appState.js";
-import { Avatar } from "../components/primitives.jsx";
+import { Avatar, TrophyIcon } from "../components/primitives.jsx";
 import { ShareSticker } from "../components/ShareSticker.jsx";
 import { MonthCalendarCard } from "../components/MonthCalendarCard.jsx";
 import { buildStickerData } from "../lib/shareSticker.js";
@@ -39,7 +39,6 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
   const [othersOpen, setOthersOpen] = React.useState(false);
   const clearFocus = React.useCallback(() => setFocus(null), []);
   useTapOutside(!!focus, clearFocus);
-  const dialRef = React.useRef(null);
   const [claimPrompt, setClaimPrompt] = React.useState(null);
   const [showSticker, setShowSticker] = React.useState(false);
   const ledgerRef = React.useRef(null);
@@ -349,23 +348,22 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
   })();
   const monthShort = shortMonthName(monthParts?.monthIndex);
   const awardCards = [
-    { title: "Bloc Champ", name: mvpNames.length ? mvpNames.join(" & ") : "No one", detail: mvpNames.length ? workoutsLabel(mvpCount) : "No workouts", who: mvpNames[0] },
-    { title: "First to Clear", name: firstToClear ? joinNames(firstToClear.names) : "No one", detail: firstToClear ? `cleared on ${monthShort} ${firstToClear.day}` : "Nobody cleared", who: firstToClear?.names[0]?.name },
-    { title: "Most Diverse", name: mostDiverse ? mostDiverse.name : "No one", detail: mostDiverse ? `${mostDiverse.variety} different activities` : "One kind of workout", who: mostDiverse?.name },
-    { title: "Iron Week", name: ironWeek ? joinNames(ironWeek.names) : "No one", detail: ironWeek ? `${ironWeek.n} in a week, ${monthShort} ${ironWeek.a} to ${ironWeek.b}` : "No workouts", who: ironWeek?.names[0]?.name }
+    // Bloc Champ gold and Most Diverse violet are the original award colours;
+    // First to Clear takes the loop's cyan, Iron Week a soft brushed steel.
+    { title: "Bloc Champ", name: mvpNames.length ? mvpNames.join(" & ") : "No one", detail: mvpNames.length ? workoutsLabel(mvpCount) : "No workouts", trophy: true, gradient: "linear-gradient(135deg, rgba(245,166,35,.13), rgba(255,224,132,.048))" },
+    { title: "First to Clear", name: firstToClear ? joinNames(firstToClear.names) : "No one", detail: firstToClear ? `cleared on ${monthShort} ${firstToClear.day}` : "Nobody cleared", gradient: "linear-gradient(135deg, rgba(78,205,196,.115), rgba(71,118,230,.048))" },
+    { title: "Most Diverse", name: mostDiverse ? mostDiverse.name : "No one", detail: mostDiverse ? `${mostDiverse.variety} different activities` : "One kind of workout", gradient: "linear-gradient(135deg, rgba(135,113,255,.13), rgba(78,112,205,.056))" },
+    { title: "Iron Week", name: ironWeek ? joinNames(ironWeek.names) : "No one", detail: ironWeek ? `${ironWeek.n} in a week, ${monthShort} ${ironWeek.a} to ${ironWeek.b}` : "No workouts", gradient: "linear-gradient(135deg, rgba(170,186,204,.12), rgba(96,112,138,.05))" }
   ];
-  const focusOn = name => {
-    if (!name) return;
-    setFocus(prev => prev === name ? null : name);
-    dialRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-  };
   const renderAwards = () => React.createElement('div',{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}},
-    awardCards.map(award => React.createElement('button',{
-      key: award.title, type: "button", "data-loop-keep": "1",
-      onClick: () => focusOn(award.who),
-      style: { textAlign: "left", cursor: award.who ? "pointer" : "default", border: `0.5px solid ${focus && award.who === focus ? "#4ECDC4" : "#0D1F1E"}`, background: "#080F0F", borderRadius: 10, padding: 11, display: "flex", flexDirection: "column", gap: 6, minWidth: 0, color: "var(--text)" }
+    awardCards.map(award => React.createElement('div',{
+      key: award.title,
+      style: { border: "0.5px solid rgba(255,255,255,.07)", background: award.gradient, borderRadius: 10, padding: 11, display: "flex", flexDirection: "column", gap: 6, minWidth: 0, color: "var(--text)" }
     },
-      React.createElement('span',{style:{fontFamily:LOOP_FONTS.body,fontSize:8.5,fontWeight:700,letterSpacing:".12em",textTransform:"uppercase",color:"#6B9690"}},award.title),
+      React.createElement('span',{style:{display:"flex",alignItems:"center",gap:6,fontFamily:LOOP_FONTS.body,fontSize:8.5,fontWeight:700,letterSpacing:".12em",textTransform:"uppercase",color:"#8FA9A5"}},
+        award.trophy && React.createElement(TrophyIcon,{size:12,color:C.gold}),
+        award.title
+      ),
       React.createElement('strong',{style:{fontFamily:LOOP_FONTS.body,fontSize:14.5,fontWeight:800,lineHeight:1.1,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},award.name),
       React.createElement('em',{style:{fontStyle:"normal",fontFamily:LOOP_FONTS.body,fontSize:11,fontWeight:500,color:"#B8C7C4",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},award.detail)
     ))
@@ -480,16 +478,16 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
   );
 
   // ── Settlements: your own payments open, everyone else's folded ──────────
-  const plateStyle = {border:"0.5px solid #163d36",background:"#0A1412",borderRadius:14,padding:"12px 14px",display:"flex",flexDirection:"column",gap:9};
+  const plateStyle = {border:"0.5px solid #163d36",background:"#0A1412",borderRadius:12,padding:"10px 12px",display:"flex",flexDirection:"column",gap:7};
   const plateHead = (title, meta) => React.createElement('div',{style:{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:10}},
     React.createElement('b',{style:{fontFamily:LOOP_FONTS.body,fontSize:8.5,fontWeight:700,letterSpacing:".14em",textTransform:"uppercase",color:"#7DB8B1"}},title),
-    meta && React.createElement('i',{style:{fontFamily:LOOP_FONTS.mono,fontStyle:"normal",fontSize:9.5,color:"#6B9690",letterSpacing:".06em",textTransform:"uppercase"}},meta)
+    meta && React.createElement('span',{style:{fontFamily:LOOP_FONTS.body,fontSize:9.5,fontWeight:600,color:"#6B9690"}},meta)
   );
   const pairKey = pair => `${month.key}:${pair.payerDisplayName}:${pair.receiverDisplayName}`;
   const pairState = pair => statusForPair(pair).state;
   const smallBtn = (label, onClick, kind, key) => React.createElement('button',{
     type:"button", onClick, disabled: settlementBusy === key,
-    style:{fontFamily:LOOP_FONTS.body,fontSize:9,fontWeight:800,lineHeight:1,padding:"5px 9px",borderRadius:999,cursor:"pointer",whiteSpace:"nowrap",
+    style:{fontFamily:LOOP_FONTS.body,fontSize:8.5,fontWeight:800,lineHeight:1,padding:"4px 8px",borderRadius:999,cursor:"pointer",whiteSpace:"nowrap",
       background: kind === "confirm" ? "#4ECDC4" : "rgba(226,235,232,.10)",
       border: `1px solid ${kind === "confirm" ? "#4ECDC4" : "rgba(226,235,232,.26)"}`,
       color: kind === "confirm" ? "#061110" : "#DCE8E5"}
@@ -498,10 +496,10 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
     const key = pairKey(pair), state = pairState(pair);
     const youPay = pair.payerDisplayName === currentUser, youGet = pair.receiverDisplayName === currentUser;
     const nameNode = name => name === currentUser
-      ? React.createElement('span',{style:{fontWeight:800,color:"var(--text)"}},"You")
+      ? React.createElement('span',{style:{fontWeight:700,color:"var(--text)"}},"You")
       : name;
     const amountColor = state.pending && !state.confirmed ? "#EF9F27" : youPay ? "#E86A45" : youGet ? "#2ECC71" : "#6B9690";
-    const statusText = (text, color) => React.createElement('span',{style:{fontFamily:LOOP_FONTS.body,fontSize:10,fontWeight:600,lineHeight:1.3,color:color || "#6B9690"}},text);
+    const statusText = (text, color) => React.createElement('span',{style:{fontFamily:LOOP_FONTS.body,fontSize:9.5,fontWeight:500,lineHeight:1.3,color:color || "#6B9690"}},text);
     let status, actions = null;
     if (state.confirmed) status = statusText("Paid, confirmed", "#4ECDC4");
     else if (youPay && state.pending) status = statusText(`Waiting for ${pair.receiverDisplayName} to confirm`, "#EF9F27");
@@ -516,14 +514,14 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
       actions = smallBtn("Confirm", () => requestSettlementAction({key,kind:"confirm",payerDisplayName:pair.payerDisplayName,receiverDisplayName:pair.receiverDisplayName,amount:pair.amount}), "confirm", key);
     } else if (state.pending) status = statusText(`Paid, waiting for ${pair.receiverDisplayName} to confirm`, "#EF9F27");
     else status = statusText("Not paid yet");
-    return React.createElement('div',{key,style:{display:"grid",gridTemplateColumns:"1fr auto",gap:"4px 10px",alignItems:"center",padding:"8px 0",borderTop:"0.5px solid #0D1F1E"}},
-      React.createElement('div',{style:{display:"flex",alignItems:"center",gap:6,minWidth:0,fontFamily:LOOP_FONTS.body,fontSize:12,fontWeight:600,color:"#B8C7C4"}},
+    return React.createElement('div',{key,style:{display:"grid",gridTemplateColumns:"1fr auto",gap:"3px 10px",alignItems:"center",padding:"6px 0",borderTop:"0.5px solid #0D1F1E"}},
+      React.createElement('div',{style:{display:"flex",alignItems:"center",gap:6,minWidth:0,fontFamily:LOOP_FONTS.body,fontSize:11.5,fontWeight:500,color:"#B8C7C4"}},
         nameNode(pair.payerDisplayName),
         React.createElement('span',{style:{fontFamily:LOOP_FONTS.mono,fontSize:11,color:"#6B9690"}},"→"),
         nameNode(pair.receiverDisplayName)
       ),
-      React.createElement('div',{style:{fontFamily:LOOP_FONTS.body,fontSize:12,fontWeight:700,textAlign:"right",fontVariantNumeric:"tabular-nums",color:amountColor}},fmtCurrency(pair.amount, currency)),
-      React.createElement('div',{style:{gridColumn:"1 / -1",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,minHeight:20}},status,actions)
+      React.createElement('div',{style:{fontFamily:LOOP_FONTS.body,fontSize:11.5,fontWeight:600,textAlign:"right",fontVariantNumeric:"tabular-nums",color:amountColor}},fmtCurrency(pair.amount, currency)),
+      React.createElement('div',{style:{gridColumn:"1 / -1",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,minHeight:18}},status,actions)
     );
   };
   // Someone owed money with no way to be paid gets the same nudge Today gives.
@@ -540,14 +538,14 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
     const openCount = list => list.filter(pair => !pairState(pair).confirmed).length;
     const allOpen = openCount(settlementPairs);
     const foldLabel = mine.length ? "Everyone else" : `Settlements – ${allOpen ? `${allOpen} Open` : "All settled"}`;
-    return React.createElement('div',{style:mine.length ? plateStyle : {...plateStyle,padding:"11px 14px"}},
+    return React.createElement('div',{style:mine.length ? plateStyle : {...plateStyle,padding:"9px 12px"}},
       mine.length > 0 && plateHead(mine[0].payerDisplayName === currentUser ? "You owe" : "Owed to you", `${openCount(mine)} Open`),
-      mine.length > 0 && needsPaymentMethod && React.createElement('div',{style:{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,border:"0.5px solid rgba(78,205,196,.3)",borderRadius:10,padding:"9px 11px",background:"rgba(78,205,196,.05)"}},
-        React.createElement('span',{style:{fontFamily:LOOP_FONTS.body,fontSize:11,fontWeight:500,lineHeight:1.35,color:"#B8C7C4"}},"People can't pay you in one tap yet."),
-        React.createElement('button',{type:"button",onClick:onOpenAccount,style:{background:"none",border:"none",padding:0,cursor:"pointer",fontFamily:LOOP_FONTS.body,fontSize:11,fontWeight:700,color:"#4ECDC4",whiteSpace:"nowrap"}},"Link a payment option +")
+      mine.length > 0 && needsPaymentMethod && React.createElement('div',{style:{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,border:"0.5px solid rgba(78,205,196,.3)",borderRadius:9,padding:"7px 10px",background:"rgba(78,205,196,.05)"}},
+        React.createElement('span',{style:{fontFamily:LOOP_FONTS.body,fontSize:10.5,fontWeight:500,lineHeight:1.35,color:"#B8C7C4"}},"People can't pay you in one tap yet."),
+        React.createElement('button',{type:"button",onClick:onOpenAccount,style:{background:"none",border:"none",padding:0,cursor:"pointer",fontFamily:LOOP_FONTS.body,fontSize:10.5,fontWeight:700,color:"#4ECDC4",whiteSpace:"nowrap"}},"Link a payment option +")
       ),
       mine.length > 0 && React.createElement('div',{style:{display:"flex",flexDirection:"column",marginTop:-8}},mine.map(renderPairRow)),
-      others.length > 0 && React.createElement('button',{type:"button","aria-expanded":othersOpen,onClick:()=>setOthersOpen(v => !v),style:{display:"flex",justifyContent:"space-between",alignItems:"center",width:"100%",background:"transparent",border:"none",padding:"2px 0",cursor:"pointer",fontFamily:LOOP_FONTS.body,fontSize:12,fontWeight:700,color:"#B8C7C4"}},
+      others.length > 0 && React.createElement('button',{type:"button","aria-expanded":othersOpen,onClick:()=>setOthersOpen(v => !v),style:{display:"flex",justifyContent:"space-between",alignItems:"center",width:"100%",background:"transparent",border:"none",padding:"2px 0",cursor:"pointer",fontFamily:LOOP_FONTS.body,fontSize:11.5,fontWeight:600,color:"#B8C7C4"}},
         React.createElement('span',null,foldLabel),
         React.createElement('span',{style:{color:"#6B9690",fontSize:15}},othersOpen ? "−" : "+")
       ),
@@ -568,11 +566,9 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
 
   return React.createElement(React.Fragment,null,
     React.createElement('div',{style:{width:"100%",maxWidth:"100%",margin:"0 auto",padding:"0 0 48px",display:"flex",flexDirection:"column",gap:14,fontFamily:LOOP_FONTS.body}},
-      React.createElement('div',{ref:dialRef},
-        React.createElement(MonthDial,{ members: loopMembers, perfect: isBlocPerfect, focus, onToggle: name => setFocus(prev => prev === name ? null : name), readout: ringReadout })
-      ),
+      React.createElement(MonthDial,{ members: loopMembers, perfect: isBlocPerfect, focus, onToggle: name => setFocus(prev => prev === name ? null : name), readout: ringReadout }),
       React.createElement(LoopCaption,{ lines: loopCaption(loopMembers, { ended: true }) }),
-      React.createElement('div',{style:{fontFamily:LOOP_FONTS.body,fontSize:9,fontWeight:500,color:"#6B9690",opacity:.8,textAlign:"center",marginTop:-8}},"Tap a slice or an award to see that person"),
+      React.createElement('div',{style:{fontFamily:LOOP_FONTS.body,fontSize:9,fontWeight:500,color:"#6B9690",opacity:.8,textAlign:"center",marginTop:-8}},"Tap a slice to see that person"),
       renderFocusPlate(),
       renderReport(),
       React.createElement('div',{style:{border:"0.5px solid #163d36",background:"#0A1412",borderRadius:14,padding:14,display:"flex",flexDirection:"column",gap:12}},
@@ -580,7 +576,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
         renderAwards()
       ),
       reportCalendar ? React.createElement(MonthCalendarCard,{
-        title:`${stickerMonthLabel} · Your month`,
+        title:stickerMonthLabel,
         logsByDay:reportCalendar.logsByDay,
         year:reportCalendar.year,
         monthIndex:reportCalendar.monthIndex,
