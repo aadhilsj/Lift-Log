@@ -24,7 +24,9 @@ const FULL_MONTH_NAMES = ["January","February","March","April","May","June","Jul
 const SHORT_MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const CYAN = "#4ECDC4";
 const CHALK = "#E8F6F3";
-const TICK_EMPTY = "#1D2A29";
+// Empty places should remain quiet, but need enough contrast to read as
+// intentional workout slots rather than disappearing into the dial.
+const TICK_EMPTY = "#2A3B38";
 export const LOOP_FONTS = {
   display: "'Raleway', sans-serif",
   body: "'Outfit', sans-serif",
@@ -270,6 +272,13 @@ export const MonthDial = ({ members, perfect, focus, onToggle, readout }) => {
           const [x1, y1] = pt(R_X1 + row * R_ROW, a), [x2, y2] = pt(R_X2 + row * R_ROW, a);
           return React.createElement('line', { key: `x${k}`, x1, y1, x2, y2, stroke: CHALK, strokeWidth: 1.4 });
         }),
+        // The base circle is continuous behind every slice. Cut a fine, dark
+        // seam through it at each boundary so incomplete neighbouring slices
+        // never visually merge into one another.
+        (() => {
+          const [x1, y1] = pt(R_ARC - 5, a0 - GAP / 2), [x2, y2] = pt(R_ARC + 5, a0 - GAP / 2);
+          return React.createElement('line', { x1, y1, x2, y2, stroke: "#0A1412", strokeWidth: 1.5 });
+        })(),
         React.createElement('path', { d: wedge(R_ARC - 14, faceR + 13, a0 - GAP / 2, a0 + span + GAP / 2), fill: "transparent" })
       )
     )

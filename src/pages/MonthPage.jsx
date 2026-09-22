@@ -14,7 +14,7 @@ import {
   addStandardSoloPenalties,
   isStandardPenaltySoloForMonth,
   getLoserAmount,
-  getCurrentMemberTargetInfo,
+  getMemberTargetInfoForMonth,
   isSoloForMonth,
   isTrainingForMonth,
   getSoloTargetForMonth,
@@ -57,7 +57,7 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
   const relevantNames = NAMES.filter(name => isJoinedForMonth(name, isCurrent ? curKey : selMonth.key));
   const counts=isCurrent
     ? relevantNames.map(n=>{
-        const { target, joinDay=1, proratedDays } = getCurrentMemberTargetInfo(n, curKey, MIN_TARGET);
+        const { target, joinDay=1, proratedDays, prorationSource } = getMemberTargetInfoForMonth(group, n, curKey);
         const count = getCountedLogCount(logs[n]||[]);
         const isOut = excused[n]?.[curKey]||false;
         const isSolo = isSoloForMonth(group, n, curKey);
@@ -71,7 +71,10 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
           memberDiffLabel = d > 0 ? `+${d} ahead of pace` : d < 0 ? `${d} behind pace` : "on pace";
         }
         const isTraining = isTrainingForMonth(group, n, curKey);
-        return { name:n, count, isOut, isSolo, isTraining, target:activeTarget, soloTarget, memberDiffLabel, joinDay, proratedDays };
+        // Match Today's label exactly: joining during the month alone does not
+        // make someone prorated. Their own target must actually be lower.
+        const prorated = !isSolo && Number(target) < Number(MIN_TARGET) && prorationSource === "member";
+        return { name:n, count, isOut, isSolo, isTraining, target:activeTarget, soloTarget, memberDiffLabel, joinDay, proratedDays, prorated };
       })
     : relevantNames.map(n=>({name:n,count:selMonth.counts[n]||0,isOut:selMonth.excused?.[n]||false,isSolo:isSoloForMonth(selMonth,n,selMonth.key),isTraining:isTrainingForMonth(selMonth,n,selMonth.key),soloTarget:getSoloTargetForMonth(selMonth,n,selMonth.key),target:getSoloTargetForMonth(selMonth,n,selMonth.key) || selMonth.memberTargets?.[n] || selMonth.settings?.minTarget || MIN_TARGET}));
 
@@ -118,7 +121,7 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
 
   // ── Closed month → settlement screen ───────────────────────────────────────
   if (!isCurrent && selMonth && currentUser) {
-    return React.createElement('div',{style:{position:"relative",maxWidth:840,margin:"0 auto",padding:"4px 12px 16px",display:"flex",flexDirection:"column",gap:6,background:"radial-gradient(ellipse 95% 72% at 50% 62%, rgba(78,205,196,.075), rgba(78,205,196,.025) 46%, transparent 76%)",borderRadius:16}},
+    return React.createElement('div',{style:{position:"relative",maxWidth:840,margin:"0 auto",padding:"36px 12px 16px",display:"flex",flexDirection:"column",gap:6,background:"radial-gradient(ellipse 95% 72% at 50% 62%, rgba(78,205,196,.075), rgba(78,205,196,.025) 46%, transparent 76%)",borderRadius:16}},
       monthStepper(null),
       React.createElement(SettlementScreen,{
         group, month:selMonth, currentUser, currentUserId, monthHistory, profiles, onOpenAccount, onSettlementClaimPaid, onSettlementConfirmPaid, onTrackUsage,
@@ -134,13 +137,13 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
   const loopMembers = counts.map(u => {
     // A Solo member's slice is the size of their normal target; only the Solo
     // target can fill it.
-    const info = getCurrentMemberTargetInfo(u.name, curKey, MIN_TARGET);
+    const info = getMemberTargetInfoForMonth(group, u.name, curKey);
     const fullTarget = Math.max(1, Number(info?.target || u.target || MIN_TARGET));
     return {
       name: u.name, userId: userIdFor(u.name), isMe: u.name === currentUser,
       isOut: !!u.isOut, isSolo: !!u.isSolo, isTraining: !!u.isTraining,
       target: fullTarget, fillable: u.isSolo && u.soloTarget ? u.soloTarget : fullTarget,
-      count: u.count, joinDay: info?.joinDay || 1, prorated: !!info?.proratedDays
+      count: u.count, joinDay: info?.joinDay || 1, prorated: !!u.prorated
     };
   });
   const totals = loopTotals(loopMembers);
@@ -262,7 +265,7 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
 
   // Extra room at the bottom: the track record is the last row and must clear the floating nav.
   return React.createElement('div',{style:{position:"relative",minHeight:"calc(100vh - 136px)",padding:"0 0 72px",background:"radial-gradient(ellipse 95% 72% at 50% 62%, rgba(78,205,196,.055), rgba(78,205,196,.018) 46%, transparent 76%)"}},
-  React.createElement('div',{style:{maxWidth:840,margin:"0 auto",padding:"4px 12px 16px",display:"flex",flexDirection:"column",gap:6,background:"transparent",borderRadius:16}},
+  React.createElement('div',{style:{maxWidth:840,margin:"0 auto",padding:"36px 12px 16px",display:"flex",flexDirection:"column",gap:6,background:"transparent",borderRadius:16}},
     monthStepper(`${daysLeft} ${daysLeft === 1 ? "day" : "days"} left`),
     React.createElement(MonthDial,{
       members: loopMembers, perfect: false, focus, onToggle: toggleFocus,
