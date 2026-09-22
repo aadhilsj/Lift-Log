@@ -2,9 +2,9 @@
 
 ## Status
 
-**On a branch, not live.** Branch `feat/month-loop`. The founder tests on the
-sandbox from their phone; nothing goes to `main` until they say so. (The
-Vercel preview can't sign in or load data: previews have no database keys.)
+**Live on `main`** after the founder reviewed it on the sandbox from their
+phone. (The Vercel preview can't sign in or load data: previews have no
+database keys.)
 
 No database data or schema was changed. No new API calls.
 
@@ -64,6 +64,20 @@ not perfect, and the 75% rule applies).
   directly under the calendar; Share on a missed month still scrolls there.
 - The receiver ✕ (dispute) from the mock-up was not added here; the screen
   never had a dispute action. Disputes stay on Today's reminders.
+
+## Changes from the founder's review on the phone
+
+- Month header: no title; a centred one-tap ‹ September '26 › switcher, with
+  "9 days left" on the same line (9px). The ring sits higher.
+- The ring's first slice is centred at 12 o'clock, so equal targets sit evenly
+  (plus, pentagon, hexagon). Slices stay sized by target (founder's choice).
+- "Tap a slice to see someone's month" centred, 24px lower.
+- Results: awards are static with colour washes (gold, violet, cyan for First
+  to Clear, brushed steel for Iron Week); report card keeps its original tints;
+  no report card for a month the viewer wasn't in; slimmer settlements with
+  "1 Open" in Outfit; calendar titled with the month only.
+- Payment prompt on results uses Today's check (`buildPaymentTargets`, the
+  list of methods) and opens Today's payment window, portalled.
 
 ## Settlements
 
