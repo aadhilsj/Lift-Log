@@ -29,6 +29,10 @@ const CHALK = "#E8F6F3";
 const TICK_EMPTY = "#2A3B38";
 const LIVE_OPEN_ARC = "rgba(78,205,196,.34)";
 const LIVE_OPEN_TICK = "rgba(78,205,196,.40)";
+const SPOTLIGHT_BAND = "rgba(78,205,196,.08)";
+const SPOTLIGHT_ARC = "rgba(78,205,196,.82)";
+const SPOTLIGHT_TICK = "rgba(78,205,196,.85)";
+const SPOTLIGHT_EMPTY = "#3E5652";
 export const LOOP_FONTS = {
   display: "'Raleway', sans-serif",
   body: "'Outfit', sans-serif",
@@ -271,6 +275,12 @@ export const MonthDial = ({ members, perfect, focus, onToggle, readout, live = f
   });
 
   const dim = name => focus && focus !== name;
+  // Focusing an open slice: it has no glow to mark it, so spotlight it (a soft
+  // band behind it, brighter progress, its empty places showing) and dim the
+  // rest further. A cleared slice already glows, so the usual dimming is enough.
+  const focusedSlice = focus ? slices.find(s => s.m.name === focus) : null;
+  const spotlight = live && !!focusedSlice && !focusedSlice.cleared;
+  const dimOpacity = spotlight ? 0.12 : 0.22;
   const svg = React.createElement('svg', { viewBox: "0 0 400 400", role: "img", "aria-label": "The Bloc's loop this month", style: { position: "absolute", inset: 0, width: "100%", height: "100%", overflow: "visible" } },
     React.createElement('defs', null,
       React.createElement('radialGradient', { id: "fero-loop-fill", cx: "50%", cy: "50%", r: "50%" },
@@ -292,23 +302,25 @@ export const MonthDial = ({ members, perfect, focus, onToggle, readout, live = f
     ),
     React.createElement('circle', { cx: C, cy: C, r: R_ARC - 4, fill: "url(#fero-loop-fill)", opacity: perfect && glow ? 1 : 0, style: { transition: "opacity .9s cubic-bezier(.16,1,.3,1)" } }),
     React.createElement('circle', { cx: C, cy: C, r: R_ARC, fill: "none", stroke: "#0F1C1B", strokeWidth: 6 }),
-    slices.map(({ m, a0, span, step, counted, extra, cleared, faceR }) =>
-      React.createElement('g', {
+    slices.map(({ m, a0, span, step, counted, extra, cleared, faceR }) => {
+      const lit = spotlight && m.name === focus;
+      return React.createElement('g', {
         key: m.name, "data-loop-keep": "1",
         onClick: e => { e.stopPropagation(); onToggle?.(m.name); },
-        style: { cursor: onToggle ? "pointer" : "default", opacity: dim(m.name) ? 0.22 : 1, transition: "opacity .25s ease" }
+        style: { cursor: onToggle ? "pointer" : "default", opacity: dim(m.name) ? dimOpacity : 1, transition: "opacity .25s ease" }
       },
+        lit && React.createElement('path', { d: wedge(R_ARC - 12, R_T2 + 5, a0 - 1, a0 + span + 1), fill: SPOTLIGHT_BAND }),
         Array.from({ length: m.target }, (_, k) => {
           const a = a0 + step * (k + 0.5); const [x1, y1] = pt(R_T1, a), [x2, y2] = pt(R_T2, a);
           // Solo's places beyond their Solo target are outlines that can never fill.
           return k >= m.fillable
             ? React.createElement('line', { key: k, x1, y1, x2, y2, stroke: "#2B3D3B", strokeWidth: 1.3, strokeDasharray: "2 2" })
-            : React.createElement('line', { key: k, x1, y1, x2, y2, stroke: k < counted ? (live && !cleared ? LIVE_OPEN_TICK : CYAN) : TICK_EMPTY, strokeWidth: 1.4 });
+            : React.createElement('line', { key: k, x1, y1, x2, y2, stroke: k < counted ? (lit ? SPOTLIGHT_TICK : live && !cleared ? LIVE_OPEN_TICK : CYAN) : (lit ? SPOTLIGHT_EMPTY : TICK_EMPTY), strokeWidth: 1.4 });
         }),
         counted > 0 && (live
           // Live: a cleared slice is full cyan with a soft glow; an open one is a dim teal,
           // so who has cleared reads at a glance.
-          ? React.createElement('path', { d: arcPath(R_ARC, a0, a0 + step * counted), fill: "none", stroke: cleared ? CYAN : LIVE_OPEN_ARC, strokeWidth: cleared ? (perfect ? 7 : 6.5) : 3.5, filter: cleared ? "url(#fero-loop-glow)" : undefined })
+          ? React.createElement('path', { d: arcPath(R_ARC, a0, a0 + step * counted), fill: "none", stroke: cleared ? CYAN : lit ? SPOTLIGHT_ARC : LIVE_OPEN_ARC, strokeWidth: cleared ? (perfect ? 7 : 6.5) : lit ? 4.5 : 3.5, filter: cleared ? "url(#fero-loop-glow)" : undefined })
           : React.createElement('path', { d: arcPath(R_ARC, a0, a0 + step * counted), fill: "none", stroke: cleared ? CYAN : "rgba(78,205,196,.55)", strokeWidth: cleared ? (perfect ? 7 : 6) : 4 })),
         Array.from({ length: Math.min(extra, m.target * MAX_ROWS) }, (_, k) => {
           const row = Math.floor(k / m.target), a = a0 + step * ((k % m.target) + 0.5);
@@ -323,8 +335,8 @@ export const MonthDial = ({ members, perfect, focus, onToggle, readout, live = f
           return React.createElement('line', { x1, y1, x2, y2, stroke: "#0A1412", strokeWidth: 1.5 });
         })(),
         React.createElement('path', { d: wedge(R_ARC - 14, faceR + 13, a0 - GAP / 2, a0 + span + GAP / 2), fill: "transparent" })
-      )
-    )
+      );
+    })
   );
 
   // Faces are real avatars (photos included) laid over the drawing.
@@ -340,7 +352,7 @@ export const MonthDial = ({ members, perfect, focus, onToggle, readout, live = f
       style: {
         position: "absolute", left: `${x / 4}%`, top: `${y / 4}%`, transform: "translate(-50%,-50%)",
         width: faceSize, height: faceSize, padding: 0, border: "none", borderRadius: "50%", background: "transparent",
-        cursor: onToggle ? "pointer" : "default", opacity: dim(m.name) ? 0.22 : 1, transition: "opacity .25s ease",
+        cursor: onToggle ? "pointer" : "default", opacity: dim(m.name) ? dimOpacity : 1, transition: "opacity .25s ease",
         boxShadow: ring
       }
     }, React.createElement(Avatar, { name: m.name, userId: m.userId || "", size: faceSize }));
