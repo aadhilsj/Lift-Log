@@ -23,6 +23,7 @@
     "test:identity": "node scripts/test-display-name-identity.mjs",
     "test:profile-photo-storage": "node scripts/test-profile-photo-storage.mjs",
     "test:auth-edge-flows": "node scripts/test-auth-edge-flows.mjs",
+    "test:auth-outage": "node scripts/test-auth-outage.mjs",
     "test:two-workouts": "node scripts/test-two-workouts-per-day.mjs",
     "test:solo-sitout-exclusion": "node scripts/test-solo-sitout-exclusion.mjs",
     "test:solo-standard-penalty": "node scripts/test-solo-standard-penalty.mjs",

@@ -278,6 +278,10 @@ async function syncAuthSessionData(sessionOverride, options = {}) {
 async function refreshAuthSession() {
   const client = await getSupabaseAuthClient();
   const { data, error } = await client.auth.refreshSession();
+  // A refresh that could not reach Supabase says nothing about the session, so
+  // it throws rather than returning null: every caller signs out on null.
+  // Callers already catch, and a thrown refresh becomes a sync error instead.
+  if (error?.name === "AuthRetryableFetchError" || Number(error?.status) >= 500) throw error;
   if (error || !data?.session) return null;
   return mapSupabaseSession(data.session);
 }

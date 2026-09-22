@@ -5888,15 +5888,31 @@ async function fetchAuthenticatedUser(accessToken) {
     throw error;
   }
   assertSupabaseConfigured();
-  const response = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
-    headers: {
-      apikey: SUPABASE_SERVICE_ROLE_KEY,
-      Authorization: `Bearer ${accessToken}`
-    }
-  });
+  // Only an answer about the token itself means "signed out". If Supabase
+  // cannot be reached, or answers with a server error or timeout, we never
+  // learned anything about the session, so the reply is a retryable 503. A 401
+  // here makes the client refresh, retry, and then sign the member out.
+  // 2026-09-22: a Cloudflare outage turned every 522 into "session no longer
+  // valid" and signed members out mid-use.
+  let response;
+  try {
+    response = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+      headers: {
+        apikey: SUPABASE_SERVICE_ROLE_KEY,
+        Authorization: `Bearer ${accessToken}`
+      }
+    });
+  } catch {
+    const error = new Error("Couldn't reach the sign-in service. Try again in a moment.");
+    error.status = 503;
+    throw error;
+  }
   if (!response.ok) {
-    const error = new Error("Your session is no longer valid. Sign in again.");
-    error.status = 401;
+    const tokenRejected = response.status === 400 || response.status === 401 || response.status === 403;
+    const error = new Error(tokenRejected
+      ? "Your session is no longer valid. Sign in again."
+      : "Couldn't reach the sign-in service. Try again in a moment.");
+    error.status = tokenRejected ? 401 : 503;
     throw error;
   }
   const user = await response.json();
