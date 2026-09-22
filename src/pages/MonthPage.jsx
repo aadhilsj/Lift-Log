@@ -164,7 +164,7 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
     ];
     return React.createElement(React.Fragment, null,
       rows,
-      React.createElement('div', { style: { fontFamily: LOOP_FONTS.body, fontSize: 9, fontWeight: 500, color: "#6B9690", opacity: .8 } }, "Tap a slice to see someone's month")
+      React.createElement('div', { style: { fontFamily: LOOP_FONTS.body, fontSize: 9, fontWeight: 500, color: "#6B9690", opacity: .8, textAlign: "center", marginTop: 24 } }, "Tap a slice to see someone's month")
     );
   };
 
