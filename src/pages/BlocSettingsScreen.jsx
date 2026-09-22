@@ -123,9 +123,9 @@ const EditableField = ({title,description,children}) => (
 
 const FULL_MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
-const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,saving,onReviewSetup,onReviewSitOut,onReviewSolo,onKickMember,onLeaveBloc,onSitOutRequest,onSoloRequest,onCancelRequest,localDevMode=false}) => {
+const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,saving,onReviewSetup,onReviewSitOut,onReviewSolo,onKickMember,onLeaveBloc,onSitOutRequest,onSoloRequest,onCancelRequest,initialTab="invite",localDevMode=false}) => {
   const compactMobile = isMobile();
-  const [tab,setTab]=useState("invite");
+  const [tab,setTab]=useState(initialTab === "rules" ? "rules" : "invite");
   const [showSitOut,setShowSitOut]=useState(false);
   const [sitOutSubmitting,setSitOutSubmitting]=useState(false);
   const [sitOutError,setSitOutError]=useState("");

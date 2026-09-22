@@ -1039,6 +1039,17 @@ function buildSettlementReminderCards(group, currentUserId, currentUserName) {
         amountColor = "#6B9690";
       }
 
+      // The "why" behind the debt, from the closed month's own frozen record,
+      // never current Bloc settings. A Solo payer was held to their Solo goal,
+      // not the Bloc target, so that is the number they fell short of.
+      const payerSoloTarget = isSoloForMonth(month, pair.payerDisplayName, month.key)
+        ? getSoloTargetForMonth(month, pair.payerDisplayName, month.key)
+        : null;
+      const payerTarget = payerSoloTarget
+        || Number(month?.memberTargets?.[pair.payerDisplayName])
+        || Number(month?.settings?.minTarget || MIN_TARGET);
+      const payerCount = Number(month?.counts?.[pair.payerDisplayName] || 0);
+
       return {
         key: `${pair.monthKey}:${pair.payerDisplayName}:${pair.receiverDisplayName}`,
         monthKey: pair.monthKey,
@@ -1050,6 +1061,9 @@ function buildSettlementReminderCards(group, currentUserId, currentUserName) {
         // Surfaced so Today can offer a Pay affordance only to the person who
         // actually owes; the receiver must never see a pay button.
         isPayer,
+        payerCount,
+        payerTarget,
+        payerSolo: !!payerSoloTarget,
         amount: pair.amount,
         currency: group?.settings?.currency || pair.currency,
         pending,

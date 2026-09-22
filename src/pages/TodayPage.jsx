@@ -1,4 +1,5 @@
 import React from "react";
+import { createPortal } from "react-dom";
 const { useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef } = React;
 import {
   NAMES,
@@ -53,6 +54,7 @@ import {
 } from "../lib/utils.js";
 import { Avatar, WorkoutTypeIcon, ChevronRightIcon, TargetHitHexIcon, StatusBadge, RankIcon, Bar, Card, AppIcon, PlayerProfileErrorBoundary, RedemptionShieldIcon, MemberTag, TrainingSproutIcon, SoloFlagIcon } from "../components/primitives.jsx";
 import { LogModal, DeleteModal, SittingOutNotice } from "../modals/modals.jsx";
+import { ReminderSheet } from "../components/ReminderSheet.jsx";
 import { getLogDisplayActivity } from "../lib/activities.js";
 import { PlayerProfile } from "../pages/PlayerProfile.jsx";
 import { buildPaymentTargets } from "../lib/paymentLinks.js";
@@ -71,6 +73,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
   const [settlementConfirmPromptCard,setSettlementConfirmPromptCard]=useState(null);
   const [settlementDisputePromptCard,setSettlementDisputePromptCard]=useState(null);
   const [showLinkPaymentModal,setShowLinkPaymentModal]=useState(false);
+  const [showReminderSheet,setShowReminderSheet]=useState(false);
   const todayRootRef = useRef(null);
   const profileLayerRef = useRef(null);
   const [profileRevealActive,setProfileRevealActive]=useState(false);
@@ -714,7 +717,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
   // Pay affordance on a reminder: one icon per method the receiver accepts, so
   // the payer can settle at the moment they are reminded instead of navigating
   // into the month view. Opening a link never changes settlement state.
-  const reminderPayControl = card => {
+  const reminderPayControl = (card, size = 19) => {
     if (!card?.isPayer || card.pending) return null;
     const receiverId = card.receiverAuthUserId;
     if (!receiverId || !profiles) return null;
@@ -729,7 +732,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
         title:`Pay with ${target.label}`,
         style:{
           display:"inline-flex",alignItems:"center",justifyContent:"center",
-          width:19,height:19,borderRadius:5,flexShrink:0,
+          width:size,height:size,borderRadius:Math.round(size * .26),flexShrink:0,
           background:target.iconBg||target.brand,color:"#FFFFFF",
           textDecoration:"none",boxShadow:"0 1px 4px rgba(0,0,0,.28)"
         }
@@ -767,7 +770,19 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
   // Sits on the body line, not under it, and opens the provider list in place
   // rather than sending the receiver off to the account screen: the prompt is
   // about one small piece of setup, so the whole trip is the wrong size.
-  const renderLinkPaymentPrompt = card => card.key !== firstOwedKey ? null : React.createElement('button',{
+  // Phone only: the desktop prompt below stayed muted and 8.5px, which read as
+  // a caption and was easy to miss. On the phone it is a clear cyan action.
+  const renderLinkPaymentPromptMobile = (card, promptKey = firstOwedKey, fontSize = 10) => card.key !== promptKey ? null : React.createElement('button',{
+    type:"button",
+    onClick:e=>{ e.stopPropagation(); setShowLinkPaymentModal(true); },
+    style:{
+      background:"transparent",border:"none",padding:"4px 0",margin:"-4px 0",
+      color:"#4ECDC4",fontSize,fontWeight:700,cursor:"pointer",textAlign:"left",
+      whiteSpace:"nowrap",flexShrink:0,lineHeight:1.25,
+      fontFamily:"'Outfit', sans-serif"
+    }
+  },"Link a payment option +");
+  const renderLinkPaymentPrompt = (card, promptKey = firstOwedKey) => card.key !== promptKey ? null : React.createElement('button',{
     type:"button",
     onClick:e=>{ e.stopPropagation(); setShowLinkPaymentModal(true); },
     style:{
@@ -778,24 +793,30 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
     }
   },"Link a payment option");
 
-  const settlementReminderSlot = showSettlementReminderSlot && React.createElement(Card,{style:{padding:"9px 10px",display:"flex",flexDirection:"column",gap:6,background:"#0A1412",border:"0.5px solid #163d36",boxShadow:"inset 0 1px 0 rgba(78,205,196,.03)"}},
-    React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}},
-      React.createElement('span',{className:"lbl",style:{fontSize:8,marginBottom:0,color:"#7DB8B1",fontFamily:"'Outfit', sans-serif",fontWeight:700}},"Settlement reminders"),
-      React.createElement('span',{style:{fontSize:9,color:"#6B9690",fontFamily:"'Outfit', sans-serif",fontWeight:500}},`${visibleSettlementReminderCards.length} unpaid`)
-    ),
-    visibleSettlementReminderCards.map(card => React.createElement('div',{key:card.key,style:{border:"0.5px solid #0D1F1E",borderRadius:9,padding:"6px 10px",display:"grid",gap:2,background:"#080F0F",fontFamily:"'Outfit', sans-serif",position:"relative"}},
-      React.createElement('div',{style:{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:8}},
+  // The compact phone card is a single, centred payment row. The month sits
+  // immediately above it, so the provider icon can belong directly to the
+  // "You owe X" copy rather than competing with a second row inside the card.
+  const renderCompactPaymentIcon = card => {
+    const control = reminderPayControl(card, 19.5);
+    if (!control) return null;
+    return React.createElement('span',{style:{display:"inline-flex",alignItems:"center",flexShrink:0}},control);
+  };
+
+  const renderReminderCard = (card, promptKey = firstOwedKey, renderPrompt = renderLinkPaymentPrompt, actionFontSize = 8, phoneActions = false) => React.createElement('div',{key:card.key,style:{border:phoneActions ? "0.5px solid #17302D" : "0.5px solid #0D1F1E",borderRadius:9,padding:phoneActions ? "6.25px 10px" : "6px 10px",display:"grid",gap:2,background:phoneActions ? "#0C1716" : "#080F0F",fontFamily:"'Outfit', sans-serif",position:"relative"}},
+      !phoneActions && React.createElement('div',{style:{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:8}},
         React.createElement('div',{style:{minWidth:0,flex:1,display:"grid",gap:1}},
           React.createElement('div',{style:{fontSize:8,color:"#89A39E",letterSpacing:".12em",textTransform:"uppercase",fontFamily:"'Outfit', sans-serif",fontWeight:600}},card.monthLabel || card.month || card.label),
         )
       ),
-      React.createElement('div',{style:{minWidth:0,display:"flex",alignItems:"baseline",gap:5}},
+      React.createElement('div',{style:{minWidth:0,display:"flex",alignItems:"center",gap:5}},
+        phoneActions && React.createElement('span',{style:{color:"#8EA6A2",fontSize:9,fontWeight:550,lineHeight:1.25,whiteSpace:"nowrap",fontFamily:"'Outfit', sans-serif",flexShrink:0}},`${card.monthLabel || card.month || card.label}:`),
         React.createElement('span',{style:{minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontSize:11,color:"var(--text)",lineHeight:1.25,fontFamily:"'Outfit', sans-serif",fontWeight:500}},card.body),
-        renderLinkPaymentPrompt(card)
+        phoneActions && renderCompactPaymentIcon(card),
+        renderPrompt(card, promptKey)
       ),
       React.createElement('div',{style:{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",display:"flex",alignItems:"center",gap:8,flexShrink:0}},
-        React.createElement('div',{style:{fontSize:12,fontWeight:600,color:card.amountColor,whiteSpace:"nowrap",fontFamily:"'Outfit', sans-serif"}},fmtCurrency(card.amount, card.currency)),
-        reminderPayControl(card),
+        React.createElement('div',{style:{fontSize:12,fontWeight:600,color:card.amountColor,whiteSpace:"nowrap",fontFamily:"'Outfit', sans-serif",order:phoneActions ? 2 : undefined}},fmtCurrency(card.amount, card.currency)),
+        !phoneActions && reminderPayControl(card, 19),
         card.secondaryAction && React.createElement('button',{
           onClick:()=>handleSettlementCardAction(card, card.secondaryAction.kind),
           disabled:settlementCardBusy===card.key,
@@ -809,35 +830,165 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
             border:"1px solid rgba(123,142,139,.42)",
             color:"#6B9690",
             whiteSpace:"nowrap",
-            fontFamily:"'Outfit', sans-serif"
+            fontFamily:"'Outfit', sans-serif",
+            order:phoneActions ? 1 : undefined
           }
         }, card.secondaryAction.label),
         card.action && React.createElement('button',{
           onClick:()=>handleSettlementCardAction(card, card.action.kind),
           disabled:settlementCardBusy===card.key,
           style:{
-            fontSize:8,
+            fontSize:actionFontSize,
             fontWeight:800,
             lineHeight:1,
             padding:"4px 8px",
             borderRadius:999,
-            background:card.action.kind === "confirm" ? "rgba(239,159,39,.10)" : "rgba(224,80,32,.035)",
-            border:`1px solid ${card.action.kind === "confirm" ? "rgba(239,159,39,.32)" : "rgba(224,80,32,.12)"}`,
-            color:card.action.kind === "confirm" ? "rgba(239,176,75,.82)" : "rgba(240,109,67,.58)",
+            background:card.action.kind === "confirm" ? "#4ECDC4" : phoneActions ? "rgba(226,235,232,.10)" : "rgba(224,80,32,.035)",
+            border:`1px solid ${card.action.kind === "confirm" ? "#4ECDC4" : phoneActions ? "rgba(226,235,232,.26)" : "rgba(224,80,32,.12)"}`,
+            color:card.action.kind === "confirm" ? "#061110" : phoneActions ? "#DCE8E5" : "rgba(240,109,67,.58)",
             whiteSpace:"nowrap",
-            fontFamily:"'Outfit', sans-serif"
+            fontFamily:"'Outfit', sans-serif",
+            order:phoneActions ? 1 : undefined
           }
         }, settlementCardBusy===card.key ? "Saving..." : card.action.label)
       )
+    );
+  const settlementReminderSlot = showSettlementReminderSlot && React.createElement(Card,{style:{padding:"9px 10px",display:"flex",flexDirection:"column",gap:6,background:"#0A1412",border:"0.5px solid #163d36",boxShadow:"inset 0 1px 0 rgba(78,205,196,.03)"}},
+    React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}},
+      React.createElement('span',{className:"lbl",style:{fontSize:8,marginBottom:0,color:"#7DB8B1",fontFamily:"'Outfit', sans-serif",fontWeight:700}},"Settlement reminders"),
+      React.createElement('span',{style:{fontSize:9,color:"#6B9690",fontFamily:"'Outfit', sans-serif",fontWeight:500}},`${visibleSettlementReminderCards.length} unpaid`)
+    ),
+    visibleSettlementReminderCards.map(card => renderReminderCard(card))
+  );
+  // Phone only: Today shows ONE reminder and "N unpaid" opens the full list.
+  // Desktop keeps settlementReminderSlot above, untouched.
+  //
+  // Which one: a payment waiting on YOUR confirmation first, because it is the
+  // only kind that stalls until you act; then the newest one you owe or are
+  // owed; then the newest in the Bloc. The list is already newest month first.
+  const featuredReminderCard = visibleSettlementReminderCards.find(card => card.action?.kind === "confirm")
+    || visibleSettlementReminderCards.find(card => card.isPayer || isReceiverCard(card))
+    || visibleSettlementReminderCards[0]
+    || null;
+  // The payment-method prompt only belongs on a debt owed to you. When the one
+  // card on Today is someone else's, the prompt lives in the sheet instead.
+  // Same when the card carries Confirm / ✕: at 320px the prompt collides with
+  // them, and the sheet has room for both.
+  const featuredPromptKey = needsPaymentMethod && featuredReminderCard && isReceiverCard(featuredReminderCard) && !featuredReminderCard.action
+    ? featuredReminderCard.key
+    : null;
+  const unpaidCount = visibleSettlementReminderCards.length;
+  const settlementReminderSlotMobile = showSettlementReminderSlot && React.createElement(Card,{style:{padding:"9px 10px",display:"flex",flexDirection:"column",gap:6,background:"#0A1412",border:"0.5px solid #163d36",boxShadow:"inset 0 1px 0 rgba(78,205,196,.03)"}},
+    React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}},
+      React.createElement('span',{className:"lbl",style:{fontSize:9,marginBottom:0,color:"#7DB8B1",fontFamily:"'Outfit', sans-serif",fontWeight:700}},"Settlement reminders"),
+      unpaidCount > 1
+        ? React.createElement('button',{
+            type:"button",
+            onClick:()=>{ onTrackUsage?.("settlement_reminders_opened"); setShowReminderSheet(true); },
+            "aria-label":`See all ${unpaidCount} unpaid`,
+            style:{
+              display:"inline-flex",alignItems:"baseline",gap:4,
+              // The tap target stays generous even though nothing is drawn around it.
+              padding:"6px 0 6px 10px",margin:"-6px 0",cursor:"pointer",
+              background:"transparent",border:"none",
+              color:"#E0625A",fontSize:9.5,fontWeight:700,lineHeight:1,whiteSpace:"nowrap",
+              fontFamily:"'Outfit', sans-serif"
+            }
+          },
+            `${unpaidCount} unpaid`,
+            React.createElement('svg',{width:"0.44em",height:"0.7em",viewBox:"0 0 5 8","aria-hidden":true,style:{flexShrink:0,overflow:"visible"}},
+              React.createElement('path',{d:"M1 .6l3 3.4-3 3.4",fill:"none",stroke:"currentColor",strokeWidth:1.5,strokeLinecap:"round",strokeLinejoin:"round"})
+            )
+          )
+        : React.createElement('span',{style:{color:"#E0625A",fontSize:9.5,fontWeight:700,lineHeight:1,whiteSpace:"nowrap",fontFamily:"'Outfit', sans-serif"}},"1 unpaid")
+    ),
+    featuredReminderCard && renderReminderCard(featuredReminderCard, featuredPromptKey, renderLinkPaymentPromptMobile, 8.5, true)
+  );
+
+  // The why behind each debt, from that month's frozen record.
+  const reminderReason = card => {
+    if (!Number.isFinite(card?.payerTarget) || card.payerTarget <= 0) return null;
+    // No name: the line above already says who owes.
+    return `Fell short with ${card.payerCount} of ${card.payerTarget} workouts${card.payerSolo ? " on Solo" : ""}`;
+  };
+  const reminderSheetMonths = [];
+  visibleSettlementReminderCards.forEach(card => {
+    const last = reminderSheetMonths[reminderSheetMonths.length - 1];
+    if (last && last.monthKey === card.monthKey) last.cards.push(card);
+    else reminderSheetMonths.push({ monthKey: card.monthKey, label: expandMonthLabel(card.monthLabel), cards: [card] });
+  });
+  const renderSheetReminderRow = card => React.createElement('div',{key:card.key,style:{
+      border:"0.5px solid #17302D",borderRadius:12,padding:"10px 12px",background:"#0C1716",
+      display:"flex",alignItems:"center",gap:10,fontFamily:"'Outfit', sans-serif"
+    }},
+    React.createElement(Avatar,{name:card.payerDisplayName,size:30}),
+    React.createElement('div',{style:{minWidth:0,flex:1,display:"grid",gap:3}},
+      React.createElement('div',{style:{minWidth:0,display:"flex",alignItems:"center",gap:6}},
+        React.createElement('div',{style:{minWidth:0,fontSize:13,fontWeight:600,color:"var(--text)",lineHeight:1.25,overflowWrap:"anywhere"}},card.body),
+        reminderPayControl(card, 19.5)
+      ),
+      reminderReason(card) && React.createElement('div',{style:{fontSize:11,color:"#89A39E",lineHeight:1.25}},reminderReason(card)),
+      renderLinkPaymentPromptMobile(card, firstOwedKey, 11)
+    ),
+    React.createElement('div',{style:{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6,flexShrink:0}},
+      React.createElement('div',{style:{fontSize:13.5,fontWeight:700,color:card.amountColor,whiteSpace:"nowrap"}},fmtCurrency(card.amount, card.currency)),
+      (reminderPayControl(card) || card.action || card.secondaryAction) && React.createElement('div',{style:{display:"flex",alignItems:"center",gap:6}},
+        card.secondaryAction && React.createElement('button',{
+          onClick:()=>handleSettlementCardAction(card, card.secondaryAction.kind),
+          disabled:settlementCardBusy===card.key,
+          "aria-label":"Dispute",
+          style:{fontSize:9,fontWeight:800,lineHeight:1,padding:"4px 7px",borderRadius:999,background:"transparent",border:"1px solid rgba(123,142,139,.42)",color:"#6B9690",whiteSpace:"nowrap",fontFamily:"'Outfit', sans-serif"}
+        }, card.secondaryAction.label),
+        card.action && React.createElement('button',{
+          onClick:()=>handleSettlementCardAction(card, card.action.kind),
+          disabled:settlementCardBusy===card.key,
+          style:{
+            fontSize:9,fontWeight:800,lineHeight:1,padding:"5px 9px",borderRadius:999,whiteSpace:"nowrap",fontFamily:"'Outfit', sans-serif",
+            background:card.action.kind === "confirm" ? "#4ECDC4" : "rgba(226,235,232,.10)",
+            border:`1px solid ${card.action.kind === "confirm" ? "#4ECDC4" : "rgba(226,235,232,.26)"}`,
+            color:card.action.kind === "confirm" ? "#061110" : "#DCE8E5"
+          }
+        }, settlementCardBusy===card.key ? "Saving..." : card.action.label)
+      )
+    )
+  );
+  // Today's own prompts (Mark as paid, Confirm, dispute, link a payment
+  // method) render inside Today's stacking context, under anything portalled
+  // over the page. While the sheet is open they are portalled too (see
+  // overReminderSheet), and the sheet's panel fades out beneath them while its
+  // backdrop stays, so the page behind never flashes through.
+  const reminderPromptOpen = !!(showLinkPaymentModal || settlementClaimPromptCard || settlementConfirmPromptCard || settlementDisputePromptCard);
+  const reminderSheetOpen = showReminderSheet && showSettlementReminderSlot;
+  const reminderSheet = reminderSheetOpen && React.createElement(ReminderSheet,{
+      panelHidden:reminderPromptOpen,
+      title:"Settlement Reminders",
+      count:unpaidCount,
+      onClose:()=>setShowReminderSheet(false)
+    },
+    reminderSheetMonths.map(group => React.createElement('div',{key:group.monthKey,style:{display:"flex",flexDirection:"column",gap:7}},
+      React.createElement('div',{style:{fontSize:9,color:"#7DB8B1",letterSpacing:".12em",textTransform:"uppercase",fontFamily:"'Outfit', sans-serif",fontWeight:700,padding:"0 2px"}},group.label),
+      group.cards.map(renderSheetReminderRow)
     ))
   );
   // Only the provider list — the same component the account screen uses, so
   // there is one place where a payment method is added or removed.
-  const linkPaymentModal = showLinkPaymentModal && onSavePayment && React.createElement('div',{className:"overlay center-mobile",onClick:()=>setShowLinkPaymentModal(false)},
+  // Phone only (desktop is left exactly as it was): portalled so it covers the
+  // bottom nav like the reminder sheet does, and lighter than .overlay's
+  // near-black so the page still shows through. Over the open sheet it adds no
+  // backdrop of its own; the sheet's is already there.
+  // Mark as paid / Confirm / dispute opened from the sheet: lifted above it,
+  // with no second backdrop stacked on the sheet's. From Today they are
+  // unchanged.
+  const overReminderSheet = element => (element && reminderSheetOpen)
+    ? createPortal(React.cloneElement(element,{style:{...(element.props.style || {}),background:"transparent",backdropFilter:"none",WebkitBackdropFilter:"none"}}), document.body)
+    : element;
+  const isPhoneLayout = typeof window !== "undefined" && !!window.matchMedia?.("(max-width: 768px)").matches;
+  const linkPaymentModalBody = showLinkPaymentModal && onSavePayment && React.createElement('div',{className:"overlay center-mobile",onClick:()=>setShowLinkPaymentModal(false),style:!isPhoneLayout ? undefined : reminderSheetOpen ? {background:"transparent",backdropFilter:"none",WebkitBackdropFilter:"none"} : {background:"rgba(2,3,6,.58)"}},
     React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{maxWidth:340,padding:"16px 15px",textAlign:"left"}},
       React.createElement(PaymentHandleSection,{currentPaymentMethods,onSavePayment,savingPayment,paymentError})
     )
   );
+  const linkPaymentModal = linkPaymentModalBody && isPhoneLayout ? createPortal(linkPaymentModalBody, document.body) : linkPaymentModalBody;
   const settlementDisputePrompt = settlementDisputePromptCard && React.createElement('div',{className:"overlay center-mobile",onClick:()=>setSettlementDisputePromptCard(null)},
     React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{maxWidth:320,padding:"18px 16px",textAlign:"center"}},
       React.createElement('div',{style:{fontSize:18,fontWeight:800,color:"var(--text)",marginBottom:8}},"Dispute this payment?"),
@@ -1199,7 +1350,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
     )
   ))
 ),
-    settlementReminderSlot,
+    settlementReminderSlotMobile,
     React.createElement(Card,null,
       React.createElement('div',{style:{padding:"11px 14px",borderBottom:"1px solid var(--border)",display:"flex",justifyContent:"space-between",alignItems:"center"}},
         React.createElement('div',{style:{fontWeight:600,fontSize:15}},"Bloc Leaderboard")
@@ -1359,10 +1510,11 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
       ? React.createElement(SittingOutNotice,{monthName:todayHeaderMonthName,nextMonthName:FULL_MONTH_NAMES[(CUR_MONTH+1)%12],onClose:()=>setShowLog(false)})
       : React.createElement(LogModal,{user,currentUserId,currentGroupId,groups,onConfirm:doLog,onClose:()=>setShowLog(false)})),
     deleteTarget && React.createElement(DeleteModal,{log:deleteTarget,otherBlocNames:[...new Set(findWorkoutCopiesInOtherBlocs(groups, currentGroupId, currentUserId, deleteTarget).map(copy => copy.groupName))],onClose:()=>setDeleteTarget(null),onConfirm:async(options)=>{ const log = deleteTarget; setDeleteTarget(null); await deleteOwnLog(log, options); }}),
+    reminderSheet,
     linkPaymentModal,
-    settlementDisputePrompt,
-    settlementClaimPrompt,
-    settlementConfirmPrompt,
+    overReminderSheet(settlementDisputePrompt),
+    overReminderSheet(settlementClaimPrompt),
+    overReminderSheet(settlementConfirmPrompt),
     statDetailOverlay,
     mobileView,
     desktopView
