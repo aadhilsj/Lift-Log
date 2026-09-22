@@ -234,6 +234,16 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
     };
   })();
 
+  // The report card keeps its original tint for each result.
+  const heroStyle = hero.tone === "perfect"
+    ? {background:"linear-gradient(135deg, rgba(78,205,196,.2), rgba(215,226,225,.12) 48%, rgba(58,168,90,.2))", border:"1px solid rgba(78,205,196,.3)"}
+    : hero.tone === "winner"
+      ? {background:"rgba(57,168,90,.11)", border:"1px solid rgba(57,168,90,.24)"}
+      : hero.tone === "training"
+        ? {background:"linear-gradient(135deg, rgba(245,200,66,.14), rgba(245,200,66,.05) 55%, rgba(78,205,196,.03))", border:"1px solid rgba(245,200,66,.26)"}
+      : hero.tone === "missed"
+        ? {background:"rgba(185,50,50,.07)", border:"1px solid rgba(185,50,50,.18)"}
+        : {background:"linear-gradient(135deg, rgba(235,242,241,.18), rgba(185,199,198,.11) 54%, rgba(78,205,196,.025))", border:"1px solid rgba(235,242,241,.22)"};
   const heroColor = hero.tone === "winner" ? C.greenText : hero.tone === "missed" ? C.redText : hero.tone === "training" ? "#f5c842" : hero.tone === "neutral" ? "#D7E2E1" : "var(--text)";
   // Resolve a member's payment handle by display name. Membership is the
   // authoritative display-name record, so go name -> userId -> profile rather
@@ -465,7 +475,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
   const recordParts = trackRecordParts({ months: myRecord, highlightLast: true, compact: true, firstMonth: myRecord.length <= 1 && !myBest });
   // Someone who wasn't in this month (joined later) has no report to show.
   const userInMonth = !!currentUser && Object.prototype.hasOwnProperty.call(month.counts || {}, currentUser);
-  const renderReport = () => !userInMonth ? null : React.createElement('div',{style:{border:"0.5px solid #163d36",background:"#0A1412",borderRadius:14,padding:"14px 14px 12px",display:"flex",flexDirection:"column",alignItems:"center",textAlign:"center",gap:6}},
+  const renderReport = () => !userInMonth ? null : React.createElement('div',{style:{...heroStyle,borderRadius:14,padding:"14px 14px 12px",display:"flex",flexDirection:"column",alignItems:"center",textAlign:"center",gap:6}},
     React.createElement('div',{style:{fontFamily:LOOP_FONTS.body,fontSize:11,fontWeight:900,letterSpacing:".14em",textTransform:"uppercase",color:heroTagColor}},hero.tag),
     React.createElement('div',{style:{fontFamily:LOOP_FONTS.body,fontSize:"clamp(26px, 7.5vw, 32px)",fontWeight:900,lineHeight:1.05,color:hero.tone === "neutral" ? "var(--text)" : heroColor,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:"100%"}},hero.stat),
     heroLines.length > 0 && React.createElement('div',{style:{fontFamily:LOOP_FONTS.body,fontSize:12,fontWeight:500,lineHeight:1.45,color:"#B8C7C4"}},
