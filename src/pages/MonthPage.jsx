@@ -23,10 +23,7 @@ import {
   isJoinedForMonth,
   DAYS_IN_MON
 } from "../lib/appState.js";
-import {
-  isMobile
-} from "../lib/utils.js";
-import { Avatar, SelectField, PlayerProfileErrorBoundary } from "../components/primitives.jsx";
+import { Avatar, PlayerProfileErrorBoundary } from "../components/primitives.jsx";
 import {
   MonthDial, LoopReadout, LoopCaption, loopCaption, loopTotals, useTapOutside, LOOP_FONTS,
   perDayCounts, clearDayOf, bestWeekOf, personalBestOf, trackRecordOf, sameDayLastMonth,
@@ -94,35 +91,31 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
     return Number.isFinite(year) && Number.isFinite(month) ? `${FULL_MONTH_NAMES[month] || MONTH_NAMES[month] || "Month"} ${year}` : expandMonthLabel(label);
   };
   const monthLabel=isCurrent?`${FULL_MONTH_NAMES[CUR_MONTH] || MONTH_NAMES[CUR_MONTH]} ${CUR_YEAR}`:expandMonthFullYear(selMonth.label, selMonth.key);
-  const monthSelector=React.createElement(SelectField,{
-    value:isCurrent?"":selIdx,
-    onChange:e=>{
-      const selectEl = e.currentTarget;
-      setSelIdx(e.target.value===""?null:Number(e.target.value));
-      requestAnimationFrame(()=>selectEl.blur());
-    },
-    width:isMobile()?"102px":"114px",
-    compact:true,
-    arrowColor:"#4ECDC4",
-    textAlign:"center",
-    inputStyle:{
-      background:"rgba(8,15,15,.48)",
-      border:"1px solid rgba(78,205,196,.18)",
-      color:"var(--text)",
-      fontFamily:"'Outfit', sans-serif",
-      fontWeight:700,
-      fontSize:11,
-      outline:"none",
-      boxShadow:"none",
-      textAlign:"center",
-      paddingLeft:10,
-      paddingRight:16
-    },
-    options:[
-      {value:"",label:"This Month"},
-      ...histReversed.map((m,i)=>({value:String(i),label:expandMonthLabel(m.label)}))
-    ]
-  });
+  // One tap per month: the left arrow goes back a month, the right arrow forward.
+  // histReversed is newest first, so "older" means a bigger index.
+  const olderIdx = isCurrent ? (histReversed.length ? 0 : null) : (selIdx + 1 < histReversed.length ? selIdx + 1 : null);
+  const newerIdx = isCurrent ? undefined : (selIdx === 0 ? null : selIdx - 1);
+  const stepperArrow = (dir, enabled, onClick) => React.createElement('button',{
+    type:"button", onClick: enabled ? onClick : undefined, disabled: !enabled,
+    "aria-label": dir === "prev" ? "Previous month" : "Next month",
+    style:{width:32,height:26,display:"inline-flex",alignItems:"center",justifyContent:"center",background:"transparent",border:"none",padding:0,cursor:enabled?"pointer":"default",color:"#4ECDC4",opacity:enabled?1:.25}
+  },
+    React.createElement('svg',{width:7,height:11,viewBox:"0 0 7 11","aria-hidden":true},
+      React.createElement('path',{d:dir === "prev" ? "M5.6 1.2L1.6 5.5l4 4.3" : "M1.4 1.2l4 4.3-4 4.3",fill:"none",stroke:"currentColor",strokeWidth:1.8,strokeLinecap:"round",strokeLinejoin:"round"})
+    )
+  );
+  const monthStepper = React.createElement('div',{style:{display:"flex",justifyContent:"center"}},
+    React.createElement('div',{style:{display:"inline-flex",alignItems:"center",border:"0.5px solid rgba(78,205,196,.22)",background:"rgba(8,15,15,.48)",borderRadius:999,height:28}},
+      stepperArrow("prev", olderIdx !== null, () => setSelIdx(olderIdx)),
+      React.createElement('span',{style:{minWidth:84,textAlign:"center",fontFamily:LOOP_FONTS.body,fontSize:11,fontWeight:700,color:"var(--text)",whiteSpace:"nowrap"}},isCurrent ? "This month" : expandMonthLabel(selMonth.label)),
+      stepperArrow("next", !isCurrent, () => setSelIdx(newerIdx))
+    )
+  );
+  // Month name on the left, days left on the right, one line.
+  const monthHeader = right => React.createElement('div',{style:{display:"flex",alignItems:"baseline",justifyContent:"space-between",gap:10,padding:"0 4px"}},
+    React.createElement('div',{style:{fontSize:18,fontWeight:800,lineHeight:1.1,whiteSpace:"nowrap"}},monthLabel),
+    right ? React.createElement('span',{style:{fontFamily:LOOP_FONTS.mono,fontSize:10,color:"#6B9690",letterSpacing:".06em",textTransform:"uppercase",whiteSpace:"nowrap"}},right) : null
+  );
 
   if(viewPlayer) {
     const profileName = typeof viewPlayer === "string" ? viewPlayer : viewPlayer?.name;
@@ -136,13 +129,9 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
 
   // ── Closed month → settlement screen ───────────────────────────────────────
   if (!isCurrent && selMonth && currentUser) {
-    return React.createElement('div',{style:{position:"relative",maxWidth:840,margin:"0 auto",padding:"12px 12px 16px",display:"flex",flexDirection:"column",gap:12,background:"radial-gradient(ellipse 95% 72% at 50% 62%, rgba(78,205,196,.075), rgba(78,205,196,.025) 46%, transparent 76%)",borderRadius:16}},
-      React.createElement('div',{style:{position:"relative",display:"flex",alignItems:"center",justifyContent:"flex-end",minHeight:38,gap:10}},
-      React.createElement('div',{style:{position:"absolute",left:"50%",top:"50%",transform:"translate(-50%,-50%)",textAlign:"center",pointerEvents:"none",whiteSpace:"nowrap"}},
-        React.createElement('div',{style:{fontSize:19,fontWeight:800}},monthLabel)
-      ),
-        monthSelector
-      ),
+    return React.createElement('div',{style:{position:"relative",maxWidth:840,margin:"0 auto",padding:"4px 12px 16px",display:"flex",flexDirection:"column",gap:6,background:"radial-gradient(ellipse 95% 72% at 50% 62%, rgba(78,205,196,.075), rgba(78,205,196,.025) 46%, transparent 76%)",borderRadius:16}},
+      monthHeader(null),
+      monthStepper,
       React.createElement(SettlementScreen,{
         group, month:selMonth, currentUser, currentUserId, monthHistory, profiles, onOpenAccount, onSettlementClaimPaid, onSettlementConfirmPaid, onTrackUsage,
         onViewProfileMonth: (name, monthKey)=>{if(name) onTrackUsage?.(name === currentUser ? "own_block_profile_opened" : "other_profile_opened"); setViewPlayer({name, monthKey})},
@@ -284,14 +273,9 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
 
   // Extra room at the bottom: the track record is the last row and must clear the floating nav.
   return React.createElement('div',{style:{position:"relative",minHeight:"calc(100vh - 136px)",padding:"0 0 72px",background:"radial-gradient(ellipse 95% 72% at 50% 62%, rgba(78,205,196,.055), rgba(78,205,196,.018) 46%, transparent 76%)"}},
-  React.createElement('div',{style:{maxWidth:840,margin:"0 auto",padding:"12px 12px 16px",display:"flex",flexDirection:"column",gap:12,background:"transparent",borderRadius:16}},
-    React.createElement('div',{style:{position:"relative",display:"flex",alignItems:"center",justifyContent:"flex-end",minHeight:38,gap:10}},
-      React.createElement('div',{style:{position:"absolute",left:"50%",top:"50%",transform:"translate(-50%,-50%)",textAlign:"center",pointerEvents:"none",whiteSpace:"nowrap"}},
-        React.createElement('div',{style:{fontSize:19,fontWeight:800}},monthLabel)
-      ),
-      monthSelector
-    ),
-    React.createElement('div',{style:{display:"flex",justifyContent:"flex-end",padding:"0 6px",fontFamily:LOOP_FONTS.mono,fontSize:10,color:"#6B9690",letterSpacing:".06em",textTransform:"uppercase"}},`${daysLeft} ${daysLeft === 1 ? "day" : "days"} left`),
+  React.createElement('div',{style:{maxWidth:840,margin:"0 auto",padding:"4px 12px 16px",display:"flex",flexDirection:"column",gap:6,background:"transparent",borderRadius:16}},
+    monthHeader(`${daysLeft} ${daysLeft === 1 ? "day" : "days"} left`),
+    monthStepper,
     React.createElement(MonthDial,{
       members: loopMembers, perfect: false, focus, onToggle: toggleFocus,
       readout: React.createElement(LoopReadout,{ focusMember, perfect:false, done: totals.done, total: totals.total, line: readoutLine })
