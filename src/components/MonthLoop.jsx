@@ -219,8 +219,8 @@ export const LoopCaption = ({ lines }) => React.createElement('div', {
 // ─── The dial ──────────────────────────────────────────────────────────────────
 
 const C = 200, R_ARC = 124, R_T1 = 134, MAX_ROWS = 2, GAP = 4.2;
-// Two geometries. The results screen keeps the original ring. The live Month
-// page draws it wider (edge to edge), pulls the extra-workout rows in a little,
+// Two geometries. `live` (the Month page and the results screen) draws the ring
+// wider (edge to edge), pulls the extra-workout rows in a little,
 // and sizes faces by how many people are in the loop, so a face never sits on
 // the extra-workout ticks: 8 units of clear space, even with 20 people.
 const RING_CLASSIC = { R_T2: 147, R_X1: 153, R_X2: 159, R_ROW: 8, R_FACE: 179 };
@@ -278,7 +278,11 @@ export const MonthDial = ({ members, perfect, focus, onToggle, readout, live = f
         React.createElement('stop', { offset: "70%", stopColor: CYAN, stopOpacity: 0.10 }),
         React.createElement('stop', { offset: "100%", stopColor: CYAN, stopOpacity: 0.02 })
       ),
-      live && React.createElement('filter', { id: "fero-loop-glow", x: "-20%", y: "-20%", width: "140%", height: "140%" },
+      // The glow's drawing area is the whole dial, not each slice's own box. A
+      // box sized to the slice clipped the blur flat on slices that run almost
+      // straight (top, bottom and sides of the ring), which read as a squared,
+      // smeared glow.
+      live && React.createElement('filter', { id: "fero-loop-glow", filterUnits: "userSpaceOnUse", x: -20, y: -20, width: 440, height: 440 },
         React.createElement('feGaussianBlur', { stdDeviation: 2.4, result: "blur" }),
         React.createElement('feMerge', null,
           React.createElement('feMergeNode', { in: "blur" }),

@@ -591,7 +591,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
 
   return React.createElement(React.Fragment,null,
     React.createElement('div',{style:{width:"100%",maxWidth:"100%",margin:"0 auto",padding:"0 0 48px",display:"flex",flexDirection:"column",gap:14,fontFamily:LOOP_FONTS.body}},
-      React.createElement(MonthDial,{ members: loopMembers, perfect: isBlocPerfect, focus, onToggle: name => setFocus(prev => prev === name ? null : name), readout: ringReadout }),
+      React.createElement(MonthDial,{ members: loopMembers, perfect: isBlocPerfect, focus, onToggle: name => setFocus(prev => prev === name ? null : name), readout: ringReadout, live: true }),
       React.createElement(LoopCaption,{ lines: loopCaption(loopMembers, { ended: true }) }),
       React.createElement('div',{style:{fontFamily:LOOP_FONTS.body,fontSize:9,fontWeight:500,color:"#6B9690",opacity:.8,textAlign:"center",marginTop:-8}},"Tap a slice to see that person"),
       renderFocusPlate(),
