@@ -84,13 +84,6 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
   const hasQualifiedWinner = winners.some(w => (w.count || 0) >= (w.target || MIN_TARGET));
   const wouldMoveMoney = hasQualifiedWinner && losers.length > 0 && perWinner > 0;
   const expandMonthLabel = label => String(label || "").replace(/^([A-Z][a-z]{2})\s+'(\d{2})$/, (_, shortName, year) => `${FULL_MONTH_NAMES[MONTH_NAMES.indexOf(shortName)] || shortName} '${year}`);
-  const expandMonthFullYear = (label, key) => {
-    const fromLabel = /^([A-Z][a-z]{2})\s+'?(\d{2})$/.exec(String(label || "").trim());
-    if (fromLabel) return `${FULL_MONTH_NAMES[MONTH_NAMES.indexOf(fromLabel[1])] || fromLabel[1]} 20${fromLabel[2]}`;
-    const [year, month] = String(key || "").split("-").map(Number);
-    return Number.isFinite(year) && Number.isFinite(month) ? `${FULL_MONTH_NAMES[month] || MONTH_NAMES[month] || "Month"} ${year}` : expandMonthLabel(label);
-  };
-  const monthLabel=isCurrent?`${FULL_MONTH_NAMES[CUR_MONTH] || MONTH_NAMES[CUR_MONTH]} ${CUR_YEAR}`:expandMonthFullYear(selMonth.label, selMonth.key);
   // One tap per month: the left arrow goes back a month, the right arrow forward.
   // histReversed is newest first, so "older" means a bigger index.
   const olderIdx = isCurrent ? (histReversed.length ? 0 : null) : (selIdx + 1 < histReversed.length ? selIdx + 1 : null);
@@ -98,23 +91,19 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
   const stepperArrow = (dir, enabled, onClick) => React.createElement('button',{
     type:"button", onClick: enabled ? onClick : undefined, disabled: !enabled,
     "aria-label": dir === "prev" ? "Previous month" : "Next month",
-    style:{width:32,height:26,display:"inline-flex",alignItems:"center",justifyContent:"center",background:"transparent",border:"none",padding:0,cursor:enabled?"pointer":"default",color:"#4ECDC4",opacity:enabled?1:.25}
+    style:{width:28,height:26,display:"inline-flex",alignItems:"center",justifyContent:"center",background:"transparent",border:"none",padding:0,cursor:enabled?"pointer":"default",color:"#4ECDC4",opacity:enabled?1:.25}
   },
     React.createElement('svg',{width:7,height:11,viewBox:"0 0 7 11","aria-hidden":true},
       React.createElement('path',{d:dir === "prev" ? "M5.6 1.2L1.6 5.5l4 4.3" : "M1.4 1.2l4 4.3-4 4.3",fill:"none",stroke:"currentColor",strokeWidth:1.8,strokeLinecap:"round",strokeLinejoin:"round"})
     )
   );
-  const monthStepper = React.createElement('div',{style:{display:"flex",justifyContent:"center"}},
+  const monthStepper = right => React.createElement('div',{style:{position:"relative",display:"flex",justifyContent:"center",alignItems:"center"}},
     React.createElement('div',{style:{display:"inline-flex",alignItems:"center",border:"0.5px solid rgba(78,205,196,.22)",background:"rgba(8,15,15,.48)",borderRadius:999,height:28}},
       stepperArrow("prev", olderIdx !== null, () => setSelIdx(olderIdx)),
-      React.createElement('span',{style:{minWidth:84,textAlign:"center",fontFamily:LOOP_FONTS.body,fontSize:11,fontWeight:700,color:"var(--text)",whiteSpace:"nowrap"}},isCurrent ? "This month" : expandMonthLabel(selMonth.label)),
+      React.createElement('span',{style:{minWidth:88,textAlign:"center",fontFamily:LOOP_FONTS.body,fontSize:11,fontWeight:700,color:"var(--text)",whiteSpace:"nowrap"}},isCurrent ? `${FULL_MONTH_NAMES[CUR_MONTH]} '${String(CUR_YEAR).slice(-2)}` : expandMonthLabel(selMonth.label)),
       stepperArrow("next", !isCurrent, () => setSelIdx(newerIdx))
-    )
-  );
-  // Month name on the left, days left on the right, one line.
-  const monthHeader = right => React.createElement('div',{style:{display:"flex",alignItems:"baseline",justifyContent:"space-between",gap:10,padding:"0 4px"}},
-    React.createElement('div',{style:{fontSize:18,fontWeight:800,lineHeight:1.1,whiteSpace:"nowrap"}},monthLabel),
-    right ? React.createElement('span',{style:{fontFamily:LOOP_FONTS.mono,fontSize:10,color:"#6B9690",letterSpacing:".06em",textTransform:"uppercase",whiteSpace:"nowrap"}},right) : null
+    ),
+    right ? React.createElement('span',{style:{position:"absolute",right:4,top:"50%",transform:"translateY(-50%)",fontFamily:LOOP_FONTS.mono,fontSize:9,color:"#6B9690",letterSpacing:".04em",textTransform:"uppercase",whiteSpace:"nowrap"}},right) : null
   );
 
   if(viewPlayer) {
@@ -130,8 +119,7 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
   // ── Closed month → settlement screen ───────────────────────────────────────
   if (!isCurrent && selMonth && currentUser) {
     return React.createElement('div',{style:{position:"relative",maxWidth:840,margin:"0 auto",padding:"4px 12px 16px",display:"flex",flexDirection:"column",gap:6,background:"radial-gradient(ellipse 95% 72% at 50% 62%, rgba(78,205,196,.075), rgba(78,205,196,.025) 46%, transparent 76%)",borderRadius:16}},
-      monthHeader(null),
-      monthStepper,
+      monthStepper(null),
       React.createElement(SettlementScreen,{
         group, month:selMonth, currentUser, currentUserId, monthHistory, profiles, onOpenAccount, onSettlementClaimPaid, onSettlementConfirmPaid, onTrackUsage,
         onViewProfileMonth: (name, monthKey)=>{if(name) onTrackUsage?.(name === currentUser ? "own_block_profile_opened" : "other_profile_opened"); setViewPlayer({name, monthKey})},
@@ -274,8 +262,7 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
   // Extra room at the bottom: the track record is the last row and must clear the floating nav.
   return React.createElement('div',{style:{position:"relative",minHeight:"calc(100vh - 136px)",padding:"0 0 72px",background:"radial-gradient(ellipse 95% 72% at 50% 62%, rgba(78,205,196,.055), rgba(78,205,196,.018) 46%, transparent 76%)"}},
   React.createElement('div',{style:{maxWidth:840,margin:"0 auto",padding:"4px 12px 16px",display:"flex",flexDirection:"column",gap:6,background:"transparent",borderRadius:16}},
-    monthHeader(`${daysLeft} ${daysLeft === 1 ? "day" : "days"} left`),
-    monthStepper,
+    monthStepper(`${daysLeft} ${daysLeft === 1 ? "day" : "days"} left`),
     React.createElement(MonthDial,{
       members: loopMembers, perfect: false, focus, onToggle: toggleFocus,
       readout: React.createElement(LoopReadout,{ focusMember, perfect:false, done: totals.done, total: totals.total, line: readoutLine })
