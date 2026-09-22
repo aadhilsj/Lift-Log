@@ -34,7 +34,7 @@ import { SettlementScreen } from "../pages/SettlementScreen.jsx";
 
 const FULL_MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
-const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,currentUserId,initialSelIdx,onStartNextMonth,onSettlementClaimPaid,onSettlementConfirmPaid,onOpenToday,profiles,onOpenAccount,navResetToken,onTrackUsage}) => {
+const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,currentUserId,initialSelIdx,onStartNextMonth,onSettlementClaimPaid,onSettlementConfirmPaid,onOpenToday,profiles,onOpenAccount,navResetToken,onTrackUsage,currentPaymentMethods,onSavePayment,savingPayment,paymentError}) => {
   const [selIdx,setSelIdx]=useState(initialSelIdx ?? null); // null = current month
   const [viewPlayer,setViewPlayer]=useState(null);
   const [focus,setFocus]=useState(null);
@@ -122,6 +122,7 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
       monthStepper(null),
       React.createElement(SettlementScreen,{
         group, month:selMonth, currentUser, currentUserId, monthHistory, profiles, onOpenAccount, onSettlementClaimPaid, onSettlementConfirmPaid, onTrackUsage,
+        currentPaymentMethods, onSavePayment, savingPayment, paymentError,
         onViewProfileMonth: (name, monthKey)=>{if(name) onTrackUsage?.(name === currentUser ? "own_block_profile_opened" : "other_profile_opened"); setViewPlayer({name, monthKey})},
         onStartNextMonth: onStartNextMonth ? ()=>{ setSelIdx(null); onStartNextMonth(); } : null
       })

@@ -23,7 +23,9 @@ import { Avatar, TrophyIcon } from "../components/primitives.jsx";
 import { ShareSticker } from "../components/ShareSticker.jsx";
 import { MonthCalendarCard } from "../components/MonthCalendarCard.jsx";
 import { buildStickerData } from "../lib/shareSticker.js";
-import { buildPaymentTarget, buildPaymentTargets } from "../lib/paymentLinks.js";
+import { buildPaymentTargets } from "../lib/paymentLinks.js";
+import { createPortal } from "react-dom";
+import { PaymentHandleSection } from "../components/PaymentHandleSection.jsx";
 import {
   MonthDial, LoopReadout, LoopCaption, loopCaption, loopTotals, useTapOutside, LOOP_FONTS,
   closedMonthMember, perDayCounts, clearDayOf, bestWeekOf, personalBestOf, trackRecordOf,
@@ -32,11 +34,12 @@ import {
 
 const FULL_MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
-const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistory, profiles, onOpenAccount, onSettlementClaimPaid, onSettlementConfirmPaid, onStartNextMonth, onViewProfileMonth, onTrackUsage}) => {
+const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistory, profiles, onOpenAccount, onSettlementClaimPaid, onSettlementConfirmPaid, onStartNextMonth, onViewProfileMonth, onTrackUsage, currentPaymentMethods = [], onSavePayment, savingPayment = false, paymentError = ""}) => {
   const [copiedKey, setCopiedKey] = React.useState(null);
   const [settlementBusy, setSettlementBusy] = React.useState(null);
   const [focus, setFocus] = React.useState(null);
   const [othersOpen, setOthersOpen] = React.useState(false);
+  const [showLinkPayment, setShowLinkPayment] = React.useState(false);
   const clearFocus = React.useCallback(() => setFocus(null), []);
   useTapOutside(!!focus, clearFocus);
   const [claimPrompt, setClaimPrompt] = React.useState(null);
@@ -526,8 +529,18 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
       React.createElement('div',{style:{gridColumn:"1 / -1",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,minHeight:18}},status,actions)
     );
   };
-  // Someone owed money with no way to be paid gets the same nudge Today gives.
-  const needsPaymentMethod = incomingRows.length > 0 && onOpenAccount && currentUserId && !buildPaymentTarget(profiles?.[currentUserId]);
+  // Someone owed money with no way to be paid gets the same nudge Today gives,
+  // decided the same way Today decides it (every saved method, not just the
+  // original single one) and opening the same window.
+  const needsPaymentMethod = incomingRows.length > 0 && !!onSavePayment && !!currentUserId && buildPaymentTargets(profiles?.[currentUserId]).length === 0;
+  const isPhoneLayout = typeof window !== "undefined" && !!window.matchMedia?.("(max-width: 768px)").matches;
+  const linkPaymentBody = showLinkPayment && onSavePayment && React.createElement('div',{className:"overlay center-mobile",onClick:()=>setShowLinkPayment(false),style:isPhoneLayout ? {background:"rgba(2,3,6,.58)"} : undefined},
+    React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{maxWidth:340,padding:"16px 15px",textAlign:"left"}},
+      React.createElement(PaymentHandleSection,{currentPaymentMethods,onSavePayment,savingPayment,paymentError})
+    )
+  );
+  // Portalled on the phone, like Today's: the Month page sits inside a swipe surface.
+  const linkPaymentModal = linkPaymentBody && isPhoneLayout ? createPortal(linkPaymentBody, document.body) : linkPaymentBody;
   const renderSettlements = () => {
     if (!settlementPairs.length) {
       return React.createElement('div',{style:plateStyle},
@@ -544,7 +557,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
       mine.length > 0 && plateHead(mine[0].payerDisplayName === currentUser ? "You owe" : "Owed to you", `${openCount(mine)} Open`),
       mine.length > 0 && needsPaymentMethod && React.createElement('div',{style:{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,border:"0.5px solid rgba(78,205,196,.3)",borderRadius:9,padding:"7px 10px",background:"rgba(78,205,196,.05)"}},
         React.createElement('span',{style:{fontFamily:LOOP_FONTS.body,fontSize:10.5,fontWeight:500,lineHeight:1.35,color:"#B8C7C4"}},"People can't pay you in one tap yet."),
-        React.createElement('button',{type:"button",onClick:onOpenAccount,style:{background:"none",border:"none",padding:0,cursor:"pointer",fontFamily:LOOP_FONTS.body,fontSize:10.5,fontWeight:700,color:"#4ECDC4",whiteSpace:"nowrap"}},"Link a payment option +")
+        React.createElement('button',{type:"button",onClick:()=>setShowLinkPayment(true),style:{background:"none",border:"none",padding:0,cursor:"pointer",fontFamily:LOOP_FONTS.body,fontSize:10.5,fontWeight:700,color:"#4ECDC4",whiteSpace:"nowrap"}},"Link a payment option +")
       ),
       mine.length > 0 && React.createElement('div',{style:{display:"flex",flexDirection:"column",marginTop:-8}},mine.map(renderPairRow)),
       others.length > 0 && React.createElement('button',{type:"button","aria-expanded":othersOpen,onClick:()=>setOthersOpen(v => !v),style:{display:"flex",justifyContent:"space-between",alignItems:"center",width:"100%",background:"transparent",border:"none",padding:"2px 0",cursor:"pointer",fontFamily:LOOP_FONTS.body,fontSize:11.5,fontWeight:600,color:"#B8C7C4"}},
@@ -589,6 +602,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
       React.createElement('div',{ref:ledgerRef},renderSettlements())
     ),
     claimConfirmation,
+    linkPaymentModal,
     showSticker && stickerData && React.createElement(ShareSticker,{
       data: stickerData,
       monthLabel: stickerMonthLabel,
