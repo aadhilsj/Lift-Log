@@ -243,6 +243,7 @@ Fix rules:
 Related, same family:
 - The sign-in screen replaced **every** send failure with "No Fero account found for that email", so a 429 rate limit told a member with six Blocs that they did not exist. Only Supabase's `otp_disabled` means no account. `npm run test:otp-errors` guards this.
 - A countdown that decrements once per timer tick loses whatever time a throttled or backgrounded tab does not give it — measured at roughly 0.6x real speed. Derive the number from a deadline and the clock, never by counting down.
+- **An outage signed members out (2026-09-22, fixed `9cb945c`).** During a Cloudflare incident the server could not reach Supabase Auth. `fetchAuthenticatedUser` in `api/lift-log.js` turned every non-OK answer, including 522s and network errors, into 401 "Your session is no longer valid", and the client's revision poll then refreshed, got 401 again and called `signOutAuthSession()`. Now only 400/401/403 from Supabase Auth mean the token was rejected; anything else is a retryable 503. On the client, `refreshAuthSession` in `src/lib/api.js` throws on `AuthRetryableFetchError` or a 5xx instead of returning `null`, because every caller signs out on `null`. `npm run test:auth-outage` guards it. Rule: **"I couldn't check" is never "you're not signed in".** Only a definite rejection may sign someone out.
 
 ## A Skipped Blob Write With A Blob Reader Left Behind
 
@@ -352,3 +353,66 @@ Root cause:
 Fix rules:
 - `currentGroup` is the Bloc on screen. An optimistic patch built from it may only be written under `selectedGroupId`. For any other Bloc, skip the optimistic step and wait for the response.
 - When a mutation gains a way to target another Bloc, re-read every optimistic path it passes through.
+
+## Replacing A Live Database Function From An Old Copy
+
+Symptoms:
+- A field disappears for every member at once, straight after a migration that was about something else.
+- The data is intact in both stores; only what reaches the app is missing.
+- First seen 2026-09-18: every current-month workout showed only its category (Sports, Other…) instead of its activity.
+
+Root cause:
+- `20260918100000_add_workout_post_moderation.sql` replaced `public.read_ante_core_current_logs` using a copy of the function older than `20260916090000_add_workout_log_activity.sql`, so `'activity', wl.activity` was lost.
+- Month close reads the same function. Left broken until 1 October, September would have closed without activities.
+
+Fixed 2026-09-18:
+- `20260918120000_restore_activity_in_current_logs.sql`: the live definition plus the missing line. Verified 153 of 401 open-month rows carry an activity, matching the table.
+
+Fix rules:
+- **Before replacing a live function, start from `pg_get_functiondef` in production, not from a migration file, and diff the two.** The only differences should be the ones you mean to make.
+- A migration file on a long-running branch goes stale as `main` moves. Rebase it onto the live definition before it is applied anywhere.
+- After applying, check the field that was *not* part of the change is still there, not only the one that was.
+
+## The Code Is Right But A Phone Is Running An Old Version
+
+Symptoms:
+- One or two members produce data an older version of the app would produce, while everyone else is fine.
+- First seen 2026-09-16/17: Varun and Coach P logged workouts that saved as a bare category, after activities had gone live.
+
+Root cause:
+- Their phones had the app open from before the release. The server deliberately still accepts a category-only log from older clients (`resolveWorkoutActivity` in `api/lift-log.js`), and an open app had no way to learn a new version existed.
+
+Fixed 2026-09-17 (PR #22):
+- `reloadIfNewBuild` in `src/App.jsx` rides the existing revision poll: the server returns the deployed commit, and the app reloads once when it differs.
+- Guards: only when idle for 20 seconds, nothing saving, no form field with content, the page visible, not on a local dev host, and at most once per session.
+
+Fix rules:
+- When a bug affects only some members, ask which version their phone is running before reading the code.
+- Do not make the server reject what old versions send. A phone on an old bundle cannot show a new error message; it will just say "check your connection".
+- Phones on a bundle from before 2026-09-17 have no check at all; they update on their next full open.
+
+## Restoring A Deleted Workout
+
+When a workout was deleted by mistake and must come back:
+
+- Find the exact pre-delete copy in `public.lift_log_backups` (it records every blob write with its revision). Do not create a new replacement log.
+- Take a fresh backup first.
+- Restore **all three**, or it stays hidden:
+  1. the canonical row, through `public.upsert_ante_core_workout_log(...)`;
+  2. the log in the blob at `groups.<blocId>.logs.<Display Name>`;
+  3. remove its id from that Bloc's `deletedCurrentLogIds` in the blob. This is the deletion marker; left in place, it hides the restored log.
+- Verify each of the three separately, and that the original photo URL survived.
+- Worked example: `docs/handover-2026-09-20-ui-and-log-recovery.md`, "Production data repair performed today".
+
+## Merged Is Not Live
+
+Symptoms:
+- A change is on `main`, GitHub's checks are green, and the live app still shows the old version.
+- First seen 2026-09-22 with `155aa7e`: Vercel did not create a production deployment for it.
+
+Fix rules:
+- Before telling the founder something is live, confirm three things separately:
+  1. the commit is on `main`;
+  2. Vercel has a production deployment for that exact commit, and it is Ready;
+  3. the live bundle contains the changed code (search it for a string the change introduced).
+- If step 2 is missing: in Vercel, Deployments → Create Deployment, give the full commit SHA, choose Deploy to Production. The founder has to be signed in to Vercel.
