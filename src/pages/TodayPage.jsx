@@ -809,7 +809,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
         )
       ),
       React.createElement('div',{style:{minWidth:0,display:"flex",alignItems:"center",gap:5}},
-        phoneActions && React.createElement('span',{style:{color:"#8EA6A2",fontSize:9,fontWeight:550,lineHeight:1.25,whiteSpace:"nowrap",fontFamily:"'Outfit', sans-serif",flexShrink:0}},`${card.monthLabel || card.month || card.label}:`),
+        phoneActions && React.createElement('span',{style:{color:"#8EA6A2",fontSize:10,fontWeight:550,lineHeight:1.25,whiteSpace:"nowrap",fontFamily:"'Outfit', sans-serif",flexShrink:0}},`${card.monthLabel || card.month || card.label}:`),
         React.createElement('span',{style:{minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontSize:11,color:"var(--text)",lineHeight:1.25,fontFamily:"'Outfit', sans-serif",fontWeight:500}},card.body),
         phoneActions && renderCompactPaymentIcon(card),
         renderPrompt(card, promptKey)
