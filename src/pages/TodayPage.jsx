@@ -410,36 +410,6 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
   const currentMonthLabel = `${FULL_MONTH_NAMES[CUR_MONTH] || MONTH_NAMES[CUR_MONTH]} '${String(CUR_YEAR).slice(-2)}`;
   const todayHeaderMonthName = FULL_MONTH_NAMES[CUR_MONTH] || MONTH_NAMES[CUR_MONTH];
   const expandMonthLabel = label => String(label || "").replace(/^([A-Z][a-z]{2})\s+'(\d{2})$/, (_, shortName, year) => `${FULL_MONTH_NAMES[MONTH_NAMES.indexOf(shortName)] || shortName} '${year}`);
-  const blocMonthHistoryRows = useMemo(() => {
-    const closedRows = [...monthHistory]
-      .filter(month => month?.key && month.key !== currentMonthKey)
-      .sort((a,b)=>b.key.localeCompare(a.key))
-      .map(month => ({
-        key: month.key,
-        label: expandMonthLabel(month.label),
-        total: Object.values(month.counts || {}).reduce((sum, count) => sum + (Number(count) || 0), 0),
-        isCurrent: false
-      }));
-    const rows = [
-      {
-        key: currentMonthKey,
-        label: currentMonthLabel,
-        total: Object.values(logs || {}).reduce((sum, memberLogs) => sum + getCountedLogCount(memberLogs), 0),
-        isCurrent: true
-      },
-      ...closedRows
-    ];
-    const maxTotal = rows.reduce((max, month) => Math.max(max, month.total), 0) || 1;
-    return rows.map((month, index) => {
-      const olderMonth = rows[index + 1] || null;
-      const delta = !month.isCurrent && olderMonth ? month.total - olderMonth.total : null;
-      return {
-        ...month,
-        delta,
-        barWidth: `${Math.max(8, Math.round((month.total / maxTotal) * 100))}%`
-      };
-    });
-  }, [monthHistory, currentMonthKey, currentMonthLabel, logs]);
 
   const lastClosedMonth = monthHistory.length ? [...monthHistory].sort((a,b)=>b.key.localeCompare(a.key))[0] : null;
   const showLastMonthBanner = (monthSummary?.day || DAY_OF_MON) <= 5;
@@ -516,7 +486,6 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
     : null;
   const targetCardMeta = (currentMonthOverride?.prorated || myTarget !== MIN_TARGET) ? "prorated" : null;
 
-  const blocMonthCount = Object.values(logs || {}).reduce((total, memberLogs) => total + getCountedLogCount(memberLogs), 0);
   // The Bloc Loop card: the Month tab's ring, small and flat, and a tap opens it.
   // Someone sitting out has no slice, exactly as on the Month page.
   const loopSlices = board.filter(u => !u.isOut).map(u => u.count >= u.target);
@@ -685,15 +654,6 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
     overflow: "hidden",
     textOverflow: "ellipsis",
     minWidth: 0
-  };
-  const blocMonthValueStyle = {
-    fontSize: 12,
-    fontWeight: 500,
-    lineHeight: 1,
-    justifyContent: "center",
-    textAlign: "center",
-    width: "100%",
-    fontFamily: "'Outfit', sans-serif"
   };
   const mobileStatLabelStyle = {fontSize:8,marginBottom:0,whiteSpace:"nowrap",letterSpacing:".07em",fontWeight:700,color:"#8FAEAA",fontFamily:"'Outfit', sans-serif",textAlign:"center",width:"100%"};
   const desktopStatLabelStyle = {fontSize:9,marginBottom:0,whiteSpace:"nowrap",letterSpacing:".07em",fontWeight:700,color:"#8FAEAA",fontFamily:"'Outfit', sans-serif",textAlign:"center",width:"100%"};
@@ -1212,9 +1172,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
             ? "Pace Detail"
             : statDetail.kind === "target"
               ? `${MONTH_NAMES[CUR_MONTH]} · Your Log`
-              : statDetail.kind === "week-mvp"
-                ? "Week's MVP"
-                : "Bloc Month History"
+              : "Week's MVP"
         ),
         React.createElement('button',{
           onClick:()=>setStatDetail(null),
@@ -1290,35 +1248,6 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
           opacity:.75
         }})
       ),
-      statDetail.kind === "bloc-month" && React.createElement(Card,{style:{padding:0,overflow:"hidden"}},
-        blocMonthHistoryRows.length
-          ? blocMonthHistoryRows.map((month, index) => React.createElement('div',{key:month.key,style:{
-              position:"relative",
-              display:"flex",
-              alignItems:"center",
-              justifyContent:"space-between",
-              gap:12,
-              padding:"14px 14px",
-              borderBottom:index < blocMonthHistoryRows.length - 1 ? "1px solid var(--border)" : "none",
-              background:month.isCurrent ? "rgba(78,205,196,.06)" : "transparent",
-              boxShadow:month.isCurrent ? "inset 2px 0 0 #4ECDC4" : "none"
-            }},
-              React.createElement('span',{style:{fontSize:14,fontWeight:600,color:"var(--text)",position:"relative",zIndex:1}},month.label),
-              React.createElement('div',{style:{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,position:"relative",zIndex:1}},
-                React.createElement('div',{style:{display:"flex",alignItems:"center",gap:8}},
-                  React.createElement('span',{className:"mono",style:{fontSize:13,color:month.isCurrent ? "#8EE7DF" : "var(--muted)"}},month.total),
-                  month.delta !== null && React.createElement('span',{className:"mono",style:{
-                    fontSize:11,
-                    color:month.delta > 0 ? "#4ECDC4" : month.delta < 0 ? "#6B9690" : "var(--muted2)"
-                  }},
-                    month.delta > 0 ? "↑" : month.delta < 0 ? "↓" : "→"
-                  )
-                ),
-                React.createElement('span',{style:{fontSize:10,color:"var(--muted2)",whiteSpace:"nowrap"}},"workouts logged")
-              )
-            ))
-          : React.createElement('div',{style:{padding:"14px 16px",fontSize:13,color:"var(--muted)"}},"No previous months yet")
-      )
     )
   );
 
