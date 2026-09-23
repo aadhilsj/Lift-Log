@@ -488,11 +488,17 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
 
   // The Bloc Loop card: the Month tab's ring, small and flat, and a tap opens it.
   // Someone sitting out has no slice, exactly as on the Month page.
-  const loopSlices = board.filter(u => !u.isOut).map(u => u.count >= u.target);
-  const loopCleared = loopSlices.filter(Boolean).length;
+  // The ring draws a slice for everyone in the month, Solo included, exactly as
+  // the Month tab does. The count beside it must read the same way as the Month
+  // caption, which counts only the slices that can clear the loop: a Solo slice
+  // can't, so it is drawn but not counted.
+  const loopMembersToday = board.filter(u => !u.isOut);
+  const loopSlices = loopMembersToday.map(u => u.count >= u.target);
+  const loopCountable = loopMembersToday.filter(u => !u.isSolo);
+  const loopCleared = loopCountable.filter(u => u.count >= u.target).length;
   const loopCardNode = React.createElement('div',{style:{position:"relative",width:40,height:40}},
     React.createElement(MiniLoop,{ slices: loopSlices, size: 40 }),
-    React.createElement('span',{style:{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:LOOP_FONTS.mono,fontSize:9.5,fontWeight:700,letterSpacing:"-.03em",color:"var(--text)"}},`${loopCleared}/${loopSlices.length}`)
+    React.createElement('span',{style:{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:LOOP_FONTS.mono,fontSize:9.5,fontWeight:700,letterSpacing:"-.03em",color:"var(--text)"}},`${loopCleared}/${loopCountable.length}`)
   );
   // The Bloc's daily streak, on the Bloc's clock (its day ends at 3am).
   const blocTimeZone = currentGroup?.settings?.timeZone || "Europe/Oslo";
