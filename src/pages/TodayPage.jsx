@@ -1,5 +1,7 @@
 import React from "react";
 import { createPortal } from "react-dom";
+import { MiniLoop, LOOP_FONTS } from "../components/MonthLoop.jsx";
+import { blocStreakView } from "../lib/blocStreak.js";
 const { useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef } = React;
 import {
   NAMES,
@@ -64,7 +66,7 @@ import { PaymentHandleSection } from "../components/PaymentHandleSection.jsx";
 
 const FULL_MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
-const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCreatedAt,logs,excused,monthHistory,saving,onSave,onMultiLog,onLogMutation,clockTick,onViewLastMonth,onSettlementClaimPaid,onSettlementConfirmPaid,onSettlementDisputePaid,onOpenSetupReview,onOpenAccount,navResetToken,showLog,setShowLog,onTrackUsage,currentPaymentMethods=[],onSavePayment,savingPayment=false,paymentError=""}) => {
+const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCreatedAt,logs,excused,monthHistory,saving,onSave,onMultiLog,onLogMutation,clockTick,onViewLastMonth,onOpenMonth,onSettlementClaimPaid,onSettlementConfirmPaid,onSettlementDisputePaid,onOpenSetupReview,onOpenAccount,navResetToken,showLog,setShowLog,onTrackUsage,currentPaymentMethods=[],onSavePayment,savingPayment=false,paymentError=""}) => {
   const [viewPlayer,setViewPlayer]=useState(null);
   const [deleteTarget,setDeleteTarget]=useState(null);
   const [statDetail,setStatDetail]=useState(null);
@@ -502,7 +504,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
   const paceDelta = me.count - expected;
   const earlyMonthPaceQuiet = isEarlyMonthNeutralWindow() && me.count === 0;
   const paceDeltaText = earlyMonthPaceQuiet ? "—" : (paceDelta > 0 ? `+${paceDelta} ahead` : (paceDelta < 0 ? `${paceDelta} behind` : "on pace"));
-  const paceDeltaColor = earlyMonthPaceQuiet ? "var(--muted)" : (paceDelta >= 0 ? "#4ECDC4" : "#D47843");
+  const paceDeltaColor = earlyMonthPaceQuiet ? "var(--muted)" : (paceDelta >= 0 ? "var(--text)" : "#D47843");
   const todayTargetText = earlyMonthPaceQuiet ? "month just started" : `${expected} by today`;
   const paceValueStyle = !earlyMonthPaceQuiet
     ? {
@@ -515,6 +517,26 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
   const targetCardMeta = (currentMonthOverride?.prorated || myTarget !== MIN_TARGET) ? "prorated" : null;
 
   const blocMonthCount = Object.values(logs || {}).reduce((total, memberLogs) => total + getCountedLogCount(memberLogs), 0);
+  // The Bloc Loop card: the Month tab's ring, small and flat, and a tap opens it.
+  // Someone sitting out has no slice, exactly as on the Month page.
+  const loopSlices = board.filter(u => !u.isOut).map(u => u.count >= u.target);
+  const loopCleared = loopSlices.filter(Boolean).length;
+  const loopCardNode = React.createElement('div',{style:{position:"relative",width:36,height:36}},
+    React.createElement(MiniLoop,{ slices: loopSlices }),
+    React.createElement('span',{style:{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:LOOP_FONTS.mono,fontSize:8.5,fontWeight:700,color:"var(--text)"}},`${loopCleared}/${loopSlices.length}`)
+  );
+  // The Bloc's daily streak, on the Bloc's clock (its day ends at 3am).
+  const blocTimeZone = currentGroup?.settings?.timeZone || "Europe/Oslo";
+  const blocHour = (() => {
+    try {
+      return Number(new Intl.DateTimeFormat("en-GB",{ timeZone: blocTimeZone, hour: "2-digit", hour12: false }).format(new Date()));
+    } catch { return new Date().getHours(); }
+  })();
+  const streakCard = blocStreakView({ logs, monthHistory, todayIso: TODAY_ISO, blocHour });
+  const formatStreakSince = iso => {
+    const [, month, day] = String(iso || "").split("-").map(Number);
+    return month ? `${day} ${MONTH_NAMES[month - 1]}` : "";
+  };
   const getMemberLogsForIso = (memberName, isoDate) => {
     if (!memberName || !isoDate) return [];
     const currentMonthMatches = currentMonthLogMap.get(`${memberName}:${isoDate}`);
@@ -690,13 +712,48 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
   const mobileStatCardStyle = {...statCardSurfaceStyle,padding:"8px 10px",minHeight:74};
   const desktopStatCardStyle = {...statCardSurfaceStyle,padding:"10px 12px",minHeight:106};
 
+  // One tick per day, the last fourteen, with today's tick last.
+  const streakTicks = streakCard ? Math.min(14, streakCard.days + (streakCard.aliveToday ? 0 : 1)) : 0;
+  const streakStrip = !streakCard ? null : React.createElement(Card,{style:{
+    padding:"8px 12px", display:"flex", flexDirection:"column", gap:5,
+    border:`0.5px solid ${streakCard.atRisk ? "rgba(245,167,66,.35)" : "rgba(78,205,196,.16)"}`,
+    background: streakCard.atRisk ? "linear-gradient(160deg, #1C1A12, #0E1210)" : "linear-gradient(160deg, #0F1D1C, #0A1312)"
+  }},
+    React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10}},
+      React.createElement('div',{style:{display:"flex",alignItems:"baseline",gap:7}},
+        React.createElement('span',{style:{fontFamily:LOOP_FONTS.mono,fontSize:22,fontWeight:700,lineHeight:1,color:"var(--text)"}},streakCard.days),
+        React.createElement('span',{style:{fontFamily:LOOP_FONTS.body,fontSize:8.5,fontWeight:700,letterSpacing:".12em",textTransform:"uppercase",color:"#9FB5B1"}},"Day Bloc streak")
+      ),
+      // One tick per day, the last fourteen. Texture, not numbers to read.
+      React.createElement('div',{style:{display:"flex",alignItems:"flex-end",gap:3,height:18}},
+        Array.from({ length: streakTicks }, (_, index) => {
+          const isToday = index === streakTicks - 1;
+          return React.createElement('span',{key:index,style:{
+            width:5, height: isToday ? 18 : 14, borderRadius:1.5,
+            background: isToday && !streakCard.aliveToday ? "rgba(245,167,66,.32)" : isToday ? "rgba(78,205,196,.85)" : "rgba(78,205,196,.32)"
+          }});
+        })
+      )
+    ),
+    React.createElement('div',{style:{fontFamily:LOOP_FONTS.body,fontSize:11,color:"#B8C7C4"}},
+      streakCard.atRisk
+        ? React.createElement(React.Fragment,null,
+            React.createElement('b',{style:{color:"#F5A742",fontWeight:600}},"Nobody's trained today."),
+            streakCard.pastMidnight ? " One workout before 3am keeps it going." : " One workout keeps it going."
+          )
+        : streakCard.since
+          ? React.createElement(React.Fragment,null,"Someone's trained every day since ",React.createElement('b',{style:{color:"var(--text)",fontWeight:600}},formatStreakSince(streakCard.since)),".")
+          : "Someone's trained every day."
+    )
+  );
+
   const statCards = [
     needed === 0
       ? {kind:"target",label:"Target",valueNode:React.createElement(TargetHitHexIcon,{size:22}),sub:"target hit!",meta:targetCardMeta}
       : {kind:"target",label:"Target",val:needed,sub:"more to go",meta:targetCardMeta,color:"#4ECDC4"},
     {kind:"pace",label:"Pace Check",val:paceDeltaText,sub:todayTargetText,color:paceDeltaColor,valueStyle:paceValueStyle},
     {kind:"week-mvp",label:"Week's MVP",val:weeklyMvpTileValue,sub:"most logs this week",color:"var(--text)",valueStyle:weeklyMvpValueStyle},
-    {kind:"bloc-month",label:"Bloc Month",val:blocMonthCount,sub:"workouts logged",color:"var(--text)",valueStyle:blocMonthValueStyle}
+    {kind:"bloc-loop",label:"Bloc Loop",valueNode:loopCardNode,sub:"cleared \u203A",color:"var(--text)"}
   ];
   const desktopLogsByDay = {};
   (logs[user] || []).forEach(log => {
@@ -1340,8 +1397,9 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
     ),
     lastMonthBanner,
     setupReviewBanner,
+    streakStrip,
 !isExcused&&React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(4,minmax(0,1fr))",gap:6,paddingBottom:2}},
-  statCards.map(s=>React.createElement(Card,{key:s.label,onClick:()=>{if(s.kind==="week-mvp") onTrackUsage?.("mvp_card_opened"); if(s.kind==="bloc-month") onTrackUsage?.("bloc_month_opened"); setStatDetail({kind:s.kind})},style:mobileStatCardStyle},
+  statCards.map(s=>React.createElement(Card,{key:s.label,onClick:()=>{if(s.kind==="bloc-loop"){onTrackUsage?.("bloc_loop_opened"); onOpenMonth?.(); return;} if(s.kind==="week-mvp") onTrackUsage?.("mvp_card_opened"); setStatDetail({kind:s.kind})},style:mobileStatCardStyle},
     React.createElement('span',{className:"lbl",style:mobileStatLabelStyle},s.label),
     React.createElement('div',{style:{width:"100%",display:"flex",flexDirection:"column",alignItems:"center",paddingTop:8}},
       React.createElement('div',{style:Object.assign({fontSize:16,fontWeight:800,color:s.color || "#4ECDC4",lineHeight:1,minHeight:16,display:"flex",alignItems:"center",justifyContent:"center",textAlign:"center",whiteSpace:"nowrap",width:"100%",fontFamily:"'Outfit', sans-serif"}, s.valueStyle || {})},s.valueNode || s.val),
@@ -1430,7 +1488,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
     lastMonthBanner,
     setupReviewBanner,
 !isExcused&&React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}},
-  statCards.map(s=>React.createElement(Card,{key:s.label,onClick:()=>{if(s.kind==="week-mvp") onTrackUsage?.("mvp_card_opened"); if(s.kind==="bloc-month") onTrackUsage?.("bloc_month_opened"); setStatDetail({kind:s.kind})},style:desktopStatCardStyle,
+  statCards.map(s=>React.createElement(Card,{key:s.label,onClick:()=>{if(s.kind==="bloc-loop"){onTrackUsage?.("bloc_loop_opened"); onOpenMonth?.(); return;} if(s.kind==="week-mvp") onTrackUsage?.("mvp_card_opened"); setStatDetail({kind:s.kind})},style:desktopStatCardStyle,
     onMouseEnter:e=>e.currentTarget.style.transform="translateY(-1px)",
     onMouseLeave:e=>e.currentTarget.style.transform="translateY(0)"},
     React.createElement('span',{className:"lbl",style:desktopStatLabelStyle},s.label),

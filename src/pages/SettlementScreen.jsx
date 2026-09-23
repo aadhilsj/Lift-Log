@@ -27,7 +27,7 @@ import { buildPaymentTargets } from "../lib/paymentLinks.js";
 import { createPortal } from "react-dom";
 import { PaymentHandleSection } from "../components/PaymentHandleSection.jsx";
 import {
-  MonthDial, LoopReadout, LoopCaption, loopCaption, loopTotals, useTapOutside, LOOP_FONTS,
+  MonthDial, LoopReadout, LoopCaption, loopCaption, loopTotals, useTapOutside, LOOP_FONTS, perfectMonthRun, PerfectRunPill,
   closedMonthMember, perDayCounts, clearDayOf, bestWeekOf, personalBestOf, trackRecordOf,
   trackRecordParts, PanelCard, personalBestCard, shortMonthName
 } from "../components/MonthLoop.jsx";
@@ -70,6 +70,8 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
     .map(member => ({ ...member, userId: userIdFor(member.name), isMe: member.name === currentUser }));
   const loop = loopTotals(loopMembers);
   const isBlocPerfect = loop.perfect;
+  // Only a perfect month brags about the run, counted through this month.
+  const perfectRun = isBlocPerfect ? perfectMonthRun(monthHistory, month.key) : 0;
 
   const userCount = month.counts?.[currentUser] || 0;
   const userSatOut = !!(currentUser && month.excused?.[currentUser]);
@@ -120,12 +122,14 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
     }
     return streak;
   })();
-  const streakLine = consistentStreak >= 2 ? `${consistentStreak} consistent months in a row. Keep it going.` : "Build on it next month.";
+  const streakLine = consistentStreak >= 2 ? `${consistentStreak} consecutive months cleared. Keep it going.` : "Build on it next month.";
   const selectedMonthName = FULL_MONTH_NAMES[month.month ?? monthKeyParts(month.key)?.monthIndex ?? 0] || MONTH_NAMES[month.month ?? monthKeyParts(month.key)?.monthIndex ?? 0] || "month";
   const perfectLine = `Everyone hit the target this ${selectedMonthName}.`;
   const perfectFooterLine = consistentStreak >= 2
-    ? { emphasis: `${consistentStreak} consistent months in a row for you.`, rest: " Keep it going." }
+    ? { emphasis: `${consistentStreak} consecutive months cleared.`, rest: " Keep it going." }
     : ["Keep it going."];
+  // On a perfect month the ring already says so; the card speaks for the member.
+  const perfectCardLine = consistentStreak >= 2 ? `${consistentStreak} consecutive months cleared. Keep it going.` : "Keep it going.";
 
   const handleSettlementAction = async ({ key, kind, payerDisplayName, receiverDisplayName, amount }) => {
     setSettlementBusy(key);
@@ -188,6 +192,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
     if (userIsWinner && isBlocPerfect) {
       return {
         tag: "PERFECT BLOC MONTH",
+        cardStamp: `Your ${selectedMonthName}`,
         stat: workoutsLabel(userCount),
         line: perfectLine,
         footerLine: perfectFooterLine,
@@ -212,6 +217,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
     if (isBlocPerfect) {
       return {
         tag: "PERFECT BLOC MONTH",
+        cardStamp: `Your ${selectedMonthName}`,
         stat: workoutsLabel(userCount),
         line: perfectLine,
         footerLine: perfectFooterLine,
@@ -235,6 +241,16 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
   })();
 
   // The report card keeps its original tint for each result.
+  // The rebuilt report card: a stamp, the work, one line, and the money when
+  // money moved. Each result keeps a hint of its old colour rather than a full
+  // coloured headline: the ring above already carries the month.
+  const REPORT_TONES = {
+    perfect:  { edge: "rgba(78,205,196,.30)", wash: "linear-gradient(150deg, rgba(78,205,196,.10), rgba(10,20,19,0) 62%)", stamp: "#7FD8D0", money: "#7FD49A" },
+    winner:   { edge: "rgba(127,212,154,.30)", wash: "linear-gradient(150deg, rgba(127,212,154,.11), rgba(10,20,19,0) 62%)", stamp: "#8FD9A8", money: "#7FD49A" },
+    neutral:  { edge: "rgba(190,205,203,.24)", wash: "linear-gradient(150deg, rgba(200,214,212,.08), rgba(10,20,19,0) 62%)", stamp: "#C2D2CF", money: "#C2D2CF" },
+    missed:   { edge: "rgba(232,110,110,.30)", wash: "linear-gradient(150deg, rgba(232,110,110,.10), rgba(10,20,19,0) 62%)", stamp: "#E89A9A", money: "#E86A6A" },
+    training: { edge: "rgba(245,200,66,.30)", wash: "linear-gradient(150deg, rgba(245,200,66,.10), rgba(10,20,19,0) 62%)", stamp: "#F0CB6B", money: "#F0CB6B" }
+  };
   const heroStyle = hero.tone === "perfect"
     ? {background:"linear-gradient(135deg, rgba(78,205,196,.2), rgba(215,226,225,.12) 48%, rgba(58,168,90,.2))", border:"1px solid rgba(78,205,196,.3)"}
     : hero.tone === "winner"
@@ -461,36 +477,51 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
 
   // ── Your report ──────────────────────────────────────────────────────────
   const heroTagColor = hero.tone === "perfect" ? "#4ECDC4" : hero.tone === "winner" ? C.greenText : hero.tone === "missed" ? "#E65A5A" : hero.tone === "training" ? "#F5C842" : "#D7E2E1";
-  const heroLines = (() => {
-    if (hero.tone === "winner") return [hero.topLine, [hero.line, hero.keepLine].filter(Boolean).join(" ")].filter(Boolean);
-    if (hero.tone === "perfect") return [perfectLine, ...(Array.isArray(hero.footerLine) ? hero.footerLine : hero.footerLine ? [`${hero.footerLine.emphasis}${hero.footerLine.rest}`] : [])];
-    const line = String(hero.line || "");
-    // Two whole thoughts on two lines, e.g. "3 consistent months in a row." / "Keep it going."
-    const split = line.match(/^(.*?\.)\s+(.+)$/);
-    return split ? [split[1], split[2]] : line ? [line] : [];
-  })();
   const myBest = personalBestOf(monthHistory, currentUser, month.key);
   const pbBody = personalBestCard(myBest, userCount, { satOut: userSatOut });
   const myRecord = trackRecordOf(monthHistory, currentUser, month.key, { includeKey: true });
   const recordParts = trackRecordParts({ months: myRecord, highlightLast: true, compact: true, firstMonth: myRecord.length <= 1 && !myBest });
   // Someone who wasn't in this month (joined later) has no report to show.
   const userInMonth = !!currentUser && Object.prototype.hasOwnProperty.call(month.counts || {}, currentUser);
-  const renderReport = () => !userInMonth ? null : React.createElement('div',{style:{...heroStyle,borderRadius:14,padding:"14px 14px 12px",display:"flex",flexDirection:"column",alignItems:"center",textAlign:"center",gap:6}},
-    React.createElement('div',{style:{fontFamily:LOOP_FONTS.body,fontSize:11,fontWeight:900,letterSpacing:".14em",textTransform:"uppercase",color:heroTagColor}},hero.tag),
-    React.createElement('div',{style:{fontFamily:LOOP_FONTS.body,fontSize:"clamp(26px, 7.5vw, 32px)",fontWeight:900,lineHeight:1.05,color:hero.tone === "neutral" ? "var(--text)" : heroColor,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:"100%"}},hero.stat),
-    heroLines.length > 0 && React.createElement('div',{style:{fontFamily:LOOP_FONTS.body,fontSize:12,fontWeight:500,lineHeight:1.45,color:"#B8C7C4"}},
-      heroLines.map((line, index) => React.createElement('span',{key:index,style:{display:"block"}},line))
-    ),
-    React.createElement('div',{style:{width:"100%",borderTop:"0.5px solid #0D1F1E",margin:"6px 0 2px"}}),
-    React.createElement('div',{style:{width:"100%",display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,textAlign:"left"}},
-      React.createElement(PanelCard,{label:"Personal best",big:pbBody.big,small:pbBody.small}),
-      React.createElement('div',{style:{border:"0.5px solid #0D1F1E",background:"#080F0F",borderRadius:10,padding:"10px 11px",display:"flex",flexDirection:"column",gap:6,minWidth:0}},
-        React.createElement('span',{style:recordParts.label},"Track record"),
-        recordParts.rings,
-        React.createElement('em',{style:{fontStyle:"normal",fontFamily:LOOP_FONTS.body,fontSize:11,fontWeight:500,color:"#B8C7C4"}},recordParts.summary)
+  const renderReport = () => {
+    if (!userInMonth) return null;
+    const tone = REPORT_TONES[hero.tone] || REPORT_TONES.neutral;
+    // Money is shown only when money actually moved. A perfect month settles nothing.
+    const owed = receiverTotal(currentUser), owes = payerTotal(currentUser);
+    const money = owed > 0 ? `+${fmtCurrency(owed, currency)}` : owes > 0 ? `\u2212${fmtCurrency(owes, currency)}` : "";
+    const cardLines = hero.tone === "winner" ? [[hero.topLine, hero.keepLine].filter(Boolean).join(" ")]
+      : hero.tone === "perfect" ? [perfectCardLine]
+      : [String(hero.line || "")].filter(Boolean);
+    return React.createElement('div',{style:{border:`0.5px solid ${tone.edge}`,background:`${tone.wash}, #0A1412`,borderRadius:14,padding:12,display:"flex",flexDirection:"column"}},
+      React.createElement('div',{style:{display:"flex",alignItems:"center",gap:12}},
+        React.createElement('div',{style:{flex:"1 1 0",minWidth:0}},
+          React.createElement('span',{style:{fontFamily:LOOP_FONTS.body,fontSize:8.5,fontWeight:700,letterSpacing:".14em",textTransform:"uppercase",color:tone.stamp}},hero.cardStamp || hero.tag),
+          React.createElement('div',{style:{display:"flex",alignItems:"baseline",gap:7,marginTop:8}},
+            React.createElement('span',{style:{fontFamily:LOOP_FONTS.mono,fontSize:26,fontWeight:700,lineHeight:1,color:"var(--text)"}},userSatOut ? "\u2014" : String(userCount)),
+            React.createElement('span',{style:{fontFamily:LOOP_FONTS.body,fontSize:13,fontWeight:600,color:"var(--text)"}},userSatOut ? "Month off" : userCount === 1 ? "workout" : "workouts")
+          ),
+          cardLines.length > 0 && React.createElement('div',{style:{fontFamily:LOOP_FONTS.body,fontSize:12,lineHeight:1.45,color:"#B8C7C4",marginTop:5}},
+            cardLines.map((line, index) => React.createElement('span',{key:index,style:{display:"block"}},line))
+          )
+        ),
+        money && React.createElement('span',{style:{flex:"0 0 auto",marginRight:10,fontFamily:LOOP_FONTS.mono,fontSize:26,fontWeight:700,lineHeight:1,letterSpacing:"-.01em",color:tone.money}},money)
+      ),
+      // A rule with the month set into it, like a stamped slip.
+      React.createElement('div',{style:{display:"flex",alignItems:"center",gap:6,margin:"10px 0"}},
+        React.createElement('span',{style:{flex:"1 1 0",height:1,background:"#16302C"}}),
+        React.createElement('span',{style:{fontFamily:LOOP_FONTS.mono,fontSize:7.5,letterSpacing:".14em",color:"#3E5652"}},String(month.label || "").toUpperCase()),
+        React.createElement('span',{style:{flex:"1 1 0",height:1,background:"#16302C"}})
+      ),
+      React.createElement('div',{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}},
+        React.createElement(PanelCard,{label:"Personal best",big:pbBody.big,small:pbBody.small}),
+        React.createElement('div',{style:{border:"0.5px solid #0D1F1E",background:"#080F0F",borderRadius:10,padding:"10px 11px",display:"flex",flexDirection:"column",gap:6,minWidth:0}},
+          React.createElement('span',{style:recordParts.label},"Track record"),
+          recordParts.rings,
+          React.createElement('em',{style:{fontStyle:"normal",fontFamily:LOOP_FONTS.body,fontSize:11,fontWeight:500,color:"#B8C7C4"}},recordParts.summary)
+        )
       )
-    )
-  );
+    );
+  };
 
   // ── Settlements: your own payments open, everyone else's folded ──────────
   const plateStyle = {border:"0.5px solid #163d36",background:"#0A1412",borderRadius:12,padding:"10px 12px",display:"flex",flexDirection:"column",gap:7};
@@ -593,7 +624,8 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
     React.createElement('div',{style:{width:"100%",maxWidth:"100%",margin:"0 auto",padding:"0 0 48px",display:"flex",flexDirection:"column",gap:14,fontFamily:LOOP_FONTS.body}},
       React.createElement(MonthDial,{ members: loopMembers, perfect: isBlocPerfect, focus, onToggle: name => setFocus(prev => prev === name ? null : name), readout: ringReadout, live: true }),
       React.createElement(LoopCaption,{ lines: loopCaption(loopMembers, { ended: true }) }),
-      React.createElement('div',{style:{fontFamily:LOOP_FONTS.body,fontSize:9,fontWeight:500,color:"#6B9690",opacity:.8,textAlign:"center",marginTop:-8}},"Tap a slice to see that person"),
+      React.createElement('div',{style:{fontFamily:LOOP_FONTS.body,fontSize:7,fontWeight:500,color:"#6B9690",opacity:.8,textAlign:"center",marginTop:-8}},"Tap a slice to see that person"),
+      perfectRun > 0 && React.createElement(PerfectRunPill,{ run: perfectRun }),
       renderFocusPlate(),
       renderReport(),
       React.createElement('div',{style:{border:"0.5px solid #163d36",background:"#0A1412",borderRadius:14,padding:14,display:"flex",flexDirection:"column",gap:12}},

@@ -8,6 +8,7 @@ import {
   isTrainingForMonth
 } from "../lib/appState.js";
 import { Avatar } from "./primitives.jsx";
+import { resolveAvatarPhotoUrl } from "../lib/appState.js";
 
 // The "perfect month" loop. One ring for the whole Bloc: every workout a member
 // owes is one tick, grouped into that member's slice, so bigger targets take a
@@ -33,6 +34,13 @@ const SPOTLIGHT_BAND = "rgba(78,205,196,.08)";
 const SPOTLIGHT_ARC = "rgba(78,205,196,.82)";
 const SPOTLIGHT_TICK = "rgba(78,205,196,.85)";
 const SPOTLIGHT_EMPTY = "#3E5652";
+// Extra workouts are a quiet texture at rest and go bright for the person you tap.
+const EXTRA_REST = "rgba(200,230,226,.40)";
+// Every face sits behind a slight veil so a ring of faces never shouts over the
+// loop itself. A letter face is a flat block of colour, so it is calmed further
+// than a photo. The face you tap comes back to full strength.
+const FACE_VEIL_PHOTO = "brightness(.84) saturate(.88)";
+const FACE_VEIL_LETTER = "brightness(.72) saturate(.3)";
 export const LOOP_FONTS = {
   display: "'Raleway', sans-serif",
   body: "'Outfit', sans-serif",
@@ -325,7 +333,8 @@ export const MonthDial = ({ members, perfect, focus, onToggle, readout, live = f
         Array.from({ length: Math.min(extra, m.target * MAX_ROWS) }, (_, k) => {
           const row = Math.floor(k / m.target), a = a0 + step * ((k % m.target) + 0.5);
           const [x1, y1] = pt(R_X1 + row * R_ROW, a), [x2, y2] = pt(R_X2 + row * R_ROW, a);
-          return React.createElement('line', { key: `x${k}`, x1, y1, x2, y2, stroke: CHALK, strokeWidth: 1.4 });
+          const litExtra = !live || focus === m.name;
+          return React.createElement('line', { key: `x${k}`, x1, y1, x2, y2, stroke: litExtra ? CHALK : EXTRA_REST, strokeWidth: litExtra ? 1.4 : 1.2 });
         }),
         // The base circle is continuous behind every slice. Cut a fine, dark
         // seam through it at each boundary so incomplete neighbouring slices
@@ -355,7 +364,14 @@ export const MonthDial = ({ members, perfect, focus, onToggle, readout, live = f
         cursor: onToggle ? "pointer" : "default", opacity: dim(m.name) ? dimOpacity : 1, transition: "opacity .25s ease",
         boxShadow: ring
       }
-    }, React.createElement(Avatar, { name: m.name, userId: m.userId || "", size: faceSize }));
+    },
+      React.createElement('span', {
+        style: {
+          display: "block", width: faceSize, height: faceSize, borderRadius: "50%", overflow: "hidden",
+          filter: !live || focus === m.name ? "none" : (resolveAvatarPhotoUrl(m.name, m.userId || "") ? FACE_VEIL_PHOTO : FACE_VEIL_LETTER),
+          transition: "filter .25s ease"
+        }
+      }, React.createElement(Avatar, { name: m.name, userId: m.userId || "", size: faceSize })));
   });
 
   // Live: the ring runs into the page's 12px side padding (edge to edge on a
@@ -450,3 +466,48 @@ export function personalBestCard(best, count, { firstMonth = false, satOut = fal
   if (count === best.count) return { big: "Level", small: `with ${best.monthName}'s ${best.count}` };
   return { big: React.createElement(React.Fragment, null, best.count, smallUnit(`in ${best.monthName}`)), small: `${best.count - count} to beat it` };
 }
+
+// How many closed months in a row ended perfect, newest first. `throughKey`
+// includes that month (the results screen); without it the run is counted from
+// the most recent closed month (the live Month page).
+export function perfectMonthRun(monthHistory, throughKey) {
+  const limit = throughKey ? monthOrder(throughKey) : Infinity;
+  const months = sortedHistory(monthHistory).filter(month => monthOrder(month.key) <= limit).reverse();
+  let run = 0;
+  for (const month of months) {
+    const members = Object.keys(month?.counts || {}).map(name => closedMonthMember(month, name)).filter(Boolean);
+    if (!members.length || !loopTotals(members).perfect) break;
+    run += 1;
+  }
+  return run;
+}
+
+// Shown only once a Bloc has one behind it. The Bloc's line says "in a row";
+// a member's own card says "consecutive months cleared", so the two never read alike.
+export const PerfectRunPill = ({ run }) => (run > 0 ? React.createElement('div', { style: { display: "flex", justifyContent: "center" } },
+  React.createElement('div', { style: { display: "inline-flex", alignItems: "center", gap: 7, border: "0.5px solid rgba(78,205,196,.28)", background: "rgba(78,205,196,.05)", borderRadius: 999, padding: "5px 12px" } },
+    React.createElement('svg', { width: 12, height: 12, viewBox: "0 0 12 12", "aria-hidden": true },
+      React.createElement('circle', { cx: 6, cy: 6, r: 4.2, fill: "none", stroke: CYAN, strokeWidth: 1.6 })
+    ),
+    React.createElement('span', { style: { fontFamily: LOOP_FONTS.mono, fontSize: 12, fontWeight: 700, color: "var(--text)" } }, String(run)),
+    React.createElement('span', { style: { fontFamily: LOOP_FONTS.body, fontSize: 11, color: "#B8C7C4" } }, `Perfect ${run === 1 ? "month" : "months"} in a row`)
+  )
+) : null);
+
+// A small, flat copy of the loop for Today: one segment per member in the month,
+// lit when they have cleared. No part-filled slices — at this size it is a
+// yes-or-no picture, and Today is not where the detail belongs.
+export const MiniLoop = ({ slices, size = 36 }) => {
+  const C0 = 20, R = 15, gap = slices.length > 14 ? 4 : 7, span = (360 - gap * slices.length) / slices.length;
+  const pt = (r, deg) => { const a = (deg - 90) * Math.PI / 180; return [(C0 + r * Math.cos(a)).toFixed(2), (C0 + r * Math.sin(a)).toFixed(2)]; };
+  let angle = -span / 2;
+  const arcs = slices.map((cleared, index) => {
+    const [x0, y0] = pt(R, angle), [x1, y1] = pt(R, angle + span);
+    angle += span + gap;
+    return React.createElement('path', {
+      key: index, d: `M${x0} ${y0} A${R} ${R} 0 0 1 ${x1} ${y1}`, fill: "none",
+      stroke: cleared ? CYAN : "rgba(78,205,196,.22)", strokeWidth: cleared ? 3.2 : 2.4
+    });
+  });
+  return React.createElement('svg', { width: size, height: size, viewBox: "0 0 40 40", "aria-hidden": true }, arcs);
+};

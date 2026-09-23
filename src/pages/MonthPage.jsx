@@ -27,7 +27,8 @@ import { Avatar, PlayerProfileErrorBoundary } from "../components/primitives.jsx
 import {
   MonthDial, LoopReadout, LoopCaption, loopCaption, loopTotals, useTapOutside, LOOP_FONTS,
   perDayCounts, clearDayOf, bestWeekOf, personalBestOf, trackRecordOf, sameDayLastMonth,
-  trackRecordParts, PanelCard, personalBestCard, smallUnit, monthName, shortMonthName
+  trackRecordParts, PanelCard, personalBestCard, smallUnit, monthName, shortMonthName,
+  perfectMonthRun, PerfectRunPill
 } from "../components/MonthLoop.jsx";
 import { PlayerProfile } from "../pages/PlayerProfile.jsx";
 import { SettlementScreen } from "../pages/SettlementScreen.jsx";
@@ -154,6 +155,7 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
   // middle, muted, where the percentage would be.
   const readoutLine = !totals.canBePerfect ? "Can't be perfect" : totals.done === 0 && DAY_OF_MON === 1 ? "Day one" : `${Math.round(totals.done / Math.max(1, totals.total) * 100)}% to a perfect month`;
   const daysLeft = getDaysLeft();
+  const perfectRun = perfectMonthRun(monthHistory);
 
   const labelStyle = { fontFamily: LOOP_FONTS.body, fontSize: 8.5, fontWeight: 700, letterSpacing: ".12em", textTransform: "uppercase", color: "#6B9690" };
   const noteRow = (key, label, member, text) => React.createElement('div', { key, style: { display: "flex", alignItems: "center", gap: 10, fontFamily: LOOP_FONTS.body, fontSize: 12, color: "#B8C7C4" } },
@@ -293,8 +295,13 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
     React.createElement('div',{style:{marginTop:captionLow ? 30 : 0,transition:"margin-top .3s cubic-bezier(.16,1,.3,1)"}},
       React.createElement(LoopCaption,{ lines: loopCaption(loopMembers, { ended:false, dayOne: DAY_OF_MON === 1 }) })
     ),
+    // What the Bloc is protecting this month, under the caption. Nothing to show
+    // until they have one behind them.
+    perfectRun > 0 && React.createElement('div',{style:{marginTop:8}}, React.createElement(PerfectRunPill,{ run: perfectRun })),
     React.createElement('div',{style:restingView
-      ? { flex: "1 0 auto", minHeight: 40, display: "flex", alignItems: "center", justifyContent: "center" }
+      // The gap gives way when the run pill or a long note list needs the room,
+      // so the resting page still fits the screen exactly.
+      ? { flex: "1 1 auto", minHeight: 24, display: "flex", alignItems: "center", justifyContent: "center" }
       : { padding: "14px 0 12px" }}, separator),
     React.createElement('div',{style:{padding:restingView ? 0 : "0 6px",display:"flex",flexDirection:"column",gap:8}},
       focusMember ? renderPanel(focusMember) : renderNotes()
