@@ -521,9 +521,9 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
   // Someone sitting out has no slice, exactly as on the Month page.
   const loopSlices = board.filter(u => !u.isOut).map(u => u.count >= u.target);
   const loopCleared = loopSlices.filter(Boolean).length;
-  const loopCardNode = React.createElement('div',{style:{position:"relative",width:36,height:36}},
-    React.createElement(MiniLoop,{ slices: loopSlices }),
-    React.createElement('span',{style:{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:LOOP_FONTS.mono,fontSize:8.5,fontWeight:700,color:"var(--text)"}},`${loopCleared}/${loopSlices.length}`)
+  const loopCardNode = React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"center",gap:5,height:18}},
+    React.createElement(MiniLoop,{ slices: loopSlices, size: 18 }),
+    React.createElement('span',{style:{fontFamily:LOOP_FONTS.mono,fontSize:13,fontWeight:700,color:"var(--text)"}},`${loopCleared}/${loopSlices.length}`)
   );
   // The Bloc's daily streak, on the Bloc's clock (its day ends at 3am).
   const blocTimeZone = currentGroup?.settings?.timeZone || "Europe/Oslo";
@@ -753,7 +753,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
       : {kind:"target",label:"Target",val:needed,sub:"more to go",meta:targetCardMeta,color:"#4ECDC4"},
     {kind:"pace",label:"Pace Check",val:paceDeltaText,sub:todayTargetText,color:paceDeltaColor,valueStyle:paceValueStyle},
     {kind:"week-mvp",label:"Week's MVP",val:weeklyMvpTileValue,sub:"most logs this week",color:"var(--text)",valueStyle:weeklyMvpValueStyle},
-    {kind:"bloc-loop",label:"Bloc Loop",valueNode:loopCardNode,sub:"cleared \u203A",color:"var(--text)"}
+    {kind:"bloc-loop",label:"Bloc Loop",valueNode:loopCardNode,sub:"",color:"var(--text)"}
   ];
   const desktopLogsByDay = {};
   (logs[user] || []).forEach(log => {
