@@ -5396,8 +5396,23 @@ async function supabaseFetch(path, options = {}) {
 // These RPCs are intentionally service-role-only. The client never receives
 // raw activity rows; it can only request owner-authorized dashboard data after
 // the server-side founder allowlist check succeeds.
-async function recordCanonicalDailyAppActivity(authUserId, openedAt = new Date().toISOString()) {
+// Takes the auth user object where the caller has one, so the founder check
+// matches on either FOUNDER_DASHBOARD_USER_IDS or FOUNDER_DASHBOARD_EMAILS. An
+// id alone only matches the first, which would fail silently if the deployment
+// ever configured just the email.
+async function recordCanonicalDailyAppActivity(authUser, openedAt = new Date().toISOString()) {
+  const authUserId = typeof authUser === "object" && authUser ? authUser.id : authUser;
   if (!authUserId) return;
+  // The founder opens Fero dozens of times a day while testing, which made App
+  // Opens and the Usage tab mostly a picture of his own thumb. He is still
+  // marked active, because Active Users counts a person once a day and that
+  // number is honest either way -- only the per-open count is skipped.
+  // (isFounderDashboardUser is a hoisted declaration, so calling it here,
+  // above its definition, is fine.)
+  if (isFounderDashboardUser(authUser)) {
+    await markCanonicalDailyAppActive(authUserId, openedAt);
+    return;
+  }
   try {
     await supabaseFetch("/rest/v1/rpc/record_ante_core_daily_app_activity", {
       method: "POST",
@@ -5445,8 +5460,13 @@ async function recordCanonicalMonthlyFeatureUsage(authUserId, feature, usedAt = 
   }
 }
 
-async function recordCanonicalUsageEvent(authUserId, eventName, occurredAt = new Date().toISOString()) {
+async function recordCanonicalUsageEvent(authUser, eventName, occurredAt = new Date().toISOString()) {
+  const authUserId = typeof authUser === "object" && authUser ? authUser.id : authUser;
   if (!authUserId || !eventName) return;
+  // Nearly half of every usage event ever recorded was the founder testing.
+  // Screen opens and taps from this account are not product signal, so they
+  // are dropped at the door rather than filtered out when reading.
+  if (isFounderDashboardUser(authUser)) return;
   try {
     await supabaseFetch("/rest/v1/rpc/record_ante_core_usage_event", {
       method: "POST",
@@ -9448,13 +9468,13 @@ export default async function handler(req, res) {
           limit: payload.limit
         });
         await recordCanonicalMonthlyFeatureUsage(authUser.id, "bloc_stream");
-        await recordCanonicalUsageEvent(authUser.id, "bloc_stream_opened");
+        await recordCanonicalUsageEvent(authUser, "bloc_stream_opened");
         return res.status(200).json({ ok: true, messages: Array.isArray(messages) ? messages : [] });
       }
 
       if (payload?.action === "usage-event") {
         const authUser = await fetchAuthenticatedUser(readBearerToken(req, payload));
-        await recordCanonicalUsageEvent(authUser.id, payload?.eventName);
+        await recordCanonicalUsageEvent(authUser, payload?.eventName);
         await markCanonicalDailyAppActive(authUser.id);
         return res.status(204).end();
       }
@@ -9622,7 +9642,7 @@ export default async function handler(req, res) {
             await syncBlocMemberToCanonical(group, authUser.id, membership.role || "member");
           }
         }
-        await recordCanonicalDailyAppActivity(authUser.id);
+        await recordCanonicalDailyAppActivity(authUser);
         return res.status(200).json({
           ok: true,
           state: scopeReadableStateForUser(state, authUser.id),
@@ -9949,7 +9969,7 @@ export default async function handler(req, res) {
           const memberRole = group.memberships[auth.user.id].role || "member";
           await syncBlocMemberToCanonical(group, auth.user.id, memberRole, { throwOnError: true });
         }
-        await recordCanonicalDailyAppActivity(auth.user.id);
+        await recordCanonicalDailyAppActivity(auth.user);
         const readableState = await persistAndScopeReadableStateForUser(updated, `profile:${auth.user.id}`, "upsert-profile", auth.user.id);
         return res.status(200).json(readableState);
       }

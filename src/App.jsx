@@ -2216,7 +2216,10 @@ const App = () => {
       initialCreateGroupName: inert ? "" : queuedCreateGroupName,
       onAutoOpenHandled: inert ? ()=>{} : ()=>{setQueuedCreate(false);setQueuedCreateGroupName("");},
       onCreateCancel: inert ? ()=>{} : handleCreateCancelFromGroupHome,
-      onOpenGroup: inert ? ()=>{} : groupId=>{ switcherRestoreScrollRef.current = switcherScrollTopRef.current; window.scrollTo({top:0,left:0,behavior:"auto"}); setSuppressSwitcherIntro(false); setMonthInitialIdx(null); persistGroupSelection(groupId); setPage("today"); },
+      // Picking a Bloc here lands on Today, which is a screen open like any
+      // other. It used to call setPage directly and record nothing, so every
+      // Bloc switch was a Today Screen visit the dashboard never saw.
+      onOpenGroup: inert ? ()=>{} : groupId=>{ switcherRestoreScrollRef.current = switcherScrollTopRef.current; window.scrollTo({top:0,left:0,behavior:"auto"}); setSuppressSwitcherIntro(false); setMonthInitialIdx(null); persistGroupSelection(groupId); trackPageOpen("today", null); setPage("today"); },
       onCreateGroup: inert ? ()=>{} : handleCreateGroup,
       onJoinGroup: inert ? ()=>{} : ()=>setShowJoinModal(true),
       suppressIntro
