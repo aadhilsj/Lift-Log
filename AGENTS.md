@@ -231,6 +231,13 @@ on an area, read the most recent handover on that topic instead of re-deriving
 state. When a session gets long, write the next handover — they rely on these to
 carry context between chats.
 
+**Before analysing any numbers, or writing any report or metric, read
+`docs/READ-BEFORE-ANALYSING-FERO-NUMBERS.md` first.** Fero has not launched, so
+flat growth is the plan rather than a problem; member counts are wrong unless
+`left_at` is filtered; and some metrics include the founder while others
+deliberately do not. Every rule in that file exists because skipping it already
+produced a confident wrong answer.
+
 ---
 
 ## 12. The working loop the founder has approved
