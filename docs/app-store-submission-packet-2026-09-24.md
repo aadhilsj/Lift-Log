@@ -133,7 +133,9 @@ Photo Library — to choose workout and profile photos.
 
 ### Devin
 
-- [ ] Complete the RLS rollout and month-close checks before 1 October.
+- [x] The canonical month-close code is merged to `main` (`32f2254`, PR #24).
+- [ ] Complete the RLS rollout and the isolated-copy month-close/moderation
+      rehearsal before 1 October.
 - [ ] Confirm the safe-copy moderation/hide/restore flow.
 - [ ] Report any canonical-vs-blob parity or retention issue that changes the
   App Store disclosures.
@@ -158,4 +160,3 @@ Do not submit until all three conditions are true:
    behavior, with the founder-approved promotion recorded.
 3. Public legal/support URLs and App Store Connect privacy answers match the
    submitted binary and actual data handling.
-

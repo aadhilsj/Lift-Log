@@ -4,6 +4,15 @@ This is the single continuation note for the long App Store preparation session.
 It is written for the next agent and the founder. Read it before changing the
 App Store Preview branch or giving App Store advice.
 
+## Status check — 2026-09-24
+
+The October month-close code is no longer pending: `origin/main` contains the
+canonical month-close merge (`32f2254`, PR #24), and
+`origin/blob/month-close-canonical` is an ancestor of `origin/main`. Devin's
+remaining work is the RLS rollout, the isolated-copy moderation/month-close
+rehearsal, and confirming that the final October behaviour and evidence are
+safe for release.
+
 ## Plain-English status
 
 Fero is **not ready to submit today**, but the social-safety work is now much
@@ -35,8 +44,10 @@ are not started.
   permission strings.
 - **In progress — Codex:** finish branch verification and prepare a tested,
   founder-approved promotion of the App Store server code to `main` before
-  submission. **Deveen:** RLS rollout and month-close merge before 1 October.
-  **Founder/Deveen:** launch scaling work and the agreed load test.
+  submission. **Deveen:** RLS rollout plus the isolated-copy moderation and
+  month-close rehearsal. The canonical month-close code is already on `main`
+  ahead of 1 October. **Founder/Deveen:** launch scaling work and the agreed
+  load test.
 - **Not started — Codex + founder approval:** merge App Store server code to
   `main` before submission. **Founder:** provide Apple signing/account access
   and a real iPhone; Codex can prepare/archive the build, then the founder
