@@ -66,7 +66,7 @@ const formatWorkoutDetailDate = isoDate => {
   return `${day} ${PROFILE_FULL_MONTH_NAMES[month - 1]} ${year}`;
 };
 
-const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevealChange,groupSettings,onDeleteLog,initialMonthKey,memberUserId,currentUserId,visibleGroups,accountCreatedAt,profilePhotoUrl}) => {
+const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevealChange,groupSettings,onDeleteLog,initialMonthKey,memberUserId,currentUserId,visibleGroups,accountCreatedAt,profilePhotoUrl,onTrackUsage,isOwnProfile=false}) => {
   const compactMobile = isMobile();
   const [deleteTarget,setDeleteTarget]=useState(null);
   const [deleteChoices,setDeleteChoices]=useState(null);
@@ -601,7 +601,14 @@ const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevea
 	    // Bloc. The value stays "alltime" so stored state keeps working.
 	    React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:5,padding:3,borderRadius:12,background:"rgba(8,20,19,.76)",border:"0.5px solid rgba(22,61,54,.72)"}},
 	      [["bloc","This Bloc"],["alltime","All Blocs"]].map(([value,label])=>React.createElement('button',{
-	        key:value,type:"button",onClick:()=>setProfileTab(value),
+	        key:value,type:"button",onClick:()=>{
+	          // Own and other are separate counts: the founder wants to know
+	          // whether people check their own cross-Bloc record or other
+	          // people's. isOwnProfile comes from the caller, which already
+	          // knows -- memberUserId is not passed on every route.
+	          if (value === "alltime" && profileTab !== "alltime") onTrackUsage?.(isOwnProfile ? "own_profile_all_blocs_opened" : "other_profile_all_blocs_opened");
+	          setProfileTab(value);
+	        },
 	        style:{minHeight:31,borderRadius:9,border:"none",cursor:"pointer",background:profileTab===value?"rgba(78,205,196,.12)":"transparent",color:profileTab===value?"#4ECDC4":"var(--muted)",fontFamily:"'Outfit',sans-serif",fontSize:9.5,fontWeight:900,textTransform:"uppercase",letterSpacing:".055em"}
 	      },label))
 	    ),

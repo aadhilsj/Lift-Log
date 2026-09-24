@@ -24,7 +24,23 @@ const usageLabels = {
   // expander inside the settlement screen, not the start-of-month banner. The
   // banner is last_month_banner_clicked, which is the card that name suggested.
   monthly_summary_card_clicked:"Month Standings Expanded",
-  last_month_banner_clicked:"Last Month Banner"
+  last_month_banner_clicked:"Last Month Banner",
+  // Release 2. Named so that near-identical controls stay tellable apart at a
+  // glance: "Own" is the viewer's own thing, "Other" is somebody else's.
+  bloc_loop_opened:"Bloc Loop Card",
+  settlement_reminders_opened:"Settlement Reminders",
+  month_own_slice_opened:"Own Month Slice",
+  month_other_slice_opened:"Other Month Slice",
+  own_profile_all_blocs_opened:"Own All Blocs",
+  other_profile_all_blocs_opened:"Other All Blocs",
+  bloc_switcher_opened:"Bloc Switcher",
+  settings_invite_opened:"Settings Invite",
+  settings_status_opened:"Settings Status",
+  settings_members_opened:"Settings Members",
+  settings_rules_opened:"Settings Rules",
+  workout_type_more_opened:"More Workout Types",
+  activity_photo_opened:"Photo Enlarged",
+  activity_photo_browsed:"Photo Browsed"
 };
 
 const sortLabels = {users:"Users", uses:"Uses", avgUsers:"Avg Users", avgUses:"Avg Uses"};

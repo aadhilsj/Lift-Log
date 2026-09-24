@@ -1501,7 +1501,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
     // Sitting out means no logging this month (the server refuses it too).
     showLog&&(isExcused
       ? React.createElement(SittingOutNotice,{monthName:todayHeaderMonthName,nextMonthName:FULL_MONTH_NAMES[(CUR_MONTH+1)%12],onClose:()=>setShowLog(false)})
-      : React.createElement(LogModal,{user,currentUserId,currentGroupId,groups,onConfirm:doLog,onClose:()=>setShowLog(false)})),
+      : React.createElement(LogModal,{user,currentUserId,currentGroupId,groups,onConfirm:doLog,onClose:()=>setShowLog(false),onTrackUsage})),
     deleteTarget && React.createElement(DeleteModal,{log:deleteTarget,otherBlocNames:[...new Set(findWorkoutCopiesInOtherBlocs(groups, currentGroupId, currentUserId, deleteTarget).map(copy => copy.groupName))],onClose:()=>setDeleteTarget(null),onConfirm:async(options)=>{ const log = deleteTarget; setDeleteTarget(null); await deleteOwnLog(log, options); }}),
     reminderSheet,
     linkPaymentModal,
@@ -1517,7 +1517,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
     React.createElement('div',{"aria-hidden":viewPlayer?true:undefined,style:{pointerEvents:viewPlayer?"none":"auto"}},todayContent),
     viewPlayer&&React.createElement('div',{key:`profile-layer-${viewPlayer}`,ref:profileLayerRef,className:"in-bloc-profile-layer",style:{backgroundColor:"#070C0C",background:profileRevealActive?"transparent":"var(--bg-gradient)",backgroundImage:profileRevealActive?"none":"var(--bg-radial-hint), var(--bg-gradient)",overflowY:"auto",overflowX:"hidden",WebkitOverflowScrolling:"touch",overscrollBehavior:"contain",touchAction:"pan-y"}},
       React.createElement(PlayerProfileErrorBoundary,{profileName:viewPlayer,onBack:closePlayerProfile},
-        React.createElement(PlayerProfile,{group:currentGroup,name:viewPlayer,logs,excused,monthHistory,onBack:closePlayerProfile,onSwipeRevealChange:setProfileRevealActive,groupSettings,memberUserId:Object.values(currentGroup?.memberships||{}).find(m=>m?.displayName===viewPlayer)?.userId||"",currentUserId,visibleGroups:groups,accountCreatedAt,onDeleteLog:viewPlayer===user?async(log, options)=>{ await deleteOwnLog(log, options); }:undefined})
+        React.createElement(PlayerProfile,{group:currentGroup,name:viewPlayer,logs,excused,monthHistory,onBack:closePlayerProfile,onSwipeRevealChange:setProfileRevealActive,groupSettings,memberUserId:Object.values(currentGroup?.memberships||{}).find(m=>m?.displayName===viewPlayer)?.userId||"",currentUserId,visibleGroups:groups,accountCreatedAt,onTrackUsage,isOwnProfile:viewPlayer===user,onDeleteLog:viewPlayer===user?async(log, options)=>{ await deleteOwnLog(log, options); }:undefined})
       )
     )
   );

@@ -115,7 +115,7 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
     const profileMonthKey = typeof viewPlayer === "string" ? null : viewPlayer?.monthKey;
     return React.createElement('div',{style:{maxWidth:840,margin:"0 auto"}},
       React.createElement(PlayerProfileErrorBoundary,{profileName,onBack:()=>setViewPlayer(null)},
-        React.createElement(PlayerProfile,{group:group,name:profileName,logs,excused,monthHistory,onBack:()=>setViewPlayer(null),groupSettings,initialMonthKey:profileMonthKey})
+        React.createElement(PlayerProfile,{group:group,name:profileName,logs,excused,monthHistory,onBack:()=>setViewPlayer(null),groupSettings,initialMonthKey:profileMonthKey,onTrackUsage,isOwnProfile:profileName===currentUser})
       )
     );
   }
@@ -150,7 +150,14 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
   });
   const totals = loopTotals(loopMembers);
   const focusMember = focus ? loopMembers.find(m => m.name === focus && !m.isOut) : null;
-  const toggleFocus = name => setFocus(prev => prev === name ? null : name);
+  const toggleFocus = name => {
+    // Only a selection counts. Tapping the focused slice again clears it, and
+    // that is a dismissal, not another look at someone's month. Tracked out
+    // here rather than inside the setFocus updater: React may run an updater
+    // more than once, which would double-count the tap.
+    if (name && focus !== name) onTrackUsage?.(name === currentUser ? "month_own_slice_opened" : "month_other_slice_opened");
+    setFocus(prev => prev === name ? null : name);
+  };
   // A Solo month (or too few in the month) can't be perfect. Say so in the
   // middle, muted, where the percentage would be.
   const readoutLine = !totals.canBePerfect ? "Can't be perfect" : totals.done === 0 && DAY_OF_MON === 1 ? "Day one" : `${Math.round(totals.done / Math.max(1, totals.total) * 100)}% to a perfect month`;

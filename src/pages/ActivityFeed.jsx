@@ -330,6 +330,10 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
       closeImage();
       return;
     }
+    // Moving on to another photo without leaving the viewer. Both the tap
+    // arrows and the swipe land here, so browsing is counted the same either
+    // way. Running off the end closes instead, and is not a browse.
+    onTrackUsage?.("activity_photo_browsed");
     setReactionTarget(null);
     setReactionPopover(null);
     setImageTarget(nextPost);
@@ -571,7 +575,7 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
                         React.createElement('div',{style:{gridColumn:1,gridRow:2,alignSelf:"end",justifySelf:"end"}},
                           renderCommentChip(post,true)
                         ),
-                        React.createElement('button',{type:"button",onClick:e=>{e.stopPropagation();setImageTarget(post);},style:{gridColumn:2,gridRow:"1 / span 2",display:"block",width:72,height:72,padding:0,borderRadius:8,overflow:"hidden",background:"#050507",border:"1px solid rgba(255,255,255,.08)",flexShrink:0}},
+                        React.createElement('button',{type:"button",onClick:e=>{e.stopPropagation();onTrackUsage?.("activity_photo_opened");setImageTarget(post);},style:{gridColumn:2,gridRow:"1 / span 2",display:"block",width:72,height:72,padding:0,borderRadius:8,overflow:"hidden",background:"#050507",border:"1px solid rgba(255,255,255,.08)",flexShrink:0}},
                           React.createElement('img',{src:resolveStorageImageUrl(post.photoUrl),alt:`${post.owner} ${postActivity}`,loading:"eager",decoding:"async",style:{display:"block",width:"100%",height:"100%",objectFit:"cover"}})
                         )
                       )

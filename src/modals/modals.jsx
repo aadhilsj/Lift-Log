@@ -598,7 +598,7 @@ const CropModal = ({imageSrc, onConfirm, onCancel}) => {
 };
 
 
-const LogModal = ({user,currentUserId,currentGroupId,groups,onConfirm,onClose}) => {
+const LogModal = ({user,currentUserId,currentGroupId,groups,onConfirm,onClose,onTrackUsage}) => {
   const compactMobile = isMobile();
   // The member picks an activity; its category is what Bloc rules and the log's
   // `type` use. An activity chosen from the full list takes the sixth tile.
@@ -641,6 +641,11 @@ const LogModal = ({user,currentUserId,currentGroupId,groups,onConfirm,onClose}) 
     setShowActivityList(false);
   };
   const openActivityList = () => {
+    // Counts both faces of this tile -- "More" when nothing is chosen and
+    // "Change" once something is. Either way the person is going looking
+    // through the full workout-type list, which is what the founder asked to
+    // measure.
+    onTrackUsage?.("workout_type_more_opened");
     setActivitySearch("");
     setShowActivityList(true);
   };

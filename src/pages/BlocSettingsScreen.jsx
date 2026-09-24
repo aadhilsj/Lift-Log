@@ -123,7 +123,7 @@ const EditableField = ({title,description,children}) => (
 
 const FULL_MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
-const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,saving,onReviewSetup,onReviewSitOut,onReviewSolo,onKickMember,onLeaveBloc,onSitOutRequest,onSoloRequest,onCancelRequest,initialTab="invite",localDevMode=false}) => {
+const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,saving,onReviewSetup,onReviewSitOut,onReviewSolo,onKickMember,onLeaveBloc,onSitOutRequest,onSoloRequest,onCancelRequest,initialTab="invite",localDevMode=false,onTrackUsage}) => {
   const compactMobile = isMobile();
   const [tab,setTab]=useState(initialTab === "rules" ? "rules" : "invite");
   const [showSitOut,setShowSitOut]=useState(false);
@@ -750,7 +750,13 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
         tabs.map(value => {
           const active = tab === value;
           const label = value.charAt(0).toUpperCase()+value.slice(1);
-          return React.createElement('button',{key:value,type:"button",className:"setup-press",onClick:()=>setTab(value),style:{minHeight:31,borderRadius:9,background:active?"rgba(78,205,196,.12)":"transparent",color:active?"#4ECDC4":"var(--muted)",fontFamily:UI_FONT,fontSize:9.5,fontWeight:900,textTransform:"uppercase",letterSpacing:".055em"}},label);
+          return React.createElement('button',{key:value,type:"button",className:"setup-press",onClick:()=>{
+            // One event per tab so the founder can see which part of Settings
+            // people actually use. Re-tapping the tab you are on is not a new
+            // open, and the initial tab is reported by settings_opened.
+            if (value !== tab) onTrackUsage?.(`settings_${value}_opened`);
+            setTab(value);
+          },style:{minHeight:31,borderRadius:9,background:active?"rgba(78,205,196,.12)":"transparent",color:active?"#4ECDC4":"var(--muted)",fontFamily:UI_FONT,fontSize:9.5,fontWeight:900,textTransform:"uppercase",letterSpacing:".055em"}},label);
         })
       ),
       React.createElement('div',{style:{borderRadius:14,background:"rgba(8,15,15,.58)",border:"0.5px solid rgba(22,61,54,.5)",padding:"11px 11px",boxShadow:"inset 0 1px 0 rgba(255,255,255,.025)"}},
