@@ -27,6 +27,8 @@ const usageLabels = {
   last_month_banner_clicked:"Last Month Banner"
 };
 
+const sortLabels = {users:"Users", uses:"Uses", avgUsers:"Avg Users", avgUses:"Avg Uses"};
+
 const Metric = ({label,value,detail,formatValue=number}) => React.createElement("article", {
   style:{padding:"15px 14px",borderRadius:14,border:"1px solid rgba(78,205,196,.17)",background:"rgba(11,27,26,.92)",minWidth:0,textAlign:"center"}
 },
@@ -114,6 +116,7 @@ const FounderDashboard = ({onClose}) => {
   const [error,setError] = useState("");
   const [tab,setTab] = useState("overview");
   const [usagePeriod,setUsagePeriod] = useState("monthly");
+  const [usageSort,setUsageSort] = useState("users");
   const load = useCallback(async()=>{
     setStatus("loading");
     setError("");
@@ -130,9 +133,41 @@ const FounderDashboard = ({onClose}) => {
   const range = useMemo(()=>dashboard?.range || {},[dashboard]);
   const growthRange = useMemo(()=>dashboard?.growth?.range || {},[dashboard]);
   const activeTrackingStarted = calendarDate(range.activeUserTrackingStarted, {day:"numeric",month:"long",year:"numeric"});
+  const appOpenCountingStarted = calendarDate(dashboard?.appOpens?.countingStarted, {day:"numeric",month:"long",year:"numeric"});
+  const appOpensAvailable = Number.isFinite(Number(dashboard?.appOpens?.allTime));
   const weeklyRetentionAvailable = !!(range.activeUserTrackingStarted && growthRange.previousWeekStarts && range.activeUserTrackingStarted <= growthRange.previousWeekStarts && Number.isFinite(Number(dashboard?.growth?.retention?.weekly?.previousPeriodActiveUsers)));
   const monthlyRetentionAvailable = !!(range.activeUserTrackingStarted && growthRange.previousMonthStarts && range.activeUserTrackingStarted <= growthRange.previousMonthStarts && Number.isFinite(Number(dashboard?.growth?.retention?.monthly?.previousPeriodActiveUsers)));
   const usageEvents = dashboard?.usage?.events || {};
+  // All Time is one window, so it has no average to show. The two average
+  // columns and their sort options are dropped there rather than rendered as
+  // a meaningless 0.0.
+  const showAverages = usagePeriod !== "allTime";
+  const activeSort = (!showAverages && (usageSort === "avgUsers" || usageSort === "avgUses")) ? "users" : usageSort;
+  const usageRows = useMemo(()=>{
+    const rows = Object.entries(usageLabels).map(([eventName,label])=>{
+      // Share This Month is still counted per calendar month only.
+      const monthlyOnly = eventName === "share_month_clicked";
+      if (monthlyOnly && usagePeriod !== "monthly") return null;
+      // The banner only appears in the first days of a month, so a daily or
+      // weekly count of it would read as zero for most of the month and say
+      // nothing. This month and all time are the honest windows.
+      if (eventName === "last_month_banner_clicked" && usagePeriod !== "monthly" && usagePeriod !== "allTime") return null;
+      const metric = monthlyOnly ? (dashboard?.usage?.monthlyActions?.[eventName]?.monthly || {}) : (usageEvents?.[eventName]?.[usagePeriod] || {});
+      const averageUsers = dashboard?.usage?.averages?.[eventName]?.[usagePeriod]?.users;
+      const averageUses = dashboard?.usage?.averages?.[eventName]?.[usagePeriod]?.uses;
+      return { eventName, label, monthlyOnly, metric, averageUsers, averageUses };
+    }).filter(Boolean);
+    const sortValue = row => {
+      // Share This Month has no average, so it sorts last on an average column
+      // rather than tying at zero with rows that genuinely scored zero.
+      if (activeSort === "avgUsers") return row.monthlyOnly ? -1 : Number(row.averageUsers) || 0;
+      if (activeSort === "avgUses") return row.monthlyOnly ? -1 : Number(row.averageUses) || 0;
+      if (activeSort === "uses") return Number(row.metric?.total) || 0;
+      return Number(row.metric?.users) || 0;
+    };
+    // Ties keep a stable, predictable order instead of shuffling between loads.
+    return rows.sort((a,b)=> (sortValue(b) - sortValue(a)) || a.label.localeCompare(b.label));
+  },[activeSort, dashboard, usageEvents, usagePeriod]);
   return React.createElement("div", {style:{position:"fixed",inset:0,zIndex:1200,overflowY:"auto",background:"#070c0c",color:"var(--text)",padding:"max(18px, env(safe-area-inset-top)) 16px max(28px, env(safe-area-inset-bottom))",boxSizing:"border-box"}},
     React.createElement("main", {style:{width:"100%",maxWidth:760,margin:"0 auto",textAlign:"center"}},
       React.createElement("header", {style:{position:"relative",display:"flex",alignItems:"center",justifyContent:"center",gap:12,padding:"4px 0 20px"}},
@@ -164,6 +199,17 @@ const FounderDashboard = ({onClose}) => {
             React.createElement(Metric,{label:"Monthly",value:dashboard?.activeUsers?.averages?.monthly,formatValue:average})
           ),
           activeTrackingStarted && React.createElement("p", {style:{margin:"9px 0 0",fontSize:10,lineHeight:1.4,color:"var(--text-faint)"}}, `Active-user tracking began ${activeTrackingStarted}.`)
+        ),
+        // Only rendered once the app-opens RPC is actually answering. Without
+        // this the card would show 0 / 0 / 0 before its migration is applied,
+        // which is the same false-zero problem this release set out to fix.
+        appOpensAvailable && React.createElement("section", {style:{marginBottom:20}},
+          React.createElement(MetricGroup,{title:"Total App Opens",subtitle:"Every launch, not just every person. Coming back after 30 minutes or more counts as a new open."},
+            React.createElement(Metric,{label:"Daily",value:dashboard?.appOpens?.today,detail:"Today"}),
+            React.createElement(Metric,{label:"Weekly",value:dashboard?.appOpens?.week,detail:weekOf(range.weekStarts)}),
+            React.createElement(Metric,{label:"Monthly",value:dashboard?.appOpens?.month,detail:monthOf(range.monthStarts)})
+          ),
+          appOpenCountingStarted && React.createElement("p", {style:{margin:"9px 0 0",fontSize:10,lineHeight:1.4,color:"var(--text-faint)"}}, `Exact open counts begin ${appOpenCountingStarted}. Earlier days count one open per active person, so anything spanning them reads low.`)
         ),
         React.createElement("section", {style:{marginBottom:20}},
           React.createElement(MetricGroup,{title:"Total Workout Uploads",columns:2},
@@ -232,23 +278,25 @@ const FounderDashboard = ({onClose}) => {
           React.createElement("div", {style:{display:"grid",gridTemplateColumns:"repeat(4,minmax(0,1fr))",gap:5,marginBottom:10}},
             ["daily","weekly","monthly","allTime"].map(period=>React.createElement("button", {type:"button",key:period,onClick:()=>setUsagePeriod(period),style:{border:"1px solid rgba(78,205,196,.18)",borderRadius:8,padding:"8px 4px",background:usagePeriod===period?"rgba(78,205,196,.16)":"transparent",color:usagePeriod===period?"var(--text)":"var(--muted)",fontSize:10,fontWeight:900,cursor:"pointer"}}, period === "allTime" ? "All Time" : period.charAt(0).toUpperCase() + period.slice(1)))
           ),
-          React.createElement("div", {style:{display:"grid",gap:7}}, Object.entries(usageLabels).map(([eventName,label])=>{
-            // Share This Month is still counted per calendar month only.
-            const monthlyOnly = eventName === "share_month_clicked";
-            if (monthlyOnly && usagePeriod !== "monthly") return null;
-            // The banner only appears in the first days of a month, so a daily
-            // or weekly count of it would read as zero for most of the month
-            // and say nothing. This month and all time are the honest windows.
-            if (eventName === "last_month_banner_clicked" && usagePeriod !== "monthly" && usagePeriod !== "allTime") return null;
-            const metric = monthlyOnly ? (dashboard?.usage?.monthlyActions?.[eventName]?.monthly || {}) : (usageEvents?.[eventName]?.[usagePeriod] || {});
-            const averageUsers = dashboard?.usage?.averages?.[eventName]?.[usagePeriod]?.users;
-            const averageUses = dashboard?.usage?.averages?.[eventName]?.[usagePeriod]?.uses;
-            return React.createElement("article", {key:eventName,style:{display:"grid",gridTemplateColumns:"minmax(0,1fr) auto auto auto auto",alignItems:"center",gap:8,padding:"10px 12px",borderRadius:11,border:"1px solid rgba(78,205,196,.14)",background:"rgba(11,27,26,.92)",textAlign:"left"}},
+          // Averages describe "a typical day / week / month". All Time is a
+          // single window, so an average of it is meaningless -- it is the
+          // total. The columns are dropped rather than shown as 0.0, which is
+          // what they used to read.
+          showAverages && React.createElement("div", {style:{display:"grid",gridTemplateColumns:"repeat(4,minmax(0,1fr))",gap:5,marginBottom:10}},
+            [["users","Users"],["uses","Uses"],["avgUsers","Avg Users"],["avgUses","Avg Uses"]].map(([key,label])=>React.createElement("button", {type:"button",key,onClick:()=>setUsageSort(key),style:{border:"1px solid rgba(78,205,196,.18)",borderRadius:8,padding:"7px 4px",background:activeSort===key?"rgba(78,205,196,.16)":"transparent",color:activeSort===key?"var(--text)":"var(--muted)",fontSize:10,fontWeight:900,cursor:"pointer"},"aria-pressed":activeSort===key}, label))
+          ),
+          !showAverages && React.createElement("div", {style:{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:5,marginBottom:10}},
+            [["users","Users"],["uses","Uses"]].map(([key,label])=>React.createElement("button", {type:"button",key,onClick:()=>setUsageSort(key),style:{border:"1px solid rgba(78,205,196,.18)",borderRadius:8,padding:"7px 4px",background:activeSort===key?"rgba(78,205,196,.16)":"transparent",color:activeSort===key?"var(--text)":"var(--muted)",fontSize:10,fontWeight:900,cursor:"pointer"},"aria-pressed":activeSort===key}, label))
+          ),
+          React.createElement("div", {style:{margin:"0 0 8px",fontSize:10,lineHeight:1.4,color:"var(--text-faint)"}}, `Ranked by ${sortLabels[activeSort]}, highest first.`),
+          React.createElement("div", {style:{display:"grid",gap:7}}, usageRows.map(row=>{
+            const { eventName, label, monthlyOnly, metric, averageUsers, averageUses } = row;
+            return React.createElement("article", {key:eventName,style:{display:"grid",gridTemplateColumns:showAverages?"minmax(0,1fr) auto auto auto auto":"minmax(0,1fr) auto auto",alignItems:"center",gap:8,padding:"10px 12px",borderRadius:11,border:"1px solid rgba(78,205,196,.14)",background:"rgba(11,27,26,.92)",textAlign:"left"}},
               React.createElement("div", {style:{fontSize:12,fontWeight:800,color:"var(--text)"}}, label),
               React.createElement("div", {style:{textAlign:"right"}}, React.createElement("div", {style:{fontSize:17,fontWeight:900,color:"var(--text)"}}, number(metric.users)), React.createElement("div", {style:{fontSize:9,color:"var(--text-faint)"}}, "Users")),
               React.createElement("div", {style:{textAlign:"right",minWidth:42}}, React.createElement("div", {style:{fontSize:17,fontWeight:900,color:"var(--text)"}}, number(metric.total)), React.createElement("div", {style:{fontSize:9,color:"var(--text-faint)"}}, monthlyOnly?"Clicks":"Uses")),
-              React.createElement("div", {style:{textAlign:"right",minWidth:52}}, React.createElement("div", {style:{fontSize:17,fontWeight:900,color:"var(--text)"}}, monthlyOnly?"—":average(averageUsers)), React.createElement("div", {style:{fontSize:9,color:"var(--text-faint)"}}, "Avg Users")),
-              React.createElement("div", {style:{textAlign:"right",minWidth:52}}, React.createElement("div", {style:{fontSize:17,fontWeight:900,color:"var(--text)"}}, monthlyOnly?"—":average(averageUses)), React.createElement("div", {style:{fontSize:9,color:"var(--text-faint)"}}, "Avg Uses"))
+              showAverages && React.createElement("div", {style:{textAlign:"right",minWidth:52}}, React.createElement("div", {style:{fontSize:17,fontWeight:900,color:"var(--text)"}}, monthlyOnly?"—":average(averageUsers)), React.createElement("div", {style:{fontSize:9,color:"var(--text-faint)"}}, "Avg Users")),
+              showAverages && React.createElement("div", {style:{textAlign:"right",minWidth:52}}, React.createElement("div", {style:{fontSize:17,fontWeight:900,color:"var(--text)"}}, monthlyOnly?"—":average(averageUses)), React.createElement("div", {style:{fontSize:9,color:"var(--text-faint)"}}, "Avg Uses"))
             );
           }))
         )

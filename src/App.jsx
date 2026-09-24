@@ -1913,8 +1913,14 @@ const App = () => {
     if (showStream) return;
     refreshStreamUnreadCount();
   }, [appState?.meta?.revision, refreshStreamUnreadCount, selectedGroupId, showStream]);
+  // Tapping a nav button and swiping between screens are the same event as far
+  // as usage goes. Swiping used to call setPage directly and record nothing,
+  // which on a mobile-only app silently lost most screen opens.
+  const trackPageOpen = useCallback((nextPage, fromPage)=>{
+    if (nextPage && nextPage !== fromPage) void trackUsageEvent(`${nextPage}_opened`);
+  },[]);
   const handleNavSelect = useCallback((nextPage)=>{
-    if (nextPage && nextPage !== page) void trackUsageEvent(`${nextPage}_opened`);
+    trackPageOpen(nextPage, page);
     if (showTodayLog && nextPage === page) {
       setShowTodayLog(false);
       return;
@@ -2078,6 +2084,11 @@ const App = () => {
         setDragging: setPageDragging,
         applyTransform: applyPageTransforms,
         commit: () => {
+          // No `page` comparison here: this callback's deps do not include
+          // page, so reading it would be stale. A committed swipe always lands
+          // on an adjacent screen (adjacentInBlocPage returns index +/- 1), so
+          // the destination is never the screen we are already on.
+          trackPageOpen(s.target, null);
           setPage(s.target);
           setPageSwipeTarget(null);
         }

@@ -5412,6 +5412,26 @@ async function recordCanonicalDailyAppActivity(authUserId, openedAt = new Date()
   }
 }
 
+// Marks someone active for the day without counting an app open.
+//
+// Active-user tracking used to fire only on auth-sync and upsert-profile, so a
+// member whose session was already warm could log a workout, react and browse
+// all day and never appear in Total Active Users. Janodhe logged a workout on
+// 23 Sep 2026 and was reported as a drop-off because of exactly this.
+async function markCanonicalDailyAppActive(authUserId, activeAt = new Date().toISOString()) {
+  if (!authUserId) return;
+  try {
+    await supabaseFetch("/rest/v1/rpc/mark_ante_core_daily_app_active", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ p_auth_user_id: String(authUserId), p_active_at: activeAt })
+    });
+  } catch (error) {
+    // Same rule as the other analytics writes: never block the member.
+    console.error("Daily app active mark failed:", error?.message || error);
+  }
+}
+
 async function recordCanonicalMonthlyFeatureUsage(authUserId, feature, usedAt = new Date().toISOString()) {
   if (!authUserId) return;
   try {
@@ -5484,6 +5504,19 @@ async function readCanonicalFounderDashboardBlockProfileUsage() {
   return body && typeof body === "object" && !Array.isArray(body) ? body : {};
 }
 
+// Tolerates the RPC being absent so the code can deploy before or after its
+// migration. Every other panel on the dashboard shares one Promise.all, so an
+// unguarded throw here would take the whole dashboard down, not just this card.
+async function readCanonicalFounderDashboardAppOpens() {
+  try {
+    const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_founder_dashboard_app_opens", { method:"POST", headers:{"Content-Type":"application/json",Accept:"application/json"}, body:JSON.stringify({}) });
+    const body = await response.json();
+    return body && typeof body === "object" && !Array.isArray(body) ? body : {};
+  } catch {
+    return {};
+  }
+}
+
 async function readCanonicalFounderDashboardMonthlyActions() {
   const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_founder_dashboard_monthly_actions", { method:"POST", headers:{"Content-Type":"application/json",Accept:"application/json"}, body:JSON.stringify({}) });
   const body = await response.json();
@@ -5512,11 +5545,12 @@ async function readCanonicalFounderDashboard() {
   });
   const body = await response.json();
   if (!body || typeof body !== "object" || Array.isArray(body)) return {};
-  const [rosterAndBlocMetrics, growth, usage, usageAverages, blockProfileUsage, monthlyActions, systemEvents] = await Promise.all([readFounderRosterAndActiveBlocs(), readCanonicalFounderDashboardGrowth(), readCanonicalFounderDashboardUsage(), readCanonicalFounderDashboardUsageAverages(), readCanonicalFounderDashboardBlockProfileUsage(), readCanonicalFounderDashboardMonthlyActions(), readCanonicalSystemEvents()]);
+  const [rosterAndBlocMetrics, growth, usage, usageAverages, blockProfileUsage, monthlyActions, systemEvents, appOpens] = await Promise.all([readFounderRosterAndActiveBlocs(), readCanonicalFounderDashboardGrowth(), readCanonicalFounderDashboardUsage(), readCanonicalFounderDashboardUsageAverages(), readCanonicalFounderDashboardBlockProfileUsage(), readCanonicalFounderDashboardMonthlyActions(), readCanonicalSystemEvents(), readCanonicalFounderDashboardAppOpens()]);
   return {
     ...body,
     accounts: { ...(body.accounts || {}), ...rosterAndBlocMetrics.accounts },
     activeBlocs: rosterAndBlocMetrics.activeBlocs,
+    appOpens,
     growth,
     systemEvents,
     usage: { ...usage, events: { ...(usage.events || {}), own_block_profile_opened: blockProfileUsage.events?.own_block_profile_opened || {} }, averages: { ...usageAverages, own_block_profile_opened: blockProfileUsage.averages?.own_block_profile_opened || {} }, monthlyActions: monthlyActions.events || {} }
@@ -9421,6 +9455,7 @@ export default async function handler(req, res) {
       if (payload?.action === "usage-event") {
         const authUser = await fetchAuthenticatedUser(readBearerToken(req, payload));
         await recordCanonicalUsageEvent(authUser.id, payload?.eventName);
+        await markCanonicalDailyAppActive(authUser.id);
         return res.status(204).end();
       }
 
@@ -10120,6 +10155,7 @@ export default async function handler(req, res) {
 
       if (payload?.action === "multi-log") {
         const auth = await requireAuthenticatedContext(req, payload, current);
+        await markCanonicalDailyAppActive(auth.user.id);
         const actor = resolveDisplayNameForUser(auth.state, payload.sourceGroupId, auth.user.id, auth.user.email);
         const allTargetIds = [...new Set([payload.sourceGroupId, ...(Array.isArray(payload.targetGroupIds) ? payload.targetGroupIds.filter(Boolean) : [])])];
         const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.sourceGroupId);
@@ -10194,6 +10230,7 @@ export default async function handler(req, res) {
 
       if (payload?.action === "add-log") {
         const auth = await requireAuthenticatedContext(req, payload, current);
+        await markCanonicalDailyAppActive(auth.user.id);
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
         const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
         const canonicalActor = assertGroupMembershipForUser(canonicalState, payload.groupId, auth.user.id);
