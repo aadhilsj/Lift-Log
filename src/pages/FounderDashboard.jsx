@@ -17,13 +17,9 @@ const monthOf = value => calendarDate(value, {month:"long",year:"numeric"}) || "
 const usageLabels = {
   today_opened:"Today Screen", activity_opened:"Activity Screen", month_opened:"Month Screen", history_opened:"History Screen",
   own_profile_opened:"User Settings", own_block_profile_opened:"Profile Screen", other_profile_opened:"Other Profiles", mvp_card_opened:"Week's MVP Card",
-  bloc_month_opened:"Bloc Month Card", settings_opened:"Settings", bloc_stream_opened:"Bloc Stream",
+  settings_opened:"Settings", bloc_stream_opened:"Bloc Stream",
   comment_composer_opened:"Comment Composer", reaction_picker_opened:"Reaction Picker",
   share_month_clicked:"Share This Month",
-  // Renamed from "Monthly Summary Card": it counts taps on the Month Summary
-  // expander inside the settlement screen, not the start-of-month banner. The
-  // banner is last_month_banner_clicked, which is the card that name suggested.
-  monthly_summary_card_clicked:"Month Standings Expanded",
   last_month_banner_clicked:"Last Month Banner",
   // Release 2. Named so that near-identical controls stay tellable apart at a
   // glance: "Own" is the viewer's own thing, "Other" is somebody else's.
