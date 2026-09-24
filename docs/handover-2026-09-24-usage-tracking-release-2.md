@@ -78,10 +78,23 @@ distinction on their own.
 
 ## Still open
 
-- Roughly nine in-app routes call `setPage` directly and so record no screen
-  open: opening Month from the Today card, switching Bloc, the log button.
-  Deliberately out of scope for both releases — only the swipe fix was
-  approved. Worth doing, since Today Screen is still undercounted.
+- Some `setPage` calls record no screen open. **Corrected 24 Sep:** an earlier
+  draft of this list said "opening Month from the Today card" was among them.
+  It is not. The Today card has exactly two routes into Month — the Bloc Loop
+  card and the Last Month Banner — and both are tracked, each by its own
+  event, which is the behaviour the founder asked for.
+
+  What genuinely still records nothing is **arrivals**: places the app puts
+  you at the end of a flow, rather than a screen somebody chose to open.
+  - picking a Bloc in the switcher lands on Today (`App.jsx` `onOpenGroup`)
+  - `onOpenToday` and `onStartNextMonth` returning from Month
+  - joining by invite, creating a Bloc, and signing in all land on Today
+  - `handleStreamSeasonClosedTap` jumps from the Bloc Stream to last month —
+    the one untracked route into Month, and it is not on the Today card
+
+  Switching Bloc is the one that matters: people do it often, so Today Screen
+  is still undercounted. Whether an arrival should count as an open is a real
+  question, and a different one from whether a button is tracked.
 - Every Usage number from before 24 Sep 2026 is a floor, and the four main
   tabs are undercounted *more* than tap-driven features, so cross-feature
   comparisons across that date are skewed rather than merely low.
