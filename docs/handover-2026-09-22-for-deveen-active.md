@@ -433,3 +433,36 @@ the same 8 `ante_core` tables still have RLS off.
 **2 or 3 October, after the month close**, not before. The rehearsal and your
 write-up still happen this weekend; only the production switch waits, so a
 database change is nowhere near the first real canonical rollover.
+
+---
+
+## 8. Update, 2026-09-26: the only other work this week that touches your area
+
+Short by design. Everything else shipped this week was UI (the Month ring, the
+Bloc streak, settlement reminders) and does not concern you.
+
+**Four migrations were applied to production on 24 September** by the analytics
+session. Production is now at `20260924164237`, 41 applied.
+
+- `20260924120000_fix_founder_dashboard_metrics`
+- `20260924160000_usage_tracking_release_2`
+- `20260924190000_archive_founder_usage_events`
+- `20260924193000_drop_retired_usage_events`
+
+**They follow your service-role-only model, verified on production, not assumed:**
+
+- The one new table, `ante_core.app_usage_events_archive`, has **RLS enabled**
+  and all `public` / `anon` / `authenticated` grants revoked.
+- Every new or replaced `public.*` function is revoked from `anon` and
+  `authenticated` and granted to `service_role` only.
+- **Your RLS inventory is unchanged:** the same 8 `ante_core` tables still have
+  RLS off — your seven plus the 18 Sep backup table in §2.1. Nothing new joined
+  the list.
+
+**What moved:** the founder's own usage events were moved out of
+`app_usage_events` into the archive table, so his testing stops inflating the
+dashboard. Analytics rows only. No workouts, settlements, seasons or blob data
+were touched, and nothing was dropped.
+
+**One consequence for the rehearsal:** staging was restored on 24 September from
+the 23 September backup, so it predates all four. See the note at the end of §3.
