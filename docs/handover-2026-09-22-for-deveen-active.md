@@ -246,8 +246,19 @@ Vercel list, `CRON_SECRET`, both `FOUNDER_DASHBOARD_*` and
 
 **How you get into staging without a Vercel account.** Deployment protection
 blocks non-members, so:
-- **Shareable Link** — Aadhil can generate one from the preview deployment's
-  Share button; it bypasses the login. Ask him for it.
+- **Shareable Link, already generated for you** (bypasses the Vercel login):
+
+  ```
+  https://lift-log-git-staging-rl-b02499-aadhilshahjahan11-1221s-projects.vercel.app?_vercel_share=06n1Wo6kmyoB36yUbnYiY7bIdRiKmGvx
+  ```
+
+  The host part is the **branch** address, so it survives rebuilds of
+  `staging/rls-rehearsal`; only the `_vercel_share` token is tied to the
+  current deployment, so ask Aadhil to regenerate it if the preview is rebuilt.
+  Hobby allows one shareable link per project at a time, so generating another
+  one anywhere in the project revokes this. **Revoke it when staging is
+  deleted** — anyone with the link can read staging, which still holds real
+  names and Stream messages behind the scrubbed emails.
 - **Or from a terminal:** the project has a Protection Bypass secret; send it
   as the `x-vercel-protection-bypass` header or query parameter.
 - **Or run the app locally** against staging by putting staging's URL and keys
