@@ -22,6 +22,9 @@ It also lists the meeting action items that are still open.
 | 5. What we need from you this weekend | |
 | 6. The 22 September outage, and a fix shipped | **Fixed and live** (`9cb945c`). Two follow-ups for you. |
 | 7. Update 26 Sep: what is still waiting for you | Nothing here has moved since Monday. |
+| 8. The week's other database work | Follows your model. Nothing for you to fix. |
+| 9. Wave B (Task 5) | Agreed for the week of 1 October. One runbook correction. |
+| 10. **Why RLS is now the critical path** | App Store submission is live work as of this weekend. |
 
 ---
 
@@ -549,3 +552,33 @@ BLOB_MIRROR_SKIP_ACTIONS=reaction,flag,flag-response,flag-review,add-log,multi-l
 ```
 
 Please fix the runbook line so the next person to read it does not paste it.
+
+
+---
+
+## 10. Why RLS is now the critical path (2026-09-26)
+
+Context you do not have yet, because it happened after your last session.
+
+**The App Store submission has started for real.** Aadhil has **paid the Apple
+Developer membership** and is working through **App Store Connect** with the
+Codex session now. So the submission is no longer a date on a plan; it is in
+progress this weekend.
+
+**That makes the RLS work the blocker, and it is the only one left on the
+technical side.** Your own 09-14 note called it "an App Store blocker", and
+everything it was waiting on is now cleared:
+
+- The inventory verdict is in §1: **not exposed**, so the fix is the low-risk
+  shape you described — enable RLS, no client policies.
+- Staging exists and all four of your verification checks pass (§3).
+- The rehearsal preview and a link you can open are in §3.
+
+**What that means in practice:** the fix itself is small, but it is the one
+item with a real dependency on you. If you can write it this weekend, Aadhil
+runs it on staging, we exercise Stream, comments, reactions and solo mode, and
+it goes to production in the week of 1 October (§9 explains why after the close,
+not before).
+
+**Nothing else about the submission needs you.** The remaining App Store work is
+operational — TestFlight, push notifications, screenshots — and Codex is on it.
