@@ -17,7 +17,7 @@ It also lists the meeting action items that are still open.
 |---|---|
 | 1. RLS inventory: the verdict (your Step 5) | **Done 2026-09-22.** Not exposed. |
 | 2. Two findings outside your seven tables | For you to decide |
-| 3. Staging | **Built and ready 2026-09-24.** Scrubbed, wired, signed into. |
+| 3. Staging | **Built, and all four of your verifications pass** (2026-09-26). |
 | 4. Other things for you | Open |
 | 5. What we need from you this weekend | |
 | 6. The 22 September outage, and a fix shipped | **Fixed and live** (`9cb945c`). Two follow-ups for you. |
@@ -224,6 +224,37 @@ The original plan and costs, for the record:
    build a branch whose commit was already built for production). Rebuild it
    from `main` when you start, so you are testing today's app. Delete the branch
    with the staging project.
+
+**Your four verification checks: all four pass, run 2026-09-26.**
+
+| Your check | Result |
+|---|---|
+| 1. A preview loads and can be signed into with a staging account | **Pass.** Signed in as Aadhil, all 6 Blocs visible. |
+| 2. The admin `blob-mirror-dependency-report` on the preview answers to the **staging** PIN | **Pass, both directions.** Staging PIN → HTTP 200. **Production's PIN → HTTP 401**, refused. |
+| 3. `npm run parity:gate` with staging credentials reports on staging | **Pass.** 9 checks, 0 failures, 0 warnings, **blobRevision 2560** — staging's, not production's 2635. |
+| 4. **The decisive one:** a visible change on staging does not appear in production | **Pass.** A Stream message sent from the preview into Sweat Equity at 16:53 UTC exists on staging and is **absent from production** (0 matches, and no production Stream messages at all in that window). |
+
+**A finding from doing check 2: `ADMIN_PIN` was scoped to "Production and
+Preview".** So every preview deployment was running with the production admin
+PIN. It has been narrowed to Production, and Preview now has its own PIN. This
+is the same shape as `SUPABASE_ANON_KEY` (build log step 4): **Task 4 cut
+previews off from the production database, but not from production secrets.**
+Worth a sweep of the remaining shared variables when you next look — from the
+Vercel list, `CRON_SECRET`, both `FOUNDER_DASHBOARD_*` and
+`BLOB_MIRROR_SKIP_ACTIONS` are Production-only and clean, while the three
+`ENABLE_*` flags are shared and harmless.
+
+**How you get into staging without a Vercel account.** Deployment protection
+blocks non-members, so:
+- **Shareable Link** — Aadhil can generate one from the preview deployment's
+  Share button; it bypasses the login. Ask him for it.
+- **Or from a terminal:** the project has a Protection Bypass secret; send it
+  as the `x-vercel-protection-bypass` header or query parameter.
+- **Or run the app locally** against staging by putting staging's URL and keys
+  in your own `.env.local`.
+- **Signing in as a member:** every staging email is now fake, so say which
+  address you want and Aadhil will point one staging account at it. Note the
+  template gotcha in build log step 6.
 
 **One open decision for you: staging is 4 migrations behind production.**
 Staging is at `20260918063953`; production is at `20260924164237` after the
@@ -466,3 +497,44 @@ were touched, and nothing was dropped.
 
 **One consequence for the rehearsal:** staging was restored on 24 September from
 the 23 September backup, so it predates all four. See the note at the end of §3.
+
+
+---
+
+## 9. Wave B (Task 5): agreed for after the 1 October close
+
+Raised by Aadhil on 2026-09-26. Recorded here so it is not lost.
+
+**Position: Wave B happens the week of 1 October, after the rollover is
+verified clean — not before.**
+
+Your own 09-20 handover is the reason. You wrote that the rollover conditions
+are favourable because `add-log` and `multi-log` still mirror to the blob, so
+"the blob is a complete parallel record while the close runs on canonical".
+Wave B removes exactly that parallel record. Doing it this weekend would strip
+the safety net three days before the first real canonical month close, which is
+the one event where a mistake freezes money numbers permanently. Nothing is lost
+by waiting: the 48–72h soak the runbook asks for also wants a quiet window,
+which a month boundary is not.
+
+**Sequence agreed:** 1 October closes → run your four post-rollover checks →
+if clean, Wave B that week → soak 48–72h with the gate daily.
+
+**One correction to your runbook, `docs/blob-retirement-runbook-aadhil-side-2026-09-06.md`
+§Task 5.** The copy-paste line there is:
+
+```
+BLOB_MIRROR_SKIP_ACTIONS=reaction,flag,flag-response,flag-review,delete-log,add-log,multi-log
+```
+
+**`delete-log` must not be in it.** It was deliberately removed from the live
+value on 13 September — that removal was the fix for the delete-log divergence
+your own 09-20 gate run confirmed clean (zero phantoms, zero missing). Pasting
+that line would re-introduce the 19 July → 9 September bug. The correct Wave B
+value is the current live four plus the two log actions:
+
+```
+BLOB_MIRROR_SKIP_ACTIONS=reaction,flag,flag-response,flag-review,add-log,multi-log
+```
+
+Please fix the runbook line so the next person to read it does not paste it.
