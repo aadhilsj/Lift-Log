@@ -17,10 +17,11 @@ It also lists the meeting action items that are still open.
 |---|---|
 | 1. RLS inventory: the verdict (your Step 5) | **Done 2026-09-22.** Not exposed. |
 | 2. Two findings outside your seven tables | For you to decide |
-| 3. Staging | Not built yet. Plan and cost agreed. |
+| 3. Staging | **Built and ready 2026-09-24.** Scrubbed, wired, signed into. |
 | 4. Other things for you | Open |
 | 5. What we need from you this weekend | |
 | 6. The 22 September outage, and a fix shipped | **Fixed and live** (`9cb945c`). Two follow-ups for you. |
+| 7. Update 26 Sep: what is still waiting for you | Nothing here has moved since Monday. |
 
 ---
 
@@ -145,11 +146,13 @@ in the same migration as the RLS work.
 
 ---
 
-## 3. Staging: not built yet
+## 3. Staging: BUILT AND READY (updated 2026-09-24)
 
-**Aadhil will create it this week, following your spec,** so you can rehearse
-the migration at the weekend. The plan and costs, checked against the Supabase
-account:
+**Built on 2026-09-24 following your spec.** Project `fero-staging`, ref
+**`okwrrspdmoluxatyokzh`**, region `eu-west-1`, restored from the 23 Sep 07:48
+UTC backup. Actual cost **$9.68/month** billed hourly, ~$0.30/day.
+
+The original plan and costs, for the record:
 
 - **Cost:**
   - The org is on **Pro**. Its $10 compute credit already covers production, so
@@ -166,14 +169,67 @@ account:
 - **Status of each step in your spec:** see the log at the bottom of this
   section, which gets filled in as each step is done.
 
-**Two decisions for Aadhil, recorded here when made:**
+**The two decisions you asked for, now made:**
 
-1. The blob scrub: scrub the JSON too, or accept real names in staging's blob.
-2. Whether to delete staging after the RLS rollout.
+1. **The blob scrub: emails yes, names and message bodies no.** Emails are the
+   login identifier and the real risk. Names and message text were left because
+   Fero matches people **by email and by display name** across the blob and
+   canonical: scrubbing names in one store and not the other makes the copy
+   misbehave for reasons unrelated to RLS, which would have burned your weekend
+   chasing a phantom. Only you and Aadhil can open the copy, and it is deleted
+   after the rollout.
+2. **Staging gets deleted** once the RLS fix is live on production.
 
-**Staging build log:**
+**Staging build log (all steps verified):**
 
-- *(not started)*
+1. **Restored** from the 23 Sep backup. Verified complete against production:
+   17 Blocs, 46 members, 48 sign-in accounts, 48 months, 1717 workouts,
+   388 Stream messages, 219 comments. The 8 RLS-off tables are present, so the
+   rehearsal exercises the real thing.
+2. **Scrubbed, emails only, consistently in all three stores** (auth users incl.
+   their metadata and identities, `ante_core.profiles`, and the blob's
+   `state.profiles`), so every person's address matches across stores.
+   Three things your spec did not cover, found by sweeping every text and
+   jsonb column in `public`, `ante_core` and `auth`:
+   - **2,622 rows in `public.lift_log_backups`**, each a full blob snapshot
+     with every email and name. Deleted on staging.
+   - **13 `lift_log_projection_*` rows** with emails (the abandoned June
+     tables). Scrubbed.
+   - **A recovery token in `auth.one_time_tokens`** still holding a real
+     address. Deleted with the other stale tokens.
+   Verified: zero email-like values remain outside `@staging.invalid`, and
+   auth/canonical/blob agree for all 46 members in both directions.
+3. **One real email restored on purpose:** Aadhil's own account
+   (`aadhil101@gmail.com`), because sign-in needs a deliverable address. It is
+   the only real address on the copy.
+4. **Vercel wired, Preview scope only.** `SUPABASE_URL`, `SUPABASE_ANON_KEY`
+   and `SUPABASE_SERVICE_ROLE_KEY` now have Preview-scoped entries pointing at
+   staging. `SUPABASE_ANON_KEY` had been scoped to **preview+production** and
+   was narrowed to Production before adding the staging one — worth knowing,
+   because it means previews were still being handed production's anon key
+   after Task 4.
+   `ENABLE_LOCAL_DEV_OTP` and `ENABLE_LOCAL_PREVIEW_AUTH` are deliberately
+   unset, so staging uses real auth, as your spec wanted.
+5. **Verified by behaviour, not by eye:** the preview's `?config=auth` reports
+   `okwrrspdmoluxatyokzh`, and production's still reports `bpvvvqjsfwmmfjvvijkd`.
+6. **Signed into successfully** on a preview, real Blocs visible.
+   - **Sign-in gotcha:** a restore does not copy auth settings or email
+     templates, so staging sent Supabase's default *magic link* instead of the
+     6-digit code Fero's screen asks for. Fixed by putting `{{ .Token }}` in
+     staging's Magic Link template. Worth adding to your spec.
+   - Workout photos are missing, as your spec predicted: storage is not
+     restored.
+7. **A preview of current `main` exists for the rehearsal:** branch
+   `staging/rls-rehearsal` (an empty commit on top of `main`; Vercel will not
+   build a branch whose commit was already built for production). Rebuild it
+   from `main` when you start, so you are testing today's app. Delete the branch
+   with the staging project.
+
+**One open decision for you: staging is 4 migrations behind production.**
+Staging is at `20260918063953`; production is at `20260924164237` after the
+usage-tracking work. It does not touch the seven tables, so the RLS rehearsal
+is still valid. Say if you want an exact match — a fresh restore plus rescrub
+takes about fifteen minutes, or the four migrations can be applied to staging.
 
 ---
 
@@ -209,7 +265,7 @@ account:
 
 1. Write the RLS migration: the seven tables, plus the §2.1 backup table and
    the §2.2 grants if you agree.
-2. Rehearse it on staging, if §3 shows staging is built.
+2. Rehearse it on staging — **it is built and waiting** (§3).
 3. Decide on §2.1 and §2.2.
 4. Merge `test/month-close-allowance-regression` before 1 October.
 5. Add `test:auth-outage` to the CI suite list (§6.3).
@@ -343,3 +399,37 @@ way. The idea is a small outbox:
 
 Planned for **after 1 October**. Who builds it is not decided yet. Flag if you
 see a reason it touches your side more than expected.
+
+
+---
+
+## 7. Update, 2026-09-26: what is still waiting for you
+
+Checked on Saturday 26 September at 17:50. Nothing in this handover has moved
+since Monday, and there is no RLS migration anywhere in the repo.
+
+**Still open, in the order that matters:**
+
+1. **Merge `test/month-close-allowance-regression` — 1 October is Thursday.**
+   Still unmerged: `main` differs from it by 26 lines in
+   `scripts/test-month-close-canonical.mjs`. Note a commit on
+   `codex/app-store-readiness` says "mark October month-close merge complete";
+   that refers to the month-close PR from 20 September, not this test.
+2. **Write the RLS migration.** The verdict it was waiting on has been in §1
+   since Monday: **not exposed**, so it is your low-risk shape — enable RLS, no
+   client policies — plus the §2.1 backup table and the §2.2 grants if you agree.
+3. **Add `test:auth-outage` to `ci.yml`.** Still absent. The CI list has grown
+   to 23 suites in the meantime (`test:workout-flow-local`,
+   `test:workout-race-local`, and the two Playwright suites now run), so the
+   omission is just this one.
+4. **§6.4, the server region.** Untouched.
+
+**State of production at the time of checking:** healthy. Last five deploys and
+CI runs all green, the live app answers in ~0.1s and still points at
+`bpvvvqjsfwmmfjvvijkd`, 1797 workouts, blob revision 2633, 17 open seasons, and
+the same 8 `ante_core` tables still have RLS off.
+
+**Sequencing request from Aadhil:** apply the RLS migration to production on
+**2 or 3 October, after the month close**, not before. The rehearsal and your
+write-up still happen this weekend; only the production switch waits, so a
+database change is nowhere near the first real canonical rollover.
