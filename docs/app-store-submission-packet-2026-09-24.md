@@ -11,14 +11,14 @@ action. Items marked **Codex** can be prepared in the repository. Items marked
 ## Current release position
 
 - Branch: `codex/app-store-readiness`
-- Code baseline: `c70263b`
-- `origin/main`: `1600a2d`; it is already an ancestor of this branch, so there
-  is no newer main commit to merge today.
+- Code baseline: current `origin/main` is `9bdd263`.
+- The shipped App Store server/photo/account-deletion work is already on
+  `main`; do not re-land it from this branch.
 - App: Fero, bundle ID `com.aadhilsj.fero`, intended price Free.
 - Version/build currently in the Xcode project: 1.0 / 1.
 - V1 has no Premium paywall, subscription, or in-app purchase.
-- The native app is configured to talk to the production API; therefore the
-  App Store server work must reach `main` before a final TestFlight build.
+- The native app is configured to talk to the production API; the final
+  TestFlight build must therefore use the shipped `main` server behavior.
 
 ## Copy ready for App Store Connect
 
@@ -134,6 +134,15 @@ Photo Library — to choose workout and profile photos.
   while an open report still refers to it. Apple expects reports to be
   actioned within 24 hours. This is parked for a product decision and is not a
   submission blocker. Do not code it during the submission work.
+- **Account deletion can partially complete if the final Auth deletion fails**
+  — Owner: Codex/Deveen to verify in the restored staging copy; do not
+  redesign the current ordering. The shipped path removes the member's
+  storage and canonical account data before it asks Supabase Auth to delete the
+  login. If that final Auth step fails, the member's app data may already be
+  gone while the login remains and the request reports an error. This is an
+  edge case to verify and document, not a normal-path submission blocker. The
+  `test:account-deletion` script is only a source-text ordering guard; it is
+  not evidence that deletion works end to end.
 
 ## Owner checklist
 

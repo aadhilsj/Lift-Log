@@ -15,46 +15,50 @@ safe for release.
 
 ## Plain-English status
 
-Fero is **not ready to submit today**, but the social-safety work is now much
-more complete. A member can block another current Bloc member for themselves,
-report a Stream message, workout comment, workout post, or profile, and a
-founder can hide a reported message/comment/workout post from members without
-deleting it. The founder can restore it if the decision was wrong.
+Fero is **not ready to submit today**, but the social-safety and photo-delivery
+work is now much more complete. A member can block another current Bloc member
+for themselves, report a Stream message, workout comment, workout post, or
+profile, and a founder can hide a reported message/comment/workout post from
+members without deleting it. The founder can restore it if the decision was
+wrong.
 
 The App Store branch contains this work. Some database additions were applied
 to the live Supabase project; a function replacement unintentionally removed
 the workout `activity` output and was subsequently repaired, as detailed in the
 correction below. No moderation actions were taken on member content.
-The remaining major technical blocker is the older database access-control/RLS
-rollout owned by Deveen. The remaining founder-owned blockers are public legal
-pages, a support email/domain, App Store Connect setup, reviewer access, and
-final device/TestFlight testing.
+The signed-photo API, Bloc Stream signing, log-workout preview, and account
+deletion path are now on `main`. The private-bucket migration is deliberately
+still unapplied. The remaining major technical blocker is the older database
+access-control/RLS rollout owned by Deveen, plus real staging evidence for
+account deletion. The remaining founder-owned blockers are publishing the
+reviewed legal pages, App Store Connect setup, reviewer access, and final
+device/TestFlight testing.
 
-**Current App Store review readiness: 55%.** This is a planning measure, not an
+**Current App Store review readiness: 74%.** This is a planning measure, not an
 Apple approval estimate. The build has not yet been archived or installed via
-TestFlight on a real iPhone; the App Store server code is not on `main` while
-the iOS app talks to production; and legal, seller and App Store Connect setup
-are not started.
+TestFlight on a real iPhone; Deveen's RLS/rehearsal evidence is still pending;
+the private-bucket migration is not yet safe to run; and the legal pages,
+seller details, screenshots, reviewer account, and final App Store Connect
+submission fields still need to be completed.
 
 ### Readiness breakdown — 2026-09-18
 
-- **Done — Codex:** App Store branch code, UGC report/block/moderation paths,
-  Capacitor CORS support, private-photo signing code with a 24-hour signed-link
-  lifetime, Premium label removal, activity-reader correction, and camera/photo
-  permission strings.
-- **In progress — Codex:** finish branch verification and prepare a tested,
-  founder-approved promotion of the App Store server code to `main` before
-  submission. **Deveen:** RLS rollout plus the isolated-copy moderation and
-  month-close rehearsal. The canonical month-close code is already on `main`
-  ahead of 1 October. **Founder/Deveen:** launch scaling work and the agreed
-  load test.
-- **Not started — Codex + founder approval:** merge App Store server code to
-  `main` before submission. **Founder:** provide Apple signing/account access
-  and a real iPhone; Codex can prepare/archive the build, then the founder
-  installs it through TestFlight. **Founder/legal:** support email/domain,
-  public legal pages, account-deletion policy and seller identity. **Founder
-  with Codex support:** App Store Connect setup, reviewer account and truthful
-  screenshots.
+- **Done — Codex/main:** UGC report/block/moderation paths, Capacitor CORS,
+  signed photo delivery with a 24-hour lifetime, Bloc Stream photo signing,
+  the log-workout photo preview fix, account-deletion implementation,
+  Premium-label removal, activity-reader correction, and camera/photo
+  permission strings. Support email routing and the domain are configured;
+  the founder's test message arrived but initially landed in Spam.
+- **In progress — Codex:** verify the shipped deletion path in staging and
+  prepare the final signed build. **Deveen:** RLS rollout plus the isolated-copy
+  moderation/month-close rehearsal. The canonical month-close code is already
+  on `main` ahead of 1 October. **Founder/Deveen:** launch scaling work and the
+  agreed load test.
+- **Not started or awaiting founder action:** real-iPhone TestFlight install,
+  final legal-page publication, seller identity, App Store Connect privacy and
+  age-rating fields, reviewer account, seeded review Bloc, and final
+  screenshots. The private-bucket SQL remains founder-controlled and must wait
+  for successful production/staging signing verification and a backup.
 
 ## ⚠ Correction (added 2026-09-18 by Claude): the live database change was not inert
 
@@ -94,11 +98,11 @@ Read `AGENTS.md` first. In particular:
 
 - Explain in plain English; the founder is not a developer.
 - Keep App Store feature work on Preview. Do not merge Preview app code to
-  `main` quietly. The App Store server code (report/block/moderation,
-  `capacitor://` CORS and signed photo links) is not on `main`, while the iOS
-  app talks to production; it must reach `main` before submission through a
-  founder-approved, tested promotion. Do not merge or deploy it without that
-  approval.
+  `main` quietly. The report/block/moderation, `capacitor://` CORS, signed
+  photo-delivery, Bloc Stream signing, and account-deletion changes now present
+  on `main` were founder-approved promotions; do not re-land them. Any future
+  promotion still requires explicit approval and testing because the iOS app
+  talks to production.
 - Claude/other agents can be in this repository. Never switch the shared
   worktree's branch, never use `git add -A`, and stage only named files.
 - Never deploy production without an explicit request.
@@ -119,15 +123,64 @@ Read `AGENTS.md` first. In particular:
   asked Codex to apply them. Do not treat that as standing permission for future
   production database changes.
 
+## Support email — configured 2026-09-27
+
+- Public support address: `support@joinfero.app`.
+- Cloudflare Email Routing forwards it to the verified inbox
+  `fero.support@gmail.com`.
+- End-to-end delivery was tested from the founder's main Gmail account. The
+  message arrived successfully but initially landed in Spam; mark legitimate
+  support messages as **Not spam** while Gmail learns the new sender pattern.
+- Outbound-reply follow-up: the free Gmail + Cloudflare Email Routing setup is
+  inbound-only. Gmail's **Send mail as** flow asks for an SMTP server username
+  and password, and Cloudflare Email Routing does not provide outbound SMTP
+  credentials. Do not invent or enter credentials. Before launch, either keep
+  replies coming from `fero.support@gmail.com` or choose a separate outbound
+  mail provider/Google Workspace and configure it deliberately.
+
+## Photo privacy rollout ordering — corrected 2026-09-27
+
+- Do **not** apply `supabase/migrations/20260916120000_make_photo_buckets_private.sql`
+  yet. Its header correctly requires the matching signing API to be deployed
+  and verified first.
+- Read-only checks found that production photo references are durable public
+  Supabase URLs. The signing API and proxy removal are now on `main`, including
+  Bloc Stream signing and the log-workout preview fix, but flipping the buckets
+  still requires verification because it would affect existing references.
+- Correct order: (1) verify the shipped signing API while buckets remain
+  public, including existing public-style references and every photo surface,
+  (2) repeat the checks on Deveen's restored copy, (3) take the normal backup,
+  (4) have the founder run the bucket-private migration, and (5) verify
+  authenticated photo loading and unauthenticated rejection.
+- The founder controls the production SQL. No bucket change was applied in
+  this review.
+
+## Production updates after candidate review — 2026-09-27
+
+- `0a541f1` is on `main`: Bloc Stream photo references are signed in the
+  `stream-list` response, and the log-workout modal previews the cropped image
+  before submission. Do not re-land this commit.
+- `9bdd263` is on `main`: the account-deletion path now attempts storage,
+  canonical account-data, and Supabase Auth cleanup in that order. Do not
+  re-land this commit.
+- The source-text `test:account-deletion` guard checks implementation order
+  only; it is not end-to-end deletion evidence. A sandbox test found that if
+  the final Auth deletion fails, application data may already be gone while the
+  login remains and the request reports an error. Claude is verifying the
+  normal path and this edge case in `fero-staging` with a throwaway member.
+- The private-bucket migration remains unapplied. Do not run it until signing
+  is verified on the live public buckets and the restored copy, then backed up;
+  the founder runs the SQL.
+
 ## Repository and branch map
 
 | Item | State at handover |
 | --- | --- |
 | Repository | `https://github.com/aadhilsj/Lift-Log.git` |
 | Preview branch | `codex/app-store-readiness` |
-| Preview HEAD at this handover edit | `cbdb813` (latest pushed App Store readiness commit) |
-| Latest main observed | `6a66dff docs: Deveen's handover §12 — Solo payments live now, activity regression, RLS findings` |
-| Preview/main relationship | Latest `origin/main` is merged into Preview. The App Store server changes reach `main` only through a founder-approved, tested promotion; no quiet merge. |
+| Preview HEAD at this handover edit | `42e9be0` (local branch HEAD; this handover edit is uncommitted) |
+| Latest main observed | `9bdd263` — account deletion photos and auth identity |
+| Preview/main relationship | The shipped App Store server/photo/account-deletion changes are already on `main`; do not re-land them. Future changes still require a founder-approved, tested promotion. |
 | Main documentation already added from Preview | `33de0ce` (docs-only cherry-pick of the blob/RLS handover). No Preview app code was moved with it. |
 | Current release target | Free, invite-only Fero V1. No in-app purchases or premium gate in the submission build. |
 
