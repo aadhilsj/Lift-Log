@@ -19,12 +19,13 @@ It also lists the meeting action items that are still open.
 | 2. Two findings outside your seven tables | For you to decide |
 | 3. Staging | **Built, and all four of your verifications pass** (2026-09-26). |
 | 4. Other things for you | Open |
-| 5. What we need from you this weekend | |
+| 5. What we need from you this weekend | **Most of it done 26-27 Sep** — see §11. |
 | 6. The 22 September outage, and a fix shipped | **Fixed and live** (`9cb945c`). Two follow-ups for you. |
 | 7. Update 26 Sep: what is still waiting for you | Nothing here has moved since Monday. |
 | 8. The week's other database work | Follows your model. Nothing for you to fix. |
 | 9. Wave B (Task 5) | Agreed for the week of 1 October. One runbook correction. |
 | 10. **Why RLS is now the critical path** | App Store submission is live work as of this weekend. |
+| 11. Rehearsal state (27 Sep) | **Your migration is applied on staging and verified.** |
 
 ---
 
@@ -319,13 +320,12 @@ takes about fifteen minutes, or the four migrations can be applied to staging.
    merge or a deploy, and pushes to `main` deploy to Vercel before CI finishes.
    Making it a required check would mean going back to PRs. That's a process
    decision for Aadhil, so it's flagged, not changed.
-3. **`npm run sandbox:seed` fails** with "Rollover did not produce a closed
-   month". It still creates the Bloc and September logs.
-   - **Cause unconfirmed.** One candidate is in your area: month close now skips
-     a Bloc whose canonical logs are empty, and the sandbox answers every
-     canonical RPC with `[]`.
-   - Another session is looking at it, because settlement reminders can't be
-     tested without a closed month.
+3. **`npm run sandbox:seed`: cause confirmed and closed, 27 Sep.** It failed
+   with "Rollover did not produce a closed month". You have confirmed the cause
+   was your month-close rebuild refusing to close a month when canonical is
+   empty while the blob counted, and that it was already fixed on 22 Sep by
+   `read_ante_core_current_logs` mirroring the blob. This section previously
+   said "cause unconfirmed" — no longer open.
 4. **Open from the 20 September meeting, not yet covered by a doc:**
    - The traffic incident (five simultaneous users). This is your 09-15 scaling
      doc, still not started.
@@ -493,10 +493,13 @@ since Monday, and there is no RLS migration anywhere in the repo.
 2. **Write the RLS migration.** The verdict it was waiting on has been in §1
    since Monday: **not exposed**, so it is your low-risk shape — enable RLS, no
    client policies — plus the §2.1 backup table and the §2.2 grants if you agree.
-3. **Add `test:auth-outage` to `ci.yml`.** Still absent. The CI list has grown
-   to 23 suites in the meantime (`test:workout-flow-local`,
-   `test:workout-race-local`, and the two Playwright suites now run), so the
-   omission is just this one.
+3. **Add `test:auth-outage` to `ci.yml`.** **Done by you, 26 Sep** — it is in
+   the run array. **Correction to what this section said:** it claimed the CI
+   list had "grown to 23 suites" including `test:workout-flow-local`,
+   `test:workout-race-local` and the two Playwright suites. That was wrong, and
+   your explanation is right: grepping `test:` picked up the trailing comment
+   block listing the *exclusions*. The run array holds **21** — 20 `test:*`
+   plus `parity:gate:test`. Verified by reading the array, not grepping.
 4. **§6.4, the server region.** Untouched.
 
 **State of production at the time of checking:** healthy. Last five deploys and
@@ -612,3 +615,72 @@ not before).
 
 **Nothing else about the submission needs you.** The remaining App Store work is
 operational — TestFlight, push notifications, screenshots — and Codex is on it.
+
+
+---
+
+## 11. Rehearsal state: your migration is applied on staging and verified (2026-09-27)
+
+**The database password was not needed.** DDL on staging runs fine through the
+Supabase MCP (it connects as `postgres`, the table owner), which is the same
+route that created and dropped the scrub helpers. So
+`20260926120000_enable_rls_on_server_only_tables.sql` was applied to
+`okwrrspdmoluxatyokzh` unchanged — your fallback option, done for you.
+**Nothing was applied to production.**
+
+**Before applying, the two claims your migration's safety rests on were checked
+on staging rather than taken on trust:**
+
+- `service_role` really does have `rolbypassrls = true`.
+- Every `public.*ante_core*` function is `SECURITY DEFINER` (zero are not) and
+  is owned by **`postgres`**, the same owner as the `ante_core` tables — so the
+  owner exemption applies.
+- No `ante_core` table has `FORCE ROW LEVEL SECURITY`, which would have broken
+  exactly those functions.
+
+**Your two verification queries, after applying — both return the expected
+nothing:**
+
+| Check | Result |
+|---|---|
+| `ante_core` tables still without RLS | **(none)** |
+| Projection tables a browser role can still touch | **0 grants** |
+| Projection tables with RLS on | 15 |
+| `FORCE ROW LEVEL SECURITY` anywhere in `ante_core` | 0 |
+
+**Server-side reads still work** after the change: 389 Stream messages, 219
+comments, 3 solo requests, `revision_clock` readable at 4584, and
+`settlement_confirmations` untouched with its 2 rows and its own policies.
+
+**Anon probes from outside, after the change** (staging's publishable key):
+
+| Request | HTTP |
+|---|---|
+| `bloc_messages`, default schema | 404 |
+| `bloc_messages`, `Accept-Profile: ante_core` | 401 |
+| `solo_requests`, `Accept-Profile: ante_core` | 401 |
+| `lift_log_projection_profiles` | **401** (was 200-with-0-rows) |
+| `lift_log_state` | 401 |
+| `rpc/read_ante_core_revision` | 401 |
+
+The projection change is visible there: it used to answer `200` with zero rows
+because RLS was the only thing holding, and now it refuses outright. That is
+the single-point dependency you flagged, gone.
+
+**What is still yours:** the after-comparison through the app — the
+`SECURITY DEFINER` path end to end. Sign in at the shareable link in §3 as
+`deveen2002@gmail.com` ("Tim", admin of the single-member Bloc FIMctive) and
+exercise Stream read/send/react/unread, workout comments and comment
+reactions, solo request and review, sign-in and bootstrap, and logging a
+workout. Note all free text on staging reads `[scrubbed]` by design (§3).
+
+**Accepted, no argument:**
+
+- The §2.1 backup table included rather than dropped, and the projection grants
+  revoked rather than the tables dropped. Both are the right call; dropping
+  ~280 rows deserves its own decision with a backup, as you say.
+- `"regions": ["dub1"]` after 1 October, not next to the close. Someone should
+  confirm Hobby allows region selection before planning on it.
+- §6.5's offline outbox touching month close, because a 30 September log
+  retried on 1 October must still count for September. Noted for whoever builds
+  it; it is planned for after the close.
