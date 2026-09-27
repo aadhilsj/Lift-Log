@@ -266,9 +266,39 @@ blocks non-members, so:
   as the `x-vercel-protection-bypass` header or query parameter.
 - **Or run the app locally** against staging by putting staging's URL and keys
   in your own `.env.local`.
-- **Signing in as a member:** every staging email is now fake, so say which
-  address you want and Aadhil will point one staging account at it. Note the
-  template gotcha in build log step 6.
+- **Signing in as a member: done, 2026-09-27.** Sign in as
+  **`deveen2002@gmail.com`**, which is the staging account **"Tim"** — admin of
+  **FIMctive**, a Bloc with one member (him), no Stream messages and no
+  comments. Chosen deliberately so you can exercise Stream send/read/react,
+  comments and Solo request+review end to end **without reading any real
+  member's conversations**. Note the template gotcha in build log step 6: if the
+  email arrives as a magic link rather than a 6-digit code, say so.
+- **Staging URL:** `https://okwrrspdmoluxatyokzh.supabase.co`. The service-role
+  key comes from Aadhil directly, not from a doc.
+
+**Correction to the scrub decision in this section (2026-09-27): all
+member-written text is now blanked after all.** The earlier decision kept
+message bodies, justified by Fero matching people across stores — that
+reasoning holds for *display names*, which are still kept, but never applied to
+free text. Nothing matches on a note or a message body, so keeping them bought
+nothing and left real conversations readable by anyone signed into staging.
+Blanked to `[scrubbed]`, with row counts unchanged so app behaviour is
+unaffected:
+
+| Where | Rows blanked |
+|---|---|
+| `ante_core.bloc_messages.body` | 388 |
+| `bloc_messages.payload` (`note`, `latestComment` in 131 cards) | 131 |
+| `workout_log_comments.body` | 219 |
+| `workout_logs.note` | 989 |
+| `solo_requests.reason` / `sit_out_requests.reason` | 3 / 13 |
+| Blob: current-log notes, and `monthHistory.logsByUser` notes | 363 + 626 |
+| Both `ante_core.backup_*` tables | all rows |
+
+Verified after: 389 Stream rows, 1717 workouts, 17 Blocs, 46 members — all
+still present; zero non-blank values left in any of those fields; and
+production checked directly for contamination (no `[scrubbed]` values, no
+`deveen2002@gmail.com`, its own 410 message bodies and 1046 notes intact).
 
 **One open decision for you: staging is 4 migrations behind production.**
 Staging is at `20260918063953`; production is at `20260924164237` after the
