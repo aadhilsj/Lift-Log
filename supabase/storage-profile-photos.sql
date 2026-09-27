@@ -7,7 +7,7 @@
 --
 -- BUCKET:
 --   Name:             profile-photos
---   Public:           true
+--   Public:           false (delivered only through server-issued signed URLs)
 --   File size limit:  5 MB
 --   Allowed MIME:     image/jpeg, image/png, image/gif, image/webp
 --
@@ -15,7 +15,9 @@
 --   {auth_user_id}/{Date.now()}.jpg
 --
 -- APP MODEL:
---   The public URL is stored once on ante_core.profiles.profile_photo_url.
+--   A durable internal storage reference is stored once on
+--   ante_core.profiles.profile_photo_url. The API exchanges it for a
+--   short-lived signed URL only after it scopes readable state to a Bloc member.
 --   Profile photo edits happen only from the main profile page entered via the
 --   Bloc switcher. All Bloc/member surfaces render the same global URL.
 
@@ -23,7 +25,7 @@ insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_typ
 values (
   'profile-photos',
   'profile-photos',
-  true,
+  false,
   5242880,
   array['image/jpeg', 'image/png', 'image/gif', 'image/webp']
 )
