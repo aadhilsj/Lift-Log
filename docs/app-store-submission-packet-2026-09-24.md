@@ -11,7 +11,7 @@ action. Items marked **Codex** can be prepared in the repository. Items marked
 ## Current release position
 
 - Branch: `codex/app-store-readiness`
-- Current commit: `5a80df4`
+- Current commit: `c70263b`
 - `origin/main`: `1600a2d`; it is already an ancestor of this branch, so there
   is no newer main commit to merge today.
 - App: Fero, bundle ID `com.aadhilsj.fero`, intended price Free.
@@ -119,6 +119,21 @@ Permissions:
 Camera — to take workout and profile photos.
 Photo Library — to choose workout and profile photos.
 ```
+
+## Known issues — not submission blockers
+
+- **Orphaned profile-photo objects when a member replaces a photo** — Owner:
+  Claude, after the build is submitted. Replacing a profile photo currently
+  repoints the profile URL but leaves the previous private storage object in
+  place. This is not visible to members, is not covered by the workout-photo
+  cleanup, and is not a submission blocker. Do not change this during the
+  submission work.
+- **Reported workout photos can be deleted before an open report is judged** —
+  Owner: Aadhil, product decision first; implementation after that decision.
+  The current cleanup can remove the stored photo after about 72 hours even
+  while an open report still refers to it. Apple expects reports to be
+  actioned within 24 hours. This is parked for a product decision and is not a
+  submission blocker. Do not code it during the submission work.
 
 ## Owner checklist
 
