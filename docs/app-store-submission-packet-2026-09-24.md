@@ -11,7 +11,7 @@ action. Items marked **Codex** can be prepared in the repository. Items marked
 ## Current release position
 
 - Branch: `codex/app-store-readiness`
-- Current commit: `c70263b`
+- Code baseline: `c70263b`
 - `origin/main`: `1600a2d`; it is already an ancestor of this branch, so there
   is no newer main commit to merge today.
 - App: Fero, bundle ID `com.aadhilsj.fero`, intended price Free.
