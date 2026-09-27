@@ -158,7 +158,32 @@ const nRows = (owner, n, offset = 0) => Array.from({ length: n }, (_, i) => cano
   check("genuinely quiet month closes at zero", ok, true);
 }
 
-// --- 7. Missing snapshot is reported, not thrown ----------------------------
+// --- 7. Allowance fields survive the rebuild --------------------------------
+// The yearly Solo and sit-out allowance counts closed months from
+// monthHistory (month.excused[name], month.solo[name][key]). The rebuild
+// recomputes counts/logsByUser/settlements only — if it ever dropped these,
+// every member would silently regain their full allowance. See
+// scripts/test-yearly-allowance.mjs and the 2026-09-20 handover §13.
+{
+  const rolled = rolloverGroupIfNeeded(mkGroup({ Aadhil: nLogs(3), Sam: nLogs(12, 100) }));
+  // Stamp allowance state onto the closed snapshot the way the app does.
+  const snapshot = rolled.monthHistory[0];
+  snapshot.excused = { Aadhil: true, Sam: false };
+  snapshot.solo = { Sam: { [CLOSED_KEY]: { target: 8 } } };
+  snapshot.training = { Aadhil: { [CLOSED_KEY]: true } };
+
+  const result = rebuildClosedMonthSnapshotFromCanonicalLogs(
+    rolled, CLOSED_KEY, [...nRows("Aadhil", 3), ...nRows("Sam", 12, 100)]
+  );
+  const month = result.group.monthHistory[0];
+  check("excused survives the rebuild", month.excused, { Aadhil: true, Sam: false });
+  check("solo survives the rebuild", month.solo, { Sam: { [CLOSED_KEY]: { target: 8 } } });
+  check("training survives the rebuild", month.training, { Aadhil: { [CLOSED_KEY]: true } });
+  // An excused member must not be charged even when short of target.
+  check("excused member is not charged after rebuild", month.settlements.Aadhil, undefined);
+}
+
+// --- 8. Missing snapshot is reported, not thrown ----------------------------
 {
   const result = rebuildClosedMonthSnapshotFromCanonicalLogs(mkGroup({ Aadhil: [] }), "1999-0", []);
   check("no snapshot for the month: reported as skip reason", result.ok, false);
