@@ -2561,6 +2561,47 @@ function shouldSkipRolloverForMissingCanonicalBloc(canonicalBlocs, groupId) {
   return !canonicalBlocs[groupId];
 }
 
+// Rebuild the closed snapshot from canonical current-log rows before rollover.
+// The blob can lag behind deletes and writes, so the canonical rows are the
+// source of truth for the month that is being frozen.
+function rebuildClosedMonthSnapshotFromCanonicalLogs(group, closedMonthKey, canonicalLogRows, options = {}) {
+  const history = Array.isArray(group?.monthHistory) ? group.monthHistory : [];
+  const index = history.findIndex(month => month?.key === closedMonthKey);
+  if (index === -1) return { ok: false, reason: `no closed snapshot for ${closedMonthKey}` };
+  const snapshot = history[index];
+  const relevantNames = Object.keys(snapshot.counts || {});
+  const deletedLogIds = new Set(normalizeDeletedCurrentLogIds(options.deletedCurrentLogIds));
+  const rows = (Array.isArray(canonicalLogRows) ? canonicalLogRows : [])
+    .filter(row => !deletedLogIds.has(String(row?.id || "")));
+  const byOwner = {};
+  for (const row of rows) {
+    const owner = row?.ownerDisplayName;
+    if (!owner) continue;
+    if (!byOwner[owner]) byOwner[owner] = [];
+    byOwner[owner].push(row);
+  }
+  const blobCountedTotal = relevantNames.reduce((total, name) => total + Number(snapshot.counts?.[name] || 0), 0);
+  if (rows.length === 0 && blobCountedTotal > 0) {
+    return { ok: false, reason: `canonical logs empty for ${closedMonthKey} while blob counted ${blobCountedTotal}` };
+  }
+  const counts = Object.fromEntries(relevantNames.map(name => [name, getCountedLogCount(byOwner[name] || [])]));
+  const logsByUser = buildMonthLogsSnapshot(byOwner, relevantNames);
+  const rebuilt = {
+    ...snapshot,
+    counts,
+    logsByUser,
+    settlements: buildDefaultSettlements(
+      { counts, excused: snapshot.excused, solo: snapshot.solo, training: snapshot.training, key: closedMonthKey },
+      relevantNames,
+      snapshot.settings,
+      snapshot.memberTargets || {}
+    )
+  };
+  const monthHistory = [...history];
+  monthHistory[index] = rebuilt;
+  return { ok: true, group: { ...group, monthHistory } };
+}
+
 function rolloverStateIfNeeded(data, options = {}) {
   const base = normalizeState(data, options);
   let changed = false;
@@ -6388,6 +6429,11 @@ function applyMultiLog(current, payload) {
   }
 
   const base = rolloverStateIfNeeded(current);
+  if (base.groups?.[sourceGroupId]?.excused?.[actor]?.[getMonthKeyFromISO(date)]) {
+    const error = new Error("You're sitting out this month, so you can't log workouts.");
+    error.status = 403;
+    throw error;
+  }
   assertWorkoutSlotAvailable(base, actor, actorUserId, date);
   const logId = createWorkoutSessionId();
   const updatedGroups = { ...base.groups };
@@ -6398,6 +6444,7 @@ function applyMultiLog(current, payload) {
     const group = updatedGroups[groupId];
     if (!group) continue;
     if (!isCurrentGroupMember(group, actor, actorUserId)) continue;
+    if (group.excused?.[actor]?.[getMonthKeyFromISO(date)]) continue;
     const accepted = group.settings?.acceptedWorkoutTypes || WORKOUT_TYPES;
     if (!accepted.includes(workoutType)) continue;
 
@@ -7806,6 +7853,11 @@ function applyAddLog(current, payload) {
     error.status = 400;
     throw error;
   }
+  if (group.excused?.[actor]?.[getMonthKeyFromISO(date)]) {
+    const error = new Error("You're sitting out this month, so you can't log workouts.");
+    error.status = 403;
+    throw error;
+  }
 
   assertWorkoutSlotAvailable(base, actor, actorUserId, date);
 
@@ -7935,16 +7987,22 @@ function applySitOutRequest(current, payload) {
     error.status = 400;
     throw error;
   }
+  const allowanceMonth = isYearlyAllowanceMonth(month.monthKey);
   const recentCount = getRecentSitOutCount(group, actor, month.monthKey);
-  if (recentCount >= 1 && !exceptional) {
-    const error = new Error(`You've already sat out recently. Your next sit-out is available in ${MONTH_NAMES[(month.month + 3) % 12]}.`);
+  const needsApproval = allowanceMonth
+    ? getYearlyAllowanceUsage(group, actor, month.monthKey).sitOutsLeft < 1
+    : recentCount >= 1;
+  if (needsApproval && !exceptional) {
+    const error = new Error(allowanceMonth
+      ? `You've used both sit-outs for ${month.monthKey.split("-")[0]}.`
+      : `You've already sat out recently. Your next sit-out is available in ${MONTH_NAMES[(month.month + 3) % 12]}.`);
     error.status = 403;
     throw error;
   }
   const deputy = getDeputyAdmin(group);
   const actorIsAdmin = isGroupAdminActor(group, actorUserId, actor);
   const targetApprover = actorIsAdmin ? deputy : (group.adminUserId ? group.memberships?.[group.adminUserId] : null);
-  const shouldAutoApprove = month.day <= 5 && !exceptional && !actorIsAdmin && recentCount < 1;
+  const shouldAutoApprove = month.day <= 10 && !exceptional && !actorIsAdmin && !needsApproval;
   const nextExcused = { ...(group.excused || {}) };
   if (shouldAutoApprove) {
     nextExcused[actor] = { ...(nextExcused[actor] || {}), [month.monthKey]: true };
@@ -8144,6 +8202,9 @@ function applySoloRequest(current, payload) {
   // member never has to choose or can be assigned a lower value by a client.
   const personalTarget = Math.max(1, Math.ceil(baseTarget * 0.5));
   const recentCount = getRecentSoloCount(group, actor, month.monthKey);
+  const soloNeedsApproval = isYearlyAllowanceMonth(month.monthKey)
+    ? getYearlyAllowanceUsage(group, actor, month.monthKey).soloLeft < 1
+    : recentCount >= 1;
   const existingRequests = normalizeSoloRequests(group.soloRequests);
   const existing = existingRequests?.[month.monthKey]?.[actor];
   if (existing?.status === "pending") {
@@ -8151,7 +8212,7 @@ function applySoloRequest(current, payload) {
     error.status = 400;
     throw error;
   }
-  if (soloWindowOpen && recentCount < 1 && !exceptional) {
+  if (soloWindowOpen && !soloNeedsApproval && !exceptional) {
     const nextSolo = normalizeSolo(group.solo, group.memberOrder);
     const nextGroup = normalizeGroup({
       ...group,
@@ -9355,6 +9416,8 @@ export {
   rolloverStateIfNeeded,
   rolloverGroupIfNeeded,
   shouldSkipRolloverForMissingCanonicalBloc,
+  // Exported for the month-close canonical test suite.
+  rebuildClosedMonthSnapshotFromCanonicalLogs,
   buildWorkoutLogDerivedMoments,
   resolveMemberPaceSnapshotForMonth,
   // Identity guards — exported for the display-name identity test suite.
@@ -9373,6 +9436,8 @@ export {
   applyMultiLog,
   applySitOutRequest,
   applySoloRequest,
+  getYearlyAllowanceUsage,
+  isYearlyAllowanceMonth,
   applySitOutReview,
   applySoloReview,
   applyRequestCancel,
@@ -11073,6 +11138,44 @@ function getRecentSoloCount(group, memberName, monthKey) {
   return getMonthKeyWindow(monthKey, 3).reduce((sum, key) => (
     sum + (isSoloForMonth(group, memberName, key) ? 1 : 0)
   ), 0);
+}
+
+// Yearly allowance: from September 2026 each member gets 2 sit-outs and 3
+// Solo months per calendar year in each Bloc, replacing the old three-month
+// rule. Mirrored in src/lib/appState.js.
+const YEARLY_ALLOWANCE_FROM = "2026-8";
+const SIT_OUTS_PER_YEAR = 2;
+const SOLO_MONTHS_PER_YEAR = 3;
+
+function isYearlyAllowanceMonth(monthKey) {
+  return !!monthKey && compareMonthKeys(monthKey, YEARLY_ALLOWANCE_FROM) >= 0;
+}
+
+function getYearlyAllowanceUsage(group, memberName, monthKey) {
+  const year = String(monthKey || "").split("-")[0];
+  const inYear = key => !!key && String(key).split("-")[0] === year && compareMonthKeys(key, monthKey) <= 0;
+  const sitOut = new Set();
+  const solo = new Set();
+  (Array.isArray(group?.monthHistory) ? group.monthHistory : []).forEach(month => {
+    const key = month?.key;
+    if (!inYear(key)) return;
+    if (month?.excused?.[memberName]) sitOut.add(key);
+    else if (isSoloForMonth(month, memberName, key)) solo.add(key);
+  });
+  Object.entries(group?.excused?.[memberName] || {}).forEach(([key, value]) => {
+    if (value && inYear(key)) sitOut.add(key);
+  });
+  Object.keys(group?.solo?.[memberName] || {}).forEach(key => {
+    if (inYear(key) && !sitOut.has(key) && isSoloForMonth(group, memberName, key)) solo.add(key);
+  });
+  const sitOutMonths = [...sitOut].sort(compareMonthKeys);
+  const soloMonths = [...solo].filter(key => !sitOut.has(key)).sort(compareMonthKeys);
+  return {
+    sitOutMonths,
+    soloMonths,
+    sitOutsLeft: Math.max(0, SIT_OUTS_PER_YEAR - sitOutMonths.length),
+    soloLeft: Math.max(0, SOLO_MONTHS_PER_YEAR - soloMonths.length)
+  };
 }
 
 function getDeputyAdmin(group) {
