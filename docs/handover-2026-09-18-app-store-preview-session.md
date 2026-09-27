@@ -29,12 +29,13 @@ correction below. No moderation actions were taken on member content.
 The signed-photo API, Bloc Stream signing, log-workout preview, and account
 deletion path are now on `main`. The private-bucket migration is deliberately
 still unapplied. The remaining major technical blocker is the older database
-access-control/RLS rollout owned by Deveen, plus real staging evidence for
-account deletion. The remaining founder-owned blockers are publishing the
+access-control/RLS rollout owned by Deveen. Account deletion has now been
+proven in the restored staging copy with a throwaway member. The remaining
+founder-owned blockers are publishing the
 reviewed legal pages, App Store Connect setup, reviewer access, and final
 device/TestFlight testing.
 
-**Current App Store review readiness: 74%.** This is a planning measure, not an
+**Current App Store review readiness: 77%.** This is a planning measure, not an
 Apple approval estimate. The build has not yet been archived or installed via
 TestFlight on a real iPhone; Deveen's RLS/rehearsal evidence is still pending;
 the private-bucket migration is not yet safe to run; and the legal pages,
@@ -49,8 +50,10 @@ submission fields still need to be completed.
   Premium-label removal, activity-reader correction, and camera/photo
   permission strings. Support email routing and the domain are configured;
   the founder's test message arrived but initially landed in Spam.
-- **In progress — Codex:** verify the shipped deletion path in staging and
-  prepare the final signed build. **Deveen:** RLS rollout plus the isolated-copy
+- **Done — Codex:** verify the shipped deletion path in staging with a
+  throwaway account and photos in both storage buckets; no other member data
+  moved. **In progress — Codex:** prepare the final signed build. **Deveen:**
+  RLS rollout plus the isolated-copy
   moderation/month-close rehearsal. The canonical month-close code is already
   on `main` ahead of 1 October. **Founder/Deveen:** launch scaling work and the
   agreed load test.
@@ -164,10 +167,12 @@ Read `AGENTS.md` first. In particular:
   canonical account-data, and Supabase Auth cleanup in that order. Do not
   re-land this commit.
 - The source-text `test:account-deletion` guard checks implementation order
-  only; it is not end-to-end deletion evidence. A sandbox test found that if
-  the final Auth deletion fails, application data may already be gone while the
-  login remains and the request reports an error. Claude is verifying the
-  normal path and this edge case in `fero-staging` with a throwaway member.
+  only; it is not end-to-end deletion evidence. Claude proved the normal path
+  in `fero-staging` with a throwaway member: both test photos and the Auth
+  login were removed, while other members' folders and staging totals were
+  unchanged. The known edge case remains that if final Auth deletion fails,
+  application data may already be gone while the login remains and the request
+  reports an error.
 - The private-bucket migration remains unapplied. Do not run it until signing
   is verified on the live public buckets and the restored copy, then backed up;
   the founder runs the SQL.

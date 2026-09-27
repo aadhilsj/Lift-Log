@@ -134,15 +134,15 @@ Photo Library — to choose workout and profile photos.
   while an open report still refers to it. Apple expects reports to be
   actioned within 24 hours. This is parked for a product decision and is not a
   submission blocker. Do not code it during the submission work.
-- **Account deletion can partially complete if the final Auth deletion fails**
-  — Owner: Codex/Deveen to verify in the restored staging copy; do not
-  redesign the current ordering. The shipped path removes the member's
-  storage and canonical account data before it asks Supabase Auth to delete the
-  login. If that final Auth step fails, the member's app data may already be
-  gone while the login remains and the request reports an error. This is an
-  edge case to verify and document, not a normal-path submission blocker. The
-  `test:account-deletion` script is only a source-text ordering guard; it is
-  not evidence that deletion works end to end.
+- **Account deletion has a documented partial-failure edge case** — Verified by
+  Claude in the restored `fero-staging` copy using the shipped functions. The
+  normal cleanup path was also proven with a throwaway account: one photo in
+  each bucket was removed, the Auth login was removed, and other members'
+  folders and staging totals were unchanged. If the final Auth deletion fails,
+  the member's app data may already be gone while the login remains and the
+  request reports an error. Do not redesign the current ordering during
+  submission work. The `test:account-deletion` script remains only a
+  source-text ordering guard, not end-to-end evidence.
 
 ## Owner checklist
 
