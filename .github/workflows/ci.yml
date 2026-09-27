@@ -56,6 +56,7 @@ jobs:
           # reports every problem rather than only the first.
           suites=(
             test:activities
+            test:auth-outage
             test:fero-profile-stats
             test:founder-dashboard
             test:identity
