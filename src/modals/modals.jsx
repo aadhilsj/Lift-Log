@@ -598,7 +598,7 @@ const CropModal = ({imageSrc, onConfirm, onCancel}) => {
 };
 
 
-const LogModal = ({user,currentUserId,currentGroupId,groups,onConfirm,onClose}) => {
+const LogModal = ({user,currentUserId,currentGroupId,groups,onConfirm,onClose,onTrackUsage}) => {
   const compactMobile = isMobile();
   // The member picks an activity; its category is what Bloc rules and the log's
   // `type` use. An activity chosen from the full list takes the sixth tile.
@@ -641,6 +641,11 @@ const LogModal = ({user,currentUserId,currentGroupId,groups,onConfirm,onClose}) 
     setShowActivityList(false);
   };
   const openActivityList = () => {
+    // Counts both faces of this tile -- "More" when nothing is chosen and
+    // "Change" once something is. Either way the person is going looking
+    // through the full workout-type list, which is what the founder asked to
+    // measure.
+    onTrackUsage?.("workout_type_more_opened");
     setActivitySearch("");
     setShowActivityList(true);
   };
@@ -656,6 +661,11 @@ const LogModal = ({user,currentUserId,currentGroupId,groups,onConfirm,onClose}) 
     if (!wType || !isCurrentMonthSelection) return [];
     return groups
       .filter(group => group.id !== currentGroupId && getCurrentGroupMemberNames(group).includes(user) && groupCountsWorkoutType(group, wType))
+      // A Bloc you're sitting out this month takes no workouts (the server skips it too).
+      .filter(group => {
+        const [y, m] = String(selDate || "").split("-").map(Number);
+        return !(Number.isFinite(y) && Number.isFinite(m) && group?.excused?.[user]?.[`${y}-${m - 1}`]);
+      })
       .map(group => {
         return {
           id: group.id,
@@ -948,15 +958,17 @@ const ActivityListSheet = ({open,search,onSearch,named,hasOther,selected,onPick,
 // the viewport, which put this down by the nav bar with the page still
 // scrolling behind. ModalScrim portals it out to the body and locks the scroll.
 const DeleteModal = ({log,onConfirm,onClose,otherBlocNames=[]}) => {
-  // Logged to several Blocs at once, it should leave them together too, so the
-  // default is yes. Unticking keeps the other Blocs' copies.
-  const [alsoOtherBlocs,setAlsoOtherBlocs] = React.useState(true);
+  const [confirmOtherBlocs,setConfirmOtherBlocs] = React.useState(false);
   const otherCount = otherBlocNames.length;
-  const otherLabel = otherCount <= 2
-    ? `Also delete from ${otherBlocNames.join(" and ")}`
-    : `Also delete from your ${otherCount} other Blocs`;
+  const otherDetail = otherCount === 1
+    ? "This workout also appears in 1 other Bloc."
+    : `This workout also appears in ${otherCount} other Blocs.`;
+  const confirmLocalDelete = () => {
+    if (otherCount > 0) { setConfirmOtherBlocs(true); return; }
+    onConfirm({ alsoOtherBlocs:false });
+  };
   return React.createElement(ModalScrim,{onClose},
-  React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{textAlign:"center",maxWidth:280,padding:"14px 14px"}},
+  React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{textAlign:"center",maxWidth:340,padding:"20px 18px"}},
     React.createElement('div',{style:{marginBottom:6,display:"flex",justifyContent:"center"}},
       React.createElement('svg',{xmlns:"http://www.w3.org/2000/svg",width:20,height:20,viewBox:"0 0 24 24",fill:"none",stroke:"var(--red)",strokeWidth:"1.8",strokeLinecap:"round",strokeLinejoin:"round"},
         React.createElement('path',{d:"M10 11v6"}),
@@ -966,67 +978,151 @@ const DeleteModal = ({log,onConfirm,onClose,otherBlocNames=[]}) => {
         React.createElement('path',{d:"M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"})
       )
     ),
-    React.createElement('div',{style:{fontWeight:800,fontSize:13,marginBottom:8}},"Delete this log?"),
-    React.createElement('div',{style:{background:"var(--s2)",border:"1px solid var(--border)",borderRadius:8,padding:"6px 10px",marginBottom:8,textAlign:"left"}},
-      React.createElement('div',{style:{fontWeight:700,fontSize:11,marginBottom:3,display:"inline-flex",alignItems:"center",gap:5}},
-        React.createElement(WorkoutTypeIcon,{type:getLogDisplayActivity(log),size:12}),
-        getLogDisplayActivity(log)
-      ),
-      React.createElement('div',{className:"mono",style:{fontSize:10,color:"var(--muted)"}},fmtISO(log.date))
-    ),
-    otherCount > 0 && React.createElement('label',{style:{display:"flex",alignItems:"center",gap:7,textAlign:"left",background:"var(--s2)",border:"1px solid var(--border)",borderRadius:8,padding:"6px 10px",marginBottom:8,fontSize:10.5,fontWeight:600,color:"var(--text)",cursor:"pointer"}},
-      React.createElement('input',{type:"checkbox",checked:alsoOtherBlocs,onChange:e=>setAlsoOtherBlocs(e.target.checked),style:{accentColor:"var(--red)",margin:0,flexShrink:0}}),
-      React.createElement('span',{style:{minWidth:0}},otherLabel)
-    ),
-    React.createElement('div',{style:{color:"var(--muted)",fontSize:10,marginBottom:10}},"This will permanently remove this workout."),
-    React.createElement('div',{style:{display:"flex",gap:6}},
-      React.createElement('button',{onClick:onClose,style:{flex:1,background:"var(--s2)",border:"1px solid var(--border)",color:"var(--muted)",padding:"7px",borderRadius:7,fontSize:11,fontWeight:600}},"Keep it"),
-      React.createElement('button',{onClick:()=>onConfirm({ alsoOtherBlocs: otherCount > 0 && alsoOtherBlocs }),style:{flex:1,background:"var(--red-bg)",border:"1px solid var(--red)",color:"var(--red)",padding:"7px",borderRadius:7,fontSize:11,fontWeight:800}},"Delete")
-    )
+    confirmOtherBlocs
+      ? React.createElement(React.Fragment,null,
+          React.createElement('div',{style:{fontWeight:800,fontSize:15,marginBottom:7}},"Delete from your other Blocs too?"),
+          React.createElement('div',{style:{color:"var(--muted)",fontSize:12,lineHeight:1.5,margin:"0 auto 12px",maxWidth:285}},otherDetail),
+          React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:7}},
+            React.createElement('button',{onClick:()=>onConfirm({alsoOtherBlocs:false}),style:{width:"100%",background:"var(--s1)",border:"1px solid var(--red)",color:"var(--text)",padding:"9px 12px",borderRadius:9,fontSize:12,fontWeight:750}},"Delete only from this Bloc"),
+            React.createElement('button',{onClick:()=>onConfirm({alsoOtherBlocs:true}),style:{width:"100%",background:"var(--red-bg)",border:"1px solid var(--red)",color:"var(--red)",padding:"9px 12px",borderRadius:9,fontSize:12,fontWeight:800}},"Delete from every Bloc")
+          )
+        )
+      : React.createElement(React.Fragment,null,
+          React.createElement('div',{style:{fontWeight:800,fontSize:13,marginBottom:8}},"Delete this workout?"),
+          React.createElement('div',{style:{background:"var(--s2)",border:"1px solid var(--border)",borderRadius:8,padding:"6px 10px",marginBottom:8,textAlign:"left"}},
+            React.createElement('div',{style:{fontWeight:700,fontSize:11,marginBottom:3,display:"inline-flex",alignItems:"center",gap:5}},
+              React.createElement(WorkoutTypeIcon,{type:getLogDisplayActivity(log),size:12}),
+              getLogDisplayActivity(log)
+            ),
+            React.createElement('div',{className:"mono",style:{fontSize:10,color:"var(--muted)"}},fmtISO(log.date))
+          ),
+          log.note && React.createElement('div',{style:{fontSize:11.5,lineHeight:1.45,color:"var(--muted)",whiteSpace:"pre-wrap",margin:"0 3px 10px"}},log.note),
+          React.createElement('div',{style:{display:"flex",gap:6}},
+            React.createElement('button',{onClick:onClose,style:{flex:1,background:"var(--s2)",border:"1px solid var(--border)",color:"var(--muted)",padding:"7px",borderRadius:7,fontSize:11,fontWeight:600}},"Keep it"),
+            React.createElement('button',{onClick:confirmLocalDelete,style:{flex:1,background:"var(--red-bg)",border:"1px solid var(--red)",color:"var(--red)",padding:"7px",borderRadius:7,fontSize:11,fontWeight:800}},"Delete workout")
+          )
+        )
   )
   );
 };
 
 // ─── EXCUSE MODAL ─────────────────────────────────────────────────────────────
 
-const SitOutModal = ({mode,monthName,onClose,onSubmit,submitting,error}) => {
+// The reason on a Solo or Sit out request is posted to the Bloc Stream once it
+// is approved, so the label says so on the same line (no extra height: the
+// Solo sheet only has a few pixels to spare on an iPhone SE).
+const REASON_EYE_PATHS = [["path",{d:"M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"}],["circle",{cx:12,cy:12,r:3}]];
+const ReasonLabelRow = ({labelStyle}) => React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:5}},
+  React.createElement('span',{style:{...labelStyle,display:"inline",marginBottom:0}},"Reason"),
+  // lineHeight 1 and the icon's negative margin keep this row as tall as the
+  // bare label was (11.5px), so neither sheet grows.
+  React.createElement('span',{style:{display:"inline-flex",alignItems:"center",gap:4,fontFamily:UI_FONT,fontSize:11,lineHeight:1,color:"var(--muted)",whiteSpace:"nowrap"}},
+    React.createElement('svg',{width:12,height:12,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round","aria-hidden":true,style:{margin:"-1px 0"}},
+      REASON_EYE_PATHS.map(([tag,attrs],i)=>React.createElement(tag,{key:i,...attrs}))
+    ),
+    "Your Bloc will see this"
+  )
+);
+
+// allowance: true from September 2026, when the yearly allowance replaces the
+// three-month rule; "exceptional" then means the member has none left.
+const SitOutModal = ({mode,monthName,allowance=false,onClose,onSubmit,submitting,error}) => {
   const [reason,setReason] = React.useState("");
+  const sitOutReasonReady = reason.trim().length > 0;
   const competitionModalLabelStyle = {display:"block",marginBottom:5,fontFamily:UI_FONT,fontSize:9,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".08em",fontWeight:800};
+  // Only the heading, the approval note and the button differ between modes;
+  // the rules are the same on every sheet.
   const config = mode === "instant"
     ? {
         title:`Sit out ${monthName}?`,
-        body:["You won't pay or collect anything this month."],
+        note:null,
         cta:"Confirm sit-out"
       }
     : mode === "exceptional"
       ? {
-          title:"You've already sat out recently.",
-          body:[`Your next sit-out is available in ${monthName}.`,"If you have exceptional circumstances, you can send a request to the Bloc Admin."],
-          cta:"Send exceptional request"
+          title:`Request sit-out for ${monthName}?`,
+          note:allowance
+            ? "This one needs approval before it takes effect."
+            : "You've sat out recently, so this one goes to the Bloc Admin for approval.",
+          cta:"Send request"
         }
       : {
           title:`Request sit-out for ${monthName}?`,
-          body:["Your request will be sent to the Bloc Admin for approval."],
+          note:"After the 10th of the month, your request goes to the Bloc Admin for approval.",
           cta:"Send request"
         };
+  const rules = [
+    { kind:"ban", good:false, text:"You can't log workouts this month." },
+    { kind:"check", good:true, text:"You're removed from this month's penalty." },
+    { kind:"calendar", good:true, text:"You're back in automatically next month." }
+  ];
   return React.createElement('div',{className:`overlay${isMobile() ? " center-mobile" : ""}`,onClick:onClose},
     React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{maxWidth:420,fontFamily:UI_FONT}},
-      React.createElement('div',{style:{fontFamily:UI_FONT,fontWeight:800,fontSize:20,marginBottom:10}},config.title),
-      React.createElement('div',{style:{display:"grid",gap:4,color:"var(--muted)",fontFamily:UI_FONT,fontSize:13,lineHeight:1.55,marginBottom:16}},
-        config.body.map(line=>React.createElement('div',{key:line},line))
+      React.createElement('div',{style:{fontFamily:UI_FONT,fontWeight:800,fontSize:20,marginBottom:14}},config.title),
+      React.createElement('div',{style:{display:"grid",gap:8,marginBottom:16}},
+        rules.map(rule=>React.createElement('div',{key:rule.kind,style:{display:"flex",alignItems:"flex-start",gap:9,fontFamily:UI_FONT,fontSize:12.5,lineHeight:1.4,color:"var(--muted)"}},
+          React.createElement(SoloRuleIcon,{kind:rule.kind,color:rule.good ? "#4ECDC4" : "rgba(232,69,69,.72)"}),
+          React.createElement('span',null,rule.text)
+        ))
+      ),
+      React.createElement('div',{style:{height:1,background:"var(--border)",marginBottom:16}}),
+      config.note && React.createElement('div',{style:{display:"flex",alignItems:"flex-start",gap:8,fontFamily:UI_FONT,fontSize:12,lineHeight:1.45,color:"var(--muted)",opacity:.85,marginBottom:16}},
+        React.createElement(SoloRuleIcon,{kind:"approver",color:"var(--muted)",size:14}),
+        React.createElement('span',null,config.note)
       ),
       React.createElement('label',{style:{display:"block",marginBottom:16}},
-        React.createElement('span',{style:competitionModalLabelStyle},"Reason (optional)"),
+        React.createElement(ReasonLabelRow,{labelStyle:competitionModalLabelStyle}),
         React.createElement('textarea',{value:reason,onChange:e=>setReason(e.target.value),placeholder:"e.g. travelling, injured",rows:3,style:{width:"100%",background:"var(--s2)",border:"1px solid var(--border)",borderRadius:10,padding:"12px 13px",color:"var(--text)",fontFamily:UI_FONT,fontSize:14,outline:"none",resize:"none"}})
       ),
       error && React.createElement('div',{style:{fontFamily:UI_FONT,fontSize:12,color:"var(--red)",marginBottom:14}},error),
       React.createElement('div',{style:{display:"flex",gap:9}},
         React.createElement('button',{onClick:onClose,style:{flex:1,background:"var(--s2)",border:"1px solid var(--border)",color:"var(--muted)",padding:"14px",borderRadius:10,fontFamily:UI_FONT,fontSize:15,fontWeight:600}},"Cancel"),
-        React.createElement('button',{onClick:()=>onSubmit(reason),style:{flex:1,background:"#4ECDC4",color:"#050909",padding:"14px",borderRadius:10,fontFamily:UI_FONT,fontSize:15,fontWeight:800}},submitting?"Sending...":config.cta)
+        React.createElement('button',{onClick:()=>onSubmit(reason),disabled:submitting||!sitOutReasonReady,style:{flex:1,background:sitOutReasonReady?"#4ECDC4":"var(--s3)",color:sitOutReasonReady?"#050909":"var(--muted2)",padding:"14px",borderRadius:10,fontFamily:UI_FONT,fontSize:15,fontWeight:800,opacity:submitting ? .75 : 1}},submitting?"Sending...":config.cta)
       )
     )
   );
 };
+
+// Shown before the request sheet when a member has used this year's
+// allowance: one extra tap, so an over-the-limit request is a deliberate one.
+const AllowanceUsedModal = ({kind,year,onClose,onContinue}) => {
+  const isSolo = kind === "solo";
+  const total = isSolo ? 3 : 2;
+  return React.createElement('div',{className:`overlay${isMobile() ? " center-mobile" : ""}`,onClick:onClose},
+    React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{maxWidth:420,fontFamily:UI_FONT}},
+      React.createElement('div',{style:{display:"flex",gap:4,marginBottom:12}},
+        Array.from({length:total}).map((_,i)=>React.createElement('span',{key:i,style:{width:8,height:8,borderRadius:"50%",border:"1px solid rgba(148,163,184,.4)",boxSizing:"border-box"}}))
+      ),
+      // 17px keeps the longer Solo heading on one line at 375px wide.
+      React.createElement('div',{style:{fontFamily:UI_FONT,fontWeight:800,fontSize:17,lineHeight:1.2,marginBottom:10,whiteSpace:"nowrap"}},
+        isSolo ? `You've used all 3 Solo months for ${year}` : `You've used both sit-outs for ${year}`),
+      React.createElement('div',{style:{display:"grid",gap:10,fontFamily:UI_FONT,fontSize:13,lineHeight:1.55,color:"var(--muted)",marginBottom:18}},
+        React.createElement('div',null,isSolo
+          ? "Solo months are limited so everyone in the Bloc plays by the same rules, and a lighter month is saved for when it's unavoidable."
+          : "Sit-outs are limited so everyone in the Bloc plays by the same rules, and a month off is saved for when it's unavoidable."),
+        React.createElement('div',null,"If something serious has come up, like an injury, illness or a family emergency, you may still request one.")
+      ),
+      React.createElement('div',{style:{display:"flex",gap:9}},
+        React.createElement('button',{onClick:onClose,style:{flex:1,background:"var(--s2)",border:"1px solid var(--border)",color:"var(--muted)",padding:"14px",borderRadius:10,fontFamily:UI_FONT,fontSize:15,fontWeight:600}},"Not now"),
+        React.createElement('button',{onClick:onContinue,style:{flex:1,background:"#4ECDC4",color:"#050909",padding:"14px",borderRadius:10,fontFamily:UI_FONT,fontSize:15,fontWeight:800}},"Request")
+      )
+    )
+  );
+};
+
+// Tapping "+" while sitting out: nothing to log, so say why instead.
+const SittingOutNotice = ({monthName,nextMonthName,onClose}) => React.createElement('div',{className:`overlay${isMobile() ? " center-mobile" : ""}`,onClick:onClose},
+  React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{maxWidth:380,fontFamily:UI_FONT,textAlign:"center"}},
+    React.createElement('div',{style:{width:40,height:40,borderRadius:"50%",background:"rgba(239,159,39,.14)",display:"flex",alignItems:"center",justifyContent:"center",margin:"2px auto 12px"}},
+      React.createElement('svg',{width:20,height:20,viewBox:"0 0 24 24",fill:"none",stroke:"#EF9F27",strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round","aria-hidden":true},
+        React.createElement('path',{d:"M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5z"})
+      )
+    ),
+    React.createElement('div',{style:{fontFamily:UI_FONT,fontWeight:800,fontSize:20,lineHeight:1.2,marginBottom:8}},`You're sitting out ${monthName}`),
+    React.createElement('div',{style:{fontFamily:UI_FONT,fontSize:13,lineHeight:1.55,color:"var(--muted)",marginBottom:18}},`You can't log workouts this month. You're back in on 1\u00A0${nextMonthName}.`),
+    React.createElement('button',{onClick:onClose,style:{width:"100%",background:"#4ECDC4",color:"#050909",padding:"14px",borderRadius:10,fontFamily:UI_FONT,fontSize:15,fontWeight:800}},"Got it")
+  )
+);
 
 // Small line icons for the Solo sheet's rule list. Stroke only, so they take
 // the colour they are given.
@@ -1035,13 +1131,15 @@ const SOLO_RULE_ICON_PATHS = {
   check: [["circle",{cx:12,cy:12,r:9}],["path",{d:"M8 12.5l2.7 2.7L16 9.8"}]],
   alert: [["circle",{cx:12,cy:12,r:9}],["path",{d:"M12 7.5v5.5"}],["path",{d:"M12 16.5h.01"}]],
   minus: [["circle",{cx:12,cy:12,r:9}],["path",{d:"M8 12h8"}]],
-  approver: [["circle",{cx:9,cy:8,r:4}],["path",{d:"M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"}],["path",{d:"M16 11l2 2 4-4"}]]
+  approver: [["circle",{cx:9,cy:8,r:4}],["path",{d:"M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"}],["path",{d:"M16 11l2 2 4-4"}]],
+  ban: [["circle",{cx:12,cy:12,r:9}],["path",{d:"M5.7 5.7l12.6 12.6"}]],
+  calendar: [["rect",{x:3.5,y:5,width:17,height:15.5,rx:2}],["path",{d:"M3.5 10h17"}],["path",{d:"M8 3v4"}],["path",{d:"M16 3v4"}]]
 };
 const SoloRuleIcon = ({kind,color,size=15}) => React.createElement('svg',{width:size,height:size,viewBox:"0 0 24 24",fill:"none",stroke:color,strokeWidth:2,strokeLinecap:"round",strokeLinejoin:"round","aria-hidden":true,style:{flexShrink:0,marginTop:1}},
   (SOLO_RULE_ICON_PATHS[kind] || []).map(([tag,attrs],i)=>React.createElement(tag,{key:i,...attrs}))
 );
 
-const SoloModal = ({mode,monthName,target,blocTarget,onClose,onSubmit,submitting,error}) => {
+const SoloModal = ({mode,monthName,target,blocTarget,allowance=false,onClose,onSubmit,submitting,error}) => {
   const [reason,setReason] = React.useState("");
   const formLabelStyle = {display:"block",marginBottom:5,fontFamily:UI_FONT,fontSize:9,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".08em",fontWeight:800};
   // Only the heading, the approval note and the button differ between modes;
@@ -1049,7 +1147,9 @@ const SoloModal = ({mode,monthName,target,blocTarget,onClose,onSubmit,submitting
   const config = mode === "exceptional"
     ? {
         title:`Request Solo for ${monthName}?`,
-        note:"Solo is meant for once every three months, so this one goes to the Bloc Admin for approval.",
+        note:allowance
+          ? "This one needs approval before it takes effect."
+          : "Solo is meant for once every three months, so this one goes to the Bloc Admin for approval.",
         cta:"Send request"
       }
     : mode === "late"
@@ -1094,7 +1194,7 @@ const SoloModal = ({mode,monthName,target,blocTarget,onClose,onSubmit,submitting
         React.createElement('span',null,config.note)
       ),
       React.createElement('label',{style:{display:"block",marginBottom:16}},
-        React.createElement('span',{style:formLabelStyle},"Reason"),
+        React.createElement(ReasonLabelRow,{labelStyle:formLabelStyle}),
         React.createElement('textarea',{value:reason,onChange:e=>setReason(e.target.value),placeholder:"e.g. travel month, work sprint",rows:2,style:{width:"100%",background:"var(--s2)",border:"1px solid var(--border)",borderRadius:10,padding:"10px 13px",color:"var(--text)",fontFamily:UI_FONT,fontSize:14,outline:"none",resize:"none"}})
       ),
       error && React.createElement('div',{style:{fontFamily:UI_FONT,fontSize:12,color:"var(--red)",marginBottom:14}},error),
@@ -1233,4 +1333,4 @@ const PinModal = ({prompt, onConfirm, onClose}) => {
 
 // ─── SETTLEMENT SCREEN ───────────────────────────────────────────────────────
 
-export { SETTINGS_DEFAULTS, TIME_ZONE_OPTIONS, GroupSettingsFields, GroupCreateModal, GroupSettingsModal, CropModal, LogModal, DeleteModal, SitOutModal, SoloModal, ProrationChoiceModal, TrainingChoiceModal, TextEntryModal, NoticeModal, ImageLightbox, PinModal };
+export { SETTINGS_DEFAULTS, TIME_ZONE_OPTIONS, GroupSettingsFields, GroupCreateModal, GroupSettingsModal, CropModal, LogModal, DeleteModal, SitOutModal, SoloModal, AllowanceUsedModal, SittingOutNotice, ProrationChoiceModal, TrainingChoiceModal, TextEntryModal, NoticeModal, ImageLightbox, PinModal };

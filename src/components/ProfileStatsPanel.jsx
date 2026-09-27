@@ -54,6 +54,7 @@ function mergeServerStats(localAgg, stats) {
     anyLogs: Object.keys(logsByDate).length > 0,
     bestIdx,
     worstIdx,
+    sitOutMonths: Array.isArray(stats.sitOutMonths) ? stats.sitOutMonths : localAgg.sitOutMonths,
     bestMonth
   };
 }
@@ -94,6 +95,66 @@ const ProfileStatsSkeleton = ({ ownerName = "" }) => {
     ),
     React.createElement('span', { style: { position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" } },
       ownerName ? `Loading ${ownerName}'s history` : "Loading history"
+    )
+  );
+};
+
+// Derived from the cross-Bloc daily totals, so copied workouts are never
+// double-counted and the trend follows the member across every Bloc.
+const AllBlocProgress = ({ agg }) => {
+  const [selectedKey, setSelectedKey] = useState(null);
+  const sitOutKeys = new Set(agg.sitOutMonths || []);
+  const monthlyTotals = {};
+  Object.entries(agg.logsByDate || {}).forEach(([iso, count]) => {
+    const key = String(iso).slice(0, 7);
+    if (key.length === 7) monthlyTotals[key] = (monthlyTotals[key] || 0) + Number(count || 0);
+  });
+  const firstKey = Object.keys(monthlyTotals).sort()[0];
+  const startTs = agg.earliestJoined || agg.earliestWorkout || (firstKey ? Date.parse(`${firstKey}-01T00:00:00`) : null);
+  const start = startTs ? new Date(startTs) : null;
+  const now = new Date();
+  const trendMonths = [];
+  if (start && !Number.isNaN(start.getTime())) {
+    const cursor = new Date(start.getFullYear(), start.getMonth(), 1);
+    const end = new Date(now.getFullYear(), now.getMonth(), 1);
+    while (cursor <= end) {
+      const key = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}`;
+      trendMonths.push({ key, month: cursor.getMonth(), count: sitOutKeys.has(key) ? 0 : (monthlyTotals[key] || 0), satOut: sitOutKeys.has(key) });
+      cursor.setMonth(cursor.getMonth() + 1);
+    }
+  }
+  const axisMax = Math.max(20, Math.ceil(Math.max(1, ...trendMonths.map(month => month.count)) / 5) * 5);
+  const axisTicks = Array.from({ length: (axisMax / 5) + 1 }, (_, index) => axisMax - (index * 5));
+  const points = trendMonths.map((month, index) => {
+    const x = trendMonths.length === 1 ? 50 : (index / (trendMonths.length - 1)) * 100;
+    return `${x.toFixed(1)},${(68 - (month.count / axisMax) * 56).toFixed(1)}`;
+  }).join(" ");
+  const selected = trendMonths.find(month => month.key === selectedKey);
+  return React.createElement('div', { style: { display: 'grid', gap: 8 } },
+    React.createElement(Card, { style: { order: 2, padding: '13px 10px', textAlign: 'center', display: 'grid', alignContent: 'center' } },
+      React.createElement('span', { style: { fontSize: 9, fontWeight: MED, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.075em', marginBottom: 8 } }, 'Best Month'),
+      React.createElement('div', { style: { fontSize: 17, fontWeight: MED, lineHeight: 1.1, marginBottom: 6 } }, agg.bestMonth ? `${agg.bestMonth.label} '${String(agg.bestMonth.key).slice(2, 4)}` : '—'),
+      React.createElement('div', { style: { fontSize: 11, color: 'var(--muted)' } }, agg.bestMonth ? `${agg.bestMonth.count} workouts` : 'No workouts yet')
+    ),
+    React.createElement(Card, { style: { order: 1, padding: '14px 12px 13px', textAlign: 'center', overflow: 'hidden', background: 'radial-gradient(circle at 16% 0%, rgba(255,255,255,.032), transparent 34%), radial-gradient(circle at 92% 100%, rgba(78,205,196,.052), transparent 42%), linear-gradient(180deg, rgba(10,19,19,.99), rgba(7,14,14,.99))' } },
+      React.createElement('span', { style: { fontSize: 9, fontWeight: MED, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.075em', display: 'block', marginBottom: 7 } }, 'Workout Trend'),
+      trendMonths.length
+        ? React.createElement(React.Fragment, null,
+            React.createElement('div', { style: { display: 'grid', gridTemplateColumns: '24px minmax(0,1fr)', gap: 8, alignItems: 'stretch' } },
+              React.createElement('div', { style: { display: 'grid', gridTemplateRows: `repeat(${axisTicks.length},1fr)`, alignItems: 'center', justifyItems: 'end', height: 128, paddingBottom: 18, fontSize: 8.5, color: 'var(--muted)' } }, axisTicks.map(tick => React.createElement('span', { key: tick }, tick))),
+              React.createElement('div', { style: { minWidth: 0 } },
+                React.createElement('svg', { width: '100%', height: 128, viewBox: '0 0 100 76', preserveAspectRatio: 'none', style: { display: 'block', overflow: 'visible' } },
+                  React.createElement('line', { x1: 0, y1: 68, x2: 100, y2: 68, stroke: 'rgba(78,205,196,.18)', strokeWidth: 1, vectorEffect: 'non-scaling-stroke' }),
+                  React.createElement('line', { x1: 0, y1: 12, x2: 0, y2: 68, stroke: 'rgba(78,205,196,.18)', strokeWidth: 1, vectorEffect: 'non-scaling-stroke' }),
+                  React.createElement('polyline', { points, fill: 'none', stroke: '#4ECDC4', strokeWidth: 1.6, strokeLinecap: 'round', strokeLinejoin: 'round', vectorEffect: 'non-scaling-stroke' }),
+                  trendMonths.map((month, index) => React.createElement('circle', { key: month.key, cx: trendMonths.length === 1 ? 50 : (index / (trendMonths.length - 1)) * 100, cy: 68 - (month.count / axisMax) * 56, r: selectedKey === month.key ? 2.2 : 1.25, fill: '#fff', stroke: '#071010', strokeWidth: .55, style: { cursor: 'pointer' }, onClick: () => setSelectedKey(key => key === month.key ? null : month.key) }))
+                ),
+                React.createElement('div', { style: { display: 'grid', gridTemplateColumns: `repeat(${trendMonths.length}, minmax(18px,1fr))`, minWidth: trendMonths.length * 25, gap: 2, marginTop: 1, fontSize: 8, color: 'var(--muted)' } }, trendMonths.map(month => React.createElement('span', { key: month.key }, FULL_MONTH_NAMES[month.month].slice(0, 3))))
+              )
+            )
+          )
+        : React.createElement('div', { style: { color: 'var(--muted)', fontSize: 11, padding: '20px 0' } }, 'No monthly data yet.'),
+      selected && React.createElement('div', { style: { fontSize: 11, color: 'var(--text)', marginTop: 7 } }, selected.satOut ? `${FULL_MONTH_NAMES[selected.month]} ${selected.key.slice(0, 4)} · Sat out this month` : `${FULL_MONTH_NAMES[selected.month]} ${selected.key.slice(0, 4)} · ${selected.count} workouts`)
     )
   );
 };
@@ -299,7 +360,9 @@ const ProfileStatsPanel = ({ groups = [], userId, ownerName = "", accountCreated
     // Workout mix — lifetime, cross-Bloc, per activity (top five; See All for the rest)
     React.createElement(Card, { style: { padding: "12px 13px" } },
       React.createElement(ActivityMix, { title: `${owns} Workout Mix`, counts: agg.typeMix || {}, variant: "profile", titleStyle: { fontWeight: MED } })
-    )
+    ),
+
+    React.createElement(AllBlocProgress, { agg })
   );
 };
 

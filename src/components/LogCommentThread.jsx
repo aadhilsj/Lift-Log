@@ -89,10 +89,10 @@ function LogThumb({ log }) {
   if (log?.photoUrl) {
     if (imageExpired) {
       return React.createElement('div', {
-        style: { width: "100%", aspectRatio: "1 / 1", maxHeight: 178, borderRadius: 12, overflow: "hidden", background: "rgba(13,31,30,.72)", flexShrink: 0, display: "flex", flexDirection: "column", gap: 7, alignItems: "center", justifyContent: "center", border: "1px solid rgba(78,205,196,.18)", color: "#6f918c", textAlign: "center", padding: 16, boxSizing: "border-box" }
+        style: { height: 116, borderRadius: 12, overflow: "hidden", background: "#0D1F1E", flexShrink: 0, display: "flex", flexDirection: "column", gap: 6, alignItems: "center", justifyContent: "center", border: "0.5px solid #163d36", color: "#4ECDC4", textAlign: "center" }
       },
-        React.createElement('div', { style: { fontSize: 12, fontWeight: 700, color: "var(--text-soft)" } }, "Image expired"),
-        React.createElement('div', { style: { fontSize: 10.5, lineHeight: 1.35 } }, "The workout and its comments are still here.")
+        React.createElement(WorkoutTypeIcon, { type: getLogDisplayActivity(log), size: 36 }),
+        React.createElement('div', { style: { fontSize: 10, fontWeight: 700, color: "var(--muted)", letterSpacing: ".02em" } }, "Image expired")
       );
     }
     const displayPhotoUrl = resolveStorageImageUrl(log.photoUrl);
@@ -113,8 +113,9 @@ function LogThumb({ log }) {
 }
 
 function LogHeader({ log }) {
+  const caption = String(log?.note || log?.caption || "").trim();
   return React.createElement('div', {
-    style: { position: "sticky", top: 0, zIndex: 2, display: "flex", flexDirection: "column", gap: 8, padding: "10px 12px 11px", background: "rgba(8,15,15,.98)", borderBottom: "1px solid rgba(22,61,54,.9)", backdropFilter: "blur(8px)" }
+    style: { flexShrink: 0, display: "flex", flexDirection: "column", gap: 8, padding: "10px 12px 11px", background: "rgba(8,15,15,.98)", borderBottom: "1px solid rgba(22,61,54,.9)", backdropFilter: "blur(8px)" }
   },
     React.createElement(LogThumb, { log }),
     React.createElement('div', { style: { width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, minWidth: 0 } },
@@ -129,7 +130,8 @@ function LogHeader({ log }) {
         ),
         React.createElement('span', { className: "mono", style: { fontSize: 8.5, color: "var(--muted2)", flexShrink: 0 } }, formatShortDate(log?.date || log?.workoutDate || ""))
       )
-    )
+    ),
+    caption && React.createElement('div', { style: { padding: "0 2px", color: "var(--muted)", fontSize: 11.5, lineHeight: 1.4, whiteSpace: "pre-wrap", wordBreak: "break-word", maxHeight: "5.6em", overflowY: "auto" } }, caption)
   );
 }
 
@@ -152,6 +154,8 @@ function LogCommentThread({ groupId, log, currentUserId, currentUserName, onClos
   const pendingCommentsRef = useRef(new Map());
   const pendingReactionOverridesRef = useRef(new Map());
   const inputRef = useRef(null);
+  const commentListRef = useRef(null);
+  const stickToLatestRef = useRef(true);
   const swipeRef = useRef({ sx: 0, sy: 0, st: 0, active: false, mode: null });
   const logId = String(log?.id || "");
   const cacheKey = groupId && logId ? `${groupId}:${logId}` : "";
@@ -164,7 +168,8 @@ function LogCommentThread({ groupId, log, currentUserId, currentUserName, onClos
     type: log?.type || log?.workoutType || "Workout",
     activity: log?.activity || "",
     date: log?.date || log?.workoutDate || "",
-    photoUrl: log?.photoUrl || ""
+    photoUrl: log?.photoUrl || "",
+    note: log?.note || log?.caption || ""
   }), [log, logId]);
 
   const refresh = async () => {
@@ -209,6 +214,7 @@ function LogCommentThread({ groupId, log, currentUserId, currentUserName, onClos
 
   useEffect(() => {
     if (!groupId || !logId) return undefined;
+    stickToLatestRef.current = true;
     const cached = cacheKey ? logCommentThreadCache.get(cacheKey) : null;
     setComments(Array.isArray(cached) ? cached : []);
     setLoaded(Array.isArray(cached));
@@ -251,6 +257,15 @@ function LogCommentThread({ groupId, log, currentUserId, currentUserName, onClos
     resizeComposer(inputRef.current);
   }, [draft]);
 
+  useEffect(() => {
+    if (!stickToLatestRef.current) return undefined;
+    const frame = window.requestAnimationFrame(() => {
+      const list = commentListRef.current;
+      if (list) list.scrollTop = list.scrollHeight;
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [comments.length, loaded]);
+
   const submit = async () => {
     const body = draft.trim();
     if (!body || sending || !groupId || !logId) return;
@@ -264,6 +279,7 @@ function LogCommentThread({ groupId, log, currentUserId, currentUserName, onClos
     });
     setSending(true);
     setDraft("");
+    stickToLatestRef.current = true;
     pendingCommentsRef.current.set(temp.id, { comment: temp, until: Date.now() + 10000 });
     setComments(current => {
       const next = [...current, temp];
@@ -539,8 +555,12 @@ function LogCommentThread({ groupId, log, currentUserId, currentUserName, onClos
         borderRight: "1px solid rgba(22,61,54,.72)"
       }
     },
-      React.createElement('div', { style: { flex: 1, minHeight: 0, overflowY: "auto", WebkitOverflowScrolling: "touch", overscrollBehavior: "contain" } },
-        React.createElement(LogHeader, { log: normalizedLog }),
+      React.createElement(LogHeader, { log: normalizedLog }),
+      React.createElement('div', { ref: commentListRef, onScroll: event => {
+        const list = event.currentTarget;
+        stickToLatestRef.current = list.scrollHeight - list.scrollTop - list.clientHeight < 56;
+      }, style: { flex: 1, minHeight: 0, overflowY: "auto", WebkitOverflowScrolling: "touch", overscrollBehavior: "contain" } },
+        React.createElement('div', { style: { minHeight: "100%", display: "flex", flexDirection: "column", justifyContent: "flex-end" } },
         error && React.createElement('div', { style: { margin: 14, padding: "9px 11px", borderRadius: 10, background: "rgba(232,69,69,.08)", border: "1px solid rgba(232,69,69,.22)", color: "#ffd7d7", fontSize: 12 } }, error),
         visibleComments.length === 0 && !loaded && knownCommentCount > 0
           ? React.createElement(CommentThreadSkeleton, { count: knownCommentCount })
@@ -580,6 +600,7 @@ function LogCommentThread({ groupId, log, currentUserId, currentUserName, onClos
                 )
               })
             )
+        )
       ),
       React.createElement('form', { onSubmit: event => { event.preventDefault(); submit(); }, style: { flexShrink: 0, display: "flex", alignItems: "flex-end", gap: 8, padding: "10px 12px calc(28px + env(safe-area-inset-bottom))", borderTop: "1px solid rgba(78,205,196,.18)", background: "rgba(5,9,10,.96)", backdropFilter: "blur(8px)", boxSizing: "border-box" } },
         React.createElement('textarea', {

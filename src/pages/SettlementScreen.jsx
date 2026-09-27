@@ -12,38 +12,42 @@ import {
   buildSettlementPairsForMonth,
   buildSettlementPairState,
   fmtCurrency,
-  isSoloForMonth,
   isTrainingForMonth,
   isExemptFromStakes,
-  getRedemptionMark,
   ordinal,
   workoutsLabel,
   getCountedLogs,
   getMonthPartsFromKey
 } from "../lib/appState.js";
-import { Avatar, TrophyIcon, RedemptionShieldIcon, MemberTag, TrainingSproutIcon } from "../components/primitives.jsx";
+import { Avatar, TrophyIcon } from "../components/primitives.jsx";
 import { ShareSticker } from "../components/ShareSticker.jsx";
 import { MonthCalendarCard } from "../components/MonthCalendarCard.jsx";
 import { buildStickerData } from "../lib/shareSticker.js";
-import { buildPaymentTarget, buildPaymentTargets } from "../lib/paymentLinks.js";
+import { buildPaymentTargets } from "../lib/paymentLinks.js";
+import { createPortal } from "react-dom";
+import { PaymentHandleSection } from "../components/PaymentHandleSection.jsx";
+import {
+  MonthDial, LoopReadout, LoopCaption, loopCaption, loopTotals, useTapOutside, LOOP_FONTS, perfectMonthRun, PerfectRunPill,
+  closedMonthMember, perDayCounts, clearDayOf, bestWeekOf, personalBestOf, trackRecordOf,
+  trackRecordParts, PanelCard, personalBestCard, shortMonthName
+} from "../components/MonthLoop.jsx";
 
 const FULL_MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
-const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistory, profiles, onOpenAccount, onSettlementClaimPaid, onSettlementConfirmPaid, onStartNextMonth, onViewProfileMonth, onTrackUsage}) => {
+const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistory, profiles, onOpenAccount, onSettlementClaimPaid, onSettlementConfirmPaid, onStartNextMonth, onViewProfileMonth, onTrackUsage, currentPaymentMethods = [], onSavePayment, savingPayment = false, paymentError = ""}) => {
   const [copiedKey, setCopiedKey] = React.useState(null);
   const [settlementBusy, setSettlementBusy] = React.useState(null);
-  const [showStandings, setShowStandings] = React.useState(false);
+  const [focus, setFocus] = React.useState(null);
+  const [othersOpen, setOthersOpen] = React.useState(false);
+  const [showLinkPayment, setShowLinkPayment] = React.useState(false);
+  const clearFocus = React.useCallback(() => setFocus(null), []);
+  useTapOutside(!!focus, clearFocus);
   const [claimPrompt, setClaimPrompt] = React.useState(null);
   const [showSticker, setShowSticker] = React.useState(false);
   const ledgerRef = React.useRef(null);
 
   const relevantNames = Object.keys(month.counts || {});
   const blocTargetFor = name => month.memberTargets?.[name] || month.settings?.minTarget || MIN_TARGET;
-  const missedBlocTarget = name => Number(month.counts?.[name] || 0) < blocTargetFor(name);
-  // Only names the month's exemption note has to explain: someone who hit the
-  // Bloc target needs no footnote, whether or not they could have been charged.
-  const soloNames = relevantNames.filter(name => isSoloForMonth(month, name, month.key) && missedBlocTarget(name));
-  const trainingNames = relevantNames.filter(name => isTrainingForMonth(month, name, month.key) && missedBlocTarget(name));
   const userOnTraining = !!(currentUser && isTrainingForMonth(month, currentUser, month.key));
   const activeCounts = relevantNames
     .filter(name => !month.excused?.[name] && !isExemptFromStakes(month, name, month.key))
@@ -55,15 +59,19 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
   const penalties = addStandardSoloPenalties(calcPenalties(activeCounts, month.settings), getStandardSoloMisses(month, relevantNames), month.settings);
   const {winners, losers, perWinner} = penalties;
   const settlementPairs = buildSettlementPairsForMonth(month);
-  // Perfect means everyone who was actually training hit the Bloc's target.
-  // Being exempt from the stakes does not excuse you from the month: a solo
-  // member clearing only their own lower target does not make it perfect.
-  // Sitting out is the single exclusion, and a prorated target for joining
-  // mid-month still counts as hit.
-  const perfectRoster = relevantNames
-    .filter(name => !month.excused?.[name])
-    .map(name => ({ name, count: Number(month.counts[name] || 0), target: blocTargetFor(name) }));
-  const isBlocPerfect = perfectRoster.length > 0 && perfectRoster.every(member => member.count >= member.target);
+  // The frozen loop for this month. Perfect uses the loop's rule, agreed with
+  // the founder on 2026-09-22: every member in the month clears their own
+  // target; sitting out removes you from the loop; any Solo means the loop
+  // can't close; at least 75% of the Bloc must be in the month.
+  const userIdFor = name => Object.entries(group?.memberships || {}).find(([, m]) => m?.displayName === name)?.[0] || "";
+  const loopMembers = relevantNames
+    .map(name => closedMonthMember(month, name))
+    .filter(Boolean)
+    .map(member => ({ ...member, userId: userIdFor(member.name), isMe: member.name === currentUser }));
+  const loop = loopTotals(loopMembers);
+  const isBlocPerfect = loop.perfect;
+  // Only a perfect month brags about the run, counted through this month.
+  const perfectRun = isBlocPerfect ? perfectMonthRun(monthHistory, month.key) : 0;
 
   const userCount = month.counts?.[currentUser] || 0;
   const userSatOut = !!(currentUser && month.excused?.[currentUser]);
@@ -77,7 +85,6 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
   const userOwes = getLoserAmount(penalties, currentUser);
 
   const incomingRows = settlementPairs.filter(pair => pair.receiverDisplayName === currentUser);
-  const outgoingRows = settlementPairs.filter(pair => pair.payerDisplayName === currentUser);
 
   const C = {
     greenText: "#39A85A",
@@ -115,12 +122,14 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
     }
     return streak;
   })();
-  const streakLine = consistentStreak >= 2 ? `${consistentStreak} consistent months in a row. Keep it going.` : "Build on it next month.";
+  const streakLine = consistentStreak >= 2 ? `${consistentStreak} consecutive months cleared. Keep it going.` : "Build on it next month.";
   const selectedMonthName = FULL_MONTH_NAMES[month.month ?? monthKeyParts(month.key)?.monthIndex ?? 0] || MONTH_NAMES[month.month ?? monthKeyParts(month.key)?.monthIndex ?? 0] || "month";
   const perfectLine = `Everyone hit the target this ${selectedMonthName}.`;
   const perfectFooterLine = consistentStreak >= 2
-    ? { emphasis: `${consistentStreak} consistent months in a row for you.`, rest: " Keep it going." }
+    ? { emphasis: `${consistentStreak} consecutive months cleared.`, rest: " Keep it going." }
     : ["Keep it going."];
+  // On a perfect month the ring already says so; the card speaks for the member.
+  const perfectCardLine = consistentStreak >= 2 ? `${consistentStreak} consecutive months cleared. Keep it going.` : "Keep it going.";
 
   const handleSettlementAction = async ({ key, kind, payerDisplayName, receiverDisplayName, amount }) => {
     setSettlementBusy(key);
@@ -183,6 +192,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
     if (userIsWinner && isBlocPerfect) {
       return {
         tag: "PERFECT BLOC MONTH",
+        cardStamp: `Your ${selectedMonthName}`,
         stat: workoutsLabel(userCount),
         line: perfectLine,
         footerLine: perfectFooterLine,
@@ -207,6 +217,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
     if (isBlocPerfect) {
       return {
         tag: "PERFECT BLOC MONTH",
+        cardStamp: `Your ${selectedMonthName}`,
         stat: workoutsLabel(userCount),
         line: perfectLine,
         footerLine: perfectFooterLine,
@@ -229,6 +240,17 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
     };
   })();
 
+  // The report card keeps its original tint for each result.
+  // The rebuilt report card: a stamp, the work, one line, and the money when
+  // money moved. Each result keeps a hint of its old colour rather than a full
+  // coloured headline: the ring above already carries the month.
+  const REPORT_TONES = {
+    perfect:  { edge: "rgba(78,205,196,.30)", wash: "linear-gradient(150deg, rgba(78,205,196,.10), rgba(10,20,19,0) 62%)", stamp: "#7FD8D0", money: "#7FD49A" },
+    winner:   { edge: "rgba(127,212,154,.30)", wash: "linear-gradient(150deg, rgba(127,212,154,.11), rgba(10,20,19,0) 62%)", stamp: "#8FD9A8", money: "#7FD49A" },
+    neutral:  { edge: "rgba(190,205,203,.24)", wash: "linear-gradient(150deg, rgba(200,214,212,.08), rgba(10,20,19,0) 62%)", stamp: "#C2D2CF", money: "#C2D2CF" },
+    missed:   { edge: "rgba(232,110,110,.30)", wash: "linear-gradient(150deg, rgba(232,110,110,.10), rgba(10,20,19,0) 62%)", stamp: "#E89A9A", money: "#E86A6A" },
+    training: { edge: "rgba(245,200,66,.30)", wash: "linear-gradient(150deg, rgba(245,200,66,.10), rgba(10,20,19,0) 62%)", stamp: "#F0CB6B", money: "#F0CB6B" }
+  };
   const heroStyle = hero.tone === "perfect"
     ? {background:"linear-gradient(135deg, rgba(78,205,196,.2), rgba(215,226,225,.12) 48%, rgba(58,168,90,.2))", border:"1px solid rgba(78,205,196,.3)"}
     : hero.tone === "winner"
@@ -239,69 +261,6 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
         ? {background:"rgba(185,50,50,.07)", border:"1px solid rgba(185,50,50,.18)"}
         : {background:"linear-gradient(135deg, rgba(235,242,241,.18), rgba(185,199,198,.11) 54%, rgba(78,205,196,.025))", border:"1px solid rgba(235,242,241,.22)"};
   const heroColor = hero.tone === "winner" ? C.greenText : hero.tone === "missed" ? C.redText : hero.tone === "training" ? "#f5c842" : hero.tone === "neutral" ? "#D7E2E1" : "var(--text)";
-  const heroLabelGradients = {
-    neutral: "linear-gradient(135deg, #FFFFFF, #D7E2E1 55%, #9DB4B3)",
-    perfect: "linear-gradient(135deg, #FFFFFF, #DDFDE9 42%, #63D989)",
-    winner: "linear-gradient(135deg, #DDFDE9, #39A85A 54%, #1E7C3D)",
-    missed: "linear-gradient(135deg, #FFD8D8, #E65A5A 50%, #A92F2F)",
-    training: "linear-gradient(135deg, #FFF6D8, #F5C842 55%, #B98F18)"
-  };
-  const heroPillStyle = {
-    alignSelf:"center",
-    display:"inline-block",
-    fontFamily:"'Outfit', sans-serif",
-    fontSize:11,
-    lineHeight:1.05,
-    fontWeight:900,
-    letterSpacing:".06em",
-    textTransform:"uppercase",
-    background:heroLabelGradients[hero.tone] || heroLabelGradients.neutral,
-    WebkitBackgroundClip:"text",
-    backgroundClip:"text",
-    color:"transparent"
-  };
-  const isStreakLine = text => /\bconsistent months in a row\b/.test(String(text || ""));
-  const renderHeroLine = () => {
-    // Checked before the empty-line guard: a winner with no pot has no middle
-    // clause, but still has a top line and a sign-off to render.
-    if (hero.tone === "winner") {
-      if (!hero.topLine && !hero.line && !hero.keepLine) return null;
-      return React.createElement('div',{style:{fontSize:13,color:"var(--muted)",fontWeight:500,lineHeight:1.35}},
-        React.createElement('span',{style:{fontWeight:800,color:"var(--muted)"}},hero.topLine),
-        " ",
-        hero.line ? `${hero.line} ` : "",
-        hero.keepLine
-      );
-    }
-    if (!hero.line) return null;
-    if (isStreakLine(hero.line)) {
-      const [first, ...rest] = String(hero.line).split(". ");
-      return React.createElement('div',{style:{fontSize:12,color:"var(--muted)",fontWeight:500,lineHeight:1.35,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},
-        React.createElement('span',{style:{fontWeight:800}},first),
-        rest.length ? `. ${rest.join(". ")}` : ""
-      );
-    }
-    if (hero.tone === "perfect") {
-      return React.createElement('div',{style:{fontSize:13,color:"var(--muted)",fontWeight:500,lineHeight:1.35}},
-        React.createElement('span',{style:{fontWeight:800}},"Everyone"),
-        ` hit the target this ${selectedMonthName}.`
-      );
-    }
-    return React.createElement('div',{style:{fontSize:hero.tone==="neutral"||hero.tone==="missed"?12:13,color:"var(--muted)",fontWeight:500,lineHeight:1.35,whiteSpace:hero.tone==="neutral"||hero.tone==="missed"?"nowrap":"normal",overflow:"hidden",textOverflow:"ellipsis"}},hero.line);
-  };
-
-  const perfectRosterSorted = [...perfectRoster].sort((a,b) => b.count - a.count || a.name.localeCompare(b.name));
-  const renderPerfectRoster = () => isBlocPerfect && React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(132px,1fr))",gap:7}},
-    perfectRosterSorted.map(member =>React.createElement('button',{key:member.name,type:"button",onClick:()=>onViewProfileMonth?.(member.name, month.key),style:{display:"flex",alignItems:"center",gap:7,background:"rgba(5,24,21,.68)",border:"1px solid rgba(78,205,196,.23)",borderRadius:8,padding:"6px 8px",minWidth:0,textAlign:"left",cursor:onViewProfileMonth?"pointer":"default",fontFamily:"'Outfit', sans-serif",color:"var(--text)",boxShadow:"inset 0 1px 0 rgba(255,255,255,.05), 0 6px 14px rgba(0,0,0,.13)",backdropFilter:"blur(3px)"}},
-      React.createElement(Avatar,{name:member.name,size:24}),
-      React.createElement('div',{style:{minWidth:0,flex:1}},
-        React.createElement('div',{style:{fontSize:11,fontWeight:800,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},member.name),
-        React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontSize:8.5,fontWeight:600,color:"var(--muted)"}},`${member.count} workout${member.count===1?"":"s"}`)
-      ),
-      React.createElement('span',{style:{color:C.cyan,fontWeight:900,fontSize:12}},"✓")
-    ))
-  );
-
   // Resolve a member's payment handle by display name. Membership is the
   // authoritative display-name record, so go name -> userId -> profile rather
   // than matching on profile display names, which are not unique.
@@ -373,94 +332,8 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
     };
   };
 
-  // Signpost: payment setup lives on the account surface, but the moment you
-  // realise you need it is here. Only shown to someone who owes and has not
-  // set a handle.
-  const renderPaymentSetupHint = () => {
-    if (!onOpenAccount || outcome === "winner" || !outgoingRows.length) return null;
-    const mine = currentUserId ? profiles?.[currentUserId] : null;
-    if (buildPaymentTarget(mine)) return null;
-    return React.createElement('button',{
-      type:"button", onClick:onOpenAccount,
-      style:{
-        display:"block",margin:"6px auto 0",background:"transparent",border:"none",
-        color:"rgba(78,205,196,.7)",fontSize:9,fontWeight:700,cursor:"pointer",
-        textDecoration:"underline",textUnderlineOffset:"2px",
-        fontFamily:"'Outfit', sans-serif"
-      }
-    },"Set up how people pay you");
-  };
-
-  const renderLedger = () => {
-    const exemptNotes = [
-      ...trainingNames.filter(name => name !== currentUser).map(name => `${name} \u2014 first month, no penalty.`),
-      ...soloNames.filter(name => name !== currentUser && !losers.some(l => l.name === name)).map(name => `${name} \u2014 on solo mode.`)
-    ];
-    if (isBlocPerfect && exemptNotes.length === 0) return null;
-    if (!incomingRows.length && !outgoingRows.length && exemptNotes.length === 0) return null;
-
-    const rows = outcome === "winner" ? incomingRows : outgoingRows;
-    const title = outcome === "winner" ? `${rows.length} to pay:` : "You owe:";
-    const totalColor = outcome === "winner" ? C.greenText : C.redText;
-
-    return React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:outcome==="winner"?2:4,width:"100%",maxWidth:outcome==="winner"?190:280,margin:"0 auto"}},
-      rows.length > 0 && React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"center",gap:10,textAlign:"center"}},
-        React.createElement('div',{style:{...C.sectionLabel,fontSize:8,letterSpacing:".04em"}},title)
-      ),
-      rows.map((pair, index) => {
-        const {state} = statusForPair(pair);
-        const key = `${month.key}:${pair.payerDisplayName}:${pair.receiverDisplayName}`;
-        const action = outcome === "winner"
-          ? state.pending && state.isReceiver && React.createElement('button',{
-              type:"button",
-              onClick:()=>requestSettlementAction({key,kind:"confirm",payerDisplayName:pair.payerDisplayName,receiverDisplayName:pair.receiverDisplayName,amount:pair.amount}),
-              disabled:settlementBusy===key,
-              style:{fontSize:11,fontWeight:800,padding:"6px 10px",borderRadius:8,background:"transparent",border:"1px solid var(--amber)",color:"var(--amber)"}
-            }, settlementBusy===key ? "Saving..." : "Confirm received")
-          : !state.confirmed && !state.pending && React.createElement('button',{
-              type:"button",
-              onClick:()=>requestSettlementAction({key,kind:"claim",payerDisplayName:pair.payerDisplayName,receiverDisplayName:pair.receiverDisplayName,amount:pair.amount}),
-              disabled:settlementBusy===key,
-              style:{display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:8,fontWeight:800,lineHeight:1,padding:"4px 6px",borderRadius:999,background:"rgba(224,80,32,.035)",border:"1px solid rgba(224,80,32,.12)",color:"rgba(240,109,67,.68)",whiteSpace:"nowrap",fontFamily:"'Outfit', sans-serif"}
-            }, settlementBusy===key ? "Saving..." : "Mark as paid");
-        const payControl = outcome !== "winner" && !state.confirmed && !state.pending
-          ? renderPayControl(pair, key)
-          : null;
-        return outcome==="winner"
-          ? React.createElement(React.Fragment,{key:key},
-              index>0&&React.createElement('div',{style:{height:1,width:"34%",margin:"2px auto",background:"linear-gradient(90deg, transparent, rgba(255,255,255,.12), transparent)"}}),
-              React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"center",gap:7,minHeight:22,textAlign:"center",padding:"2px 0"}},
-                React.createElement('div',{style:{fontSize:12,fontWeight:800,color:"var(--text)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",minWidth:0}},pair.payerDisplayName),
-                React.createElement('div',{style:{fontSize:12,fontWeight:900,color:totalColor,whiteSpace:"nowrap"}},`+${fmtCurrency(pair.amount, currency)}`)
-              )
-            )
-          : React.createElement(React.Fragment,{key:key},
-              index>0&&React.createElement('div',{style:{height:1,width:"34%",margin:"2px auto",background:"linear-gradient(90deg, transparent, rgba(255,255,255,.12), transparent)"}}),
-              React.createElement('div',{style:{minHeight:26,display:"grid",gridTemplateColumns:action?"58px minmax(0,1fr) 58px":"1fr",alignItems:"center",padding:"2px 0",textAlign:"center"}},
-                action && React.createElement('div',null),
-                React.createElement('div',{style:{display:"inline-flex",alignItems:"center",justifyContent:"center",gap:7,minWidth:0,maxWidth:"100%"}},
-                  React.createElement('div',{style:{fontSize:12,fontWeight:800,color:"var(--text)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",minWidth:0,maxWidth:120}},pair.receiverDisplayName),
-                  React.createElement('div',{style:{fontSize:12,fontWeight:900,color:totalColor,whiteSpace:"nowrap"}},`-${fmtCurrency(pair.amount, currency)}`)
-                ),
-                action && React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"flex-end"}},action)
-              ),
-              payControl && React.createElement('div',{style:{display:"flex",justifyContent:"center",paddingBottom:3}},payControl)
-            );
-      }),
-      renderPaymentSetupHint(),
-      // Never your own name: your headline already told you. These lines exist
-      // to explain someone else's absence from the money above, and only when
-      // that person actually came up short.
-      exemptNotes.length > 0 && React.createElement('div',{style:{display:"grid",gap:3,marginTop:rows.length?7:0,paddingTop:rows.length?7:0,borderTop:rows.length?"1px solid rgba(78,205,196,.12)":"none"}},
-        exemptNotes.map(note => React.createElement('div',{key:note,style:{fontSize:10,color:"var(--muted)",fontWeight:700,textAlign:"center",lineHeight:1.35}},note))
-      )
-    );
-  };
-
   const mvpCount = sortedActive[0]?.count || 0;
   const mvpNames = sortedActive.filter(member => member.count === mvpCount && mvpCount > 0).map(member => member.name);
-  const behindRows = activeCounts.map(member => ({...member, miss: Math.max(0, member.target - member.count)})).sort((a,b) => b.miss - a.miss || a.name.localeCompare(b.name));
-  const furthestBehind = behindRows[0]?.miss > 0 ? behindRows[0] : null;
   // Most Diverse: how many different kinds of training someone did, not how
   // much. Replaces "Most Consistent", which was never computed — it simply
   // named whoever came second on workout count, which is why it always went
@@ -479,85 +352,51 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
     return scored.sort((a, b) => b.variety - a.variety || b.count - a.count || a.name.localeCompare(b.name))[0] || null;
   })();
 
-  // Biggest Turnaround: the largest improvement on the member's own previous
-  // month. Also previously uncomputed — it named whoever came third.
-  const biggestTurnaround = (() => {
-    const ordered = [...(monthHistory || [])]
-      .filter(m => m?.key)
-      .sort((a, b) => monthOrder(a.key) - monthOrder(b.key));
-    const index = ordered.findIndex(m => m.key === month.key);
-    const previous = index > 0 ? ordered[index - 1] : null;
-    if (!previous) return null;
-    const gains = activeCounts
-      .map(member => {
-        // Only members present and counted last month can have improved on it.
-        if (previous.excused?.[member.name]) return null;
-        const before = Number(previous.counts?.[member.name] ?? NaN);
-        if (!Number.isFinite(before)) return null;
-        return { name: member.name, gain: member.count - before, before, after: member.count };
-      })
-      .filter(entry => entry && entry.gain > 0);
-    return gains.sort((a, b) => b.gain - a.gain || a.name.localeCompare(b.name))[0] || null;
+  const monthParts = monthKeyParts(month.key);
+  const perDayFor = name => monthParts ? perDayCounts(month.logsByUser?.[name] || [], monthParts.year, monthParts.monthIndex) : [];
+  const joinNames = list => list.map(entry => entry.name).join(" & ");
+  const firstToClear = (() => {
+    const clears = loopMembers
+      .filter(member => !member.isOut)
+      .map(member => ({ name: member.name, day: clearDayOf(perDayFor(member.name), member.fillable) }))
+      .filter(entry => entry.day);
+    if (!clears.length) return null;
+    const earliest = Math.min(...clears.map(entry => entry.day));
+    return { names: clears.filter(entry => entry.day === earliest), day: earliest };
   })();
-
+  const ironWeek = (() => {
+    if (!monthParts) return null;
+    const weeks = loopMembers
+      .filter(member => !member.isOut)
+      .map(member => ({ name: member.name, ...bestWeekOf(perDayFor(member.name), monthParts.year, monthParts.monthIndex) }))
+      .filter(entry => entry.n > 0);
+    if (!weeks.length) return null;
+    const top = Math.max(...weeks.map(entry => entry.n));
+    const winnersOfWeek = weeks.filter(entry => entry.n === top);
+    return { names: winnersOfWeek, n: top, a: winnersOfWeek[0].a, b: winnersOfWeek[0].b };
+  })();
+  const monthShort = shortMonthName(monthParts?.monthIndex);
   const awardCards = [
-    {title:"Bloc Champ", name:mvpNames.length ? mvpNames.join(" & ") : "No winner", detail:mvpNames.length ? workoutsLabel(mvpCount) : "No workouts", tone:"gold", gradient:"linear-gradient(135deg, rgba(245,166,35,.13), rgba(255,224,132,.048))"},
-    {title:"Most Diverse", name:mostDiverse ? mostDiverse.name : "No one", detail:mostDiverse ? `${mostDiverse.variety} kinds of training` : "One kind of training", tone:"violet", gradient:"linear-gradient(135deg, rgba(135,113,255,.13), rgba(78,112,205,.056))"},
-    {title:"Biggest Turnaround", name:biggestTurnaround ? biggestTurnaround.name : "No one", detail:biggestTurnaround ? `${biggestTurnaround.before} to ${biggestTurnaround.after} workouts` : "No previous month", tone:"cyan", gradient:"linear-gradient(135deg, rgba(78,205,196,.115), rgba(71,118,230,.048))"},
-    {title:"Furthest Behind", name:furthestBehind ? furthestBehind.name : "No one", detail:furthestBehind ? `${furthestBehind.miss} short of target` : "Everyone hit target", tone:furthestBehind ? "red" : "silver", gradient:"linear-gradient(135deg, rgba(185,50,50,.115), rgba(245,166,35,.045))"}
+    // Bloc Champ gold and Most Diverse violet are the original award colours;
+    // First to Clear takes the loop's cyan, Iron Week a soft brushed steel.
+    { title: "Bloc Champ", name: mvpNames.length ? mvpNames.join(" & ") : "No one", detail: mvpNames.length ? workoutsLabel(mvpCount) : "No workouts", trophy: true, gradient: "linear-gradient(135deg, rgba(245,166,35,.13), rgba(255,224,132,.048))" },
+    { title: "First to Clear", name: firstToClear ? joinNames(firstToClear.names) : "No one", detail: firstToClear ? `cleared on ${monthShort} ${firstToClear.day}` : "Nobody cleared", gradient: "linear-gradient(135deg, rgba(78,205,196,.115), rgba(71,118,230,.048))" },
+    { title: "Most Diverse", name: mostDiverse ? mostDiverse.name : "No one", detail: mostDiverse ? `${mostDiverse.variety} different activities` : "One kind of workout", gradient: "linear-gradient(135deg, rgba(135,113,255,.13), rgba(78,112,205,.056))" },
+    { title: "Iron Week", name: ironWeek ? joinNames(ironWeek.names) : "No one", detail: ironWeek ? `${ironWeek.n} in a week, ${monthShort} ${ironWeek.a} to ${ironWeek.b}` : "No workouts", gradient: "linear-gradient(135deg, rgba(170,186,204,.12), rgba(96,112,138,.05))" }
   ];
-
-  const renderAwards = () => React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(138px,1fr))",gap:7}},
-    awardCards.map(award => React.createElement('div',{key:award.title,style:{...C.card,background:award.gradient,padding:"10px 10px 9px",minHeight:72}},
-      React.createElement('div',{style:{display:"flex",alignItems:"center",gap:6,marginBottom:6}},
-        award.tone==="gold" && React.createElement(TrophyIcon,{size:13,color:C.gold}),
-        React.createElement('div',{style:{...C.sectionLabel,fontSize:9,letterSpacing:".06em"}},award.title)
+  const renderAwards = () => React.createElement('div',{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}},
+    awardCards.map(award => React.createElement('div',{
+      key: award.title,
+      style: { border: "0.5px solid rgba(255,255,255,.07)", background: award.gradient, borderRadius: 10, padding: 11, display: "flex", flexDirection: "column", gap: 6, minWidth: 0, color: "var(--text)" }
+    },
+      React.createElement('span',{style:{display:"flex",alignItems:"center",gap:6,fontFamily:LOOP_FONTS.body,fontSize:8.5,fontWeight:700,letterSpacing:".12em",textTransform:"uppercase",color:"#8FA9A5"}},
+        award.trophy && React.createElement(TrophyIcon,{size:12,color:C.gold}),
+        award.title
       ),
-      React.createElement('div',{style:{fontSize:14,fontWeight:900,color:award.tone==="red"?C.redText:"var(--text)",lineHeight:1.18,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},award.name),
-      React.createElement('div',{style:{fontSize:11,color:"var(--muted)",marginTop:3,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},award.detail)
+      React.createElement('strong',{style:{fontFamily:LOOP_FONTS.body,fontSize:14.5,fontWeight:800,lineHeight:1.1,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},award.name),
+      React.createElement('em',{style:{fontStyle:"normal",fontFamily:LOOP_FONTS.body,fontSize:11,fontWeight:500,color:"#B8C7C4",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},award.detail)
     ))
   );
-  const sectionSeparator = React.createElement('div',{style:{height:1,width:"100%",background:"linear-gradient(90deg, transparent, rgba(78,205,196,.2), rgba(255,255,255,.12), rgba(78,205,196,.2), transparent)",margin:"2px 0"}});
-
-  // The stakes list excludes anyone exempt, but a training member still
-  // competed and still has a rank. They belong in the standings with a dash
-  // where the money would be, not deleted from the month they took part in.
-  const standingsRows = [
-    ...sortedActive,
-    ...relevantNames
-      .filter(name => isTrainingForMonth(month, name, month.key))
-      .map(name => ({ name, count: Number(month.counts[name] || 0), target: blocTargetFor(name), training: true }))
-  ].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
-
-  const renderLeaderboard = () => React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:6,padding:"7px",background:"rgba(8,15,15,.32)",borderTop:"1px solid rgba(255,255,255,.05)"}},
-    standingsRows.map((row, i) => {
-      const isMe = row.name === currentUser;
-      const isWinner = winners.some(w => w.name === row.name);
-      const isLoser = losers.some(l => l.name === row.name);
-      const moneyTint = isWinner && losers.length > 0 ? "rgba(57,168,90,.075)" : isLoser ? "rgba(185,50,50,.08)" : null;
-      return React.createElement('div',{key:row.name,style:{display:"flex",alignItems:"center",gap:9,padding:"9px 10px",border:"1px solid rgba(255,255,255,.055)",borderRadius:8,background:moneyTint || (isMe?"rgba(78,205,196,.06)":"rgba(255,255,255,.018)")}},
-        React.createElement('div',{className:"mono",style:{fontSize:10,color:"var(--muted)",width:18,textAlign:"right",flexShrink:0}},i+1),
-        React.createElement(Avatar,{name:row.name,size:26}),
-        React.createElement('div',{style:{flex:1,minWidth:0}},
-          React.createElement('div',{style:{fontSize:13,fontWeight:isMe?900:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",display:"flex",alignItems:"center",gap:5}},
-            React.createElement('span',{style:{overflow:"hidden",textOverflow:"ellipsis"}},row.name + (isMe ? " (you)" : "")),
-            row.training && React.createElement(TrainingSproutIcon,{size:13}),
-            getRedemptionMark(monthHistory, row.name, month.key, row.count >= row.target)
-              && React.createElement(RedemptionShieldIcon,{size:13,redeemed:getRedemptionMark(monthHistory, row.name, month.key, row.count >= row.target) === "redeemed"})
-          ),
-          React.createElement('div',{style:{fontSize:10,color:"var(--muted)",marginTop:1}},workoutsLabel(row.count))
-        ),
-        row.training
-          ? React.createElement('span',{style:{fontSize:12,fontWeight:900,color:"var(--muted2)"}},"\u2014")
-          : isWinner && losers.length > 0
-          ? React.createElement('span',{style:{fontSize:12,fontWeight:900,color:C.greenText}},`+${fmtCurrency(perWinner,currency)}`)
-          : isLoser
-            ? React.createElement('span',{style:{fontSize:12,fontWeight:900,color:C.redText}},`-${fmtCurrency(getLoserAmount(penalties,row.name),currency)}`)
-            : React.createElement('span',{style:{...C.pill,background:"rgba(78,205,196,.075)",color:"#8EE7DF",fontSize:9,padding:"2px 8px"}},"Target hit")
-      );
-    })
-  );
-
   // Sticker data for the signed-in member's month. getCountedLogs is the same rule the
   // rest of the app counts by — it drops rejected logs — so the number on the sticker can
   // never disagree with the number on this screen.
@@ -606,9 +445,169 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
     setShowSticker(true);
   };
 
-  const heroStatSize = String(hero.stat).includes("workouts")
-    ? "clamp(31px, 8vw, 42px)"
-    : "clamp(36px, 10vw, 52px)";
+  // ── The frozen ring ──────────────────────────────────────────────────────
+  const focusMember = focus ? loopMembers.find(member => member.name === focus && !member.isOut) : null;
+  const ringReadout = React.createElement(LoopReadout, {
+    focusMember, perfect: isBlocPerfect, done: loop.done, total: loop.total,
+    line: "Month ended", lineMuted: true
+  });
+  const payerTotal = name => settlementPairs.filter(pair => pair.payerDisplayName === name).reduce((sum, pair) => sum + Number(pair.amount || 0), 0);
+  const receiverTotal = name => settlementPairs.filter(pair => pair.receiverDisplayName === name).reduce((sum, pair) => sum + Number(pair.amount || 0), 0);
+  // Tapping someone shows their result and nothing else, except when it's news.
+  const renderFocusPlate = () => {
+    if (!focusMember) return null;
+    const pays = payerTotal(focusMember.name), gets = receiverTotal(focusMember.name);
+    const chip = focusMember.isTraining ? ["First month", "#F5C842"]
+      : pays ? [`Owes ${fmtCurrency(pays, currency)}`, "#E86A45"]
+      : gets ? [`+${fmtCurrency(gets, currency)}`, "#2ECC71"]
+      : focusMember.count >= focusMember.fillable ? ["Cleared", "#4ECDC4"]
+      : focusMember.isSolo ? ["On Solo", "#7DB8B1"]
+      : ["Not cleared", "#6B9690"];
+    const best = personalBestOf(monthHistory, focusMember.name, month.key);
+    const newBest = best && focusMember.count > best.count;
+    return React.createElement('div',{ "data-loop-keep": "1", style:{border:"0.5px solid #163d36",background:"#0A1412",borderRadius:14,padding:14,display:"grid",gridTemplateColumns:"auto 1fr auto",gap:10,alignItems:"center"}},
+      React.createElement(Avatar,{name:focusMember.name,userId:focusMember.userId,size:26}),
+      React.createElement('div',{style:{minWidth:0}},
+        React.createElement('div',{style:{fontFamily:LOOP_FONTS.display,fontSize:15,fontWeight:800,lineHeight:1.1,color:"var(--text)"}},focusMember.isMe ? "You" : focusMember.name),
+        newBest && React.createElement('div',{style:{fontFamily:LOOP_FONTS.body,fontSize:11,fontWeight:500,color:"#B8C7C4",marginTop:3}},"New best month")
+      ),
+      React.createElement('span',{style:{fontFamily:LOOP_FONTS.body,fontSize:8.5,fontWeight:700,letterSpacing:".12em",textTransform:"uppercase",padding:"6px 8px",borderRadius:999,border:"0.5px solid #163d36",whiteSpace:"nowrap",color:chip[1]}},chip[0])
+    );
+  };
+
+  // ── Your report ──────────────────────────────────────────────────────────
+  const heroTagColor = hero.tone === "perfect" ? "#4ECDC4" : hero.tone === "winner" ? C.greenText : hero.tone === "missed" ? "#E65A5A" : hero.tone === "training" ? "#F5C842" : "#D7E2E1";
+  const myBest = personalBestOf(monthHistory, currentUser, month.key);
+  const pbBody = personalBestCard(myBest, userCount, { satOut: userSatOut });
+  const myRecord = trackRecordOf(monthHistory, currentUser, month.key, { includeKey: true });
+  const recordParts = trackRecordParts({ months: myRecord, highlightLast: true, compact: true, firstMonth: myRecord.length <= 1 && !myBest });
+  // Someone who wasn't in this month (joined later) has no report to show.
+  const userInMonth = !!currentUser && Object.prototype.hasOwnProperty.call(month.counts || {}, currentUser);
+  const renderReport = () => {
+    if (!userInMonth) return null;
+    const tone = REPORT_TONES[hero.tone] || REPORT_TONES.neutral;
+    // Money is shown only when money actually moved. A perfect month settles nothing.
+    const owed = receiverTotal(currentUser), owes = payerTotal(currentUser);
+    const money = owed > 0 ? `+${fmtCurrency(owed, currency)}` : owes > 0 ? `\u2212${fmtCurrency(owes, currency)}` : "";
+    const cardLines = hero.tone === "winner" ? [[hero.topLine, hero.keepLine].filter(Boolean).join(" ")]
+      : hero.tone === "perfect" ? [perfectCardLine]
+      : [String(hero.line || "")].filter(Boolean);
+    return React.createElement('div',{style:{border:`0.5px solid ${tone.edge}`,background:`${tone.wash}, #0A1412`,borderRadius:14,padding:12,display:"flex",flexDirection:"column"}},
+      React.createElement('div',{style:{display:"flex",alignItems:"center",gap:12}},
+        React.createElement('div',{style:{flex:"1 1 0",minWidth:0}},
+          React.createElement('span',{style:{fontFamily:LOOP_FONTS.body,fontSize:8.5,fontWeight:700,letterSpacing:".14em",textTransform:"uppercase",color:tone.stamp}},hero.cardStamp || hero.tag),
+          React.createElement('div',{style:{display:"flex",alignItems:"baseline",gap:7,marginTop:8}},
+            React.createElement('span',{style:{fontFamily:LOOP_FONTS.mono,fontSize:26,fontWeight:700,lineHeight:1,color:"var(--text)"}},userSatOut ? "\u2014" : String(userCount)),
+            React.createElement('span',{style:{fontFamily:LOOP_FONTS.body,fontSize:13,fontWeight:600,color:"var(--text)"}},userSatOut ? "Month off" : userCount === 1 ? "workout" : "workouts")
+          ),
+          cardLines.length > 0 && React.createElement('div',{style:{fontFamily:LOOP_FONTS.body,fontSize:12,lineHeight:1.45,color:"#B8C7C4",marginTop:5}},
+            cardLines.map((line, index) => React.createElement('span',{key:index,style:{display:"block"}},line))
+          )
+        ),
+        money && React.createElement('span',{style:{flex:"0 0 auto",marginRight:10,fontFamily:LOOP_FONTS.mono,fontSize:26,fontWeight:700,lineHeight:1,letterSpacing:"-.01em",color:tone.money}},money)
+      ),
+      // A rule with the month set into it, like a stamped slip.
+      React.createElement('div',{style:{display:"flex",alignItems:"center",gap:6,margin:"10px 0"}},
+        React.createElement('span',{style:{flex:"1 1 0",height:1,background:"#16302C"}}),
+        React.createElement('span',{style:{fontFamily:LOOP_FONTS.mono,fontSize:7.5,letterSpacing:".14em",color:"#3E5652"}},String(month.label || "").toUpperCase()),
+        React.createElement('span',{style:{flex:"1 1 0",height:1,background:"#16302C"}})
+      ),
+      React.createElement('div',{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}},
+        React.createElement(PanelCard,{label:"Personal best",big:pbBody.big,small:pbBody.small}),
+        React.createElement('div',{style:{border:"0.5px solid #0D1F1E",background:"#080F0F",borderRadius:10,padding:"10px 11px",display:"flex",flexDirection:"column",gap:6,minWidth:0}},
+          React.createElement('span',{style:recordParts.label},"Track record"),
+          recordParts.rings,
+          React.createElement('em',{style:{fontStyle:"normal",fontFamily:LOOP_FONTS.body,fontSize:11,fontWeight:500,color:"#B8C7C4"}},recordParts.summary)
+        )
+      )
+    );
+  };
+
+  // ── Settlements: your own payments open, everyone else's folded ──────────
+  const plateStyle = {border:"0.5px solid #163d36",background:"#0A1412",borderRadius:12,padding:"10px 12px",display:"flex",flexDirection:"column",gap:7};
+  const plateHead = (title, meta) => React.createElement('div',{style:{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:10}},
+    React.createElement('b',{style:{fontFamily:LOOP_FONTS.body,fontSize:8.5,fontWeight:700,letterSpacing:".14em",textTransform:"uppercase",color:"#7DB8B1"}},title),
+    meta && React.createElement('span',{style:{fontFamily:LOOP_FONTS.body,fontSize:9.5,fontWeight:600,color:"#6B9690"}},meta)
+  );
+  const pairKey = pair => `${month.key}:${pair.payerDisplayName}:${pair.receiverDisplayName}`;
+  const pairState = pair => statusForPair(pair).state;
+  const smallBtn = (label, onClick, kind, key) => React.createElement('button',{
+    type:"button", onClick, disabled: settlementBusy === key,
+    style:{fontFamily:LOOP_FONTS.body,fontSize:8.5,fontWeight:800,lineHeight:1,padding:"4px 8px",borderRadius:999,cursor:"pointer",whiteSpace:"nowrap",
+      background: kind === "confirm" ? "#4ECDC4" : "rgba(226,235,232,.10)",
+      border: `1px solid ${kind === "confirm" ? "#4ECDC4" : "rgba(226,235,232,.26)"}`,
+      color: kind === "confirm" ? "#061110" : "#DCE8E5"}
+  }, settlementBusy === key ? "Saving..." : label);
+  const renderPairRow = pair => {
+    const key = pairKey(pair), state = pairState(pair);
+    const youPay = pair.payerDisplayName === currentUser, youGet = pair.receiverDisplayName === currentUser;
+    const nameNode = name => name === currentUser
+      ? React.createElement('span',{style:{fontWeight:700,color:"var(--text)"}},"You")
+      : name;
+    const amountColor = state.pending && !state.confirmed ? "#EF9F27" : youPay ? "#E86A45" : youGet ? "#2ECC71" : "#6B9690";
+    const statusText = (text, color) => React.createElement('span',{style:{fontFamily:LOOP_FONTS.body,fontSize:9.5,fontWeight:500,lineHeight:1.3,color:color || "#6B9690"}},text);
+    let status, actions = null;
+    if (state.confirmed) status = statusText("Paid, confirmed", "#4ECDC4");
+    else if (youPay && state.pending) status = statusText(`Waiting for ${pair.receiverDisplayName} to confirm`, "#EF9F27");
+    else if (youPay) {
+      status = statusText("You haven't paid yet");
+      actions = React.createElement('span',{style:{display:"inline-flex",alignItems:"center",gap:6}},
+        renderPayControl(pair, key),
+        smallBtn("Mark as paid", () => requestSettlementAction({key,kind:"claim",payerDisplayName:pair.payerDisplayName,receiverDisplayName:pair.receiverDisplayName,amount:pair.amount}), "claim", key)
+      );
+    } else if (youGet && state.pending) {
+      status = statusText(`${pair.payerDisplayName} says they paid you`, "#EF9F27");
+      actions = smallBtn("Confirm", () => requestSettlementAction({key,kind:"confirm",payerDisplayName:pair.payerDisplayName,receiverDisplayName:pair.receiverDisplayName,amount:pair.amount}), "confirm", key);
+    } else if (state.pending) status = statusText(`Paid, waiting for ${pair.receiverDisplayName} to confirm`, "#EF9F27");
+    else status = statusText("Not paid yet");
+    return React.createElement('div',{key,style:{display:"grid",gridTemplateColumns:"1fr auto",gap:"3px 10px",alignItems:"center",padding:"6px 0",borderTop:"0.5px solid #0D1F1E"}},
+      React.createElement('div',{style:{display:"flex",alignItems:"center",gap:6,minWidth:0,fontFamily:LOOP_FONTS.body,fontSize:11.5,fontWeight:500,color:"#B8C7C4"}},
+        nameNode(pair.payerDisplayName),
+        React.createElement('span',{style:{fontFamily:LOOP_FONTS.mono,fontSize:11,color:"#6B9690"}},"→"),
+        nameNode(pair.receiverDisplayName)
+      ),
+      React.createElement('div',{style:{fontFamily:LOOP_FONTS.body,fontSize:11.5,fontWeight:600,textAlign:"right",fontVariantNumeric:"tabular-nums",color:amountColor}},fmtCurrency(pair.amount, currency)),
+      React.createElement('div',{style:{gridColumn:"1 / -1",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,minHeight:18}},status,actions)
+    );
+  };
+  // Someone owed money with no way to be paid gets the same nudge Today gives,
+  // decided the same way Today decides it (every saved method, not just the
+  // original single one) and opening the same window.
+  const needsPaymentMethod = incomingRows.length > 0 && !!onSavePayment && !!currentUserId && buildPaymentTargets(profiles?.[currentUserId]).length === 0;
+  const isPhoneLayout = typeof window !== "undefined" && !!window.matchMedia?.("(max-width: 768px)").matches;
+  const linkPaymentBody = showLinkPayment && onSavePayment && React.createElement('div',{className:"overlay center-mobile",onClick:()=>setShowLinkPayment(false),style:isPhoneLayout ? {background:"rgba(2,3,6,.58)"} : undefined},
+    React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{maxWidth:340,padding:"16px 15px",textAlign:"left"}},
+      React.createElement(PaymentHandleSection,{currentPaymentMethods,onSavePayment,savingPayment,paymentError})
+    )
+  );
+  // Portalled on the phone, like Today's: the Month page sits inside a swipe surface.
+  const linkPaymentModal = linkPaymentBody && isPhoneLayout ? createPortal(linkPaymentBody, document.body) : linkPaymentBody;
+  const renderSettlements = () => {
+    if (!settlementPairs.length) {
+      return React.createElement('div',{style:plateStyle},
+        plateHead("Settlements", "None"),
+        React.createElement('div',{style:{fontFamily:LOOP_FONTS.body,fontSize:12,fontWeight:700,color:"var(--text)",textAlign:"center",padding:"6px 0 2px"}},"Nothing to settle.")
+      );
+    }
+    const mine = settlementPairs.filter(pair => pair.payerDisplayName === currentUser || pair.receiverDisplayName === currentUser);
+    const others = settlementPairs.filter(pair => !mine.includes(pair));
+    const openCount = list => list.filter(pair => !pairState(pair).confirmed).length;
+    const allOpen = openCount(settlementPairs);
+    const foldLabel = mine.length ? "Everyone else" : `Settlements – ${allOpen ? `${allOpen} Open` : "All settled"}`;
+    return React.createElement('div',{style:mine.length ? plateStyle : {...plateStyle,padding:"9px 12px"}},
+      mine.length > 0 && plateHead(mine[0].payerDisplayName === currentUser ? "You owe" : "Owed to you", `${openCount(mine)} Open`),
+      mine.length > 0 && needsPaymentMethod && React.createElement('div',{style:{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,border:"0.5px solid rgba(78,205,196,.3)",borderRadius:9,padding:"7px 10px",background:"rgba(78,205,196,.05)"}},
+        React.createElement('span',{style:{fontFamily:LOOP_FONTS.body,fontSize:10.5,fontWeight:500,lineHeight:1.35,color:"#B8C7C4"}},"People can't pay you in one tap yet."),
+        React.createElement('button',{type:"button",onClick:()=>setShowLinkPayment(true),style:{background:"none",border:"none",padding:0,cursor:"pointer",fontFamily:LOOP_FONTS.body,fontSize:10.5,fontWeight:700,color:"#4ECDC4",whiteSpace:"nowrap"}},"Link a payment option +")
+      ),
+      mine.length > 0 && React.createElement('div',{style:{display:"flex",flexDirection:"column",marginTop:-8}},mine.map(renderPairRow)),
+      others.length > 0 && React.createElement('button',{type:"button","aria-expanded":othersOpen,onClick:()=>setOthersOpen(v => !v),style:{display:"flex",justifyContent:"space-between",alignItems:"center",width:"100%",background:"transparent",border:"none",padding:"2px 0",cursor:"pointer",fontFamily:LOOP_FONTS.body,fontSize:11.5,fontWeight:600,color:"#B8C7C4"}},
+        React.createElement('span',null,foldLabel),
+        React.createElement('span',{style:{color:"#6B9690",fontSize:15}},othersOpen ? "−" : "+")
+      ),
+      others.length > 0 && othersOpen && React.createElement('div',{style:{display:"flex",flexDirection:"column",marginTop:-6}},others.map(renderPairRow))
+    );
+  };
 
   const claimConfirmation = claimPrompt && React.createElement('div',{className:"overlay center-mobile",onClick:()=>setClaimPrompt(null)},
     React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{maxWidth:320,padding:"18px 16px",textAlign:"center"}},
@@ -622,53 +621,30 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
   );
 
   return React.createElement(React.Fragment,null,
-    React.createElement('div',{style:{width:"100%",maxWidth:"100%",margin:"0 auto",padding:"0 0 32px",display:"flex",flexDirection:"column",gap:12,fontFamily:"'Outfit', sans-serif"}},
-    React.createElement('div',{style:{...heroStyle,borderRadius:12,padding:"18px 18px 16px",textAlign:"center",display:"flex",flexDirection:"column",gap:10}},
-      React.createElement('span',{style:heroPillStyle},hero.tag),
-      React.createElement('div',{style:{fontSize:heroStatSize,fontWeight:900,lineHeight:1.05,color:heroColor,letterSpacing:0,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},hero.stat),
-      renderHeroLine(),
-      renderPerfectRoster(),
-      hero.footerLine&&React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:2,fontSize:13,color:"var(--muted)",fontWeight:500,lineHeight:1.32}},
-        (Array.isArray(hero.footerLine) ? hero.footerLine : [hero.footerLine]).map((line, index) =>
-          line && typeof line === "object"
-            ? React.createElement('div',{key:`footer-${index}`,style:{whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},
-                React.createElement('span',{style:{fontWeight:800}},line.emphasis),
-                React.createElement('span',{style:{fontWeight:500}},line.rest)
-              )
-            : React.createElement('div',{key:line,style:{fontWeight:isStreakLine(line)?800:500,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},line)
-        )
-      )
-    ),
-    React.createElement('div',{ref:ledgerRef},renderLedger()),
-    sectionSeparator,
-    renderAwards(),
-    sectionSeparator,
-    reportCalendar ? React.createElement(MonthCalendarCard,{
-      title:`${stickerMonthLabel} · Your month`,
-      logsByDay:reportCalendar.logsByDay,
-      year:reportCalendar.year,
-      monthIndex:reportCalendar.monthIndex,
-      daysInMonth:reportCalendar.daysInMonth,
-      firstWeekdayOffset:reportCalendar.firstWeekdayOffset,
-      onShare:handleShare
-    }) : null,
-      showStandings&&renderLeaderboard()
-    ),
-    React.createElement('div',{style:{border:"1px solid rgba(78,205,196,.15)",borderRadius:10,overflow:"hidden",background:"linear-gradient(135deg, rgba(78,205,196,.045), rgba(8,15,15,.78) 52%, rgba(255,255,255,.018))",boxShadow:"inset 0 1px 0 rgba(255,255,255,.03), 0 10px 26px rgba(78,205,196,.035)"}},
-      React.createElement('button',{type:"button",onClick:()=>{onTrackUsage?.("monthly_summary_card_clicked");setShowStandings(v=>!v)},style:{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",padding:"13px 15px",background:"transparent",border:"none",color:"var(--text)",fontSize:13,fontWeight:800,cursor:"pointer"}},
-        React.createElement('span',null,"Month Summary"),
-        React.createElement('span',{style:{color:"var(--muted)",fontSize:16}},showStandings?"−":"+")
+    React.createElement('div',{style:{width:"100%",maxWidth:"100%",margin:"0 auto",padding:"0 0 48px",display:"flex",flexDirection:"column",gap:14,fontFamily:LOOP_FONTS.body}},
+      React.createElement(MonthDial,{ members: loopMembers, perfect: isBlocPerfect, focus, onToggle: name => setFocus(prev => prev === name ? null : name), readout: ringReadout, live: true }),
+      React.createElement(LoopCaption,{ lines: loopCaption(loopMembers, { ended: true }) }),
+      React.createElement('div',{style:{fontFamily:LOOP_FONTS.body,fontSize:7,fontWeight:500,color:"#6B9690",opacity:.8,textAlign:"center",marginTop:-8}},"Tap a slice to see that person"),
+      perfectRun > 0 && React.createElement(PerfectRunPill,{ run: perfectRun }),
+      renderFocusPlate(),
+      renderReport(),
+      React.createElement('div',{style:{border:"0.5px solid #163d36",background:"#0A1412",borderRadius:14,padding:14,display:"flex",flexDirection:"column",gap:12}},
+        plateHead(`${selectedMonthName}'s awards`),
+        renderAwards()
       ),
-    React.createElement('div',{style:{display:"flex",gap:8,paddingTop:2}},
-      // Sharing lives on the calendar card now, so this is only the ledger jump
-      // a missed month needs. Rendering it as "Share this month" as well put the
-      // same action on screen twice.
-      outcome === "missed" && React.createElement('button',{onClick:handleShare,style:{flex:1,padding:"13px",borderRadius:10,background:"var(--s2)",border:"1px solid var(--border)",color:"var(--text)",fontSize:13,fontWeight:800}},
-        "View the settlement"
-      )
-    )
+      reportCalendar ? React.createElement(MonthCalendarCard,{
+        title:stickerMonthLabel,
+        logsByDay:reportCalendar.logsByDay,
+        year:reportCalendar.year,
+        monthIndex:reportCalendar.monthIndex,
+        daysInMonth:reportCalendar.daysInMonth,
+        firstWeekdayOffset:reportCalendar.firstWeekdayOffset,
+        onShare:handleShare
+      }) : null,
+      React.createElement('div',{ref:ledgerRef},renderSettlements())
     ),
     claimConfirmation,
+    linkPaymentModal,
     showSticker && stickerData && React.createElement(ShareSticker,{
       data: stickerData,
       monthLabel: stickerMonthLabel,

@@ -1,4 +1,7 @@
 import React from "react";
+import { createPortal } from "react-dom";
+import { MiniLoop, LOOP_FONTS } from "../components/MonthLoop.jsx";
+import { blocStreakView } from "../lib/blocStreak.js";
 const { useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef } = React;
 import {
   NAMES,
@@ -52,7 +55,8 @@ import {
   buildLocalWeeklyMvpPreview
 } from "../lib/utils.js";
 import { Avatar, WorkoutTypeIcon, ChevronRightIcon, TargetHitHexIcon, StatusBadge, RankIcon, Bar, Card, AppIcon, PlayerProfileErrorBoundary, RedemptionShieldIcon, MemberTag, TrainingSproutIcon, SoloFlagIcon } from "../components/primitives.jsx";
-import { LogModal, DeleteModal } from "../modals/modals.jsx";
+import { LogModal, DeleteModal, SittingOutNotice } from "../modals/modals.jsx";
+import { ReminderSheet } from "../components/ReminderSheet.jsx";
 import { getLogDisplayActivity } from "../lib/activities.js";
 import { PlayerProfile } from "../pages/PlayerProfile.jsx";
 import { buildPaymentTargets } from "../lib/paymentLinks.js";
@@ -62,7 +66,7 @@ import { PaymentHandleSection } from "../components/PaymentHandleSection.jsx";
 
 const FULL_MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
-const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCreatedAt,logs,excused,monthHistory,saving,onSave,onMultiLog,onLogMutation,clockTick,onViewLastMonth,onSettlementClaimPaid,onSettlementConfirmPaid,onSettlementDisputePaid,onOpenSetupReview,onOpenAccount,navResetToken,showLog,setShowLog,onTrackUsage,currentPaymentMethods=[],onSavePayment,savingPayment=false,paymentError=""}) => {
+const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCreatedAt,logs,excused,monthHistory,saving,onSave,onMultiLog,onLogMutation,clockTick,onViewLastMonth,onOpenMonth,onSettlementClaimPaid,onSettlementConfirmPaid,onSettlementDisputePaid,onOpenSetupReview,onOpenAccount,navResetToken,showLog,setShowLog,onTrackUsage,currentPaymentMethods=[],onSavePayment,savingPayment=false,paymentError=""}) => {
   const [viewPlayer,setViewPlayer]=useState(null);
   const [deleteTarget,setDeleteTarget]=useState(null);
   const [statDetail,setStatDetail]=useState(null);
@@ -71,6 +75,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
   const [settlementConfirmPromptCard,setSettlementConfirmPromptCard]=useState(null);
   const [settlementDisputePromptCard,setSettlementDisputePromptCard]=useState(null);
   const [showLinkPaymentModal,setShowLinkPaymentModal]=useState(false);
+  const [showReminderSheet,setShowReminderSheet]=useState(false);
   const todayRootRef = useRef(null);
   const profileLayerRef = useRef(null);
   const [profileRevealActive,setProfileRevealActive]=useState(false);
@@ -405,36 +410,6 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
   const currentMonthLabel = `${FULL_MONTH_NAMES[CUR_MONTH] || MONTH_NAMES[CUR_MONTH]} '${String(CUR_YEAR).slice(-2)}`;
   const todayHeaderMonthName = FULL_MONTH_NAMES[CUR_MONTH] || MONTH_NAMES[CUR_MONTH];
   const expandMonthLabel = label => String(label || "").replace(/^([A-Z][a-z]{2})\s+'(\d{2})$/, (_, shortName, year) => `${FULL_MONTH_NAMES[MONTH_NAMES.indexOf(shortName)] || shortName} '${year}`);
-  const blocMonthHistoryRows = useMemo(() => {
-    const closedRows = [...monthHistory]
-      .filter(month => month?.key && month.key !== currentMonthKey)
-      .sort((a,b)=>b.key.localeCompare(a.key))
-      .map(month => ({
-        key: month.key,
-        label: expandMonthLabel(month.label),
-        total: Object.values(month.counts || {}).reduce((sum, count) => sum + (Number(count) || 0), 0),
-        isCurrent: false
-      }));
-    const rows = [
-      {
-        key: currentMonthKey,
-        label: currentMonthLabel,
-        total: Object.values(logs || {}).reduce((sum, memberLogs) => sum + getCountedLogCount(memberLogs), 0),
-        isCurrent: true
-      },
-      ...closedRows
-    ];
-    const maxTotal = rows.reduce((max, month) => Math.max(max, month.total), 0) || 1;
-    return rows.map((month, index) => {
-      const olderMonth = rows[index + 1] || null;
-      const delta = !month.isCurrent && olderMonth ? month.total - olderMonth.total : null;
-      return {
-        ...month,
-        delta,
-        barWidth: `${Math.max(8, Math.round((month.total / maxTotal) * 100))}%`
-      };
-    });
-  }, [monthHistory, currentMonthKey, currentMonthLabel, logs]);
 
   const lastClosedMonth = monthHistory.length ? [...monthHistory].sort((a,b)=>b.key.localeCompare(a.key))[0] : null;
   const showLastMonthBanner = (monthSummary?.day || DAY_OF_MON) <= 5;
@@ -499,7 +474,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
   const paceDelta = me.count - expected;
   const earlyMonthPaceQuiet = isEarlyMonthNeutralWindow() && me.count === 0;
   const paceDeltaText = earlyMonthPaceQuiet ? "—" : (paceDelta > 0 ? `+${paceDelta} ahead` : (paceDelta < 0 ? `${paceDelta} behind` : "on pace"));
-  const paceDeltaColor = earlyMonthPaceQuiet ? "var(--muted)" : (paceDelta >= 0 ? "#4ECDC4" : "#D47843");
+  const paceDeltaColor = earlyMonthPaceQuiet ? "var(--muted)" : (paceDelta >= 0 ? "var(--text)" : "#D47843");
   const todayTargetText = earlyMonthPaceQuiet ? "month just started" : `${expected} by today`;
   const paceValueStyle = !earlyMonthPaceQuiet
     ? {
@@ -511,7 +486,32 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
     : null;
   const targetCardMeta = (currentMonthOverride?.prorated || myTarget !== MIN_TARGET) ? "prorated" : null;
 
-  const blocMonthCount = Object.values(logs || {}).reduce((total, memberLogs) => total + getCountedLogCount(memberLogs), 0);
+  // The Bloc Loop card: the Month tab's ring, small and flat, and a tap opens it.
+  // Someone sitting out has no slice, exactly as on the Month page.
+  // The ring draws a slice for everyone in the month, Solo included, exactly as
+  // the Month tab does. The count beside it must read the same way as the Month
+  // caption, which counts only the slices that can clear the loop: a Solo slice
+  // can't, so it is drawn but not counted.
+  const loopMembersToday = board.filter(u => !u.isOut);
+  const loopSlices = loopMembersToday.map(u => u.count >= u.target);
+  const loopCountable = loopMembersToday.filter(u => !u.isSolo);
+  const loopCleared = loopCountable.filter(u => u.count >= u.target).length;
+  const loopCardNode = React.createElement('div',{style:{position:"relative",width:40,height:40}},
+    React.createElement(MiniLoop,{ slices: loopSlices, size: 40 }),
+    React.createElement('span',{style:{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:LOOP_FONTS.mono,fontSize:9.5,fontWeight:700,letterSpacing:"-.03em",color:"var(--text)"}},`${loopCleared}/${loopCountable.length}`)
+  );
+  // The Bloc's daily streak, on the Bloc's clock (its day ends at 3am).
+  const blocTimeZone = currentGroup?.settings?.timeZone || "Europe/Oslo";
+  const blocHour = (() => {
+    try {
+      return Number(new Intl.DateTimeFormat("en-GB",{ timeZone: blocTimeZone, hour: "2-digit", hour12: false }).format(new Date()));
+    } catch { return new Date().getHours(); }
+  })();
+  const streakCard = blocStreakView({ logs, monthHistory, todayIso: TODAY_ISO, blocHour });
+  const formatStreakSince = iso => {
+    const [, month, day] = String(iso || "").split("-").map(Number);
+    return month ? `${day} ${MONTH_NAMES[month - 1]}` : "";
+  };
   const getMemberLogsForIso = (memberName, isoDate) => {
     if (!memberName || !isoDate) return [];
     const currentMonthMatches = currentMonthLogMap.get(`${memberName}:${isoDate}`);
@@ -661,15 +661,6 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
     textOverflow: "ellipsis",
     minWidth: 0
   };
-  const blocMonthValueStyle = {
-    fontSize: 12,
-    fontWeight: 500,
-    lineHeight: 1,
-    justifyContent: "center",
-    textAlign: "center",
-    width: "100%",
-    fontFamily: "'Outfit', sans-serif"
-  };
   const mobileStatLabelStyle = {fontSize:8,marginBottom:0,whiteSpace:"nowrap",letterSpacing:".07em",fontWeight:700,color:"#8FAEAA",fontFamily:"'Outfit', sans-serif",textAlign:"center",width:"100%"};
   const desktopStatLabelStyle = {fontSize:9,marginBottom:0,whiteSpace:"nowrap",letterSpacing:".07em",fontWeight:700,color:"#8FAEAA",fontFamily:"'Outfit', sans-serif",textAlign:"center",width:"100%"};
   const mobileStatSubStyle = {fontSize:8.5,color:"var(--muted)",marginTop:3,lineHeight:1.15,minHeight:20,display:"flex",alignItems:"center",justifyContent:"center",textAlign:"center",fontFamily:"'Outfit', sans-serif",width:"100%",whiteSpace:"nowrap"};
@@ -687,13 +678,48 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
   const mobileStatCardStyle = {...statCardSurfaceStyle,padding:"8px 10px",minHeight:74};
   const desktopStatCardStyle = {...statCardSurfaceStyle,padding:"10px 12px",minHeight:106};
 
+  // One tick per day, the last fourteen, with today's tick last.
+  const streakTicks = streakCard ? Math.min(14, streakCard.days + (streakCard.aliveToday ? 0 : 1)) : 0;
+  const streakStrip = !streakCard ? null : React.createElement(Card,{style:{
+    padding:"8px 12px", display:"flex", flexDirection:"column", gap:5,
+    border:`0.5px solid ${streakCard.atRisk ? "rgba(245,167,66,.35)" : "rgba(78,205,196,.16)"}`,
+    background: streakCard.atRisk ? "linear-gradient(160deg, #1C1A12, #0E1210)" : "linear-gradient(160deg, #0F1D1C, #0A1312)"
+  }},
+    React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10}},
+      React.createElement('div',{style:{display:"flex",alignItems:"baseline",gap:7}},
+        React.createElement('span',{style:{fontFamily:LOOP_FONTS.mono,fontSize:22,fontWeight:700,lineHeight:1,color:"var(--text)"}},streakCard.days),
+        React.createElement('span',{style:{fontFamily:LOOP_FONTS.body,fontSize:8.5,fontWeight:700,letterSpacing:".12em",textTransform:"uppercase",color:"#9FB5B1"}},"Day Bloc streak")
+      ),
+      // One tick per day, the last fourteen. Texture, not numbers to read.
+      React.createElement('div',{style:{display:"flex",alignItems:"flex-end",gap:3,height:18}},
+        Array.from({ length: streakTicks }, (_, index) => {
+          const isToday = index === streakTicks - 1;
+          return React.createElement('span',{key:index,style:{
+            width:5, height: isToday ? 18 : 14, borderRadius:1.5,
+            background: isToday && !streakCard.aliveToday ? "rgba(245,167,66,.32)" : isToday ? "rgba(78,205,196,.85)" : "rgba(78,205,196,.32)"
+          }});
+        })
+      )
+    ),
+    React.createElement('div',{style:{fontFamily:LOOP_FONTS.body,fontSize:11,color:"#B8C7C4"}},
+      streakCard.atRisk
+        ? React.createElement(React.Fragment,null,
+            React.createElement('b',{style:{color:"#F5A742",fontWeight:600}},"Nobody's trained today."),
+            streakCard.pastMidnight ? " One workout before 3am keeps it going." : " One workout keeps it going."
+          )
+        : streakCard.since
+          ? React.createElement(React.Fragment,null,"Someone's trained every day since ",React.createElement('b',{style:{color:"var(--text)",fontWeight:600}},formatStreakSince(streakCard.since)),".")
+          : "Someone's trained every day."
+    )
+  );
+
   const statCards = [
     needed === 0
       ? {kind:"target",label:"Target",valueNode:React.createElement(TargetHitHexIcon,{size:22}),sub:"target hit!",meta:targetCardMeta}
       : {kind:"target",label:"Target",val:needed,sub:"more to go",meta:targetCardMeta,color:"#4ECDC4"},
     {kind:"pace",label:"Pace Check",val:paceDeltaText,sub:todayTargetText,color:paceDeltaColor,valueStyle:paceValueStyle},
     {kind:"week-mvp",label:"Week's MVP",val:weeklyMvpTileValue,sub:"most logs this week",color:"var(--text)",valueStyle:weeklyMvpValueStyle},
-    {kind:"bloc-month",label:"Bloc Month",val:blocMonthCount,sub:"workouts logged",color:"var(--text)",valueStyle:blocMonthValueStyle}
+    {kind:"bloc-loop",label:"Bloc Loop",valueNode:loopCardNode,sub:"",valueStyle:{minHeight:42},color:"var(--text)"}
   ];
   const desktopLogsByDay = {};
   (logs[user] || []).forEach(log => {
@@ -714,7 +740,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
   // Pay affordance on a reminder: one icon per method the receiver accepts, so
   // the payer can settle at the moment they are reminded instead of navigating
   // into the month view. Opening a link never changes settlement state.
-  const reminderPayControl = card => {
+  const reminderPayControl = (card, size = 19) => {
     if (!card?.isPayer || card.pending) return null;
     const receiverId = card.receiverAuthUserId;
     if (!receiverId || !profiles) return null;
@@ -729,7 +755,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
         title:`Pay with ${target.label}`,
         style:{
           display:"inline-flex",alignItems:"center",justifyContent:"center",
-          width:19,height:19,borderRadius:5,flexShrink:0,
+          width:size,height:size,borderRadius:Math.round(size * .26),flexShrink:0,
           background:target.iconBg||target.brand,color:"#FFFFFF",
           textDecoration:"none",boxShadow:"0 1px 4px rgba(0,0,0,.28)"
         }
@@ -767,7 +793,19 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
   // Sits on the body line, not under it, and opens the provider list in place
   // rather than sending the receiver off to the account screen: the prompt is
   // about one small piece of setup, so the whole trip is the wrong size.
-  const renderLinkPaymentPrompt = card => card.key !== firstOwedKey ? null : React.createElement('button',{
+  // Phone only: the desktop prompt below stayed muted and 8.5px, which read as
+  // a caption and was easy to miss. On the phone it is a clear cyan action.
+  const renderLinkPaymentPromptMobile = (card, promptKey = firstOwedKey, fontSize = 10) => card.key !== promptKey ? null : React.createElement('button',{
+    type:"button",
+    onClick:e=>{ e.stopPropagation(); setShowLinkPaymentModal(true); },
+    style:{
+      background:"transparent",border:"none",padding:"4px 0",margin:"-4px 0",
+      color:"#4ECDC4",fontSize,fontWeight:700,cursor:"pointer",textAlign:"left",
+      whiteSpace:"nowrap",flexShrink:0,lineHeight:1.25,
+      fontFamily:"'Outfit', sans-serif"
+    }
+  },"Link a payment option +");
+  const renderLinkPaymentPrompt = (card, promptKey = firstOwedKey) => card.key !== promptKey ? null : React.createElement('button',{
     type:"button",
     onClick:e=>{ e.stopPropagation(); setShowLinkPaymentModal(true); },
     style:{
@@ -778,24 +816,30 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
     }
   },"Link a payment option");
 
-  const settlementReminderSlot = showSettlementReminderSlot && React.createElement(Card,{style:{padding:"9px 10px",display:"flex",flexDirection:"column",gap:6,background:"#0A1412",border:"0.5px solid #163d36",boxShadow:"inset 0 1px 0 rgba(78,205,196,.03)"}},
-    React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}},
-      React.createElement('span',{className:"lbl",style:{fontSize:8,marginBottom:0,color:"#7DB8B1",fontFamily:"'Outfit', sans-serif",fontWeight:700}},"Settlement reminders"),
-      React.createElement('span',{style:{fontSize:9,color:"#6B9690",fontFamily:"'Outfit', sans-serif",fontWeight:500}},`${visibleSettlementReminderCards.length} unpaid`)
-    ),
-    visibleSettlementReminderCards.map(card => React.createElement('div',{key:card.key,style:{border:"0.5px solid #0D1F1E",borderRadius:9,padding:"6px 10px",display:"grid",gap:2,background:"#080F0F",fontFamily:"'Outfit', sans-serif",position:"relative"}},
-      React.createElement('div',{style:{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:8}},
+  // The compact phone card is a single, centred payment row. The month sits
+  // immediately above it, so the provider icon can belong directly to the
+  // "You owe X" copy rather than competing with a second row inside the card.
+  const renderCompactPaymentIcon = card => {
+    const control = reminderPayControl(card, 19.5);
+    if (!control) return null;
+    return React.createElement('span',{style:{display:"inline-flex",alignItems:"center",flexShrink:0}},control);
+  };
+
+  const renderReminderCard = (card, promptKey = firstOwedKey, renderPrompt = renderLinkPaymentPrompt, actionFontSize = 8, phoneActions = false) => React.createElement('div',{key:card.key,style:{border:phoneActions ? "0.5px solid #17302D" : "0.5px solid #0D1F1E",borderRadius:9,padding:phoneActions ? "6.25px 10px" : "6px 10px",display:"grid",gap:2,background:phoneActions ? "#0C1716" : "#080F0F",fontFamily:"'Outfit', sans-serif",position:"relative"}},
+      !phoneActions && React.createElement('div',{style:{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:8}},
         React.createElement('div',{style:{minWidth:0,flex:1,display:"grid",gap:1}},
           React.createElement('div',{style:{fontSize:8,color:"#89A39E",letterSpacing:".12em",textTransform:"uppercase",fontFamily:"'Outfit', sans-serif",fontWeight:600}},card.monthLabel || card.month || card.label),
         )
       ),
-      React.createElement('div',{style:{minWidth:0,display:"flex",alignItems:"baseline",gap:5}},
+      React.createElement('div',{style:{minWidth:0,display:"flex",alignItems:"center",gap:5}},
+        phoneActions && React.createElement('span',{style:{color:"#8EA6A2",fontSize:10,fontWeight:550,lineHeight:1.25,whiteSpace:"nowrap",fontFamily:"'Outfit', sans-serif",flexShrink:0}},`${card.monthLabel || card.month || card.label}:`),
         React.createElement('span',{style:{minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontSize:11,color:"var(--text)",lineHeight:1.25,fontFamily:"'Outfit', sans-serif",fontWeight:500}},card.body),
-        renderLinkPaymentPrompt(card)
+        phoneActions && renderCompactPaymentIcon(card),
+        renderPrompt(card, promptKey)
       ),
       React.createElement('div',{style:{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",display:"flex",alignItems:"center",gap:8,flexShrink:0}},
-        React.createElement('div',{style:{fontSize:12,fontWeight:600,color:card.amountColor,whiteSpace:"nowrap",fontFamily:"'Outfit', sans-serif"}},fmtCurrency(card.amount, card.currency)),
-        reminderPayControl(card),
+        React.createElement('div',{style:{fontSize:12,fontWeight:600,color:card.amountColor,whiteSpace:"nowrap",fontFamily:"'Outfit', sans-serif",order:phoneActions ? 2 : undefined}},fmtCurrency(card.amount, card.currency)),
+        !phoneActions && reminderPayControl(card, 19),
         card.secondaryAction && React.createElement('button',{
           onClick:()=>handleSettlementCardAction(card, card.secondaryAction.kind),
           disabled:settlementCardBusy===card.key,
@@ -809,35 +853,165 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
             border:"1px solid rgba(123,142,139,.42)",
             color:"#6B9690",
             whiteSpace:"nowrap",
-            fontFamily:"'Outfit', sans-serif"
+            fontFamily:"'Outfit', sans-serif",
+            order:phoneActions ? 1 : undefined
           }
         }, card.secondaryAction.label),
         card.action && React.createElement('button',{
           onClick:()=>handleSettlementCardAction(card, card.action.kind),
           disabled:settlementCardBusy===card.key,
           style:{
-            fontSize:8,
+            fontSize:actionFontSize,
             fontWeight:800,
             lineHeight:1,
             padding:"4px 8px",
             borderRadius:999,
-            background:card.action.kind === "confirm" ? "rgba(239,159,39,.10)" : "rgba(224,80,32,.035)",
-            border:`1px solid ${card.action.kind === "confirm" ? "rgba(239,159,39,.32)" : "rgba(224,80,32,.12)"}`,
-            color:card.action.kind === "confirm" ? "rgba(239,176,75,.82)" : "rgba(240,109,67,.58)",
+            background:card.action.kind === "confirm" ? "#4ECDC4" : phoneActions ? "rgba(226,235,232,.10)" : "rgba(224,80,32,.035)",
+            border:`1px solid ${card.action.kind === "confirm" ? "#4ECDC4" : phoneActions ? "rgba(226,235,232,.26)" : "rgba(224,80,32,.12)"}`,
+            color:card.action.kind === "confirm" ? "#061110" : phoneActions ? "#DCE8E5" : "rgba(240,109,67,.58)",
             whiteSpace:"nowrap",
-            fontFamily:"'Outfit', sans-serif"
+            fontFamily:"'Outfit', sans-serif",
+            order:phoneActions ? 1 : undefined
           }
         }, settlementCardBusy===card.key ? "Saving..." : card.action.label)
       )
+    );
+  const settlementReminderSlot = showSettlementReminderSlot && React.createElement(Card,{style:{padding:"9px 10px",display:"flex",flexDirection:"column",gap:6,background:"#0A1412",border:"0.5px solid #163d36",boxShadow:"inset 0 1px 0 rgba(78,205,196,.03)"}},
+    React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}},
+      React.createElement('span',{className:"lbl",style:{fontSize:8,marginBottom:0,color:"#7DB8B1",fontFamily:"'Outfit', sans-serif",fontWeight:700}},"Settlement reminders"),
+      React.createElement('span',{style:{fontSize:9,color:"#6B9690",fontFamily:"'Outfit', sans-serif",fontWeight:500}},`${visibleSettlementReminderCards.length} unpaid`)
+    ),
+    visibleSettlementReminderCards.map(card => renderReminderCard(card))
+  );
+  // Phone only: Today shows ONE reminder and "N unpaid" opens the full list.
+  // Desktop keeps settlementReminderSlot above, untouched.
+  //
+  // Which one: a payment waiting on YOUR confirmation first, because it is the
+  // only kind that stalls until you act; then the newest one you owe or are
+  // owed; then the newest in the Bloc. The list is already newest month first.
+  const featuredReminderCard = visibleSettlementReminderCards.find(card => card.action?.kind === "confirm")
+    || visibleSettlementReminderCards.find(card => card.isPayer || isReceiverCard(card))
+    || visibleSettlementReminderCards[0]
+    || null;
+  // The payment-method prompt only belongs on a debt owed to you. When the one
+  // card on Today is someone else's, the prompt lives in the sheet instead.
+  // Same when the card carries Confirm / ✕: at 320px the prompt collides with
+  // them, and the sheet has room for both.
+  const featuredPromptKey = needsPaymentMethod && featuredReminderCard && isReceiverCard(featuredReminderCard) && !featuredReminderCard.action
+    ? featuredReminderCard.key
+    : null;
+  const unpaidCount = visibleSettlementReminderCards.length;
+  const settlementReminderSlotMobile = showSettlementReminderSlot && React.createElement(Card,{style:{padding:"9px 10px",display:"flex",flexDirection:"column",gap:6,background:"#0A1412",border:"0.5px solid #163d36",boxShadow:"inset 0 1px 0 rgba(78,205,196,.03)"}},
+    React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}},
+      React.createElement('span',{className:"lbl",style:{fontSize:9,marginBottom:0,color:"#7DB8B1",fontFamily:"'Outfit', sans-serif",fontWeight:700}},"Settlement reminders"),
+      unpaidCount > 1
+        ? React.createElement('button',{
+            type:"button",
+            onClick:()=>{ onTrackUsage?.("settlement_reminders_opened"); setShowReminderSheet(true); },
+            "aria-label":`See all ${unpaidCount} unpaid`,
+            style:{
+              display:"inline-flex",alignItems:"baseline",gap:4,
+              // The tap target stays generous even though nothing is drawn around it.
+              padding:"6px 0 6px 10px",margin:"-6px 0",cursor:"pointer",
+              background:"transparent",border:"none",
+              color:"#E0625A",fontSize:9.5,fontWeight:700,lineHeight:1,whiteSpace:"nowrap",
+              fontFamily:"'Outfit', sans-serif"
+            }
+          },
+            `${unpaidCount} unpaid`,
+            React.createElement('svg',{width:"0.44em",height:"0.7em",viewBox:"0 0 5 8","aria-hidden":true,style:{flexShrink:0,overflow:"visible"}},
+              React.createElement('path',{d:"M1 .6l3 3.4-3 3.4",fill:"none",stroke:"currentColor",strokeWidth:1.5,strokeLinecap:"round",strokeLinejoin:"round"})
+            )
+          )
+        : React.createElement('span',{style:{color:"#E0625A",fontSize:9.5,fontWeight:700,lineHeight:1,whiteSpace:"nowrap",fontFamily:"'Outfit', sans-serif"}},"1 unpaid")
+    ),
+    featuredReminderCard && renderReminderCard(featuredReminderCard, featuredPromptKey, renderLinkPaymentPromptMobile, 8.5, true)
+  );
+
+  // The why behind each debt, from that month's frozen record.
+  const reminderReason = card => {
+    if (!Number.isFinite(card?.payerTarget) || card.payerTarget <= 0) return null;
+    // No name: the line above already says who owes.
+    return `Fell short with ${card.payerCount} of ${card.payerTarget} workouts${card.payerSolo ? " on Solo" : ""}`;
+  };
+  const reminderSheetMonths = [];
+  visibleSettlementReminderCards.forEach(card => {
+    const last = reminderSheetMonths[reminderSheetMonths.length - 1];
+    if (last && last.monthKey === card.monthKey) last.cards.push(card);
+    else reminderSheetMonths.push({ monthKey: card.monthKey, label: expandMonthLabel(card.monthLabel), cards: [card] });
+  });
+  const renderSheetReminderRow = card => React.createElement('div',{key:card.key,style:{
+      border:"0.5px solid #17302D",borderRadius:12,padding:"10px 12px",background:"#0C1716",
+      display:"flex",alignItems:"center",gap:10,fontFamily:"'Outfit', sans-serif"
+    }},
+    React.createElement(Avatar,{name:card.payerDisplayName,size:30}),
+    React.createElement('div',{style:{minWidth:0,flex:1,display:"grid",gap:3}},
+      React.createElement('div',{style:{minWidth:0,display:"flex",alignItems:"center",gap:6}},
+        React.createElement('div',{style:{minWidth:0,fontSize:13,fontWeight:600,color:"var(--text)",lineHeight:1.25,overflowWrap:"anywhere"}},card.body),
+        reminderPayControl(card, 19.5)
+      ),
+      reminderReason(card) && React.createElement('div',{style:{fontSize:11,color:"#89A39E",lineHeight:1.25}},reminderReason(card)),
+      renderLinkPaymentPromptMobile(card, firstOwedKey, 11)
+    ),
+    React.createElement('div',{style:{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6,flexShrink:0}},
+      React.createElement('div',{style:{fontSize:13.5,fontWeight:700,color:card.amountColor,whiteSpace:"nowrap"}},fmtCurrency(card.amount, card.currency)),
+      (reminderPayControl(card) || card.action || card.secondaryAction) && React.createElement('div',{style:{display:"flex",alignItems:"center",gap:6}},
+        card.secondaryAction && React.createElement('button',{
+          onClick:()=>handleSettlementCardAction(card, card.secondaryAction.kind),
+          disabled:settlementCardBusy===card.key,
+          "aria-label":"Dispute",
+          style:{fontSize:9,fontWeight:800,lineHeight:1,padding:"4px 7px",borderRadius:999,background:"transparent",border:"1px solid rgba(123,142,139,.42)",color:"#6B9690",whiteSpace:"nowrap",fontFamily:"'Outfit', sans-serif"}
+        }, card.secondaryAction.label),
+        card.action && React.createElement('button',{
+          onClick:()=>handleSettlementCardAction(card, card.action.kind),
+          disabled:settlementCardBusy===card.key,
+          style:{
+            fontSize:9,fontWeight:800,lineHeight:1,padding:"5px 9px",borderRadius:999,whiteSpace:"nowrap",fontFamily:"'Outfit', sans-serif",
+            background:card.action.kind === "confirm" ? "#4ECDC4" : "rgba(226,235,232,.10)",
+            border:`1px solid ${card.action.kind === "confirm" ? "#4ECDC4" : "rgba(226,235,232,.26)"}`,
+            color:card.action.kind === "confirm" ? "#061110" : "#DCE8E5"
+          }
+        }, settlementCardBusy===card.key ? "Saving..." : card.action.label)
+      )
+    )
+  );
+  // Today's own prompts (Mark as paid, Confirm, dispute, link a payment
+  // method) render inside Today's stacking context, under anything portalled
+  // over the page. While the sheet is open they are portalled too (see
+  // overReminderSheet), and the sheet's panel fades out beneath them while its
+  // backdrop stays, so the page behind never flashes through.
+  const reminderPromptOpen = !!(showLinkPaymentModal || settlementClaimPromptCard || settlementConfirmPromptCard || settlementDisputePromptCard);
+  const reminderSheetOpen = showReminderSheet && showSettlementReminderSlot;
+  const reminderSheet = reminderSheetOpen && React.createElement(ReminderSheet,{
+      panelHidden:reminderPromptOpen,
+      title:"Settlement Reminders",
+      count:unpaidCount,
+      onClose:()=>setShowReminderSheet(false)
+    },
+    reminderSheetMonths.map(group => React.createElement('div',{key:group.monthKey,style:{display:"flex",flexDirection:"column",gap:7}},
+      React.createElement('div',{style:{fontSize:9,color:"#7DB8B1",letterSpacing:".12em",textTransform:"uppercase",fontFamily:"'Outfit', sans-serif",fontWeight:700,padding:"0 2px"}},group.label),
+      group.cards.map(renderSheetReminderRow)
     ))
   );
   // Only the provider list — the same component the account screen uses, so
   // there is one place where a payment method is added or removed.
-  const linkPaymentModal = showLinkPaymentModal && onSavePayment && React.createElement('div',{className:"overlay center-mobile",onClick:()=>setShowLinkPaymentModal(false)},
+  // Phone only (desktop is left exactly as it was): portalled so it covers the
+  // bottom nav like the reminder sheet does, and lighter than .overlay's
+  // near-black so the page still shows through. Over the open sheet it adds no
+  // backdrop of its own; the sheet's is already there.
+  // Mark as paid / Confirm / dispute opened from the sheet: lifted above it,
+  // with no second backdrop stacked on the sheet's. From Today they are
+  // unchanged.
+  const overReminderSheet = element => (element && reminderSheetOpen)
+    ? createPortal(React.cloneElement(element,{style:{...(element.props.style || {}),background:"transparent",backdropFilter:"none",WebkitBackdropFilter:"none"}}), document.body)
+    : element;
+  const isPhoneLayout = typeof window !== "undefined" && !!window.matchMedia?.("(max-width: 768px)").matches;
+  const linkPaymentModalBody = showLinkPaymentModal && onSavePayment && React.createElement('div',{className:"overlay center-mobile",onClick:()=>setShowLinkPaymentModal(false),style:!isPhoneLayout ? undefined : reminderSheetOpen ? {background:"transparent",backdropFilter:"none",WebkitBackdropFilter:"none"} : {background:"rgba(2,3,6,.58)"}},
     React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{maxWidth:340,padding:"16px 15px",textAlign:"left"}},
       React.createElement(PaymentHandleSection,{currentPaymentMethods,onSavePayment,savingPayment,paymentError})
     )
   );
+  const linkPaymentModal = linkPaymentModalBody && isPhoneLayout ? createPortal(linkPaymentModalBody, document.body) : linkPaymentModalBody;
   const settlementDisputePrompt = settlementDisputePromptCard && React.createElement('div',{className:"overlay center-mobile",onClick:()=>setSettlementDisputePromptCard(null)},
     React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{maxWidth:320,padding:"18px 16px",textAlign:"center"}},
       React.createElement('div',{style:{fontSize:18,fontWeight:800,color:"var(--text)",marginBottom:8}},"Dispute this payment?"),
@@ -1004,9 +1178,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
             ? "Pace Detail"
             : statDetail.kind === "target"
               ? `${MONTH_NAMES[CUR_MONTH]} · Your Log`
-              : statDetail.kind === "week-mvp"
-                ? "Week's MVP"
-                : "Bloc Month History"
+              : "Week's MVP"
         ),
         React.createElement('button',{
           onClick:()=>setStatDetail(null),
@@ -1082,35 +1254,6 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
           opacity:.75
         }})
       ),
-      statDetail.kind === "bloc-month" && React.createElement(Card,{style:{padding:0,overflow:"hidden"}},
-        blocMonthHistoryRows.length
-          ? blocMonthHistoryRows.map((month, index) => React.createElement('div',{key:month.key,style:{
-              position:"relative",
-              display:"flex",
-              alignItems:"center",
-              justifyContent:"space-between",
-              gap:12,
-              padding:"14px 14px",
-              borderBottom:index < blocMonthHistoryRows.length - 1 ? "1px solid var(--border)" : "none",
-              background:month.isCurrent ? "rgba(78,205,196,.06)" : "transparent",
-              boxShadow:month.isCurrent ? "inset 2px 0 0 #4ECDC4" : "none"
-            }},
-              React.createElement('span',{style:{fontSize:14,fontWeight:600,color:"var(--text)",position:"relative",zIndex:1}},month.label),
-              React.createElement('div',{style:{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2,position:"relative",zIndex:1}},
-                React.createElement('div',{style:{display:"flex",alignItems:"center",gap:8}},
-                  React.createElement('span',{className:"mono",style:{fontSize:13,color:month.isCurrent ? "#8EE7DF" : "var(--muted)"}},month.total),
-                  month.delta !== null && React.createElement('span',{className:"mono",style:{
-                    fontSize:11,
-                    color:month.delta > 0 ? "#4ECDC4" : month.delta < 0 ? "#6B9690" : "var(--muted2)"
-                  }},
-                    month.delta > 0 ? "↑" : month.delta < 0 ? "↓" : "→"
-                  )
-                ),
-                React.createElement('span',{style:{fontSize:10,color:"var(--muted2)",whiteSpace:"nowrap"}},"workouts logged")
-              )
-            ))
-          : React.createElement('div',{style:{padding:"14px 16px",fontSize:13,color:"var(--muted)"}},"No previous months yet")
-      )
     )
   );
 
@@ -1146,26 +1289,35 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
   );
 
   const soloTag = React.createElement(SoloFlagIcon,{size:13});
-  const renderSoloSection = () => soloLeaderboardRows.length > 0 && React.createElement('div',{style:{display:"grid",gap:6,padding:"8px",borderTop:"1px solid rgba(78,205,196,.10)"}},
-    React.createElement('div',{style:{fontSize:9,color:"#4ECDC4",fontWeight:800,letterSpacing:".12em",textTransform:"uppercase",padding:"4px 2px 2px"}},"Solo this month"),
+  const soloStatusBadge = React.createElement('span',{style:{background:"rgba(78,205,196,.10)",color:"#4ECDC4",border:"0.5px solid rgba(78,205,196,.35)",padding:"1px 7px",borderRadius:999,fontSize:9,fontFamily:"'Outfit',sans-serif",fontWeight:700,letterSpacing:".04em",textTransform:"uppercase",whiteSpace:"nowrap"}},"Solo");
+  const renderSoloSection = () => soloLeaderboardRows.length > 0 && React.createElement('div',{style:{display:"grid",gap:4,paddingTop:4,marginTop:4,borderTop:"1px solid rgba(78,205,196,.10)"}},
     soloLeaderboardRows.map(u=>{
-      const pct = Math.max(0, Math.min(100, Math.round((u.count / Math.max(1, u.soloTarget || u.target || 1)) * 100)));
-      return React.createElement('button',{key:`solo-${u.key || u.name}`,type:"button",onClick:()=>openPlayerProfile(u.name),style:{...leaderboardRowBaseStyle,borderColor:"rgba(78,205,196,.18)",background:"rgba(78,205,196,.045)",boxShadow:"inset 0 1px 0 rgba(255,255,255,.04)"}},
-        React.createElement('div',{style:{display:"grid",gridTemplateColumns:"auto minmax(0,1fr) auto",gap:9,alignItems:"center"}},
-          React.createElement(Avatar,{name:u.name,size:22}),
-          React.createElement('div',{style:{display:"grid",gap:5,minWidth:0}},
-            React.createElement('div',{style:{display:"flex",alignItems:"center",gap:7,minWidth:0}},
-              React.createElement('span',{style:{fontSize:13,fontWeight:700,color:"var(--text)",whiteSpace:"nowrap"}},u.name),
-              u.name===user&&React.createElement('span',{className:"mono",style:{fontSize:8,color:"#3d5e59"}},"you"),
-              soloTag
-            ),
-            React.createElement('div',{style:{height:5,borderRadius:999,background:"rgba(78,205,196,.10)",overflow:"hidden"}},
-              React.createElement('div',{style:{height:"100%",width:`${pct}%`,borderRadius:999,background:"#4ECDC4"}})
+      const last = lastWorkout(logs[u.name]);
+      const lastColor = last === "today" ? "var(--green)" : last === "1 day ago" ? "var(--amber)" : "#C97B2E";
+      const isMe = u.name === user;
+      return React.createElement('button',{key:`solo-${u.key || u.name}`,type:"button",onClick:()=>openPlayerProfile(u.name),style:{...leaderboardRowBaseStyle,borderColor:leaderboardRowBorderColor("starting-soon",isMe,false),background:leaderboardRowBackground("starting-soon"),boxShadow:leaderboardRowBoxShadow("starting-soon")},
+        onMouseEnter:e=>e.currentTarget.style.borderColor=leaderboardRowHoverBorderColor("starting-soon",isMe,false),onMouseLeave:e=>e.currentTarget.style.borderColor=leaderboardRowBorderColor("starting-soon",isMe,false)},
+        React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10}},
+          React.createElement('div',{style:{flex:1,minWidth:0,display:"flex",alignItems:"center",alignSelf:"stretch"}},
+            React.createElement('div',{style:{display:"flex",alignItems:"center",gap:8,width:"100%"}},
+              React.createElement('div',{style:{minWidth:20,display:"inline-flex",alignItems:"center",justifyContent:"center",color:"#4ECDC4"}},soloTag),
+              React.createElement(Avatar,{name:u.name,size:22}),
+              React.createElement('div',{style:{flex:1,minWidth:0,textAlign:"left",display:"grid",gap:2,fontWeight:600,fontSize:13,color:"var(--text)"}},
+                React.createElement('div',{style:{display:"flex",flexWrap:"wrap",alignItems:"center",gap:6,rowGap:2,minWidth:0}},
+                  React.createElement('span',{style:{whiteSpace:"nowrap"}},u.name),
+                  u.name===user&&React.createElement('span',{className:"mono",style:{fontSize:8,color:"#3d5e59",marginLeft:6}},"you")
+                ),
+                React.createElement('span',{style:{fontSize:8,color:"var(--muted)",fontFamily:"'Outfit',sans-serif",fontWeight:700,letterSpacing:".04em",textTransform:"uppercase"}},`Target: ${u.soloTarget || u.target}`)
+              )
             )
           ),
-          // minHeight keeps the row the height it had with the percentage line under the count.
-          React.createElement('div',{style:{display:"grid",justifyItems:"end",alignContent:"center",gap:2,minHeight:28.5}},
-            React.createElement('span',{style:{fontSize:13,fontWeight:800,color:"#4ECDC4"}},`${u.count}/${u.soloTarget || u.target}`)
+          React.createElement('div',{style:{display:"grid",gridTemplateColumns:"auto minmax(92px, auto)",gridTemplateRows:"1fr auto",columnGap:6,rowGap:4,alignItems:"center",alignSelf:"stretch"}},
+            React.createElement('span',{style:{fontSize:16,fontWeight:700,color:"#4ECDC4",minWidth:20,textAlign:"right",display:"inline-block",fontFamily:"'Outfit',sans-serif",gridRow:"1 / span 2",alignSelf:"center"}},u.count),
+            React.createElement('span',{style:{display:"inline-flex",alignItems:"center",minWidth:92,justifyContent:"center",gridColumn:"2",gridRow:"1",position:"relative"}},
+              soloStatusBadge,
+              React.createElement('span',{style:{position:"absolute",right:0,display:"inline-flex",alignItems:"center"}},React.createElement(ChevronRightIcon,null))
+            ),
+            React.createElement('span',{style:{fontSize:8,fontWeight:700,color:lastColor,fontFamily:"'Outfit',sans-serif",minWidth:92,textAlign:"center",gridColumn:"2",gridRow:"2"}},last?`last: ${last}`:"no logs")
           )
         )
       );
@@ -1180,17 +1332,18 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
     ),
     lastMonthBanner,
     setupReviewBanner,
+    streakStrip,
 !isExcused&&React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(4,minmax(0,1fr))",gap:6,paddingBottom:2}},
-  statCards.map(s=>React.createElement(Card,{key:s.label,onClick:()=>{if(s.kind==="week-mvp") onTrackUsage?.("mvp_card_opened"); if(s.kind==="bloc-month") onTrackUsage?.("bloc_month_opened"); setStatDetail({kind:s.kind})},style:mobileStatCardStyle},
+  statCards.map(s=>React.createElement(Card,{key:s.label,onClick:()=>{if(s.kind==="bloc-loop"){onTrackUsage?.("bloc_loop_opened"); onOpenMonth?.(); return;} if(s.kind==="week-mvp") onTrackUsage?.("mvp_card_opened"); setStatDetail({kind:s.kind})},style:mobileStatCardStyle},
     React.createElement('span',{className:"lbl",style:mobileStatLabelStyle},s.label),
     React.createElement('div',{style:{width:"100%",display:"flex",flexDirection:"column",alignItems:"center",paddingTop:8}},
       React.createElement('div',{style:Object.assign({fontSize:16,fontWeight:800,color:s.color || "#4ECDC4",lineHeight:1,minHeight:16,display:"flex",alignItems:"center",justifyContent:"center",textAlign:"center",whiteSpace:"nowrap",width:"100%",fontFamily:"'Outfit', sans-serif"}, s.valueStyle || {})},s.valueNode || s.val),
-      React.createElement('div',{style:mobileStatSubStyle},s.sub),
+      s.sub !== "" && React.createElement('div',{style:mobileStatSubStyle},s.sub),
       s.meta && React.createElement('div',{className:"mono",style:{fontSize:7,color:"#4ECDC4",marginTop:1,textTransform:"uppercase",letterSpacing:".1em"}},s.meta)
     )
   ))
 ),
-    settlementReminderSlot,
+    settlementReminderSlotMobile,
     React.createElement(Card,null,
       React.createElement('div',{style:{padding:"11px 14px",borderBottom:"1px solid var(--border)",display:"flex",justifyContent:"space-between",alignItems:"center"}},
         React.createElement('div',{style:{fontWeight:600,fontSize:15}},"Bloc Leaderboard")
@@ -1209,11 +1362,13 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
               React.createElement('div',{style:{display:"flex",alignItems:"center",gap:8,width:"100%"}},
                 React.createElement('div',{style:{minWidth:20}},u.isOut?React.createElement('span',{style:{fontSize:12,color:"#2A4040"}},"💤"):React.createElement(RankIcon,{rank:aIdx+1})),
                 React.createElement(Avatar,{name:u.name,size:22,muted:u.isOut}),
-                React.createElement('div',{style:{flex:1,minWidth:0,textAlign:"left",display:"flex",flexWrap:"wrap",alignItems:"center",gap:6,rowGap:2,fontWeight:600,fontSize:13,color:u.isOut?"#2A4040":"var(--text)"}},
-                  React.createElement('span',{style:{whiteSpace:"nowrap"}},u.name),
-                  u.redemptionMark&&React.createElement(RedemptionShieldIcon,{size:13,redeemed:u.redemptionMark === "redeemed"}),
-                  u.isTraining&&React.createElement(TrainingSproutIcon,{size:13}),
-                  isMe&&React.createElement('span',{className:"mono",style:{fontSize:8,color:"#3d5e59",marginLeft:6}},"you"),
+                React.createElement('div',{style:{flex:1,minWidth:0,textAlign:"left",display:"grid",gap:u.prorated&&!u.isOut?2:0,fontWeight:600,fontSize:13,color:u.isOut?"#2A4040":"var(--text)"}},
+                  React.createElement('div',{style:{display:"flex",flexWrap:"wrap",alignItems:"center",gap:6,rowGap:2,minWidth:0}},
+                    React.createElement('span',{style:{whiteSpace:"nowrap"}},u.name),
+                    u.redemptionMark&&React.createElement(RedemptionShieldIcon,{size:13,redeemed:u.redemptionMark === "redeemed"}),
+                    u.isTraining&&React.createElement(TrainingSproutIcon,{size:13}),
+                    isMe&&React.createElement('span',{className:"mono",style:{fontSize:8,color:"#3d5e59",marginLeft:6}},"you")
+                  ),
                   u.prorated&&!u.isOut&&React.createElement(MemberTag,{tone:"prorated"},"Prorated")
                 )
               )
@@ -1268,7 +1423,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
     lastMonthBanner,
     setupReviewBanner,
 !isExcused&&React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}},
-  statCards.map(s=>React.createElement(Card,{key:s.label,onClick:()=>{if(s.kind==="week-mvp") onTrackUsage?.("mvp_card_opened"); if(s.kind==="bloc-month") onTrackUsage?.("bloc_month_opened"); setStatDetail({kind:s.kind})},style:desktopStatCardStyle,
+  statCards.map(s=>React.createElement(Card,{key:s.label,onClick:()=>{if(s.kind==="bloc-loop"){onTrackUsage?.("bloc_loop_opened"); onOpenMonth?.(); return;} if(s.kind==="week-mvp") onTrackUsage?.("mvp_card_opened"); setStatDetail({kind:s.kind})},style:desktopStatCardStyle,
     onMouseEnter:e=>e.currentTarget.style.transform="translateY(-1px)",
     onMouseLeave:e=>e.currentTarget.style.transform="translateY(0)"},
     React.createElement('span',{className:"lbl",style:desktopStatLabelStyle},s.label),
@@ -1299,9 +1454,11 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
                 React.createElement('div',{style:{display:"flex",alignItems:"center",gap:9,width:"100%"}},
                   React.createElement('div',{style:{minWidth:22}},u.isOut?React.createElement('span',{style:{fontSize:13,color:"#2A4040"}},"💤"):React.createElement(RankIcon,{rank:aIdx+1})),
                   React.createElement(Avatar,{name:u.name,size:24,muted:u.isOut}),
-                  React.createElement('div',{style:{flex:1,minWidth:0,textAlign:"left",display:"flex",flexWrap:"wrap",alignItems:"center",gap:7,rowGap:2,fontWeight:600,fontSize:14,color:u.isOut?"#2A4040":"var(--text)"}},
-                    React.createElement('span',{style:{whiteSpace:"nowrap"}},u.name),
-                    isMe&&React.createElement('span',{className:"mono",style:{fontSize:8,color:"#3d5e59",marginLeft:7}},"you"),
+                  React.createElement('div',{style:{flex:1,minWidth:0,textAlign:"left",display:"grid",gap:u.prorated&&!u.isOut?2:0,fontWeight:600,fontSize:14,color:u.isOut?"#2A4040":"var(--text)"}},
+                    React.createElement('div',{style:{display:"flex",flexWrap:"wrap",alignItems:"center",gap:7,rowGap:2,minWidth:0}},
+                      React.createElement('span',{style:{whiteSpace:"nowrap"}},u.name),
+                      isMe&&React.createElement('span',{className:"mono",style:{fontSize:8,color:"#3d5e59",marginLeft:7}},"you")
+                    ),
                     u.prorated&&!u.isOut&&React.createElement(MemberTag,{tone:"prorated"},"Prorated")
                   )
                 )
@@ -1341,12 +1498,16 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
   );
 
   const todayContent = React.createElement('div',{ref:todayRootRef,style:{position:"relative",minHeight:"calc(100vh - 44px)",backgroundColor:"#070C0C",background:"var(--bg-gradient)",backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)",overscrollBehavior:"contain",overscrollBehaviorY:"contain",overflowX:"hidden",isolation:"isolate"}},
-    showLog&&React.createElement(LogModal,{user,currentUserId,currentGroupId,groups,onConfirm:doLog,onClose:()=>setShowLog(false)}),
+    // Sitting out means no logging this month (the server refuses it too).
+    showLog&&(isExcused
+      ? React.createElement(SittingOutNotice,{monthName:todayHeaderMonthName,nextMonthName:FULL_MONTH_NAMES[(CUR_MONTH+1)%12],onClose:()=>setShowLog(false)})
+      : React.createElement(LogModal,{user,currentUserId,currentGroupId,groups,onConfirm:doLog,onClose:()=>setShowLog(false),onTrackUsage})),
     deleteTarget && React.createElement(DeleteModal,{log:deleteTarget,otherBlocNames:[...new Set(findWorkoutCopiesInOtherBlocs(groups, currentGroupId, currentUserId, deleteTarget).map(copy => copy.groupName))],onClose:()=>setDeleteTarget(null),onConfirm:async(options)=>{ const log = deleteTarget; setDeleteTarget(null); await deleteOwnLog(log, options); }}),
+    reminderSheet,
     linkPaymentModal,
-    settlementDisputePrompt,
-    settlementClaimPrompt,
-    settlementConfirmPrompt,
+    overReminderSheet(settlementDisputePrompt),
+    overReminderSheet(settlementClaimPrompt),
+    overReminderSheet(settlementConfirmPrompt),
     statDetailOverlay,
     mobileView,
     desktopView
@@ -1356,7 +1517,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
     React.createElement('div',{"aria-hidden":viewPlayer?true:undefined,style:{pointerEvents:viewPlayer?"none":"auto"}},todayContent),
     viewPlayer&&React.createElement('div',{key:`profile-layer-${viewPlayer}`,ref:profileLayerRef,className:"in-bloc-profile-layer",style:{backgroundColor:"#070C0C",background:profileRevealActive?"transparent":"var(--bg-gradient)",backgroundImage:profileRevealActive?"none":"var(--bg-radial-hint), var(--bg-gradient)",overflowY:"auto",overflowX:"hidden",WebkitOverflowScrolling:"touch",overscrollBehavior:"contain",touchAction:"pan-y"}},
       React.createElement(PlayerProfileErrorBoundary,{profileName:viewPlayer,onBack:closePlayerProfile},
-        React.createElement(PlayerProfile,{group:currentGroup,name:viewPlayer,logs,excused,monthHistory,onBack:closePlayerProfile,onSwipeRevealChange:setProfileRevealActive,groupSettings,memberUserId:Object.values(currentGroup?.memberships||{}).find(m=>m?.displayName===viewPlayer)?.userId||"",currentUserId,visibleGroups:groups,accountCreatedAt,onDeleteLog:viewPlayer===user?async(log, options)=>{ await deleteOwnLog(log, options); }:undefined})
+        React.createElement(PlayerProfile,{group:currentGroup,name:viewPlayer,logs,excused,monthHistory,onBack:closePlayerProfile,onSwipeRevealChange:setProfileRevealActive,groupSettings,memberUserId:Object.values(currentGroup?.memberships||{}).find(m=>m?.displayName===viewPlayer)?.userId||"",currentUserId,visibleGroups:groups,accountCreatedAt,onTrackUsage,isOwnProfile:viewPlayer===user,onDeleteLog:viewPlayer===user?async(log, options)=>{ await deleteOwnLog(log, options); }:undefined})
       )
     )
   );

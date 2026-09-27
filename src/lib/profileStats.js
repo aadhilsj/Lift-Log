@@ -32,6 +32,7 @@ function buildProfileStats({ groups = [], userId }) {
 
   const agg = (() => {
     let blocWins = 0, earliestJoined = null, earliestWorkout = null, targetHitMonths = 0, targetEligibleMonths = 0;
+    const sitOutMonths = new Set();
     const dayTypeMax = {};
     myGroups.forEach(({ group, myName, joinedAt }) => {
       const jt = Date.parse(joinedAt || "");
@@ -53,6 +54,7 @@ function buildProfileStats({ groups = [], userId }) {
         tally(histLogs);
         const participated = Object.prototype.hasOwnProperty.call(m.counts || {}, myName) || histLogs.length > 0;
         const excused = !!m.excused?.[myName];
+        if (excused && m.key) sitOutMonths.add(m.key);
         if (participated && !excused) {
           const target = m.memberTargets?.[myName] || m.settings?.minTarget || MIN_TARGET;
           const count = Number(m.counts?.[myName] ?? histLogs.length) || 0;
@@ -96,7 +98,7 @@ function buildProfileStats({ groups = [], userId }) {
       count: bestMonthEntry[1],
       label: FULL_MONTH_NAMES[Number(bestMonthEntry[0].slice(5, 7)) - 1]
     } : null;
-    return { workoutsLogged, blocWins, earliestJoined, earliestWorkout, targetHitMonths, targetEligibleMonths, bestMonth, weekday,
+    return { workoutsLogged, blocWins, earliestJoined, earliestWorkout, targetHitMonths, targetEligibleMonths, sitOutMonths:[...sitOutMonths], bestMonth, weekday,
       bestIdx, worstIdx, typeMix, logsByDate, anyLogs };
   })();
   return { myGroups, agg };

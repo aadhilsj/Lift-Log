@@ -12,6 +12,10 @@
 // So this creates a Bloc, gives it a month of history, and leaves an invite
 // code. You supply condition 2 by joining as somebody new.
 //
+// It also leaves settlement reminders to look at: Riley, Jo and Sam are in two
+// closed months (July and August for a September run) with one miss in each,
+// and Alex joins afterwards as a bystander on every reminder.
+//
 // The Bloc and its admin are created through the real API. The month being
 // closed is placed into the blob directly — see the note further down for why
 // that cannot go through the API — but it is still the app's own rollover that
@@ -108,6 +112,22 @@ const created = await call(ADMIN_EMAIL, {
 
 const groupId = Object.keys(created?.state?.groups || {})[0];
 if (!groupId) throw new Error("create-group returned no Bloc.");
+const inviteCode = created.state.groups[groupId].inviteCode;
+
+// Settlement reminders need people who owe each other, so the Bloc gets two
+// more members before any month closes. They join through the real API; their
+// join month is then cleared in the blob so they count in the months being
+// closed below (a member who joined "this month" is not part of last month).
+const MEMBERS = [
+  { email: "jo@local.test", name: "Jo" },
+  { email: "sam@local.test", name: "Sam" }
+];
+for (const member of MEMBERS) {
+  console.log(`Adding ${member.name}…`);
+  await call(member.email, { action: "auth-sync" });
+  await call(member.email, { action: "upsert-profile", displayName: member.name });
+  await call(member.email, { action: "join-group", inviteCode });
+}
 
 // A closed month needs logs dated INSIDE that month. normalizeMonthHistory
 // derives a month's key from its own log dates and discards the month when
@@ -115,44 +135,64 @@ if (!groupId) throw new Error("create-group returned no Bloc.");
 // closed August, however far `lastMonth` is rewound.
 //
 // The API will not accept a log dated into a past month either (it rolls the
-// month over first), so the month being closed is written into the blob
+// month over first), so each month being closed is written into the blob
 // directly. Only `id`, `date` and `type` are needed: normalizeLogEntry fills
 // in every other field, and the counts and settlement are still computed by
-// the app's own rollover below.
-const before = readBlob();
-const group = before.state.groups[groupId];
-const closedKey = previousMonthKey(group.lastMonth);
-const [closedYear, closedMonthIndex] = closedKey.split("-").map(Number);
-const closedMonthName = new Date(closedYear, closedMonthIndex, 1)
-  .toLocaleString("en", { month: "long" });
+// the app's own rollover below. Rollover closes one month per read, so the
+// older month is closed first.
+//
+// Target 12. July: Sam misses (5). August: Jo misses (7). That leaves four
+// reminders across two months, with Riley owed in both.
+const PLAN = [
+  { counts: { [ADMIN_NAME]: 13, Jo: 12, Sam: 5 } },
+  { counts: { [ADMIN_NAME]: 14, Jo: 7, Sam: 12 } }
+];
+const currentKey = readBlob().state.groups[groupId].lastMonth;
+const closeKeys = [previousMonthKey(previousMonthKey(currentKey)), previousMonthKey(currentKey)];
 
-const WORKOUTS = 14;
-group.logs = {
-  [ADMIN_NAME]: Array.from({ length: WORKOUTS }, (unused, index) => ({
-    id: `seed-${index + 1}`,
-    date: `${closedYear}-${String(closedMonthIndex + 1).padStart(2, "0")}-${String(index + 1).padStart(2, "0")}`,
-    type: "Gym"
-  }))
-};
-group.lastMonth = closedKey;
-group.createdAt = new Date(closedYear, closedMonthIndex, 1).toISOString();
-before.revision = (Number(before.revision) || 0) + 1;
-writeBlob(before);
+for (const [index, monthKey] of closeKeys.entries()) {
+  const [closedYear, closedMonthIndex] = monthKey.split("-").map(Number);
+  const closedMonthName = new Date(closedYear, closedMonthIndex, 1).toLocaleString("en", { month: "long" });
+  const { counts } = PLAN[index];
+  const before = readBlob();
+  const group = before.state.groups[groupId];
+  group.logs = Object.fromEntries(Object.entries(counts).map(([name, total]) => [
+    name,
+    Array.from({ length: total }, (unused, day) => ({
+      id: `seed-${monthKey}-${name}-${day + 1}`,
+      date: `${closedYear}-${String(closedMonthIndex + 1).padStart(2, "0")}-${String(day + 1).padStart(2, "0")}`,
+      type: "Gym"
+    }))
+  ]));
+  for (const member of MEMBERS) delete group.joinedMonthByName?.[member.name];
+  group.lastMonth = monthKey;
+  if (index === 0) group.createdAt = new Date(closedYear, closedMonthIndex, 1).toISOString();
+  before.revision = (Number(before.revision) || 0) + 1;
+  writeBlob(before);
 
-console.log(`Closing ${closedMonthName} through the app's own rollover…`);
-console.log(`  ${WORKOUTS} workouts for ${ADMIN_NAME} against a target of 12.`);
+  console.log(`Closing ${closedMonthName} through the app's own rollover…`);
+  console.log(`  ${Object.entries(counts).map(([name, total]) => `${name} ${total}`).join(", ")} against a target of 12.`);
+  // A read is enough: rolloverStateIfNeeded runs on the way through and the
+  // result is persisted.
+  await fetch(api, { headers: { Authorization: `Bearer ${tokenFor(ADMIN_EMAIL)}` } });
+  const closedNow = (readBlob().state.groups[groupId].monthHistory || []).find(month => month.key === monthKey);
+  if (!closedNow) throw new Error(`Rollover did not close ${closedMonthName}. Check the sandbox log for "rollover skipped".`);
+  console.log(`  Closed ${closedNow.label}: ${JSON.stringify(closedNow.counts)}`);
+}
 
-// A read is enough: rolloverStateIfNeeded runs on the way through and the
-// result is persisted.
-await fetch(api, { headers: { Authorization: `Bearer ${tokenFor(ADMIN_EMAIL)}` } });
-
-const after = readBlob();
-const settled = after.state.groups[groupId];
+const settled = readBlob().state.groups[groupId];
 const history = settled.monthHistory || [];
-if (history.length === 0) throw new Error("Rollover did not produce a closed month.");
-
 const closed = history[history.length - 1];
-console.log(`  Closed ${closed.label}: ${JSON.stringify(closed.counts)}`);
+
+// A bystander: owes nobody and is owed by nobody. Joins now, so is part of
+// neither closed month.
+console.log("Adding Alex (joins this month, so is in no reminder)…");
+await call("alex@local.test", { action: "auth-sync" });
+await call("alex@local.test", { action: "upsert-profile", displayName: "Alex" });
+await call("alex@local.test", { action: "join-group", inviteCode });
+// Answered here so Alex opens straight onto Today. The dropdown that switches
+// the acting member cannot answer it (the server rejects that write with 409).
+await call("alex@local.test", { action: "training-choice", groupId, choice: "standard" });
 
 console.log("");
 console.log("  ────────────────────────────────────────────────");
@@ -160,6 +200,7 @@ console.log(`  Bloc          ${BLOC_NAME}`);
 console.log(`  Invite code   ${settled.inviteCode}`);
 console.log(`  Closed month  ${closed.label}`);
 console.log(`  Admin         ${ADMIN_NAME}  (riley@local.test)`);
+console.log("  Members       jo@ · sam@ · alex@local.test (bystander)");
 console.log("  ────────────────────────────────────────────────");
 console.log("");
 console.log("  Now open http://127.0.0.1:3000 and sign in as somebody NEW");

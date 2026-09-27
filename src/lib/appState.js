@@ -805,6 +805,43 @@ function getRecentSoloCount(group, memberName, monthKey = curKey) {
   ), 0);
 }
 
+// Yearly allowance: 2 sit-outs and 3 Solo months per calendar year in each
+// Bloc, from September 2026. Mirrors api/lift-log.js; the server enforces it.
+const YEARLY_ALLOWANCE_FROM = "2026-8";
+const SIT_OUTS_PER_YEAR = 2;
+const SOLO_MONTHS_PER_YEAR = 3;
+
+function isYearlyAllowanceMonth(monthKey = curKey) {
+  return !!monthKey && compareMonthKeys(monthKey, YEARLY_ALLOWANCE_FROM) >= 0;
+}
+
+function getYearlyAllowanceUsage(group, memberName, monthKey = curKey) {
+  const year = String(monthKey || "").split("-")[0];
+  const inYear = key => !!key && String(key).split("-")[0] === year && compareMonthKeys(key, monthKey) <= 0;
+  const sitOut = new Set();
+  const solo = new Set();
+  (Array.isArray(group?.monthHistory) ? group.monthHistory : []).forEach(month => {
+    const key = month?.key;
+    if (!inYear(key)) return;
+    if (month?.excused?.[memberName]) sitOut.add(key);
+    else if (isSoloForMonth(month, memberName, key)) solo.add(key);
+  });
+  Object.entries(group?.excused?.[memberName] || {}).forEach(([key, value]) => {
+    if (value && inYear(key)) sitOut.add(key);
+  });
+  Object.keys(group?.solo?.[memberName] || {}).forEach(key => {
+    if (inYear(key) && !sitOut.has(key) && isSoloForMonth(group, memberName, key)) solo.add(key);
+  });
+  const sitOutMonths = [...sitOut].sort(compareMonthKeys);
+  const soloMonths = [...solo].filter(key => !sitOut.has(key)).sort(compareMonthKeys);
+  return {
+    sitOutMonths,
+    soloMonths,
+    sitOutsLeft: Math.max(0, SIT_OUTS_PER_YEAR - sitOutMonths.length),
+    soloLeft: Math.max(0, SOLO_MONTHS_PER_YEAR - soloMonths.length)
+  };
+}
+
 function getDeputyAdmin(group) {
   const memberships = Object.values(group?.memberships || {})
     .filter(membership => membership?.role !== "admin" && membership?.displayName);
@@ -1007,6 +1044,17 @@ function buildSettlementReminderCards(group, currentUserId, currentUserName) {
         amountColor = "#6B9690";
       }
 
+      // The "why" behind the debt, from the closed month's own frozen record,
+      // never current Bloc settings. A Solo payer was held to their Solo goal,
+      // not the Bloc target, so that is the number they fell short of.
+      const payerSoloTarget = isSoloForMonth(month, pair.payerDisplayName, month.key)
+        ? getSoloTargetForMonth(month, pair.payerDisplayName, month.key)
+        : null;
+      const payerTarget = payerSoloTarget
+        || Number(month?.memberTargets?.[pair.payerDisplayName])
+        || Number(month?.settings?.minTarget || MIN_TARGET);
+      const payerCount = Number(month?.counts?.[pair.payerDisplayName] || 0);
+
       return {
         key: `${pair.monthKey}:${pair.payerDisplayName}:${pair.receiverDisplayName}`,
         monthKey: pair.monthKey,
@@ -1018,6 +1066,9 @@ function buildSettlementReminderCards(group, currentUserId, currentUserName) {
         // Surfaced so Today can offer a Pay affordance only to the person who
         // actually owes; the receiver must never see a pay button.
         isPayer,
+        payerCount,
+        payerTarget,
+        payerSolo: !!payerSoloTarget,
         amount: pair.amount,
         currency: group?.settings?.currency || pair.currency,
         pending,
@@ -1323,11 +1374,14 @@ function resolveLogCreatedAt(log) {
 
 function normalizeLogEntry(log) {
   const photoUrl = typeof log?.photoUrl === "string" ? log.photoUrl : "";
+  const note = typeof log?.note === "string" && log.note.trim()
+    ? log.note
+    : (typeof log?.caption === "string" ? log.caption : "");
   return {
     ...log,
     id: log?.id || `log-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     type: normalizeLoggedWorkoutType(log?.type, log?.date),
-    note: typeof log?.note === "string" ? log.note.slice(0,280) : "",
+    note: note.slice(0,280),
     photoUrl: shouldKeepLogPhoto(log) ? photoUrl : "",
     createdAt: resolveLogCreatedAt(log),
     verifiedVia: log?.verifiedVia === "strava" ? "strava" : "photo",
@@ -2278,6 +2332,10 @@ export {
   getMonthKeyWindow,
   getRecentSitOutCount,
   getRecentSoloCount,
+  SIT_OUTS_PER_YEAR,
+  SOLO_MONTHS_PER_YEAR,
+  isYearlyAllowanceMonth,
+  getYearlyAllowanceUsage,
   getDeputyAdmin,
   getCurrentMonthSummary,
   shouldPromptProration,

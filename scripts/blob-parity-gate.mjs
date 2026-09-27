@@ -21,6 +21,10 @@ import path from "node:path";
 
 const DEFAULT_OUTPUT_DIR = "migration-output/parity-gate";
 const SAMPLE_LIMIT = 20;
+// Mirrors MAX_WORKOUTS_PER_DAY in api/lift-log.js. Declared here rather than
+// beside its check: the checks array runs at module top level, so a const
+// declared lower would be in the temporal dead zone when the check executes.
+const MAX_WORKOUTS_PER_DAY = 2;
 
 loadEnvFile(".env.local");
 loadEnvFile(".env");
@@ -40,7 +44,7 @@ if (!fixtureDir && (!supabaseUrl || !serviceRoleKey)) {
 // deterministic under test; production runs always use the real clock.
 const now = fixtureDir && args.now ? new Date(args.now) : new Date();
 
-const [liveState, monthHistory, blocs, blocMembers, seasonOverrides, openSeasons, systemEvents] = fixtureDir
+const [liveState, monthHistory, blocs, blocMembers, seasonOverrides, openSeasons, systemEvents, currentLogs] = fixtureDir
   ? [
       readFixture("live_state.json"),
       readFixture("month_history.json"),
@@ -48,7 +52,8 @@ const [liveState, monthHistory, blocs, blocMembers, seasonOverrides, openSeasons
       readFixture("bloc_members.json"),
       readFixture("season_overrides.json"),
       readFixture("open_seasons.json"),
-      readFixture("system_events.json")
+      readFixture("system_events.json"),
+      readFixture("current_logs.json")
     ]
   : await Promise.all([
       fetchLiveBlobState(),
@@ -61,7 +66,8 @@ const [liveState, monthHistory, blocs, blocMembers, seasonOverrides, openSeasons
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
         body: JSON.stringify({ p_limit: 100 })
-      })
+      }),
+      fetchRpcArray("read_ante_core_current_logs")
     ]);
 
 const blobState = liveState.state || {};
@@ -79,6 +85,7 @@ for (const [groupId, group] of Object.entries(blobGroups)) {
 
 const checks = [
   checkRolloverLiveness(),
+  checkOpenSeasonLogParity(),
   checkHistoricalWorkoutCounts(),
   checkHistoricalReactionCoverage(),
   checkHistoricalSettlements(),
@@ -218,6 +225,122 @@ function expectedMonthFor(timeZone) {
     expectedKey: `${get("year")}-${get("month") - 1}`,
     hoursIntoMonth: (get("day") - 1) * 24 + get("hour")
   };
+}
+
+// Open-season log parity — the gap that hid the 2026-09-09 delete divergence.
+// Every other check audits closed months, so a current-month log present in one
+// store and absent from the other was invisible until a member hit a 409.
+//
+// The two directions are not symmetrical:
+//
+//   PHANTOM (blob has it, canonical does not) — always a FAILURE. This is the
+//   delete-bug shape: assertWorkoutSlotAvailable counts from blob group.logs,
+//   so a phantom permanently consumes one of that member's two daily slots.
+//   Note getDistinctWorkoutCountForDate does NOT filter deletedCurrentLogIds,
+//   so a tombstoned-but-present log still blocks; tombstoned phantoms are
+//   reported with a flag rather than excused.
+//
+//   MISSING (canonical has it, blob does not) — a WARNING, not a failure.
+//   Before wave B it means an add-log mirror failed; during wave B it is the
+//   intended behaviour of BLOB_MIRROR_SKIP_ACTIONS. Since month close now
+//   rebuilds from canonical, a blob behind on current logs no longer corrupts
+//   the frozen month, so this must not block a soak. The count stays visible
+//   in the report either way.
+//
+// Cap arithmetic mirrors api/lift-log.js exactly: sessions are keyed by the
+// leading timestamp of the log id (one multi-Bloc save is one session) and
+// counted per member per date ACROSS all their Blocs, against MAX_WORKOUTS_PER_DAY.
+function workoutSessionKey(logId) {
+  const id = String(logId || "").trim();
+  if (!id) return "";
+  const match = id.match(/^(\d{10,})(?:-|$)/);
+  return match ? match[1] : id;
+}
+
+function checkOpenSeasonLogParity() {
+  const phantoms = [];
+  const missing = [];
+  const skippedGroups = [];
+
+  const openMonthByGroup = new Map(openSeasons.map(row => [row.legacy_group_key, row.month_key]));
+  const canonicalByGroup = new Map();
+  for (const row of currentLogs) {
+    const key = row?.legacy_group_key;
+    if (!key) continue;
+    if (!canonicalByGroup.has(key)) canonicalByGroup.set(key, []);
+    canonicalByGroup.get(key).push(row);
+  }
+
+  // Session keys the blob believes are used, per member+date across all Blocs —
+  // the exact quantity the cap tests.
+  const blobSessionsByMemberDate = new Map();
+  const phantomSessionsByMemberDate = new Map();
+
+  for (const [groupId, group] of Object.entries(blobGroups)) {
+    const openMonthKey = openMonthByGroup.get(groupId);
+    // Only compare a group whose blob current month and canonical open season
+    // agree. Mid-rollover the two legitimately differ, and rollover-liveness
+    // already owns that condition.
+    if (!openMonthKey || group?.lastMonth !== openMonthKey) {
+      skippedGroups.push({ group: groupId, blobMonth: group?.lastMonth ?? null, canonicalOpenMonth: openMonthKey ?? null });
+      continue;
+    }
+    const tombstoned = new Set((Array.isArray(group?.deletedCurrentLogIds) ? group.deletedCurrentLogIds : []).map(String));
+    const canonicalRows = canonicalByGroup.get(groupId) || [];
+    const canonicalIds = new Set(canonicalRows.map(row => String(row.id)));
+    const blobIds = new Set();
+
+    for (const [owner, logs] of Object.entries(group?.logs || {})) {
+      for (const log of Array.isArray(logs) ? logs : []) {
+        const id = String(log?.id || "");
+        if (!id) continue;
+        blobIds.add(id);
+        const memberDate = `${owner} ${log?.date || ""}`;
+        addTo(blobSessionsByMemberDate, memberDate, workoutSessionKey(id));
+        if (!canonicalIds.has(id)) {
+          phantoms.push({ group: groupId, member: owner, logId: id, date: log?.date ?? null, tombstoned: tombstoned.has(id) });
+          addTo(phantomSessionsByMemberDate, memberDate, workoutSessionKey(id));
+        }
+      }
+    }
+    for (const row of canonicalRows) {
+      if (!blobIds.has(String(row.id))) {
+        missing.push({ group: groupId, member: row.owner_display_name, logId: String(row.id), date: row.workout_date ?? null });
+      }
+    }
+  }
+
+  // A member is blocked when the blob's session count for a date is at the cap
+  // AND at least one of those sessions is a phantom — the real user-visible
+  // harm, and what makes a finding actionable rather than statistical.
+  const blockedMembers = [];
+  for (const [memberDate, phantomSessions] of phantomSessionsByMemberDate) {
+    const total = blobSessionsByMemberDate.get(memberDate)?.size ?? 0;
+    if (total < MAX_WORKOUTS_PER_DAY) continue;
+    const [member, date] = memberDate.split(" ");
+    blockedMembers.push({ member, date, blobSessions: total, phantomSessions: phantomSessions.size });
+  }
+
+  return {
+    name: "open-season-log-parity",
+    ok: phantoms.length === 0,
+    ...(phantoms.length === 0 && missing.length ? { status: "warning" } : {}),
+    details: {
+      note: "Phantoms (blob-only) fail: they consume daily cap slots. Missing (canonical-only) warns: expected while add-log/multi-log are in BLOB_MIRROR_SKIP_ACTIONS.",
+      phantomCount: phantoms.length,
+      phantoms: phantoms.slice(0, SAMPLE_LIMIT),
+      blockedFromLoggingToday: blockedMembers.slice(0, SAMPLE_LIMIT),
+      missingFromBlobCount: missing.length,
+      missingFromBlob: missing.slice(0, SAMPLE_LIMIT),
+      groupsNotComparedMidRollover: skippedGroups.slice(0, SAMPLE_LIMIT)
+    }
+  };
+}
+
+function addTo(map, key, value) {
+  if (!value) return;
+  if (!map.has(key)) map.set(key, new Set());
+  map.get(key).add(value);
 }
 
 // Audit area 1. The documented SQL compares workout_count against a raw
@@ -540,8 +663,14 @@ function loadEnvFile(filePath) {
     const eq = trimmed.indexOf("=");
     if (eq === -1) continue;
     const key = trimmed.slice(0, eq).trim();
-    const value = trimmed.slice(eq + 1).trim();
-    if (key && process.env[key] === undefined) process.env[key] = value;
+    // `vercel env pull` quotes every value, so an unstripped SUPABASE_URL
+    // arrives as "https://…" and fails with ERR_INVALID_URL. It also writes
+    // [SENSITIVE] in place of secrets, which cannot be used — treat that as
+    // absent so the caller's env var wins and the error names the real cause.
+    const raw = trimmed.slice(eq + 1).trim();
+    const value = raw.replace(/^(['"])(.*)\1$/s, "$2");
+    if (!key || value === "[SENSITIVE]") continue;
+    if (process.env[key] === undefined) process.env[key] = value;
   }
 }
 

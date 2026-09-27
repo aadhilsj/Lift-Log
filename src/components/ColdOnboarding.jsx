@@ -17,7 +17,7 @@ const ONBOARDING_SCREENS = [
     subtext: "Miss it, and you owe. Hit it, and you're cleared."
   },
   {
-    headlineLines: ["Show up together.", "Or pay up."],
+    headlineLines: ["Show up together.", "Or settle up."],
     subtext: "Start a Bloc. Bring your mates in.",
     highlight: "Consistency's a group sport."
   }

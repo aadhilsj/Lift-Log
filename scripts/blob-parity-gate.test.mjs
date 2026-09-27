@@ -34,6 +34,20 @@ function cleanFixture() {
         groups: {
           "alpha-abc123": {
             name: "Alpha",
+            // Matches the canonical open season below, so open-season log
+            // parity compares this group rather than skipping it as
+            // mid-rollover. logs mirror current_logs exactly, so the two
+            // stores start in agreement and only the mutation under test
+            // moves them apart.
+            lastMonth: "2026-7",
+            logs: {
+              Ana: [
+                { id: "1788000000001", date: "2026-08-03" },
+                { id: "1788000000002", date: "2026-08-03" },
+                { id: "1788000000003", date: "2026-08-09" }
+              ],
+              Ben: [{ id: "1788000000004", date: "2026-08-05" }]
+            },
             seasonOverrides: {
               "2026-07": { prorated: true, proratedMas: 8, chosenAt: "2026-07-02T10:00:00Z", chosenBy: "Ana", chosenByUserId: "u-ana" }
             },
@@ -82,9 +96,34 @@ function cleanFixture() {
       { legacy_group_key: "alpha-abc123", season_id: "s-open", month_key: "2026-7" }
     ],
     system_events: { last24h: 0, last7d: 0, total: 0, recent: [] },
+    // Open-season logs, in sync: blob group.logs and canonical agree on ids.
+    // Ana has two sessions on 2026-08-03 (at the daily cap) plus one later day.
+    current_logs: [
+      { legacy_group_key: "alpha-abc123", id: "1788000000001", owner_display_name: "Ana", workout_date: "2026-08-03" },
+      { legacy_group_key: "alpha-abc123", id: "1788000000002", owner_display_name: "Ana", workout_date: "2026-08-03" },
+      { legacy_group_key: "alpha-abc123", id: "1788000000003", owner_display_name: "Ana", workout_date: "2026-08-09" },
+      { legacy_group_key: "alpha-abc123", id: "1788000000004", owner_display_name: "Ben", workout_date: "2026-08-05" }
+    ],
     now: "2026-08-15T12:00:00Z"
   };
 }
+
+// Replace the blob's open-season log set for one scenario. The clean fixture
+// already mirrors current_logs, so only scenarios pulling the stores apart
+// need this.
+function withBlobCurrentLogs(fixture, logsByOwner) {
+  fixture.live_state.state.groups["alpha-abc123"].logs = logsByOwner;
+  return fixture;
+}
+
+const SYNCED_BLOB_LOGS = {
+  Ana: [
+    { id: "1788000000001", date: "2026-08-03" },
+    { id: "1788000000002", date: "2026-08-03" },
+    { id: "1788000000003", date: "2026-08-09" }
+  ],
+  Ben: [{ id: "1788000000004", date: "2026-08-05" }]
+};
 
 function runGate(fixture, label) {
   const dir = path.join(workDir, label);
@@ -96,12 +135,18 @@ function runGate(fixture, label) {
   fs.writeFileSync(path.join(dir, "season_overrides.json"), JSON.stringify(fixture.season_overrides));
   fs.writeFileSync(path.join(dir, "open_seasons.json"), JSON.stringify(fixture.open_seasons));
   fs.writeFileSync(path.join(dir, "system_events.json"), JSON.stringify(fixture.system_events));
+  fs.writeFileSync(path.join(dir, "current_logs.json"), JSON.stringify(fixture.current_logs));
+  let summary;
   try {
     const stdout = execFileSync("node", [gateScript, "--fixture-dir", dir, "--output-dir", dir, "--now", fixture.now], { encoding: "utf8" });
-    return { exitCode: 0, ...JSON.parse(stdout) };
+    summary = { exitCode: 0, ...JSON.parse(stdout) };
   } catch (err) {
-    return { exitCode: err.status ?? 1, ...JSON.parse(err.stdout || "{}") };
+    summary = { exitCode: err.status ?? 1, ...JSON.parse(err.stdout || "{}") };
   }
+  // Read the full report back so scenarios can assert on check details, not
+  // only on which checks fired.
+  const report = summary.reportPath ? JSON.parse(fs.readFileSync(summary.reportPath, "utf8")) : { checks: [] };
+  return { ...summary, report };
 }
 
 const scenarios = [
@@ -109,6 +154,67 @@ const scenarios = [
     label: "clean-baseline",
     note: "clean fixture passes, including a rejected log excluded from counts and a dead bloc with null sort_order",
     mutate: () => {},
+    expectFailed: [],
+    expectWarned: []
+  },
+  {
+    label: "open-season-phantom-fails",
+    note: "the 09-09 delete bug: a blob log canonical does not have must fail — it eats a daily cap slot",
+    mutate: fixture => withBlobCurrentLogs(fixture, {
+      ...SYNCED_BLOB_LOGS,
+      Ben: [...SYNCED_BLOB_LOGS.Ben, { id: "1788000009999", date: "2026-08-05" }]
+    }),
+    expectFailed: ["open-season-log-parity"],
+    expectWarned: []
+  },
+  {
+    label: "open-season-phantom-blocks-logging",
+    note: "a phantom on a date already at the cap is reported as blocking that member (the real 409)",
+    mutate: fixture => {
+      withBlobCurrentLogs(fixture, SYNCED_BLOB_LOGS);
+      // Ana keeps two blob sessions on 08-03, but canonical has only one:
+      // the survivor of a delete that never mirrored.
+      fixture.current_logs = fixture.current_logs.filter(row => row.id !== "1788000000002");
+    },
+    expectFailed: ["open-season-log-parity"],
+    expectWarned: [],
+    expectBlocked: [{ member: "Ana", date: "2026-08-03", blobSessions: 2, phantomSessions: 1 }]
+  },
+  {
+    label: "open-season-missing-from-blob-warns",
+    note: "canonical ahead of the blob warns, never fails: that is wave B working as intended",
+    mutate: fixture => withBlobCurrentLogs(fixture, {
+      ...SYNCED_BLOB_LOGS,
+      Ana: SYNCED_BLOB_LOGS.Ana.slice(0, 1)
+    }),
+    expectFailed: [],
+    expectWarned: ["open-season-log-parity"]
+  },
+  {
+    label: "open-season-tombstoned-phantom-still-fails",
+    note: "the daily cap does not filter deletedCurrentLogIds, so a tombstoned phantom still blocks",
+    mutate: fixture => {
+      withBlobCurrentLogs(fixture, {
+        ...SYNCED_BLOB_LOGS,
+        Ben: [...SYNCED_BLOB_LOGS.Ben, { id: "1788000009999", date: "2026-08-05" }]
+      });
+      fixture.live_state.state.groups["alpha-abc123"].deletedCurrentLogIds = ["1788000009999"];
+    },
+    expectFailed: ["open-season-log-parity"],
+    expectWarned: []
+  },
+  {
+    label: "open-season-mid-rollover-not-compared",
+    note: "mid-rollover the two stores legitimately differ: a phantom that would otherwise fail is out of scope",
+    mutate: fixture => {
+      withBlobCurrentLogs(fixture, {
+        ...SYNCED_BLOB_LOGS,
+        Ben: [...SYNCED_BLOB_LOGS.Ben, { id: "1788000009999", date: "2026-08-05" }]
+      });
+      // Blob still on the previous month while canonical has opened the new
+      // one. Without the scope guard the phantom above would fail the gate.
+      fixture.live_state.state.groups["alpha-abc123"].lastMonth = "2026-6";
+    },
     expectFailed: [],
     expectWarned: []
   },
@@ -258,7 +364,18 @@ for (const scenario of scenarios) {
   const wantFailed = JSON.stringify([...scenario.expectFailed].sort());
   const wantWarned = JSON.stringify([...scenario.expectWarned].sort());
   const exitOk = scenario.expectFailed.length ? result.exitCode !== 0 : result.exitCode === 0;
-  const ok = gotFailed === wantFailed && gotWarned === wantWarned && exitOk;
+  // Optional: assert the cap-blocking detail, so "this member cannot log
+  // today" is verified rather than inferred from a phantom count.
+  let blockedOk = true;
+  if (scenario.expectBlocked) {
+    const actualBlocked = result.report.checks
+      ?.find(check => check.name === "open-season-log-parity")?.details?.blockedFromLoggingToday ?? [];
+    blockedOk = JSON.stringify(actualBlocked) === JSON.stringify(scenario.expectBlocked);
+    if (!blockedOk) {
+      console.log(`       blocked: expected ${JSON.stringify(scenario.expectBlocked)}, got ${JSON.stringify(actualBlocked)}`);
+    }
+  }
+  const ok = gotFailed === wantFailed && gotWarned === wantWarned && exitOk && blockedOk;
   if (!ok) failed += 1;
   console.log(`[${ok ? "PASS" : "FAIL"}] ${scenario.label} — ${scenario.note}`);
   if (!ok) {

@@ -42,6 +42,13 @@ curl -s -X POST "https://lift-log-nu.vercel.app/api/lift-log" \
 - If `enabledActions` is empty or different from the above, that changes the
   premises of Task 5 — stop and reconcile with Deveen before proceeding.
 
+> **Updated 2026-09-27.** The live value *is* now different from Deveen's
+> 09-01 reading above, and that is expected, not a reason to stop. It reads
+> `["reaction","flag","flag-response","flag-review"]` — `delete-log` was
+> removed on 13 September as the fix for the delete-log divergence. Treat that
+> four-item list as the correct starting state for Task 5. Stop and reconcile
+> only if it differs from *those four*.
+
 ## Task 2 — Baseline check of the parity gate (read-only, 5 min)
 
 Requires `.env.local` with `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`
@@ -119,8 +126,16 @@ changes production behavior. It is reversible in ~2 minutes.
    **Production** value:
 
 ```
-BLOB_MIRROR_SKIP_ACTIONS=reaction,flag,flag-response,flag-review,delete-log,add-log,multi-log
+BLOB_MIRROR_SKIP_ACTIONS=reaction,flag,flag-response,flag-review,add-log,multi-log
 ```
+
+> **Corrected 2026-09-27.** This line used to include `delete-log`. It must
+> not. `delete-log` was deliberately removed from the live Production value on
+> 13 September — that removal *was* the fix for the delete-log divergence
+> (deleted workouts staying in the blob), and Deveen's 20 September gate run
+> confirmed it clean: zero phantoms, zero missing. Pasting the old line would
+> re-introduce the 19 July → 9 September bug. See §9 of
+> `docs/handover-2026-09-22-for-deveen-active.md`.
 
 3. Redeploy (env changes need a redeploy).
 4. Immediately after deploy, app-level smoke test on a phone: log a workout,

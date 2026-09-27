@@ -389,6 +389,15 @@ const SystemCard = ({ msg, onSeasonClosedTap }) => {
 
   const toneColor = msg.tone === "warning" ? C.warning : msg.tone === "neutral" ? C.meta : C.positive;
   const tappable = msg.payload?.action === "season_results" && onSeasonClosedTap;
+  // A Solo or Sit out note sits on its own quoted line under the sentence.
+  // Older Solo moments had it glued onto the body ("…for the month: work").
+  const note = (msg.system_kind === "solo_started" || msg.system_kind === "sit_out_approved")
+    ? String(msg.payload?.reason || "").trim()
+    : "";
+  const noteSuffix = note ? `: ${note}` : "";
+  const bodyText = noteSuffix && typeof msg.body === "string" && msg.body.endsWith(noteSuffix)
+    ? `${msg.body.slice(0, -noteSuffix.length)}.`
+    : msg.body;
   const content = React.createElement(React.Fragment, null,
     React.createElement('div', {
       style: { fontFamily: "'Outfit', sans-serif", fontSize: 10, fontWeight: 700, color: C.meta, letterSpacing: ".09em", textTransform: "uppercase", marginBottom: 4, textAlign: "center" }
@@ -396,12 +405,15 @@ const SystemCard = ({ msg, onSeasonClosedTap }) => {
     React.createElement('div', {
       style: { display: "flex", alignItems: "center", justifyContent: "center", gap: 5, fontSize: 13, fontWeight: 600, color: toneColor, lineHeight: 1.3 }
     },
-      React.createElement('span', null, msg.body),
+      React.createElement('span', null, bodyText),
       tappable && React.createElement(AppIcon, { name: "chevron-right", size: 13, stroke: toneColor })
     ),
     msg.sub && React.createElement('div', {
       style: { fontSize: 11, color: C.meta, marginTop: 3, lineHeight: 1.3 }
-    }, msg.sub)
+    }, msg.sub),
+    note && React.createElement('div', {
+      style: { fontSize: 12, fontStyle: "italic", color: "var(--muted)", lineHeight: 1.4, marginTop: 6, paddingTop: 6, borderTop: `1px solid ${C.rcvBorder}`, wordBreak: "break-word" }
+    }, `\u201C${note}\u201D`)
   );
   return React.createElement('div', { style: { display: "flex", flexDirection: "column", alignItems: "center", padding: "4px 0" } },
     tappable
@@ -425,10 +437,11 @@ const LogCommentCard = ({ msg, onOpen }) => {
   const preview = latest.body
     ? `${latest.commenterName || "Member"}: "${latest.body}"`
     : "Open comments";
+  // Expired photos and older history both resolve to the activity icon. A
+  // log always began with a photo; the icon is the durable visual record once
+  // its temporary image is unavailable.
   const thumb = payload.photoUrl && !imageExpired
     ? React.createElement('img', { src: resolveStorageImageUrl(payload.photoUrl), alt: `${owner} ${type}`, loading: "eager", decoding: "async", onError: () => setImageExpired(true), style: { width: 44, height: 44, borderRadius: 8, objectFit: "cover", background: "#050507", flexShrink: 0 } })
-    : payload.photoUrl
-      ? React.createElement('div', { style: { width: 44, height: 44, borderRadius: 8, background: "#0D1F1E", border: "0.5px solid #163d36", display: "flex", alignItems: "center", justifyContent: "center", color: "#638b86", fontFamily: "'Outfit', sans-serif", fontSize: 8, fontWeight: 700, textAlign: "center", lineHeight: 1.1, padding: 4, boxSizing: "border-box", flexShrink: 0 } }, "Expired")
     : React.createElement('div', { style: { width: 44, height: 44, borderRadius: 8, background: "#0D1F1E", border: "0.5px solid #163d36", display: "flex", alignItems: "center", justifyContent: "center", color: C.accent, flexShrink: 0 } },
         React.createElement(WorkoutTypeIcon, { type, size: 20 })
       );
@@ -1218,6 +1231,7 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, 
         activity: payload.activity || "",
         date: payload.workoutDate || "",
         photoUrl: payload.photoUrl || "",
+        note: payload.note || "",
         commentCount: payload.commentCount
       }
     });

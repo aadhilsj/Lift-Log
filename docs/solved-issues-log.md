@@ -174,3 +174,23 @@ Resolution:
 
 Notes:
 - `handleLogMutation` still does not alert for other actions (flags, flag responses). Any new caller needs to check `result.ok`.
+
+---
+
+## 2026-09-17 — The Members tab showed only "Leave Bloc"
+
+Symptom:
+- In Bloc Settings, the Members tab showed the Leave Bloc button and nothing else: no member list, no Remove buttons, no pending sit-out or Solo requests.
+
+Scope:
+- Every Bloc Admin, live from 29 August to 17 September. One request was missed because of it (Rahul, Sarandawgs, sit-out, 16 September); every other request since 28 August was checked in production.
+
+Cause:
+- `a0ca12c`, which moved Leave Bloc into settings, wrote `renderMembers` as `( membersBlock, renderLeaveBloc() )`. That is a JavaScript comma expression, which returns only its last item, so everything but Leave Bloc was thrown away. Lint and build both passed.
+
+Resolution:
+- Commit `81441e1`.
+
+Notes:
+- A sweep with ESLint's `no-sequences` rule found no other instance in `src` or `api`. The project's lint config does not enable that rule; turning it on would catch this automatically if it ever recurs.
+

@@ -331,6 +331,7 @@ const App = () => {
   const [creatingGroup,setCreatingGroup]=useState(false);
   const [savingSettings,setSavingSettings]=useState(false);
   const [showSettings,setShowSettings]=useState(false);
+  const [settingsInitialTab,setSettingsInitialTab]=useState("invite");
   const [createdInviteGroupId,setCreatedInviteGroupId]=useState(null);
   const [showProfileModal,setShowProfileModal]=useState(false);
   const [paymentSaving,setPaymentSaving]=useState(false);
@@ -1438,11 +1439,23 @@ const App = () => {
 
   const handleReviewSetupDefaults = useCallback(()=>{
     if (!currentGroup || getSetupReviewPendingCount(currentGroup) === 0) return;
+    const reviewedGroup = normalizeGroupState({
+      ...currentGroup,
+      setupReview: { pending: {} }
+    });
+    beginOptimisticMutation();
+    applyData(buildOptimisticState({ groupId:selectedGroupId, group:reviewedGroup }), { optimistic:true });
     return handleUpdateGroupSettings(currentGroup.name, currentGroup.settings, {
       setupReview: { pending: {} },
       closeAfterSave: false
     });
-  },[currentGroup, handleUpdateGroupSettings]);
+  },[applyData, beginOptimisticMutation, buildOptimisticState, currentGroup, handleUpdateGroupSettings, selectedGroupId]);
+
+  const handleOpenSetupReview = useCallback(()=>{
+    setSettingsInitialTab("rules");
+    setShowSettings(true);
+    handleReviewSetupDefaults();
+  },[handleReviewSetupDefaults]);
 
   const handleTrainingChoice = useCallback(async(choice)=>{
     if (!selectedGroupId) return;
@@ -1903,8 +1916,21 @@ const App = () => {
     if (showStream) return;
     refreshStreamUnreadCount();
   }, [appState?.meta?.revision, refreshStreamUnreadCount, selectedGroupId, showStream]);
+  // Tapping a nav button and swiping between screens are the same event as far
+  // as usage goes. Swiping used to call setPage directly and record nothing,
+  // which on a mobile-only app silently lost most screen opens.
+  // Wraps the Bloc switcher rather than tracking inside Nav: Nav is rendered
+  // twice (desktop header and mobile bottom bar) and tracking in there would
+  // have to be repeated in both.
+  const handleSwitchBlocTracked = useCallback(()=>{
+    void trackUsageEvent("bloc_switcher_opened");
+    handleSwitchGroup();
+  },[handleSwitchGroup]);
+  const trackPageOpen = useCallback((nextPage, fromPage)=>{
+    if (nextPage && nextPage !== fromPage) void trackUsageEvent(`${nextPage}_opened`);
+  },[]);
   const handleNavSelect = useCallback((nextPage)=>{
-    if (nextPage && nextPage !== page) void trackUsageEvent(`${nextPage}_opened`);
+    trackPageOpen(nextPage, page);
     if (showTodayLog && nextPage === page) {
       setShowTodayLog(false);
       return;
@@ -1988,6 +2014,10 @@ const App = () => {
     setPageSwipeTarget(null);
   },[applyPageTransforms]);
   const startPageSwipe = useCallback((e) => {
+    if (e.target?.closest?.("[data-activity-image-lightbox]")) {
+      e.stopPropagation();
+      return;
+    }
     if (pageTapTransition || showSettings || showTodayLog || showProfileModal || showStream || showJoinModal || authStep || prorationGroup || needsTrainingChoice || logCommentScreen) return;
     if (e.target?.closest?.(".in-bloc-profile-layer,input,textarea,select,[contenteditable='true']")) return;
     const t = e.touches?.[0];
@@ -1996,6 +2026,11 @@ const App = () => {
     pageSwipeRef.current = {sx:t.clientX, sy:t.clientY, st:performance.now(), active:true, mode:null, target:null,priority:e.target?.closest?.("[data-page-swipe-priority='horizontal-scroll']") ? "horizontal-scroll" : null};
   },[authStep, logCommentScreen, needsTrainingChoice, page, pageTapTransition, prorationGroup, showJoinModal, showProfileModal, showSettings, showStream, showTodayLog]);
   const movePageSwipe = useCallback((e) => {
+    if (e.target?.closest?.("[data-activity-image-lightbox]")) {
+      e.stopPropagation();
+      if (e.cancelable) e.preventDefault();
+      return;
+    }
     const s = pageSwipeRef.current;
     const t = e.touches?.[0];
     if (!s.active || !t) return;
@@ -2035,6 +2070,10 @@ const App = () => {
     }
   },[adjacentInBlocPage, applyPageTransforms, schedulePageTransforms]);
   const endPageSwipe = useCallback((e) => {
+    if (e.target?.closest?.("[data-activity-image-lightbox]")) {
+      e.stopPropagation();
+      return;
+    }
     const s = pageSwipeRef.current;
     const t = e.changedTouches?.[0];
     pageSwipeRef.current = {sx:0,sy:0,active:false,mode:null,target:null,priority:null};
@@ -2055,6 +2094,11 @@ const App = () => {
         setDragging: setPageDragging,
         applyTransform: applyPageTransforms,
         commit: () => {
+          // No `page` comparison here: this callback's deps do not include
+          // page, so reading it would be stale. A committed swipe always lands
+          // on an adjacent screen (adjacentInBlocPage returns index +/- 1), so
+          // the destination is never the screen we are already on.
+          trackPageOpen(s.target, null);
           setPage(s.target);
           setPageSwipeTarget(null);
         }
@@ -2175,7 +2219,10 @@ const App = () => {
       initialCreateGroupName: inert ? "" : queuedCreateGroupName,
       onAutoOpenHandled: inert ? ()=>{} : ()=>{setQueuedCreate(false);setQueuedCreateGroupName("");},
       onCreateCancel: inert ? ()=>{} : handleCreateCancelFromGroupHome,
-      onOpenGroup: inert ? ()=>{} : groupId=>{ switcherRestoreScrollRef.current = switcherScrollTopRef.current; window.scrollTo({top:0,left:0,behavior:"auto"}); setSuppressSwitcherIntro(false); setMonthInitialIdx(null); persistGroupSelection(groupId); setPage("today"); },
+      // Picking a Bloc here lands on Today, which is a screen open like any
+      // other. It used to call setPage directly and record nothing, so every
+      // Bloc switch was a Today Screen visit the dashboard never saw.
+      onOpenGroup: inert ? ()=>{} : groupId=>{ switcherRestoreScrollRef.current = switcherScrollTopRef.current; window.scrollTo({top:0,left:0,behavior:"auto"}); setSuppressSwitcherIntro(false); setMonthInitialIdx(null); persistGroupSelection(groupId); trackPageOpen("today", null); setPage("today"); },
       onCreateGroup: inert ? ()=>{} : handleCreateGroup,
       onJoinGroup: inert ? ()=>{} : ()=>setShowJoinModal(true),
       suppressIntro
@@ -3264,16 +3311,16 @@ const App = () => {
     style:{paddingBottom:isMobileView?"calc(108px + env(safe-area-inset-bottom))":0}
   },
     pageName==="today"  &&React.createElement(TodayPageErrorBoundary,{resetKey:`${selectedGroupId}:${navResetToken}:${currentUser}`},
-      React.createElement(TodayPage,  {user:currentUser,currentUserId:effectiveAuthSession?.userId,currentGroupId:selectedGroupId,groups,profiles:appState?.profiles||{},accountCreatedAt:profile?.createdAt,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,saving,onSave:handleSave,onMultiLog:handleMultiLog,onLogMutation:handleLogMutation,clockTick,onViewLastMonth:()=>{setMonthInitialIdx(0);setPage("month");},onSettlementClaimPaid:handleSettlementClaimPaid,onSettlementConfirmPaid:handleSettlementConfirmPaid,onSettlementDisputePaid:handleSettlementDisputePaid,onOpenSetupReview:()=>setShowSettings(true),onOpenAccount:()=>setShowProfile(true),navResetToken,showLog:showTodayLog,setShowLog:setShowTodayLog,onTrackUsage:trackUsage,currentPaymentMethods:effectiveProfile?.paymentMethods||[],onSavePayment:handleSavePaymentHandle,savingPayment:paymentSaving,paymentError:paymentError})
+      React.createElement(TodayPage,  {user:currentUser,currentUserId:effectiveAuthSession?.userId,currentGroupId:selectedGroupId,groups,profiles:appState?.profiles||{},accountCreatedAt:profile?.createdAt,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,saving,onSave:handleSave,onMultiLog:handleMultiLog,onLogMutation:handleLogMutation,clockTick,onViewLastMonth:()=>{setMonthInitialIdx(0);setPage("month");},onOpenMonth:()=>{setMonthInitialIdx(null);setPage("month");},onSettlementClaimPaid:handleSettlementClaimPaid,onSettlementConfirmPaid:handleSettlementConfirmPaid,onSettlementDisputePaid:handleSettlementDisputePaid,onOpenSetupReview:handleOpenSetupReview,onOpenAccount:()=>setShowProfile(true),navResetToken,showLog:showTodayLog,setShowLog:setShowTodayLog,onTrackUsage:trackUsage,currentPaymentMethods:effectiveProfile?.paymentMethods||[],onSavePayment:handleSavePaymentHandle,savingPayment:paymentSaving,paymentError:paymentError})
     ),
     pageName==="activity"&&React.createElement(InBlocPageErrorBoundary,{pageLabel:"Activity",resetKey:`${selectedGroupId}:${navResetToken}:${currentUser}`},
       React.createElement(ActivityPage,{group:currentGroup,currentUser,currentUserId:effectiveAuthSession?.userId,onLogMutation:handleLogMutation,clockTick,reactionOverrides,setReactionOverrides,commentCountOverrides:logCommentCountOverrides,onCommentCountsLoaded:setLogCommentCountOverrides,onOpenLogComments:handleOpenLogComments,onTrackUsage:trackUsage})
     ),
     pageName==="month"  &&React.createElement(InBlocPageErrorBoundary,{pageLabel:"Month",resetKey:`${selectedGroupId}:${navResetToken}:${currentUser}:${monthInitialIdx ?? "current"}`},
-      React.createElement(MonthPage,  {key:`${selectedGroupId}:${navResetToken}:${monthInitialIdx ?? "current"}`,group:currentGroup,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,groupSettings:currentGroup.settings,currentUser,currentUserId:effectiveAuthSession?.userId,initialSelIdx:monthInitialIdx,onStartNextMonth:()=>{setMonthInitialIdx(null);setPage("today");},onOpenToday:()=>setPage("today"),onSettlementClaimPaid:handleSettlementClaimPaid,onSettlementConfirmPaid:handleSettlementConfirmPaid,profiles:appState?.profiles||{},onOpenAccount:()=>setShowProfile(true),navResetToken,onTrackUsage:trackUsage})
+      React.createElement(MonthPage,  {key:`${selectedGroupId}:${navResetToken}:${monthInitialIdx ?? "current"}`,group:currentGroup,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,groupSettings:currentGroup.settings,currentUser,currentUserId:effectiveAuthSession?.userId,initialSelIdx:monthInitialIdx,onStartNextMonth:()=>{setMonthInitialIdx(null);setPage("today");},onOpenToday:()=>setPage("today"),onSettlementClaimPaid:handleSettlementClaimPaid,onSettlementConfirmPaid:handleSettlementConfirmPaid,profiles:appState?.profiles||{},onOpenAccount:()=>setShowProfile(true),navResetToken,onTrackUsage:trackUsage,currentPaymentMethods:effectiveProfile?.paymentMethods||[],onSavePayment:handleSavePaymentHandle,savingPayment:paymentSaving,paymentError:paymentError})
     ),
     pageName==="history"&&React.createElement(InBlocPageErrorBoundary,{pageLabel:"History",resetKey:`${selectedGroupId}:${navResetToken}:${currentUser}`},
-      React.createElement(HistoryPage,{group:currentGroup,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,groupSettings:currentGroup.settings,navResetToken,currentUser,groups,currentUserId:effectiveAuthSession?.userId,accountCreatedAt:profile?.createdAt})
+      React.createElement(HistoryPage,{group:currentGroup,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,groupSettings:currentGroup.settings,navResetToken,currentUser,groups,onTrackUsage:trackUsage,currentUserId:effectiveAuthSession?.userId,accountCreatedAt:profile?.createdAt})
     )
   );
 
@@ -3373,12 +3420,12 @@ const App = () => {
       touchAction:"pan-y"
     }
   },
-    React.createElement(Nav,{page,setPage:handleNavSelect,user:currentUser,currentUserId:effectiveAuthSession?.userId||"",profilePhotoUrl:effectiveProfile?.profilePhotoUrl||"",groupName:currentGroup.name,canEditGroup:isGroupAdmin,settingsAlert:pendingRequestCount>0,onOpenSettings:()=>{trackUsage("settings_opened");setShowSettings(true)},onOpenStream:handleOpenStream,streamUnreadCount,onSwitchUser:handleSwitchUser,onSwitchGroup:handleSwitchGroup,onOpenLog:()=>{setPage("today");setShowTodayLog(true);},syncing,lastSyncedAt,syncError,onRefresh:refreshNow,showJustSynced,activityAlertCount,hideMobileBottomNav:true}),
+    React.createElement(Nav,{page,setPage:handleNavSelect,user:currentUser,currentUserId:effectiveAuthSession?.userId||"",profilePhotoUrl:effectiveProfile?.profilePhotoUrl||"",groupName:currentGroup.name,canEditGroup:isGroupAdmin,settingsAlert:pendingRequestCount>0,onOpenSettings:()=>{trackUsage("settings_opened");setSettingsInitialTab("invite");setShowSettings(true)},onOpenStream:handleOpenStream,streamUnreadCount,onSwitchUser:handleSwitchUser,onSwitchGroup:handleSwitchBlocTracked,onOpenLog:()=>{setPage("today");setShowTodayLog(true);},syncing,lastSyncedAt,syncError,onRefresh:refreshNow,showJustSynced,activityAlertCount,hideMobileBottomNav:true}),
     localDevMode && React.createElement(LocalDevImpersonationBar,{options:devImpersonationOptions,value:effectiveAuthSession?.devImpersonationActive?effectiveAuthSession.userId:"",onChange:handleSelectDevImpersonation}),
     React.createElement('div',{style:{position:"relative",overflow:"hidden",height:inBlocViewportHeight,minHeight:0}},
       showSettings && React.createElement('div',{style:{position:"absolute",inset:"0 0 auto 0",zIndex:1,pointerEvents:"none"}},renderInBlocPage(page,{swipePreview:true})),
       showSettings
-        ? React.createElement(BlocSettingsScreen,{group:currentGroup,actor:currentUser,actorUserId:authSession?.userId,isAdmin:isGroupAdmin,onSave:handleUpdateGroupSettings,onClose:()=>setShowSettings(false),saving:savingSettings,onReviewSetup:isGroupAdmin?handleReviewSetupDefaults:null,onReviewSitOut:isGroupAdmin?handleSitOutReview:null,onReviewSolo:isGroupAdmin?handleSoloReview:null,onKickMember:isGroupAdmin?handleKickMember:null,onLeaveBloc:handleLeaveBloc,onSitOutRequest:handleSitOutRequest,onSoloRequest:handleSoloRequest,onCancelRequest:handleCancelRequest,localDevMode})
+        ? React.createElement(BlocSettingsScreen,{group:currentGroup,onTrackUsage:trackUsage,actor:currentUser,actorUserId:authSession?.userId,isAdmin:isGroupAdmin,onSave:handleUpdateGroupSettings,onClose:()=>{setSettingsInitialTab("invite");setShowSettings(false);},saving:savingSettings,onReviewSetup:isGroupAdmin?handleReviewSetupDefaults:null,onReviewSitOut:isGroupAdmin?handleSitOutReview:null,onReviewSolo:isGroupAdmin?handleSoloReview:null,onKickMember:isGroupAdmin?handleKickMember:null,onLeaveBloc:handleLeaveBloc,onSitOutRequest:handleSitOutRequest,onSoloRequest:handleSoloRequest,onCancelRequest:handleCancelRequest,initialTab:settingsInitialTab,localDevMode})
         : activePageLayer
     ),
     showInstallBanner && React.createElement(InstallBanner,{
@@ -3411,7 +3458,7 @@ const App = () => {
     }),
     page==="today"&&(blocDragging||Math.abs(Number(blocDragXRef.current)||0)>0)&&renderGroupSwitcherSurface({ inert:true, suppressIntro:true }),
     activeBlocSurface,
-    !showSettings && React.createElement(Nav,{onlyMobileBottomNav:true,page,setPage:handleNavSelect,user:currentUser,currentUserId:effectiveAuthSession?.userId||"",profilePhotoUrl:effectiveProfile?.profilePhotoUrl||"",groupName:currentGroup.name,canEditGroup:isGroupAdmin,settingsAlert:pendingRequestCount>0,onOpenSettings:()=>{trackUsage("settings_opened");setShowSettings(true)},onOpenStream:handleOpenStream,streamUnreadCount,onSwitchUser:handleSwitchUser,onSwitchGroup:handleSwitchGroup,onOpenLog:()=>{setPage("today");setShowTodayLog(true);},syncing,lastSyncedAt,syncError,onRefresh:refreshNow,showJustSynced,activityAlertCount,mobileBottomDragX:blocDragXRef.current,mobileBottomNavRef:blocBottomNavRef,mobileBottomDragging:blocDragging}),
+    !showSettings && React.createElement(Nav,{onlyMobileBottomNav:true,page,setPage:handleNavSelect,user:currentUser,currentUserId:effectiveAuthSession?.userId||"",profilePhotoUrl:effectiveProfile?.profilePhotoUrl||"",groupName:currentGroup.name,canEditGroup:isGroupAdmin,settingsAlert:pendingRequestCount>0,onOpenSettings:()=>{trackUsage("settings_opened");setSettingsInitialTab("invite");setShowSettings(true)},onOpenStream:handleOpenStream,streamUnreadCount,onSwitchUser:handleSwitchUser,onSwitchGroup:handleSwitchBlocTracked,onOpenLog:()=>{setPage("today");setShowTodayLog(true);},syncing,lastSyncedAt,syncError,onRefresh:refreshNow,showJustSynced,activityAlertCount,mobileBottomDragX:blocDragXRef.current,mobileBottomNavRef:blocBottomNavRef,mobileBottomDragging:blocDragging}),
     renderInviteJoinToast(),
     renderProfilePhotoToast(),
     renderInviteDownloadPrompt(),

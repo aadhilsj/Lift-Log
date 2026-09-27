@@ -10,7 +10,8 @@
 //   real  - the blob (public.lift_log_state). Reads, writes and the revision
 //           counter all behave as they do in production, because the blob is
 //           the whole of what the app reads for an open month.
-//   fake  - every ante_core RPC returns no rows. The app is built to treat
+//   fake  - every ante_core RPC but one returns no rows (current logs mirror
+//           the blob; see the note at the RPC route). The app is built to treat
 //           that as "no canonical data yet" and fall back to the blob, which
 //           is the documented "blob wins on doubt" rule. Canonical mirroring
 //           is therefore NOT exercised by this sandbox; see docs.
@@ -146,6 +147,35 @@ const server = http.createServer(async (req, res) => {
   // writes are accepted and discarded. This is the sandbox's one real
   // limitation and it is deliberate: reimplementing the canonical SQL in
   // JavaScript would mean testing my re-implementation rather than the app.
+  //
+  // One exception: read_ante_core_current_logs answers with the blob's own
+  // open-month logs. Month close rebuilds its counts from this read and
+  // refuses to close a month when it is empty while the blob counted workouts
+  // (rebuildClosedMonthSnapshotFromCanonicalLogs), so with "no rows" here no
+  // sandbox month could ever close and nothing downstream of a closed month —
+  // results, settlement reminders — could be looked at. Mirroring the blob
+  // keeps canonical and blob identical, which is what production looks like
+  // when both are healthy.
+  if (route === "/rest/v1/rpc/read_ante_core_current_logs") {
+    await readBody(req);
+    const groups = readRow().state?.groups || {};
+    const rows = Object.entries(groups).flatMap(([groupId, group]) =>
+      Object.entries(group?.logs || {}).flatMap(([owner, logs]) =>
+        (Array.isArray(logs) ? logs : []).map(log => ({
+          legacy_group_key: groupId,
+          owner_display_name: owner,
+          id: log.id,
+          workout_type: log.type,
+          workout_date: log.date,
+          note: log.note || "",
+          photo_url: log.photoUrl || null,
+          created_at: log.createdAt || null,
+          verified_via: log.verifiedVia || null
+        }))
+      )
+    );
+    return send(res, 200, rows);
+  }
   if (route.startsWith("/rest/v1/rpc/")) {
     await readBody(req);
     return send(res, 200, []);
