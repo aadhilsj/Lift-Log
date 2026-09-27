@@ -37,7 +37,7 @@ Use this as the factual starting point and update it if the implementation chang
 
 Before submission, explicitly confirm whether the following statement remains true:
 
-> Fero does not hold funds, transfer money, sell wagering credit, operate a prize pool, or process the settlement between members. Members handle any real-world settlement outside Fero; the app only records the obligation and its member-confirmed status.
+> Fero does not hold funds, transfer money, or process the settlement between members. Members handle any real-world settlement outside Fero; the app only records the obligation and its member-confirmed status.
 
 Do not submit that statement by assumption. Re-audit the build, backend, store products, and policies. If any payment or reward behavior changes, obtain appropriate legal review and rewrite the App Review explanation.
 

@@ -73,10 +73,9 @@ Fero lets invited groups record workouts and accountability outcomes. Members
 must provide accurate information, protect their login access, respect other
 members, and only upload content they have the right to share.
 
-Fero does not hold funds, transfer money, operate a prize pool, sell wagering
-credit, or verify off-platform settlements. Any accountability obligation or
-settlement status shown in Fero is a record between members, not a payment
-service provided by Fero.
+Fero does not hold funds, transfer money, or verify off-platform settlements.
+Any accountability obligation or settlement status shown in Fero is a record
+between members, not a payment service provided by Fero.
 
 Users must not harass, threaten, impersonate, defraud, exploit, or upload
 unlawful, abusive, private, or rights-infringing material. Fero may remove
@@ -115,4 +114,3 @@ or payment credentials.
 For account deletion, use **Settings → Account → Delete account** in the app.
 The final page must state the actual deletion timeline and any historical
 content retained for other members.
-

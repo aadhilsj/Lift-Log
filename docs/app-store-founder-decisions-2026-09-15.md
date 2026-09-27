@@ -87,7 +87,7 @@ Working plain-English position for review:
 
 > Fero helps private Bloc members track workout commitments and record
 > member-confirmed outcomes. Fero does not hold money, transfer money, process
-> payments, operate a prize pool, or verify an off-platform payment.
+> payments, or verify an off-platform payment.
 
 Use this only if it remains true in the submitted build. The final public
 wording and worldwide distribution decision require the planned legal review.
