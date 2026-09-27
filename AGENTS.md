@@ -106,9 +106,13 @@ They have repeatedly been asked to test something that was never going to work.
 - **Preview first, then they promote.** Build on a branch, push a Vercel preview,
   let them test, and let them promote to production. Never push straight to
   production unless they explicitly say to.
-- **They run all Supabase SQL themselves.** *"I would prefer to run things on
-  Supabase myself, so don't do anything on Supabase yourself."* Hand them the
-  exact SQL; do not execute it.
+- **You run the Supabase SQL, including on production.** Changed 2026-09-27:
+  *"You can now do the SQLs. I can't do it. I don't want to do it, rather. I
+  trust you. So be careful. But let me know before you do it. Or that you have
+  done it."* Until that date the founder ran every statement himself; he no
+  longer wants to. Say what is about to run, or report it immediately after —
+  never silently. Every other guard still applies: record the before-state,
+  prefer a change whose rollback is one statement, and verify afterwards.
 - **Back up before anything destructive.** They asked to be reminded of this and
   it is now a standing rule — take or confirm a fresh backup before any data
   change.
@@ -270,9 +274,9 @@ This is how sessions that went well actually ran. Follow it end to end. Sections
   Rahul's request go through?" get answered.
   - Before calling any function, read its definition with `pg_get_functiondef`,
     and check that it only reads.
-  - Write to production only when the founder explicitly says to, in that
-    session. For DDL, use `apply_migration` with a matching file in
-    `supabase/migrations/`.
+  - Production writes are yours to run since 2026-09-27 (§4), but tell the
+    founder before or immediately after each one. For DDL, use
+    `apply_migration` with a matching file in `supabase/migrations/`.
   - After any write, verify it: the object exists, the grants are right
     (`anon` and `authenticated` must not be able to call it), and row counts
     are unchanged.
