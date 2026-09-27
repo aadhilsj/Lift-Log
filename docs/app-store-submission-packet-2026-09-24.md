@@ -24,44 +24,46 @@ action. Items marked **Codex** can be prepared in the repository. Items marked
 
 ### Name
 
-Fero
+Fero: Fitness Accountability
 
 ### Subtitle
 
-Train together. Show up.
+Workout goals with your people
 
 ### Promotional text
 
-Build a private workout Bloc, set a shared monthly goal, and keep each other
-showing up.
+Pick your people, set a monthly workout target together, and log every session.
+See exactly where everyone stands as the month counts down.
 
 ### Description
 
-Fero is a private workout-accountability app for the friends who help you keep
-showing up.
+Fero is a workout-accountability app for the friends who help you keep showing
+up.
 
-Create a Bloc, invite your people, and choose a monthly workout target
-together. Log workouts as you go, follow the live leaderboard, and see how
-everyone is progressing.
+Create a Bloc — a private group of people you invite — and choose a monthly
+workout target together. Log workouts as you go, follow the leaderboard, and
+see how everyone is progressing.
 
 With Fero you can:
 
-- Create or join invite-only Blocs
-- Set a shared monthly workout target
-- Log workouts with optional notes and photos
-- See live progress, activity, reactions, and comments
-- Review month-end results with your Bloc
-- Manage your profile, photos, and account from the app
+• Create or join invite-only Blocs
+• Set a shared monthly workout target
+• Set the penalty for missing it
+• Log workouts with optional notes and photos
+• See progress, activity, reactions, and comments
+• Review month-end results with your Bloc
+• Report or block another member at any time
+• Manage your profile, photos, and account from the app
 
-Fero is built for private groups — not public follower counts. Your Bloc is
-where the accountability happens.
+Your Bloc decides its own penalty for a missed month, and members settle it
+between themselves. Fero keeps score — it never handles money or takes part in
+a settlement.
 
-Fero does not process payments, hold funds, operate a prize pool, or verify
-off-platform settlements between members.
+Your Bloc is the community that keeps you showing up.
 
 ### Keywords
 
-`workout,fitness,accountability,habit,goals,training,exercise,group,leaderboard`
+`gym,run,training,exercise,habit,streak,friends,group,tracker,buddy,monthly,consistency`
 
 ### Categories
 
@@ -79,7 +81,8 @@ photos.
 1. **Your Bloc, in motion** — Today screen with a monthly target and leaderboard.
 2. **Log the work** — workout entry with an optional note/photo.
 3. **See the team show up** — Activity with a reaction/comment example.
-4. **Every month tells a story** — Month or History screen with a completed result.
+4. **Every month tells a story** — Month or History screen with a completed result,
+   framed above settlement rows. Do not show payment handles, names, or amounts.
 5. **Private by design** — invite-only Bloc creation or joining.
 
 ## App Review notes — fill only after the review environment exists
@@ -104,8 +107,8 @@ Recommended path:
    and Delete account.
 
 Settlement behavior:
-Fero records workout-accountability obligations and member-confirmed status.
-It does not process payments, hold funds, transfer money, operate a prize pool,
+Fero records workout-accountability outcomes and optional member-confirmed
+settlement status. It does not process payments, hold funds, transfer money,
 or verify an off-platform payment.
 
 External services:
