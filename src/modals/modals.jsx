@@ -610,6 +610,9 @@ const LogModal = ({user,currentUserId,currentGroupId,groups,onConfirm,onClose,on
   const [selDate,setSelDate]=useState(TODAY_ISO);
   const [note,setNote]=useState("");
   const [photoUrl,setPhotoUrl]=useState("");
+  // The uploaded value is an internal storage reference the browser cannot
+  // render. Keep the cropped image itself for the preview until submission.
+  const [photoPreview,setPhotoPreview]=useState("");
   const [uploading,setUploading]=useState(false);
   const [photoError,setPhotoError]=useState("");
   const [cropSource,setCropSource]=useState(null);
@@ -728,6 +731,7 @@ const LogModal = ({user,currentUserId,currentGroupId,groups,onConfirm,onClose,on
     try {
       const compressed = await compressImageDataUrl(croppedDataUrl, 720, 0.72);
       const storageUrl = await uploadPhotoToStorage(compressed);
+      setPhotoPreview(compressed);
       setPhotoUrl(storageUrl);
     } catch {
       setPhotoError("Photo couldn't be uploaded. Please check your connection and try again.");
@@ -806,7 +810,7 @@ const LogModal = ({user,currentUserId,currentGroupId,groups,onConfirm,onClose,on
       photoUrl && React.createElement('div',{style:{display:"grid",gap:5,marginBottom:7}},
         React.createElement('label',{style:{display:"block",cursor:"pointer"}},
           React.createElement('div',{style:{minHeight:compactMobile?72:114,borderRadius:14,border:"1px dashed rgba(31,206,101,.35)",background:"rgba(31,206,101,.04)",display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden"}},
-            React.createElement('img',{src:resolveStorageImageUrl(photoUrl),alt:"Workout preview",style:{display:"block",width:"100%",maxHeight:compactMobile?104:176,objectFit:"cover"}})
+            React.createElement('img',{src:photoPreview||resolveStorageImageUrl(photoUrl),alt:"Workout preview",style:{display:"block",width:"100%",maxHeight:compactMobile?104:176,objectFit:"cover"}})
           )
         ),
         React.createElement('div',{style:{display:"flex",justifyContent:"center",gap:5}},

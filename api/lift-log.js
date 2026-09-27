@@ -807,6 +807,41 @@ function replaceScopedPhotoUrls(state, signedUrls) {
   return { ...state, groups, profiles };
 }
 
+// Bloc Stream messages are read through their own RPC, not through the scoped
+// readable state, so their photo references never reach
+// collectScopedPhotoReferences. Sign them on the way out or the client receives
+// a reference it cannot render. The RPC has already scoped the rows to this
+// member, so signing here is applied to permitted content only.
+async function signBlocStreamMessagePhotos(messages) {
+  if (!Array.isArray(messages) || !messages.length) return Array.isArray(messages) ? messages : [];
+  const references = new Map();
+  const referenceFor = message => parseFeroStorageReference(message?.payload?.photoUrl);
+  messages.forEach(message => {
+    const reference = referenceFor(message);
+    if (reference) references.set(`${reference.bucket}/${reference.path}`, reference);
+  });
+  if (!references.size) return messages;
+  let signedUrls;
+  try {
+    signedUrls = await createScopedPhotoSignedUrls(references);
+  } catch (error) {
+    // Same rule as the scoped state: never hand back a durable public URL.
+    console.error("Unable to sign Bloc Stream photo URLs:", error);
+    signedUrls = new Map();
+  }
+  return messages.map(message => {
+    const reference = referenceFor(message);
+    if (!reference) return message;
+    return {
+      ...message,
+      payload: {
+        ...message.payload,
+        photoUrl: signedUrls.get(`${reference.bucket}/${reference.path}`) || ""
+      }
+    };
+  });
+}
+
 async function scopeAndSignReadableStateForUser(state, userId) {
   const scoped = scopeReadableStateForUser(state, userId);
   const references = collectScopedPhotoReferences(scoped);
@@ -9542,7 +9577,7 @@ export default async function handler(req, res) {
         });
         await recordCanonicalMonthlyFeatureUsage(authUser.id, "bloc_stream");
         await recordCanonicalUsageEvent(authUser, "bloc_stream_opened");
-        return res.status(200).json({ ok: true, messages: Array.isArray(messages) ? messages : [] });
+        return res.status(200).json({ ok: true, messages: await signBlocStreamMessagePhotos(messages) });
       }
 
       if (payload?.action === "usage-event") {
