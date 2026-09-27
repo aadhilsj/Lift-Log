@@ -92,10 +92,21 @@ Its history:
 | 20 Sep | **Unblocked.** Deveen: *"Nothing on our side now blocks Task 5."* Month close reads canonical (#24), the gate sees open seasons (#25) |
 | 26 Sep | **Not mentioned in any document since.** Not in the active handover's open list, because that list is Deveen-facing and this waits on Aadhil |
 
-So it is nobody's line item. It is not urgent, and it is explicitly *not*
-recommended before 1 October — a mirror change immediately before the first
-real canonical rollover is the wrong week for it. **Do it after the close, and
-after RLS lands.**
+So it is nobody's line item.
+
+> **Superseded 2026-09-27 — §9 of
+> [`handover-2026-09-22-for-deveen-active.md`](handover-2026-09-22-for-deveen-active.md)
+> is now the agreed position on Wave B, and is the one to follow.**
+>
+> It sets the sequence as: **1 October closes → Deveen's four post-rollover
+> checks → if clean, Wave B that week → soak 48–72h with the gate daily.** Its
+> reasoning is better than what this section originally said. `add-log` and
+> `multi-log` still mirroring to the blob is what makes the blob a *complete
+> parallel record* while the first canonical close runs. Wave B removes exactly
+> that safety net, so doing it before the close would strip the backup three
+> days before the one event where a mistake freezes money numbers permanently.
+>
+> This section is kept only for how the gap was found. Do not plan from it.
 
 When it is done, the exact steps are Task 5 of
 [`blob-retirement-runbook-aadhil-side-2026-09-06.md`](blob-retirement-runbook-aadhil-side-2026-09-06.md):
@@ -152,6 +163,7 @@ later document unblocked it.** The 9 September hard stop was lifted on the
 2. **Thu 1 Oct:** month close. Watch it — first real canonical rollover.
 3. **2–3 Oct:** RLS to production, then delete staging and the rehearsal
    branch.
-4. **After that:** Wave B, then Wave C.
+4. **After that:** Wave B (per §9 of the active handover — after the rollover
+   checks come back clean), then Wave C.
 5. **Unscheduled but on the critical path for December:** `left_at`, which is
    the only thing standing between here and the last four mirror actions.
