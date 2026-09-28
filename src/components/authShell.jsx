@@ -561,7 +561,7 @@ const GroupHome = ({groups,currentIdentity,currentEmail,currentUserId="",onOpenP
         showFounderDashboard
           ? React.createElement('button',{type:"button",onClick:onOpenFounderDashboard,style:{minHeight:34,padding:"8px 10px",borderRadius:9,border:"1px solid rgba(78,205,196,.3)",background:"rgba(78,205,196,.07)",color:"#4ECDC4",fontSize:11,fontWeight:900,cursor:"pointer",touchAction:"manipulation",whiteSpace:"nowrap"}},"Dashboard")
           : React.createElement('div',null),
-        React.createElement('button',{type:"button",onClick:onOpenProfile,title:currentEmail||"Account",style:{width:46,height:46,display:"inline-flex",alignItems:"center",justifyContent:"center",borderRadius:999,background:"transparent",border:"none",fontSize:14,lineHeight:1,flexShrink:0,padding:0,overflow:"visible",cursor:"pointer",touchAction:"manipulation",position:"relative",zIndex:2}},React.createElement(Avatar,{name:currentIdentity||currentEmail||"?",size:30,userId:currentUserId}))
+        React.createElement('button',{type:"button",onClick:onOpenProfile,title:currentEmail||"Account",style:{width:46,height:46,display:"inline-flex",alignItems:"center",justifyContent:"center",borderRadius:999,background:"transparent",border:"none",fontSize:14,lineHeight:1,flexShrink:0,padding:0,overflow:"visible",cursor:"pointer",touchAction:"manipulation",position:"relative",zIndex:2}},React.createElement(Avatar,{name:currentIdentity||currentEmail||"?",size:44,userId:currentUserId}))
       ),
       groups.length===0
         ? React.createElement('div',{className:"fu",style:{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",textAlign:"center",paddingTop:compactMobile?60:100,paddingBottom:40,animation:suppressIntro?"none":undefined}},
