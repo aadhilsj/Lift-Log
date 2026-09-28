@@ -38,3 +38,8 @@ build number 4, at 19:55 local time on 28 September. Chrome is still signed
 out of App Store Connect. Processing completion and Fero Team availability
 are therefore not yet verified; Aadhil was asked to sign in. No retry upload
 is necessary. Packaging commit: 1905731 (following the clean branch merge).
+
+After Aadhil signed in, refreshed App Store Connect confirmed Fero Team has
+build `1.0 (4)` with status `Testing`. Apple processing and internal tester
+availability are now verified. It was added automatically to the existing
+group. Real-iPhone installation/layout verification remains outstanding.
