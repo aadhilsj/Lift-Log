@@ -1,5 +1,15 @@
 # TestFlight build 5 — approved non-push signing
 
+## Outcome — uploaded and available to Fero Team
+
+App Store Connect's Fero Team Builds page confirms `1.0 (5)`, Internal,
+**Testing**, expiry 90 days. It was assigned automatically to the existing
+group; no tester permissions were changed. Build ID:
+`669a1a9c-e8ed-4937-860f-9f2808687818`. No second upload is needed.
+Next: install via TestFlight and assess the 260ms Today-to-switcher settle and
+successful-workout haptic on a real iPhone. Physical launch/feel is not yet
+verified by Codex.
+
 ## Follow-up after Aadhil's signing approval
 
 Aadhil approved build 5 without push in its signature, preserving the foundation
@@ -23,11 +33,16 @@ Archive log: `/tmp/Fero-build-5-no-push-archive.log`.
 
 Xcode distribution uses TestFlight Internal Only. Upload/Apple processing status
 is recorded below once confirmed. Do not repeat an upload that already succeeded.
+Xcode confirmed "App 1.0 (5) uploaded" and Organizer shows Uploaded to Apple,
+build 5, at 01:46 local time on 29 September. Group availability was subsequently
+confirmed as Testing above; an upload retry is not needed.
 The earlier blocker/verification record below is historical and superseded by
 this approved successful archive and regression pass.
 
 The additional untracked `ios/App/App/config 3.xml` appeared before this follow-up;
 it and config 2.xml were preserved and excluded from commits.
+The sandbox logged the previously documented scoped-photo signing warning
+(`data.map is not a function`); both browser regression tests still passed.
 
 ## Earlier blocked attempt (historical)
 
