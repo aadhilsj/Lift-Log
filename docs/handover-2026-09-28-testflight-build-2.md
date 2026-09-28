@@ -41,5 +41,7 @@ Production state reported by Claude: photo buckets private with 24-hour signed
 URLs; deletion shipped and proved on staging; RLS off in production and on in
 staging. No database changes were made as part of this rebuild.
 
-Build 1 should no longer be used for testing. Build 2 upload/processing state
-will be recorded below after verification.
+Xcode confirmed `App 1.0 (2) uploaded`, then Organizer showed `Uploaded to Apple`
+and build number 2 at 05:43 local time. Apple processing and association with
+the Fero Team tester group are still pending verification. Build 1 should no
+longer be used for testing.
