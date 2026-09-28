@@ -38,8 +38,11 @@ and absence of development controls throughout the app. Desktop/archive checks
 are not evidence those real-device flows passed.
 
 Production state reported by Claude: photo buckets private with 24-hour signed
-URLs; deletion shipped and proved on staging; RLS off in production and on in
-staging. No database changes were made as part of this rebuild.
+URLs; deletion shipped and proved on staging. RLS correction, 2026-09-29:
+production's server-only lockdown is already applied (RLS on, zero client
+policies, no anon/authenticated table privileges). Direct-client policies remain
+pending after the 1 October close and approval. No database changes were made
+as part of this rebuild or this documentation correction.
 
 Xcode confirmed `App 1.0 (2) uploaded`, then Organizer showed `Uploaded to Apple`
 and build number 2 at 05:43 local time. Apple completed processing, and the

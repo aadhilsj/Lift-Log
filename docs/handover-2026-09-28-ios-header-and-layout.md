@@ -18,7 +18,7 @@ English, one step at a time, and he notices single pixels.
 | iOS simulator | **iPhone 17, booted, app installed — leave it running** |
 | Simulator build | From `/Users/aadhilsj/Documents/FERO/fero-safe-area` (scratch worktree, detached at `8844624` + local edits) |
 | Photo privacy, account deletion, App Store copy | Done. See `handover-2026-09-27-photo-privacy-deletion-and-listing.md` |
-| Production RLS | Still OFF. Staging ON. Unchanged |
+| Production RLS | Server-only lockdown already applied: RLS ON, zero client policies, no anon/authenticated table privileges. Direct-client policies remain pending after the 1 October close. Corrected 2026-09-29. |
 | Email | Resend + custom SMTP just configured by the founder — **verify it** (§5) |
 
 ### Do not shut the simulator down

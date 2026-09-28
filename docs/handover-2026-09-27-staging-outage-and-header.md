@@ -9,8 +9,11 @@ that document is the one he reads.
 Three things shipped: the Bloc switcher header now reads as a button, a bug
 that signed members out during a network outage is fixed, and a throwaway copy
 of the live database (`fero-staging`) is built and verified so Deveen can
-rehearse the RLS fix. The copy costs ~$0.30/day and **must be deleted after the
-RLS rollout.**
+rehearse the RLS fix. Correction, 2026-09-29: the server-only production lockdown
+is already applied (RLS on, zero client policies, no anon/authenticated table
+privileges). Direct-client policies are a separate pending phase after the
+1 October close. The copy costs ~$0.30/day; teardown is a separate approved
+operation, not part of this documentation correction.
 
 ## What is live
 
@@ -57,7 +60,7 @@ re-logged it.
 - A **Vercel shareable link** is in Deveen's §3 so he can open it without an
   account. Hobby allows one per project, so generating another anywhere revokes it.
 
-**Teardown, after the RLS fix is live on production:**
+**Historical teardown checklist — requires separate approval; not executed here:**
 
 1. Delete the `fero-staging` project in Supabase — this is what stops the cost.
 2. Revoke the shareable link (Deployment Protection → Shareable Links).
@@ -81,8 +84,9 @@ Vercel list, `CRON_SECRET`, both `FOUNDER_DASHBOARD_*` and
   `npm run parity:gate` afterwards and check the four things in Deveen's
   09-20 handover. The gate needs the secret key passed explicitly; see
   the memory note, not `.env.local`.
-- **Week of 1 October:** the RLS migration to production (after the close, not
-  before), then **Wave B** — and the runbook's Wave B line still wrongly
+- **After the 1 October close:** policy-based RLS for direct client reads,
+  subject to approval. The server-only lockdown is already applied; do not
+  repeat it. **Wave B** is separate — and the runbook's Wave B line still wrongly
   includes `delete-log`. Corrected value is in Deveen's §9.
 
 ## Sandbox gotcha for the next agent

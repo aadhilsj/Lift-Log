@@ -76,13 +76,17 @@ ownership from the verified user, rejects local-dev identities and ignores
 body-supplied user IDs. It supports native CORS and register/revoke only.
 Sandbox disables registration; it cannot populate production tokens.
 
-**RLS discrepancy:** The founder's prompt/handover said production RLS was off.
-Direct checks at the start of this task found it already enabled on existing
-tables including ante_core.profiles, ante_core.blocs and public.lift_log_state.
-The existing-table RLS fingerprint before and after this task is identical:
-`cc0569f0eaf65c2a0740f5444a37f9e6`. Do not disable or enable anything on this basis.
-No RLS setting was changed. The new table has RLS off and is protected by object
-privileges; even the roles' own tokens are not directly readable by clients.
+**RLS discrepancy closed — 2026-09-29:** Claude verified that the server-only
+lockdown from `rls/enable-server-only-tables` is already applied to production:
+RLS on, zero client policies, and no anon/authenticated table privileges on the
+covered tables. App reads go through the API using service_role. Earlier
+handovers saying production RLS was off were stale; this is the intended state,
+not a failed rollout. No database action is needed. Only policy-based RLS for
+direct client reads remains pending after the 1 October close and approval.
+The existing-table RLS fingerprint before and after the push task was identical:
+`cc0569f0eaf65c2a0740f5444a37f9e6`. No RLS setting was changed. The later push
+table is separate: it has RLS off and service-role-only object privileges;
+even the roles' own tokens are not directly readable by clients.
 
 Production operations:
 
