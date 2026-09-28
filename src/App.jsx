@@ -1,5 +1,6 @@
 import React from "react";
 import { tapMedium } from "./lib/haptics.js";
+import { syncPushRegistration } from "./lib/pushNotifications.js";
 const { useState, useEffect, useMemo, useCallback, useRef } = React;
 import {
   MIN_TARGET,
@@ -430,6 +431,18 @@ const App = () => {
   const [isMobileView,setIsMobileView]=useState(()=>isMobile());
   const [clockTick,setClockTick]=useState(Date.now());
   const [authReady,setAuthReady]=useState(()=>!!initialPersistedSession?.userId);
+  useEffect(() => {
+    if (!authReady || !authSession?.userId) return;
+    const sync=() => {
+      void syncPushRegistration().then(result => {
+        if (!result.ok) console.warn("Push registration unavailable:", result.status);
+      });
+    };
+    const resume=() => { if (document.visibilityState === "visible") sync(); };
+    sync();
+    document.addEventListener("visibilitychange", resume);
+    return () => document.removeEventListener("visibilitychange", resume);
+  }, [authReady, authSession?.userId]);
   const [authHydrating,setAuthHydrating]=useState(false);
   const [localPreviewAuthEnabled,setLocalPreviewAuthEnabled]=useState(false);
   const [devImpersonationUserId,setDevImpersonationUserId]=useState(()=>{try{return localStorage.getItem(LOCAL_DEV_IMPERSONATION_KEY)||"";}catch{return ""; }});

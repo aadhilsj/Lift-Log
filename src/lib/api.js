@@ -231,6 +231,12 @@ async function signOutAuthSession() {
     return;
   }
   const client = await getSupabaseAuthClient();
+  // Revoke this installation while its current account is still authenticated.
+  // The native unregister is attempted even if the server cannot be reached.
+  try {
+    const { revokePushRegistration } = await import("./pushNotifications.js");
+    await revokePushRegistration();
+  } catch { console.warn("Push unregister unavailable during sign-out"); }
   const { error } = await client.auth.signOut();
   if (error) throw error;
 }
@@ -295,7 +301,7 @@ async function refreshAuthSession() {
 }
 
 async function postApi(action, payload = {}, options = {}) {
-  const { auth = true, sessionOverride = null, extraHeaders = null } = options;
+  const { auth = true, sessionOverride = null, extraHeaders = null, apiPath = "/api/lift-log" } = options;
   try {
     const headers = { "Content-Type":"application/json" };
     if (extraHeaders && typeof extraHeaders === "object") {
@@ -306,7 +312,7 @@ async function postApi(action, payload = {}, options = {}) {
       if (!session?.accessToken) return { ok:false, error:"You need to sign in again" };
       headers.Authorization = `Bearer ${session.accessToken}`;
     }
-    const res = await fetch(getApiUrl("/api/lift-log"), {
+    const res = await fetch(getApiUrl(apiPath), {
       method: "POST",
       cache: "no-store",
       headers,
@@ -319,7 +325,7 @@ async function postApi(action, payload = {}, options = {}) {
         const refreshed = await refreshAuthSession();
         if (refreshed?.accessToken) {
           const retryHeaders = { ...headers, Authorization:`Bearer ${refreshed.accessToken}` };
-          const retryRes = await fetch(getApiUrl("/api/lift-log"), {
+          const retryRes = await fetch(getApiUrl(apiPath), {
             method: "POST",
             cache: "no-store",
             headers: retryHeaders,

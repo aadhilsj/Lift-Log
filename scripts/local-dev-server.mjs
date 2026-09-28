@@ -27,9 +27,10 @@ const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url || "/", `http://${req.headers.host || "127.0.0.1"}`);
 
-    if (url.pathname === "/api/lift-log") {
+    if (url.pathname === "/api/lift-log" || url.pathname === "/api/push-devices") {
       attachResponseHelpers(res);
-      const apiHandlerModule = await import(`${apiModulePath}?t=${Date.now()}`);
+      const modulePath = url.pathname === "/api/push-devices" ? path.join(rootDir, "api", "push-devices.js") : apiModulePath;
+      const apiHandlerModule = await import(`${modulePath}?t=${Date.now()}`);
       const apiHandler = apiHandlerModule.default;
       await apiHandler(req, res);
       return;

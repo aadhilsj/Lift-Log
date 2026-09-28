@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "lint": "eslint src api scripts",
+    "lint": "eslint src api scripts server",
+    "test:push-foundation": "node --experimental-vm-modules scripts/test-push-foundation.mjs",
+    "push:test": "node --env-file-if-exists=.env.local scripts/send-test-push.mjs",
     "test:stream-moments": "node scripts/test-bloc-stream-derived-moments.mjs",
     "audit:rollover-counts": "node scripts/audit-rollover-counts.mjs",
     "test:month-awards": "node scripts/test-month-awards.mjs",
@@ -42,6 +44,7 @@
   "dependencies": {
     "@capacitor/core": "8.5.0",
     "@capacitor/haptics": "8.0.2",
+    "@capacitor/push-notifications": "8.1.2",
     "@capacitor/ios": "8.5.0",
     "@supabase/supabase-js": "^2.45.0",
     "react": "18.3.1",
