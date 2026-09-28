@@ -1,4 +1,5 @@
 import React from "react";
+import { tapMedium } from "./lib/haptics.js";
 const { useState, useEffect, useMemo, useCallback, useRef } = React;
 import {
   MIN_TARGET,
@@ -1148,6 +1149,7 @@ const App = () => {
         photoUrl
       });
       if(saved?.ok && saved.data){
+        void tapMedium();
         const applied = applyData(saved.data, { fromMutation: true });
         if (applied) {
           setLastSyncedAt(new Date());
