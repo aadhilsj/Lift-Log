@@ -3307,7 +3307,7 @@ const App = () => {
   }
 
   const renderInBlocPage = (pageName, { swipePreview=false } = {}) => React.createElement('div',{
-    style:{paddingBottom:isMobileView?"calc(108px + env(safe-area-inset-bottom))":0}
+    style:{paddingBottom:isMobileView?"var(--bottom-nav-clearance)":0}
   },
     pageName==="today"  &&React.createElement(TodayPageErrorBoundary,{resetKey:`${selectedGroupId}:${navResetToken}:${currentUser}`},
       React.createElement(TodayPage,  {user:currentUser,currentUserId:effectiveAuthSession?.userId,currentGroupId:selectedGroupId,groups,profiles:appState?.profiles||{},accountCreatedAt:profile?.createdAt,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,saving,onSave:handleSave,onMultiLog:handleMultiLog,onLogMutation:handleLogMutation,clockTick,onViewLastMonth:()=>{setMonthInitialIdx(0);setPage("month");},onOpenMonth:()=>{setMonthInitialIdx(null);setPage("month");},onSettlementClaimPaid:handleSettlementClaimPaid,onSettlementConfirmPaid:handleSettlementConfirmPaid,onSettlementDisputePaid:handleSettlementDisputePaid,onOpenSetupReview:handleOpenSetupReview,onOpenAccount:()=>setShowProfile(true),navResetToken,showLog:showTodayLog,setShowLog:setShowTodayLog,onTrackUsage:trackUsage,currentPaymentMethods:effectiveProfile?.paymentMethods||[],onSavePayment:handleSavePaymentHandle,savingPayment:paymentSaving,paymentError:paymentError})
