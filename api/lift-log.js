@@ -5,6 +5,10 @@ const MAX_WORKOUTS_PER_DAY = 2;
 // tile, Month leader card or the History table. Mirrors DISPLAY_NAME_MAX_LENGTH
 // in src/lib/appState.js.
 const DISPLAY_NAME_MAX_LENGTH = 16;
+
+// Keep in step with BLOC_NAME_MAX_LENGTH in src/lib/appState.js.
+const BLOC_NAME_MAX_LENGTH = 24;
+const capBlocName = (name) => String(name || "").trim().slice(0, BLOC_NAME_MAX_LENGTH);
 const WORKOUT_TYPE_ALIASES = { Sport: "Sports", Hike: "Other", Hiking: "Other" };
 // Activity → category. Mirrors src/lib/activities.js; `npm run test:activities`
 // fails if the two drift. A log's `type` stays the category, so Bloc rules, the
@@ -6375,7 +6379,7 @@ function assertGroupAdmin(state, groupId, user, actorDisplayName) {
 }
 
 function applyCreateGroup(current, payload) {
-  const groupName = String(payload?.groupName || "").trim();
+  const groupName = capBlocName(payload?.groupName);
   const actorUserId = String(payload?.actorUserId || "").trim();
   const profiles = current?.profiles || {};
   const creatorProfile = actorUserId ? profiles[actorUserId] : null;
@@ -6575,7 +6579,7 @@ function applyUpdateSettings(current, payload) {
   }
   const nextGroup = normalizeGroup({
     ...group,
-    name: String(payload?.groupName || group.name).trim() || group.name,
+    name: capBlocName(payload?.groupName) || group.name,
     settings: nextSettings,
     setupReview: payload?.setupReview ? normalizeSetupReview(payload.setupReview) : group.setupReview
   });
@@ -9520,6 +9524,8 @@ export {
   normalizeSolo,
   DISPLAY_NAME_MAX_LENGTH,
   capDisplayName,
+  BLOC_NAME_MAX_LENGTH,
+  capBlocName,
   // Exported for the activities test suite.
   ACTIVITY_CATEGORIES,
   normalizeLogEntry,
