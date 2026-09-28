@@ -42,6 +42,7 @@ URLs; deletion shipped and proved on staging; RLS off in production and on in
 staging. No database changes were made as part of this rebuild.
 
 Xcode confirmed `App 1.0 (2) uploaded`, then Organizer showed `Uploaded to Apple`
-and build number 2 at 05:43 local time. Apple processing and association with
-the Fero Team tester group are still pending verification. Build 1 should no
+and build number 2 at 05:43 local time. App Store Connect independently shows
+version 1.0 build 2 as Processing. Association with
+the Fero Team tester group is still pending verification. Build 1 should no
 longer be used for testing.
