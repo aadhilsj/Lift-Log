@@ -105,6 +105,7 @@ let platform="ios";
 let permission="prompt";
 let missing=false;
 let pluginFails=false;
+let registrationFails=false;
 const pluginCalls=[];
 const posts=[];
 const storage=new Map();
@@ -120,7 +121,7 @@ const plugin=new SyntheticModule(["PushNotifications"],function(){this.setExport
   checkPermissions:async()=>{if(pluginFails)throw Error("missing");pluginCalls.push("check");return {receive:permission};},
   requestPermissions:async()=>{pluginCalls.push("prompt");permission="granted";return {receive:permission};},
   addListener:async(name,callback)=>{listeners.set(name,callback);return {remove:async()=>listeners.delete(name)};},
-  register:async()=>{pluginCalls.push("register");listeners.get("registration")({value:token});},
+  register:async()=>{pluginCalls.push("register");if(registrationFails)listeners.get("registrationError")({error:"no valid aps-environment entitlement"});else listeners.get("registration")({value:token});},
   unregister:async()=>{pluginCalls.push("unregister");}
 });},{context});
 let session={userId,accessToken:"test-access"};
@@ -146,6 +147,12 @@ assert.equal((await client.namespace.requestPushPermissionFromUserAction({userIn
 assert.equal(pluginCalls.filter(call=>call==="prompt").length,1);
 permission="granted";
 assert.equal((await client.namespace.syncPushRegistration()).status,"registered");
+registrationFails=true;
+const postsBeforeMissingEntitlement=posts.length;
+assert.deepEqual(JSON.parse(JSON.stringify(await client.namespace.syncPushRegistration())),{ok:false,status:"registration-failed"},"Missing entitlement returns a safe status, never throws");
+assert.equal(posts.length,postsBeforeMissingEntitlement,"Failed native registration stores no token");
+assert.equal(listeners.size,0,"Missing-entitlement failure cleans up listeners");
+registrationFails=false;
 assert.equal(posts.at(-1).body.environment,"production");
 const installation=posts.at(-1).body.deviceId;
 await client.namespace.syncPushRegistration();

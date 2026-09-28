@@ -1,4 +1,35 @@
-# TestFlight build 5 candidate — archive blocked, NOT uploaded
+# TestFlight build 5 — approved non-push signing
+
+## Follow-up after Aadhil's signing approval
+
+Aadhil approved build 5 without push in its signature, preserving the foundation
+in source. Pulled and cleanly merged Claude's corrected Dashboard contract test
+at `e199ddd`. No additional application changes were made.
+
+Lint, web build, Capacitor sync and all 25 test scripts passed, including both
+browser regressions. Added a regression to test-push-foundation that simulates
+the native registrationError for missing aps-environment: returns
+`{ok:false,status:"registration-failed"}`, stores no token, removes listeners,
+and never throws. Normal launch with undecided permission does not register or
+prompt. These are source/mock checks, not a physical-iPhone launch observation.
+
+Signed archive succeeded at `/tmp/Fero-TestFlight-build-5-no-push.xcarchive`.
+Build number 5 verified; signed entitlements have no aps-environment; codesign
+verification passed. Archived index.html/assets match dist byte-for-byte.
+Used the one-build command-line override
+`CODE_SIGN_ENTITLEMENTS=/tmp/Fero-Build5-NoPush.entitlements` with an empty plist.
+Committed Debug/Release entitlements, capability and push client are untouched.
+Archive log: `/tmp/Fero-build-5-no-push-archive.log`.
+
+Xcode distribution uses TestFlight Internal Only. Upload/Apple processing status
+is recorded below once confirmed. Do not repeat an upload that already succeeded.
+The earlier blocker/verification record below is historical and superseded by
+this approved successful archive and regression pass.
+
+The additional untracked `ios/App/App/config 3.xml` appeared before this follow-up;
+it and config 2.xml were preserved and excluded from commits.
+
+## Earlier blocked attempt (historical)
 
 Checkout: `/Users/aadhilsj/Documents/FERO/fero-testflight-build-2`.
 Branch: `codex/testflight-build-2`.
