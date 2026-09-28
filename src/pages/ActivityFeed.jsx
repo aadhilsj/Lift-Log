@@ -241,10 +241,10 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
       type:"button",
       onClick:()=>onOpenLogComments?.({ groupId: group?.id, log: post, source: "activity" }),
       style:hasComments?{
-        height:34,
-        minWidth:48,
-        padding:"2px 10px",
-        borderRadius:14,
+        height:28,
+        minWidth:40,
+        padding:"2px 8px",
+        borderRadius:12,
         background:"#0D1F1E",
         border:"0.5px solid #163d36",
         fontSize:11,
@@ -256,12 +256,12 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
         lineHeight:1,
         flexShrink:0
       }:{
-        height:34,
-        padding:"0 11px",
+        height:28,
+        padding:"0 9px",
         borderRadius:999,
         background:"var(--s1)",
         border:"1px solid var(--border)",
-        fontSize:13,
+        fontSize:12,
         color:"var(--muted)",
         display:"inline-flex",
         alignItems:"center",
@@ -270,8 +270,8 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
         flexShrink:0
       }
     },
-      React.createElement(AppIcon,{name:"message-circle",size:15,stroke:"currentColor"}),
-      hasComments && React.createElement('span',{className:"mono",style:{fontSize:11,color:"currentColor"}},commentCount)
+      React.createElement(AppIcon,{name:"message-circle",size:13,stroke:"currentColor"}),
+      hasComments && React.createElement('span',{className:"mono",style:{fontSize:10,color:"currentColor"}},commentCount)
     );
   };
   const renderReactionPicker = (post, centered=false) => reactionTarget===post.id && React.createElement('div',{"data-reaction-picker-root":"true",style:{position:"absolute",left:centered?"50%":"calc(100% + 5px)",top:centered?"auto":"calc(100% + 5px)",bottom:centered?"calc(100% + 4px)":"auto",transform:centered?"translateX(-50%)":"none",zIndex:8,width:"max-content",maxWidth:"calc(100vw - 48px)",padding:"6px 8px",borderRadius:999,background:"rgba(8,15,15,.96)",border:"1px solid rgba(78,205,196,.16)",boxShadow:"0 14px 32px rgba(0,0,0,.34), inset 0 1px 0 rgba(255,255,255,.05)",display:"grid",gap:6,overflowX:"auto",WebkitOverflowScrolling:"touch"}},
@@ -290,9 +290,9 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
         const active = members.includes(currentUser);
         const reactionKey = `${post.id}:${emoji}`;
         return React.createElement('div',{key:`${compact?"compact":"bottom"}-${emoji}`,style:{position:"relative",display:"inline-flex"}},
-          React.createElement('button',{type:"button",onContextMenu:e=>e.preventDefault(),onSelectStart:e=>e.preventDefault(),onDragStart:e=>e.preventDefault(),onMouseDown:e=>{e.preventDefault();startReactionPress(post.id, emoji, members);},onMouseUp:clearReactionTimer,onMouseLeave:clearReactionTimer,onTouchStart:()=>startReactionPress(post.id, emoji, members),onTouchEnd:clearReactionTimer,onTouchCancel:clearReactionTimer,onClick:e=>handleReactionClick(e, post, emoji, reactionKey),style:{height:34,padding:"0 11px",borderRadius:999,background:active?"rgba(78,205,196,.12)":"var(--s1)",border:`1px solid ${active?"rgba(78,205,196,.35)":"var(--border)"}`,fontSize:13,color:active?"var(--cyan)":"var(--muted)",display:"inline-flex",alignItems:"center",gap:3,userSelect:"none",WebkitUserSelect:"none",WebkitTouchCallout:"none",touchAction:"manipulation"}},
+          React.createElement('button',{type:"button",onContextMenu:e=>e.preventDefault(),onSelectStart:e=>e.preventDefault(),onDragStart:e=>e.preventDefault(),onMouseDown:e=>{e.preventDefault();startReactionPress(post.id, emoji, members);},onMouseUp:clearReactionTimer,onMouseLeave:clearReactionTimer,onTouchStart:()=>startReactionPress(post.id, emoji, members),onTouchEnd:clearReactionTimer,onTouchCancel:clearReactionTimer,onClick:e=>handleReactionClick(e, post, emoji, reactionKey),style:{height:28,padding:"0 9px",borderRadius:999,background:active?"rgba(78,205,196,.12)":"var(--s1)",border:`1px solid ${active?"rgba(78,205,196,.35)":"var(--border)"}`,fontSize:12,color:active?"var(--cyan)":"var(--muted)",display:"inline-flex",alignItems:"center",gap:3,userSelect:"none",WebkitUserSelect:"none",WebkitTouchCallout:"none",touchAction:"manipulation"}},
             React.createElement('span',null,emoji),
-            React.createElement('span',{className:"mono",style:{fontSize:11,color:active?"var(--cyan)":"var(--muted)"}},members.length)
+            React.createElement('span',{className:"mono",style:{fontSize:10,color:active?"var(--cyan)":"var(--muted)"}},members.length)
           ),
           !suppressFloating && reactionPopover?.postId===post.id && reactionPopover?.emoji===emoji && React.createElement('div',{ref:reactionPopoverRef,style:{position:"absolute",left:0,bottom:"calc(100% + 6px)",zIndex:5,minWidth:120,maxWidth:220,padding:"8px 10px",borderRadius:10,background:"rgba(9,14,14,.98)",border:"1px solid var(--border2)",boxShadow:"0 14px 30px rgba(0,0,0,.28)",fontSize:12,color:"var(--text)",lineHeight:1.4,whiteSpace:"normal",userSelect:"none",WebkitUserSelect:"none",WebkitTouchCallout:"none",pointerEvents:"none"}},
             `${emoji} ${reactionPopover.names.join(", ")}`
@@ -300,7 +300,7 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
         );
       }),
       React.createElement('div',{"data-reaction-picker-root":"true",ref:reactionTarget===post.id?reactionPickerRef:null,style:{position:centered?"static":"relative",display:"inline-flex"}},
-        React.createElement('button',{type:"button",onClick:()=>{if(reactionTarget!==post.id) onTrackUsage?.("reaction_picker_opened"); setReactionTarget(reactionTarget===post.id?null:post.id)},style:{height:34,padding:"0 11px",borderRadius:999,background:"var(--s1)",border:"1px solid var(--border)",fontSize:15,color:"var(--muted)"}},"＋"),
+        React.createElement('button',{type:"button",onClick:()=>{if(reactionTarget!==post.id) onTrackUsage?.("reaction_picker_opened"); setReactionTarget(reactionTarget===post.id?null:post.id)},style:{height:28,padding:"0 9px",borderRadius:999,background:"var(--s1)",border:"1px solid var(--border)",fontSize:13,color:"var(--muted)"}},"＋"),
         !suppressFloating && renderReactionPicker(post, centered)
       ),
       !centered && !post.photoUrl && renderCommentChip(post, compact)
@@ -550,7 +550,7 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
                 }},
                 hasThumbnail
                 ? React.createElement('div',{style:{padding:"10px 14px 10px"}},
-                    React.createElement('div',{style:{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:12}},
+                    React.createElement('div',{style:{display:"flex",alignItems:"stretch",justifyContent:"space-between",gap:12}},
                       React.createElement('div',{style:{flex:1,minWidth:0,minHeight:72,display:"flex",flexDirection:"column",justifyContent:"space-between"}},
                         React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:7}},
                           React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,minWidth:0,whiteSpace:"nowrap"}},
@@ -570,12 +570,12 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
                         ),
                         renderReactionRow(post,false,Boolean(imagePost)),
                       ),
-                      React.createElement('div',{style:{display:"grid",gridTemplateColumns:"auto 72px",gridTemplateRows:"18px 1fr",alignItems:"start",columnGap:7,rowGap:2,flexShrink:0,marginTop:2}},
+                      React.createElement('div',{style:{display:"grid",gridTemplateColumns:"auto 72px",gridTemplateRows:"18px 1fr",alignItems:"stretch",columnGap:7,rowGap:2,flexShrink:0,marginTop:2}},
                         compactRelativeTime && React.createElement('span',{className:"mono",style:{gridColumn:1,gridRow:1,alignSelf:"center",justifySelf:"end",fontSize:8,color:"var(--muted)",opacity:0.58,lineHeight:1}},compactRelativeTime),
                         React.createElement('div',{style:{gridColumn:1,gridRow:2,alignSelf:"end",justifySelf:"end"}},
                           renderCommentChip(post,true)
                         ),
-                        React.createElement('button',{type:"button",onClick:e=>{e.stopPropagation();onTrackUsage?.("activity_photo_opened");setImageTarget(post);},style:{gridColumn:2,gridRow:"1 / span 2",display:"block",width:72,height:72,padding:0,borderRadius:8,overflow:"hidden",background:"#050507",border:"1px solid rgba(255,255,255,.08)",flexShrink:0}},
+                        React.createElement('button',{type:"button",onClick:e=>{e.stopPropagation();onTrackUsage?.("activity_photo_opened");setImageTarget(post);},style:{gridColumn:2,gridRow:"1 / span 2",display:"block",width:72,height:"100%",minHeight:72,padding:0,borderRadius:8,overflow:"hidden",background:"#050507",border:"1px solid rgba(255,255,255,.08)",flexShrink:0}},
                           React.createElement('img',{src:resolveStorageImageUrl(post.photoUrl),alt:`${post.owner} ${postActivity}`,loading:"eager",decoding:"async",style:{display:"block",width:"100%",height:"100%",objectFit:"cover"}})
                         )
                       )
