@@ -17,7 +17,7 @@ touching anything photo-related.
 | Photo delivery | Signed URLs, 24h lifetime, live |
 | Unauthenticated image proxy | **Removed** (`proxyStorageImage` gone) |
 | Account deletion | Removes photos + Auth identity. Proven on staging |
-| RLS on the seven `ante_core` tables | **Still OFF in production.** ON in staging |
+| RLS on the seven `ante_core` tables | **ON in production:** server-only lockdown applied, zero client policies and no anon/authenticated table privileges. Corrected 2026-09-29. |
 | Private-bucket migration | Applied to production tonight |
 
 Photo/row counts after the bucket change, unchanged from before it: 20 profile
@@ -59,10 +59,13 @@ their data is gone and only their login remains. Verified in a sandbox. The
 ordering is correct (Supabase will not delete an Auth user that still owns
 Storage objects); do not redesign it.
 
-## 5. RLS — ready, not done
+## 5. RLS — server-only lockdown done; direct-client policies pending
 
-Production has RLS **off** on all seven tables; staging has it **on** and
-verified. The migration is `supabase/migrations/20260926120000_enable_rls_on_server_only_tables.sql`.
+Correction, 2026-09-29: the server-only lockdown from
+`rls/enable-server-only-tables` is already applied to production. The covered
+tables have RLS **on**, zero client policies, and no table privileges for
+`anon` or `authenticated`. Reads go through the API using `service_role`.
+The migration is `supabase/migrations/20260926120000_enable_rls_on_server_only_tables.sql`.
 
 Its safety argument was checked directly against production and holds:
 `service_role` has `BYPASSRLS`; every `ante_core` table is owned by `postgres`;
@@ -71,11 +74,11 @@ all 22 `SECURITY DEFINER` functions touching those tables are owned by
 strips grants from really are abandoned — the only reference left in `api/lift-log.js`
 is a comment saying the read path was removed.
 
-**What is missing is exercise, not reasoning.** Nobody has driven Stream,
-comments, reactions, unread counts and Solo against an RLS-enabled database from
-the app. Staging has RLS on, so that test is available: point a local app at
-staging (needs the staging **anon** key adding to `.env.staging`) and walk those
-flows. Do that before production.
+The earlier instruction to rehearse this before enabling production was stale.
+Claude verified the intended production lockdown directly. Do not reapply it or
+change policies as a fix. The separate policy-based RLS work enabling direct
+client reads remains pending until after the 1 October close and explicit
+approval; it is not the server-only migration above.
 
 ## 6. Why photo work must be verified against the running app
 

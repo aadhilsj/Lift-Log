@@ -1,5 +1,14 @@
 # Handover for Deveen: week of 22 September (active, added to through the week)
 
+**Current RLS correction — 2026-09-29:** The production server-only lockdown
+from `rls/enable-server-only-tables` is already applied: RLS on, zero client
+policies, no anon/authenticated table privileges on the covered tables. The app
+reads through the API using service_role. Earlier dated inventories/rehearsal
+notes below are historical, not instructions to enable production RLS again.
+Only the separate policy-based direct-client-read work remains pending until
+after the 1 October close and explicit approval. No database change accompanies
+this correction.
+
 From Aadhil, for your weekend check-out on 26–27 September. This is the one
 running document for the week. New sections get added below, newest last, each
 dated. Nothing here needs you before the weekend, **unless a section is marked

@@ -141,6 +141,16 @@ back — not to do the editing yourself.
 
 ## 6. Database
 
+**Production RLS status — corrected 2026-09-29:** The server-only lockdown from
+`rls/enable-server-only-tables` is already applied. The covered tables have RLS
+enabled, zero client policies, and no table privileges for `anon` or
+`authenticated`. App reads go through the API using `service_role`; this is
+intentional, not a broken rollout. Do not enable, disable, or add policies as
+an incidental fix. The separate policy-based RLS work for direct client reads
+remains pending until after the 1 October month close and explicit approval.
+Older handovers saying production RLS is off are stale. This describes the
+existing server-only lockdown, not every table or the later push-token table.
+
 **Read `docs/SCHEMA.md` before writing any SQL. Do not guess JSONB paths.**
 
 - `workout_logs.id` is **text**, not uuid. Cast explicitly (`::text`, `::uuid`).
