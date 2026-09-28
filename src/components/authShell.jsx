@@ -525,7 +525,7 @@ const CreatedBlocInviteScreen = ({group,onContinue}) => {
 };
 
 
-const GroupHome = ({groups,currentIdentity,currentEmail,currentUserId="",onOpenProfile,onOpenFounderDashboard,showFounderDashboard=false,onOpenGroup,onCreateGroup,onJoinGroup,creating,autoOpenCreate=false,initialCreateGroupName="",onAutoOpenHandled,onCreateCancel,suppressIntro=false}) => {
+const GroupHome = ({groups,currentIdentity,currentEmail,currentUserId="",onOpenProfile,onOpenGroup,onCreateGroup,onJoinGroup,creating,autoOpenCreate=false,initialCreateGroupName="",onAutoOpenHandled,onCreateCancel,suppressIntro=false}) => {
   const [showCreate,setShowCreate]=useState(false);
   const [createInitialGroupName,setCreateInitialGroupName]=useState("");
   const compactMobile = isMobile();
@@ -562,9 +562,9 @@ const GroupHome = ({groups,currentIdentity,currentEmail,currentUserId="",onOpenP
         // button and the account button. Absolutely centred so neither side
         // can push it off centre. Desktop keeps it in the block below.
         compactMobile?React.createElement('div',{style:{position:"absolute",left:"50%",top:"50%",transform:"translate(-50%,-50%)",pointerEvents:"none"}},React.createElement(AnteWordmark,{size:44})):null,
-        showFounderDashboard
-          ? React.createElement('button',{type:"button",onClick:onOpenFounderDashboard,style:{minHeight:34,padding:"8px 10px",borderRadius:9,border:"1px solid rgba(78,205,196,.3)",background:"rgba(78,205,196,.07)",color:"#4ECDC4",fontSize:11,fontWeight:900,cursor:"pointer",touchAction:"manipulation",whiteSpace:"nowrap"}},"Dashboard")
-          : React.createElement('div',null),
+        // The founder Dashboard moved to the account screen. This slot stays as
+        // a spacer so the row keeps its shape.
+        React.createElement('div',null),
         React.createElement('button',{type:"button",onClick:onOpenProfile,title:currentEmail||"Account",style:{width:46,height:46,display:"inline-flex",alignItems:"center",justifyContent:"center",borderRadius:999,background:"transparent",border:"none",fontSize:14,lineHeight:1,flexShrink:0,padding:0,overflow:"visible",cursor:"pointer",touchAction:"manipulation",position:"relative",zIndex:2}},React.createElement(Avatar,{name:currentIdentity||currentEmail||"?",size:44,userId:currentUserId}))
       ),
       groups.length===0

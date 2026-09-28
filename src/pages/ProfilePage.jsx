@@ -189,7 +189,7 @@ const ProfilePhotoCropModal = ({ imageSrc, onCancel, onConfirm }) => {
   );
 };
 
-const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, accountCreatedAt, profilePhotoUrl = "", onBack, onSwipeRevealChange, onEditName, onUpdateProfilePhoto, onSignOut, onDeleteAccount, currentPaymentMethods = [], onSavePayment, savingPayment = false, paymentError = "" }) => {
+const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, accountCreatedAt, profilePhotoUrl = "", onBack, onSwipeRevealChange, onEditName, onUpdateProfilePhoto, onSignOut, onDeleteAccount, currentPaymentMethods = [], onSavePayment, savingPayment = false, paymentError = "", showFounderDashboard = false, onOpenFounderDashboard }) => {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
@@ -214,6 +214,9 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
   // sibling of a harmless one.
   const accountRows = [
     { label: "Email", value: email || "—", kind: "display" },
+    // Founder-only. It lives here rather than on the Bloc switcher so that
+    // header looks the same for everyone.
+    ...(showFounderDashboard ? [{ label: "Dashboard", kind: "action", onClick: onOpenFounderDashboard }] : []),
     { label: "Sign out", kind: "action", onClick: onSignOut }
   ];
   const handlePhotoFile = async event => {

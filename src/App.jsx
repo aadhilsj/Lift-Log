@@ -2209,8 +2209,6 @@ const App = () => {
       currentEmail: authSession?.email || effectiveAuthSession?.email,
       currentUserId: authSession?.userId || effectiveAuthSession?.userId || "",
       onOpenProfile:inert?()=>{}:()=>{trackUsage("own_profile_opened");setShowProfile(true)},
-      showFounderDashboard: !inert && founderDashboardAvailable,
-      onOpenFounderDashboard: inert ? ()=>{} : ()=>setShowFounderDashboard(true),
       creating: inert ? false : creatingGroup,
       autoOpenCreate: inert ? false : queuedCreate,
       initialCreateGroupName: inert ? "" : queuedCreateGroupName,
@@ -2246,7 +2244,9 @@ const App = () => {
           currentPaymentMethods: effectiveProfile?.paymentMethods || profile?.paymentMethods || [],
           onSavePayment: handleSavePaymentHandle,
           savingPayment: paymentSaving,
-          paymentError: paymentError
+          paymentError: paymentError,
+          showFounderDashboard: founderDashboardAvailable,
+          onOpenFounderDashboard: ()=>setShowFounderDashboard(true)
         })
       )
 
