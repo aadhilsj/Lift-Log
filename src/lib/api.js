@@ -4,6 +4,7 @@ import {
   resolveStateRevision,
   normalizeAppState
 } from "./appState.js";
+import { getApiUrl } from "./apiOrigin.js";
 
 let supabaseAuthConfigPromise = null;
 let supabaseAuthClientPromise = null;
@@ -173,7 +174,7 @@ function mapSupabaseSession(session) {
 
 async function fetchAuthConfig() {
   if (!supabaseAuthConfigPromise) {
-    supabaseAuthConfigPromise = fetch("./api/lift-log?config=auth", {
+    supabaseAuthConfigPromise = fetch(getApiUrl("/api/lift-log?config=auth"), {
       cache: "no-store",
       headers: { Accept: "application/json" }
     })
@@ -248,7 +249,7 @@ async function syncAuthSessionData(sessionOverride, options = {}) {
   let last = { ok:false, error:"Unable to sync account", retryable:true };
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     try {
-      const res = await fetch("./api/lift-log", {
+      const res = await fetch(getApiUrl("/api/lift-log"), {
         method: "POST",
         cache: "no-store",
         headers: {
@@ -305,7 +306,7 @@ async function postApi(action, payload = {}, options = {}) {
       if (!session?.accessToken) return { ok:false, error:"You need to sign in again" };
       headers.Authorization = `Bearer ${session.accessToken}`;
     }
-    const res = await fetch("./api/lift-log", {
+    const res = await fetch(getApiUrl("/api/lift-log"), {
       method: "POST",
       cache: "no-store",
       headers,
@@ -318,7 +319,7 @@ async function postApi(action, payload = {}, options = {}) {
         const refreshed = await refreshAuthSession();
         if (refreshed?.accessToken) {
           const retryHeaders = { ...headers, Authorization:`Bearer ${refreshed.accessToken}` };
-          const retryRes = await fetch("./api/lift-log", {
+          const retryRes = await fetch(getApiUrl("/api/lift-log"), {
             method: "POST",
             cache: "no-store",
             headers: retryHeaders,
@@ -357,7 +358,7 @@ async function fetchData() {
   try {
     const session = await getCurrentAuthSession();
     if (!session?.accessToken) return null;
-    const res = await fetch("./api/lift-log", {
+    const res = await fetch(getApiUrl("/api/lift-log"), {
       cache: "no-store",
       headers: {
         "Accept":"application/json",
@@ -367,7 +368,7 @@ async function fetchData() {
     if (!res.ok && res.status === 401) {
       const refreshed = await refreshAuthSession();
       if (refreshed?.accessToken) {
-        const retryRes = await fetch("./api/lift-log", {
+        const retryRes = await fetch(getApiUrl("/api/lift-log"), {
           cache: "no-store",
           headers: {
             "Accept":"application/json",
@@ -406,7 +407,7 @@ async function fetchRevision() {
   try {
     const session = await getCurrentAuthSession();
     if (!session?.accessToken) return null;
-    const res = await fetch("./api/lift-log?revision=1", {
+    const res = await fetch(getApiUrl("/api/lift-log?revision=1"), {
       cache: "no-store",
       headers: {
         "Accept":"application/json",
@@ -416,7 +417,7 @@ async function fetchRevision() {
     if (!res.ok && res.status === 401) {
       const refreshed = await refreshAuthSession();
       if (refreshed?.accessToken) {
-        const retryRes = await fetch("./api/lift-log?revision=1", {
+        const retryRes = await fetch(getApiUrl("/api/lift-log?revision=1"), {
           cache: "no-store",
           headers: {
             "Accept":"application/json",
@@ -813,7 +814,7 @@ async function joinGroupData(payload, sessionOverride = null) {
 
 async function fetchInviteContextData(inviteCode) {
   try {
-    const res = await fetch("./api/lift-log", {
+    const res = await fetch(getApiUrl("/api/lift-log"), {
       method: "POST",
       cache: "no-store",
       headers: { "Content-Type":"application/json" },
@@ -828,7 +829,7 @@ async function fetchInviteContextData(inviteCode) {
 
 async function checkInviteEmailMembershipData(inviteCode, email) {
   try {
-    const res = await fetch("./api/lift-log", {
+    const res = await fetch(getApiUrl("/api/lift-log"), {
       method: "POST",
       cache: "no-store",
       headers: { "Content-Type":"application/json" },
