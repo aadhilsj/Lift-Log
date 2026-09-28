@@ -74,6 +74,7 @@ const sql = fs.readFileSync(new URL("../supabase/ante-core-founder-dashboard.sql
 const dashboardUi = fs.readFileSync(new URL("../src/pages/FounderDashboard.jsx", import.meta.url), "utf8");
 const appUi = fs.readFileSync(new URL("../src/App.jsx", import.meta.url), "utf8");
 const authShell = fs.readFileSync(new URL("../src/components/authShell.jsx", import.meta.url), "utf8");
+const profileUi = fs.readFileSync(new URL("../src/pages/ProfilePage.jsx", import.meta.url), "utf8");
 [
   "Dashboard",
   "Total Active Users",
@@ -96,12 +97,13 @@ assert.ok(!dashboardUi.includes('All Account Names'), "dashboard UI should not s
 assert.ok(dashboardUi.includes('const growthRange = useMemo(()=>dashboard?.growth?.range || {},[dashboard]);'), "retention availability must read its dates from the growth response");
 assert.ok(dashboardUi.includes('previousPeriodActiveUsers'), "retention detail must identify the prior-period cohort");
 assert.ok(dashboardUi.includes('Number.isFinite(Number(dashboard?.growth?.retention?.weekly?.previousPeriodActiveUsers))'), "weekly retention must wait for the corrected cohort response");
-assert.ok(appUi.includes('showFounderDashboard: !inert && founderDashboardAvailable'), "founder dashboard entry should be available from the bloc switcher");
+assert.ok(appUi.includes('showFounderDashboard: founderDashboardAvailable'), "founder dashboard entry should be available from the account screen");
 assert.ok(appUi.includes('FOUNDER_DASHBOARD_AVAILABILITY_PREFIX'), "founder dashboard availability should be cached per account");
 assert.ok(appUi.includes('useState(()=>readFounderDashboardAvailability(initialPersistedSession?.userId))'), "founder dashboard entry should render from the persisted availability hint");
 assert.ok(appUi.includes('persistFounderDashboardAvailability(initialSession.userId, available)'), "fresh founder dashboard permission should update the local hint");
-assert.ok(authShell.includes('"Dashboard"'), "bloc switcher should use a labelled dashboard entry");
-assert.ok(!authShell.includes('"Open founder dashboard"'), "profile should not duplicate the founder dashboard entry");
+assert.ok(profileUi.includes('label: "Dashboard"'), "account screen should carry the labelled dashboard entry");
+assert.ok(profileUi.includes('showFounderDashboard ? [{ label: "Dashboard"'), "dashboard row must stay founder-only");
+assert.ok(!authShell.includes('onClick:onOpenFounderDashboard'), "bloc switcher should no longer duplicate the founder dashboard entry");
 
 const retentionMigration = fs.readFileSync(new URL("../supabase/migrations/20260908183917_correct_founder_dashboard_retention.sql", import.meta.url), "utf8");
 [
