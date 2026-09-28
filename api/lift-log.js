@@ -9530,8 +9530,51 @@ export {
   isMissingStorageBucketResponse
 };
 
+// The packaged iOS app runs from Capacitor's own origin (capacitor://localhost)
+// and calls this API across origins, so the browser demands CORS headers and a
+// preflight answer. Without them the WebView blocks every response before the
+// app sees it — which is why TestFlight build 1 could not even fetch its auth
+// config, and no OTP request ever reached Supabase. The web app is same-origin
+// and never needed this.
+//
+// Origins are allow-listed rather than "*": requests carry a Bearer token, and
+// a reflected allow-list keeps an arbitrary site from scripting this API.
+const ALLOWED_CORS_ORIGINS = new Set([
+  "capacitor://localhost",
+  "ionic://localhost",
+  "https://lift-log-nu.vercel.app",
+  "https://joinfero.app",
+  "https://www.joinfero.app"
+]);
+
+function isAllowedCorsOrigin(origin) {
+  if (!origin) return false;
+  if (ALLOWED_CORS_ORIGINS.has(origin)) return true;
+  // Local development, on any port.
+  return /^http:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(origin);
+}
+
+function applyCorsHeaders(req, res) {
+  const origin = String(req.headers?.origin || "");
+  // Vary regardless, so a cached response for one origin is never reused for
+  // another.
+  res.setHeader("Vary", "Origin");
+  if (!isAllowedCorsOrigin(origin)) return false;
+  res.setHeader("Access-Control-Allow-Origin", origin);
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  res.setHeader("Access-Control-Max-Age", "86400");
+  return true;
+}
+
 export default async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
+  applyCorsHeaders(req, res);
+
+  // Answer the preflight before any auth or state work.
+  if (req.method === "OPTIONS") {
+    return res.status(204).end();
+  }
 
   try {
     if (req.method === "GET") {
