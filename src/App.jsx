@@ -289,6 +289,16 @@ const COLD_ONBOARDING_SEEN_KEY = "fero_cold_onboarding_seen";
 const INVITE_HANDOFF_MARKER_KEY = "fero_invite_web_handoff";
 const FOUNDER_DASHBOARD_AVAILABILITY_PREFIX = "fero_founder_dashboard_available:";
 
+// Today -> Bloc switcher back-swipe. The settle duration must match the CSS
+// transition applied in applyBlocTransforms: releaseSwipeForward commits after
+// exactly this long, so a mismatch either cuts the animation off or leaves a
+// gap. 80ms read as a snap rather than a glide.
+const BLOC_SWIPE_SETTLE_MS = 260;
+const BLOC_SWIPE_EASING = "cubic-bezier(.32,.72,0,1)";
+// iOS commits an interactive back gesture around a third of the way across.
+// This was half the screen, so a deliberate drag could be refused.
+const BLOC_SWIPE_COMMIT_FRACTION = 0.32;
+
 const readFounderDashboardAvailability = userId => {
   if (!userId) return false;
   try {
@@ -1784,7 +1794,7 @@ const App = () => {
     ].forEach(([el, withShadow]) => {
       if (!el) return;
       el.style.transform = dragX ? `translateX(${dragX}px)` : "none";
-      el.style.transition = dragging ? "none" : "transform .08s ease-out";
+      el.style.transition = dragging ? "none" : `transform ${BLOC_SWIPE_SETTLE_MS}ms ${BLOC_SWIPE_EASING}`;
       el.style.boxShadow = withShadow && dragX ? "-18px 0 34px rgba(0,0,0,.28)" : "none";
       el.style.willChange = dragging || dragX ? "transform" : "auto";
     });
@@ -1825,9 +1835,20 @@ const App = () => {
     if (!s.active || !t) return;
     const dx = t.clientX - s.sx;
     const dy = t.clientY - s.sy;
-    if (!s.mode && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) {
-      s.mode = dx > 0 && Math.abs(dx) > Math.abs(dy) ? "back" : "scroll";
-      setBlocDragging(s.mode === "back");
+    if (!s.mode) {
+      const absDx = Math.abs(dx);
+      const absDy = Math.abs(dy);
+      const horizontal = absDx > 5 && absDx > absDy * 0.72;
+      const vertical = absDy > 9 && absDy > absDx * 1.08;
+      if (horizontal) {
+        // A leftward drag belongs to the main tab swipe, not to this gesture.
+        s.mode = dx > 0 ? "back" : "scroll";
+        setBlocDragging(s.mode === "back");
+      } else if (vertical) {
+        s.mode = "scroll";
+        setBlocDragging(false);
+      }
+      // Neither signal is clear yet: keep waiting rather than guessing.
     }
     if (s.mode === "back") scheduleBlocTransforms(Math.max(0, Math.min(dx, window.innerWidth || 420)), true);
   },[applyBlocTransforms, scheduleBlocTransforms]);
@@ -1841,7 +1862,7 @@ const App = () => {
     const screenWidth = window.innerWidth || 420;
     const elapsed = Math.max(1, performance.now() - (s.st || performance.now()));
     const fastEdgeFlick = dx > 24 && elapsed < 260 && dx / elapsed > 0.22 && dx > Math.abs(dy);
-    const dominantDrag = dx > screenWidth / 2 && Math.abs(dy) < 100 && dx > Math.abs(dy);
+    const dominantDrag = dx > screenWidth * BLOC_SWIPE_COMMIT_FRACTION && Math.abs(dy) < 100 && dx > Math.abs(dy);
     const shouldClose = s.mode === "back" && (fastEdgeFlick || dominantDrag);
     if (shouldClose) {
       setSwitcherRevealInteractive(true);
@@ -1849,7 +1870,7 @@ const App = () => {
         dragRef: blocDragXRef,
         frameRef: blocFrameRef,
         finalX: screenWidth,
-        transitionMs: 80,
+        transitionMs: BLOC_SWIPE_SETTLE_MS,
         setDragging: setBlocDragging,
         applyTransform: applyBlocTransforms,
         commit: () => {
@@ -1864,7 +1885,7 @@ const App = () => {
       releaseSwipeBack({
         dragRef: blocDragXRef,
         frameRef: blocFrameRef,
-        transitionMs: 80,
+        transitionMs: BLOC_SWIPE_SETTLE_MS,
         setDragging: setBlocDragging,
         applyTransform: applyBlocTransforms
       });
