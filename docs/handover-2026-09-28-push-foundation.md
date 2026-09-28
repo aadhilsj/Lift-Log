@@ -142,6 +142,9 @@ helper returns unsupported; the sandbox registration endpoint returns 503 before
 any database request. A bounded streamed-body test also verifies local API use.
 Vite reported its existing large bundle warning and a harmless static/dynamic
 import chunking notice for the push helper.
+The sandbox server also logged scoped-photo signing warnings (`data.map is not
+a function`) during browser regression checks. Those checks still passed; this
+photo-storage sandbox limitation was not investigated or changed in push scope.
 
 Foundation tests use generated signing credentials and fake APNs responses;
 they do not contact Apple or production. They cover JWT ES256 signing/caching,
