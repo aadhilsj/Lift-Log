@@ -32,3 +32,9 @@ The founder's simulator approval is reported in the handoff; iPhone 14 layout
 validation is still required after installing build 4.
 
 Archive: /tmp/Fero-TestFlight-build-4.xcarchive.
+
+Xcode confirmed `App 1.0 (4) uploaded`; Organizer shows Uploaded to Apple,
+build number 4, at 19:55 local time on 28 September. Chrome is still signed
+out of App Store Connect. Processing completion and Fero Team availability
+are therefore not yet verified; Aadhil was asked to sign in. No retry upload
+is necessary. Packaging commit: 1905731 (following the clean branch merge).
