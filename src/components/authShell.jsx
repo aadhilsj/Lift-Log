@@ -557,7 +557,11 @@ const GroupHome = ({groups,currentIdentity,currentEmail,currentUserId="",onOpenP
   };
   return React.createElement(React.Fragment,null,
     React.createElement('div',{style:{minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-start",padding:compactMobile?"calc(env(safe-area-inset-top) + 16px) 16px 28px":"32px 18px",background:"transparent"}},
-      React.createElement('div',{style:{width:"100%",maxWidth:744,display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,marginBottom:compactMobile?10:12}},
+      React.createElement('div',{style:{position:"relative",width:"100%",maxWidth:744,display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,marginBottom:compactMobile?10:12}},
+        // On mobile the wordmark sits on this row, level with the Dashboard
+        // button and the account button. Absolutely centred so neither side
+        // can push it off centre. Desktop keeps it in the block below.
+        compactMobile?React.createElement('div',{style:{position:"absolute",left:"50%",top:"50%",transform:"translate(-50%,-50%)",pointerEvents:"none"}},React.createElement(AnteWordmark,{size:44})):null,
         showFounderDashboard
           ? React.createElement('button',{type:"button",onClick:onOpenFounderDashboard,style:{minHeight:34,padding:"8px 10px",borderRadius:9,border:"1px solid rgba(78,205,196,.3)",background:"rgba(78,205,196,.07)",color:"#4ECDC4",fontSize:11,fontWeight:900,cursor:"pointer",touchAction:"manipulation",whiteSpace:"nowrap"}},"Dashboard")
           : React.createElement('div',null),
@@ -573,8 +577,8 @@ const GroupHome = ({groups,currentIdentity,currentEmail,currentUserId="",onOpenP
             )
           )
         : React.createElement(React.Fragment,null,
-      React.createElement('div',{className:"fu",style:{width:"100%",display:"grid",justifyItems:"center",textAlign:"center",marginTop:compactMobile?-30:-22,marginBottom:compactMobile?18:34,maxWidth:560,animation:suppressIntro?"none":undefined}},
-        React.createElement('div',{style:{margin:compactMobile?"2px 0 8px":"8px 0 12px"}},React.createElement(AnteWordmark,{size:compactMobile?38:58})),
+      React.createElement('div',{className:"fu",style:{width:"100%",display:"grid",justifyItems:"center",textAlign:"center",marginTop:compactMobile?4:-22,marginBottom:compactMobile?12:34,maxWidth:560,animation:suppressIntro?"none":undefined}},
+        compactMobile?null:React.createElement('div',{style:{margin:"8px 0 12px"}},React.createElement(AnteWordmark,{size:58})),
         React.createElement('span',{style:{fontFamily:"'Outfit',sans-serif",fontSize:10,fontWeight:800,color:"var(--cyan)",letterSpacing:".12em",textTransform:"uppercase"}},"Your Blocs")
       ),
       React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(228px,1fr))",gap:compactMobile?10:15,width:"100%",maxWidth:744,marginBottom:compactMobile?18:22}},
