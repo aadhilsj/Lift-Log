@@ -76,6 +76,13 @@ function isLocalDevHost(hostname) {
 
 function isLocalDevEnvironment() {
   try {
+    // The packaged iOS app is served from capacitor://localhost, so its
+    // hostname is literally "localhost" and it used to pass this check —
+    // which is why TestFlight build 1 showed the Local Test Identity
+    // switcher to a real signed-in member. A development environment is
+    // always served over http/https; a custom scheme never is.
+    const protocol = String(window.location.protocol || "").toLowerCase();
+    if (protocol !== "http:" && protocol !== "https:") return false;
     return isLocalDevHost(window.location.hostname);
   } catch {
     return false;
