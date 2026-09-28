@@ -136,16 +136,16 @@ const Nav = ({page,setPage,user,groupName,canEditGroup,onOpenSettings,settingsAl
       // The wordmark is gone from here on purpose: it was eating ~70pt that the
       // Bloc name needs. The name must never truncate, and FERO still fronts
       // the Bloc switcher, so the brand is not lost.
-      React.createElement('div',{style:{display:"flex",alignItems:"center",height:52,marginTop:2,minWidth:0,flex:"1 1 auto"}},
+      React.createElement('div',{style:{display:"flex",alignItems:"center",height:52,marginTop:6,minWidth:0,flex:"1 1 auto"}},
         React.createElement(BlocNameButton,{groupName,onSwitchGroup})
       ),
-      React.createElement('div',{style:{display:"flex",alignItems:"center",height:44,marginTop:6,gap:10,flexShrink:0}},
-        React.createElement(StreamIconButton,{onOpenStream,unreadCount:streamUnreadCount,size:44}),
+      React.createElement('div',{style:{display:"flex",alignItems:"center",height:42,marginTop:6,gap:10,flexShrink:0}},
+        React.createElement(StreamIconButton,{onOpenStream,unreadCount:streamUnreadCount,size:42}),
         // Notification centre — MOCK ONLY, deliberately does nothing. It is here
         // so the header is spaced for three buttons and is not reworked when the
         // real thing lands. See docs/concept-2026-09-24-notification-centre.md.
-        React.createElement('button',{type:"button",className:"icon-btn nav-glass-btn",title:"Notifications","aria-hidden":"true",tabIndex:-1,style:{width:44,height:44,display:"inline-flex",alignItems:"center",justifyContent:"center",position:"relative"}},React.createElement(AppIcon,{name:"bell",size:26})),
-        React.createElement('button',{onClick:onOpenSettings,className:"icon-btn nav-glass-btn",title:"Bloc settings",style:{width:44,height:44,display:"inline-flex",alignItems:"center",justifyContent:"center",position:"relative"}},React.createElement(AppIcon,{name:"settings",size:26}),settingsAlert&&React.createElement(SettingsDot,null)),
+        React.createElement('button',{type:"button",className:"icon-btn nav-glass-btn",title:"Notifications","aria-hidden":"true",tabIndex:-1,style:{width:42,height:42,display:"inline-flex",alignItems:"center",justifyContent:"center",position:"relative"}},React.createElement(AppIcon,{name:"bell",size:26})),
+        React.createElement('button',{onClick:onOpenSettings,className:"icon-btn nav-glass-btn",title:"Bloc settings",style:{width:42,height:42,display:"inline-flex",alignItems:"center",justifyContent:"center",position:"relative"}},React.createElement(AppIcon,{name:"settings",size:26}),settingsAlert&&React.createElement(SettingsDot,null)),
         null
       )
     )
