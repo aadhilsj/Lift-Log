@@ -1,5 +1,6 @@
 import React from "react";
 import { AppIcon, AnteWordmark, WorkoutTypeIcon } from "./primitives.jsx";
+import { BLOC_NAME_MAX_LENGTH } from "../lib/appState.js";
 
 const { useRef, useState } = React;
 
@@ -258,7 +259,8 @@ const BlocStarterPreview = ({blocName,setBlocName}) => {
     React.createElement('label',{style:{display:"block"}},
       React.createElement('input',{
         value:blocName,
-        onChange:event=>setBlocName(event.target.value),
+        onChange:event=>setBlocName(event.target.value.slice(0,BLOC_NAME_MAX_LENGTH)),
+        maxLength:BLOC_NAME_MAX_LENGTH,
         placeholder:"Type your Bloc name",
         style:{
           width:"100%",

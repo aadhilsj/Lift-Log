@@ -286,8 +286,9 @@ const AppIcon = ({name,size=18,stroke="currentColor",strokeWidth="1.8"}) => {
     React.createElement('path',{d:"M5 12h14"})
   );
   if (name==="settings") return React.createElement('svg',common,
-    React.createElement('circle',{cx:"12",cy:"12",r:"3.2"}),
-    React.createElement('path',{d:"M19.4 15a1 1 0 0 0 .2 1.1l.1.1a1 1 0 0 1 0 1.4l-1.1 1.1a1 1 0 0 1-1.4 0l-.1-.1a1 1 0 0 0-1.1-.2 1 1 0 0 0-.6.9V20a1 1 0 0 1-1 1h-1.6a1 1 0 0 1-1-1v-.2a1 1 0 0 0-.7-.9 1 1 0 0 0-1.1.2l-.1.1a1 1 0 0 1-1.4 0l-1.1-1.1a1 1 0 0 1 0-1.4l.1-.1a1 1 0 0 0 .2-1.1 1 1 0 0 0-.9-.6H4a1 1 0 0 1-1-1v-1.6a1 1 0 0 1 1-1h.2a1 1 0 0 0 .9-.7 1 1 0 0 0-.2-1.1l-.1-.1a1 1 0 0 1 0-1.4l1.1-1.1a1 1 0 0 1 1.4 0l.1.1a1 1 0 0 0 1.1.2 1 1 0 0 0 .6-.9V4a1 1 0 0 1 1-1h1.6a1 1 0 0 1 1 1v.2a1 1 0 0 0 .7.9 1 1 0 0 0 1.1-.2l.1-.1a1 1 0 0 1 1.4 0l1.1 1.1a1 1 0 0 1 0 1.4l-.1.1a1 1 0 0 0-.2 1.1 1 1 0 0 0 .9.6h.2a1 1 0 0 1 1 1v1.6a1 1 0 0 1-1 1h-.2a1 1 0 0 0-.9.7z"})
+    React.createElement('circle',{cx:"12",cy:"12",r:"2.9"}),
+    React.createElement('circle',{cx:"12",cy:"12",r:"6"}),
+    React.createElement('path',{d:"M12 3.4v2.6M12 20.6v-2.6M3.4 12h2.6M20.6 12h-2.6M5.92 5.92l1.84 1.84M18.08 18.08l-1.84-1.84M18.08 5.92l-1.84 1.84M5.92 18.08l1.84-1.84"})
   );
   if (name==="refresh") return React.createElement('svg',common,
     React.createElement('path',{d:"M20 5v5h-5"}),
@@ -326,7 +327,9 @@ const AppIcon = ({name,size=18,stroke="currentColor",strokeWidth="1.8"}) => {
     React.createElement('path',{d:"M13.8 15.2c1.9.2 3.4 1.4 4.4 3.8"})
   );
   if (name==="message-circle") return React.createElement('svg',common,
-    React.createElement('path',{d:"M4 19.5l1.2-3.6A8 8 0 1 1 8.4 18.3L4 19.5"})
+    // The bubble's tail pulls its bounding box 0.55 left and 0.8 up of the
+    // viewBox centre, so it sat high and left inside a circular button.
+    React.createElement('path',{d:"M4 19.5l1.2-3.6A8 8 0 1 1 8.4 18.3L4 19.5",transform:"translate(0.55 0.8)"})
   );
   if (name==="money-bag") return React.createElement('svg',common,
     React.createElement('path',{d:"M9 5.5h6"}),
@@ -375,6 +378,10 @@ const AppIcon = ({name,size=18,stroke="currentColor",strokeWidth="1.8"}) => {
   );
   if (name==="chevron-down") return React.createElement('svg',common,
     React.createElement('path',{d:"M6 9l6 6 6-6"})
+  );
+  if (name==="bell") return React.createElement('svg',common,
+    React.createElement('path',{d:"M18 8.8a6 6 0 1 0-12 0c0 5.1-1.4 6.6-2.1 7.3a.8.8 0 0 0 .6 1.4h15a.8.8 0 0 0 .6-1.4c-.7-.7-2.1-2.2-2.1-7.3z"}),
+    React.createElement('path',{d:"M10.2 20.4a2.1 2.1 0 0 0 3.6 0"})
   );
   if (name==="flame") return React.createElement('svg',common,
     React.createElement('path',{d:"M12 21c3.4 0 6-2.4 6-5.8 0-2.3-1.1-4.1-3.3-5.7.1 1.6-.5 2.8-1.6 3.7.2-2.9-1-5.2-3.5-7.2.1 2.7-1.1 4.2-2.2 5.5A5.8 5.8 0 0 0 6 15.2C6 18.6 8.6 21 12 21z"}),

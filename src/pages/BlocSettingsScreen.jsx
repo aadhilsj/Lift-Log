@@ -34,7 +34,8 @@ import {
   isYearlyAllowanceMonth,
   getYearlyAllowanceUsage,
   SIT_OUTS_PER_YEAR,
-  SOLO_MONTHS_PER_YEAR
+  SOLO_MONTHS_PER_YEAR,
+  BLOC_NAME_MAX_LENGTH
 } from "../lib/appState.js";
 import { copyToClipboard, isMobile } from "../lib/utils.js";
 import {
@@ -404,7 +405,7 @@ const BlocSettingsScreen = ({group,actor,actorUserId,isAdmin,onSave,onClose,savi
     );
     return React.createElement('div',null,
       React.createElement(EditableField,{title:"Bloc Name"},
-        React.createElement('input',{value:groupName,onChange:e=>setGroupName(e.target.value),style:{...inputShellStyle,width:"min(100%, 250px)",fontSize:11.5,padding:"7px 9px",borderRadius:9,textAlign:"center",display:"block"}})
+        React.createElement('input',{value:groupName,onChange:e=>setGroupName(e.target.value.slice(0,BLOC_NAME_MAX_LENGTH)),maxLength:BLOC_NAME_MAX_LENGTH,style:{...inputShellStyle,width:"min(100%, 250px)",fontSize:11.5,padding:"7px 9px",borderRadius:9,textAlign:"center",display:"block"}})
       ),
       React.createElement(EditableField,{title:"Monthly Penalty Amount"},
         React.createElement('div',{style:{display:"grid",gridTemplateColumns:"68px 96px",gap:7,maxWidth:172}},
