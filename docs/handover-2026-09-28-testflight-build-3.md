@@ -22,3 +22,9 @@ indicator. Also check Bloc Stream, a sheet, comment thread and photo viewer.
 Do not describe these visual checks as passed until observed on the phone.
 
 No database, RLS, notification or support-email changes were made.
+
+Xcode confirmed `App 1.0 (3) uploaded`; Organizer shows `Uploaded to Apple`,
+build number 3, uploaded at 18:22 local time on 28 September 2026.
+Chrome's App Store Connect session has expired and shows the Apple sign-in
+page. Apple processing and availability in Fero Team are not yet verified.
+The sign-in tab was left open for Aadhil; no duplicate upload is needed.
