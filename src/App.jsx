@@ -507,6 +507,21 @@ const App = () => {
   const [switcherRevealInteractive,setSwitcherRevealInteractive]=useState(false);
   const [pageDragging,setPageDragging]=useState(false);
   const [pageSwipeTarget,setPageSwipeTarget]=useState(null);
+  // False for the first two frames after entering a Bloc, so that commit paints
+  // only the screen being entered. See the in-Bloc page track below. Two frames
+  // rather than one: the first gets the paint on screen, the second builds the
+  // rest once it is there. A swipe cannot start inside that window, and if one
+  // somehow does, the track still renders its target explicitly.
+  const [inBlocTrackReady,setInBlocTrackReady]=useState(false);
+  useEffect(() => {
+    if (!selectedGroupId) { setInBlocTrackReady(false); return; }
+    setInBlocTrackReady(false);
+    let raf2 = 0;
+    const raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => setInBlocTrackReady(true));
+    });
+    return () => { cancelAnimationFrame(raf1); if (raf2) cancelAnimationFrame(raf2); };
+  }, [selectedGroupId]);
   const [pageTapTransition,setPageTapTransition]=useState(null);
   const [suppressSwitcherIntro,setSuppressSwitcherIntro]=useState(false);
   const [streamUnreadCount,setStreamUnreadCount]=useState(0);
@@ -3491,6 +3506,13 @@ const App = () => {
     IN_BLOC_PAGES.map((pageName,index) => {
       const active = pageName === page;
       const tapTransitionParticipant = pageTapTransition && (pageName === pageTapTransition.from || pageName === pageTapTransition.to);
+      // Entering a Bloc used to build all four screens in one commit, and you
+      // watched it: the haptic fires the moment you tap a Bloc, then Today
+      // arrived half a second later. Only the screen you asked for is built in
+      // that first commit; the rest follow two frames later, before any swipe
+      // can realistically begin. They are never unmounted afterwards, so
+      // arriving on one does not remount it.
+      if (!inBlocTrackReady && !active && !tapTransitionParticipant && pageName !== pageSwipeTarget) return null;
       // Neighboring pages only need to be visible while a page gesture is in
       // progress. Keeping them visible at rest turns any stale inline offset
       // into an overlapping screen after a rapid tab reselect.
