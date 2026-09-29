@@ -63,6 +63,7 @@ import { buildPaymentTargets } from "../lib/paymentLinks.js";
 import { prefetchProfileStatsData } from "../lib/api.js";
 import { buildPaymentTargets as buildOwnPaymentTargets } from "../lib/paymentLinks.js";
 import { PaymentHandleSection } from "../components/PaymentHandleSection.jsx";
+import { tapMedium } from "../lib/haptics.js";
 
 const FULL_MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
@@ -238,6 +239,10 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
   }
 
   const doLog=async ({ workoutType, activity, isoDate, targetGroupIds, note, photoUrl })=>{
+    // One buzz, here, before either branch: the press is what the buzz is
+    // confirming, so it must not wait for the server, and a member logging to
+    // six Blocs still feels exactly one.
+    void tapMedium();
     if (Array.isArray(targetGroupIds) && targetGroupIds.length) {
       setShowLog(false);
       const result = await onMultiLog({ workoutType, activity, isoDate, targetGroupIds, note, photoUrl });
