@@ -32,6 +32,7 @@ import {
 } from "../components/MonthLoop.jsx";
 import { PlayerProfile } from "../pages/PlayerProfile.jsx";
 import { SettlementScreen } from "../pages/SettlementScreen.jsx";
+import { tapLight } from "../lib/haptics.js";
 
 const FULL_MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
@@ -92,8 +93,11 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
   // histReversed is newest first, so "older" means a bigger index.
   const olderIdx = isCurrent ? (histReversed.length ? 0 : null) : (selIdx + 1 < histReversed.length ? selIdx + 1 : null);
   const newerIdx = isCurrent ? undefined : (selIdx === 0 ? null : selIdx - 1);
+  // Stepping through months is a value change, which is the classic haptic
+  // moment -- it is what the iOS picker wheel does. A disabled arrow is not a
+  // step, so it stays silent.
   const stepperArrow = (dir, enabled, onClick) => React.createElement('button',{
-    type:"button", onClick: enabled ? onClick : undefined, disabled: !enabled,
+    type:"button", onClick: enabled ? (...args)=>{ void tapLight(); onClick(...args); } : undefined, disabled: !enabled,
     "aria-label": dir === "prev" ? "Previous month" : "Next month",
     style:{width:28,height:26,display:"inline-flex",alignItems:"center",justifyContent:"center",background:"transparent",border:"none",padding:0,cursor:enabled?"pointer":"default",color:"#4ECDC4",opacity:enabled?1:.25}
   },
