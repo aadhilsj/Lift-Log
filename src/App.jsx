@@ -297,7 +297,18 @@ const PAGE_TAP_TRANSITION_MS = SCREEN_SETTLE_MS;
 // incoming one comes up is what makes the change feel like a transition
 // rather than a replacement. It stops short of transparent so the Bloc
 // background never shows through as a hole mid-swipe.
-const PAGE_FADE_DEPTH = 0.72;
+// A screen parked a full width away is fully off screen, so it is fully
+// transparent: depth 1, not 0.72. At 0.72 the screen you were leaving settled
+// at 28% opacity and held it for the whole 200ms settle before the commit
+// blanked it, so you sat watching a ghost of the screen you had already left.
+const PAGE_FADE_DEPTH = 1;
+// The fade is deliberately faster than the slide and front-loaded, so the old
+// screen is gone well before the new one finishes arriving. The slide keeps
+// SCREEN_SETTLE_MS untouched -- TAB_LIFT_MS derives from it, and changing the
+// settle would silently retune the nav lift.
+const PAGE_FADE_MS = Math.round(SCREEN_SETTLE_MS * 0.55);
+const PAGE_FADE_EASING = "cubic-bezier(.3,1,.4,1)";
+const PAGE_FADE_TRANSITION = `opacity ${PAGE_FADE_MS}ms ${PAGE_FADE_EASING}`;
 const pageFadeFor = (offsetX, width) =>
   1 - Math.min(1, Math.abs(offsetX) / (width || 1)) * PAGE_FADE_DEPTH;
 
@@ -311,7 +322,7 @@ const applyInBlocPageTransforms = ({ layers, activePage, dragX = 0, dragging = f
     el.style.opacity = String(pageFadeFor(offsetX, width));
     el.style.transition = dragging || !animate
       ? "none"
-      : `${SCREEN_SETTLE_TRANSITION}, opacity ${SCREEN_SETTLE_MS}ms ${SCREEN_SETTLE_EASING}`;
+      : `${SCREEN_SETTLE_TRANSITION}, ${PAGE_FADE_TRANSITION}`;
     el.style.boxShadow = pageName === activePage && dragX ? "-18px 0 34px rgba(0,0,0,.24)" : "none";
     el.style.willChange = dragging || dragX ? "transform" : "auto";
   });
@@ -3524,7 +3535,7 @@ const App = () => {
           ? (pageTapTransition.phase === "staged" ? `translateX(${pageTapTransition.direction * screenWidth}px)` : "none")
           : null;
       const tapTransitionStyle = tapTransitionParticipant
-        ? (pageTapTransition.phase === "staged" ? "none" : `transform ${PAGE_TAP_TRANSITION_MS}ms ${SCREEN_SETTLE_EASING}, opacity ${PAGE_TAP_TRANSITION_MS}ms ${SCREEN_SETTLE_EASING}`)
+        ? (pageTapTransition.phase === "staged" ? "none" : `transform ${PAGE_TAP_TRANSITION_MS}ms ${SCREEN_SETTLE_EASING}, ${PAGE_FADE_TRANSITION}`)
         : null;
       // Same fade as the swipe, so a tap and a swipe to the same screen look
       // identical. A staged page starts dimmed a screen away and comes up as
@@ -3562,7 +3573,7 @@ const App = () => {
           visibility:near?"visible":"hidden",
           transform:tapTransitionParticipant ? tapTransform : offsetX ? `translateX(${offsetX}px)` : "none",
           opacity:tapOpacity !== null ? tapOpacity : pageFadeFor(offsetX, screenWidth),
-          transition:tapTransitionParticipant ? tapTransitionStyle : (pageDragging&&!pageReleasingRef.current)?"none":`${SCREEN_SETTLE_TRANSITION}, opacity ${SCREEN_SETTLE_MS}ms ${SCREEN_SETTLE_EASING}`,
+          transition:tapTransitionParticipant ? tapTransitionStyle : (pageDragging&&!pageReleasingRef.current)?"none":`${SCREEN_SETTLE_TRANSITION}, ${PAGE_FADE_TRANSITION}`,
           boxShadow:active&&pageDragXRef.current?"-18px 0 34px rgba(0,0,0,.24)":"none",
           willChange:tapTransitionParticipant||pageDragging||pageDragXRef.current?"transform":"auto"
         },
