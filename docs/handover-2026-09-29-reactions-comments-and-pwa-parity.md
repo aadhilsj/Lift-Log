@@ -293,8 +293,8 @@ Last updated 29 September, after handing Codex round two.
 | --- | --- | --- |
 | Reactions disappear | **Cause found: the outage (§12). Nothing lost, no fix needed.** | — |
 | Stream/activity comments never load | **Cause found: the outage (§12).** Honest-failure fix **with Codex now** to land on main | `e9b7704` |
-| Bloc entry could be faster | Not started | — |
-| Tab lift arrives late | Not started, needs a measurement | — |
+| Bloc entry could be faster | **Reframed — there is no entry animation.** See §15 | §15 |
+| Tab lift arrives late | **Done, `0b1d7c3`.** Not live, not in a build | §15 |
 | Reaction bar overflows the screen | **With Codex now** | see §11 |
 | Full emoji picker (top 5 + more) | Not started, feature not fix | — |
 | PWA missing the bottom-nav blackout | Not started | see §4 |
@@ -479,3 +479,79 @@ that is a separate hand-off.
 | Re-run §7 and §8 | unassigned | On 30 September, before month close |
 | Cancelled Bloc back-swipe stall | parked | Deliberate, see motion handover §8 |
 | In-Bloc tab shadow strip | parked | Not reported by Aadhil |
+
+
+---
+
+## 15. The nav lift, and what "enter the Bloc faster" actually means
+
+### The lift — done, `0b1d7c3`
+
+**There was no bug.** On a tab tap, `setPage(nextPage)` flips `.on` in one
+render, so the pill and the lift change in the same commit. On a swipe,
+`applyTabLift(s.target)` and the pill's slot are both written imperatively in
+the same block at release. Nothing delayed the lift's start. Reading the code
+harder would never have found a cause, because there was not one.
+
+**The problem was the end of the motion, not the beginning.** The lift borrowed
+`SCREEN_SETTLE_EASING` (`cubic-bezier(.32,.72,0,1)`), which decelerates hard. A
+1.5px rise and a 1.16x growth are subtle, so the final fraction of that curve
+arrives long after the screen has settled — and a subtle change that *finishes*
+slowly reads as late even when it *starts* on time.
+
+So the curve mattered as much as the duration:
+
+```js
+const TAB_LIFT_MS = Math.round(SCREEN_SETTLE_MS * 0.5);   // 100ms, was 160
+const TAB_LIFT_EASING = "cubic-bezier(.2,.9,.3,1)";       // front-loaded, was the shared settle
+const TAB_LIFT_TRANSITION = `transform ${TAB_LIFT_MS}ms ${TAB_LIFT_EASING}`;
+```
+
+Still derived from `SCREEN_SETTLE_MS` rather than hardcoded, so the lift keeps
+tracking the screen if that ever changes. `TAB_LIFT_MS` feeds nothing but this
+transition — no commit delay depends on it — so giving it its own easing does
+not violate the playbook's "same constant" rule, which is about
+`SCREEN_SETTLE_MS` and is untouched.
+
+**Chosen, not guessed.** Three speeds were mocked against the real nav bar,
+with the pill left at its shipped 200ms so the icon could be judged against it.
+Aadhil picked option 2 of 3. Artifact: `SRh6yLr5LEuPJgvAqtMRRs`.
+
+Verified: lint clean, build clean, all 24 `test:*` pass, and the new easing is
+present in the built bundle while the old `0.8` ratio is gone. Layout is
+unchanged **by construction** — only `transition` timing changed, and at rest
+the computed transform is identical, so nav height and tab positions cannot
+have moved.
+
+**Not live and not in a TestFlight build.** It is on `ios-header-and-nav-polish`
+only. Note `TAB_LIFT_MS` does not exist on `main` at all — the whole lift lives
+on this branch — so this must not be sent to Codex as a main-branch change.
+
+### "Enter the Bloc faster" — there is nothing to speed up
+
+Worth recording, because the obvious assumption is wrong.
+
+**There is no entry animation.** Tapping a Bloc in the switcher runs
+`onOpenGroup`: a haptic, a scroll reset, `persistGroupSelection(groupId)`,
+`setPage("today")`. The switcher branch stops rendering and the Bloc surface
+renders. It is a hard swap. The Bloc surface's only transition is the swipe
+transform, which is not involved here.
+
+The `.fu`/`.fu2`…`.fu5` staggered fade-ups (0.35s, delayed up to 0.24s) are
+**not** on the Today page — only `HistoryPage.jsx` uses them. So they are not
+what is being felt either.
+
+What is left is render cost: **every in-Bloc page mounts at once** in the swipe
+track, not just Today. The playbook records this ("every in-Bloc page mounts
+together in the swipe track"), and the 29 Sep motion handover measured the
+reverse direction — unmounting ~730 nodes for the switcher — at one normal
+frame.
+
+So making this faster means **mounting less up front**, which touches the swipe
+track. That is exactly the area the playbook warns has been broken and re-fixed
+repeatedly. It needs an on-device measurement before anyone changes it, and it
+should not be bundled with a motion tweak.
+
+**Incidental finding, not fixed:** `HistoryPage.jsx` uses `className:"fu6"`, but
+`.fu6` is not defined in `app.css`. That element simply appears with no
+animation. Left alone — not reported, and out of scope.
