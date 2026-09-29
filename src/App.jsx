@@ -1905,13 +1905,13 @@ const App = () => {
       const absDy = Math.abs(dy);
       const horizontal = absDx > 5 && absDx > absDy * 0.72;
       const vertical = absDy > 9 && absDy > absDx * 1.08;
-      if (horizontal) {
+      if (vertical) {
+        s.mode = "scroll";
+        setBlocDragging(false);
+      } else if (horizontal) {
         // A leftward drag belongs to the main tab swipe, not to this gesture.
         s.mode = dx > 0 ? "back" : "scroll";
         setBlocDragging(s.mode === "back");
-      } else if (vertical) {
-        s.mode = "scroll";
-        setBlocDragging(false);
       }
       // Neither signal is clear yet: keep waiting rather than guessing.
     }
