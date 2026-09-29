@@ -105,6 +105,7 @@ import { BlocSettingsScreen } from "./pages/BlocSettingsScreen.jsx";
 import { LogCommentThread } from "./components/LogCommentThread.jsx";
 import { ColdOnboarding } from "./components/ColdOnboarding.jsx";
 import { FounderDashboard } from "./pages/FounderDashboard.jsx";
+import { NotificationsPage } from "./pages/NotificationsPage.jsx";
 import { tapLight } from "./lib/haptics.js";
 
 const normalizeReactionMembers = (members) => Array.isArray(members)
