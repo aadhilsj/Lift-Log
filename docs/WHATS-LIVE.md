@@ -4,7 +4,8 @@
 Update it whenever something ships. Same filename forever — never date it, never
 fork it. If it disagrees with a handover, this file wins.
 
-Last updated: **29 September 2026, evening** — before the branch merge.
+Last updated: **29 September 2026, night** — after the big merge. Everything is
+now on the website.
 
 ---
 
@@ -13,23 +14,33 @@ Last updated: **29 September 2026, evening** — before the branch merge.
 | | Website (PWA) | TestFlight (phone) | Claude's branch |
 | --- | --- | --- | --- |
 | **What it is** | `lift-log-nu.vercel.app` | build 9 | `ios-header-and-nav-polish` |
-| **Built from** | `main` | `codex/testflight-build-2` | its own branch |
-| **At commit** | `e9b7704` | `dfc5b4e` | `2c06d57` |
-| Rebuilt header, 42pt buttons | ❌ | ✅ | ✅ |
-| Bell / notification button | ❌ | ✅ (dead) | ✅ (dead) |
-| Safe-area + notch handling | ❌ | ✅ | ✅ |
-| One settle for every screen change | ❌ | ✅ | ✅ |
-| Nav pill moves with the gesture | ❌ | ✅ | ✅ |
-| Tab cross-fade | ❌ | ✅ | ✅ |
-| Scroll clears the bottom bar | ❌ | ✅ | ✅ |
-| Haptics | ❌ | ✅ | ✅ |
-| **Faster nav lift** (100ms) | ❌ | ❌ | ✅ |
-| **Comment load failure is honest** | ✅ | ❌ | ❌ |
-| **Reaction picker stays on screen** | ❌ | ❌ | ❌ *(uncommitted)* |
+| **At commit** | **`80629b5`** | `dfc5b4e` | `80629b5` |
+| Rebuilt header, 42pt buttons | ✅ | ✅ | ✅ |
+| Safe-area + notch handling | ✅ | ✅ | ✅ |
+| One settle for every screen change | ✅ | ✅ | ✅ |
+| Nav pill moves with the gesture | ✅ | ✅ | ✅ |
+| Tab cross-fade | ✅ | ✅ | ✅ |
+| Scroll clears the bottom bar | ✅ | ✅ | ✅ |
+| Haptics (silent on web by design) | ✅ | ✅ | ✅ |
+| Faster nav lift (100ms) | ✅ | ❌ | ✅ |
+| Comment load failure is honest | ✅ | ❌ | ✅ |
+| Reaction picker stays on screen | ✅ | ❌ | ✅ |
+| Bell opens "coming soon" | ✅ | ❌ (dead mock) | ✅ |
 
-**Nothing has everything.** That is the problem this week's merge solves.
+**The website and the branch are now the same commit.** Only the phone is
+behind, and that is one TestFlight build away.
 
----
+### Verified live, 29 September (not taken on trust)
+
+- `80629b5` is on `origin/main`
+- Vercel has a **Ready Production deployment for that exact commit**
+- the live JS bundle contains `Notifications are coming soon`, the new lift
+  easing `cubic-bezier(.2,.9,.3,1)`, and `Comments couldn't load`
+- the live CSS bundle contains the new header rule
+  `max(0px, calc(env(safe-area-inset-top) - 13px))`
+- the reaction-picker fix is confirmed **in the source on `main`** rather than in
+  the bundle — its identifiers are local variables and get minified away, so a
+  bundle grep proves nothing either way
 
 ## Why the website looks old
 
