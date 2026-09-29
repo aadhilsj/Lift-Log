@@ -280,23 +280,13 @@ const IN_BLOC_PAGES = ["today", "activity", "month", "history"];
 const SCREEN_SETTLE_MS = 200;
 const SCREEN_SETTLE_EASING = "cubic-bezier(.32,.72,0,1)";
 const SCREEN_SETTLE_TRANSITION = `transform ${SCREEN_SETTLE_MS}ms ${SCREEN_SETTLE_EASING}`;
-// The nav lift runs shorter than the screen so it finishes before the screen
-// arrives rather than chasing it. At 0.8 it still read as late: it started on
-// time, but the shared settle eases out slowly, so the last of the growth
-// landed well after the screen had settled. Aadhil: "it happens like half a
-// second after I've landed on the screen." The fix is the curve as much as the
-// duration -- this easing is front-loaded, so almost all of the 1.5px rise and
-// the 1.16x growth happen in the first few frames and the lift is visibly done
-// while the pill is still travelling. Chosen from three speeds mocked against
-// the real nav bar: artifact SRh6yLr5LEuPJgvAqtMRRs.
-//
-// Option 2 (100ms) shipped first and was a clear improvement, but on a real
-// phone Aadhil still wanted it quicker, so this is option 3: "I think the
-// instantaneous one would be even better." At 60ms the lift reads as the icon
-// simply being bigger once you land, rather than as a movement you watch. That
-// is the intent -- the nav should have already reacted by the time the screen
-// arrives, not be reacting while you look at it.
-const TAB_LIFT_MS = Math.round(SCREEN_SETTLE_MS * 0.3);
+// The nav lift runs ahead of the screen settle so it has already reacted by
+// the time the destination arrives. The first two shipped durations still felt
+// late: the front-loaded easing mattered as much as the shorter duration.
+// After testing on a real phone, Aadhil asked to go faster than all three
+// mocked options in artifact SRh6yLr5LEuPJgvAqtMRRs. Keep timing derived from
+// the shared settle.
+const TAB_LIFT_MS = Math.round(SCREEN_SETTLE_MS * 0.15);
 const TAB_LIFT_EASING = "cubic-bezier(.3,1,.4,1)";
 const TAB_LIFT_TRANSITION = `transform ${TAB_LIFT_MS}ms ${TAB_LIFT_EASING}`;
 const PAGE_TAP_TRANSITION_MS = SCREEN_SETTLE_MS;
@@ -539,11 +529,13 @@ const App = () => {
       if (targetPage === null) {
         btn.style.removeProperty("--lift-y");
         btn.style.removeProperty("--lift-scale");
+        btn.style.removeProperty("--tab-ink");
         return;
       }
       const on = btn.dataset.page === targetPage;
       btn.style.setProperty("--lift-y", on ? "-1.5px" : "0px");
       btn.style.setProperty("--lift-scale", on ? "1.16" : "1");
+      btn.style.setProperty("--tab-ink", on ? "var(--cyan)" : "rgba(78,205,196,.38)");
     });
   },[]);
   const switcherSurfaceRef = useRef(null);
