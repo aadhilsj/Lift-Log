@@ -4,43 +4,50 @@
 Update it whenever something ships. Same filename forever — never date it, never
 fork it. If it disagrees with a handover, this file wins.
 
-Last updated: **29 September 2026, night** — after the big merge. Everything is
-now on the website.
+Last updated: **29 September 2026, late** — four deploys tonight. The website is
+ahead of the phone now.
 
 ---
 
 ## The three places
 
-| | Website (PWA) | TestFlight (phone) | Claude's branch |
-| --- | --- | --- | --- |
-| **What it is** | `lift-log-nu.vercel.app` | build 9 | `ios-header-and-nav-polish` |
-| **At commit** | **`80629b5`** | `dfc5b4e` | `80629b5` |
-| Rebuilt header, 42pt buttons | ✅ | ✅ | ✅ |
-| Safe-area + notch handling | ✅ | ✅ | ✅ |
-| One settle for every screen change | ✅ | ✅ | ✅ |
-| Nav pill moves with the gesture | ✅ | ✅ | ✅ |
-| Tab cross-fade | ✅ | ✅ | ✅ |
-| Scroll clears the bottom bar | ✅ | ✅ | ✅ |
-| Haptics (silent on web by design) | ✅ | ✅ | ✅ |
-| Faster nav lift (100ms) | ✅ | ❌ | ✅ |
-| Comment load failure is honest | ✅ | ❌ | ✅ |
-| Reaction picker stays on screen | ✅ | ❌ | ✅ |
-| Bell opens "coming soon" | ✅ | ❌ (dead mock) | ✅ |
+| | Website (PWA) | TestFlight (phone) |
+| --- | --- | --- |
+| **At commit** | **`b43d70f`** | `dfc5b4e` (build 9) |
+| Rebuilt header, safe area, motion, haptics | ✅ | ✅ |
+| Comment load failure is honest | ✅ | ❌ |
+| Reaction picker stays on screen | ✅ | ❌ |
+| Bell opens "coming soon" | ✅ | ❌ |
+| Nav lift at 30ms | ✅ | ❌ |
+| Tab colour changes at finger release | ✅ | ❌ |
+| White strip at the bottom of the Stream | fixed ✅ | n/a |
+| Android Today-scroll fix | ✅ **unverified on a device** | ❌ |
 
-**The website and the branch are now the same commit.** Only the phone is
-behind, and that is one TestFlight build away.
+**The phone is now four deploys behind.** One TestFlight build closes it.
 
-### Verified live, 29 September (not taken on trust)
+### Verified live, 29 September
 
-- `80629b5` is on `origin/main`
-- Vercel has a **Ready Production deployment for that exact commit**
-- the live JS bundle contains `Notifications are coming soon`, the new lift
-  easing `cubic-bezier(.2,.9,.3,1)`, and `Comments couldn't load`
-- the live CSS bundle contains the new header rule
-  `max(0px, calc(env(safe-area-inset-top) - 13px))`
-- the reaction-picker fix is confirmed **in the source on `main`** rather than in
-  the bundle — its identifiers are local variables and get minified away, so a
-  bundle grep proves nothing either way
+Each deploy checked three ways — commit on `main`, a Ready Vercel Production
+deployment for that exact commit, and the change present in the live bundle:
+
+- `534fd11` — nav lift 30ms, easing `cubic-bezier(.3,1,.4,1)`
+- `76770cc` — `--tab-ink` in both the JS and the CSS, and
+  `html{background:var(--bg-primary)}` in the CSS
+- `b43d70f` — Android Today-scroll fix
+
+Aadhil confirmed the feel on his PWA: *"so much nicer... the swiping moves so
+much quicker."*
+
+### ⚠️ One thing shipped unverified
+
+The Android Today-scroll fix (`b43d70f`) is live and **has not been tested on any
+device, Android or iOS**. Nobody in the loop has an Android phone. It shipped
+because the risk is asymmetric — the change can only make the back-swipe harder
+to trigger and scrolling easier, never the reverse.
+
+**Two confirmations are still owed:**
+1. Aadhil, on iOS: does the left-edge back-swipe out of a Bloc still work?
+2. An Android member who reported it: does Today scroll now?
 
 ## Why the website looks old
 
