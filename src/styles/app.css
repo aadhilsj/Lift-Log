@@ -45,6 +45,17 @@
       --r:var(--card-radius);
     }
     html, body, #root { min-height:100%; }
+    /* The page canvas. An installed PWA leaves a band at the very bottom that
+       no element covers, so whatever the canvas is painted with is what shows
+       there. Unpainted, that band is bare white.
+       A COLOUR longhand, deliberately: `background: <gradient>` is a shorthand
+       and resets background-color to transparent, which paints white again --
+       that mistake was made and measured on the live page.
+       This is only half the fix. The other half is not mounting
+       .mobile-bottom-scrim under a full-screen sheet: its backdrop-filter
+       sampled this band and blurred it, which is what made a painted band read
+       as a foreign slab rather than as the app. Neither half works alone. */
+    html { background-color:var(--bg-primary); }
     body {
       background:var(--bg-gradient);
       color:var(--text);
