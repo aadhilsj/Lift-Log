@@ -161,8 +161,15 @@
          wrapper carries the button's own column layout, so at rest it renders
          exactly as it did before. Its transition comes from the shared screen
          settle, inline, so icon and pill move as one. */
-      .mobile-tab-inner { display:flex;flex-direction:column;align-items:center;gap:2px;will-change:transform; }
-      .mobile-tab.on .mobile-tab-inner { transform:translateY(-1.5px) scale(1.16); }
+      /* The lift is driven by two variables rather than the .on class alone,
+         because .on only flips when the destination commits -- a fifth of a
+         second after the finger lifts, which read as the nav trailing the
+         screen. The swipe sets these inline at release so the lift starts
+         with the gesture, and clears them once React has committed, after
+         which .on governs again. */
+      .mobile-tab { --lift-y:0px; --lift-scale:1; }
+      .mobile-tab.on { --lift-y:-1.5px; --lift-scale:1.16; }
+      .mobile-tab-inner { display:flex;flex-direction:column;align-items:center;gap:2px;will-change:transform;transform:translateY(var(--lift-y)) scale(var(--lift-scale)); }
     @media (prefers-reduced-motion: reduce) {
       .mobile-tab-inner, .mobile-tab-indicator { transition-duration:1ms !important; }
     }
