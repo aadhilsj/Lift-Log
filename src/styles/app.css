@@ -154,6 +154,18 @@
       .mobile-tab-indicator { position:absolute;top:0;bottom:0;left:0;width:calc((100% - 12px) / 5);border-radius:999px;background:rgba(78,205,196,.12);box-shadow:inset 0 0 0 0.5px rgba(78,205,196,.16),0 8px 18px rgba(78,205,196,.08);transform:translateX(calc(var(--mobile-active-slot) * (100% + 3px)));transition:transform .18s cubic-bezier(.2,.82,.18,1);pointer-events:none;z-index:0; }
       .mobile-tab { position:relative;z-index:1;min-height:46px;border-radius:999px;background:transparent;border:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;color:rgba(78,205,196,.38);transition:color .16s ease; }
       .mobile-tab.on { color:var(--cyan); }
+      /* "Lift": the active tab's icon and label grow and rise a little as the
+         pill arrives, so the row reacts to the change rather than only the
+         pill. No overshoot -- a bounce reads as playful the first few times
+         and as a toy by the hundredth, and this tab gets pressed daily. The
+         wrapper carries the button's own column layout, so at rest it renders
+         exactly as it did before. Its transition comes from the shared screen
+         settle, inline, so icon and pill move as one. */
+      .mobile-tab-inner { display:flex;flex-direction:column;align-items:center;gap:2px;will-change:transform; }
+      .mobile-tab.on .mobile-tab-inner { transform:translateY(-1.5px) scale(1.16); }
+    @media (prefers-reduced-motion: reduce) {
+      .mobile-tab-inner, .mobile-tab-indicator { transition-duration:1ms !important; }
+    }
       .mobile-plus-tab-wrap { position:relative;z-index:2;display:flex;align-items:center;justify-content:center;min-height:46px; }
       .mobile-plus-tab { position:absolute;left:50%;top:50%;width:62px;height:62px;border-radius:999px;border:5px solid rgba(5,10,10,.86);background:#4ECDC4;color:#fff;display:inline-flex;align-items:center;justify-content:center;transform:translate(-50%,-58%);box-shadow:0 17px 36px rgba(78,205,196,.28),0 0 0 1px rgba(255,255,255,.14) inset; }
       .in-bloc-profile-layer { top:calc(env(safe-area-inset-top) + 45px);bottom:0;padding-bottom:var(--bottom-scroll-clearance); }
