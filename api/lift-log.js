@@ -4222,7 +4222,7 @@ async function fetchAnteCurrentExcusedAndSitouts() {
     // absent (zero-row empty-state case).
     const openSeasonMonthKeys = openSeasonRows.reduce((acc, row) => {
       const key = typeof row?.legacy_group_key === "string" ? row.legacy_group_key : "";
-      if (key && row.month_key) acc[key] = row.month_key;
+      if (key && row.month_key && (!acc[key] || compareMonthKeys(row.month_key, acc[key]) > 0)) acc[key] = row.month_key;
       return acc;
     }, {});
 
