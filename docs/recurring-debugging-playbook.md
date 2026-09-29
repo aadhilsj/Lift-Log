@@ -419,8 +419,9 @@ Fix rules:
 
 ## A Band At The Bottom Of A Full-Screen Sheet, PWA Only
 
-**Measured on a physical installed iOS PWA on 29 September 2026.** Four earlier
-attempts failed. Read this before changing the Stream geometry again.
+**SOLVED 30 September 2026**, after four failed attempts, by measuring it on a
+physical iPhone rather than reasoning from source. Two commits: `ebb80be` and
+`06564c4`. Read this before changing the Stream geometry again.
 
 Symptoms:
 - A band across the very bottom of the Bloc Stream, and of a comment thread
@@ -471,7 +472,7 @@ job is to find what should be covering it and is not.
 6. **Not the rest of the merge.** The only other files it touched are icons in
    `primitives.jsx` and unrelated screens.
 
-### What nobody has done, and what to do next
+### What it actually is, measured on a physical iPhone
 
 **Physical-phone result:** a standalone test PWA with the app's viewport meta,
 a red `html` canvas, and a blue `position:fixed; inset:0` element showed the
@@ -491,10 +492,58 @@ opened as an installed PWA on the physical iPhone: the Stream's bottom edge
 was continuous. The previously tried global `#070C0C` canvas left a dark slab
 because it did not match the composer's bottom color.
 
-Note the founder's own lead, which is the strongest one and is not yet fully
-chased: **it did not happen before the merge.** Something in that merge made a
-region stop being covered. Suspects 3–6 above are eliminated; the diff is small
-enough to read line by line.
+### The two fixes that shipped, 29–30 September 2026
+
+Both are live on `main` and both were confirmed by Aadhil on his installed PWA.
+
+**1. `ebb80be` — paint the strip the composer's colour.** While the Stream, or a
+comment thread opened *from* the Stream, is on screen, `App.jsx` sets
+`document.documentElement.style.backgroundColor = "#05090a"` and restores it on
+close. `#05090a` is the composer's resolved colour on both surfaces:
+`rgba(5,9,10,.55)` over a sheet ending `#05090a` in `BlocStream`, and
+`rgba(5,9,10,.96)` over `#080F0F` in `LogCommentThread`, which computes to
+`rgb(5,9,10)`. The four earlier attempts painted `--bg-primary` (`#070C0C`),
+the *page* colour, which is why a visibly different slab remained.
+
+**2. `06564c4` — stop the composer paying for the home indicator twice.** With
+the strip now matching, what was left read as dead space: 28px of composer
+padding **plus** `env(safe-area-inset-bottom)` (34px) **plus** the ~47px strip —
+about 109px under the last line of text. The inset exists to clear the home
+indicator, but in an installed PWA the strip is taller than the inset and the
+indicator sits inside it, so the clearance already existed. `app.css` defines
+`--composer-bottom-pad: calc(28px + env(safe-area-inset-bottom))` and `App.jsx`
+overrides it to `28px` when standalone. 109px → 75px.
+
+Fix rules:
+
+- **In an installed iOS PWA there is a strip below the fixed viewport that no
+  element can reach.** An element extended 80px past the viewport was clipped
+  entirely. Only the document canvas paints there. This is the one case where
+  "stop painting it" does not apply — but paint it the colour of *whatever sits
+  directly above it*, not the page colour.
+- **Guard native explicitly.** The packaged app has no strip and still needs its
+  safe-area padding. Use `standalone && !Capacitor.isNativePlatform()`, not
+  `display-mode` alone — a WKWebView's display-mode is not worth betting a
+  native layout on.
+- **A `var()` inside a shorthand is a trap.** `padding: "10px 12px
+  var(--x)"` with `--x` undefined invalidates **all four sides**, silently. If
+  you move a shorthand component into a custom property, measure
+  `getComputedStyle` on all four sides before shipping.
+- Do not report `test:auth-edge-flows` or `test:mobile-navigation` as caused by
+  a change without re-running them on untouched `origin/main`. They fail there
+  too, **even with an app on `127.0.0.1:3000`**.
+
+**Two things are still unexplained.** Neither blocks anything; both matter if
+this returns:
+
+1. **Why it only became visible after the 29 September merge.** `body {
+   background: var(--bg-gradient) }` is unchanged by that merge, and before it
+   body's background propagated to the canvas — so the strip, and its colour
+   mismatch with the composer, appear to *predate* the merge.
+2. **Why a comment thread opened from the Activity feed was always clean.** Same
+   composer colour, same uncovered strip, and Aadhil confirmed on 30 September
+   that it has a clean bottom edge. Under the explanation above it should band
+   too. It does not, and fix 1 deliberately does not touch that route.
 
 ### Method note that cost three rounds
 
