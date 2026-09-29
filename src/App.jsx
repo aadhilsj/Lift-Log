@@ -279,7 +279,20 @@ const IN_BLOC_PAGES = ["today", "activity", "month", "history"];
 const SCREEN_SETTLE_MS = 200;
 const SCREEN_SETTLE_EASING = "cubic-bezier(.32,.72,0,1)";
 const SCREEN_SETTLE_TRANSITION = `transform ${SCREEN_SETTLE_MS}ms ${SCREEN_SETTLE_EASING}`;
+// The nav lift runs slightly shorter than the screen so it finishes just as
+// the screen arrives rather than chasing it.
+const TAB_LIFT_MS = Math.round(SCREEN_SETTLE_MS * 0.8);
+const TAB_LIFT_TRANSITION = `transform ${TAB_LIFT_MS}ms ${SCREEN_SETTLE_EASING}`;
 const PAGE_TAP_TRANSITION_MS = SCREEN_SETTLE_MS;
+
+// How far a page dims as it travels a full screen away. Sliding alone read as
+// one screen being swapped for another; fading the outgoing page out as the
+// incoming one comes up is what makes the change feel like a transition
+// rather than a replacement. It stops short of transparent so the Bloc
+// background never shows through as a hole mid-swipe.
+const PAGE_FADE_DEPTH = 0.72;
+const pageFadeFor = (offsetX, width) =>
+  1 - Math.min(1, Math.abs(offsetX) / (width || 1)) * PAGE_FADE_DEPTH;
 
 const applyInBlocPageTransforms = ({ layers, activePage, dragX = 0, dragging = false, animate = true, width }) => {
   const activeIndex = IN_BLOC_PAGES.indexOf(activePage);
@@ -288,7 +301,10 @@ const applyInBlocPageTransforms = ({ layers, activePage, dragX = 0, dragging = f
     if (!el) return;
     const offsetX = (index - activeIndex) * width + dragX;
     el.style.transform = offsetX ? `translateX(${offsetX}px)` : "none";
-    el.style.transition = dragging || !animate ? "none" : SCREEN_SETTLE_TRANSITION;
+    el.style.opacity = String(pageFadeFor(offsetX, width));
+    el.style.transition = dragging || !animate
+      ? "none"
+      : `${SCREEN_SETTLE_TRANSITION}, opacity ${SCREEN_SETTLE_MS}ms ${SCREEN_SETTLE_EASING}`;
     el.style.boxShadow = pageName === activePage && dragX ? "-18px 0 34px rgba(0,0,0,.24)" : "none";
     el.style.willChange = dragging || dragX ? "transform" : "auto";
   });
@@ -497,6 +513,23 @@ const App = () => {
   // transition:none over a settle that is still running.
   const pageReleasingRef = useRef(false);
   const tabIndicatorRef = useRef(null);
+  // Sets the lift straight on the DOM so it can start at release, before
+  // React knows the page changed. Passing null hands control back to the .on
+  // class, which is only safe once that render has happened.
+  const applyTabLift = useCallback((targetPage) => {
+    const grid = tabIndicatorRef.current?.parentElement;
+    if (!grid) return;
+    grid.querySelectorAll(".mobile-tab").forEach(btn => {
+      if (targetPage === null) {
+        btn.style.removeProperty("--lift-y");
+        btn.style.removeProperty("--lift-scale");
+        return;
+      }
+      const on = btn.dataset.page === targetPage;
+      btn.style.setProperty("--lift-y", on ? "-1.5px" : "0px");
+      btn.style.setProperty("--lift-scale", on ? "1.16" : "1");
+    });
+  },[]);
   const switcherSurfaceRef = useRef(null);
   const switcherScrollTopRef = useRef(0);
   const switcherRestoreScrollRef = useRef(null);
@@ -2066,6 +2099,7 @@ const App = () => {
     pageSwipeRef.current = {sx:0,sy:0,active:false,mode:null,target:null,priority:null};
     pageDragXRef.current = 0;
     pageReleasingRef.current = false;
+    applyTabLift(null);
     cancelSwipeFrame(pageFrameRef);
     applyPageTransforms(0, false);
     setPageDragging(false);
@@ -2160,6 +2194,7 @@ const App = () => {
       if (tabIndicatorRef.current && targetSlot !== undefined) {
         tabIndicatorRef.current.style.setProperty("--mobile-active-slot", targetSlot);
       }
+      applyTabLift(s.target);
       releaseSwipeForward({
         dragRef: pageDragXRef,
         frameRef: pageFrameRef,
@@ -2176,7 +2211,8 @@ const App = () => {
           trackPageOpen(s.target, null);
           setPage(s.target);
           setPageSwipeTarget(null);
-        }
+        },
+        cleanup: () => applyTabLift(null)
       });
     } else {
       pageReleasingRef.current = false;
@@ -2296,7 +2332,7 @@ const App = () => {
       // Picking a Bloc here lands on Today, which is a screen open like any
       // other. It used to call setPage directly and record nothing, so every
       // Bloc switch was a Today Screen visit the dashboard never saw.
-      onOpenGroup: inert ? ()=>{} : groupId=>{ switcherRestoreScrollRef.current = switcherScrollTopRef.current; window.scrollTo({top:0,left:0,behavior:"auto"}); setSuppressSwitcherIntro(false); setMonthInitialIdx(null); persistGroupSelection(groupId); trackPageOpen("today", null); setPage("today"); },
+      onOpenGroup: inert ? ()=>{} : groupId=>{ void tapLight(); switcherRestoreScrollRef.current = switcherScrollTopRef.current; window.scrollTo({top:0,left:0,behavior:"auto"}); setSuppressSwitcherIntro(false); setMonthInitialIdx(null); persistGroupSelection(groupId); trackPageOpen("today", null); setPage("today"); },
       onCreateGroup: inert ? ()=>{} : handleCreateGroup,
       onJoinGroup: inert ? ()=>{} : ()=>setShowJoinModal(true),
       suppressIntro
@@ -3435,7 +3471,15 @@ const App = () => {
           ? (pageTapTransition.phase === "staged" ? `translateX(${pageTapTransition.direction * screenWidth}px)` : "none")
           : null;
       const tapTransitionStyle = tapTransitionParticipant
-        ? (pageTapTransition.phase === "staged" ? "none" : `transform ${PAGE_TAP_TRANSITION_MS}ms ${SCREEN_SETTLE_EASING}`)
+        ? (pageTapTransition.phase === "staged" ? "none" : `transform ${PAGE_TAP_TRANSITION_MS}ms ${SCREEN_SETTLE_EASING}, opacity ${PAGE_TAP_TRANSITION_MS}ms ${SCREEN_SETTLE_EASING}`)
+        : null;
+      // Same fade as the swipe, so a tap and a swipe to the same screen look
+      // identical. A staged page starts dimmed a screen away and comes up as
+      // it slides in; the one leaving does the reverse.
+      const tapOpacity = tapTransitionParticipant
+        ? (pageName === pageTapTransition.to
+            ? (pageTapTransition.phase === "staged" ? 1 - PAGE_FADE_DEPTH : 1)
+            : (pageTapTransition.phase === "staged" ? 1 : 1 - PAGE_FADE_DEPTH))
         : null;
       return React.createElement('div',{
         key:pageName,
@@ -3464,7 +3508,8 @@ const App = () => {
           pointerEvents:active&&!pageTapTransition?"auto":"none",
           visibility:near?"visible":"hidden",
           transform:tapTransitionParticipant ? tapTransform : offsetX ? `translateX(${offsetX}px)` : "none",
-          transition:tapTransitionParticipant ? tapTransitionStyle : (pageDragging&&!pageReleasingRef.current)?"none":SCREEN_SETTLE_TRANSITION,
+          opacity:tapOpacity !== null ? tapOpacity : pageFadeFor(offsetX, screenWidth),
+          transition:tapTransitionParticipant ? tapTransitionStyle : (pageDragging&&!pageReleasingRef.current)?"none":`${SCREEN_SETTLE_TRANSITION}, opacity ${SCREEN_SETTLE_MS}ms ${SCREEN_SETTLE_EASING}`,
           boxShadow:active&&pageDragXRef.current?"-18px 0 34px rgba(0,0,0,.24)":"none",
           willChange:tapTransitionParticipant||pageDragging||pageDragXRef.current?"transform":"auto"
         },
@@ -3537,7 +3582,7 @@ const App = () => {
     }),
     page==="today"&&(blocDragging||Math.abs(Number(blocDragXRef.current)||0)>0)&&renderGroupSwitcherSurface({ inert:true, suppressIntro:true }),
     activeBlocSurface,
-    !showSettings && React.createElement(Nav,{onlyMobileBottomNav:true,page,setPage:handleNavSelect,user:currentUser,currentUserId:effectiveAuthSession?.userId||"",profilePhotoUrl:effectiveProfile?.profilePhotoUrl||"",groupName:currentGroup.name,canEditGroup:isGroupAdmin,settingsAlert:pendingRequestCount>0,onOpenSettings:()=>{trackUsage("settings_opened");setSettingsInitialTab("invite");setShowSettings(true)},onOpenStream:handleOpenStream,onOpenNotifications:handleOpenNotifications,streamUnreadCount,onSwitchUser:handleSwitchUser,onSwitchGroup:handleSwitchBlocTracked,onOpenLog:()=>{setPage("today");setShowTodayLog(true);},syncing,lastSyncedAt,syncError,onRefresh:refreshNow,showJustSynced,activityAlertCount,mobileBottomDragX:blocDragXRef.current,mobileBottomNavRef:blocBottomNavRef,mobileBottomDragging:blocDragging&&!blocReleasingRef.current,mobileBottomSettle:`transform ${BLOC_SWIPE_SETTLE_MS}ms ${BLOC_SWIPE_EASING}`,mobileTabIndicatorRef:tabIndicatorRef,mobileTabSettle:SCREEN_SETTLE_TRANSITION}),
+    !showSettings && React.createElement(Nav,{onlyMobileBottomNav:true,page,setPage:handleNavSelect,user:currentUser,currentUserId:effectiveAuthSession?.userId||"",profilePhotoUrl:effectiveProfile?.profilePhotoUrl||"",groupName:currentGroup.name,canEditGroup:isGroupAdmin,settingsAlert:pendingRequestCount>0,onOpenSettings:()=>{trackUsage("settings_opened");setSettingsInitialTab("invite");setShowSettings(true)},onOpenStream:handleOpenStream,onOpenNotifications:handleOpenNotifications,streamUnreadCount,onSwitchUser:handleSwitchUser,onSwitchGroup:handleSwitchBlocTracked,onOpenLog:()=>{setPage("today");setShowTodayLog(true);},syncing,lastSyncedAt,syncError,onRefresh:refreshNow,showJustSynced,activityAlertCount,mobileBottomDragX:blocDragXRef.current,mobileBottomNavRef:blocBottomNavRef,mobileBottomDragging:blocDragging&&!blocReleasingRef.current,mobileBottomSettle:`transform ${BLOC_SWIPE_SETTLE_MS}ms ${BLOC_SWIPE_EASING}`,mobileTabIndicatorRef:tabIndicatorRef,mobileTabSettle:SCREEN_SETTLE_TRANSITION,mobileTabLiftSettle:TAB_LIFT_TRANSITION}),
     renderInviteJoinToast(),
     renderProfilePhotoToast(),
     renderInviteDownloadPrompt(),
