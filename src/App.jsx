@@ -95,7 +95,7 @@ import {
 import { Spinner, TodayScreenSkeleton, BlocSwitcherSkeleton, InstallBanner, TodayPageErrorBoundary, InBlocPageErrorBoundary } from "./components/primitives.jsx";
 import { PreviewLanding, InvalidInviteScreen, SignedOutLanding, ProfileModal, JoinGroupModal, AuthFlowModal, DisplayNameSetupScreen, IdentitySetup, CreatedBlocInviteScreen, GroupHome, GroupAccessNotice, LocalDevImpersonationBar } from "./components/authShell.jsx";
 import { GroupCreateModal, ProrationChoiceModal, TrainingChoiceModal } from "./modals/modals.jsx";
-import { Nav } from "./pages/Nav.jsx";
+import { Nav, MOBILE_PAGE_SLOTS } from "./pages/Nav.jsx";
 import { TodayPage } from "./pages/TodayPage.jsx";
 import { ActivityPage } from "./pages/ActivityPage.jsx";
 import { MonthPage } from "./pages/MonthPage.jsx";
@@ -277,7 +277,7 @@ const IN_BLOC_PAGES = ["today", "activity", "month", "history"];
 // screens read as abrupt and inconsistent. Both the CSS duration and the commit
 // delay must keep coming from here: a mismatch either cuts the animation off or
 // leaves a gap.
-const SCREEN_SETTLE_MS = 260;
+const SCREEN_SETTLE_MS = 200;
 const SCREEN_SETTLE_EASING = "cubic-bezier(.32,.72,0,1)";
 const SCREEN_SETTLE_TRANSITION = `transform ${SCREEN_SETTLE_MS}ms ${SCREEN_SETTLE_EASING}`;
 const PAGE_TAP_TRANSITION_MS = SCREEN_SETTLE_MS;
@@ -508,6 +508,7 @@ const App = () => {
   // until the destination commits, so a stray re-render cannot write
   // transition:none over a settle that is still running.
   const pageReleasingRef = useRef(false);
+  const tabIndicatorRef = useRef(null);
   const switcherSurfaceRef = useRef(null);
   const switcherScrollTopRef = useRef(0);
   const switcherRestoreScrollRef = useRef(null);
@@ -1905,6 +1906,8 @@ const App = () => {
       // an iPhone, which is the whole reason the transition read as laggy. The
       // settle is already driven by the imperative transform, so the state
       // updates fold into the commit render that has to happen anyway.
+      // Same as the tab swipe: the buzz answers the finger lifting.
+      void tapLight();
       blocReleasingRef.current = true;
       releaseSwipeForward({
         dragRef: blocDragXRef,
@@ -2159,6 +2162,15 @@ const App = () => {
       // re-render of this tree as the finger lifts eats the settle's first
       // frames. setPageDragging folds into the commit render below.
       pageReleasingRef.current = true;
+      // The indicator used to move only when `page` committed. At an 80ms
+      // settle that was invisible; at this settle it left the pill sliding
+      // long after the screen had arrived. Move it here, by hand, so it
+      // travels with the screen -- React writes the same slot at commit, so
+      // there is nothing left to animate by then.
+      const targetSlot = MOBILE_PAGE_SLOTS[s.target];
+      if (tabIndicatorRef.current && targetSlot !== undefined) {
+        tabIndicatorRef.current.style.setProperty("--mobile-active-slot", targetSlot);
+      }
       releaseSwipeForward({
         dragRef: pageDragXRef,
         frameRef: pageFrameRef,
@@ -3385,7 +3397,7 @@ const App = () => {
   }
 
   const renderInBlocPage = (pageName, { swipePreview=false } = {}) => React.createElement('div',{
-    style:{paddingBottom:isMobileView?"var(--bottom-nav-clearance)":0}
+    style:{paddingBottom:isMobileView?"var(--bottom-scroll-clearance)":0}
   },
     pageName==="today"  &&React.createElement(TodayPageErrorBoundary,{resetKey:`${selectedGroupId}:${navResetToken}:${currentUser}`},
       React.createElement(TodayPage,  {user:currentUser,currentUserId:effectiveAuthSession?.userId,currentGroupId:selectedGroupId,groups,profiles:appState?.profiles||{},accountCreatedAt:profile?.createdAt,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,saving,onSave:handleSave,onMultiLog:handleMultiLog,onLogMutation:handleLogMutation,clockTick,onViewLastMonth:()=>{setMonthInitialIdx(0);setPage("month");},onOpenMonth:()=>{setMonthInitialIdx(null);setPage("month");},onSettlementClaimPaid:handleSettlementClaimPaid,onSettlementConfirmPaid:handleSettlementConfirmPaid,onSettlementDisputePaid:handleSettlementDisputePaid,onOpenSetupReview:handleOpenSetupReview,onOpenAccount:()=>setShowProfile(true),navResetToken,showLog:showTodayLog,setShowLog:setShowTodayLog,onTrackUsage:trackUsage,currentPaymentMethods:effectiveProfile?.paymentMethods||[],onSavePayment:handleSavePaymentHandle,savingPayment:paymentSaving,paymentError:paymentError})
@@ -3535,7 +3547,7 @@ const App = () => {
     }),
     page==="today"&&(blocDragging||Math.abs(Number(blocDragXRef.current)||0)>0)&&renderGroupSwitcherSurface({ inert:true, suppressIntro:true }),
     activeBlocSurface,
-    !showSettings && React.createElement(Nav,{onlyMobileBottomNav:true,page,setPage:handleNavSelect,user:currentUser,currentUserId:effectiveAuthSession?.userId||"",profilePhotoUrl:effectiveProfile?.profilePhotoUrl||"",groupName:currentGroup.name,canEditGroup:isGroupAdmin,settingsAlert:pendingRequestCount>0,onOpenSettings:()=>{trackUsage("settings_opened");setSettingsInitialTab("invite");setShowSettings(true)},onOpenStream:handleOpenStream,streamUnreadCount,onSwitchUser:handleSwitchUser,onSwitchGroup:handleSwitchBlocTracked,onOpenLog:()=>{setPage("today");setShowTodayLog(true);},syncing,lastSyncedAt,syncError,onRefresh:refreshNow,showJustSynced,activityAlertCount,mobileBottomDragX:blocDragXRef.current,mobileBottomNavRef:blocBottomNavRef,mobileBottomDragging:blocDragging&&!blocReleasingRef.current,mobileBottomSettle:`transform ${BLOC_SWIPE_SETTLE_MS}ms ${BLOC_SWIPE_EASING}`}),
+    !showSettings && React.createElement(Nav,{onlyMobileBottomNav:true,page,setPage:handleNavSelect,user:currentUser,currentUserId:effectiveAuthSession?.userId||"",profilePhotoUrl:effectiveProfile?.profilePhotoUrl||"",groupName:currentGroup.name,canEditGroup:isGroupAdmin,settingsAlert:pendingRequestCount>0,onOpenSettings:()=>{trackUsage("settings_opened");setSettingsInitialTab("invite");setShowSettings(true)},onOpenStream:handleOpenStream,streamUnreadCount,onSwitchUser:handleSwitchUser,onSwitchGroup:handleSwitchBlocTracked,onOpenLog:()=>{setPage("today");setShowTodayLog(true);},syncing,lastSyncedAt,syncError,onRefresh:refreshNow,showJustSynced,activityAlertCount,mobileBottomDragX:blocDragXRef.current,mobileBottomNavRef:blocBottomNavRef,mobileBottomDragging:blocDragging&&!blocReleasingRef.current,mobileBottomSettle:`transform ${BLOC_SWIPE_SETTLE_MS}ms ${BLOC_SWIPE_EASING}`,mobileTabIndicatorRef:tabIndicatorRef,mobileTabSettle:SCREEN_SETTLE_TRANSITION}),
     renderInviteJoinToast(),
     renderProfilePhotoToast(),
     renderInviteDownloadPrompt(),

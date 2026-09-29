@@ -61,15 +61,18 @@ const BlocNameButton = ({ groupName, onSwitchGroup }) => {
   );
 };
 
+// Slot 2 is the centre log button, so Month and History sit at 3 and 4. App.jsx
+// moves the indicator imperatively at swipe release and needs the same map.
+const MOBILE_PAGE_SLOTS = { today: 0, activity: 1, month: 3, history: 4 };
+
 const SettingsDot = () => React.createElement('span',{style:{position:"absolute",top:2,right:2,width:7,height:7,borderRadius:999,background:"#4ECDC4",boxShadow:"0 0 0 1.5px #050909"}});
 
-const Nav = ({page,setPage,user,groupName,canEditGroup,onOpenSettings,settingsAlert=false,onOpenProfile,onOpenStream,streamUnreadCount=0,onSwitchUser,onSwitchGroup,onOpenLog,syncing,lastSyncedAt,syncError,onRefresh,showJustSynced,activityAlertCount=0,hideMobileBottomNav=false,onlyMobileBottomNav=false,mobileBottomDragX=0,mobileBottomDragging=false,mobileBottomNavRef=null,mobileBottomSettle="transform .08s ease-out",currentUserId="",profilePhotoUrl=""}) => {
+const Nav = ({page,setPage,user,groupName,canEditGroup,onOpenSettings,settingsAlert=false,onOpenProfile,onOpenStream,streamUnreadCount=0,onSwitchUser,onSwitchGroup,onOpenLog,syncing,lastSyncedAt,syncError,onRefresh,showJustSynced,activityAlertCount=0,hideMobileBottomNav=false,onlyMobileBottomNav=false,mobileBottomDragX=0,mobileBottomDragging=false,mobileBottomNavRef=null,mobileBottomSettle="transform .08s ease-out",mobileTabIndicatorRef=null,mobileTabSettle=null,currentUserId="",profilePhotoUrl=""}) => {
   const navItems = [["today","Today","today"],["activity","Activity","activity"],["month","Month","results"],["history","History","history"]];
-  const mobilePageSlots = { today: 0, activity: 1, month: 3, history: 4 };
-  const mobileActiveSlot = mobilePageSlots[page] ?? 0;
+  const mobileActiveSlot = MOBILE_PAGE_SLOTS[page] ?? 0;
   const mobileBottomNavBar = React.createElement('div',{ref:mobileBottomNavRef,className:"mobile-only mobile-bottom-nav",style:{transform:mobileBottomDragX?`translateX(${mobileBottomDragX}px)`:"none",transition:mobileBottomDragging?"none":mobileBottomSettle,willChange:mobileBottomDragging||mobileBottomDragX?"transform":"auto"}},
     React.createElement('div',{className:"mobile-bottom-nav-grid"},
-      React.createElement('div',{className:"mobile-tab-indicator",style:{"--mobile-active-slot":mobileActiveSlot}}),
+      React.createElement('div',{ref:mobileTabIndicatorRef,className:"mobile-tab-indicator",style:{"--mobile-active-slot":mobileActiveSlot,transition:mobileTabSettle||undefined}}),
       [
         ["today","Today","today"],
         ["activity","Activity","activity"],
@@ -84,11 +87,13 @@ const Nav = ({page,setPage,user,groupName,canEditGroup,onOpenSettings,settingsAl
               )
             )
           : React.createElement('button',{key:id,onClick:()=>setPage(id),className:`mobile-tab${page===id?" on":""}`,"aria-current":page===id?"page":undefined},
-          React.createElement('div',{style:{position:"relative",display:"inline-flex",alignItems:"center",justifyContent:"center"}},
-            React.createElement('span',{style:{fontSize:18,lineHeight:1,display:"inline-flex"}},React.createElement(AppIcon,{name:icon,size:18})),
-            id==="activity" && activityAlertCount>0 && React.createElement('span',{className:"mono",style:{position:"absolute",top:-6,right:-14,minWidth:18,height:18,padding:"0 5px",borderRadius:999,background:"rgba(232,69,69,.18)",border:"1px solid rgba(232,69,69,.28)",fontSize:9,color:"#ff9c9c",display:"inline-flex",alignItems:"center",justifyContent:"center"}},activityAlertCount)
-          ),
-          React.createElement('span',{style:{fontSize:11,fontWeight:700}},label)
+          React.createElement('span',{className:"mobile-tab-inner",style:{transition:mobileTabSettle||undefined}},
+            React.createElement('div',{style:{position:"relative",display:"inline-flex",alignItems:"center",justifyContent:"center"}},
+              React.createElement('span',{style:{fontSize:18,lineHeight:1,display:"inline-flex"}},React.createElement(AppIcon,{name:icon,size:18})),
+              id==="activity" && activityAlertCount>0 && React.createElement('span',{className:"mono",style:{position:"absolute",top:-6,right:-14,minWidth:18,height:18,padding:"0 5px",borderRadius:999,background:"rgba(232,69,69,.18)",border:"1px solid rgba(232,69,69,.28)",fontSize:9,color:"#ff9c9c",display:"inline-flex",alignItems:"center",justifyContent:"center"}},activityAlertCount)
+            ),
+            React.createElement('span',{style:{fontSize:11,fontWeight:700}},label)
+          )
         )
       )
     )
@@ -154,4 +159,4 @@ const Nav = ({page,setPage,user,groupName,canEditGroup,onOpenSettings,settingsAl
 );};
 
 
-export { Nav };
+export { Nav, MOBILE_PAGE_SLOTS };
