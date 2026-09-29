@@ -21,7 +21,7 @@ installation. Cancelled Bloc back-swipe optimization remains deliberately open.
 Bell stays inert, Bloc name auto-shrinking remains. Existing config 2.xml and
 config 3.xml preserved and excluded from commits.
 
-## Verification and distribution — in progress
+## Verification and distribution — confirmed Testing in Fero Team
 
 Fresh lint, web build and Capacitor sync passed. A focused source/VM check in
 `/tmp/Fero-build-7-haptics-check.mjs` passed: one press-time call for a single
@@ -46,7 +46,16 @@ Signing override: `/tmp/Fero-Build7-NoPush.entitlements` (empty plist).
 Upload options: `/tmp/Fero-Build7-ExportOptions.plist` (internal-only, existing
 manual profile, no automatic build-number management or provisioning updates).
 Upload log: `/tmp/Fero-build-7-upload.log`.
-Do not repeat a successful upload. Final outcomes will be recorded below.
+Apple confirmed `Upload succeeded`, `Uploaded App` and `EXPORT SUCCEEDED` at
+06:31:25 Europe/Oslo on 29 September. Do not repeat the upload.
+The Fero Team Builds page subsequently confirmed `1.0 (7)`, Internal, `Testing`,
+expires in 90 days. Build ID: `d3730aba-aac7-42c8-8550-ca33c45a50d7`.
+No tester permissions or group settings changed. The native Chrome observation
+briefly showed a blank page; the browser-extension view of the fresh tab resolved
+and confirmed the build row. Temporary verification tab closed afterwards.
+Next: install build 7 on the real iPhone to assess press-time haptics, tab haptics,
+shared settle and the switcher landing. Physical haptic/smoothness not verified
+by Codex; no simulator reinstall was performed.
 
 ## Exact tracked file list relative to build 6
 
