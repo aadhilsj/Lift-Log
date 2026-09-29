@@ -416,3 +416,178 @@ Fix rules:
   2. Vercel has a production deployment for that exact commit, and it is Ready;
   3. the live bundle contains the changed code (search it for a string the change introduced).
 - If step 2 is missing: in Vercel, Deployments → Create Deployment, give the full commit SHA, choose Deploy to Production. The founder has to be signed in to Vercel.
+
+## A Band At The Bottom Of A Full-Screen Sheet, PWA Only
+
+**UNSOLVED as of 29 September 2026.** Four attempts failed. Read this before
+attempting a fifth, and do not repeat any of them.
+
+Symptoms:
+- A band across the very bottom of the Bloc Stream, and of a comment thread
+  opened from the Bloc Stream, below the composer.
+- On the installed PWA only. The packaged TestFlight app never shows it.
+- Opening a comment thread from the **Activity feed** is clean; only the Stream
+  route shows it.
+- First seen 29 September, immediately after a month of iPhone app work was
+  merged to `main`. It did not happen on the website before that merge.
+
+### The one thing that is established
+
+**The band's colour is always whatever the page canvas is painted.** Four data
+points, all consistent:
+
+| canvas | band |
+| --- | --- |
+| unpainted (no `html` background) | white |
+| `html{background-color:#070C0C}` | dark slab |
+| `html{background-image:<gradient>}` via shorthand | white again — the shorthand resets `background-color` to transparent |
+| both colour and image | dark slab |
+
+So the band is **a region nothing covers**, showing through to the canvas.
+**Stop trying to paint it.** Painting only changes what colour the hole is. The
+job is to find what should be covering it and is not.
+
+### Ruled out, with evidence — do not re-derive these
+
+1. **It is not a code difference from build 9.** Diffed TestFlight build 9
+   (`dfc5b4e`, correct) against `main` for `BlocStream.jsx`,
+   `LogCommentThread.jsx` and `app.css`. After reverting the failed attempts the
+   only remaining difference is `LogCommentThread`'s error-state logic, which
+   has no geometry. Same code, native is right and PWA is wrong.
+2. **Not the sheet's alignment.** Pinning the sheet with
+   `position:absolute; bottom:0` inside its `fixed; inset:0` container changed
+   nothing. Reverted.
+3. **Not `.mobile-bottom-scrim` alone.** It *is* new in the merge (it does not
+   exist at `e9b7704`), it is `fixed; bottom:0`, 128px tall
+   (`--bottom-nav-offset + 104px`), and it carries `backdrop-filter: blur(7px)`.
+   It was mounting under the sheet because the bottom nav is only guarded by
+   `!showSettings`. It is now also guarded by `!showStream && !logCommentScreen`.
+   That removed the blur artifact but **not** the band.
+4. **Not the viewport meta.** `viewport-fit=cover` is identical before and after
+   the merge.
+5. **Not a transformed ancestor** (the rule elsewhere in this playbook that
+   breaks `position:fixed`). `BlocStream` is rendered as a **sibling** of the
+   transformed Bloc surface, not a descendant. Checked in `App.jsx`.
+6. **Not the rest of the merge.** The only other files it touched are icons in
+   `primitives.jsx` and unrelated screens.
+
+### What nobody has done, and what to do next
+
+**Reproduce it in a real installed iOS PWA and measure it.** Every attempt so far
+reasoned from source. Build the site, open it in the iOS Simulator's Safari, Add
+to Home Screen, open it from the home screen, and then measure — with the Web
+Inspector attached — what the bottom-most covering element's
+`getBoundingClientRect()` actually is versus `window.innerHeight` and
+`document.documentElement.clientHeight`.
+
+The specific question: **does `position:fixed; inset:0` reach the bottom of the
+screen in that environment?** If it does not, that is the whole bug and every
+full-screen overlay in the app has it. If it does, the gap is inside the sheet
+and the composer is the place to look.
+
+Note the founder's own lead, which is the strongest one and is not yet fully
+chased: **it did not happen before the merge.** Something in that merge made a
+region stop being covered. Suspects 3–6 above are eliminated; the diff is small
+enough to read line by line.
+
+### Method note that cost three rounds
+
+`background: var(--some-gradient)` is a **shorthand**. It sets
+`background-image` and resets `background-color` to `transparent`. On the root
+element a transparent background paints white. This was diagnosed only by
+reading `getComputedStyle(document.documentElement).backgroundColor` on the live
+page and finding `rgba(0,0,0,0)` while a gradient image was set. **Measure the
+running page before theorising about CSS.**
+
+## Two Touch Handlers That Classify The Same Drag Differently
+
+Symptoms:
+- Android users cannot scroll one particular screen. iOS is fine.
+- Every other screen scrolls normally.
+- First complaints July 2026.
+
+Root cause (fixed 29 September 2026, `b43d70f`):
+- `movePageSwipe` (the in-Bloc tab track) and `moveBlocSwitchSwipe` (the
+  Today-only left-edge back-swipe) used **identical thresholds and opposite
+  precedence**. The tab track checked `vertical` first; the back-swipe checked
+  `horizontal` first.
+- Both conditions are true for a wide band of ordinary drags — 10px across and
+  13px down satisfies both — so the same gesture was a scroll on one screen and
+  a navigation on Today.
+- Today is the only screen carrying both handlers, and the back-swipe only arms
+  within 72px of the left edge. On iOS that strip overlaps the system back-swipe
+  zone, so the OS intercepts most touches there; Android has no equivalent, so
+  they land every time. Nothing in the code is platform-specific.
+
+Fix rules:
+- **Two handlers that classify the same gesture must agree on precedence.** When
+  a drag reads as both, scrolling wins: scrolling is the common action,
+  navigating is the deliberate one.
+- When a bug is platform-specific but the code is not, look for a region or a
+  gesture the platform itself intercepts.
+- `startBlocSwitchSwipe` was introduced 16 July 2026 (`d9844b0`), which matches
+  when the complaints began. **Date the handler before theorising about the
+  platform.**
+
+## A Failed Load That Never Stops Looking Like Loading
+
+Symptoms:
+- A comment thread opens, shows its skeleton, and never resolves.
+- No error is visible. It retries silently forever.
+
+Root cause (fixed 29 September 2026, `e9b7704`):
+- `refresh()` in `src/components/LogCommentThread.jsx` set an error and returned
+  early on failure, never reaching `setLoaded(true)`. The render gate is
+  `comments.length === 0 && !loaded && knownCommentCount > 0`, so the skeleton
+  stayed up while a 3-second poll re-failed indefinitely.
+
+Fix rules:
+- **A failed load must reach a terminal state and say so**, with a way to retry.
+  This is the same family as "A Failed Mutation That Says Nothing" above: a real
+  failure presented as an endless wait is worse than an error.
+- Every early return on a failure path must still leave the UI in a state that
+  is not "still loading".
+
+## An Outage That Looks Like Data Loss
+
+Symptoms (29 September 2026, second occurrence after 22 September):
+- Reactions appear to be deleted. Comments never load.
+- Both recover on their own with no deploy.
+
+Root cause:
+- A Supabase outage, 16:31–16:45 UTC. Every endpoint returned 504 or 500 — 346
+  and 56 respectively in that hour, with every other hour clean.
+- **The writes succeeded and the reads failed.** Reactions written at 16:30–16:34
+  are all present in `ante_core.workout_reactions`. Only reading them back
+  failed, so the screen fell back and they looked deleted.
+
+Fix rules:
+- Before debugging apparent data loss, **check the edge logs for the window**:
+  `select toStartOfHour(timestamp), log_attributes['response.status_code'],
+  count(*) from logs where source='edge_logs' group by 1,2` — an hour that
+  carries hundreds of 504s and no other hour does is an outage, not a bug.
+- Confirm in the database whether the data is actually gone before touching any
+  code. Twice now it was not.
+- This is the third entry in this family. "I couldn't check" is never "it is
+  gone", just as it is never "you are not signed in".
+
+## Counting Test Passes By Grepping Output
+
+**The recipe in earlier handovers is wrong and reported false greens.**
+
+Matching failures on `^ *(FAIL|✗|✖)|tests? failed` counts a Playwright script
+that dies with a **Node stack trace** as a pass. `test:auth-edge-flows` and
+`test:mobile-navigation` both open `http://127.0.0.1:3000` and fail that way
+whenever no app is serving it — which is most of the time.
+
+Use the exit code:
+
+```bash
+for t in $(node -e "const p=require('./package.json');console.log(Object.keys(p.scripts).filter(k=>k.startsWith('test:')).join(' '))"); do
+  npm run "$t" >/tmp/t.log 2>&1
+  [ $? -eq 0 ] && echo "PASS $t" || echo "FAIL $t"
+done
+```
+
+Those two are environment-dependent, not broken. Serve the app on port 3000
+first, or report them as **not run** — never as passing.
