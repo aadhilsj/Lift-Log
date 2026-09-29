@@ -271,7 +271,15 @@ const SetupProgressScreen = ({stage="savingName"}) => {
 };
 
 const IN_BLOC_PAGES = ["today", "activity", "month", "history"];
-const PAGE_TAP_TRANSITION_MS = 180;
+// One settle for every screen-to-screen move in the app. Tab swipes were 80ms,
+// tab taps 180ms and the Bloc back-swipe 260ms, which is why moving between
+// screens read as abrupt and inconsistent. Both the CSS duration and the commit
+// delay must keep coming from here: a mismatch either cuts the animation off or
+// leaves a gap.
+const SCREEN_SETTLE_MS = 260;
+const SCREEN_SETTLE_EASING = "cubic-bezier(.32,.72,0,1)";
+const SCREEN_SETTLE_TRANSITION = `transform ${SCREEN_SETTLE_MS}ms ${SCREEN_SETTLE_EASING}`;
+const PAGE_TAP_TRANSITION_MS = SCREEN_SETTLE_MS;
 
 const applyInBlocPageTransforms = ({ layers, activePage, dragX = 0, dragging = false, animate = true, width }) => {
   const activeIndex = IN_BLOC_PAGES.indexOf(activePage);
@@ -280,7 +288,7 @@ const applyInBlocPageTransforms = ({ layers, activePage, dragX = 0, dragging = f
     if (!el) return;
     const offsetX = (index - activeIndex) * width + dragX;
     el.style.transform = offsetX ? `translateX(${offsetX}px)` : "none";
-    el.style.transition = dragging || !animate ? "none" : "transform .08s ease-out";
+    el.style.transition = dragging || !animate ? "none" : SCREEN_SETTLE_TRANSITION;
     el.style.boxShadow = pageName === activePage && dragX ? "-18px 0 34px rgba(0,0,0,.24)" : "none";
     el.style.willChange = dragging || dragX ? "transform" : "auto";
   });
@@ -293,8 +301,14 @@ const FOUNDER_DASHBOARD_AVAILABILITY_PREFIX = "fero_founder_dashboard_available:
 // transition applied in applyBlocTransforms: releaseSwipeForward commits after
 // exactly this long, so a mismatch either cuts the animation off or leaves a
 // gap. 80ms read as a snap rather than a glide.
-const BLOC_SWIPE_SETTLE_MS = 260;
-const BLOC_SWIPE_EASING = "cubic-bezier(.32,.72,0,1)";
+const BLOC_SWIPE_SETTLE_MS = SCREEN_SETTLE_MS;
+const BLOC_SWIPE_EASING = SCREEN_SETTLE_EASING;
+// The leaving surface carries a `-18px 0 34px` shadow, which is drawn to its
+// LEFT. Parked at exactly screenWidth it leaves a ~34px dark strip hugging the
+// right edge, and that strip disappeared in a single frame when the surface
+// unmounted -- the shake Aadhil saw as the switcher landed. Send it far enough
+// that the shadow clears the screen too, so there is nothing left to vanish.
+const BLOC_SWIPE_SHADOW_CLEARANCE = 40;
 // iOS commits an interactive back gesture around a third of the way across.
 // This was half the screen, so a deliberate drag could be refused.
 const BLOC_SWIPE_COMMIT_FRACTION = 0.32;
@@ -477,6 +491,10 @@ const App = () => {
   const pageTapTransitionFrameRef = useRef(null);
   const pageTapTransitionTimerRef = useRef(null);
   const pageTapTransitionIdRef = useRef(0);
+  // Same contract as blocReleasingRef: true from letting go of a tab swipe
+  // until the destination commits, so a stray re-render cannot write
+  // transition:none over a settle that is still running.
+  const pageReleasingRef = useRef(false);
   const switcherSurfaceRef = useRef(null);
   const switcherScrollTopRef = useRef(0);
   const switcherRestoreScrollRef = useRef(null);
@@ -1878,7 +1896,7 @@ const App = () => {
       releaseSwipeForward({
         dragRef: blocDragXRef,
         frameRef: blocFrameRef,
-        finalX: screenWidth,
+        finalX: screenWidth + BLOC_SWIPE_SHADOW_CLEARANCE,
         transitionMs: BLOC_SWIPE_SETTLE_MS,
         applyTransform: applyBlocTransforms,
         commit: () => {
@@ -1985,6 +2003,7 @@ const App = () => {
       animate:false,
       width:window.innerWidth || 420
     });
+    pageReleasingRef.current = false;
     setPageDragging(false);
     setPageSwipeTarget(null);
     pageSwipeRef.current = {sx:0,sy:0,active:false,mode:null,target:null,priority:null};
@@ -2041,6 +2060,7 @@ const App = () => {
   const resetPageSwipe = useCallback(() => {
     pageSwipeRef.current = {sx:0,sy:0,active:false,mode:null,target:null,priority:null};
     pageDragXRef.current = 0;
+    pageReleasingRef.current = false;
     cancelSwipeFrame(pageFrameRef);
     applyPageTransforms(0, false);
     setPageDragging(false);
@@ -2122,14 +2142,19 @@ const App = () => {
       // At release, not in commit: the buzz answers the finger lifting, and
       // waiting for the transition to finish would land it late.
       void tapLight();
+      // No React state here, for the same reason as the Bloc back-swipe: a
+      // re-render of this tree as the finger lifts eats the settle's first
+      // frames. setPageDragging folds into the commit render below.
+      pageReleasingRef.current = true;
       releaseSwipeForward({
         dragRef: pageDragXRef,
         frameRef: pageFrameRef,
         finalX: dx < 0 ? -screenWidth : screenWidth,
-        transitionMs: 80,
-        setDragging: setPageDragging,
+        transitionMs: SCREEN_SETTLE_MS,
         applyTransform: applyPageTransforms,
         commit: () => {
+          pageReleasingRef.current = false;
+          setPageDragging(false);
           // No `page` comparison here: this callback's deps do not include
           // page, so reading it would be stale. A committed swipe always lands
           // on an adjacent screen (adjacentInBlocPage returns index +/- 1), so
@@ -2140,10 +2165,11 @@ const App = () => {
         }
       });
     } else {
+      pageReleasingRef.current = false;
       releaseSwipeBack({
         dragRef: pageDragXRef,
         frameRef: pageFrameRef,
-        transitionMs: 80,
+        transitionMs: SCREEN_SETTLE_MS,
         setDragging: setPageDragging,
         applyTransform: applyPageTransforms,
         cleanup: () => setPageSwipeTarget(null)
@@ -3376,7 +3402,7 @@ const App = () => {
       height:inBlocViewportHeight,
       minHeight:0,
       overflow:"hidden",
-      transition:pageDragging?"none":"transform .08s ease-out",
+      transition:(pageDragging&&!pageReleasingRef.current)?"none":SCREEN_SETTLE_TRANSITION,
       willChange:pageDragging?"transform":"auto",
       touchAction:"pan-y"
     }
@@ -3395,7 +3421,7 @@ const App = () => {
           ? (pageTapTransition.phase === "staged" ? `translateX(${pageTapTransition.direction * screenWidth}px)` : "none")
           : null;
       const tapTransitionStyle = tapTransitionParticipant
-        ? (pageTapTransition.phase === "staged" ? "none" : `transform ${PAGE_TAP_TRANSITION_MS}ms cubic-bezier(.22,.61,.36,1)`)
+        ? (pageTapTransition.phase === "staged" ? "none" : `transform ${PAGE_TAP_TRANSITION_MS}ms ${SCREEN_SETTLE_EASING}`)
         : null;
       return React.createElement('div',{
         key:pageName,
@@ -3424,7 +3450,7 @@ const App = () => {
           pointerEvents:active&&!pageTapTransition?"auto":"none",
           visibility:near?"visible":"hidden",
           transform:tapTransitionParticipant ? tapTransform : offsetX ? `translateX(${offsetX}px)` : "none",
-          transition:tapTransitionParticipant ? tapTransitionStyle : pageDragging?"none":"transform .08s ease-out",
+          transition:tapTransitionParticipant ? tapTransitionStyle : (pageDragging&&!pageReleasingRef.current)?"none":SCREEN_SETTLE_TRANSITION,
           boxShadow:active&&pageDragXRef.current?"-18px 0 34px rgba(0,0,0,.24)":"none",
           willChange:tapTransitionParticipant||pageDragging||pageDragXRef.current?"transform":"auto"
         },
