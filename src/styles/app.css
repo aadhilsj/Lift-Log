@@ -159,8 +159,10 @@
          pill. No overshoot -- a bounce reads as playful the first few times
          and as a toy by the hundredth, and this tab gets pressed daily. The
          wrapper carries the button's own column layout, so at rest it renders
-         exactly as it did before. Its transition comes from the shared screen
-         settle, inline, so icon and pill move as one. */
+         exactly as it did before. Its transition is set inline from
+         TAB_LIFT_TRANSITION, which is deliberately shorter and more
+         front-loaded than the screen settle: the lift leads the screen instead
+         of moving with it. */
       /* The lift is driven by two variables rather than the .on class alone,
          because .on only flips when the destination commits -- a fifth of a
          second after the finger lifts, which read as the nav trailing the

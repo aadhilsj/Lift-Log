@@ -279,10 +279,18 @@ const IN_BLOC_PAGES = ["today", "activity", "month", "history"];
 const SCREEN_SETTLE_MS = 200;
 const SCREEN_SETTLE_EASING = "cubic-bezier(.32,.72,0,1)";
 const SCREEN_SETTLE_TRANSITION = `transform ${SCREEN_SETTLE_MS}ms ${SCREEN_SETTLE_EASING}`;
-// The nav lift runs slightly shorter than the screen so it finishes just as
-// the screen arrives rather than chasing it.
-const TAB_LIFT_MS = Math.round(SCREEN_SETTLE_MS * 0.8);
-const TAB_LIFT_TRANSITION = `transform ${TAB_LIFT_MS}ms ${SCREEN_SETTLE_EASING}`;
+// The nav lift runs shorter than the screen so it finishes before the screen
+// arrives rather than chasing it. At 0.8 it still read as late: it started on
+// time, but the shared settle eases out slowly, so the last of the growth
+// landed well after the screen had settled. Aadhil: "it happens like half a
+// second after I've landed on the screen." The fix is the curve as much as the
+// duration -- this easing is front-loaded, so almost all of the 1.5px rise and
+// the 1.16x growth happen in the first few frames and the lift is visibly done
+// while the pill is still travelling. Chosen from three speeds mocked against
+// the real nav bar: artifact SRh6yLr5LEuPJgvAqtMRRs, option 2 of 3.
+const TAB_LIFT_MS = Math.round(SCREEN_SETTLE_MS * 0.5);
+const TAB_LIFT_EASING = "cubic-bezier(.2,.9,.3,1)";
+const TAB_LIFT_TRANSITION = `transform ${TAB_LIFT_MS}ms ${TAB_LIFT_EASING}`;
 const PAGE_TAP_TRANSITION_MS = SCREEN_SETTLE_MS;
 
 // How far a page dims as it travels a full screen away. Sliding alone read as
