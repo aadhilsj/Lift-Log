@@ -1,5 +1,5 @@
 import React from "react";
-const { useState, useEffect, useMemo, useCallback, useRef } = React;
+const { useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef } = React;
 import { createPortal } from "react-dom";
 import { getLogDisplayActivity } from "../lib/activities.js";
 import {
@@ -40,6 +40,7 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
   const [responseTarget,setResponseTarget]=useState(null);
   const [responseText,setResponseText]=useState("");
   const [reactionTarget,setReactionTarget]=useState(null);
+  const [reactionPickerOffset,setReactionPickerOffset]=useState({postId:null,x:0});
   const [reactionPopover,setReactionPopover]=useState(null);
   const [localReactionOverrides,setLocalReactionOverrides]=useState({});
   const [imageTarget,setImageTarget]=useState(null);
@@ -54,6 +55,7 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
   const reactionSuppressClickKey = useRef("");
   const reactionPopoverRef = useRef(null);
   const reactionPickerRef = useRef(null);
+  const reactionPickerPopoverRef = useRef(null);
   const photoPointers = useRef(new Map());
   const photoGesture = useRef(null);
   const activeReactionOverrides = reactionOverrides || localReactionOverrides;
@@ -138,6 +140,24 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
     };
     document.addEventListener("pointerdown", handlePointerDown);
     return ()=>document.removeEventListener("pointerdown", handlePointerDown);
+  },[reactionTarget]);
+  useLayoutEffect(()=>{
+    if (!reactionTarget) return;
+    const picker = reactionPickerPopoverRef.current;
+    if (!picker) return;
+    const rect = picker.getBoundingClientRect();
+    const viewportWidth = document.documentElement.clientWidth || window.innerWidth;
+    const offset = rect.left < 8
+      ? 8 - rect.left
+      : rect.right > viewportWidth - 8
+        ? viewportWidth - 8 - rect.right
+        : 0;
+    if (offset) {
+      setReactionPickerOffset(current => ({
+        postId: reactionTarget,
+        x: (current.postId === reactionTarget ? current.x : 0) + offset
+      }));
+    }
   },[reactionTarget]);
   useEffect(()=>{
     updateReactionOverrides(current => {
@@ -274,7 +294,7 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
       hasComments && React.createElement('span',{className:"mono",style:{fontSize:8,color:"currentColor"}},commentCount)
     );
   };
-  const renderReactionPicker = (post, centered=false) => reactionTarget===post.id && React.createElement('div',{"data-reaction-picker-root":"true",style:{position:"absolute",left:centered?"50%":"calc(100% + 5px)",top:centered?"auto":"calc(100% + 5px)",bottom:centered?"calc(100% + 4px)":"auto",transform:centered?"translateX(-50%)":"none",zIndex:8,width:"max-content",maxWidth:"calc(100vw - 48px)",padding:"6px 8px",borderRadius:999,background:"rgba(8,15,15,.96)",border:"1px solid rgba(78,205,196,.16)",boxShadow:"0 14px 32px rgba(0,0,0,.34), inset 0 1px 0 rgba(255,255,255,.05)",display:"grid",gap:6,overflowX:"auto",WebkitOverflowScrolling:"touch"}},
+  const renderReactionPicker = (post, centered=false) => reactionTarget===post.id && React.createElement('div',{"data-reaction-picker-root":"true",ref:!centered?reactionPickerPopoverRef:null,style:{position:"absolute",left:centered?"50%":"calc(100% + 5px)",top:centered?"auto":"calc(100% + 5px)",bottom:centered?"calc(100% + 4px)":"auto",transform:centered?"translateX(-50%)":`translateX(${reactionPickerOffset.postId===post.id?reactionPickerOffset.x:0}px)`,zIndex:8,width:"max-content",maxWidth:"calc(100vw - 48px)",padding:"6px 8px",borderRadius:999,background:"rgba(8,15,15,.96)",border:"1px solid rgba(78,205,196,.16)",boxShadow:"0 14px 32px rgba(0,0,0,.34), inset 0 1px 0 rgba(255,255,255,.05)",display:"grid",gap:6,overflowX:"auto",WebkitOverflowScrolling:"touch"}},
     React.createElement('div',{style:{display:"flex",alignItems:"center",gap:5,flexWrap:"nowrap",justifyContent:"center",minWidth:"max-content"}},
       QUICK_REACTIONS.map(emoji=>
         React.createElement('button',{key:emoji,type:"button",onClick:()=>{ handleReact(post, emoji); setReactionTarget(null); },style:{width:24,height:24,borderRadius:999,background:"var(--s2)",border:"1px solid var(--border)",fontSize:13,color:"var(--text)",display:"inline-flex",alignItems:"center",justifyContent:"center",padding:0,flex:"0 0 auto"}},emoji)
@@ -300,7 +320,7 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
         );
       }),
       React.createElement('div',{"data-reaction-picker-root":"true",ref:reactionTarget===post.id?reactionPickerRef:null,style:{position:centered?"static":"relative",display:"inline-flex"}},
-        React.createElement('button',{type:"button",onClick:()=>{if(reactionTarget!==post.id) onTrackUsage?.("reaction_picker_opened"); setReactionTarget(reactionTarget===post.id?null:post.id)},style:{height:compact?20:22,padding:compact?"0 6px":"0 7px",borderRadius:999,background:"var(--s1)",border:"1px solid var(--border)",fontSize:10.5,color:"var(--muted)"}},"＋"),
+        React.createElement('button',{type:"button",onClick:()=>{if(reactionTarget!==post.id) onTrackUsage?.("reaction_picker_opened"); const nextTarget=reactionTarget===post.id?null:post.id; setReactionPickerOffset({postId:nextTarget,x:0}); setReactionTarget(nextTarget);},style:{height:compact?20:22,padding:compact?"0 6px":"0 7px",borderRadius:999,background:"var(--s1)",border:"1px solid var(--border)",fontSize:10.5,color:"var(--muted)"}},"＋"),
         !suppressFloating && renderReactionPicker(post, centered)
       ),
       !centered && !post.photoUrl && renderCommentChip(post, compact)
