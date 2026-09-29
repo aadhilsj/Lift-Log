@@ -555,3 +555,123 @@ should not be bundled with a motion tweak.
 **Incidental finding, not fixed:** `HistoryPage.jsx` uses `className:"fu6"`, but
 `.fu6` is not defined in `app.css`. That element simply appears with no
 animation. Left alone — not reported, and out of scope.
+
+---
+
+## 16. CORRECTION — the test suite was never "all green"
+
+**`npm run lint` and `npm run build` pass. The `test:*` suite is 22 of 24 on
+this branch, not 24 of 24.** Two scripts fail, and they have been failing all
+along, undetected.
+
+### What went wrong
+
+The recipe recorded in §7 of the 29 September motion handover says to match
+failures on:
+
+```
+^ *(FAIL|✗|✖)|tests? failed
+```
+
+`test:auth-edge-flows` and `test:mobile-navigation` are Playwright scripts that
+open `http://127.0.0.1:3000`. With no sandbox running they die with a Node
+**stack trace**, which contains none of those words. The grep counted them as
+passes.
+
+That is how this session first reported "all 24 pass" for the lift change, and
+it is almost certainly how the 29 September handover reached the same
+conclusion — including its claim that *"the previous handover's claim that
+`test:auth-edge-flows` and `test:mobile-navigation` fail on clean main did not
+reproduce once."* **The earlier handover was right and the 29 September one was
+wrong.** Both tests fail without a sandbox, on a branch with no relevant change,
+reproducibly.
+
+### The recipe to use instead
+
+Match on the **exit code**, never on the output:
+
+```bash
+for t in $(node -e "const p=require('./package.json');console.log(Object.keys(p.scripts).filter(k=>k.startsWith('test:')).join(' '))"); do
+  npm run "$t" >/tmp/t.log 2>&1
+  [ $? -eq 0 ] && echo "PASS $t" || echo "FAIL $t"
+done
+```
+
+Result on `ios-header-and-nav-polish` at `0b1d7c3`:
+
+- **22 pass**
+- **2 fail:** `test:auth-edge-flows`, `test:mobile-navigation` — both only
+  because nothing is serving `127.0.0.1:3000`
+
+### What this does and does not mean
+
+These two are **environment-dependent, not broken**. To run them, build and
+serve the app on port 3000 first (`npm run build`, then the sandbox), or point
+them elsewhere with `FERO_QA_BASE_URL`. Check the port is free first — this
+session found Codex's dev server holding 3000, which is the same collision in
+another form.
+
+It does **not** cast doubt on the lift change: that change is a transition
+duration and easing, and the 22 scripts that do run all pass.
+
+---
+
+## 17. Review of Codex's round two
+
+### 17.1 Comment fix — live, verified independently
+
+`e9b7704` is on `origin/main`. Checked without relying on his report:
+
+- `git merge-base --is-ancestor e9b7704 origin/main` → yes
+- the live bundle at `lift-log-nu.vercel.app` contains the string
+  `Comments couldn't load`
+
+**This is genuinely live on the PWA.** Not on the phone — that still needs a
+build.
+
+### 17.2 He stopped Task 1 correctly
+
+He accepted the outage evidence, changed no server code, and claimed no cause.
+Exactly right.
+
+### 17.3 Reaction picker — sound, but UNCOMMITTED
+
+The approach: `useLayoutEffect` keyed on `reactionTarget` measures the open
+picker with `getBoundingClientRect()`, computes the smallest shift that puts it
+at least 8px inside `document.documentElement.clientWidth`, and applies it as a
+`translateX`. `useLayoutEffect` rather than `useEffect` means the correction
+lands before paint, so there is no visible jump.
+
+Reviewed and correct:
+
+- Only one picker is mounted at a time (`renderReactionPicker` renders only for
+  `reactionTarget===post.id`), so the single shared ref is safe.
+- No feedback loop: the `+` handler resets the offset to 0 for the new target,
+  the effect runs once per `reactionTarget` change, and its own `setState` does
+  not re-trigger it.
+- The `centered` photo-post variant is left alone, as instructed.
+- `document.documentElement.clientWidth` rather than `window.innerWidth`
+  correctly excludes the scrollbar.
+
+His measurements at 375x812 are consistent: 1 reaction gives 98.4–343.4 (natural
+position, no clamp needed); 3 and 6 both give 122–367, which is exactly the
+right edge minus 8 — clamped, as designed. Card height 158.5 and reaction-row
+height 20 unchanged before and after.
+
+**Two findings:**
+
+1. **It is not committed.** It exists only as a modified working file in
+   `/Users/aadhilsj/Documents/FERO/fero-comments-failed-load`
+   (`M src/pages/ActivityFeed.jsx`). One `git checkout` loses it. This must be
+   committed before anything else happens to that worktree.
+2. **The offset is not recalculated on scroll or rotation.** The effect depends
+   only on `reactionTarget`. An open picker whose page is then scrolled, or a
+   phone rotated while it is open, keeps a stale offset. Low severity — the
+   picker closes on any outside tap — and not worth blocking on, but it should
+   be written down rather than discovered later.
+
+### 17.4 His test report was more accurate than this session's
+
+He reported 23 of 25 with those two timing out. That is the same two scripts,
+same cause, and he described them accurately as not reaching their assertions.
+See §16.
