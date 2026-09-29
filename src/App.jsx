@@ -466,6 +466,10 @@ const App = () => {
   const blocBottomNavRef = useRef(null);
   const blocDragXRef = useRef(0);
   const blocFrameRef = useRef(null);
+  // True between letting go of the Bloc back-swipe and the screen actually
+  // swapping. While it is true the surface must keep its settle transition even
+  // if an unrelated re-render lands mid-flight, or the glide would freeze.
+  const blocReleasingRef = useRef(false);
   const pageSwipeRef = useRef({sx:0,sy:0,active:false,mode:null,target:null,priority:null});
   const pageLayerRefs = useRef({});
   const pageScrollRefs = useRef({});
@@ -1810,6 +1814,7 @@ const App = () => {
   const resetBlocSwipe = useCallback(() => {
     blocSwipeRef.current = {sx:0,sy:0,active:false,mode:null};
     blocDragXRef.current = 0;
+    blocReleasingRef.current = false;
     cancelSwipeFrame(blocFrameRef);
     applyBlocTransforms(0, false);
     setBlocDragging(false);
@@ -1865,17 +1870,23 @@ const App = () => {
     const dominantDrag = dx > screenWidth * BLOC_SWIPE_COMMIT_FRACTION && Math.abs(dy) < 100 && dx > Math.abs(dy);
     const shouldClose = s.mode === "back" && (fastEdgeFlick || dominantDrag);
     if (shouldClose) {
-      setSwitcherRevealInteractive(true);
+      // Nothing may set React state here. Re-rendering this tree at the moment
+      // the finger lifts blocked the settle's first frames -- measured 63ms on
+      // an iPhone, which is the whole reason the transition read as laggy. The
+      // settle is already driven by the imperative transform, so the state
+      // updates fold into the commit render that has to happen anyway.
+      blocReleasingRef.current = true;
       releaseSwipeForward({
         dragRef: blocDragXRef,
         frameRef: blocFrameRef,
         finalX: screenWidth,
         transitionMs: BLOC_SWIPE_SETTLE_MS,
-        setDragging: setBlocDragging,
         applyTransform: applyBlocTransforms,
         commit: () => {
           switcherRestoreScrollRef.current = switcherScrollTopRef.current;
+          blocReleasingRef.current = false;
           setSuppressSwitcherIntro(true);
+          setBlocDragging(false);
           persistGroupSelection(null);
           setSwitcherRevealInteractive(false);
         }
@@ -3437,7 +3448,7 @@ const App = () => {
       isolation:"isolate",
       pointerEvents:switcherRevealInteractive?"none":"auto",
       transform:blocDragXRef.current?`translateX(${blocDragXRef.current}px)`:"none",
-      transition:blocDragging?"none":"transform .08s ease-out",
+      transition:(blocDragging&&!blocReleasingRef.current)?"none":`transform ${BLOC_SWIPE_SETTLE_MS}ms ${BLOC_SWIPE_EASING}`,
       boxShadow:blocDragXRef.current?"-18px 0 34px rgba(0,0,0,.28)":"none",
       willChange:blocDragging||blocDragXRef.current?"transform":"auto",
       touchAction:"pan-y"
@@ -3482,7 +3493,7 @@ const App = () => {
     }),
     page==="today"&&(blocDragging||Math.abs(Number(blocDragXRef.current)||0)>0)&&renderGroupSwitcherSurface({ inert:true, suppressIntro:true }),
     activeBlocSurface,
-    !showSettings && React.createElement(Nav,{onlyMobileBottomNav:true,page,setPage:handleNavSelect,user:currentUser,currentUserId:effectiveAuthSession?.userId||"",profilePhotoUrl:effectiveProfile?.profilePhotoUrl||"",groupName:currentGroup.name,canEditGroup:isGroupAdmin,settingsAlert:pendingRequestCount>0,onOpenSettings:()=>{trackUsage("settings_opened");setSettingsInitialTab("invite");setShowSettings(true)},onOpenStream:handleOpenStream,onOpenNotifications:handleOpenNotifications,streamUnreadCount,onSwitchUser:handleSwitchUser,onSwitchGroup:handleSwitchBlocTracked,onOpenLog:()=>{setPage("today");setShowTodayLog(true);},syncing,lastSyncedAt,syncError,onRefresh:refreshNow,showJustSynced,activityAlertCount,mobileBottomDragX:blocDragXRef.current,mobileBottomNavRef:blocBottomNavRef,mobileBottomDragging:blocDragging}),
+    !showSettings && React.createElement(Nav,{onlyMobileBottomNav:true,page,setPage:handleNavSelect,user:currentUser,currentUserId:effectiveAuthSession?.userId||"",profilePhotoUrl:effectiveProfile?.profilePhotoUrl||"",groupName:currentGroup.name,canEditGroup:isGroupAdmin,settingsAlert:pendingRequestCount>0,onOpenSettings:()=>{trackUsage("settings_opened");setSettingsInitialTab("invite");setShowSettings(true)},onOpenStream:handleOpenStream,onOpenNotifications:handleOpenNotifications,streamUnreadCount,onSwitchUser:handleSwitchUser,onSwitchGroup:handleSwitchBlocTracked,onOpenLog:()=>{setPage("today");setShowTodayLog(true);},syncing,lastSyncedAt,syncError,onRefresh:refreshNow,showJustSynced,activityAlertCount,mobileBottomDragX:blocDragXRef.current,mobileBottomNavRef:blocBottomNavRef,mobileBottomDragging:blocDragging&&!blocReleasingRef.current,mobileBottomSettle:`transform ${BLOC_SWIPE_SETTLE_MS}ms ${BLOC_SWIPE_EASING}`}),
     renderInviteJoinToast(),
     renderProfilePhotoToast(),
     renderInviteDownloadPrompt(),
