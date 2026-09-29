@@ -67,7 +67,7 @@ const MOBILE_PAGE_SLOTS = { today: 0, activity: 1, month: 3, history: 4 };
 
 const SettingsDot = () => React.createElement('span',{style:{position:"absolute",top:2,right:2,width:7,height:7,borderRadius:999,background:"#4ECDC4",boxShadow:"0 0 0 1.5px #050909"}});
 
-const Nav = ({page,setPage,user,groupName,canEditGroup,onOpenSettings,settingsAlert=false,onOpenProfile,onOpenStream,streamUnreadCount=0,onSwitchUser,onSwitchGroup,onOpenLog,syncing,lastSyncedAt,syncError,onRefresh,showJustSynced,activityAlertCount=0,hideMobileBottomNav=false,onlyMobileBottomNav=false,mobileBottomDragX=0,mobileBottomDragging=false,mobileBottomNavRef=null,mobileBottomSettle="transform .08s ease-out",mobileTabIndicatorRef=null,mobileTabSettle=null,mobileTabLiftSettle=null,currentUserId="",profilePhotoUrl=""}) => {
+const Nav = ({page,setPage,user,groupName,canEditGroup,onOpenSettings,settingsAlert=false,onOpenProfile,onOpenStream,onOpenNotifications,streamUnreadCount=0,onSwitchUser,onSwitchGroup,onOpenLog,syncing,lastSyncedAt,syncError,onRefresh,showJustSynced,activityAlertCount=0,hideMobileBottomNav=false,onlyMobileBottomNav=false,mobileBottomDragX=0,mobileBottomDragging=false,mobileBottomNavRef=null,mobileBottomSettle="transform .08s ease-out",mobileTabIndicatorRef=null,mobileTabSettle=null,mobileTabLiftSettle=null,currentUserId="",profilePhotoUrl=""}) => {
   const navItems = [["today","Today","today"],["activity","Activity","activity"],["month","Month","results"],["history","History","history"]];
   const mobileActiveSlot = MOBILE_PAGE_SLOTS[page] ?? 0;
   const mobileBottomNavBar = React.createElement('div',{ref:mobileBottomNavRef,className:"mobile-only mobile-bottom-nav",style:{transform:mobileBottomDragX?`translateX(${mobileBottomDragX}px)`:"none",transition:mobileBottomDragging?"none":mobileBottomSettle,willChange:mobileBottomDragging||mobileBottomDragX?"transform":"auto"}},
@@ -146,10 +146,13 @@ const Nav = ({page,setPage,user,groupName,canEditGroup,onOpenSettings,settingsAl
       ),
       React.createElement('div',{style:{display:"flex",alignItems:"center",height:42,marginTop:6,gap:10,flexShrink:0}},
         React.createElement(StreamIconButton,{onOpenStream,unreadCount:streamUnreadCount,size:42}),
-        // Notification centre — MOCK ONLY, deliberately does nothing. It is here
-        // so the header is spaced for three buttons and is not reworked when the
-        // real thing lands. See docs/concept-2026-09-24-notification-centre.md.
-        React.createElement('button',{type:"button",className:"icon-btn nav-glass-btn",title:"Notifications","aria-hidden":"true",tabIndex:-1,style:{width:42,height:42,display:"inline-flex",alignItems:"center",justifyContent:"center",position:"relative"}},React.createElement(AppIcon,{name:"bell",size:26})),
+        // Notification centre — not built yet, so this opens a placeholder that
+        // says so. It was a dead mock while only TestFlight had it; on the web
+        // every member can reach it, and a button that does nothing when tapped
+        // is worse than no button. The real thing is
+        // docs/concept-2026-09-24-notification-centre.md; none of it is built.
+        // Size, icon and position are locked — only the destination is new.
+        React.createElement('button',{type:"button",onClick:onOpenNotifications,className:"icon-btn nav-glass-btn",title:"Notifications","aria-label":"Notifications",style:{width:42,height:42,display:"inline-flex",alignItems:"center",justifyContent:"center",position:"relative"}},React.createElement(AppIcon,{name:"bell",size:26})),
         React.createElement('button',{onClick:onOpenSettings,className:"icon-btn nav-glass-btn",title:"Bloc settings",style:{width:42,height:42,display:"inline-flex",alignItems:"center",justifyContent:"center",position:"relative"}},React.createElement(AppIcon,{name:"settings",size:26}),settingsAlert&&React.createElement(SettingsDot,null)),
         null
       )

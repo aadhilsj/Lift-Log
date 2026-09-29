@@ -416,3 +416,233 @@ Fix rules:
   2. Vercel has a production deployment for that exact commit, and it is Ready;
   3. the live bundle contains the changed code (search it for a string the change introduced).
 - If step 2 is missing: in Vercel, Deployments → Create Deployment, give the full commit SHA, choose Deploy to Production. The founder has to be signed in to Vercel.
+
+## A Band At The Bottom Of A Full-Screen Sheet, PWA Only
+
+**SOLVED 30 September 2026**, after four failed attempts, by measuring it on a
+physical iPhone rather than reasoning from source. Two commits: `ebb80be` and
+`06564c4`. Read this before changing the Stream geometry again.
+
+Symptoms:
+- A band across the very bottom of the Bloc Stream, and of a comment thread
+  opened from the Bloc Stream, below the composer.
+- On the installed PWA only. The packaged TestFlight app never shows it.
+- Opening a comment thread from the **Activity feed** is clean; only the Stream
+  route shows it.
+- First seen 29 September, immediately after a month of iPhone app work was
+  merged to `main`. It did not happen on the website before that merge.
+
+### The one thing that is established
+
+**The band's colour is always whatever the page canvas is painted.** Four data
+points, all consistent:
+
+| canvas | band |
+| --- | --- |
+| unpainted (no `html` background) | white |
+| `html{background-color:#070C0C}` | dark slab |
+| `html{background-image:<gradient>}` via shorthand | white again — the shorthand resets `background-color` to transparent |
+| both colour and image | dark slab |
+
+So the band is **a region nothing covers**, showing through to the canvas.
+**Stop trying to paint it.** Painting only changes what colour the hole is. The
+job is to find what should be covering it and is not.
+
+### Ruled out, with evidence — do not re-derive these
+
+1. **It is not a code difference from build 9.** Diffed TestFlight build 9
+   (`dfc5b4e`, correct) against `main` for `BlocStream.jsx`,
+   `LogCommentThread.jsx` and `app.css`. After reverting the failed attempts the
+   only remaining difference is `LogCommentThread`'s error-state logic, which
+   has no geometry. Same code, native is right and PWA is wrong.
+2. **Not the sheet's alignment.** Pinning the sheet with
+   `position:absolute; bottom:0` inside its `fixed; inset:0` container changed
+   nothing. Reverted.
+3. **Not `.mobile-bottom-scrim` alone.** It *is* new in the merge (it does not
+   exist at `e9b7704`), it is `fixed; bottom:0`, 128px tall
+   (`--bottom-nav-offset + 104px`), and it carries `backdrop-filter: blur(7px)`.
+   It was mounting under the sheet because the bottom nav is only guarded by
+   `!showSettings`. It is now also guarded by `!showStream && !logCommentScreen`.
+   That removed the blur artifact but **not** the band.
+4. **Not the viewport meta.** `viewport-fit=cover` is identical before and after
+   the merge.
+5. **Not a transformed ancestor** (the rule elsewhere in this playbook that
+   breaks `position:fixed`). `BlocStream` is rendered as a **sibling** of the
+   transformed Bloc surface, not a descendant. Checked in `App.jsx`.
+6. **Not the rest of the merge.** The only other files it touched are icons in
+   `primitives.jsx` and unrelated screens.
+
+### What it actually is, measured on a physical iPhone
+
+**Physical-phone result:** a standalone test PWA with the app's viewport meta,
+a red `html` canvas, and a blue `position:fixed; inset:0` element showed the
+same bottom strip in red. Initially `innerHeight`, `clientHeight`, and the
+fixed element's bottom were all 797 CSS px. `env(safe-area-inset-bottom)` was
+34px. An element extended 80px below the fixed viewport was clipped; the red
+canvas still showed. After switching apps, `innerHeight` sometimes reported
+844px while `clientHeight` remained 797px, so `innerHeight` alone is not a
+reliable coverage check. When the canvas was set to exactly the fixed element's
+blue, the strip disappeared visually. The native TestFlight app does not have
+this standalone WebKit clipping behavior.
+
+The narrow Stream fix matches the document canvas to the composer bottom
+`#05090a` while the Stream or a comment thread opened from it is visible, then
+restores the normal canvas color. This was checked in a local sandbox build
+opened as an installed PWA on the physical iPhone: the Stream's bottom edge
+was continuous. The previously tried global `#070C0C` canvas left a dark slab
+because it did not match the composer's bottom color.
+
+### The two fixes that shipped, 29–30 September 2026
+
+Both are live on `main` and both were confirmed by Aadhil on his installed PWA.
+
+**1. `ebb80be` — paint the strip the composer's colour.** While the Stream, or a
+comment thread opened *from* the Stream, is on screen, `App.jsx` sets
+`document.documentElement.style.backgroundColor = "#05090a"` and restores it on
+close. `#05090a` is the composer's resolved colour on both surfaces:
+`rgba(5,9,10,.55)` over a sheet ending `#05090a` in `BlocStream`, and
+`rgba(5,9,10,.96)` over `#080F0F` in `LogCommentThread`, which computes to
+`rgb(5,9,10)`. The four earlier attempts painted `--bg-primary` (`#070C0C`),
+the *page* colour, which is why a visibly different slab remained.
+
+**2. `06564c4` — stop the composer paying for the home indicator twice.** With
+the strip now matching, what was left read as dead space: 28px of composer
+padding **plus** `env(safe-area-inset-bottom)` (34px) **plus** the ~47px strip —
+about 109px under the last line of text. The inset exists to clear the home
+indicator, but in an installed PWA the strip is taller than the inset and the
+indicator sits inside it, so the clearance already existed. `app.css` defines
+`--composer-bottom-pad: calc(28px + env(safe-area-inset-bottom))` and `App.jsx`
+overrides it to `28px` when standalone. 109px → 75px.
+
+Fix rules:
+
+- **In an installed iOS PWA there is a strip below the fixed viewport that no
+  element can reach.** An element extended 80px past the viewport was clipped
+  entirely. Only the document canvas paints there. This is the one case where
+  "stop painting it" does not apply — but paint it the colour of *whatever sits
+  directly above it*, not the page colour.
+- **Guard native explicitly.** The packaged app has no strip and still needs its
+  safe-area padding. Use `standalone && !Capacitor.isNativePlatform()`, not
+  `display-mode` alone — a WKWebView's display-mode is not worth betting a
+  native layout on.
+- **A `var()` inside a shorthand is a trap.** `padding: "10px 12px
+  var(--x)"` with `--x` undefined invalidates **all four sides**, silently. If
+  you move a shorthand component into a custom property, measure
+  `getComputedStyle` on all four sides before shipping.
+- Do not report `test:auth-edge-flows` or `test:mobile-navigation` as caused by
+  a change without re-running them on untouched `origin/main`. They fail there
+  too, **even with an app on `127.0.0.1:3000`**.
+
+**Two things are still unexplained.** Neither blocks anything; both matter if
+this returns:
+
+1. **Why it only became visible after the 29 September merge.** `body {
+   background: var(--bg-gradient) }` is unchanged by that merge, and before it
+   body's background propagated to the canvas — so the strip, and its colour
+   mismatch with the composer, appear to *predate* the merge.
+2. **Why a comment thread opened from the Activity feed was always clean.** Same
+   composer colour, same uncovered strip, and Aadhil confirmed on 30 September
+   that it has a clean bottom edge. Under the explanation above it should band
+   too. It does not, and fix 1 deliberately does not touch that route.
+
+### Method note that cost three rounds
+
+`background: var(--some-gradient)` is a **shorthand**. It sets
+`background-image` and resets `background-color` to `transparent`. On the root
+element a transparent background paints white. This was diagnosed only by
+reading `getComputedStyle(document.documentElement).backgroundColor` on the live
+page and finding `rgba(0,0,0,0)` while a gradient image was set. **Measure the
+running page before theorising about CSS.**
+
+## Two Touch Handlers That Classify The Same Drag Differently
+
+Symptoms:
+- Android users cannot scroll one particular screen. iOS is fine.
+- Every other screen scrolls normally.
+- First complaints July 2026.
+
+Root cause (fixed 29 September 2026, `b43d70f`):
+- `movePageSwipe` (the in-Bloc tab track) and `moveBlocSwitchSwipe` (the
+  Today-only left-edge back-swipe) used **identical thresholds and opposite
+  precedence**. The tab track checked `vertical` first; the back-swipe checked
+  `horizontal` first.
+- Both conditions are true for a wide band of ordinary drags — 10px across and
+  13px down satisfies both — so the same gesture was a scroll on one screen and
+  a navigation on Today.
+- Today is the only screen carrying both handlers, and the back-swipe only arms
+  within 72px of the left edge. On iOS that strip overlaps the system back-swipe
+  zone, so the OS intercepts most touches there; Android has no equivalent, so
+  they land every time. Nothing in the code is platform-specific.
+
+Fix rules:
+- **Two handlers that classify the same gesture must agree on precedence.** When
+  a drag reads as both, scrolling wins: scrolling is the common action,
+  navigating is the deliberate one.
+- When a bug is platform-specific but the code is not, look for a region or a
+  gesture the platform itself intercepts.
+- `startBlocSwitchSwipe` was introduced 16 July 2026 (`d9844b0`), which matches
+  when the complaints began. **Date the handler before theorising about the
+  platform.**
+
+## A Failed Load That Never Stops Looking Like Loading
+
+Symptoms:
+- A comment thread opens, shows its skeleton, and never resolves.
+- No error is visible. It retries silently forever.
+
+Root cause (fixed 29 September 2026, `e9b7704`):
+- `refresh()` in `src/components/LogCommentThread.jsx` set an error and returned
+  early on failure, never reaching `setLoaded(true)`. The render gate is
+  `comments.length === 0 && !loaded && knownCommentCount > 0`, so the skeleton
+  stayed up while a 3-second poll re-failed indefinitely.
+
+Fix rules:
+- **A failed load must reach a terminal state and say so**, with a way to retry.
+  This is the same family as "A Failed Mutation That Says Nothing" above: a real
+  failure presented as an endless wait is worse than an error.
+- Every early return on a failure path must still leave the UI in a state that
+  is not "still loading".
+
+## An Outage That Looks Like Data Loss
+
+Symptoms (29 September 2026, second occurrence after 22 September):
+- Reactions appear to be deleted. Comments never load.
+- Both recover on their own with no deploy.
+
+Root cause:
+- A Supabase outage, 16:31–16:45 UTC. Every endpoint returned 504 or 500 — 346
+  and 56 respectively in that hour, with every other hour clean.
+- **The writes succeeded and the reads failed.** Reactions written at 16:30–16:34
+  are all present in `ante_core.workout_reactions`. Only reading them back
+  failed, so the screen fell back and they looked deleted.
+
+Fix rules:
+- Before debugging apparent data loss, **check the edge logs for the window**:
+  `select toStartOfHour(timestamp), log_attributes['response.status_code'],
+  count(*) from logs where source='edge_logs' group by 1,2` — an hour that
+  carries hundreds of 504s and no other hour does is an outage, not a bug.
+- Confirm in the database whether the data is actually gone before touching any
+  code. Twice now it was not.
+- This is the third entry in this family. "I couldn't check" is never "it is
+  gone", just as it is never "you are not signed in".
+
+## Counting Test Passes By Grepping Output
+
+**The recipe in earlier handovers is wrong and reported false greens.**
+
+Matching failures on `^ *(FAIL|✗|✖)|tests? failed` counts a Playwright script
+that dies with a **Node stack trace** as a pass. `test:auth-edge-flows` and
+`test:mobile-navigation` both open `http://127.0.0.1:3000` and fail that way
+whenever no app is serving it — which is most of the time.
+
+Use the exit code:
+
+```bash
+for t in $(node -e "const p=require('./package.json');console.log(Object.keys(p.scripts).filter(k=>k.startsWith('test:')).join(' '))"); do
+  npm run "$t" >/tmp/t.log 2>&1
+  [ $? -eq 0 ] && echo "PASS $t" || echo "FAIL $t"
+done
+```
+
+Those two are environment-dependent, not broken. Serve the app on port 3000
+first, or report them as **not run** — never as passing.

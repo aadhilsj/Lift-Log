@@ -106,6 +106,8 @@ import { BlocSettingsScreen } from "./pages/BlocSettingsScreen.jsx";
 import { LogCommentThread } from "./components/LogCommentThread.jsx";
 import { ColdOnboarding } from "./components/ColdOnboarding.jsx";
 import { FounderDashboard } from "./pages/FounderDashboard.jsx";
+import { NotificationsPage } from "./pages/NotificationsPage.jsx";
+import { Capacitor } from "@capacitor/core";
 import { tapLight } from "./lib/haptics.js";
 
 const normalizeReactionMembers = (members) => Array.isArray(members)
@@ -280,10 +282,15 @@ const IN_BLOC_PAGES = ["today", "activity", "month", "history"];
 const SCREEN_SETTLE_MS = 200;
 const SCREEN_SETTLE_EASING = "cubic-bezier(.32,.72,0,1)";
 const SCREEN_SETTLE_TRANSITION = `transform ${SCREEN_SETTLE_MS}ms ${SCREEN_SETTLE_EASING}`;
-// The nav lift runs slightly shorter than the screen so it finishes just as
-// the screen arrives rather than chasing it.
-const TAB_LIFT_MS = Math.round(SCREEN_SETTLE_MS * 0.8);
-const TAB_LIFT_TRANSITION = `transform ${TAB_LIFT_MS}ms ${SCREEN_SETTLE_EASING}`;
+// The nav lift runs ahead of the screen settle so it has already reacted by
+// the time the destination arrives. The first two shipped durations still felt
+// late: the front-loaded easing mattered as much as the shorter duration.
+// After testing on a real phone, Aadhil asked to go faster than all three
+// mocked options in artifact SRh6yLr5LEuPJgvAqtMRRs. Keep timing derived from
+// the shared settle.
+const TAB_LIFT_MS = Math.round(SCREEN_SETTLE_MS * 0.15);
+const TAB_LIFT_EASING = "cubic-bezier(.3,1,.4,1)";
+const TAB_LIFT_TRANSITION = `transform ${TAB_LIFT_MS}ms ${TAB_LIFT_EASING}`;
 const PAGE_TAP_TRANSITION_MS = SCREEN_SETTLE_MS;
 
 // How far a page dims as it travels a full screen away. Sliding alone read as
@@ -380,10 +387,20 @@ const App = () => {
   const [showFounderDashboard,setShowFounderDashboard]=useState(false);
   const [founderDashboardAvailable,setFounderDashboardAvailable]=useState(()=>readFounderDashboardAvailability(initialPersistedSession?.userId));
   const [showStream,setShowStream]=useState(false);
+  const [showNotifications,setShowNotifications]=useState(false);
   const [streamFocusBlocId,setStreamFocusBlocId]=useState(null);
   const [streamReturnScrollTop,setStreamReturnScrollTop]=useState(null);
   const [logCommentScreen,setLogCommentScreen]=useState(null);
   const [logCommentCountOverrides,setLogCommentCountOverrides]=useState({});
+  useEffect(() => {
+    if (!showStream && logCommentScreen?.source !== "stream") return;
+    // Installed iOS PWAs expose a strip below the fixed viewport that only
+    // the document canvas can paint. Match the Stream/comment composer there.
+    const canvas = document.documentElement;
+    const previousColor = canvas.style.backgroundColor;
+    canvas.style.backgroundColor = "#05090a";
+    return () => { canvas.style.backgroundColor = previousColor; };
+  }, [showStream, logCommentScreen?.source]);
   const [monthInitialIdx,setMonthInitialIdx]=useState(null);
   const [profileSaving,setProfileSaving]=useState(false);
   const [profileError,setProfileError]=useState("");
@@ -463,6 +480,19 @@ const App = () => {
   const [installPrompt,setInstallPrompt]=useState(null);
   const [installDismissed,setInstallDismissed]=useState(()=>{try{return localStorage.getItem(INSTALL_DISMISSED_KEY)==="1";}catch{return false;}});
   const [standalone,setStandalone]=useState(()=>isStandalone());
+  useEffect(() => {
+    // The composer pays for home-indicator clearance twice in an installed
+    // PWA: its own safe-area padding, and again in the strip below the fixed
+    // viewport, which is taller than the inset and is where the indicator
+    // actually sits. That read as dead space under the field. Drop the inset
+    // there and let the strip do the job. The packaged app has no strip, so
+    // it keeps the inset -- hence the explicit native guard rather than
+    // display-mode alone.
+    if (!standalone || Capacitor.isNativePlatform()) return;
+    const canvas = document.documentElement;
+    canvas.style.setProperty("--composer-bottom-pad", "28px");
+    return () => { canvas.style.removeProperty("--composer-bottom-pad"); };
+  }, [standalone]);
   const [syncing,setSyncing]=useState(false);
   const [syncError,setSyncError]=useState(false);
   const [lastSyncedAt,setLastSyncedAt]=useState(null);
@@ -535,11 +565,13 @@ const App = () => {
       if (targetPage === null) {
         btn.style.removeProperty("--lift-y");
         btn.style.removeProperty("--lift-scale");
+        btn.style.removeProperty("--tab-ink");
         return;
       }
       const on = btn.dataset.page === targetPage;
       btn.style.setProperty("--lift-y", on ? "-1.5px" : "0px");
       btn.style.setProperty("--lift-scale", on ? "1.16" : "1");
+      btn.style.setProperty("--tab-ink", on ? "var(--cyan)" : "rgba(78,205,196,.38)");
     });
   },[]);
   const switcherSurfaceRef = useRef(null);
@@ -1909,13 +1941,13 @@ const App = () => {
       const absDy = Math.abs(dy);
       const horizontal = absDx > 5 && absDx > absDy * 0.72;
       const vertical = absDy > 9 && absDy > absDx * 1.08;
-      if (horizontal) {
+      if (vertical) {
+        s.mode = "scroll";
+        setBlocDragging(false);
+      } else if (horizontal) {
         // A leftward drag belongs to the main tab swipe, not to this gesture.
         s.mode = dx > 0 ? "back" : "scroll";
         setBlocDragging(s.mode === "back");
-      } else if (vertical) {
-        s.mode = "scroll";
-        setBlocDragging(false);
       }
       // Neither signal is clear yet: keep waiting rather than guessing.
     }
@@ -1990,6 +2022,7 @@ const App = () => {
     setStreamReturnScrollTop(null);
     setShowStream(true);
   },[]);
+  const handleOpenNotifications = useCallback(() => setShowNotifications(true),[]);
   const trackUsage = useCallback(eventName => { void trackUsageEvent(eventName); },[]);
   const handleOpenLogComments = useCallback(({ groupId, log, source, returnScrollTop }) => {
     if (!groupId || !log?.id) return;
@@ -3554,7 +3587,7 @@ const App = () => {
       touchAction:"pan-y"
     }
   },
-    React.createElement(Nav,{page,setPage:handleNavSelect,user:currentUser,currentUserId:effectiveAuthSession?.userId||"",profilePhotoUrl:effectiveProfile?.profilePhotoUrl||"",groupName:currentGroup.name,canEditGroup:isGroupAdmin,settingsAlert:pendingRequestCount>0,onOpenSettings:()=>{trackUsage("settings_opened");setSettingsInitialTab("invite");setShowSettings(true)},onOpenStream:handleOpenStream,streamUnreadCount,onSwitchUser:handleSwitchUser,onSwitchGroup:handleSwitchBlocTracked,onOpenLog:()=>{setPage("today");setShowTodayLog(true);},syncing,lastSyncedAt,syncError,onRefresh:refreshNow,showJustSynced,activityAlertCount,hideMobileBottomNav:true}),
+    React.createElement(Nav,{page,setPage:handleNavSelect,user:currentUser,currentUserId:effectiveAuthSession?.userId||"",profilePhotoUrl:effectiveProfile?.profilePhotoUrl||"",groupName:currentGroup.name,canEditGroup:isGroupAdmin,settingsAlert:pendingRequestCount>0,onOpenSettings:()=>{trackUsage("settings_opened");setSettingsInitialTab("invite");setShowSettings(true)},onOpenStream:handleOpenStream,onOpenNotifications:handleOpenNotifications,streamUnreadCount,onSwitchUser:handleSwitchUser,onSwitchGroup:handleSwitchBlocTracked,onOpenLog:()=>{setPage("today");setShowTodayLog(true);},syncing,lastSyncedAt,syncError,onRefresh:refreshNow,showJustSynced,activityAlertCount,hideMobileBottomNav:true}),
     localDevMode && React.createElement(LocalDevImpersonationBar,{options:devImpersonationOptions,value:effectiveAuthSession?.devImpersonationActive?effectiveAuthSession.userId:"",onChange:handleSelectDevImpersonation}),
     React.createElement('div',{style:{position:"relative",overflow:"hidden",height:inBlocViewportHeight,minHeight:0}},
       showSettings && React.createElement('div',{style:{position:"absolute",inset:"0 0 auto 0",zIndex:1,pointerEvents:"none"}},renderInBlocPage(page,{swipePreview:true})),
@@ -3574,6 +3607,7 @@ const App = () => {
     showJoinModal && !authStep && React.createElement(JoinGroupModal,{inviteContext,joinCode,setJoinCode,onClose:handleJoinModalClose,onJoin:handleJoinGroup,joining:joiningGroup,error:inviteError,signedIn:true}),
     showProfileModal && React.createElement(ProfileModal,{email:authSession?.email,onSignOut:handleSwitchUser,onClose:()=>setShowProfileModal(false),showDisplayName:true,currentDisplayName:currentUser,onSaveDisplayName:handleSaveProfileFromModal,saving:profileSaving,saveError:profileError,onLeaveBloc:handleLeaveBloc,onDeleteAccount:handleDeleteAccount,currentPaymentMethods:effectiveProfile?.paymentMethods||[],onSavePayment:handleSavePaymentHandle,savingPayment:paymentSaving,paymentError:paymentError}),
     React.createElement(BlocStream,{open:showStream,groupName:currentGroup.name,blocId:currentGroup.id,initialBlocId:streamFocusBlocId,initialScrollTop:streamReturnScrollTop,initialUnreadCount:streamUnreadCount,currentUserId:effectiveAuthSession?.userId,members:Object.values(currentGroup.memberships||{}).map(m=>({id:m.userId,name:m.displayName,photoUrl:appState.profiles?.[m.userId]?.profilePhotoUrl||""})),streamBlocs:visibleGroups.map(group=>({id:group.id,name:group.name,members:Object.values(group.memberships||{}).map(m=>({id:m.userId,name:m.displayName,photoUrl:appState.profiles?.[m.userId]?.profilePhotoUrl||""}))})),onSeasonClosedTap:handleStreamSeasonClosedTap,onUnreadCountChange:(groupId,count)=>{if(groupId===currentGroup.id)setStreamUnreadCount(Number(count)||0);},onOpenLogComments:handleOpenLogComments,onClose:()=>{setShowStream(false);setStreamFocusBlocId(null);setStreamReturnScrollTop(null);refreshStreamUnreadCount(currentGroup.id);}}),
+    showNotifications && React.createElement(NotificationsPage,{onClose:()=>setShowNotifications(false)}),
     needsTrainingChoice && React.createElement(TrainingChoiceModal,{
       blocName: currentGroup.name,
       defaultTraining: currentGroup.settings?.trainingWheels !== false,
@@ -3592,7 +3626,16 @@ const App = () => {
     }),
     page==="today"&&(blocDragging||Math.abs(Number(blocDragXRef.current)||0)>0)&&renderGroupSwitcherSurface({ inert:true, suppressIntro:true }),
     activeBlocSurface,
-    !showSettings && React.createElement(Nav,{onlyMobileBottomNav:true,page,setPage:handleNavSelect,user:currentUser,currentUserId:effectiveAuthSession?.userId||"",profilePhotoUrl:effectiveProfile?.profilePhotoUrl||"",groupName:currentGroup.name,canEditGroup:isGroupAdmin,settingsAlert:pendingRequestCount>0,onOpenSettings:()=>{trackUsage("settings_opened");setSettingsInitialTab("invite");setShowSettings(true)},onOpenStream:handleOpenStream,streamUnreadCount,onSwitchUser:handleSwitchUser,onSwitchGroup:handleSwitchBlocTracked,onOpenLog:()=>{setPage("today");setShowTodayLog(true);},syncing,lastSyncedAt,syncError,onRefresh:refreshNow,showJustSynced,activityAlertCount,mobileBottomDragX:blocDragXRef.current,mobileBottomNavRef:blocBottomNavRef,mobileBottomDragging:blocDragging&&!blocReleasingRef.current,mobileBottomSettle:`transform ${BLOC_SWIPE_SETTLE_MS}ms ${BLOC_SWIPE_EASING}`,mobileTabIndicatorRef:tabIndicatorRef,mobileTabSettle:SCREEN_SETTLE_TRANSITION,mobileTabLiftSettle:TAB_LIFT_TRANSITION}),
+    // The bottom bar and its scrim are app chrome and must not stay mounted
+    // under a full-screen sheet. The scrim carries backdrop-filter, and a
+    // backdrop-filter samples whatever is painted behind it -- in an installed
+    // PWA that turned out to be the page canvas, not the sheet, so a 128px
+    // band of blurred canvas showed at the bottom of the Bloc Stream and of a
+    // comment thread opened from it. It tracked the canvas colour exactly:
+    // white while the canvas was unpainted, a dark slab once it was painted.
+    // The packaged iOS app composites it below the sheet and never showed it,
+    // which is why TestFlight looked right with identical code.
+    !showSettings && !showStream && !logCommentScreen && React.createElement(Nav,{onlyMobileBottomNav:true,page,setPage:handleNavSelect,user:currentUser,currentUserId:effectiveAuthSession?.userId||"",profilePhotoUrl:effectiveProfile?.profilePhotoUrl||"",groupName:currentGroup.name,canEditGroup:isGroupAdmin,settingsAlert:pendingRequestCount>0,onOpenSettings:()=>{trackUsage("settings_opened");setSettingsInitialTab("invite");setShowSettings(true)},onOpenStream:handleOpenStream,onOpenNotifications:handleOpenNotifications,streamUnreadCount,onSwitchUser:handleSwitchUser,onSwitchGroup:handleSwitchBlocTracked,onOpenLog:()=>{setPage("today");setShowTodayLog(true);},syncing,lastSyncedAt,syncError,onRefresh:refreshNow,showJustSynced,activityAlertCount,mobileBottomDragX:blocDragXRef.current,mobileBottomNavRef:blocBottomNavRef,mobileBottomDragging:blocDragging&&!blocReleasingRef.current,mobileBottomSettle:`transform ${BLOC_SWIPE_SETTLE_MS}ms ${BLOC_SWIPE_EASING}`,mobileTabIndicatorRef:tabIndicatorRef,mobileTabSettle:SCREEN_SETTLE_TRANSITION,mobileTabLiftSettle:TAB_LIFT_TRANSITION}),
     renderInviteJoinToast(),
     renderProfilePhotoToast(),
     renderInviteDownloadPrompt(),

@@ -15,6 +15,13 @@
          scrim entirely. Chrome that is positioned rather than scrolled (the
          install banner) still uses --bottom-nav-clearance. */
       --bottom-scroll-clearance:calc(max(20px, calc(env(safe-area-inset-bottom) - 10px)) + 116px);
+      /* Bottom padding under the Stream and comment composers. The safe-area
+         inset keeps the field clear of the home indicator. In an installed
+         PWA that clearance already exists -- the strip below the fixed
+         viewport is taller than the inset and the indicator sits inside it --
+         so App.jsx drops the inset there. The packaged app has no such strip
+         and keeps it. */
+      --composer-bottom-pad:calc(28px + env(safe-area-inset-bottom));
       --card-bg:#0A1212;
       --card-bg-alt:#191B24;
       --card-border:#12302E;
@@ -45,6 +52,17 @@
       --r:var(--card-radius);
     }
     html, body, #root { min-height:100%; }
+    /* The page canvas. An installed PWA leaves a band at the very bottom that
+       no element covers, so whatever the canvas is painted with is what shows
+       there. Unpainted, that band is bare white.
+       A COLOUR longhand, deliberately: `background: <gradient>` is a shorthand
+       and resets background-color to transparent, which paints white again --
+       that mistake was made and measured on the live page.
+       This is only half the fix. The other half is not mounting
+       .mobile-bottom-scrim under a full-screen sheet: its backdrop-filter
+       sampled this band and blurred it, which is what made a painted band read
+       as a foreign slab rather than as the app. Neither half works alone. */
+    html { background-color:var(--bg-primary); }
     body {
       background:var(--bg-gradient);
       color:var(--text);
@@ -152,15 +170,17 @@
       .mobile-bottom-nav::before { content:"";position:absolute;inset:0;border-radius:inherit;background:linear-gradient(180deg, rgba(255,255,255,.105), rgba(255,255,255,0) 46%);pointer-events:none; }
       .mobile-bottom-nav-grid { position:relative;display:grid;grid-template-columns:repeat(5,1fr);gap:3px;max-width:560px;margin:0 auto;align-items:center; }
       .mobile-tab-indicator { position:absolute;top:0;bottom:0;left:0;width:calc((100% - 12px) / 5);border-radius:999px;background:rgba(78,205,196,.12);box-shadow:inset 0 0 0 0.5px rgba(78,205,196,.16),0 8px 18px rgba(78,205,196,.08);transform:translateX(calc(var(--mobile-active-slot) * (100% + 3px)));transition:transform .18s cubic-bezier(.2,.82,.18,1);pointer-events:none;z-index:0; }
-      .mobile-tab { position:relative;z-index:1;min-height:46px;border-radius:999px;background:transparent;border:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;color:rgba(78,205,196,.38);transition:color .16s ease; }
-      .mobile-tab.on { color:var(--cyan); }
+      .mobile-tab { --tab-ink:rgba(78,205,196,.38); position:relative;z-index:1;min-height:46px;border-radius:999px;background:transparent;border:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;color:var(--tab-ink);transition:color .16s ease; }
+      .mobile-tab.on { --tab-ink:var(--cyan); }
       /* "Lift": the active tab's icon and label grow and rise a little as the
          pill arrives, so the row reacts to the change rather than only the
          pill. No overshoot -- a bounce reads as playful the first few times
          and as a toy by the hundredth, and this tab gets pressed daily. The
          wrapper carries the button's own column layout, so at rest it renders
-         exactly as it did before. Its transition comes from the shared screen
-         settle, inline, so icon and pill move as one. */
+         exactly as it did before. Its transition is set inline from
+         TAB_LIFT_TRANSITION, which is deliberately shorter and more
+         front-loaded than the screen settle: the lift leads the screen instead
+         of moving with it. */
       /* The lift is driven by two variables rather than the .on class alone,
          because .on only flips when the destination commits -- a fifth of a
          second after the finger lifts, which read as the nav trailing the
