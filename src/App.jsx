@@ -288,9 +288,16 @@ const SCREEN_SETTLE_TRANSITION = `transform ${SCREEN_SETTLE_MS}ms ${SCREEN_SETTL
 // duration -- this easing is front-loaded, so almost all of the 1.5px rise and
 // the 1.16x growth happen in the first few frames and the lift is visibly done
 // while the pill is still travelling. Chosen from three speeds mocked against
-// the real nav bar: artifact SRh6yLr5LEuPJgvAqtMRRs, option 2 of 3.
-const TAB_LIFT_MS = Math.round(SCREEN_SETTLE_MS * 0.5);
-const TAB_LIFT_EASING = "cubic-bezier(.2,.9,.3,1)";
+// the real nav bar: artifact SRh6yLr5LEuPJgvAqtMRRs.
+//
+// Option 2 (100ms) shipped first and was a clear improvement, but on a real
+// phone Aadhil still wanted it quicker, so this is option 3: "I think the
+// instantaneous one would be even better." At 60ms the lift reads as the icon
+// simply being bigger once you land, rather than as a movement you watch. That
+// is the intent -- the nav should have already reacted by the time the screen
+// arrives, not be reacting while you look at it.
+const TAB_LIFT_MS = Math.round(SCREEN_SETTLE_MS * 0.3);
+const TAB_LIFT_EASING = "cubic-bezier(.3,1,.4,1)";
 const TAB_LIFT_TRANSITION = `transform ${TAB_LIFT_MS}ms ${TAB_LIFT_EASING}`;
 const PAGE_TAP_TRANSITION_MS = SCREEN_SETTLE_MS;
 
