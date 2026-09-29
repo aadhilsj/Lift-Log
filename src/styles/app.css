@@ -45,7 +45,14 @@
       --r:var(--card-radius);
     }
     html, body, #root { min-height:100%; }
-    html { background:var(--bg-primary); }
+    /* The page canvas. Before this existed, html had no background, so body's
+       gradient propagated to the canvas -- and anywhere body did not reach
+       painted as bare white. Setting a FLAT colour here fixed the white but
+       traded it for a visible slab: it also stops body's gradient propagating,
+       so any uncovered pixel became a plain block that reads as not-the-app.
+       Using the same gradient means an uncovered pixel is indistinguishable
+       from the screen above it. */
+    html { background:var(--bg-gradient); }
     body {
       background:var(--bg-gradient);
       color:var(--text);
