@@ -45,14 +45,16 @@
       --r:var(--card-radius);
     }
     html, body, #root { min-height:100%; }
-    /* The page canvas. Before this existed, html had no background, so body's
-       gradient propagated to the canvas -- and anywhere body did not reach
-       painted as bare white. Setting a FLAT colour here fixed the white but
-       traded it for a visible slab: it also stops body's gradient propagating,
-       so any uncovered pixel became a plain block that reads as not-the-app.
-       Using the same gradient means an uncovered pixel is indistinguishable
-       from the screen above it. */
-    html { background:var(--bg-gradient); }
+    /* The page canvas. Both halves are load-bearing; set them as LONGHANDS.
+       `background: <gradient>` is a shorthand and resets background-color to
+       transparent, and a transparent canvas paints white -- verified on the
+       live page, where html's computed background-color came back
+       rgba(0,0,0,0) while its image was the gradient. That is the white strip.
+       A flat colour alone removes the white but reads as a slab, because it
+       also stops body's gradient propagating to the canvas.
+       So: the colour guarantees nothing is ever white, and the image makes any
+       uncovered pixel match the screen above it. */
+    html { background-color:var(--bg-primary); background-image:var(--bg-gradient); }
     body {
       background:var(--bg-gradient);
       color:var(--text);
