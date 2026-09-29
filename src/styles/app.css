@@ -8,6 +8,13 @@
          already reserves space, so we subtract from it rather than add. */
       --bottom-nav-offset:max(20px, calc(env(safe-area-inset-bottom) - 10px));
       --bottom-nav-clearance:calc(max(20px, calc(env(safe-area-inset-bottom) - 10px)) + 68px);
+      /* Scrolling content needs to clear the scrim, not just the bar. The scrim
+         is `offset + 104px` tall and fades content out inside it, so at the old
+         68px the last card came to rest 36px INSIDE the fade: clear of the bar,
+         but dimmed and impossible to scroll free of. 116px puts it above the
+         scrim entirely. Chrome that is positioned rather than scrolled (the
+         install banner) still uses --bottom-nav-clearance. */
+      --bottom-scroll-clearance:calc(max(20px, calc(env(safe-area-inset-bottom) - 10px)) + 116px);
       --card-bg:#0A1212;
       --card-bg-alt:#191B24;
       --card-border:#12302E;
@@ -149,7 +156,7 @@
       .mobile-tab.on { color:var(--cyan); }
       .mobile-plus-tab-wrap { position:relative;z-index:2;display:flex;align-items:center;justify-content:center;min-height:46px; }
       .mobile-plus-tab { position:absolute;left:50%;top:50%;width:62px;height:62px;border-radius:999px;border:5px solid rgba(5,10,10,.86);background:#4ECDC4;color:#fff;display:inline-flex;align-items:center;justify-content:center;transform:translate(-50%,-58%);box-shadow:0 17px 36px rgba(78,205,196,.28),0 0 0 1px rgba(255,255,255,.14) inset; }
-      .in-bloc-profile-layer { top:calc(env(safe-area-inset-top) + 45px);bottom:0;padding-bottom:var(--bottom-nav-clearance); }
+      .in-bloc-profile-layer { top:calc(env(safe-area-inset-top) + 45px);bottom:0;padding-bottom:var(--bottom-scroll-clearance); }
       .overlay { align-items:flex-end;padding:12px; }
       .overlay.center-mobile { align-items:center; justify-content:center; padding:16px 12px; }
       .overlay.center-mobile .modal { border-radius:20px; }
