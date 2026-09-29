@@ -37,7 +37,7 @@ Aadhil explicitly approved repeating the non-push signing override for build 6.
 Used `/tmp/Fero-Build6-NoPush.entitlements` (empty plist) as a command-line
 override only; committed Debug/Release entitlement files unchanged.
 
-## Distribution — in progress
+## Distribution — uploaded, processing availability not yet verified
 
 Xcode CLI export/upload uses existing manual distribution profile, internal
 TestFlight only, no build-number auto-management and no provisioning updates.
@@ -45,7 +45,12 @@ Options: `/tmp/Fero-Build6-ExportOptions.plist`.
 Upload log: `/tmp/Fero-build-6-upload.log`.
 Do not upload again if this attempt succeeds. App Store Connect browser session
 expired; Aadhil was asked to sign back in to verify processing/group availability.
-Upload completion and final Testing status will be recorded once confirmed.
+Apple confirmed `Upload succeeded`, `Uploaded App` and `EXPORT SUCCEEDED` at
+05:15:46 Europe/Oslo on 29 September. The uploaded package is processing.
+This is one successful upload; do not repeat it. Final `Testing` status in
+Fero Team is not verified because the App Store Connect session expired and
+the sign-in page is blank. Aadhil must restore his session before that last
+check. Physical-iPhone launch and swipe feel are also not yet verified.
 
 ## Exact tracked file delta from build 5
 
