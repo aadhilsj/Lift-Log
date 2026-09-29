@@ -751,3 +751,80 @@ projection tables it is a single switch deep rather than two, and nine newer
 tables are protected by an accident of configuration rather than by design.
 Both are Deveen's to fix, neither is urgent, and both should be fixed before
 launch rather than after.
+
+---
+
+## 19. RLS: the full history, and one gap nobody has caught
+
+Read across `rls-inventory-2026-09-20.md`,
+`staging-environment-spec-2026-09-20.md`,
+`rls-migration-rehearsal-2026-09-26.md`,
+`handover-2026-09-22-for-deveen-active.md` (§1, §2, §3, §10, §11) and
+`handover-2026-09-27-staging-outage-and-header.md`, then checked against live
+production.
+
+### Where it actually stands
+
+| | |
+| --- | --- |
+| Migration written | ✅ `supabase/migrations/20260926120000_enable_rls_on_server_only_tables.sql` |
+| Rehearsed on staging | ✅ applied to `okwrrspdmoluxatyokzh` 27 Sep, verified |
+| Applied to **production** | ❌ **not yet** — agreed for 2–3 October, after the close |
+| Deveen's end-to-end app pass on staging | ❌ still outstanding (§11) |
+| App Store blocker | it **was** the last technical one; it is written and rehearsed, so it is now a scheduled task rather than a blocker |
+
+**My live survey today independently confirms it has not been applied**: nine
+`ante_core` tables still have RLS off, and the projection tables still carry
+the full `anon`/`authenticated` grants. That is exactly the pre-migration state.
+
+### THE GAP: `push_devices` is not covered
+
+The migration names eight `ante_core` tables:
+
+`bloc_messages`, `bloc_message_reactions`, `bloc_message_reads`,
+`workout_log_comments`, `workout_log_comment_reactions`, `solo_requests`,
+`revision_clock`, `backup_bloc_message_solo_note_2026_09_18`
+
+Production has **nine** tables with RLS off. The extra one is
+**`ante_core.push_devices`**, created by
+`20260928213759_add_push_notification_foundation` — **two days after the
+migration was written**, and after the 20 September inventory that produced the
+list.
+
+So applying the migration as-is leaves `push_devices` without RLS, and the
+migration's own verification query ("tables still without RLS") will **return a
+row instead of none**, which will look like a failure on the day.
+
+**Not exposed today** — `anon` has no USAGE on `ante_core` and the table grants
+nothing to `anon` or `authenticated`. But it holds device push tokens, which is
+exactly the sort of table this exercise exists to protect.
+
+**Action:** add `push_devices` to the migration before 2–3 October. It is one
+more `alter table ... enable row level security`, in the same guarded shape as
+the others. Deveen's call, since it is his migration, but it should not be
+discovered on the day.
+
+**The general lesson:** the inventory was a snapshot, and new tables have been
+added since. Before applying, re-run the "which tables have RLS off" query
+rather than trusting the list — any migration written between now and then can
+add another.
+
+### `fero-staging` is still running and still costing
+
+Project `okwrrspdmoluxatyokzh`, `ACTIVE_HEALTHY`, created 24 Sep, **~$9.68/month
+billed hourly**. It is still needed for Deveen's outstanding app pass, so it
+should not be deleted yet — but it must be torn down once the migration is on
+production. Full teardown steps are in
+`handover-2026-09-27-staging-outage-and-header.md`: delete the Supabase project
+first (that is what stops the cost), then the shareable link, the four
+Preview-scoped Vercel variables, and the `staging/rls-rehearsal` branch. Leave
+the Production `ADMIN_PIN` alone.
+
+### Why the fix is safe, in one line
+
+Turning RLS on with no policies blocks browsers but not the app: the server's
+key bypasses RLS, and the 22 functions are `SECURITY DEFINER` owned by
+`postgres`, which is exempt from its own tables' RLS. The migration deliberately
+does not set `FORCE ROW LEVEL SECURITY`, which is the one setting that would
+remove that exemption and break everything. All three of those claims were
+checked on staging rather than assumed.
