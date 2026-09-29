@@ -675,3 +675,79 @@ height 20 unchanged before and after.
 He reported 23 of 25 with those two timing out. That is the same two scripts,
 same cause, and he described them accurately as not reaching their assertions.
 See §16.
+
+---
+
+## 18. RLS lay of the land (read-only survey, 29 September)
+
+**Deveen owns RLS and scaling.** This is a survey for Aadhil, not work. Nothing
+was changed. Do not pick up his branches.
+
+### The short version: production is locked down
+
+The pattern in use is **server-only**: every request goes through
+`/api/lift-log`, which talks to Postgres with the service role key. That key
+bypasses RLS. Everyone else is denied.
+
+That is why 42 tables show "RLS enabled, no policies" in the Supabase advisor.
+It reads like an alarm and it is not — **RLS on with zero policies denies
+everything**. The advisor rates it INFO, not WARN, for exactly that reason.
+
+Verified reachability:
+
+| | |
+| --- | --- |
+| `anon` has USAGE on `ante_core` | **no** |
+| `authenticated` has USAGE on `ante_core` | yes |
+| `anon` has USAGE on `public` | yes |
+| Tables in `ante_core` granting anything to `anon` | **none** |
+| Tables in `ante_core` granting to `authenticated` | one: `settlement_confirmations` (SELECT, UPDATE) — and it is the one table with real policies, 3 of them |
+
+So the canonical data is unreachable except through the API. `public.lift_log_state`
+— the blob — has RLS on, no policies, and no grants to `anon` or `authenticated`.
+Double-locked.
+
+### Two things worth Deveen's attention
+
+**1. The projection tables carry grants far wider than they need.** Every
+`public.lift_log_projection_*` table grants `SELECT, INSERT, UPDATE, DELETE,
+TRUNCATE, REFERENCES, TRIGGER` to **both `anon` and `authenticated`**.
+
+They are safe today only because RLS is on with no policies. That means a single
+`disable row level security`, or one permissive policy added by mistake, hands
+anonymous callers `TRUNCATE` on those tables. One of them is
+`lift_log_projection_pending_otps`.
+
+The app does not need those grants — it reaches these tables as `service_role`,
+which ignores both grants and RLS. Revoking them would remove the dependency on
+RLS being the only lock. **Not done here:** it is a production privilege change
+in Deveen's area, two days before month close.
+
+**2. Nine `ante_core` tables have RLS switched off entirely:**
+
+`bloc_messages`, `bloc_message_reactions`, `bloc_message_reads`,
+`workout_log_comments`, `workout_log_comment_reactions`, `solo_requests`,
+`push_devices`, `revision_clock`, and one dated backup table.
+
+**Not currently exposed** — `anon` has no USAGE on the schema and none of them
+grants to `anon` or `authenticated`. But it is inconsistent with the other 25
+tables in that schema, and the protection rests on the absence of a grant rather
+than on RLS. Add one grant and they are open immediately.
+
+Note these are the newer features — Bloc Stream, comments, Solo requests, push.
+The pattern suggests RLS is being enabled per-migration and the newer migrations
+did not include it.
+
+### One advisor warning that does not apply
+
+`auth_leaked_password_protection` is disabled. **Irrelevant to Fero** — sign-in
+is a one-time emailed code, and there are no user passwords to check against
+HaveIBeenPwned.
+
+### Summary for Aadhil
+
+Nothing is leaking and nothing needs doing tonight. The lock is real, but on the
+projection tables it is a single switch deep rather than two, and nine newer
+tables are protected by an accident of configuration rather than by design.
+Both are Deveen's to fix, neither is urgent, and both should be fixed before
+launch rather than after.
