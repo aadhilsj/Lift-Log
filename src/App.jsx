@@ -390,6 +390,15 @@ const App = () => {
   const [streamReturnScrollTop,setStreamReturnScrollTop]=useState(null);
   const [logCommentScreen,setLogCommentScreen]=useState(null);
   const [logCommentCountOverrides,setLogCommentCountOverrides]=useState({});
+  useEffect(() => {
+    if (!showStream && logCommentScreen?.source !== "stream") return;
+    // Installed iOS PWAs expose a strip below the fixed viewport that only
+    // the document canvas can paint. Match the Stream/comment composer there.
+    const canvas = document.documentElement;
+    const previousColor = canvas.style.backgroundColor;
+    canvas.style.backgroundColor = "#05090a";
+    return () => { canvas.style.backgroundColor = previousColor; };
+  }, [showStream, logCommentScreen?.source]);
   const [monthInitialIdx,setMonthInitialIdx]=useState(null);
   const [profileSaving,setProfileSaving]=useState(false);
   const [profileError,setProfileError]=useState("");

@@ -419,8 +419,8 @@ Fix rules:
 
 ## A Band At The Bottom Of A Full-Screen Sheet, PWA Only
 
-**UNSOLVED as of 29 September 2026.** Four attempts failed. Read this before
-attempting a fifth, and do not repeat any of them.
+**Measured on a physical installed iOS PWA on 29 September 2026.** Four earlier
+attempts failed. Read this before changing the Stream geometry again.
 
 Symptoms:
 - A band across the very bottom of the Bloc Stream, and of a comment thread
@@ -473,17 +473,23 @@ job is to find what should be covering it and is not.
 
 ### What nobody has done, and what to do next
 
-**Reproduce it in a real installed iOS PWA and measure it.** Every attempt so far
-reasoned from source. Build the site, open it in the iOS Simulator's Safari, Add
-to Home Screen, open it from the home screen, and then measure — with the Web
-Inspector attached — what the bottom-most covering element's
-`getBoundingClientRect()` actually is versus `window.innerHeight` and
-`document.documentElement.clientHeight`.
+**Physical-phone result:** a standalone test PWA with the app's viewport meta,
+a red `html` canvas, and a blue `position:fixed; inset:0` element showed the
+same bottom strip in red. Initially `innerHeight`, `clientHeight`, and the
+fixed element's bottom were all 797 CSS px. `env(safe-area-inset-bottom)` was
+34px. An element extended 80px below the fixed viewport was clipped; the red
+canvas still showed. After switching apps, `innerHeight` sometimes reported
+844px while `clientHeight` remained 797px, so `innerHeight` alone is not a
+reliable coverage check. When the canvas was set to exactly the fixed element's
+blue, the strip disappeared visually. The native TestFlight app does not have
+this standalone WebKit clipping behavior.
 
-The specific question: **does `position:fixed; inset:0` reach the bottom of the
-screen in that environment?** If it does not, that is the whole bug and every
-full-screen overlay in the app has it. If it does, the gap is inside the sheet
-and the composer is the place to look.
+The narrow Stream fix matches the document canvas to the composer bottom
+`#05090a` while the Stream or a comment thread opened from it is visible, then
+restores the normal canvas color. This was checked in a local sandbox build
+opened as an installed PWA on the physical iPhone: the Stream's bottom edge
+was continuous. The previously tried global `#070C0C` canvas left a dark slab
+because it did not match the composer's bottom color.
 
 Note the founder's own lead, which is the strongest one and is not yet fully
 chased: **it did not happen before the merge.** Something in that merge made a
