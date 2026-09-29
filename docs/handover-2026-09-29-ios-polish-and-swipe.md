@@ -12,8 +12,8 @@ developer, wants plain English, one step at a time, and notices single pixels.
 
 | | State |
 | --- | --- |
-| `main` | `6f36627` — unchanged all session |
-| Claude's branch | `ios-header-and-nav-polish`, 9 commits, pushed |
+| `main` | `2ddc545` — Capacitor deps landed late in the session |
+| Claude's branch | `ios-header-and-nav-polish`, 10 commits, pushed. **Rebase onto `main` first — it moved** |
 | Revert point | tag `pre-swipe-work-2026-09-29` (`a207382`) |
 | Codex's branch | `codex/testflight-build-2`, pushed |
 | TestFlight | **Build 5 is live and installed on his iPhone 14** |
@@ -145,12 +145,12 @@ example and leave placement to Claude.
 Six Blocs → one buzz. Partial success → still one buzz. Nothing saved → no buzz.
 Fire only after the API confirms, never on an optimistic update.
 
-**Why it is blocked:** `src/lib/haptics.js` and `@capacitor/haptics` exist only
-on Codex's branch. `main` has **zero** Capacitor dependencies, so adding the call
-on Claude's branch would import a file that is not there and break the build.
-Codex has a commit prepared (`2ddc545`) that moves `@capacitor/core` and
-`@capacitor/haptics` onto `main`; Aadhil has approved landing it. **Once that is
-on main, add the haptic to `handleMultiLog` on success and this is done.**
+**The blocker cleared at the end of the session.** `main` is now `2ddc545`,
+which carries `@capacitor/core` and `@capacitor/haptics`. Rebase onto `main`,
+confirm `src/lib/haptics.js` came with it (if only the dependencies landed, the
+helper still lives on `codex/testflight-build-2` and must be brought across),
+then add the haptic to `handleMultiLog` on success. Nothing else stands in the
+way.
 
 Also still wanted, same blocker: **haptics on tab changes** (Today → Activity
 etc.), on both swipe and nav-bar tap.
