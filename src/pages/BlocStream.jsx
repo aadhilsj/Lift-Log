@@ -1195,14 +1195,6 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, 
       style: {
         background: "radial-gradient(ellipse 95% 38% at 50% 16%, rgba(78,205,196,0.13), transparent 60%), linear-gradient(180deg, #080f0e 0%, #070f0e 38%, #05090a 100%)",
         borderTop: "1px solid var(--border)",
-        // Pinned to the container's bottom edge rather than left to
-        // justify-content. In the packaged iOS app the flex end-alignment put
-        // the sheet flush against the bottom; in an installed PWA it came to
-        // rest short of it, leaving a band of the backdrop below the composer.
-        // The container is `fixed; inset:0`, so its bottom edge IS the bottom
-        // of the screen -- anchoring to that directly cannot come up short,
-        // whatever `dvh` resolves to or however the flex box packs.
-        position: "absolute", left: 0, right: 0, bottom: 0,
         borderRadius: "16px 16px 0 0", height: "92dvh", display: "flex", flexDirection: "column",
         transform: mounted ? `translateY(${streamDragY}px)` : "translateY(100%)", transition: streamDragging ? "none" : (streamDragY ? "transform .08s ease-out" : "transform .28s cubic-bezier(.22,.61,.36,1)"),
         overflow: "hidden", overscrollBehavior: "contain", boxShadow: "0 -12px 40px rgba(0,0,0,.5)"

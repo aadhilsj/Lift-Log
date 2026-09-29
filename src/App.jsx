@@ -3590,7 +3590,16 @@ const App = () => {
     }),
     page==="today"&&(blocDragging||Math.abs(Number(blocDragXRef.current)||0)>0)&&renderGroupSwitcherSurface({ inert:true, suppressIntro:true }),
     activeBlocSurface,
-    !showSettings && React.createElement(Nav,{onlyMobileBottomNav:true,page,setPage:handleNavSelect,user:currentUser,currentUserId:effectiveAuthSession?.userId||"",profilePhotoUrl:effectiveProfile?.profilePhotoUrl||"",groupName:currentGroup.name,canEditGroup:isGroupAdmin,settingsAlert:pendingRequestCount>0,onOpenSettings:()=>{trackUsage("settings_opened");setSettingsInitialTab("invite");setShowSettings(true)},onOpenStream:handleOpenStream,onOpenNotifications:handleOpenNotifications,streamUnreadCount,onSwitchUser:handleSwitchUser,onSwitchGroup:handleSwitchBlocTracked,onOpenLog:()=>{setPage("today");setShowTodayLog(true);},syncing,lastSyncedAt,syncError,onRefresh:refreshNow,showJustSynced,activityAlertCount,mobileBottomDragX:blocDragXRef.current,mobileBottomNavRef:blocBottomNavRef,mobileBottomDragging:blocDragging&&!blocReleasingRef.current,mobileBottomSettle:`transform ${BLOC_SWIPE_SETTLE_MS}ms ${BLOC_SWIPE_EASING}`,mobileTabIndicatorRef:tabIndicatorRef,mobileTabSettle:SCREEN_SETTLE_TRANSITION,mobileTabLiftSettle:TAB_LIFT_TRANSITION}),
+    // The bottom bar and its scrim are app chrome and must not stay mounted
+    // under a full-screen sheet. The scrim carries backdrop-filter, and a
+    // backdrop-filter samples whatever is painted behind it -- in an installed
+    // PWA that turned out to be the page canvas, not the sheet, so a 128px
+    // band of blurred canvas showed at the bottom of the Bloc Stream and of a
+    // comment thread opened from it. It tracked the canvas colour exactly:
+    // white while the canvas was unpainted, a dark slab once it was painted.
+    // The packaged iOS app composites it below the sheet and never showed it,
+    // which is why TestFlight looked right with identical code.
+    !showSettings && !showStream && !logCommentScreen && React.createElement(Nav,{onlyMobileBottomNav:true,page,setPage:handleNavSelect,user:currentUser,currentUserId:effectiveAuthSession?.userId||"",profilePhotoUrl:effectiveProfile?.profilePhotoUrl||"",groupName:currentGroup.name,canEditGroup:isGroupAdmin,settingsAlert:pendingRequestCount>0,onOpenSettings:()=>{trackUsage("settings_opened");setSettingsInitialTab("invite");setShowSettings(true)},onOpenStream:handleOpenStream,onOpenNotifications:handleOpenNotifications,streamUnreadCount,onSwitchUser:handleSwitchUser,onSwitchGroup:handleSwitchBlocTracked,onOpenLog:()=>{setPage("today");setShowTodayLog(true);},syncing,lastSyncedAt,syncError,onRefresh:refreshNow,showJustSynced,activityAlertCount,mobileBottomDragX:blocDragXRef.current,mobileBottomNavRef:blocBottomNavRef,mobileBottomDragging:blocDragging&&!blocReleasingRef.current,mobileBottomSettle:`transform ${BLOC_SWIPE_SETTLE_MS}ms ${BLOC_SWIPE_EASING}`,mobileTabIndicatorRef:tabIndicatorRef,mobileTabSettle:SCREEN_SETTLE_TRANSITION,mobileTabLiftSettle:TAB_LIFT_TRANSITION}),
     renderInviteJoinToast(),
     renderProfilePhotoToast(),
     renderInviteDownloadPrompt(),
