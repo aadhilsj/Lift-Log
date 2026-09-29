@@ -135,6 +135,7 @@ function LogHeader({ log }) {
 function LogCommentThread({ groupId, log, currentUserId, currentUserName, onClose, onCommentCountChange, onTrackUsage }) {
   const [comments, setComments] = useState([]);
   const [loaded, setLoaded] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
@@ -167,8 +168,11 @@ function LogCommentThread({ groupId, log, currentUserId, currentUserName, onClos
     const result = await listLogCommentsData(groupId, logId);
     if (!result.ok) {
       setError(result.error || "Unable to load comments");
+      setLoaded(true);
+      setLoadFailed(true);
       return;
     }
+    setLoadFailed(false);
     const serverComments = result.comments.map(normalizeComment).filter(comment => comment.id);
     const serverIds = new Set(serverComments.map(comment => comment.id));
     const now = Date.now();
@@ -208,6 +212,7 @@ function LogCommentThread({ groupId, log, currentUserId, currentUserName, onClos
     const cached = cacheKey ? logCommentThreadCache.get(cacheKey) : null;
     setComments(Array.isArray(cached) ? cached : []);
     setLoaded(Array.isArray(cached));
+    setLoadFailed(false);
     setError("");
     refresh();
     const id = window.setInterval(refresh, 3000);
@@ -522,8 +527,13 @@ function LogCommentThread({ groupId, log, currentUserId, currentUserName, onClos
         stickToLatestRef.current = list.scrollHeight - list.scrollTop - list.clientHeight < 56;
       }, style: { flex: 1, minHeight: 0, overflowY: "auto", WebkitOverflowScrolling: "touch", overscrollBehavior: "contain" } },
         React.createElement('div', { style: { minHeight: "100%", display: "flex", flexDirection: "column", justifyContent: "flex-end" } },
-        error && React.createElement('div', { style: { margin: 14, padding: "9px 11px", borderRadius: 10, background: "rgba(232,69,69,.08)", border: "1px solid rgba(232,69,69,.22)", color: "#ffd7d7", fontSize: 12 } }, error),
-        comments.length === 0 && !loaded && knownCommentCount > 0
+        error && (!loadFailed || comments.length > 0) && React.createElement('div', { style: { margin: 14, padding: "9px 11px", borderRadius: 10, background: "rgba(232,69,69,.08)", border: "1px solid rgba(232,69,69,.22)", color: "#ffd7d7", fontSize: 12 } }, error),
+        comments.length === 0 && loadFailed
+          ? React.createElement('div', { style: { padding: "22px 14px", color: "#ffd7d7", fontSize: 13, textAlign: "center" } },
+              React.createElement('div', null, "Comments couldn't load."),
+              React.createElement('div', { style: { marginTop: 5, fontSize: 11, opacity: .8 } }, error),
+              React.createElement('button', { type: "button", onClick: () => { void refresh(); }, style: { marginTop: 12, padding: "8px 14px", borderRadius: 10, border: "1px solid rgba(232,69,69,.4)", background: "rgba(232,69,69,.1)", color: "#ffd7d7", fontSize: 12, fontWeight: 700, cursor: "pointer" } }, "Try again"))
+          : comments.length === 0 && !loaded && knownCommentCount > 0
           ? React.createElement(CommentThreadSkeleton, { count: knownCommentCount })
           : comments.length === 0
           ? React.createElement('div', { style: { padding: "22px 14px", color: "var(--muted2)", fontSize: 13, textAlign: "center" } }, "No comments yet")
