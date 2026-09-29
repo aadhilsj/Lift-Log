@@ -828,3 +828,93 @@ key bypasses RLS, and the 22 functions are `SECURITY DEFINER` owned by
 does not set `FORCE ROW LEVEL SECURITY`, which is the one setting that would
 remove that exemption and break everything. All three of those claims were
 checked on staging rather than assumed.
+
+---
+
+## 20. Android can't scroll on Today — diagnosis (not fixed)
+
+Reported 29 September: Android users cannot scroll the Today screen. Every other
+screen scrolls. iOS is fine. First complaints around July.
+
+**Not reproduced on a device — there is no Android here.** What follows is a
+code-level diagnosis with a dated corroboration, handed to Codex to confirm and
+fix. Treat it as a strong lead, not a proven cause.
+
+### The two gesture handlers disagree
+
+`src/App.jsx` has two touchmove handlers that both classify a drag as horizontal
+or vertical. They use **identical thresholds** and **opposite precedence**.
+
+`movePageSwipe` (the in-Bloc tab track) — vertical wins:
+
+```js
+const horizontal = absDx > minHorizontal && absDx > absDy * dominanceRatio;
+const vertical   = absDy > 9 && absDy > absDx * 1.08;
+if (!horizontal && !vertical) return;
+if (vertical) { s.mode = "scroll"; return; }   // vertical checked FIRST
+```
+
+`moveBlocSwitchSwipe` (Today → Bloc switcher) — horizontal wins:
+
+```js
+const horizontal = absDx > 5 && absDx > absDy * 0.72;
+const vertical   = absDy > 9 && absDy > absDx * 1.08;
+if (horizontal) {                               // horizontal checked FIRST
+  s.mode = dx > 0 ? "back" : "scroll";
+  setBlocDragging(s.mode === "back");
+} else if (vertical) { ... }
+```
+
+Both conditions are true at the same time for a large band of ordinary drags.
+A thumb moving 10px across and 13px down:
+
+- `horizontal` → `10 > 5` and `10 > 13 × 0.72 (9.36)` → **true**
+- `vertical` → `13 > 9` and `13 > 10 × 1.08 (10.8)` → **true**
+
+The tab track calls that a scroll. The Bloc back-swipe calls it a drag, sets
+`mode = "back"` and `setBlocDragging(true)`, and the surface starts following
+the finger sideways instead of scrolling.
+
+### Why only Today
+
+`startBlocSwitchSwipe` returns immediately unless `page === "today"`:
+
+```js
+if (page !== "today" || showTodayLog || ...) return;
+if (!t || t.clientX > 72) return;
+```
+
+So this handler exists **only on Today**, and only for touches starting within
+**72px of the left edge**. Every other screen has only the tab track, which
+resolves the same ambiguity the other way.
+
+### Why only Android
+
+Nothing in the code is platform-specific. The difference is the 72px strip: on
+iOS that band overlaps the system back-swipe zone, so the OS intercepts a large
+share of touches starting there and they never reach the page. Android has no
+equivalent left-edge interception in a PWA, so those touches land on the handler
+every time. Same bug on both, hit constantly on one.
+
+### The dates line up
+
+`startBlocSwitchSwipe` was introduced in **`d9844b0`, 16 July 2026** ("Fix active
+bloc swipe and profile covers"). Aadhil: *"I think maybe it happened in July,
+for the first time that I got a complaint."*
+
+### Recommended fix
+
+Give vertical priority in `moveBlocSwitchSwipe`, matching `movePageSwipe`. A
+drag that is both should scroll, not navigate — scrolling is the common action
+and navigating is the deliberate one.
+
+**Deliberately not fixed here.** It cannot be verified without an Android
+device, and swipe code is the most re-broken area in this repo. It goes to
+Codex with the playbook's swipe contract attached.
+
+### Worth checking at the same time
+
+The thresholds themselves are asymmetric: horizontal needs only 5px of travel
+and 0.72× dominance, vertical needs 9px and 1.08×. Horizontal is easier to
+trigger than vertical in both handlers. That bias may be deliberate for the tab
+track; on a left-edge back-swipe it is probably not.
