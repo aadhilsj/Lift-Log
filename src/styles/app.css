@@ -15,6 +15,13 @@
          scrim entirely. Chrome that is positioned rather than scrolled (the
          install banner) still uses --bottom-nav-clearance. */
       --bottom-scroll-clearance:calc(max(20px, calc(env(safe-area-inset-bottom) - 10px)) + 116px);
+      /* Bottom padding under the Stream and comment composers. The safe-area
+         inset keeps the field clear of the home indicator. In an installed
+         PWA that clearance already exists -- the strip below the fixed
+         viewport is taller than the inset and the indicator sits inside it --
+         so App.jsx drops the inset there. The packaged app has no such strip
+         and keeps it. */
+      --composer-bottom-pad:calc(28px + env(safe-area-inset-bottom));
       --card-bg:#0A1212;
       --card-bg-alt:#191B24;
       --card-border:#12302E;

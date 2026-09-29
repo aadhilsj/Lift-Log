@@ -106,6 +106,7 @@ import { LogCommentThread } from "./components/LogCommentThread.jsx";
 import { ColdOnboarding } from "./components/ColdOnboarding.jsx";
 import { FounderDashboard } from "./pages/FounderDashboard.jsx";
 import { NotificationsPage } from "./pages/NotificationsPage.jsx";
+import { Capacitor } from "@capacitor/core";
 import { tapLight } from "./lib/haptics.js";
 
 const normalizeReactionMembers = (members) => Array.isArray(members)
@@ -478,6 +479,19 @@ const App = () => {
   const [installPrompt,setInstallPrompt]=useState(null);
   const [installDismissed,setInstallDismissed]=useState(()=>{try{return localStorage.getItem(INSTALL_DISMISSED_KEY)==="1";}catch{return false;}});
   const [standalone,setStandalone]=useState(()=>isStandalone());
+  useEffect(() => {
+    // The composer pays for home-indicator clearance twice in an installed
+    // PWA: its own safe-area padding, and again in the strip below the fixed
+    // viewport, which is taller than the inset and is where the indicator
+    // actually sits. That read as dead space under the field. Drop the inset
+    // there and let the strip do the job. The packaged app has no strip, so
+    // it keeps the inset -- hence the explicit native guard rather than
+    // display-mode alone.
+    if (!standalone || Capacitor.isNativePlatform()) return;
+    const canvas = document.documentElement;
+    canvas.style.setProperty("--composer-bottom-pad", "28px");
+    return () => { canvas.style.removeProperty("--composer-bottom-pad"); };
+  }, [standalone]);
   const [syncing,setSyncing]=useState(false);
   const [syncError,setSyncError]=useState(false);
   const [lastSyncedAt,setLastSyncedAt]=useState(null);
