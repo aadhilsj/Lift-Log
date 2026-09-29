@@ -105,7 +105,7 @@ import { BlocSettingsScreen } from "./pages/BlocSettingsScreen.jsx";
 import { LogCommentThread } from "./components/LogCommentThread.jsx";
 import { ColdOnboarding } from "./components/ColdOnboarding.jsx";
 import { FounderDashboard } from "./pages/FounderDashboard.jsx";
-import { NotificationsPage } from "./pages/NotificationsPage.jsx";
+import { tapLight } from "./lib/haptics.js";
 
 const normalizeReactionMembers = (members) => Array.isArray(members)
   ? Array.from(new Set(members.filter(Boolean))).sort()
@@ -1967,6 +1967,9 @@ const App = () => {
       setShowTodayLog(false);
       return;
     }
+    // Reselecting the tab you are already on is not a screen change, so it
+    // does not buzz.
+    if (nextPage !== page) void tapLight();
     setShowTodayLog(false);
     setShowSettings(false);
     pageDragXRef.current = 0;
@@ -2118,6 +2121,9 @@ const App = () => {
     const dominantDrag = Math.abs(dx) > screenWidth * 0.16 && Math.abs(dy) < 140 && Math.abs(dx) > Math.abs(dy) * 0.75;
     const shouldMove = s.mode === "page" && s.target && (fastFlick || dominantDrag);
     if (shouldMove) {
+      // At release, not in commit: the buzz answers the finger lifting, and
+      // waiting for the transition to finish would land it late.
+      void tapLight();
       releaseSwipeForward({
         dragRef: pageDragXRef,
         frameRef: pageFrameRef,
