@@ -1,5 +1,13 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import playwright from "playwright";
+
+// Assert the destination after the app's shared settle has committed, not at
+// the obsolete 180ms delay (which falls inside the current 260ms animation).
+const appSource = readFileSync(new URL("../src/App.jsx", import.meta.url), "utf8");
+const settleMatch = appSource.match(/const SCREEN_SETTLE_MS = (\d+);/);
+assert.ok(settleMatch, "Screen settle duration must have one declared source");
+const screenSettleMs = Number(settleMatch[1]);
 
 const baseUrl = process.env.FERO_QA_BASE_URL || "http://127.0.0.1:3000";
 const existingEmail = process.env.FERO_QA_EXISTING_EMAIL || "seed-invite@local.test";
@@ -34,7 +42,7 @@ const swipe = async ({ fromX, toX, fromY, toY = fromY }) => {
     });
   }
   await cdp.send("Input.dispatchTouchEvent", { type:"touchEnd", touchPoints:[] });
-  await page.waitForTimeout(180);
+  await page.waitForTimeout(screenSettleMs + 60);
 };
 
 try {
