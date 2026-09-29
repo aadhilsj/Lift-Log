@@ -287,15 +287,15 @@ Re-run both on 30 September, since workouts keep arriving until the last minute.
 
 ## 9. Live status board — keep this updated
 
-Last updated 29 September, after the outage was identified.
+Last updated 29 September, after handing Codex round two.
 
 | Reported by Aadhil | Status | Where |
 | --- | --- | --- |
 | Reactions disappear | **Cause found: the outage (§12). Nothing lost, no fix needed.** | — |
-| Stream/activity comments never load | **Cause found: the outage (§12). Loading again on its own.** Codex's honest-failure fix still worth shipping | `e9b7704`, preview only |
+| Stream/activity comments never load | **Cause found: the outage (§12).** Honest-failure fix **with Codex now** to land on main | `e9b7704` |
 | Bloc entry could be faster | Not started | — |
 | Tab lift arrives late | Not started, needs a measurement | — |
-| Reaction bar overflows the screen | **Diagnosed, not fixed** | see §11 |
+| Reaction bar overflows the screen | **With Codex now** | see §11 |
 | Full emoji picker (top 5 + more) | Not started, feature not fix | — |
 | PWA missing the bottom-nav blackout | Not started | see §4 |
 | Month close on 1 October | **Verified safe** | §7, §8 |
@@ -447,3 +447,35 @@ Run after the outage, 29 September.
 - **No member is missing a workout they logged.** The two stores agree exactly.
 
 Aadhil's instinct to check was right, but the app came through it clean.
+
+
+---
+
+## 14. Round two handed to Codex (29 September)
+
+One message, three items in order:
+
+1. **Stop Task 1.** The outage evidence in §12, handed over in full so he does
+   not keep chasing Vercel logs for a cause that does not exist.
+2. **Land `e9b7704` on `main`.** Reviewed and sound (§10.2). Straight to main per
+   the standing workflow — previews cannot reach the live database. Told
+   explicitly to leave `e9ea4cd` alone and why.
+3. **Fix the reaction picker overflow** (§11), with the card and chip row as
+   hard locks and a measured pass/fail at 375x812.
+
+TestFlight deliberately left out. Build 10 should carry both once they land;
+that is a separate hand-off.
+
+### Still open after round two
+
+| | Owner | Note |
+| --- | --- | --- |
+| Tab lift arrives late | unassigned | Cause NOT found by reading. Needs a frame-gap measurement on the simulator, method in the 29 Sep motion handover §3 |
+| Bloc entry could be faster | unassigned | Not investigated at all |
+| Full emoji picker, top 5 + more | unassigned | Feature, not a fix. Three surfaces: activity, comments, Bloc Stream |
+| PWA bottom-nav blackout | unassigned | §4 |
+| TestFlight build 10 | Codex | After items 2 and 3 land |
+| Notification permission timing | **Aadhil** | iOS asks once. Do not pick it for him |
+| Re-run §7 and §8 | unassigned | On 30 September, before month close |
+| Cancelled Bloc back-swipe stall | parked | Deliberate, see motion handover §8 |
+| In-Bloc tab shadow strip | parked | Not reported by Aadhil |
