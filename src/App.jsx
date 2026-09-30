@@ -319,7 +319,12 @@ const applyInBlocPageTransforms = ({ layers, activePage, dragX = 0, dragging = f
     if (!el) return;
     const offsetX = (index - activeIndex) * width + dragX;
     el.style.transform = offsetX ? `translateX(${offsetX}px)` : "none";
-    el.style.opacity = String(pageFadeFor(offsetX, width));
+    // Only the screen being LEFT fades. The one arriving stays solid.
+    // Fading both made them semi-transparent at the same moment, so the old
+    // screen showed straight through the new one and a sliver of it survived
+    // however fast the fade ran. An arriving screen is opaque; it is the one
+    // you asked for.
+    el.style.opacity = pageName === activePage ? String(pageFadeFor(offsetX, width)) : "1";
     el.style.transition = dragging || !animate
       ? "none"
       : `${SCREEN_SETTLE_TRANSITION}, ${PAGE_FADE_TRANSITION}`;
@@ -3538,11 +3543,11 @@ const App = () => {
         ? (pageTapTransition.phase === "staged" ? "none" : `transform ${PAGE_TAP_TRANSITION_MS}ms ${SCREEN_SETTLE_EASING}, ${PAGE_FADE_TRANSITION}`)
         : null;
       // Same fade as the swipe, so a tap and a swipe to the same screen look
-      // identical. A staged page starts dimmed a screen away and comes up as
-      // it slides in; the one leaving does the reverse.
+      // identical: the arriving screen is solid the whole way, and only the
+      // one being left fades out.
       const tapOpacity = tapTransitionParticipant
         ? (pageName === pageTapTransition.to
-            ? (pageTapTransition.phase === "staged" ? 1 - PAGE_FADE_DEPTH : 1)
+            ? 1
             : (pageTapTransition.phase === "staged" ? 1 : 1 - PAGE_FADE_DEPTH))
         : null;
       return React.createElement('div',{
@@ -3572,7 +3577,7 @@ const App = () => {
           pointerEvents:active&&!pageTapTransition?"auto":"none",
           visibility:near?"visible":"hidden",
           transform:tapTransitionParticipant ? tapTransform : offsetX ? `translateX(${offsetX}px)` : "none",
-          opacity:tapOpacity !== null ? tapOpacity : pageFadeFor(offsetX, screenWidth),
+          opacity:tapOpacity !== null ? tapOpacity : (active ? pageFadeFor(offsetX, screenWidth) : 1),
           transition:tapTransitionParticipant ? tapTransitionStyle : (pageDragging&&!pageReleasingRef.current)?"none":`${SCREEN_SETTLE_TRANSITION}, ${PAGE_FADE_TRANSITION}`,
           boxShadow:active&&pageDragXRef.current?"-18px 0 34px rgba(0,0,0,.24)":"none",
           willChange:tapTransitionParticipant||pageDragging||pageDragXRef.current?"transform":"auto"
