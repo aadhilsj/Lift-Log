@@ -16,6 +16,7 @@ import {
   isMobile
 } from "../lib/utils.js";
 import { Avatar, AppIcon, WorkoutTypeIcon, Card } from "../components/primitives.jsx";
+import { EmojiSheet, QuickReactionChoices } from "../components/EmojiReactionPicker.jsx";
 import { TextEntryModal, NoticeModal } from "../modals/modals.jsx";
 
 const getReactionKey = (groupId, owner, logId, emoji) => `${groupId || ""}:${owner || ""}:${logId || ""}:${emoji || ""}`;
@@ -40,6 +41,7 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
   const [responseTarget,setResponseTarget]=useState(null);
   const [responseText,setResponseText]=useState("");
   const [reactionTarget,setReactionTarget]=useState(null);
+  const [emojiSheetPost,setEmojiSheetPost]=useState(null);
   const [reactionPickerOffset,setReactionPickerOffset]=useState({postId:null,x:0});
   const [reactionPopover,setReactionPopover]=useState(null);
   const [localReactionOverrides,setLocalReactionOverrides]=useState({});
@@ -296,9 +298,11 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
   };
   const renderReactionPicker = (post, centered=false) => reactionTarget===post.id && React.createElement('div',{"data-reaction-picker-root":"true",ref:!centered?reactionPickerPopoverRef:null,style:{position:"absolute",left:centered?"50%":"calc(100% + 5px)",top:centered?"auto":"calc(100% + 5px)",bottom:centered?"calc(100% + 4px)":"auto",transform:centered?"translateX(-50%)":`translateX(${reactionPickerOffset.postId===post.id?reactionPickerOffset.x:0}px)`,zIndex:8,width:"max-content",maxWidth:"calc(100vw - 48px)",padding:"6px 8px",borderRadius:999,background:"rgba(8,15,15,.96)",border:"1px solid rgba(78,205,196,.16)",boxShadow:"0 14px 32px rgba(0,0,0,.34), inset 0 1px 0 rgba(255,255,255,.05)",display:"grid",gap:6,overflowX:"auto",WebkitOverflowScrolling:"touch"}},
     React.createElement('div',{style:{display:"flex",alignItems:"center",gap:5,flexWrap:"nowrap",justifyContent:"center",minWidth:"max-content"}},
-      QUICK_REACTIONS.map(emoji=>
-        React.createElement('button',{key:emoji,type:"button",onClick:()=>{ handleReact(post, emoji); setReactionTarget(null); },style:{width:24,height:24,borderRadius:999,background:"var(--s2)",border:"1px solid var(--border)",fontSize:13,color:"var(--text)",display:"inline-flex",alignItems:"center",justifyContent:"center",padding:0,flex:"0 0 auto"}},emoji)
-      )
+      React.createElement(QuickReactionChoices,{
+        size:24, fontSize:13,
+        onPick:emoji=>{ handleReact(post, emoji); setReactionTarget(null); },
+        onMore:()=>{ setReactionTarget(null); setEmojiSheetPost(post); }
+      })
     )
   );
   const renderReactionRow = (post, compact=false, suppressFloating=false, centered=false) => {
@@ -504,6 +508,10 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
   };
 
   return React.createElement(React.Fragment,null,
+    emojiSheetPost && React.createElement(EmojiSheet,{
+      onClose:()=>setEmojiSheetPost(null),
+      onPick:emoji=>handleReact(emojiSheetPost,emoji)
+    }),
     renderExpandedPhoto(),
     notice && React.createElement(NoticeModal,{title:notice.title,body:notice.body,onClose:()=>setNotice(null)}),
     flagTarget && React.createElement(TextEntryModal,{

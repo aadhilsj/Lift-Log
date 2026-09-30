@@ -138,7 +138,7 @@ const DISTANCE_UNIT_OPTIONS = [
   { value:"km", label:"Kilometers" },
   { value:"mi", label:"Miles" }
 ];
-const QUICK_REACTIONS = ["💪","🔥","👀","👏","😤","🏃","🦍","😂"];
+const QUICK_REACTIONS = ["🦍","🔥","❤️","💪","🏃"];
 const COMMON_TIME_ZONES = [
   "Europe/Oslo","Europe/London","Europe/Paris","Europe/Berlin","Europe/Madrid",
   "America/New_York","America/Chicago","America/Denver","America/Los_Angeles","America/Toronto",

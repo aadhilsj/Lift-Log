@@ -9,7 +9,7 @@ taken from the older docs.** Where an older doc is now wrong, this one says so.
 
 | | Status |
 | --- | --- |
-| 1. **`push_devices` is missing from your RLS migration** | **NEW — needs you before 2 Oct** |
+| 1. **`push_devices` is missing from your RLS migration** | **Needs you before 2 Oct** — re-verified on production 30 Sep, still nine tables |
 | 2. RLS production rollout | Scheduled 2–3 Oct, after the close |
 | 3. The staging app pass | **No longer yours** — Aadhil is taking it |
 | 4. `fero-staging` billing and teardown | Still running, ~$9.68/month |
@@ -63,6 +63,39 @@ from pg_class c join pg_namespace n on n.oid = c.relnamespace
 where c.relkind = 'r' and n.nspname = 'ante_core' and not c.relrowsecurity
 order by 2;
 ```
+
+### Re-verified on production, 30 September — still true, plus two corrections
+
+Ran the query above against production. **Still exactly nine tables, still
+`push_devices` as the ninth.** Nothing new has been added since 28 September,
+so the list in the migration is short by exactly one and no more.
+
+**Correction to the "not exposed today" note above.** `anon` has no `USAGE` on
+`ante_core`, as stated — but **`authenticated` does**:
+
+| | |
+| --- | --- |
+| `anon` USAGE on `ante_core` | `false` |
+| `authenticated` USAGE on `ante_core` | **`true`** |
+| table grants on `push_devices` to either | **NONE** |
+
+So what keeps `push_devices` unreachable is the **absence of table grants
+alone**, not the schema barrier. For a signed-in user the schema door is
+already open. That does not change the conclusion — it is still a gap in the
+fix rather than a live hole — but it means the single thing standing between a
+signed-in user and this table is one `GRANT` nobody has made. Worth knowing
+before deciding how much the ordering on 2 October matters.
+
+**The table is empty — 0 rows.** No device tokens exist yet, so nothing is at
+risk today.
+
+**TestFlight build 10 does not change that.** The branch `testflight-build-10`
+(`77fe4d8`) merges the website work onto the app lineage and carries the push
+foundation code, but push stays off: there is no APNs key, no wired permission
+prompt, and the build is archived with the same no-push signing override as
+build 9, with no `aps-environment` in its entitlements. **No build in the field
+will write a row to `push_devices` before your migration lands.** If that ever
+changes, this table stops being empty and the ordering starts to matter.
 
 ---
 

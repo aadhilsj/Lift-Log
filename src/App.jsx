@@ -298,7 +298,18 @@ const PAGE_TAP_TRANSITION_MS = SCREEN_SETTLE_MS;
 // incoming one comes up is what makes the change feel like a transition
 // rather than a replacement. It stops short of transparent so the Bloc
 // background never shows through as a hole mid-swipe.
-const PAGE_FADE_DEPTH = 0.72;
+// A screen parked a full width away is fully off screen, so it is fully
+// transparent: depth 1, not 0.72. At 0.72 the screen you were leaving settled
+// at 28% opacity and held it for the whole 200ms settle before the commit
+// blanked it, so you sat watching a ghost of the screen you had already left.
+const PAGE_FADE_DEPTH = 1;
+// The fade is deliberately faster than the slide and front-loaded, so the old
+// screen is gone well before the new one finishes arriving. The slide keeps
+// SCREEN_SETTLE_MS untouched -- TAB_LIFT_MS derives from it, and changing the
+// settle would silently retune the nav lift.
+const PAGE_FADE_MS = Math.round(SCREEN_SETTLE_MS * 0.55);
+const PAGE_FADE_EASING = "cubic-bezier(.3,1,.4,1)";
+const PAGE_FADE_TRANSITION = `opacity ${PAGE_FADE_MS}ms ${PAGE_FADE_EASING}`;
 const pageFadeFor = (offsetX, width) =>
   1 - Math.min(1, Math.abs(offsetX) / (width || 1)) * PAGE_FADE_DEPTH;
 
@@ -308,13 +319,32 @@ const applyInBlocPageTransforms = ({ layers, activePage, dragX = 0, dragging = f
     const el = layers?.[pageName];
     if (!el) return;
     const offsetX = (index - activeIndex) * width + dragX;
+    // Reveal a layer the moment any part of it is on screen, here rather than
+    // waiting for React. The incoming page is visibility:hidden until a render
+    // makes it `near`, and that render is triggered by setPageSwipeTarget at
+    // the moment the gesture locks -- so the page you are swiping INTO used to
+    // appear a frame or two after the page you are leaving had already started
+    // moving. That late arrival is the jump-start. Deriving it from the offset
+    // needs no extra state and is self-healing: a cancelled swipe snaps back to
+    // offset +/-width and the layer hides itself again on the same path.
+    el.style.visibility = pageName === activePage || Math.abs(offsetX) < width ? "visible" : "hidden";
     el.style.transform = offsetX ? `translateX(${offsetX}px)` : "none";
-    el.style.opacity = String(pageFadeFor(offsetX, width));
+    // Only the screen being LEFT fades. The one arriving stays solid.
+    // Fading both made them semi-transparent at the same moment, so the old
+    // screen showed straight through the new one and a sliver of it survived
+    // however fast the fade ran. An arriving screen is opaque; it is the one
+    // you asked for.
+    el.style.opacity = pageName === activePage ? String(pageFadeFor(offsetX, width)) : "1";
     el.style.transition = dragging || !animate
       ? "none"
-      : `${SCREEN_SETTLE_TRANSITION}, opacity ${SCREEN_SETTLE_MS}ms ${SCREEN_SETTLE_EASING}`;
+      : `${SCREEN_SETTLE_TRANSITION}, ${PAGE_FADE_TRANSITION}`;
     el.style.boxShadow = pageName === activePage && dragX ? "-18px 0 34px rgba(0,0,0,.24)" : "none";
-    el.style.willChange = dragging || dragX ? "transform" : "auto";
+    // will-change is deliberately NOT set here. It is driven from `near` in the
+    // layer's React style instead, so a layer is only ever demoted off its
+    // compositing layer once it is already visibility:hidden. Dropping
+    // will-change on a *visible* element repaints it, and on iOS that repaint
+    // lands in the same frame as the position swap at commit -- a one-frame
+    // flash of the screen being left. Chromium hides this; WebKit does not.
   });
 };
 const COLD_ONBOARDING_SEEN_KEY = "fero_cold_onboarding_seen";
@@ -520,6 +550,21 @@ const App = () => {
   const [switcherRevealInteractive,setSwitcherRevealInteractive]=useState(false);
   const [pageDragging,setPageDragging]=useState(false);
   const [pageSwipeTarget,setPageSwipeTarget]=useState(null);
+  // False for the first two frames after entering a Bloc, so that commit paints
+  // only the screen being entered. See the in-Bloc page track below. Two frames
+  // rather than one: the first gets the paint on screen, the second builds the
+  // rest once it is there. A swipe cannot start inside that window, and if one
+  // somehow does, the track still renders its target explicitly.
+  const [inBlocTrackReady,setInBlocTrackReady]=useState(false);
+  useEffect(() => {
+    if (!selectedGroupId) { setInBlocTrackReady(false); return; }
+    setInBlocTrackReady(false);
+    let raf2 = 0;
+    const raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => setInBlocTrackReady(true));
+    });
+    return () => { cancelAnimationFrame(raf1); if (raf2) cancelAnimationFrame(raf2); };
+  }, [selectedGroupId]);
   const [pageTapTransition,setPageTapTransition]=useState(null);
   const [suppressSwitcherIntro,setSuppressSwitcherIntro]=useState(false);
   const [streamUnreadCount,setStreamUnreadCount]=useState(0);
@@ -2196,13 +2241,21 @@ const App = () => {
       }
       s.mode = "page";
       s.target = target;
+      // The distance the finger travelled before the gesture was recognised is
+      // slop, not movement. Without subtracting it the screen jumped that whole
+      // distance the instant the classifier locked -- and on a slow, slightly
+      // diagonal drag the dominance test can take 20-40px to satisfy, so the
+      // jump was big enough to read as a stutter. Track from the lock point and
+      // the screen leaves under the finger from zero.
+      s.lockDx = dx;
       setPageSwipeTarget(target);
       setPageDragging(true);
     }
     if (s.mode === "page") {
       e.preventDefault();
       const screenWidth = window.innerWidth || 420;
-      schedulePageTransforms(Math.max(-screenWidth, Math.min(screenWidth, dx)), true);
+      const moved = dx - (s.lockDx || 0);
+      schedulePageTransforms(Math.max(-screenWidth, Math.min(screenWidth, moved)), true);
     }
   },[adjacentInBlocPage, applyPageTransforms, schedulePageTransforms]);
   const endPageSwipe = useCallback((e) => {
@@ -2212,9 +2265,15 @@ const App = () => {
     }
     const s = pageSwipeRef.current;
     const t = e.changedTouches?.[0];
-    pageSwipeRef.current = {sx:0,sy:0,active:false,mode:null,target:null,priority:null};
+    pageSwipeRef.current = {sx:0,sy:0,active:false,mode:null,target:null,priority:null,lockDx:0};
     if (!s.active || !t) return;
-    const dx = t.clientX - s.sx;
+    // Same slop subtraction as the move handler, so the release thresholds
+    // measure how far the screen actually travelled rather than how far the
+    // finger moved before the gesture was recognised. The two must stay in
+    // step: if the decision ran on raw dx while the visual ran on the reduced
+    // one, a drag could commit while the screen was still short of where the
+    // threshold implies, and the settle would have to cover the difference.
+    const dx = t.clientX - s.sx - (s.lockDx || 0);
     const dy = t.clientY - s.sy;
     const screenWidth = window.innerWidth || 420;
     const elapsed = Math.max(1, performance.now() - (s.st || performance.now()));
@@ -3475,7 +3534,7 @@ const App = () => {
       React.createElement(ActivityPage,{group:currentGroup,currentUser,currentUserId:effectiveAuthSession?.userId,onLogMutation:handleLogMutation,clockTick,reactionOverrides,setReactionOverrides,commentCountOverrides:logCommentCountOverrides,onCommentCountsLoaded:setLogCommentCountOverrides,onOpenLogComments:handleOpenLogComments,onTrackUsage:trackUsage})
     ),
     pageName==="month"  &&React.createElement(InBlocPageErrorBoundary,{pageLabel:"Month",resetKey:`${selectedGroupId}:${navResetToken}:${currentUser}:${monthInitialIdx ?? "current"}`},
-      React.createElement(MonthPage,  {key:`${selectedGroupId}:${navResetToken}:${monthInitialIdx ?? "current"}`,group:currentGroup,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,groupSettings:currentGroup.settings,currentUser,currentUserId:effectiveAuthSession?.userId,initialSelIdx:monthInitialIdx,onStartNextMonth:()=>{setMonthInitialIdx(null);setPage("today");},onOpenToday:()=>setPage("today"),onSettlementClaimPaid:handleSettlementClaimPaid,onSettlementConfirmPaid:handleSettlementConfirmPaid,profiles:appState?.profiles||{},onOpenAccount:()=>setShowProfile(true),navResetToken,onTrackUsage:trackUsage,currentPaymentMethods:effectiveProfile?.paymentMethods||[],onSavePayment:handleSavePaymentHandle,savingPayment:paymentSaving,paymentError:paymentError})
+      React.createElement(MonthPage,  {key:`${selectedGroupId}:${monthInitialIdx ?? "current"}`,group:currentGroup,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,groupSettings:currentGroup.settings,currentUser,currentUserId:effectiveAuthSession?.userId,initialSelIdx:monthInitialIdx,onStartNextMonth:()=>{setMonthInitialIdx(null);setPage("today");},onOpenToday:()=>setPage("today"),onSettlementClaimPaid:handleSettlementClaimPaid,onSettlementConfirmPaid:handleSettlementConfirmPaid,profiles:appState?.profiles||{},onOpenAccount:()=>setShowProfile(true),navResetToken,onTrackUsage:trackUsage,currentPaymentMethods:effectiveProfile?.paymentMethods||[],onSavePayment:handleSavePaymentHandle,savingPayment:paymentSaving,paymentError:paymentError})
     ),
     pageName==="history"&&React.createElement(InBlocPageErrorBoundary,{pageLabel:"History",resetKey:`${selectedGroupId}:${navResetToken}:${currentUser}`},
       React.createElement(HistoryPage,{group:currentGroup,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,groupSettings:currentGroup.settings,navResetToken,currentUser,groups,onTrackUsage:trackUsage,currentUserId:effectiveAuthSession?.userId,accountCreatedAt:profile?.createdAt})
@@ -3504,6 +3563,13 @@ const App = () => {
     IN_BLOC_PAGES.map((pageName,index) => {
       const active = pageName === page;
       const tapTransitionParticipant = pageTapTransition && (pageName === pageTapTransition.from || pageName === pageTapTransition.to);
+      // Entering a Bloc used to build all four screens in one commit, and you
+      // watched it: the haptic fires the moment you tap a Bloc, then Today
+      // arrived half a second later. Only the screen you asked for is built in
+      // that first commit; the rest follow two frames later, before any swipe
+      // can realistically begin. They are never unmounted afterwards, so
+      // arriving on one does not remount it.
+      if (!inBlocTrackReady && !active && !tapTransitionParticipant && pageName !== pageSwipeTarget) return null;
       // Neighboring pages only need to be visible while a page gesture is in
       // progress. Keeping them visible at rest turns any stale inline offset
       // into an overlapping screen after a rapid tab reselect.
@@ -3515,14 +3581,14 @@ const App = () => {
           ? (pageTapTransition.phase === "staged" ? `translateX(${pageTapTransition.direction * screenWidth}px)` : "none")
           : null;
       const tapTransitionStyle = tapTransitionParticipant
-        ? (pageTapTransition.phase === "staged" ? "none" : `transform ${PAGE_TAP_TRANSITION_MS}ms ${SCREEN_SETTLE_EASING}, opacity ${PAGE_TAP_TRANSITION_MS}ms ${SCREEN_SETTLE_EASING}`)
+        ? (pageTapTransition.phase === "staged" ? "none" : `transform ${PAGE_TAP_TRANSITION_MS}ms ${SCREEN_SETTLE_EASING}, ${PAGE_FADE_TRANSITION}`)
         : null;
       // Same fade as the swipe, so a tap and a swipe to the same screen look
-      // identical. A staged page starts dimmed a screen away and comes up as
-      // it slides in; the one leaving does the reverse.
+      // identical: the arriving screen is solid the whole way, and only the
+      // one being left fades out.
       const tapOpacity = tapTransitionParticipant
         ? (pageName === pageTapTransition.to
-            ? (pageTapTransition.phase === "staged" ? 1 - PAGE_FADE_DEPTH : 1)
+            ? 1
             : (pageTapTransition.phase === "staged" ? 1 : 1 - PAGE_FADE_DEPTH))
         : null;
       return React.createElement('div',{
@@ -3552,10 +3618,10 @@ const App = () => {
           pointerEvents:active&&!pageTapTransition?"auto":"none",
           visibility:near?"visible":"hidden",
           transform:tapTransitionParticipant ? tapTransform : offsetX ? `translateX(${offsetX}px)` : "none",
-          opacity:tapOpacity !== null ? tapOpacity : pageFadeFor(offsetX, screenWidth),
-          transition:tapTransitionParticipant ? tapTransitionStyle : (pageDragging&&!pageReleasingRef.current)?"none":`${SCREEN_SETTLE_TRANSITION}, opacity ${SCREEN_SETTLE_MS}ms ${SCREEN_SETTLE_EASING}`,
+          opacity:tapOpacity !== null ? tapOpacity : (active ? pageFadeFor(offsetX, screenWidth) : 1),
+          transition:tapTransitionParticipant ? tapTransitionStyle : (pageDragging&&!pageReleasingRef.current)?"none":`${SCREEN_SETTLE_TRANSITION}, ${PAGE_FADE_TRANSITION}`,
           boxShadow:active&&pageDragXRef.current?"-18px 0 34px rgba(0,0,0,.24)":"none",
-          willChange:tapTransitionParticipant||pageDragging||pageDragXRef.current?"transform":"auto"
+          willChange:near?"transform":"auto"
         },
         "data-page-scroll-container": active ? "true" : undefined
       }, renderInBlocPage(pageName,{swipePreview:!active}));

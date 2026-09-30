@@ -4,8 +4,15 @@
 Update it whenever something ships. Same filename forever — never date it, never
 fork it. If it disagrees with a handover, this file wins.
 
-Last updated: **29 September 2026, late** — four deploys tonight. The website is
-ahead of the phone now.
+Last updated: **30 September 2026** — build 10 landed, then six website deploys.
+The website is ahead of the phone again.
+
+> **The native build is the product now.** Decided 30 September: TestFlight is
+> what goes to the App Store, and the PWA is where members happen to be today.
+> Where the web cannot do something, build it for native rather than scoping it
+> down. See "Where the two builds diverge" below. This **reverses the intent**
+> of the old "no deliberate fork" note — but not the mechanism. Still one
+> codebase; native-only behaviour is a runtime gate, never a branch.
 
 ---
 
@@ -13,17 +20,22 @@ ahead of the phone now.
 
 | | Website (PWA) | TestFlight (phone) |
 | --- | --- | --- |
-| **At commit** | **`b43d70f`** | `dfc5b4e` (build 9) |
+| **At commit** | **`c219023`** | `77fe4d8` (build 10) |
 | Rebuilt header, safe area, motion, haptics | ✅ | ✅ |
-| Comment load failure is honest | ✅ | ❌ |
-| Reaction picker stays on screen | ✅ | ❌ |
-| Bell opens "coming soon" | ✅ | ❌ |
-| Nav lift at 30ms | ✅ | ❌ |
-| Tab colour changes at finger release | ✅ | ❌ |
-| White strip at the bottom of the Stream | fixed ✅ | n/a |
-| Android Today-scroll fix | ✅ **unverified on a device** | ❌ |
+| Comment load failure is honest | ✅ | ✅ |
+| Reaction picker stays on screen | ✅ | ✅ |
+| Bell opens "coming soon" | ✅ | ✅ |
+| Nav lift at 30ms | ✅ | ✅ |
+| Tab colour changes at finger release | ✅ | ✅ |
+| Android Today-scroll fix | ✅ **unverified on a device** | ✅ |
+| Band at the bottom of the Stream | ✅ fixed | n/a — never had it |
+| Composer dead space removed | ✅ | n/a — native keeps its inset |
+| Bloc entry builds one screen, not four | ✅ | ❌ |
+| Swipe: outgoing fades, arriving is solid | ✅ | ❌ |
+| Swipe: no jump-start at the gesture lock | ✅ | ❌ |
 
-**The phone is now four deploys behind.** One TestFlight build closes it.
+**Build 10 caught the phone up to `77fe4d8`.** The six commits after it are
+website-only; one merge and a build 11 closes the gap again.
 
 ### Verified live, 29 September
 
@@ -38,6 +50,28 @@ deployment for that exact commit, and the change present in the live bundle:
 Aadhil confirmed the feel on his PWA: *"so much nicer... the swiping moves so
 much quicker."*
 
+### Verified live, 30 September
+
+Same three checks each time. All six confirmed by Aadhil on his installed PWA.
+
+- `ebb80be` — the bottom band painted the composer's colour, `#05090a`
+- `06564c4` — composer safe-area inset dropped in the installed PWA; 109px of
+  dead space under the field became 75px
+- `058ff76` — entering a Bloc paints one screen, not four
+- `559df0a` — the outgoing screen fades to zero on its own faster curve
+- `bc952e6` — only the screen being left fades; the arriving one stays solid
+- `35daf06` — a page is demoted off its compositing layer only once hidden
+- `c219023` — the swipe tracks from the lock point, and the incoming screen is
+  revealed without waiting for React
+
+His words on the result: *"much, much, much better"*, then *"quite happy with
+it now"*.
+
+**One of these is a hypothesis, not a reproduction.** `35daf06` fixes a
+compositing repaint that never reproduced in Chromium; the frame trace pointed
+at it. If a flash ever returns on the phone, revert that one commit first — it
+is self-contained.
+
 ### ⚠️ One thing shipped unverified
 
 The Android Today-scroll fix (`b43d70f`) is live and **has not been tested on any
@@ -49,12 +83,20 @@ to trigger and scrolling easier, never the reverse.
 1. Aadhil, on iOS: does the left-edge back-swipe out of a Bloc still work?
 2. An Android member who reported it: does Today scroll now?
 
-## Why the website looks old
+## Why the two kept drifting — and what closed it
 
-All of this month's app work went to the app branch and was never merged back.
+All of September's app work went to the app branch and was never merged back.
 `main` is the website; Codex builds the phone app from his own branch. Nobody
-did anything wrong — the work simply never travelled back. One merge fixes it
-permanently.
+did anything wrong — the work simply never travelled back.
+
+**Closed 30 September.** `main` was merged into the app lineage on branch
+`testflight-build-10` (`77fe4d8`), which became build 10. All 22 conflicts were
+resolved to main's side: they were the same work arriving from two lineages,
+with main holding the newer version. Nothing native was lost.
+
+It will drift again, because the website keeps shipping. The fix is not "one
+merge, permanently" — it is **merge `main` into the app branch before every
+build**, and resolve shared UI to main's side.
 
 ---
 
@@ -84,24 +126,53 @@ The header padding handles both without a branch:
 
 **Identical in a Safari tab.** The 13px pull-up only claims space that exists.
 
-### So: one codebase, no deliberate fork
+### So: one codebase, but the native build leads
 
-Do not maintain a PWA-only and an app-only version. Every divergence doubles the
-testing and the memory, and this repo's playbook is already full of things fixed
-and re-broken across merges. The platform differences above are handled in code
-already.
+**Updated 30 September.** The old note here said "no deliberate fork" and was
+read as "scope every feature down to what the PWA can do". That is no longer the
+intent. The App Store build is the product; a web limitation is a reason to
+build the feature **for native**, not a reason to drop it.
+
+What has not changed is the **mechanism**. Still one codebase. Native-only
+behaviour is a **runtime gate** — the `Capacitor.isNativePlatform()` pattern
+`src/lib/haptics.js` already uses, where every buzz is a silent no-op on the
+web — and never a separate branch or a duplicated component. Divergence across
+branches is exactly what re-broke swipe and reaction behaviour after merges, and
+this playbook is full of it. A gate gives the same result without that cost.
 
 ---
 
-## The one thing that must not ship as-is
+## Where the two builds diverge
 
-**The bell button is a mock with no tap handler**, carrying `aria-hidden="true"`
-and `tabIndex:-1` (`src/pages/Nav.jsx`, see
-`docs/concept-2026-09-24-notification-centre.md`). It is not on `main`, so today
-only Aadhil sees it, on TestFlight.
+The register. Add a row whenever something lands on one platform and not the
+other, and say which mechanism holds it apart.
 
-Merging as-is puts a dead button in front of every member. It needs a
-"coming soon" destination, or to be held back, **before** the merge lands.
+| | Web (PWA) | Native (App Store) | How it is held apart |
+| --- | --- | --- | --- |
+| Haptics | silent no-op | real | `Capacitor.isNativePlatform()` in `src/lib/haptics.js` |
+| Push notifications | **impossible** | planned, not built | no APNs key yet; permission moment is Aadhil's call |
+| Composer safe-area inset | dropped | kept | installed PWA has an unreachable strip that already clears the home indicator; native has no strip |
+| Canvas painted under the Stream | needed | harmless no-op | the strip only exists in an installed PWA |
+
+**Not on this list, and a common mistake:** the emoji picker. iOS exposes no API
+to open the system emoji picker to *any* app — native or web. The keyboard only
+appears for a focused text field and the person taps the globe key themselves.
+So a custom sheet has to be built either way, and it works on both. Going
+native-only there would buy nothing and cost a fork.
+
+---
+
+## The dead bell — resolved
+
+**Closed 30 September.** The bell was a mock with no tap handler,
+`aria-hidden="true"` and `tabIndex:-1`, and this file warned that merging it
+as-is would put a dead button in front of every member.
+
+It did not happen. `main` had already wired it to a "coming soon" destination,
+and the build-10 merge resolved that conflict in main's favour deliberately.
+Both the website and build 10 now open the placeholder. Nothing is built behind
+it — see `docs/concept-2026-09-24-notification-centre.md` — so do not infer any
+notification-centre scope from the button existing.
 
 ---
 

@@ -2,6 +2,7 @@ import React from "react";
 const { useState, useEffect, useLayoutEffect, useRef } = React;
 import { Avatar, AppIcon, WorkoutTypeIcon } from "../components/primitives.jsx";
 import { ReactionChip } from "../components/ReactionRoster.jsx";
+import { EmojiSheet, QuickReactionChoices } from "../components/EmojiReactionPicker.jsx";
 import {
   createBlocStreamEventData,
   getBlocStreamUnreadCountData,
@@ -14,10 +15,6 @@ import {
 import { resolveStorageImageUrl } from "../lib/appState.js";
 import { getLogDisplayActivity } from "../lib/activities.js";
 
-// Long-press / hold reveals these (Instagram-style quick bar). Heart leads and
-// is also the double-tap default. The full emoji keyboard is deferred to the
-// native (App Store) build — on web we can't open the OS emoji picker.
-const QUICK_REACTS = ["❤️", "🔥", "💪", "👏", "😤"];
 const DOUBLE_TAP_EMOJI = "❤️";
 const STREAM_MESSAGE_CACHE_KEY = "ll_bloc_stream_message_cache_v1";
 
@@ -160,17 +157,14 @@ function renderBody(body, members) {
 }
 
 // Floating quick-react bar, shown above a message on long-press / right-click.
-const ReactBar = ({ align, onPick, onClose }) => {
+const ReactBar = ({ align, onPick, onMore, onClose }) => {
   const pos = align === "right" ? { right: 6 } : align === "center" ? { left: "50%", transform: "translateX(-50%)" } : { left: 6 };
   return React.createElement(React.Fragment, null,
     React.createElement('div', { onClick: onClose, onTouchStart: onClose, style: { position: "fixed", inset: 0, zIndex: 30 } }),
     React.createElement('div', {
       style: { position: "absolute", bottom: "calc(100% - 4px)", zIndex: 31, display: "flex", gap: 2, background: C.sheetBg, border: `1px solid ${C.sheetBorder}`, borderRadius: 22, padding: "4px 6px", boxShadow: "0 10px 26px rgba(0,0,0,.55)", ...pos }
     },
-      QUICK_REACTS.map(emoji => React.createElement('button', {
-        key: emoji, onMouseDown: e => e.preventDefault(), onClick: () => onPick(emoji),
-        style: { background: "transparent", border: "none", fontSize: 22, lineHeight: 1, padding: "3px 5px", cursor: "pointer", borderRadius: 12 }
-      }, emoji))
+      React.createElement(QuickReactionChoices, { onPick, onMore, size: 30, fontSize: 22 })
     )
   );
 };
@@ -223,6 +217,7 @@ const ReactionChips = ({ msg, currentUserId, onReact, nameFor, photoFor, align, 
 const Reactable = ({ msg, currentUserId, onReact, onReply, nameFor, photoFor, align = "left", swipeEnabled = false, showAdd = false, children }) => {
   const [swipeX, setSwipeX] = useState(0);
   const [showBar, setShowBar] = useState(false);
+  const [showEmojiSheet, setShowEmojiSheet] = useState(false);
   const g = useRef({ sx: 0, sy: 0, st: 0, mode: null, lp: null, lastTap: 0, suppress: false, maxDist: 0, swipe: 0, lastTouch: 0 });
 
   const clearLP = () => { if (g.current.lp) { clearTimeout(g.current.lp); g.current.lp = null; } };
@@ -288,7 +283,8 @@ const Reactable = ({ msg, currentUserId, onReact, onReply, nameFor, photoFor, al
       onContextMenu: e => { e.preventDefault(); setShowBar(true); },
       style: { transform: swipeX ? `translateX(${swipeX}px)` : "none", transition: g.current.mode === "swipe" ? "none" : "transform .18s ease", touchAction: swipeEnabled ? "pan-y" : "auto", userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none" }
     }, renderedChildren),
-    showBar && React.createElement(ReactBar, { align, onClose: () => setShowBar(false), onPick: emoji => { onReact(msg.id, emoji); setShowBar(false); } }),
+    showBar && React.createElement(ReactBar, { align, onClose: () => setShowBar(false), onPick: emoji => { onReact(msg.id, emoji); setShowBar(false); }, onMore: () => { setShowBar(false); setShowEmojiSheet(true); } }),
+    showEmojiSheet && React.createElement(EmojiSheet, { onClose: () => setShowEmojiSheet(false), onPick: emoji => onReact(msg.id, emoji) }),
     typeof children !== "function" && reactionNode
   );
 };
