@@ -42,7 +42,7 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
   const [focus,setFocus]=useState(null);
   const clearFocus=useCallback(()=>setFocus(null),[]);
   useTapOutside(!!focus, clearFocus);
-  useEffect(()=>{ setViewPlayer(null); setFocus(null); },[navResetToken]);
+  useEffect(()=>{ setSelIdx(initialSelIdx ?? null); setViewPlayer(null); setFocus(null); },[navResetToken]);
   useEffect(()=>{ setFocus(null); },[selIdx]);
   useEffect(()=>{
     if(viewPlayer) window.scrollTo({top:0,left:0,behavior:"auto"});
