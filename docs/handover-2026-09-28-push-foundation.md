@@ -76,13 +76,51 @@ ownership from the verified user, rejects local-dev identities and ignores
 body-supplied user IDs. It supports native CORS and register/revoke only.
 Sandbox disables registration; it cannot populate production tokens.
 
-**RLS discrepancy closed — 2026-09-29:** Claude verified that the server-only
+> ## ⚠️ CORRECTION, 30 September 2026 — the paragraph below is WRONG
+>
+> The struck-through claim was checked directly against production
+> (`bpvvvqjsfwmmfjvvijkd`) on 30 September and is false.
+>
+> **All eight tables named in
+> `supabase/migrations/20260926120000_enable_rls_on_server_only_tables.sql` have
+> RLS OFF with zero policies**, and that migration does **not** appear in the
+> applied-migration list. Query used:
+>
+> ```sql
+> select c.relname, c.relrowsecurity,
+>        (select count(*) from pg_policies p
+>          where p.schemaname='ante_core' and p.tablename=c.relname) as policies
+> from pg_class c join pg_namespace n on n.oid = c.relnamespace
+> where n.nspname='ante_core' and c.relkind='r' and not c.relrowsecurity;
+> ```
+>
+> Result: `bloc_messages`, `bloc_message_reactions`, `bloc_message_reads`,
+> `workout_log_comments`, `workout_log_comment_reactions`, `solo_requests`,
+> `revision_clock`, `backup_bloc_message_solo_note_2026_09_18` and
+> `push_devices` — nine tables, RLS off, no policies.
+>
+> The one `ante_core` table with RLS on is **`settlement_confirmations`** (3
+> policies), which is the deliberately client-readable one and has been in that
+> state all along. That is the most likely origin of this error: a single table's
+> state read as the whole schema's.
+>
+> **Deveen's RLS rollout on 2–3 October is still required. Do not stand it
+> down.** Two independent sources agree with the correction and not with this
+> paragraph: `docs/handover-2026-09-29-for-deveen-active.md` §1–§2, and its
+> 30 September production re-verification.
+>
+> Separately, and still true: `push_devices` is **missing** from Deveen's
+> migration, because the table was created two days after he wrote it. His own
+> verification query — written to return zero rows — will report one on the day.
+
+~~**RLS discrepancy closed — 2026-09-29:** Claude verified that the server-only
 lockdown from `rls/enable-server-only-tables` is already applied to production:
 RLS on, zero client policies, and no anon/authenticated table privileges on the
 covered tables. App reads go through the API using service_role. Earlier
 handovers saying production RLS was off were stale; this is the intended state,
 not a failed rollout. No database action is needed. Only policy-based RLS for
-direct client reads remains pending after the 1 October close and approval.
+direct client reads remains pending after the 1 October close and approval.~~
+
 The existing-table RLS fingerprint before and after the push task was identical:
 `cc0569f0eaf65c2a0740f5444a37f9e6`. No RLS setting was changed. The later push
 table is separate: it has RLS off and service-role-only object privileges;
