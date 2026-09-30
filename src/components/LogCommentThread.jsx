@@ -3,6 +3,7 @@ const { useEffect, useMemo, useRef, useState } = React;
 import { Avatar, AppIcon, WorkoutTypeIcon } from "./primitives.jsx";
 import { getLogDisplayActivity } from "../lib/activities.js";
 import { ReactionChip } from "./ReactionRoster.jsx";
+import { EmojiSheet, QuickReactionChoices } from "./EmojiReactionPicker.jsx";
 import {
   createLogCommentData,
   listLogCommentsData,
@@ -31,6 +32,10 @@ const CommentThreadSkeleton = ({ count = 3 }) => {
 };
 
 const logCommentThreadCache = new Map();
+const reactionSortIndex = emoji => {
+  const index = QUICK_REACTIONS.indexOf(emoji);
+  return index === -1 ? QUICK_REACTIONS.length : index;
+};
 
 function resizeComposer(input) {
   if (!input) return;
@@ -140,6 +145,7 @@ function LogCommentThread({ groupId, log, currentUserId, currentUserName, onClos
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
   const [reactionTarget, setReactionTarget] = useState(null);
+  const [emojiSheetCommentId, setEmojiSheetCommentId] = useState(null);
   const [dragX, setDragX] = useState(0);
   const [dragging, setDragging] = useState(false);
   const commentGestureRef = useRef(new Map());
@@ -395,17 +401,16 @@ function LogCommentThread({ groupId, log, currentUserId, currentUserName, onClos
       boxShadow: "0 14px 32px rgba(0,0,0,.38)"
     }
   },
-    QUICK_REACTIONS.map(emoji => React.createElement('button', {
-      key: emoji,
-      type: "button",
-      onClick: () => toggleReaction(reactionTarget.id, emoji),
-      style: { width: 25, height: 25, borderRadius: 999, background: "var(--s2)", border: "1px solid var(--border)", fontSize: 13, display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 0 }
-    }, emoji))
+    React.createElement(QuickReactionChoices, {
+      size: 25, fontSize: 13,
+      onPick: emoji => toggleReaction(reactionTarget.id, emoji),
+      onMore: () => { setEmojiSheetCommentId(reactionTarget.id); setReactionTarget(null); }
+    })
   );
   const renderCommentReactions = (comment, isOwnComment) => {
     const active = Object.entries(comment.reactions || {})
       .filter(([, users]) => Array.isArray(users) && users.length > 0)
-      .sort((a, b) => b[1].length - a[1].length || QUICK_REACTIONS.indexOf(a[0]) - QUICK_REACTIONS.indexOf(b[0]));
+      .sort((a, b) => b[1].length - a[1].length || reactionSortIndex(a[0]) - reactionSortIndex(b[0]));
     if (!active.length) return null;
     const nameFor = userId => comments.find(entry => entry.commenterUserId === userId)?.commenterName || (userId === currentUserId ? currentUserName || "You" : "Member");
     return React.createElement('div', { style: { position: "absolute", left: isOwnComment ? -7 : "auto", right: isOwnComment ? "auto" : -7, bottom: -9, zIndex: 3, display: "flex", alignItems: "center", gap: 3, flexWrap: "wrap" } },
@@ -595,7 +600,11 @@ function LogCommentThread({ groupId, log, currentUserId, currentUserName, onClos
           style: { width: 40, height: 40, borderRadius: 999, background: draft.trim() && !sending ? "#4ECDC4" : "#0D1F1E", border: `1px solid ${draft.trim() && !sending ? "#4ECDC4" : "#163d36"}`, color: draft.trim() && !sending ? "#04110e" : "#3d5e59", display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 0, flexShrink: 0 }
         }, React.createElement(AppIcon, { name: "chevron-right", size: 18, stroke: "currentColor" }))
       ),
-      renderReactionPicker()
+      renderReactionPicker(),
+      emojiSheetCommentId && React.createElement(EmojiSheet, {
+        onClose: () => setEmojiSheetCommentId(null),
+        onPick: emoji => toggleReaction(emojiSheetCommentId, emoji)
+      })
     )
   );
 }
