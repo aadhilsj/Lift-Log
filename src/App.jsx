@@ -318,6 +318,15 @@ const applyInBlocPageTransforms = ({ layers, activePage, dragX = 0, dragging = f
     const el = layers?.[pageName];
     if (!el) return;
     const offsetX = (index - activeIndex) * width + dragX;
+    // Reveal a layer the moment any part of it is on screen, here rather than
+    // waiting for React. The incoming page is visibility:hidden until a render
+    // makes it `near`, and that render is triggered by setPageSwipeTarget at
+    // the moment the gesture locks -- so the page you are swiping INTO used to
+    // appear a frame or two after the page you are leaving had already started
+    // moving. That late arrival is the jump-start. Deriving it from the offset
+    // needs no extra state and is self-healing: a cancelled swipe snaps back to
+    // offset +/-width and the layer hides itself again on the same path.
+    el.style.visibility = pageName === activePage || Math.abs(offsetX) < width ? "visible" : "hidden";
     el.style.transform = offsetX ? `translateX(${offsetX}px)` : "none";
     // Only the screen being LEFT fades. The one arriving stays solid.
     // Fading both made them semi-transparent at the same moment, so the old
@@ -2219,13 +2228,21 @@ const App = () => {
       }
       s.mode = "page";
       s.target = target;
+      // The distance the finger travelled before the gesture was recognised is
+      // slop, not movement. Without subtracting it the screen jumped that whole
+      // distance the instant the classifier locked -- and on a slow, slightly
+      // diagonal drag the dominance test can take 20-40px to satisfy, so the
+      // jump was big enough to read as a stutter. Track from the lock point and
+      // the screen leaves under the finger from zero.
+      s.lockDx = dx;
       setPageSwipeTarget(target);
       setPageDragging(true);
     }
     if (s.mode === "page") {
       e.preventDefault();
       const screenWidth = window.innerWidth || 420;
-      schedulePageTransforms(Math.max(-screenWidth, Math.min(screenWidth, dx)), true);
+      const moved = dx - (s.lockDx || 0);
+      schedulePageTransforms(Math.max(-screenWidth, Math.min(screenWidth, moved)), true);
     }
   },[adjacentInBlocPage, applyPageTransforms, schedulePageTransforms]);
   const endPageSwipe = useCallback((e) => {
@@ -2235,9 +2252,15 @@ const App = () => {
     }
     const s = pageSwipeRef.current;
     const t = e.changedTouches?.[0];
-    pageSwipeRef.current = {sx:0,sy:0,active:false,mode:null,target:null,priority:null};
+    pageSwipeRef.current = {sx:0,sy:0,active:false,mode:null,target:null,priority:null,lockDx:0};
     if (!s.active || !t) return;
-    const dx = t.clientX - s.sx;
+    // Same slop subtraction as the move handler, so the release thresholds
+    // measure how far the screen actually travelled rather than how far the
+    // finger moved before the gesture was recognised. The two must stay in
+    // step: if the decision ran on raw dx while the visual ran on the reduced
+    // one, a drag could commit while the screen was still short of where the
+    // threshold implies, and the settle would have to cover the difference.
+    const dx = t.clientX - s.sx - (s.lockDx || 0);
     const dy = t.clientY - s.sy;
     const screenWidth = window.innerWidth || 420;
     const elapsed = Math.max(1, performance.now() - (s.st || performance.now()));
