@@ -329,7 +329,12 @@ const applyInBlocPageTransforms = ({ layers, activePage, dragX = 0, dragging = f
       ? "none"
       : `${SCREEN_SETTLE_TRANSITION}, ${PAGE_FADE_TRANSITION}`;
     el.style.boxShadow = pageName === activePage && dragX ? "-18px 0 34px rgba(0,0,0,.24)" : "none";
-    el.style.willChange = dragging || dragX ? "transform" : "auto";
+    // will-change is deliberately NOT set here. It is driven from `near` in the
+    // layer's React style instead, so a layer is only ever demoted off its
+    // compositing layer once it is already visibility:hidden. Dropping
+    // will-change on a *visible* element repaints it, and on iOS that repaint
+    // lands in the same frame as the position swap at commit -- a one-frame
+    // flash of the screen being left. Chromium hides this; WebKit does not.
   });
 };
 const COLD_ONBOARDING_SEEN_KEY = "fero_cold_onboarding_seen";
@@ -3580,7 +3585,7 @@ const App = () => {
           opacity:tapOpacity !== null ? tapOpacity : (active ? pageFadeFor(offsetX, screenWidth) : 1),
           transition:tapTransitionParticipant ? tapTransitionStyle : (pageDragging&&!pageReleasingRef.current)?"none":`${SCREEN_SETTLE_TRANSITION}, ${PAGE_FADE_TRANSITION}`,
           boxShadow:active&&pageDragXRef.current?"-18px 0 34px rgba(0,0,0,.24)":"none",
-          willChange:tapTransitionParticipant||pageDragging||pageDragXRef.current?"transform":"auto"
+          willChange:near?"transform":"auto"
         },
         "data-page-scroll-container": active ? "true" : undefined
       }, renderInBlocPage(pageName,{swipePreview:!active}));
