@@ -115,14 +115,14 @@ function EmojiSheet({ onPick, onClose }) {
     <button type="button" aria-label="Close emoji sheet" onClick={onClose}
       style={{ position: "absolute", inset: 0, width: "100%", height: "100%", border: 0, background: "transparent" }} />
     <section role="dialog" aria-modal="true" aria-label="Choose a reaction emoji"
-      style={{ position: "relative", width: "100%", maxWidth: 600, maxHeight: "min(75dvh, 680px)", display: "flex", flexDirection: "column", boxSizing: "border-box", padding: "14px 12px calc(12px + env(safe-area-inset-bottom, 0px))", borderRadius: "20px 20px 0 0", background: "#081110", border: "1px solid #1b332e", boxShadow: "0 -16px 40px rgba(0,0,0,.45)", color: "#f5fbf9", fontFamily: "'Outfit', sans-serif" }}>
+      style={{ position: "relative", width: "100%", maxWidth: 600, height: "min(calc(343px + env(safe-area-inset-bottom, 0px)), 75dvh)", display: "flex", flexDirection: "column", boxSizing: "border-box", padding: "14px 12px calc(12px + env(safe-area-inset-bottom, 0px))", borderRadius: "20px 20px 0 0", background: "#081110", border: "1px solid #1b332e", boxShadow: "0 -16px 40px rgba(0,0,0,.45)", color: "#f5fbf9", fontFamily: "'Outfit', sans-serif" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 11 }}>
         <strong style={{ fontSize: 15 }}>React with emoji</strong>
         <button type="button" aria-label="Close emoji sheet" onClick={onClose}
           style={{ width: 30, height: 30, borderRadius: 999, border: "1px solid #1b332e", background: "#10201c", color: "#d0e5df", fontSize: 19 }}>×</button>
       </div>
       <input type="search" aria-label="Search emoji" placeholder="Search emoji" value={query} onChange={event => setQuery(event.target.value)}
-        style={{ width: "100%", height: 38, boxSizing: "border-box", padding: "0 12px", borderRadius: 11, border: "1px solid #27423b", outlineColor: "#4ECDC4", background: "#0c1b18", color: "#fff", fontSize: 14, marginBottom: 10 }} />
+        style={{ width: "100%", height: 58, flexShrink: 0, boxSizing: "border-box", padding: "0 14px", borderRadius: 11, border: "1px solid #27423b", outlineColor: "#4ECDC4", background: "#0c1b18", color: "#fff", fontSize: 16, marginBottom: 10 }} />
       <div role="tablist" aria-label="Emoji categories" style={{ display: "flex", gap: 4, overflowX: "auto", flexShrink: 0, paddingBottom: 7, marginBottom: 5 }}>
         {[{ id: "recent", icon: "🕘", name: "Recent" }, ...CATEGORIES].map(item => <button key={item.id} type="button" role="tab" aria-selected={category === item.id && !query}
           aria-label={item.name} title={item.name} onClick={() => { setQuery(""); setCategory(item.id); }}
@@ -131,18 +131,13 @@ function EmojiSheet({ onPick, onClose }) {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0, color: "#8aaba3", fontSize: 11, marginBottom: 7 }}>
         <span>{query ? `Results for “${query}”` : category === "recent" ? "Recent" : CATEGORIES.find(item => item.id === category)?.name}</span>
         <div aria-label="Skin tone" style={{ display: "flex", gap: 5 }}>
-          {["✋", "🏻", "🏼", "🏽", "🏾", "🏿"].map((symbol, index) => <button key={index} type="button" aria-label={index ? `Skin tone ${index}` : "Default skin tone"} aria-pressed={tone === index}
-            onClick={() => setTone(index)} style={{ width: 21, height: 21, padding: 0, borderRadius: 999, border: tone === index ? "1px solid #4ECDC4" : "1px solid transparent", background: index ? [null, "#ffdfbd", "#ecc195", "#bb8664", "#875b41", "#563d31"][index] : "transparent", fontSize: 15 }}>{index ? "" : symbol}</button>)}
+          {["#f6d54a", "#ffdfbd", "#ecc195", "#bb8664", "#875b41", "#563d31"].map((color, index) => <button key={index} type="button" aria-label={index ? `Skin tone ${index}` : "Default skin tone"} aria-pressed={tone === index}
+            onClick={() => setTone(index)} style={{ width: 21, height: 21, padding: 0, borderRadius: 999, border: tone === index ? "1px solid #4ECDC4" : "1px solid transparent", background: color }} />)}
         </div>
       </div>
-      <div data-emoji-grid="true" style={{ flex: 1, minHeight: 160, overflowY: "auto", overscrollBehavior: "contain", WebkitOverflowScrolling: "touch" }}>
+      <div data-emoji-grid="true" style={{ flex: 1, minHeight: 0, overflowY: "auto", overscrollBehavior: "contain", WebkitOverflowScrolling: "touch" }}>
         {!dataset && !loadError && <p style={{ textAlign: "center", color: "#8aaba3" }}>Loading emoji…</p>}
         {loadError && <p style={{ textAlign: "center", color: "#eaa" }}>Emoji could not load. Try again.</p>}
-        {dataset && !query && category !== "recent" && recent.length > 0 && <>
-          <div style={{ fontSize: 11, color: "#8aaba3", margin: "2px 0 5px" }}>Recent</div>
-          {grid(recent.map(emoji => ({ emoji, label: names.get(emoji) || emoji })), false)}
-          <div style={{ height: 1, background: "#1b332e", margin: "9px 0" }} />
-        </>}
         {dataset && query && visible.length > 400 && <p style={{ color: "#8aaba3", fontSize: 11, textAlign: "center" }}>Showing 400 of {visible.length} matches. Keep typing to narrow your search.</p>}
         {dataset && (visible.length ? grid(query ? visible.slice(0, 400) : visible, !query && category !== "recent") : <p style={{ textAlign: "center", color: "#8aaba3" }}>No emoji found</p>)}
       </div>
