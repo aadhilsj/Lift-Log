@@ -4,8 +4,24 @@
 Update it whenever something ships. Same filename forever — never date it, never
 fork it. If it disagrees with a handover, this file wins.
 
-Last updated: **30 September 2026** — build 10 landed, then six website deploys.
-The website is ahead of the phone again.
+Last updated: **30 September 2026, morning** — build 10 landed, then eleven
+website deploys including the shared emoji picker. The website is ahead of the
+phone again.
+
+> ### ⚠️ Known and unfixed: the emoji sheet has the bottom-band bug
+>
+> `src/components/EmojiReactionPicker.jsx` renders as `position:fixed; inset:0`
+> with `alignItems:flex-end`, so in an **installed iOS PWA** its bottom sits at
+> the bottom of the fixed viewport — about 47px short of the screen. A band of
+> page canvas shows below it, in a different shade than the sheet. It also
+> double-counts the safe area, carrying both
+> `height: calc(400px + env(safe-area-inset-bottom))` and
+> `padding-bottom: calc(12px + env(safe-area-inset-bottom))`.
+>
+> This is the same bug that took five attempts on the Stream. It was found
+> during review but never reported before the branch shipped. Neither problem
+> appears in a desktop browser or the simulator — see
+> `docs/handover-2026-09-30-session.md` §0 and the playbook entry.
 
 > **The native build is the product now.** Decided 30 September: TestFlight is
 > what goes to the App Store, and the PWA is where members happen to be today.
@@ -20,7 +36,7 @@ The website is ahead of the phone again.
 
 | | Website (PWA) | TestFlight (phone) |
 | --- | --- | --- |
-| **At commit** | **`c219023`** | `77fe4d8` (build 10) |
+| **At commit** | **`66943f0`** | `77fe4d8` (build 10) |
 | Rebuilt header, safe area, motion, haptics | ✅ | ✅ |
 | Comment load failure is honest | ✅ | ✅ |
 | Reaction picker stays on screen | ✅ | ✅ |
@@ -33,9 +49,14 @@ The website is ahead of the phone again.
 | Bloc entry builds one screen, not four | ✅ | ❌ |
 | Swipe: outgoing fades, arriving is solid | ✅ | ❌ |
 | Swipe: no jump-start at the gesture lock | ✅ | ❌ |
+| Same five reactions on all three surfaces | ✅ | ❌ |
+| Emoji "more" sheet — search, categories, recents | ✅ **band bug, see above** | ❌ |
+| Month no longer remounts on tab navigation | ✅ | ❌ |
 
-**Build 10 caught the phone up to `77fe4d8`.** The six commits after it are
-website-only; one merge and a build 11 closes the gap again.
+**Build 10 caught the phone up to `77fe4d8`.** The eleven commits after it are
+website-only; one merge and a build 11 closes the gap again. **Do not cut build
+11 before the emoji sheet band is fixed** — the native build is the one that
+reaches the App Store, and that sheet is new in it.
 
 ### Verified live, 29 September
 
@@ -66,6 +87,26 @@ Same three checks each time. All six confirmed by Aadhil on his installed PWA.
 
 His words on the result: *"much, much, much better"*, then *"quite happy with
 it now"*.
+
+Then the shared emoji picker, five more Production deploys:
+
+- `4c4b6f2` — one reaction set `🦍 🔥 ❤️ 💪 🏃` on all three surfaces, a shared
+  "more" sheet portalled to `document.body`, `QUICK_REACTS` deleted
+- `47a63f5`, `5eb5be3`, `baeb722`, `d577d78` — search, height and skin-tone
+  follow-ups
+- `66943f0` — `MonthPage` no longer remounts on tab navigation
+
+The five were picked from production usage, not taste: 🦍 is the most-used
+reaction in Fero at 582 uses by 20 people, and the Stream did not offer it at
+all. Dropped from the quick row into the sheet: 👀 (99 uses), 😤, 😂, 👏.
+
+Adds one dependency, `emojibase-data` v17 (MIT), lazy-loaded as a separate
+~666 kB chunk. Initial bundle 1,017.97 → 1,025.23 kB.
+
+**Two reaction paths are unverified against a real backend.** Comment and
+Stream reactions were exercised with browser response fixtures because the
+sandbox returned empty canonical records; only the Activity-feed path hit a
+real API.
 
 **One of these is a hypothesis, not a reproduction.** `35daf06` fixes a
 compositing repaint that never reproduced in Chromium; the frame trace pointed
