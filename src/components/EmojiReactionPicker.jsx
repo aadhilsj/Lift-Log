@@ -128,18 +128,18 @@ function EmojiSheet({ onPick, onClose }) {
           aria-label={item.name} title={item.name} onClick={() => { setQuery(""); setCategory(item.id); }}
           style={{ width: 38, height: 34, flex: "0 0 auto", padding: 0, borderRadius: 8, border: "none", borderBottom: category === item.id && !query ? "2px solid #4ECDC4" : "2px solid transparent", background: category === item.id && !query ? "#17332d" : "transparent", fontSize: 20 }}>{item.icon}</button>)}
       </div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0, color: "#8aaba3", fontSize: 11, marginBottom: 7 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0, minHeight: 21, color: "#8aaba3", fontSize: 11, marginBottom: 7 }}>
         <span>{query ? `Results for “${query}”` : category === "recent" ? "Recent" : CATEGORIES.find(item => item.id === category)?.name}</span>
-        <div aria-label="Skin tone" style={{ display: "flex", gap: 5 }}>
+        {category === 1 && !query && <div aria-label="Skin tone" style={{ display: "flex", gap: 5 }}>
           {["#f6d54a", "#ffdfbd", "#ecc195", "#bb8664", "#875b41", "#563d31"].map((color, index) => <button key={index} type="button" aria-label={index ? `Skin tone ${index}` : "Default skin tone"} aria-pressed={tone === index}
             onClick={() => setTone(index)} style={{ width: 21, height: 21, padding: 0, borderRadius: 999, border: tone === index ? "1px solid #4ECDC4" : "1px solid transparent", background: color }} />)}
-        </div>
+        </div>}
       </div>
       <div data-emoji-grid="true" style={{ flex: 1, minHeight: 0, overflowY: "auto", overscrollBehavior: "contain", WebkitOverflowScrolling: "touch" }}>
         {!dataset && !loadError && <p style={{ textAlign: "center", color: "#8aaba3" }}>Loading emoji…</p>}
         {loadError && <p style={{ textAlign: "center", color: "#eaa" }}>Emoji could not load. Try again.</p>}
         {dataset && query && visible.length > 400 && <p style={{ color: "#8aaba3", fontSize: 11, textAlign: "center" }}>Showing 400 of {visible.length} matches. Keep typing to narrow your search.</p>}
-        {dataset && (visible.length ? grid(query ? visible.slice(0, 400) : visible, !query && category !== "recent") : <p style={{ textAlign: "center", color: "#8aaba3" }}>No emoji found</p>)}
+        {dataset && (visible.length ? grid(query ? visible.slice(0, 400) : visible, !query && category === 1) : <p style={{ textAlign: "center", color: "#8aaba3" }}>No emoji found</p>)}
       </div>
     </section>
   </div>, document.body);
