@@ -3608,7 +3608,7 @@ const App = () => {
           opacity:tapOpacity !== null ? tapOpacity : (active ? pageFadeFor(offsetX, screenWidth) : 1),
           transition:tapTransitionParticipant ? tapTransitionStyle : (pageDragging&&!pageReleasingRef.current)?"none":`${SCREEN_SETTLE_TRANSITION}, ${PAGE_FADE_TRANSITION}`,
           boxShadow:active&&pageDragXRef.current?"-18px 0 34px rgba(0,0,0,.24)":"none",
-          willChange:near?"transform":"auto"
+          willChange:near&&(pageDragging||pageReleasingRef.current||tapTransitionParticipant)?"transform":"auto"
         },
         "data-page-scroll-container": active ? "true" : undefined
       }, renderInBlocPage(pageName,{swipePreview:!active}));
