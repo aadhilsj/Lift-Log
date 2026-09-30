@@ -15,10 +15,15 @@ function currentMonthKey() {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Europe/Oslo",
     year: "numeric",
-    month: "numeric"
+    month: "numeric",
+    day: "numeric",
+    hour: "numeric",
+    hour12: false
   }).formatToParts(new Date());
   const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
-  return `${values.year}-${Number(values.month) - 1}`;
+  const leagueDate = new Date(Date.UTC(Number(values.year), Number(values.month) - 1, Number(values.day)));
+  if (Number(values.hour) < 3) leagueDate.setUTCDate(leagueDate.getUTCDate() - 1);
+  return `${leagueDate.getUTCFullYear()}-${leagueDate.getUTCMonth()}`;
 }
 
 function state() {
