@@ -77,6 +77,10 @@ function EmojiSheet({ onPick, onClose }) {
   }, [onClose]);
 
   const entries = useMemo(() => (dataset || []).filter(item => item.group != null && item.group !== 2), [dataset]);
+  const searchableEntries = useMemo(() => entries.flatMap(item => [
+    item,
+    ...(item.skins || []).map(skin => ({ ...skin, tags: item.tags || [] }))
+  ]), [entries]);
   const names = useMemo(() => {
     const lookup = new Map();
     entries.forEach(item => {
@@ -87,10 +91,10 @@ function EmojiSheet({ onPick, onClose }) {
   }, [entries]);
   const visible = useMemo(() => {
     const term = query.trim().toLocaleLowerCase();
-    if (term) return entries.filter(item => `${item.label} ${(item.tags || []).join(" ")}`.toLocaleLowerCase().includes(term));
+    if (term) return searchableEntries.filter(item => `${item.label} ${(item.tags || []).join(" ")}`.toLocaleLowerCase().includes(term));
     if (category === "recent") return recent.map(emoji => ({ emoji, label: names.get(emoji) || emoji }));
     return entries.filter(item => item.group === category);
-  }, [entries, category, names, query, recent]);
+  }, [entries, searchableEntries, category, names, query, recent]);
   const choose = emoji => {
     recordRecentEmoji(emoji);
     setRecent(readRecentEmoji());
@@ -139,7 +143,8 @@ function EmojiSheet({ onPick, onClose }) {
           {grid(recent.map(emoji => ({ emoji, label: names.get(emoji) || emoji })), false)}
           <div style={{ height: 1, background: "#1b332e", margin: "9px 0" }} />
         </>}
-        {dataset && (visible.length ? grid(visible, category !== "recent") : <p style={{ textAlign: "center", color: "#8aaba3" }}>No emoji found</p>)}
+        {dataset && query && visible.length > 400 && <p style={{ color: "#8aaba3", fontSize: 11, textAlign: "center" }}>Showing 400 of {visible.length} matches. Keep typing to narrow your search.</p>}
+        {dataset && (visible.length ? grid(query ? visible.slice(0, 400) : visible, !query && category !== "recent") : <p style={{ textAlign: "center", color: "#8aaba3" }}>No emoji found</p>)}
       </div>
     </section>
   </div>, document.body);
