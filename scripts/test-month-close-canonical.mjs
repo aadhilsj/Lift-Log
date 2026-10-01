@@ -13,10 +13,21 @@
 //
 // Usage: node scripts/test-month-close-canonical.mjs  (offline, no credentials)
 
-import {
+// Pin the clock to the 15th. Between 00:00 and 03:00 UTC on the 1st the
+// previous month by UTC has not yet closed by the 3am Bloc-day cutoff, so this
+// suite failed on the calendar, not the code. Same clock as
+// scripts/test-yearly-allowance.mjs.
+const RealDate = Date;
+const FAKE_NOW = new RealDate("2026-09-15T12:00:00Z").getTime();
+globalThis.Date = class extends RealDate {
+  constructor(...args) { super(...(args.length ? args : [FAKE_NOW])); }
+  static now() { return FAKE_NOW; }
+};
+
+const {
   rolloverGroupIfNeeded,
   rebuildClosedMonthSnapshotFromCanonicalLogs
-} from "../api/lift-log.js";
+} = await import("../api/lift-log.js");
 
 let failures = 0;
 const check = (label, actual, expected) => {
