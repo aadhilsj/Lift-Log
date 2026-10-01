@@ -8,20 +8,9 @@ Last updated: **1 October 2026** — the Today and History member-profile scroll
 fix landed at `4ba67e3` and is live; the website has since moved to `cd5e912`.
 TestFlight remains on build 10.
 
-> ### ⚠️ Known and unfixed: the emoji sheet has the bottom-band bug
->
-> `src/components/EmojiReactionPicker.jsx` renders as `position:fixed; inset:0`
-> with `alignItems:flex-end`, so in an **installed iOS PWA** its bottom sits at
-> the bottom of the fixed viewport — about 47px short of the screen. A band of
-> page canvas shows below it, in a different shade than the sheet. It also
-> double-counts the safe area, carrying both
-> `height: calc(400px + env(safe-area-inset-bottom))` and
-> `padding-bottom: calc(12px + env(safe-area-inset-bottom))`.
->
-> This is the same bug that took five attempts on the Stream. It was found
-> during review but never reported before the branch shipped. Neither problem
-> appears in a desktop browser or the simulator — see
-> `docs/handover-2026-09-30-session.md` §0 and the playbook entry.
+> **Emoji sheet: no bottom band.** The 30 September review predicted one in
+> the installed iOS PWA; the founder checked on his phone on 1 October and the
+> sheet is fine. See `docs/handover-2026-10-01-session-laptop-sync.md` §2.2.
 
 > **The native build is the product now.** Decided 30 September: TestFlight is
 > what goes to the App Store, and the PWA is where members happen to be today.
@@ -51,13 +40,13 @@ TestFlight remains on build 10.
 | Swipe: outgoing fades, arriving is solid | ✅ | ❌ |
 | Swipe: no jump-start at the gesture lock | ✅ | ❌ |
 | Same five reactions on all three surfaces | ✅ | ❌ |
-| Emoji "more" sheet — search, categories, recents | ✅ **band bug, see above** | ❌ |
+| Emoji "more" sheet — search, categories, recents | ✅ checked on the founder's phone 1 Oct | ❌ |
 | Month no longer remounts on tab navigation | ✅ | ❌ |
 
 **Build 10 caught the phone up to `77fe4d8`.** The eleven commits after it are
-website-only; one merge and a build 11 closes the gap again. **Do not cut build
-11 before the emoji sheet band is fixed** — the native build is the one that
-reaches the App Store, and that sheet is new in it.
+website-only; one merge and a build 11 closes the gap again. The emoji-sheet
+blocker on build 11 is lifted: the founder found no band on his phone
+(1 October).
 
 ### Verified live, 29 September
 

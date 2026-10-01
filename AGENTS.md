@@ -20,6 +20,52 @@ Glossary — define these on first use, never assume them:
 
 ---
 
+## 0. Mandatory, every session — Codex and Claude alike
+
+The founder's instruction, 1 October 2026: everything is tracked, and every
+session starts fully up to speed. **No exceptions, however small the task.**
+
+### Before any work: get fully up to speed
+
+1. **Workspace.** `git fetch`. Compare your checkout with `origin/main`
+   (ahead / behind), list the branches and worktrees, and note anything
+   untracked. The founder works from more than one laptop, so the folder you
+   are in may be weeks behind GitHub — read from `origin/main`, not from disk.
+2. **Handovers.** Open [`docs/HANDOVERS.md`](docs/HANDOVERS.md), the index of
+   every handover. Read everything in its §1, then every session handover it
+   lists, newest first. Where two disagree, `docs/WHATS-LIVE.md` wins, then the
+   newer doc.
+3. **Recent commits.** `git log origin/main` back to at least the commit the
+   newest handover ended on, plus any branch pushed since then that is not
+   merged.
+4. **The live app.** Check what is actually deployed —
+   `gh api "repos/aadhilsj/Lift-Log/deployments?per_page=3"` — and curl
+   `https://lift-log-nu.vercel.app` for the bundle. Merged is not live.
+5. **Report** to the founder in plain English (§1): where things stand, what is
+   broken, what is open. Recommend one next step. Then wait.
+
+### From the start of the session until it closes: keep a live handover
+
+- **Create the handover at the start of the session, before the first change**,
+  not at the end: `docs/handover-YYYY-MM-DD-<topic>.md`. If one already exists
+  for today, add `-session-2` or a distinct topic — never write into another
+  session's handover.
+- **Add it to `docs/HANDOVERS.md`** at the top of its section, in the same
+  commit.
+- **Update it after everything that lands:** a commit, a push, a deploy, a
+  production data change, a decision the founder makes, a bug found, a thing
+  deliberately left alone. Commit the update with the work it describes, not
+  hours later.
+- Each update says what changed, why, how it was verified, the commit, and
+  whether it is live or only on a branch.
+- **Close it out at the end:** what is live, what is open, and the commits
+  table. A session that ends unexpectedly must still leave a usable handover —
+  that is the reason it is written as you go.
+- If anything affects Deveen's area, also add a section to his active handover
+  (listed in `docs/HANDOVERS.md`).
+
+---
+
 ## 1. How this person works
 
 They are the founder and product owner. They are **not** a developer — they say
@@ -230,10 +276,11 @@ import. An un-imported identifier has shipped a blank screen more than once.
 
 ## 11. Handover docs
 
-`docs/` holds 60+ dated handover, audit, and plan documents. Before starting work
-on an area, read the most recent handover on that topic instead of re-deriving
-state. When a session gets long, write the next handover — they rely on these to
-carry context between chats.
+`docs/` holds 100+ dated handover, audit, and plan documents, all listed in
+[`docs/HANDOVERS.md`](docs/HANDOVERS.md). Reading them at the start and keeping
+your own handover live through the session is mandatory — see §0. Before
+starting work on an area, also read the reference docs for that topic (index
+§3) instead of re-deriving state.
 
 **Before analysing any numbers, or writing any report or metric, read
 `docs/READ-BEFORE-ANALYSING-FERO-NUMBERS.md` first.** Fero has not launched, so
@@ -250,10 +297,8 @@ This is how sessions that went well actually ran. Follow it end to end. Sections
 1–11 are the rules; this is the method.
 
 ### Start of a session
-- Get up to speed before touching anything. Run `git fetch`, list the branches
-  and worktrees, see what is ahead of or behind `main`, read the latest
-  handover, and check what is actually deployed:
-  `gh api "repos/aadhilsj/Lift-Log/deployments?per_page=3"`.
+- Get up to speed before touching anything, exactly as §0 says, and start
+  this session's handover before the first change.
 - Report in plain English: where things stand, anything broken, and anything
   worth cleaning up. Recommend one path. Do nothing destructive until the
   founder says yes.
@@ -365,5 +410,6 @@ This is how sessions that went well actually ran. Follow it end to end. Sections
 ### End of a session
 - Stop sandboxes by the PID on ports 3000 and 54321. Never use `pkill -f`.
 - Remove scratch worktrees and reset the browser viewport.
-- Write the dated handover in `docs/`. Add a section to Deveen's active handover
-  only if something affects his area; otherwise leave his plate alone.
+- Close out the session's handover (§0): what is live, what is open, the
+  commits. Add a section to Deveen's active handover only if something affects
+  his area; otherwise leave his plate alone.

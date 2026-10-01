@@ -1,0 +1,144 @@
+# Handover — 1 October 2026, second session: back on the work laptop
+
+Claude, operating. **This is a live handover: it is updated as the session
+goes, not written at the end.** The latest entry in §2 is the most recent
+thing that happened.
+
+Where this disagrees with an older dated handover, this wins. Where it
+disagrees with `docs/WHATS-LIVE.md`, that file wins.
+
+Previous session: `docs/handover-2026-10-01-month-close-and-money-fixes.md`
+(ended at `7f2bd10`, then `3446b6d` and `8aa8f47` landed from the founder's
+personal laptop).
+
+---
+
+## 0. Read this first
+
+- **There are two Macs.** The founder spent September on his personal laptop
+  (user `aadhilsj`, `Aadhils-Air`). This session is on the work laptop (user
+  `opera_user`). Paths in `AGENTS.md` that say `/Users/aadhilsj/...` mean
+  `/Users/opera_user/...` here. Worktrees on this laptop live in
+  `/Users/opera_user/Developer/FERO/`.
+- **On this laptop `~/Documents` is not synced to iCloud.** Checked by
+  comparing `~/Documents` with
+  `~/Library/Mobile Documents/com~apple~CloudDocs/Documents`: the contents
+  differ, and `Lift Log` exists only locally. The iCloud slowdown from the
+  personal laptop (previous handover §7) does not apply to this checkout.
+  The `~/Developer` rule still stands.
+- **Every session now starts and keeps a live handover.** Made mandatory in
+  `AGENTS.md` §0 this session, at the founder's request. See §2.
+
+---
+
+## 1. Where things stood at the start
+
+- The work laptop's `main` was at `5d0ea67` (30 August), **349 commits behind**
+  `origin/main`, with **0 local commits** not on GitHub. Nothing was at risk.
+- Live website: `3446b6d`, the newest commit at the time. TestFlight: build 10.
+- Untracked in the main folder, and deliberately left alone: four backup disk
+  images from 31 August — `Fero-branding-backups-2026-08-31.dmg`,
+  `Fero-private-data-2026-08-31.dmg`,
+  `Fero-private-recovery-2026-08-31 2..dmg`,
+  `Fero-supabase-local-2026-08-31.dmg`.
+- Two stale August worktrees on this laptop, untouched:
+  `Lift Log Extraction` (`codex/reconcile-chat-with-backend`, remote branch
+  gone, two untracked pnpm files) and `Lift Log iOS Preview`
+  (`codex/app-store-ios-preview` at `5d0ea67`). Neither holds unpushed work.
+  Candidates for cleanup, with the founder's yes.
+
+---
+
+## 2. What happened, in order
+
+### 2.1 Laptop brought up to date
+
+`git merge --ff-only origin/main` in the main folder: `5d0ea67` → `8aa8f47`.
+Fast-forward only, nothing overwritten, `.dmg` files untouched. `npm install`
+(new dependency `emojibase-data`), then `npm run lint` clean and
+`npm run build` succeeded. That also covers previous handover §8's gap
+("lint and build were not run on the last four commits"): they pass.
+
+`.env.local` in the main folder dates from August. If keys changed during
+September it may be stale; not yet exercised by running the app locally.
+
+### 2.2 Emoji sheet bottom band — founder says it is fine
+
+`docs/WHATS-LIVE.md` and the 30 September handover §0 listed a predicted
+bottom band under the emoji "more" sheet in the installed iOS PWA. That was a
+code-review prediction, never seen on a device. **The founder checked on his
+phone on 1 October: the emoji sheet is fine.** The warning box in
+`WHATS-LIVE.md` is removed in this session's docs commit, and the TestFlight
+build 11 blocker it created is lifted.
+
+### 2.3 The two calendar-dependent tests pinned — `689d9d9`, on `main`
+
+Previous handover §6 / Deveen's §10:
+
+- `test:solo-sitout-exclusion` failed days 1–10 of every month (Solo before
+  day 10 is instant, so no pending request to cancel).
+- `test:month-close-canonical` failed 00:00–03:00 UTC on the 1st (the gap
+  before the 3am Bloc-day cutoff).
+
+Both now fake the clock at `2026-09-15T12:00:00Z`, the same pattern
+`scripts/test-yearly-allowance.mjs` already used, with `api/lift-log.js`
+loaded by dynamic `import()` after the clock is pinned.
+
+Verified by forcing the real clock with `NODE_OPTIONS=--import`:
+
+| Real clock | old Solo | new Solo | old close | new close |
+|---|---|---|---|---|
+| 1 Oct 01:00 UTC | FAIL | pass | FAIL | pass |
+| 5 Nov 12:00 UTC | FAIL | pass | pass | pass |
+| 1 Jan 02:00 UTC | FAIL | pass | FAIL | pass |
+
+Then `npm run lint`, `npm run build`, and all 20 CI suites: 20/20. Pushed
+with `--force-with-lease` after confirming `origin/main` (`8aa8f47`) was an
+ancestor. GitHub CI green; Vercel Production deploy succeeded. Test files
+only — nothing a member sees changed. **Deveen's §10.3 ask is done.**
+
+### 2.4 Handover habit made mandatory, and the docs given an index
+
+At the founder's request:
+
+- `AGENTS.md` (which `CLAUDE.md` symlinks to, so Codex and Claude read the
+  same file) has a new **§0**: every session must get fully up to speed
+  before any work — every handover, the workspace, recent commits, the live
+  app — and must start its own handover immediately and keep it updated until
+  the session closes.
+- New **`docs/HANDOVERS.md`**: one index of every handover and reference
+  doc, grouped and newest first. No doc was moved or renamed, because other
+  docs and `AGENTS.md` link to them by path.
+- §11 and §12 of `AGENTS.md` now point at §0 instead of repeating it.
+
+---
+
+## 3. Still open (carried forward, not worked on yet)
+
+- **Lazy month close** — a Bloc nobody touches sits half-closed after the
+  month turns. The founder calls this a bug. Previous handover §4.
+- **A prorated target can exceed the full target** when a Bloc lowers its
+  target mid-month. Previous handover §4.
+- **The new `read_ante_core_logs_for_month` RPC has no test.** Previous
+  handover §8.
+- **TestFlight build 11** — the website is ahead of build 10; the emoji-sheet
+  blocker is lifted (§2.2).
+- **RLS production rollout** — Deveen's, planned for 2–3 October.
+- `test:auth-edge-flows` and `test:mobile-navigation` are still broken.
+- **`docs/WHATS-LIVE.md`'s website column is stale.** It still says
+  `cd5e912` and lists none of the previous session's fixes (month close,
+  leaderboard money, Most Diverse, share-sheet close button). Only the emoji
+  note was corrected this session.
+- Unmerged branches from the last two days: `feat/settlement-note` and
+  `feat/safe-area` (both "WIP: preserve ..." commits from 1 October),
+  `testflight-build-11`, `claude/push-notifications-plan-2026-09-30`,
+  `claude/rls-correction-2026-09-30`. Not reviewed this session.
+
+---
+
+## 4. Commits this session
+
+| | |
+| --- | --- |
+| `689d9d9` | pin the two calendar-dependent suites to the 15th |
+| *(this commit)* | docs: AGENTS.md §0, `docs/HANDOVERS.md`, this handover, emoji note removed from WHATS-LIVE |
