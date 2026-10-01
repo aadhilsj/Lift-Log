@@ -4064,6 +4064,54 @@ async function fetchAnteCurrentLogs() {
   }
 }
 
+// The same rows as fetchAnteCurrentLogs, but for one specific month instead of
+// whatever season happens to be open. Month close needs the month it is
+// closing: the canonical rollover opens the new season first, so by the time
+// the blob rollover runs, "current" is the new, empty month. Reading that made
+// the close see zero logs against a blob that counted workouts, refuse to
+// freeze the month, and skip the Bloc on every read -- 745 skips on 1 October
+// 2026. Returns null on failure, like its sibling, so the caller still skips
+// rather than freezing anything it could not verify.
+async function fetchAnteLogsForMonth(monthKey) {
+  if (!monthKey) return null;
+  try {
+    const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_logs_for_month", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ p_month_key: monthKey })
+    });
+    const rows = await response.json();
+    if (!Array.isArray(rows)) return null;
+    return rows.reduce((acc, row) => {
+      const key = typeof row?.legacy_group_key === "string" ? row.legacy_group_key : "";
+      if (!key) return acc;
+      if (!acc[key]) acc[key] = [];
+      acc[key].push({
+        ownerDisplayName: row.owner_display_name,
+        id:               row.id,
+        type:             row.workout_type,
+        ...(row.activity ? { activity: row.activity } : {}),
+        date:             row.workout_date,
+        note:             row.note         || "",
+        photoUrl:         row.photo_url    || "",
+        createdAt:        row.created_at   || null,
+        verifiedVia:      row.verified_via || "photo",
+        flagStatus:       row.flag_status  || null,
+        flagReason:       row.flag_reason  || "",
+        flagResponse:     row.flag_response|| "",
+        flaggedBy:        row.flagged_by   || null,
+        decisionBy:       row.decision_by  || null,
+        decisionAt:       row.decision_at  || null,
+        commentCount:     Number.isFinite(Number(row.comment_count)) ? Math.max(0, Number(row.comment_count)) : 0,
+        reactions:        row.reactions    || {}
+      });
+      return acc;
+    }, {});
+  } catch {
+    return null;
+  }
+}
+
 async function fetchAnteMonthHistory() {
   try {
     const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_month_history", {
@@ -5201,7 +5249,13 @@ async function persistState(nextState, reason, options = {}) {
   // Canonical current logs for the closing seasons. Fetched before any season
   // is closed below — read_ante_core_current_logs filters to open seasons, so
   // fetching after the close would return nothing for the month being frozen.
-  const canonicalLogsForRollover = rollovers.length > 0 ? await fetchAnteCurrentLogs() : null;
+  // One fetch per distinct month being closed. Blocs roll at their own 3am, so
+  // two Blocs in different time zones can close different months in one pass.
+  const closedMonthKeysForRollover = [...new Set(rollovers.map(entry => entry?.closedMonthKey).filter(Boolean))];
+  const canonicalLogsByClosedMonth = {};
+  for (const closedKey of closedMonthKeysForRollover) {
+    canonicalLogsByClosedMonth[closedKey] = await fetchAnteLogsForMonth(closedKey);
+  }
   for (const { groupId, closedMonthKey, newMonthKey, closedAt, previousGroup } of rollovers) {
     let group = safeState.groups?.[groupId];
     if (!group) continue;
@@ -5234,14 +5288,14 @@ async function persistState(nextState, reason, options = {}) {
     // that no longer receives every write — a wrongly frozen settlement is
     // permanent, while a skipped Bloc is retried on the next read and
     // surfaces on the founder dashboard via rollover_skipped.
-    if (canonicalLogsForRollover === null) {
+    if (canonicalLogsByClosedMonth[closedMonthKey] == null) {
       revertGroup(new Error(`canonical current logs unavailable for month close of ${closedMonthKey}`));
       continue;
     }
     const rebuild = rebuildClosedMonthSnapshotFromCanonicalLogs(
       group,
       closedMonthKey,
-      canonicalLogsForRollover[groupId] || [],
+      canonicalLogsByClosedMonth[closedMonthKey][groupId] || [],
       { deletedCurrentLogIds: previousGroup?.deletedCurrentLogIds }
     );
     if (!rebuild.ok) {
