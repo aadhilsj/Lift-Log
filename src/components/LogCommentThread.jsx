@@ -389,8 +389,11 @@ function LogCommentThread({ groupId, log, currentUserId, currentUserName, onClos
     style: {
       position: "fixed",
       top: Math.max(96, Math.min((window.innerHeight || 720) - 140, Number(reactionTarget.y || 180) - 48)),
-      left: reactionTarget.isOwn ? 16 : "auto",
-      right: reactionTarget.isOwn ? "auto" : 16,
+      // Own comments sit on the right of the thread, so their react bar does
+      // too -- this is fixed-position, so left/right pin to the screen edge,
+      // not to the bubble. BlocStream's ReactBar already aligns this way.
+      left: reactionTarget.isOwn ? "auto" : 16,
+      right: reactionTarget.isOwn ? 16 : "auto",
       zIndex: 13000,
       display: "flex",
       gap: 5,
