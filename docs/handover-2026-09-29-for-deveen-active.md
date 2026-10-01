@@ -577,3 +577,19 @@ Recording both so the next person does not re-derive them.
   commits.** Each file was syntax-checked with `node --check` and every Vercel
   Production build succeeded, but that is not the same thing. Worth a clean
   `lint` + `build` pass when you pick this up.
+
+### §12 follow-up — holding after 6½ hours of real use
+
+Re-checked at 11:19 UTC, 1 October.
+
+| | |
+| --- | --- |
+| Last `rollover_skipped` ever | **04:46:39 UTC** |
+| New skips since the fix | **0**, across 6½ hours |
+| Blocs with September in the blob | **18 of 18** |
+| October logs recorded since | 5 — normal use, closing cleanly |
+
+The founder dashboard still reads **862 skipped in 7 days**. That is the
+historical total inside a rolling 7-day window, not new failures; it will
+decay on its own. If that number ever climbs again, the fix has regressed and
+it is the first thing to look at.
