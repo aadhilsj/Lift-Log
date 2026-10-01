@@ -111,6 +111,57 @@ At the founder's request:
   docs and `AGENTS.md` link to them by path.
 - §11 and §12 of `AGENTS.md` now point at §0 instead of repeating it.
 
+### 2.5 Share stickers: navy icon outline, "SESSIONS", bigger month
+
+The founder redesigned the Grid and Bare stickers (two hand-edited PNGs, now
+kept in `docs/share-sticker-reference/founder-design-2026-10-01/`), then asked
+for two more changes on all three styles. All in `src/lib/shareSticker.js`:
+
+1. **Grid and Bare icons get a solid navy outline** (`#1A2E4A`, the existing
+   `NAVY`), replacing the half-transparent `rgba(2,26,24,.5)` hairline.
+   Measured from his PNGs: the outline is fully opaque, about 1px outside the
+   old silhouette and 1px into the silver. Two constants, `OUTLINE_OUT = 1.5`
+   and `OUTLINE_IN = 0.5` (× the existing per-icon `edge`), were tuned against
+   his files — navy coverage within 5% (1.03× and 1.05×). The first attempt
+   ate equally in and out and nearly erased the line-drawn icons (dumbbell,
+   rower), so the inward reach is deliberately smaller. `EDGE_INK` was only
+   used for this and is removed. **Solid's icons are untouched** (0 pixels
+   changed in its grid).
+2. **"ACTIVITIES" → "SESSIONS"** in the header, all styles.
+3. **Month name 17 → 18** authoring px, all styles. The header centres on
+   its measured width, so it re-centres; widest case (September, 60
+   sessions, Bare) has ink from x 60 to 1013 of 1080 — fits.
+
+**Verified:** all 12 stickers rendered in headless Chromium from the real
+module with the app's Google fonts, and diffed against the pre-change render:
+same canvas size, weekday row and FERO mark 0 pixels changed, changes only in
+the header and (Grid/Bare) the icons. The real `ShareSticker` pop-up loaded
+standalone through Vite at 375×812, Grid and Bare both drawn, no console
+errors. `npm run lint`, `npm run build`, 20/20 CI suites.
+
+**Reference images replaced.** The twelve `docs/share-sticker-reference/png/`
+files are now the new renders, and a new `README.md` in that folder records
+why. `sticker-core.js` / `sticker-style.css` were not updated and no longer
+match the PNGs on these three points.
+
+**Not verified:** the pop-up inside the full app with a real closed month —
+see §2.6. A count of 1 reads "1 SESSIONS" (it read "1 ACTIVITIES" before);
+not changed, not asked.
+
+### 2.6 Found: the sandbox can no longer close a month
+
+`npm run sandbox:seed` fails with "Rollover did not close August". The
+sandbox answers every canonical RPC with `[]`, and since `c9ce86a` the month
+close reads `read_ante_core_logs_for_month`, gets nothing, sees the blob
+counted 30, and correctly skips the Bloc. So nothing that needs a closed
+month (stickers, results, settlement reminders) can be rehearsed in the
+sandbox until the sandbox fakes that RPC. Not fixed — outside this task.
+
+Also on this laptop: a Docker container (`com.docker`, likely the August
+local Supabase) holds port 54321, which `scripts/sandbox.mjs` hardcodes. For
+this session the port was changed to 54331 in the worktree only and reverted;
+Docker was not touched.
+
 ---
 
 ## 3. Still open (carried forward, not worked on yet)
@@ -125,6 +176,8 @@ At the founder's request:
   blocker is lifted (§2.2).
 - **RLS production rollout** — Deveen's, planned for 2–3 October.
 - `test:auth-edge-flows` and `test:mobile-navigation` are still broken.
+- **The sandbox cannot close a month** (§2.6), so closed-month screens cannot
+  be rehearsed locally.
 - **`docs/WHATS-LIVE.md`'s website column is stale.** It still says
   `cd5e912` and lists none of the previous session's fixes (month close,
   leaderboard money, Most Diverse, share-sheet close button). Only the emoji
@@ -141,4 +194,5 @@ At the founder's request:
 | | |
 | --- | --- |
 | `689d9d9` | pin the two calendar-dependent suites to the 15th |
-| *(this commit)* | docs: AGENTS.md §0, `docs/HANDOVERS.md`, this handover, emoji note removed from WHATS-LIVE |
+| `aea861f` | docs: AGENTS.md §0, `docs/HANDOVERS.md`, this handover, emoji note removed from WHATS-LIVE |
+| *(this commit)* | stickers: navy icon outline (Grid/Bare), SESSIONS, month 18; references replaced |

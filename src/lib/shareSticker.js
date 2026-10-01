@@ -41,7 +41,6 @@ const PAD_BOTTOM = 1.11;
 
 const CYAN = "#4ECDC4";
 const NAVY = "#1A2E4A";
-const EDGE_INK = "rgba(2,26,24,.5)";
 const BASE_EDGE = "rgba(2,26,24,.42)";
 
 const MONTH_NAMES_FULL = ["January","February","March","April","May","June",
@@ -65,7 +64,7 @@ const STYLES = {
 // for explicitly or the first render on a cold page draws in a fallback with different
 // metrics — and every position below is measured, so it would be subtly wrong everywhere.
 const FONT_SPECS = [
-  '900 44px Outfit', '800 17px Outfit', '700 12px Outfit', '800 10px Outfit',
+  '900 44px Outfit', '800 18px Outfit', '700 12px Outfit', '800 10px Outfit',
   '900 20px Outfit', '500 10px "JetBrains Mono"', '500 8.5px "JetBrains Mono"'
 ];
 
@@ -131,7 +130,7 @@ function drawTracked(ctx, text, x, y, spacing, fill, strokeW, strokeColor) {
 }
 
 // Centre a text box on `midY` by its own ink box rather than its baseline — on one line,
-// baseline-sitting makes ACTIVITIES look like it has fallen to the floor next to a 44px
+// baseline-sitting makes SESSIONS look like it has fallen to the floor next to a 44px
 // numeral.
 function baselineForCentre(ctx, text, midY) {
   const m = ctx.measureText(text);
@@ -171,8 +170,18 @@ function silverGradient(ctx, extent) {
   return g;
 }
 
-// The hairline edge is what lets an icon survive a bright photo. Width scales with each
-// icon's viewBox so it reads identically at every viewBox scale.
+// The outline is what lets an icon survive a bright photo. Width scales with each icon's
+// viewBox so it reads identically at every viewBox scale.
+//
+// Silver icons (Grid and Bare) carry a solid navy outline: mostly outside the silhouette,
+// a little into the silver. Redesigned by the founder on 2026-10-01, replacing the old
+// half-transparent hairline, so icons stay visible on light and busy backgrounds. The two
+// widths were tuned against his files in docs/share-sticker-reference/founder-design-2026-10-01/;
+// reaching further in nearly erases the thin line-drawn icons (dumbbell, rower).
+const ICON_OUTLINE = NAVY;
+const OUTLINE_OUT = 1.5;             // × edge, outside the silhouette
+const OUTLINE_IN = 0.5;              // × edge, into the silver
+
 function drawIcon(ctx, type, cx, cy, style) {
   const spec = getWorkoutIcon(type);
   if (!spec) return;
@@ -190,26 +199,34 @@ function drawIcon(ctx, type, cx, cy, style) {
   const path = iconPath(spec);
   const ink = style.silverIcon ? silverGradient(ctx, spec.extent) : NAVY;
 
+  // How far the navy outline reaches outside the silhouette, and how far into the silver.
+  const out = edge * OUTLINE_OUT, inside = edge * OUTLINE_IN;
+
   if (spec.kind === "stroke") {
     // A stroke drawing cannot be outlined by an outer stroke — the drawing IS the stroke.
-    // Lay the path down twice: a wider dark pass underneath, the ink pass on top.
+    // Lay the path down twice: a wider navy pass underneath, then the ink pass on top,
+    // narrowed so the outline also reaches into it.
     if (style.silverIcon) {
-      ctx.strokeStyle = EDGE_INK;
-      ctx.lineWidth = spec.w + edge * 2;
+      ctx.strokeStyle = ICON_OUTLINE;
+      ctx.lineWidth = spec.w + out * 2;
       ctx.stroke(path);
     }
     ctx.strokeStyle = ink;
-    ctx.lineWidth = spec.w;
+    ctx.lineWidth = style.silverIcon ? spec.w - inside * 2 : spec.w;
     ctx.stroke(path);
   } else {
-    // Canvas's natural stroke-then-fill order gives paint-order behaviour for free.
+    // Navy underneath shows only outside the fill; navy on top reaches into it.
     if (style.silverIcon) {
-      ctx.strokeStyle = EDGE_INK;
-      ctx.lineWidth = edge * 2;
+      ctx.strokeStyle = ICON_OUTLINE;
+      ctx.lineWidth = out * 2;
       ctx.stroke(path);
     }
     ctx.fillStyle = ink;
     ctx.fill(path);
+    if (style.silverIcon) {
+      ctx.lineWidth = inside * 2;
+      ctx.stroke(path);
+    }
   }
   ctx.restore();
 }
@@ -323,13 +340,13 @@ function layoutHeight(rows) {
 function drawHeader(ctx, monthLabel, year, count, midY) {
   const yearText = String(year);
   const countText = String(count);
-  const label = "ACTIVITIES";
+  const label = "SESSIONS";
   const yearLS = 10 * 0.16, countLS = 44 * -0.035, labelLS = 12 * 0.15;
 
   ctx.textAlign = "left";
   ctx.textBaseline = "alphabetic";
 
-  ctx.font = "800 17px Outfit, sans-serif";
+  ctx.font = "800 18px Outfit, sans-serif";
   const wMonth = ctx.measureText(monthLabel).width;
   ctx.font = '500 10px "JetBrains Mono", monospace';
   const wYear = measureTracked(ctx, yearText, yearLS);
@@ -343,7 +360,7 @@ function drawHeader(ctx, monthLabel, year, count, midY) {
   const total = wMonth + 4 + wYear + 10 + wColon + 10 + wCount + 8 + wLabel;
   let x = (W - total) / 2;
 
-  ctx.font = "800 17px Outfit, sans-serif";
+  ctx.font = "800 18px Outfit, sans-serif";
   drawTracked(ctx, monthLabel, x, baselineForCentre(ctx, monthLabel, midY), 0, "#FFFFFF", 0.28, BASE_EDGE);
   x += wMonth + 4;
 
