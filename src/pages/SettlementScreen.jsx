@@ -26,6 +26,8 @@ import { buildStickerData } from "../lib/shareSticker.js";
 import { buildPaymentTargets } from "../lib/paymentLinks.js";
 import { createPortal } from "react-dom";
 import { PaymentHandleSection } from "../components/PaymentHandleSection.jsx";
+import { SettlementNotePrompt } from "../components/SettlementNotePrompt.jsx";
+import { getSettlementNote, setSettlementNote, SETTLEMENT_NOTE_MAX } from "../lib/settlementNotePreview.js";
 import {
   MonthDial, LoopReadout, LoopCaption, loopCaption, loopTotals, useTapOutside, LOOP_FONTS, perfectMonthRun, PerfectRunPill,
   closedMonthMember, perDayCounts, clearDayOf, bestWeekOf, personalBestOf, trackRecordOf,
@@ -37,6 +39,10 @@ const FULL_MONTH_NAMES = ["January","February","March","April","May","June","Jul
 const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistory, profiles, onOpenAccount, onSettlementClaimPaid, onSettlementConfirmPaid, onStartNextMonth, onViewProfileMonth, onTrackUsage, currentPaymentMethods = [], onSavePayment, savingPayment = false, paymentError = ""}) => {
   const [copiedKey, setCopiedKey] = React.useState(null);
   const [settlementBusy, setSettlementBusy] = React.useState(null);
+  // Settlement note (preview). The question is the app's; the answer is theirs.
+  const [noteOpen, setNoteOpen] = React.useState(false);
+  const [noteDraft, setNoteDraft] = React.useState("");
+  const [noteRev, setNoteRev] = React.useState(0);
   const [focus, setFocus] = React.useState(null);
   const [othersOpen, setOthersOpen] = React.useState(false);
   const [showLinkPayment, setShowLinkPayment] = React.useState(false);
@@ -609,10 +615,50 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
     );
   };
 
+  // Whoever is owed this month writes the answer. Everyone else reads it.
+  const noteReceiver = settlementPairs.length ? settlementPairs[0].receiverDisplayName : "";
+  const myNoteIsMine = !!noteReceiver && noteReceiver === currentUser;
+  const noteAnswer = (() => { void noteRev; return getSettlementNote(group?.id, month.key, noteReceiver); })();
+  const openNote = () => { setNoteDraft(noteAnswer); setNoteOpen(true); };
+  const saveNote = text => {
+    setSettlementNote(group?.id, month.key, noteReceiver, text);
+    setNoteRev(rev => rev + 1);
+    setNoteOpen(false);
+  };
+  const notePrompt = !!noteReceiver && React.createElement(SettlementNotePrompt,{
+    answer: noteAnswer,
+    author: myNoteIsMine ? "" : noteReceiver,
+    canWrite: myNoteIsMine,
+    onEdit: openNote
+  });
+  const noteEditor = noteOpen && React.createElement('div',{className:"overlay center-mobile",onClick:()=>setNoteOpen(false)},
+    React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{maxWidth:340,padding:"16px 15px",textAlign:"left"}},
+      React.createElement('div',{style:{fontSize:16,fontWeight:800,color:"var(--text)",marginBottom:6}},"What\u2019s it going toward?"),
+      React.createElement('div',{style:{fontSize:11.5,color:"var(--muted)",lineHeight:1.45,fontFamily:LOOP_FONTS.body,marginBottom:12}},
+        `Everyone in your Bloc sees this on ${selectedMonthName}\u2019s settlements. Optional.`),
+      React.createElement('input',{
+        value:noteDraft, autoFocus:true, maxLength:SETTLEMENT_NOTE_MAX,
+        placeholder:"Climbing shoes, physio, a big dinner\u2026",
+        onChange:e=>setNoteDraft(e.target.value),
+        onKeyDown:e=>{ if(e.key==="Enter" && noteDraft.trim()) saveNote(noteDraft); },
+        style:{width:"100%",boxSizing:"border-box",background:"#08100F",border:"0.5px solid #1D3A36",borderRadius:10,padding:"10px 11px",color:"var(--text)",fontSize:12.5,fontFamily:LOOP_FONTS.body,outline:"none"}
+      }),
+      React.createElement('div',{style:{display:"flex",justifyContent:"flex-end",marginTop:6}},
+        React.createElement('span',{style:{fontFamily:LOOP_FONTS.mono,fontSize:9,color:"#6B9690"}},`${noteDraft.length}/${SETTLEMENT_NOTE_MAX}`)),
+      React.createElement('div',{style:{display:"flex",gap:8,marginTop:13}},
+        noteAnswer && React.createElement('button',{type:"button",onClick:()=>saveNote(""),style:{padding:"10px 12px",borderRadius:12,border:"1px solid rgba(224,98,90,.4)",background:"transparent",color:"#E0625A",fontWeight:800,fontSize:11}},"Remove"),
+        React.createElement('button',{type:"button",onClick:()=>setNoteOpen(false),style:{flex:1,padding:"10px 12px",borderRadius:12,border:"1px solid var(--border)",background:"var(--s2)",color:"var(--muted)",fontWeight:700,fontSize:11}},"Not now"),
+        React.createElement('button',{type:"button",onClick:()=>saveNote(noteDraft),disabled:!noteDraft.trim(),style:{flex:1,padding:"10px 12px",borderRadius:12,border:"1px solid #4ECDC4",background:noteDraft.trim()?"#4ECDC4":"rgba(78,205,196,.25)",color:"#061110",fontWeight:800,fontSize:11}},"Save")
+      )
+    )
+  );
+
   const claimConfirmation = claimPrompt && React.createElement('div',{className:"overlay center-mobile",onClick:()=>setClaimPrompt(null)},
     React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{maxWidth:320,padding:"18px 16px",textAlign:"center"}},
       React.createElement('div',{style:{fontSize:18,fontWeight:800,color:"var(--text)",marginBottom:8}},"Mark as paid?"),
       React.createElement('div',{style:{fontSize:12,color:"var(--muted)",lineHeight:1.45,fontFamily:"'Outfit', sans-serif",fontWeight:600}},"This tells the receiver you paid them."),
+      noteAnswer && React.createElement('div',{style:{marginTop:12,textAlign:"left"}},
+        React.createElement(SettlementNotePrompt,{ answer: noteAnswer, author: noteReceiver, compact: true })),
       React.createElement('div',{style:{display:"flex",gap:10,marginTop:16}},
         React.createElement('button',{type:"button",onClick:()=>setClaimPrompt(null),style:{flex:1,padding:"10px 12px",borderRadius:12,border:"1px solid var(--border)",background:"var(--s2)",color:"var(--muted)",fontWeight:700}},"Cancel"),
         React.createElement('button',{type:"button",onClick:async()=>{const payload = claimPrompt; setClaimPrompt(null); await handleSettlementAction(payload);},style:{flex:1,padding:"10px 12px",borderRadius:12,border:"1px solid rgba(224,80,32,.34)",background:"rgba(224,80,32,.10)",color:"#F06D43",fontWeight:800}},"Mark Paid")
@@ -641,9 +687,11 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
         firstWeekdayOffset:reportCalendar.firstWeekdayOffset,
         onShare:handleShare
       }) : null,
-      React.createElement('div',{ref:ledgerRef},renderSettlements())
+      React.createElement('div',{ref:ledgerRef},renderSettlements()),
+      notePrompt
     ),
     claimConfirmation,
+    noteEditor,
     linkPaymentModal,
     showSticker && stickerData && React.createElement(ShareSticker,{
       data: stickerData,

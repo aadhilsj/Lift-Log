@@ -194,15 +194,25 @@ export function loopTotals(members) {
 // The two lines under the ring. Names only appear when 3 or fewer are left.
 export function loopCaption(members, { ended, dayOne }) {
   const t = loopTotals(members);
-  const clearedLine = [{ strong: `${t.cleared.length} of ${t.regulars.length}` }, " slices cleared."];
+  const soloNames = t.inLoop.filter(m => m.isSolo).map(m => m.name);
+  const soloClause = soloNames.length === 0 ? null
+    : soloNames.length === 1 ? `${soloNames[0]} on Solo.`
+    : soloNames.length === 2 ? `${soloNames[0]} and ${soloNames[1]} on Solo.`
+    : `${soloNames.length} on Solo.`;
+  const countLine = [{ strong: `${t.cleared.length} of ${t.regulars.length}` }, " slices cleared."];
+  // The Solo names ride the count line, because the count is what raises the
+  // question: the ring draws a slice for them and the number does not count it.
+  // Only where the second line does NOT already name the rule — saying a Solo
+  // month kept the loop from closing AND naming them is the same fact twice.
+  const clearedLine = soloClause ? [...countLine.slice(0, -1), ` slices cleared. ${soloClause}`] : countLine;
   // Every slice that can clear has cleared, but the loop still can't close:
   // a Solo month, or too few in the month. Name the rule, never the person.
   const allClearedLine = t.regulars.length > 1 ? ["All ", { strong: String(t.regulars.length) }, " slices cleared."]
     : t.regulars.length === 1 ? ["The one slice cleared."] : ["Everyone is on Solo."];
   if (t.perfect) return [["Every slice cleared."], ["Nobody left the loop open."]];
   if (ended) {
+    if (t.anySolo) return [t.open.length ? countLine : allClearedLine, ["A Solo month kept the loop from closing."]];
     const firstLine = t.open.length ? clearedLine : allClearedLine;
-    if (t.anySolo) return [firstLine, ["A Solo month kept the loop from closing."]];
     if (!t.eligible) return [firstLine, ["Too few were in the month for it to be perfect."]];
     return [clearedLine, [{ strong: String(t.stillNeeded) }, " workouts from a perfect month."]];
   }
@@ -210,6 +220,19 @@ export function loopCaption(members, { ended, dayOne }) {
   if (dayOne && t.done === 0) return [["A fresh loop."], ["Your Bloc needs ", { strong: String(t.stillNeeded) }, " workouts."]];
   if (!t.open.length) return [allClearedLine, ["A Solo month keeps the loop from closing."]];
   const needs = m => `${m.target - m.count} more`;
+  // "It's down to X" belongs to a month that can still be perfect, where that
+  // person clearing IS the closing act. In a Solo month there is no closing
+  // act: everyone left is doing the same thing as everyone else left, and a
+  // Solo member's own goal is exactly as outstanding as anybody else's. So say
+  // who still has work, count Solo among them, and promise nothing.
+  if (t.anySolo) {
+    const left = t.inLoop.filter(m => m.count < m.fillable);
+    const shortBy = m => m.fillable - m.count;
+    if (left.length === 1) return [clearedLine, [{ strong: left[0].name }, ` needs ${shortBy(left[0])} more.`]];
+    if (left.length === 2) return [clearedLine, [{ strong: left[0].name }, ` needs ${shortBy(left[0])}, `, { strong: left[1].name }, ` needs ${shortBy(left[1])}.`]];
+    const owed = left.reduce((sum, m) => sum + shortBy(m), 0);
+    return [clearedLine, ["Your Bloc needs ", { strong: String(owed) }, " more workouts."]];
+  }
   if (t.open.length === 1) return [clearedLine, ["It's down to ", { strong: t.open[0].name }, `: ${needs(t.open[0])}.`]];
   if (t.open.length <= 3) {
     const parts = [];

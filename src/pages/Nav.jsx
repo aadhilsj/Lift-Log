@@ -2,6 +2,27 @@ import React from "react";
 const { useState, useEffect, useMemo, useCallback, useRef } = React;
 import { AppIcon, AnteWordmark, Avatar } from "../components/primitives.jsx";
 
+const BellIcon = ({ size = 18 }) => React.createElement('svg', {
+  width: size, height: size, viewBox: "0 0 24 24", fill: "none",
+  stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round", strokeLinejoin: "round"
+},
+  React.createElement('path', { d: "M18 8a6 6 0 10-12 0c0 6-2 7-2 7h16s-2-1-2-7" }),
+  React.createElement('path', { d: "M10.3 20a2 2 0 003.4 0" })
+);
+
+const NotificationsIconButton = ({ onOpen, unreadCount = 0, size }) => {
+  const hasUnread = unreadCount > 0;
+  return React.createElement('button', {
+    onClick: onOpen, className: "icon-btn live-icon-btn", title: "For you",
+    style: { position: "relative", ...(size ? { width: size, height: size, display: "inline-flex", alignItems: "center", justifyContent: "center" } : {}) }
+  },
+    React.createElement(BellIcon, { size: size ? 18 : 14 }),
+    hasUnread && React.createElement('span', {
+      style: { position: "absolute", top: -4, left: -5, minWidth: 12, height: 12, padding: "0 2.5px", borderRadius: 999, background: "#4ECDC4", color: "#04110e", fontFamily: "'Outfit', sans-serif", fontSize: 7, fontWeight: 700, lineHeight: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", boxShadow: "0 0 0 1.5px var(--s1)" }
+    }, unreadCount > 9 ? "9+" : unreadCount)
+  );
+};
+
 const StreamIconButton = ({ onOpenStream, unreadCount = 0, size }) => {
   const hasUnread = unreadCount > 0;
   return React.createElement('button', {
@@ -17,7 +38,7 @@ const StreamIconButton = ({ onOpenStream, unreadCount = 0, size }) => {
 
 const SettingsDot = () => React.createElement('span',{style:{position:"absolute",top:2,right:2,width:7,height:7,borderRadius:999,background:"#4ECDC4",boxShadow:"0 0 0 1.5px #050909"}});
 
-const Nav = ({page,setPage,user,groupName,canEditGroup,onOpenSettings,settingsAlert=false,onOpenProfile,onOpenStream,streamUnreadCount=0,onSwitchUser,onSwitchGroup,onOpenLog,syncing,lastSyncedAt,syncError,onRefresh,showJustSynced,activityAlertCount=0,hideMobileBottomNav=false,onlyMobileBottomNav=false,mobileBottomDragX=0,mobileBottomDragging=false,mobileBottomNavRef=null,currentUserId="",profilePhotoUrl=""}) => {
+const Nav = ({page,setPage,user,groupName,canEditGroup,onOpenSettings,settingsAlert=false,onOpenProfile,onOpenStream,streamUnreadCount=0,onOpenNotifications,notificationCount=0,onSwitchUser,onSwitchGroup,onOpenLog,syncing,lastSyncedAt,syncError,onRefresh,showJustSynced,activityAlertCount=0,hideMobileBottomNav=false,onlyMobileBottomNav=false,mobileBottomDragX=0,mobileBottomDragging=false,mobileBottomNavRef=null,currentUserId="",profilePhotoUrl=""}) => {
   const navItems = [["today","Today","today"],["activity","Activity","activity"],["month","Month","results"],["history","History","history"]];
   const mobilePageSlots = { today: 0, activity: 1, month: 3, history: 4 };
   const mobileActiveSlot = mobilePageSlots[page] ?? 0;
@@ -65,6 +86,7 @@ const Nav = ({page,setPage,user,groupName,canEditGroup,onOpenSettings,settingsAl
       )
     ),
     React.createElement('div',{style:{display:"flex",alignItems:"center",gap:8}},
+      React.createElement(NotificationsIconButton,{onOpen:onOpenNotifications,unreadCount:notificationCount}),
       React.createElement(StreamIconButton,{onOpenStream,unreadCount:streamUnreadCount}),
       React.createElement('button',{onClick:onOpenSettings,className:"icon-btn live-icon-btn",title:"Bloc settings",style:{position:"relative"}},React.createElement(AppIcon,{name:"settings",size:14}),settingsAlert&&React.createElement(SettingsDot,null)),
       // The in-Bloc account button was removed: account settings live on the
@@ -90,6 +112,7 @@ const Nav = ({page,setPage,user,groupName,canEditGroup,onOpenSettings,settingsAl
         React.createElement('span',{style:{display:"inline-flex",transform:"translateY(.1em)"}},React.createElement(AppIcon,{name:"chevron-down",size:16,stroke:"#4ECDC4",strokeWidth:"2.4"}))
       ),
       React.createElement('div',{style:{display:"flex",alignItems:"center",gap:4,flexShrink:0}},
+        React.createElement(NotificationsIconButton,{onOpen:onOpenNotifications,unreadCount:notificationCount,size:28}),
         React.createElement(StreamIconButton,{onOpenStream,unreadCount:streamUnreadCount,size:28}),
         React.createElement('button',{onClick:onOpenSettings,className:"icon-btn live-icon-btn",title:"Bloc settings",style:{width:28,height:28,display:"inline-flex",alignItems:"center",justifyContent:"center",position:"relative"}},React.createElement(AppIcon,{name:"settings",size:18}),settingsAlert&&React.createElement(SettingsDot,null)),
         null

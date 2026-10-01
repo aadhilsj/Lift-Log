@@ -60,6 +60,8 @@ import { ReminderSheet } from "../components/ReminderSheet.jsx";
 import { getLogDisplayActivity } from "../lib/activities.js";
 import { PlayerProfile } from "../pages/PlayerProfile.jsx";
 import { buildPaymentTargets } from "../lib/paymentLinks.js";
+import { getSettlementNote, setSettlementNote, SETTLEMENT_NOTE_MAX } from "../lib/settlementNotePreview.js";
+import { SettlementNotePrompt } from "../components/SettlementNotePrompt.jsx";
 import { prefetchProfileStatsData } from "../lib/api.js";
 import { buildPaymentTargets as buildOwnPaymentTargets } from "../lib/paymentLinks.js";
 import { PaymentHandleSection } from "../components/PaymentHandleSection.jsx";
@@ -76,6 +78,10 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
   const [settlementDisputePromptCard,setSettlementDisputePromptCard]=useState(null);
   const [showLinkPaymentModal,setShowLinkPaymentModal]=useState(false);
   const [showReminderSheet,setShowReminderSheet]=useState(false);
+  // Settlement note (preview): the card being written, and a tick so a save re-renders.
+  const [noteEditorCard,setNoteEditorCard]=useState(null);
+  const [noteDraft,setNoteDraft]=useState("");
+  const [noteRev,setNoteRev]=useState(0);
   const todayRootRef = useRef(null);
   const profileLayerRef = useRef(null);
   const [profileRevealActive,setProfileRevealActive]=useState(false);
@@ -816,6 +822,50 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
     }
   },"Link a payment option");
 
+  // ── Settlement note: "What's it going toward?" ────────────────────────────
+  // One line from whoever is owed, shown to everyone who can see the debt. The
+  // copy is deliberately the smallest on the card: the reminder card must not
+  // grow into a block.
+  const noteFor = card => { void noteRev; return getSettlementNote(currentGroupId, card?.monthKey, card?.receiverDisplayName); };
+  const openNoteEditor = card => { setNoteDraft(noteFor(card)); setNoteEditorCard(card); };
+  const saveNote = text => {
+    if (!noteEditorCard) return;
+    setSettlementNote(currentGroupId, noteEditorCard.monthKey, noteEditorCard.receiverDisplayName, text);
+    setNoteRev(rev => rev + 1);
+    setNoteEditorCard(null);
+  };
+  // The note as it reads on a card. 8.5px is the size of the muted
+  // "Link a payment option" prompt, the smallest type already on this card, and
+  // the note shares ONE line with its Edit control so the card never grows by
+  // more than a single line.
+  const renderNoteRow = (card, { reserveRight = 96 } = {}) => {
+    const text = noteFor(card);
+    const mine = isReceiverCard(card);
+    if (!text && !mine) return null;
+    const base = { fontSize:8.5, lineHeight:1.25, fontFamily:"'Outfit', sans-serif" };
+    if (!text) {
+      // Plain text, not a pill: it is the quietest thing on the card, and a
+      // different colour from the cyan "Link a payment option" action so the
+      // two never read as the same kind of prompt.
+      return React.createElement('button',{
+        type:"button",
+        onClick:e=>{ e.stopPropagation(); onTrackUsage?.("settlement_note_started"); openNoteEditor(card); },
+        style:{...base, fontSize:7.5, justifySelf:"start", marginRight:reserveRight,
+          background:"transparent", border:"none", borderRadius:0, padding:0,
+          color:"#6B9690", fontWeight:600, cursor:"pointer", whiteSpace:"nowrap", textAlign:"left"}
+      },"Say what it\u2019s going toward");
+    }
+    return React.createElement('div',{style:{...base, display:"flex", alignItems:"baseline", gap:4, minWidth:0, paddingRight:reserveRight, color:"#89A39E", fontWeight:500}},
+      React.createElement('span',{style:{minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},`\u201C${text}\u201D`),
+      mine && React.createElement('button',{
+        type:"button",
+        onClick:e=>{ e.stopPropagation(); onTrackUsage?.("settlement_note_edited"); openNoteEditor(card); },
+        style:{...base, background:"transparent", border:"none", padding:0, marginLeft:2,
+          color:"#7DB8B1", fontWeight:700, cursor:"pointer", whiteSpace:"nowrap", flexShrink:0}
+      },"Edit")
+    );
+  };
+
   // The compact phone card is a single, centred payment row. The month sits
   // immediately above it, so the provider icon can belong directly to the
   // "You owe X" copy rather than competing with a second row inside the card.
@@ -980,7 +1030,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
   // over the page. While the sheet is open they are portalled too (see
   // overReminderSheet), and the sheet's panel fades out beneath them while its
   // backdrop stays, so the page behind never flashes through.
-  const reminderPromptOpen = !!(showLinkPaymentModal || settlementClaimPromptCard || settlementConfirmPromptCard || settlementDisputePromptCard);
+  const reminderPromptOpen = !!(showLinkPaymentModal || settlementClaimPromptCard || settlementConfirmPromptCard || settlementDisputePromptCard || noteEditorCard);
   const reminderSheetOpen = showReminderSheet && showSettlementReminderSlot;
   const reminderSheet = reminderSheetOpen && React.createElement(ReminderSheet,{
       panelHidden:reminderPromptOpen,
@@ -1047,10 +1097,52 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
       )
     )
   );
+  // The note editor. Same overlay + modal pattern as every other prompt here.
+  const noteEditor = noteEditorCard && React.createElement('div',{className:"overlay center-mobile",onClick:()=>setNoteEditorCard(null)},
+    React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{maxWidth:340,padding:"16px 15px",textAlign:"left"}},
+      React.createElement('div',{style:{fontSize:16,fontWeight:800,color:"var(--text)",marginBottom:6}},"What\u2019s it going toward?"),
+      React.createElement('div',{style:{fontSize:11.5,color:"var(--muted)",lineHeight:1.45,fontFamily:"'Outfit', sans-serif",marginBottom:12}},
+        `Everyone in your Bloc sees this on ${noteEditorCard.monthLabel}\u2019s settlements. Optional.`),
+      React.createElement('input',{
+        value:noteDraft,
+        autoFocus:true,
+        maxLength:SETTLEMENT_NOTE_MAX,
+        placeholder:"Climbing shoes, physio, a big dinner\u2026",
+        onChange:e=>setNoteDraft(e.target.value),
+        onKeyDown:e=>{ if(e.key==="Enter" && noteDraft.trim()) saveNote(noteDraft); },
+        style:{width:"100%",boxSizing:"border-box",background:"#08100F",border:"0.5px solid #1D3A36",borderRadius:10,padding:"10px 11px",color:"var(--text)",fontSize:12.5,fontFamily:"'Outfit', sans-serif",outline:"none"}
+      }),
+      React.createElement('div',{style:{display:"flex",justifyContent:"flex-end",marginTop:6}},
+        React.createElement('span',{className:"mono",style:{fontSize:9,color:"var(--muted2)"}},`${noteDraft.length}/${SETTLEMENT_NOTE_MAX}`)),
+      React.createElement('div',{style:{display:"flex",gap:8,marginTop:13}},
+        noteFor(noteEditorCard) && React.createElement('button',{
+          onClick:()=>saveNote(""),
+          style:{padding:"10px 12px",borderRadius:12,border:"1px solid rgba(224,98,90,.4)",background:"transparent",color:"#E0625A",fontWeight:800,fontSize:11}
+        },"Remove"),
+        React.createElement('button',{
+          onClick:()=>setNoteEditorCard(null),
+          style:{flex:1,padding:"10px 12px",borderRadius:12,border:"1px solid var(--border)",background:"var(--s2)",color:"var(--muted)",fontWeight:700,fontSize:11}
+        },"Not now"),
+        React.createElement('button',{
+          onClick:()=>saveNote(noteDraft),
+          disabled:!noteDraft.trim(),
+          style:{flex:1,padding:"10px 12px",borderRadius:12,border:"1px solid #4ECDC4",background:noteDraft.trim()?"#4ECDC4":"rgba(78,205,196,.25)",color:"#061110",fontWeight:800,fontSize:11}
+        },"Save")
+      )
+    )
+  );
+
   const settlementClaimPrompt = settlementClaimPromptCard && React.createElement('div',{className:"overlay center-mobile",onClick:()=>setSettlementClaimPromptCard(null)},
     React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{maxWidth:320,padding:"18px 16px",textAlign:"center"}},
       React.createElement('div',{style:{fontSize:18,fontWeight:800,color:"var(--text)",marginBottom:8}},"Mark as paid?"),
       React.createElement('div',{style:{fontSize:12,color:"var(--muted)",lineHeight:1.45,fontFamily:"'Outfit', sans-serif",fontWeight:600}},"This tells the receiver you paid them."),
+      noteFor(settlementClaimPromptCard) && React.createElement('div',{style:{marginTop:12}},
+        React.createElement(SettlementNotePrompt,{
+          answer: noteFor(settlementClaimPromptCard),
+          author: settlementClaimPromptCard.receiverDisplayName,
+          compact: true
+        })
+      ),
       React.createElement('div',{style:{display:"flex",gap:10,marginTop:16}},
         React.createElement('button',{
           onClick:()=>setSettlementClaimPromptCard(null),
@@ -1508,6 +1600,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
     overReminderSheet(settlementDisputePrompt),
     overReminderSheet(settlementClaimPrompt),
     overReminderSheet(settlementConfirmPrompt),
+    overReminderSheet(noteEditor),
     statDetailOverlay,
     mobileView,
     desktopView

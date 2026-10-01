@@ -34,8 +34,27 @@ const reactionSortIndex = emoji => {
   return index === -1 ? QUICK_REACTIONS.length : index;
 };
 
-const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,onReview,clockTick,reactionOverrides,setReactionOverrides,commentCountOverrides = {},onCommentCountsLoaded,onOpenLogComments,onTrackUsage}) => {
+const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,onReview,clockTick,highlightLogId,onHighlightShown,reactionOverrides,setReactionOverrides,commentCountOverrides = {},onCommentCountsLoaded,onOpenLogComments,onTrackUsage}) => {
   const [flagTarget,setFlagTarget]=useState(null);
+  // Arriving from the notification centre: put the log on screen and glow it
+  // for a moment, so it is obvious which one you were sent to see.
+  const [glowLogId,setGlowLogId]=useState("");
+  const highlightRef = useRef(null);
+  useEffect(()=>{
+    if(!highlightLogId) return undefined;
+    setGlowLogId(String(highlightLogId));
+    const clear = setTimeout(()=>{ setGlowLogId(""); onHighlightShown?.(); }, 1800);
+    return ()=>clearTimeout(clear);
+  },[highlightLogId, onHighlightShown]);
+  // Separate pass: the ref only exists after the render that set glowLogId, so
+  // scrolling in the effect above would aim at nothing.
+  useEffect(()=>{
+    if(!glowLogId) return undefined;
+    const raf = requestAnimationFrame(()=>{
+      highlightRef.current?.scrollIntoView({ behavior:"smooth", block:"center" });
+    });
+    return ()=>cancelAnimationFrame(raf);
+  },[glowLogId]);
   const [flagReason,setFlagReason]=useState("");
   const [responseTarget,setResponseTarget]=useState(null);
   const [responseText,setResponseText]=useState("");
@@ -536,12 +555,18 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
                   React.createElement('span',{className:"mono",style:{fontSize:10,color:"#4ECDC4",letterSpacing:".08em",textTransform:"uppercase",whiteSpace:"nowrap",textAlign:"center"}},formatShortDate(displayDate)),
                   React.createElement('div',{style:{height:1,flex:1,background:"rgba(78,205,196,.18)"}})
                 ),
-                React.createElement('div',{style:{
+                React.createElement('div',{
+                  ref: glowLogId && String(post.id)===glowLogId ? highlightRef : undefined,
+                  style:{
                   position:"relative",
+                  transition:"box-shadow .45s ease",
                   border:`0.75px solid ${post.flagStatus==="flagged"?"rgba(232,69,69,.38)":"rgba(42,82,78,.64)"}`,
                   borderRadius:10,
                   background:"radial-gradient(circle at 14% 0%, rgba(255,255,255,.019), transparent 34%), radial-gradient(circle at 92% 100%, rgba(78,205,196,.024), transparent 40%), linear-gradient(180deg, rgba(7,16,16,.99), rgba(5,12,12,.99))",
-                  boxShadow:"inset 0 1px 0 rgba(255,255,255,.028), 0 3px 9px rgba(0,0,0,.09)",
+                  // Very faint, and it fades out on its own.
+                  boxShadow: glowLogId && String(post.id)===glowLogId
+                    ? "inset 0 1px 0 rgba(255,255,255,.028), 0 3px 9px rgba(0,0,0,.09), 0 0 0 1px rgba(78,205,196,.34), 0 0 18px rgba(78,205,196,.18)"
+                    : "inset 0 1px 0 rgba(255,255,255,.028), 0 3px 9px rgba(0,0,0,.09)",
                   overflow:"visible"
                 }},
                 hasThumbnail

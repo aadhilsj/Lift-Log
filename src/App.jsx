@@ -1,6 +1,8 @@
 import React from "react";
 const { useState, useEffect, useMemo, useCallback, useRef } = React;
 import {
+  buildSettlementReminderCards,
+  fmtCurrency,
   MIN_TARGET,
   curKey,
   normalizeSitOutRequests,
@@ -105,6 +107,9 @@ import { BlocSettingsScreen } from "./pages/BlocSettingsScreen.jsx";
 import { LogCommentThread } from "./components/LogCommentThread.jsx";
 import { ColdOnboarding } from "./components/ColdOnboarding.jsx";
 import { FounderDashboard } from "./pages/FounderDashboard.jsx";
+import { NotificationCentre } from "./components/NotificationCentre.jsx";
+import { buildNotifications, unreadCount as notificationUnreadCount } from "./lib/notificationCentre.js";
+import { getSettlementNote } from "./lib/settlementNotePreview.js";
 
 const normalizeReactionMembers = (members) => Array.isArray(members)
   ? Array.from(new Set(members.filter(Boolean))).sort()
@@ -338,6 +343,11 @@ const App = () => {
   const [showFounderDashboard,setShowFounderDashboard]=useState(false);
   const [founderDashboardAvailable,setFounderDashboardAvailable]=useState(()=>readFounderDashboardAvailability(initialPersistedSession?.userId));
   const [showStream,setShowStream]=useState(false);
+  // The notification centre. "Seen" is just the last time it was opened, kept
+  // per browser — the real thing needs server-side read state.
+  const [showNotifications,setShowNotifications]=useState(false);
+  const [activityHighlightLogId,setActivityHighlightLogId]=useState("");
+  const [notificationsSeenAt,setNotificationsSeenAt]=useState(()=>{ try { return localStorage.getItem("fero_notifications_seen_v1") || ""; } catch { return ""; } });
   const [streamFocusBlocId,setStreamFocusBlocId]=useState(null);
   const [streamReturnScrollTop,setStreamReturnScrollTop]=useState(null);
   const [logCommentScreen,setLogCommentScreen]=useState(null);
@@ -2151,6 +2161,39 @@ const App = () => {
   },[appState.groups, authSession?.userId, firstVisibleGroupId, selectedGroupId]);
   const localPreviewMembers = uniqueNames(groups.flatMap(group => getCurrentGroupMemberNames(group)));
   const activityAlertCount = currentGroup && currentUser ? getActivityAlertCount(currentGroup, currentUser) : 0;
+  // ── The notification centre ────────────────────────────────────────────────
+  const notificationReminderCards = React.useMemo(
+    () => (currentGroup && effectiveAuthSession?.userId ? buildSettlementReminderCards(currentGroup, effectiveAuthSession.userId, currentUser) : []),
+    [currentGroup, effectiveAuthSession?.userId, currentUser]
+  );
+  const notificationItems = React.useMemo(() => buildNotifications({
+    group: currentGroup,
+    currentUser,
+    reminderCards: notificationReminderCards,
+    formatAmount: (amount, currency) => fmtCurrency(amount, currency),
+    hasNoteFor: card => !!getSettlementNote(currentGroup?.id, card.monthKey, card.receiverDisplayName)
+  }), [currentGroup, currentUser, notificationReminderCards, showNotifications]);
+  const notificationCount = notificationUnreadCount(notificationItems, notificationsSeenAt);
+  const handleOpenNotifications = () => {
+    trackUsage("notifications_opened");
+    const now = new Date().toISOString();
+    setNotificationsSeenAt(now);
+    try { localStorage.setItem("fero_notifications_seen_v1", now); } catch { /* per-browser convenience only */ }
+    setShowNotifications(true);
+  };
+  // Every row lands somewhere real rather than being a dead end.
+  const handleNotificationAct = item => {
+    setShowNotifications(false);
+    if (item.opens === "activity" || item.opens === "comments") {
+      // The feed puts this log on screen and glows it briefly, so it is obvious
+      // which one you were sent to see.
+      setActivityHighlightLogId(String(item.logId || ""));
+      setPage("activity");
+      return;
+    }
+    if (item.opens === "settlement" || item.opens === "note") { setMonthInitialIdx(null); setPage("month"); return; }
+  };
+
   const renderGroupSwitcherSurface = ({ inert=false, suppressIntro=false } = {}) => React.createElement('div',{
     ref:el=>{
       if (!el) {
@@ -3292,7 +3335,7 @@ const App = () => {
       React.createElement(TodayPage,  {user:currentUser,currentUserId:effectiveAuthSession?.userId,currentGroupId:selectedGroupId,groups,profiles:appState?.profiles||{},accountCreatedAt:profile?.createdAt,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,saving,onSave:handleSave,onMultiLog:handleMultiLog,onLogMutation:handleLogMutation,clockTick,onViewLastMonth:()=>{setMonthInitialIdx(0);setPage("month");},onOpenMonth:()=>{setMonthInitialIdx(null);setPage("month");},onSettlementClaimPaid:handleSettlementClaimPaid,onSettlementConfirmPaid:handleSettlementConfirmPaid,onSettlementDisputePaid:handleSettlementDisputePaid,onOpenSetupReview:handleOpenSetupReview,onOpenAccount:()=>setShowProfile(true),navResetToken,showLog:showTodayLog,setShowLog:setShowTodayLog,onTrackUsage:trackUsage,currentPaymentMethods:effectiveProfile?.paymentMethods||[],onSavePayment:handleSavePaymentHandle,savingPayment:paymentSaving,paymentError:paymentError})
     ),
     pageName==="activity"&&React.createElement(InBlocPageErrorBoundary,{pageLabel:"Activity",resetKey:`${selectedGroupId}:${navResetToken}:${currentUser}`},
-      React.createElement(ActivityPage,{group:currentGroup,currentUser,currentUserId:effectiveAuthSession?.userId,onLogMutation:handleLogMutation,clockTick,reactionOverrides,setReactionOverrides,commentCountOverrides:logCommentCountOverrides,onCommentCountsLoaded:setLogCommentCountOverrides,onOpenLogComments:handleOpenLogComments,onTrackUsage:trackUsage})
+      React.createElement(ActivityPage,{group:currentGroup,currentUser,currentUserId:effectiveAuthSession?.userId,onLogMutation:handleLogMutation,clockTick,highlightLogId:activityHighlightLogId,onHighlightShown:()=>setActivityHighlightLogId(""),reactionOverrides,setReactionOverrides,commentCountOverrides:logCommentCountOverrides,onCommentCountsLoaded:setLogCommentCountOverrides,onOpenLogComments:handleOpenLogComments,onTrackUsage:trackUsage})
     ),
     pageName==="month"  &&React.createElement(InBlocPageErrorBoundary,{pageLabel:"Month",resetKey:`${selectedGroupId}:${navResetToken}:${currentUser}:${monthInitialIdx ?? "current"}`},
       React.createElement(MonthPage,  {key:`${selectedGroupId}:${navResetToken}:${monthInitialIdx ?? "current"}`,group:currentGroup,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,groupSettings:currentGroup.settings,currentUser,currentUserId:effectiveAuthSession?.userId,initialSelIdx:monthInitialIdx,onStartNextMonth:()=>{setMonthInitialIdx(null);setPage("today");},onOpenToday:()=>setPage("today"),onSettlementClaimPaid:handleSettlementClaimPaid,onSettlementConfirmPaid:handleSettlementConfirmPaid,profiles:appState?.profiles||{},onOpenAccount:()=>setShowProfile(true),navResetToken,onTrackUsage:trackUsage,currentPaymentMethods:effectiveProfile?.paymentMethods||[],onSavePayment:handleSavePaymentHandle,savingPayment:paymentSaving,paymentError:paymentError})
@@ -3398,7 +3441,7 @@ const App = () => {
       touchAction:"pan-y"
     }
   },
-    React.createElement(Nav,{page,setPage:handleNavSelect,user:currentUser,currentUserId:effectiveAuthSession?.userId||"",profilePhotoUrl:effectiveProfile?.profilePhotoUrl||"",groupName:currentGroup.name,canEditGroup:isGroupAdmin,settingsAlert:pendingRequestCount>0,onOpenSettings:()=>{trackUsage("settings_opened");setSettingsInitialTab("invite");setShowSettings(true)},onOpenStream:handleOpenStream,streamUnreadCount,onSwitchUser:handleSwitchUser,onSwitchGroup:handleSwitchGroup,onOpenLog:()=>{setPage("today");setShowTodayLog(true);},syncing,lastSyncedAt,syncError,onRefresh:refreshNow,showJustSynced,activityAlertCount,hideMobileBottomNav:true}),
+    React.createElement(Nav,{page,setPage:handleNavSelect,user:currentUser,currentUserId:effectiveAuthSession?.userId||"",profilePhotoUrl:effectiveProfile?.profilePhotoUrl||"",groupName:currentGroup.name,canEditGroup:isGroupAdmin,settingsAlert:pendingRequestCount>0,onOpenSettings:()=>{trackUsage("settings_opened");setSettingsInitialTab("invite");setShowSettings(true)},onOpenStream:handleOpenStream,streamUnreadCount,onOpenNotifications:handleOpenNotifications,notificationCount,onSwitchUser:handleSwitchUser,onSwitchGroup:handleSwitchGroup,onOpenLog:()=>{setPage("today");setShowTodayLog(true);},syncing,lastSyncedAt,syncError,onRefresh:refreshNow,showJustSynced,activityAlertCount,hideMobileBottomNav:true}),
     localDevMode && React.createElement(LocalDevImpersonationBar,{options:devImpersonationOptions,value:effectiveAuthSession?.devImpersonationActive?effectiveAuthSession.userId:"",onChange:handleSelectDevImpersonation}),
     React.createElement('div',{style:{position:"relative",overflow:"hidden",height:inBlocViewportHeight,minHeight:0}},
       showSettings && React.createElement('div',{style:{position:"absolute",inset:"0 0 auto 0",zIndex:1,pointerEvents:"none"}},renderInBlocPage(page,{swipePreview:true})),
@@ -3406,6 +3449,11 @@ const App = () => {
         ? React.createElement(BlocSettingsScreen,{group:currentGroup,actor:currentUser,actorUserId:authSession?.userId,isAdmin:isGroupAdmin,onSave:handleUpdateGroupSettings,onClose:()=>{setSettingsInitialTab("invite");setShowSettings(false);},saving:savingSettings,onReviewSetup:isGroupAdmin?handleReviewSetupDefaults:null,onReviewSitOut:isGroupAdmin?handleSitOutReview:null,onReviewSolo:isGroupAdmin?handleSoloReview:null,onKickMember:isGroupAdmin?handleKickMember:null,onLeaveBloc:handleLeaveBloc,onSitOutRequest:handleSitOutRequest,onSoloRequest:handleSoloRequest,onCancelRequest:handleCancelRequest,initialTab:settingsInitialTab,localDevMode})
         : activePageLayer
     ),
+    showNotifications && React.createElement(NotificationCentre,{
+      items:notificationItems,
+      onClose:()=>setShowNotifications(false),
+      onAct:handleNotificationAct
+    }),
     showInstallBanner && React.createElement(InstallBanner,{
       installReady:Boolean(installPrompt),
       onInstall:installApp,
