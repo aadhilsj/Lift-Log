@@ -2097,9 +2097,11 @@ const App = () => {
       setShowTodayLog(false);
       return;
     }
-    // Reselecting the tab you are already on is not a screen change, so it
-    // does not buzz.
-    if (nextPage !== page) void tapLight();
+    // Tapping the nav bar does not buzz, the way Instagram's does not. The
+    // buzz answers a finger lifting off a gesture; on a tap it arrives before
+    // the screen does and sets up an expectation the render cannot meet, which
+    // reads as lag. Swiping between tabs still buzzes -- see the page swipe
+    // release in endInBlocPageSwipe.
     setShowTodayLog(false);
     setShowSettings(false);
     pageDragXRef.current = 0;
