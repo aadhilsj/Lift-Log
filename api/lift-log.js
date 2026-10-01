@@ -2200,7 +2200,17 @@ function buildCanonicalMonthHistoryForGroup(group, canonicalSeasons) {
       excused[name] = m ? !!m.excused : false;
       const soloTarget = Number(m?.solo_target || 0);
       if (m?.solo && Number.isFinite(soloTarget) && soloTarget > 0) {
-        solo[name] = { [monthKey]: buildSoloSnapshotEntry(blobMonth?.solo?.[name]?.[monthKey], Math.round(soloTarget)) };
+        // Canonical has no column for the Solo rule, so the "standard penalty"
+        // marker is carried across from the blob. It was read only from the
+        // closed-month snapshot -- but a Bloc whose rollover has not been
+        // persisted yet has no snapshot for that month, and the marker lives
+        // in the live `group.solo` map instead. Reading only the snapshot
+        // silently reverted those Solos to the old rules, which dropped the
+        // penalty for a member who missed their Solo target and showed
+        // "Nothing to settle". The snapshot still wins when it has the month.
+        const soloMarkerSource = blobMonth?.solo?.[name]?.[monthKey]
+          || group?.solo?.[name]?.[monthKey];
+        solo[name] = { [monthKey]: buildSoloSnapshotEntry(soloMarkerSource, Math.round(soloTarget)) };
       }
       // A closed month is rebuilt from canonical here, replacing the blob's
       // copy wholesale. Anything not carried across is silently dropped, which
