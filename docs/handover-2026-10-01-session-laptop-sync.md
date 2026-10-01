@@ -148,6 +148,10 @@ match the PNGs on these three points.
 see §2.6. A count of 1 reads "1 SESSIONS" (it read "1 ACTIVITIES" before);
 not changed, not asked.
 
+**Live:** pushed as `5a84359`. CI green, Vercel Production success, `SESSIONS`
+present in the live bundle `index-FXCNzRAX.js`, live site loads with no console
+errors. Reaches the TestFlight app only with the next build.
+
 ### 2.6 Found: the sandbox can no longer close a month
 
 `npm run sandbox:seed` fails with "Rollover did not close August". The
@@ -161,6 +165,16 @@ Also on this laptop: a Docker container (`com.docker`, likely the August
 local Supabase) holds port 54321, which `scripts/sandbox.mjs` hardcodes. For
 this session the port was changed to 54331 in the worktree only and reverted;
 Docker was not touched.
+
+### 2.7 Decision: the Last Month Banner stays off Daily and Weekly
+
+The founder asked why the dashboard's Usage tab does not show the "Last month
+results are in" banner under Daily and Weekly. It is hidden on purpose
+(`src/pages/FounderDashboard.jsx:166`, since `c8c1bf8` on 30 August): the
+banner is only on screen for the first five days of a month, so those views
+would read zero most of the time. The data exists — the server already
+computes daily and weekly figures for it — so showing it would be one line.
+**The founder decided to leave it as it is.** Do not change it without asking.
 
 ---
 
@@ -195,4 +209,4 @@ Docker was not touched.
 | --- | --- |
 | `689d9d9` | pin the two calendar-dependent suites to the 15th |
 | `aea861f` | docs: AGENTS.md §0, `docs/HANDOVERS.md`, this handover, emoji note removed from WHATS-LIVE |
-| *(this commit)* | stickers: navy icon outline (Grid/Bare), SESSIONS, month 18; references replaced |
+| `5a84359` | stickers: navy icon outline (Grid/Bare), SESSIONS, month 18; references replaced — **live** |
