@@ -4,9 +4,9 @@
 Update it whenever something ships. Same filename forever — never date it, never
 fork it. If it disagrees with a handover, this file wins.
 
-Last updated: **30 September 2026, morning** — build 10 landed, then eleven
-website deploys including the shared emoji picker. The website is ahead of the
-phone again.
+Last updated: **1 October 2026** — the Today and History member-profile scroll
+fix landed at `4ba67e3` and is live; the website has since moved to `cd5e912`.
+TestFlight remains on build 10.
 
 > ### ⚠️ Known and unfixed: the emoji sheet has the bottom-band bug
 >
@@ -36,7 +36,8 @@ phone again.
 
 | | Website (PWA) | TestFlight (phone) |
 | --- | --- | --- |
-| **At commit** | **`66943f0`** | `77fe4d8` (build 10) |
+| **At commit** | **`cd5e912`** | `77fe4d8` (build 10) |
+| Member profiles stay fixed and scroll from Today and History | ✅ | ❌ |
 | Rebuilt header, safe area, motion, haptics | ✅ | ✅ |
 | Comment load failure is honest | ✅ | ✅ |
 | Reaction picker stays on screen | ✅ | ✅ |
