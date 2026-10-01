@@ -263,10 +263,20 @@ This is how sessions that went well actually ran. Follow it end to end. Sections
   agent is using.
 
 ### Work in your own worktree, never the shared folder
-- `git worktree add -b <branch> /Users/aadhilsj/Documents/FERO/<name> origin/main`.
+- `git worktree add -b <branch> /Users/aadhilsj/Developer/FERO/<name> origin/main`.
+- **Never create a worktree under `~/Documents`.** That folder is synced to
+  iCloud, and a worktree there means every `npm install` and every `dist/`
+  rebuild is uploaded file by file. On 1 October 2026 there were 27 worktrees
+  in `~/Documents/FERO`, 25 of them holding a built `dist/`. `npm run lint`
+  took 90 seconds instead of 3, `git status` hung for minutes, and iCloud had
+  started writing conflict duplicates (`config 2.xml`, `README 2.md`) inside
+  the repo. `~/Developer` is not synced; use it.
 - Then symlink `node_modules` from the main folder and copy `.env.local` in.
 - If you remove that worktree later, delete the `node_modules` symlink first so
   the shared folder is not harmed.
+- **Remove your worktree when the branch is merged or abandoned.** They are
+  disposable; the branch survives `git worktree remove`. Letting them pile up
+  is what caused the slowdown above.
 
 ### Find the real cause, with evidence
 - **Production data:** read-only SQL through the Supabase MCP
