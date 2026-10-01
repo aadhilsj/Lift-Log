@@ -248,3 +248,96 @@ or anything in your area, but it explains why `main` will move a lot this week.
 
 `docs/WHATS-LIVE.md` is the running answer to "what is on the website versus the
 phone". It is kept current; prefer it over any dated handover.
+
+---
+
+## 10. CI has been red since 00:00 UTC on 1 October — two date-dependent tests
+
+**Your CI workflow is doing its job. The code it is testing is fine.** Two of
+the 21 offline suites fail because of what day it is, not because of anything
+that was pushed. Aadhil has had three "All jobs have failed" emails.
+
+| Run | When (UTC) | Result |
+| --- | --- | --- |
+| `4ba67e3` | 30 Sep 23:08 | fail — test month-key maths predated the 3am Bloc-day rule |
+| `cd5e912` | 30 Sep 23:28 | **pass** — Codex fixed that maths |
+| `5f84b54` | 1 Oct 00:27 | fail — UTC had crossed into 1 October |
+| `b7c9f78` | 1 Oct 01:06 | fail — same |
+
+### 10.1 `test:solo-sitout-exclusion` — fails days 1–10 of every month
+
+Not your file (created 18 September in the Solo rules work), but it is the
+louder of the two and it breaks your pipeline.
+
+The test makes a Solo request and then cancels it. **Solo before day 10 is
+granted instantly** — it only becomes a pending request after the 10th. So on
+day 1 there is nothing pending, and `applyRequestCancel` throws
+`There's no request to cancel` (404).
+
+Reproduced locally against `origin/main` with the clock faked:
+
+| Faked date | Result |
+| --- | --- |
+| 30 Sep | pass |
+| **1, 2, 5, 9, 10 Oct** | **fail** |
+| 11, 15, 20 Oct | pass |
+
+It passed all September only because September was already past the 10th when
+CI was built. **It will go red again on 1 November, 1 December, and every
+month after** — for ten days at a time.
+
+### 10.2 `test:month-close-canonical` — fails 00:00–03:00 UTC on the 1st
+
+This one is yours (10 September, "Month close counts from canonical, not the
+blob"). Line 101: `TypeError: Cannot read properties of undefined (reading
+'monthHistory')` — `rolloverGroupIfNeeded` returns a group with no closed
+snapshot, so `monthHistory[0]` is undefined.
+
+It fails only in the three-hour window between UTC midnight and the 3am
+Bloc-day cutoff, when the test and the app disagree about which month it is:
+
+| Faked time (UTC) | Result |
+| --- | --- |
+| 30 Sep 23:08, 23:28 | pass |
+| **1 Oct 00:27, 01:06** | **fail** |
+| 1 Oct 06:00, 2 Oct, 20 Oct | pass |
+
+This one clears itself after 03:00 UTC on the 1st. It will recur every month.
+
+### 10.3 The ask
+
+**Pin both tests to a fixed date instead of `new Date()`**, so they test the
+rule rather than the calendar. The day-10 Solo boundary and the 3am Bloc-day
+cutoff should each be exercised deliberately, from both sides, rather than
+being whatever today happens to be.
+
+A date-faking shim already works for this — set the clock with
+`NODE_OPTIONS="--import <file overriding Date>"`, which is how the table above
+was produced.
+
+Your call on how. Flagging it rather than changing your test. Related: §8.5
+still stands — CI blocks nothing, and Vercel deploys before CI finishes, so a
+red run never stopped either of these pushes reaching production.
+
+---
+
+## 11. The 1 October month close — verified clean
+
+Read-only against production, after the rollover.
+
+| Check | Result |
+| --- | --- |
+| September (`2026-8`) closed | **18/18 Blocs** |
+| October (`2026-9`) open | **18/18 Blocs**, no Bloc left behind |
+| Blocs still open on September | **0** |
+| Frozen counts vs actual September logs | **699 = 699, 0 mismatches over 61 members** |
+| October logs so far | 0 (expected) |
+
+Member states frozen for September: 6 Solo, 3 sitting out, 10 with zero
+workouts, 15 below target and facing a penalty.
+
+**One thing that looks wrong and is not:** `settlement_runs` and
+`settlement_entries` are empty for September. They are empty for *every* month
+back to `2026-3` — settlements still live in the blob, not in those canonical
+tables. Not a rollover failure, and not a regression. Worth knowing before
+anyone reads those tables as a health signal during Wave B.
