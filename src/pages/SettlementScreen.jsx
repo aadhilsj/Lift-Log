@@ -629,12 +629,17 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
 
   return React.createElement(React.Fragment,null,
     React.createElement('div',{style:{width:"100%",maxWidth:"100%",margin:"0 auto",padding:"0 0 48px",display:"flex",flexDirection:"column",gap:14,fontFamily:LOOP_FONTS.body}},
+      // Your own month first, the Bloc's second. On an ended month the first
+      // thing you want is how you did, not how the loop closed -- so the
+      // personal card leads and the dial follows it. renderReport returns null
+      // for a month you were not in, and then the dial leads as before.
+      renderReport(),
       React.createElement(MonthDial,{ members: loopMembers, perfect: isBlocPerfect, focus, onToggle: name => setFocus(prev => prev === name ? null : name), readout: ringReadout, live: true }),
       React.createElement(LoopCaption,{ lines: loopCaption(loopMembers, { ended: true }) }),
       React.createElement('div',{style:{fontFamily:LOOP_FONTS.body,fontSize:7,fontWeight:500,color:"#6B9690",opacity:.8,textAlign:"center",marginTop:-8}},"Tap a slice to see that person"),
       perfectRun > 0 && React.createElement(PerfectRunPill,{ run: perfectRun }),
+      // Stays with the dial: it is what a slice tap opens.
       renderFocusPlate(),
-      renderReport(),
       React.createElement('div',{style:{border:"0.5px solid #163d36",background:"#0A1412",borderRadius:14,padding:14,display:"flex",flexDirection:"column",gap:12}},
         plateHead(`${selectedMonthName}'s awards`),
         renderAwards()

@@ -90,9 +90,17 @@ const ShareSticker = ({ data, monthLabel, onClose }) => {
     React.createElement('div', {
       className: "modal pi",
       onClick: e => e.stopPropagation(),
-      style: { maxWidth: 424, padding: "16px 16px 14px" }
+      // position only, so the close button can sit in the corner. The sheet's
+      // width and padding are unchanged.
+      style: { maxWidth: 424, padding: "16px 16px 14px", position: "relative" }
     },
-      React.createElement('div', { style: { fontWeight: 800, fontSize: 17, marginBottom: 3 } },
+      // Tapping the backdrop already closes this, but on a phone the sheet
+      // fills most of the screen and there is little backdrop left to hit.
+      React.createElement('button', {
+        type: "button", onClick: onClose, "aria-label": "Close",
+        style: { position: "absolute", top: 12, right: 12, width: 30, height: 30, borderRadius: 999, background: "var(--s2)", border: "0.5px solid var(--border2)", display: "inline-flex", alignItems: "center", justifyContent: "center", color: "var(--text-soft)", fontSize: 15, padding: 0, lineHeight: 1, zIndex: 2 }
+      }, "\u2715"),
+      React.createElement('div', { style: { fontWeight: 800, fontSize: 17, marginBottom: 3, paddingRight: 36 } },
         monthLabel ? `Share ${monthLabel}` : "Share your month"),
       React.createElement('div', {
         style: { fontSize: 12, color: "var(--muted)", marginBottom: 13, lineHeight: 1.45 }
