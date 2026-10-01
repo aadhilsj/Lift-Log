@@ -113,6 +113,12 @@ const avatarColor = (name, explicitUserId = "") => {
 };
 // Keep in step with DISPLAY_NAME_MAX_LENGTH in api/lift-log.js.
 const DISPLAY_NAME_MAX_LENGTH = 16;
+
+// The mobile header shrinks a Bloc name to fit rather than truncating it, but
+// it can only shrink so far. 24 is what still fits the narrowest phone we
+// support (iPhone SE, 375pt) at the smallest size the header will go to.
+// Keep in step with BLOC_NAME_MAX_LENGTH in api/lift-log.js.
+const BLOC_NAME_MAX_LENGTH = 24;
 const WORKOUT_TYPE_ALIASES = {
   Sport: "Sports",
   Hike: "Other",
@@ -2266,6 +2272,7 @@ export {
   avatarColor,
   WORKOUT_TYPE_ALIASES,
   DISPLAY_NAME_MAX_LENGTH,
+  BLOC_NAME_MAX_LENGTH,
   CURRENCY_OPTIONS,
   DISTANCE_UNIT_OPTIONS,
   QUICK_REACTIONS,

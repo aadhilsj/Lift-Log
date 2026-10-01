@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 const { useState, useEffect, useMemo, useCallback, useRef } = React;
 import {
   DISPLAY_NAME_MAX_LENGTH,
+  BLOC_NAME_MAX_LENGTH,
   WORKOUT_TYPES,
   MAX_WORKOUTS_PER_DAY,
   DEFAULT_MIN_TARGET,
@@ -232,7 +233,7 @@ const GroupCreateModal = ({onCreate,onClose,creating,defaultCreatorName="",defau
       React.createElement('div',{style:{fontFamily:DISPLAY_FONT,fontWeight:800,fontSize:22,letterSpacing:0,lineHeight:1.08,marginBottom:6}},"Create a Bloc"),
       React.createElement('div',{style:{fontFamily:UI_FONT,color:"var(--muted)",fontSize:13,lineHeight:1.35,marginBottom:17,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},"Start the Bloc now. Tune the rules after."),
       [
-        ["Bloc Name",groupName,setGroupName,"Sunday Runners",null],
+        ["Bloc Name",groupName,setGroupName,"Sunday Runners",BLOC_NAME_MAX_LENGTH],
         ...(!lockCreatorName && requireCreatorName ? [["Your Name",creatorName,setCreatorName,"Aadhil",DISPLAY_NAME_MAX_LENGTH]] : [])
       ].map(([label,value,setter,placeholder,limit])=>
         React.createElement('label',{key:label,style:{display:"block",marginBottom:14}},
@@ -353,7 +354,7 @@ const GroupSettingsModal = ({group,actor,actorUserId,onSave,onClose,saving,onRev
         )
       ),
       React.createElement(SettingsField,{title:"Bloc name",compact:true},
-        React.createElement('input',{value:groupName,onChange:e=>onSave&&setGroupName(e.target.value),readOnly:!onSave,style:{width:"85%",background:"var(--s2)",border:"1px solid var(--border)",borderRadius:8,padding:"7px 9px",color:onSave?"var(--text)":"var(--muted)",fontSize:12,outline:"none",cursor:onSave?"text":"default"}})
+        React.createElement('input',{value:groupName,onChange:e=>onSave&&setGroupName(e.target.value.slice(0,BLOC_NAME_MAX_LENGTH)),maxLength:BLOC_NAME_MAX_LENGTH,readOnly:!onSave,style:{width:"85%",background:"var(--s2)",border:"1px solid var(--border)",borderRadius:8,padding:"7px 9px",color:onSave?"var(--text)":"var(--muted)",fontSize:12,outline:"none",cursor:onSave?"text":"default"}})
       ),
       pendingSitOuts.length>0 && React.createElement('div',{style:{marginBottom:14,padding:"11px 12px",borderRadius:10,background:"#080F0F",border:"0.5px solid #0D1F1E",display:"grid",gap:8}},
         React.createElement('div',{style:{fontWeight:800,fontSize:13}},"Pending sit-out requests"),

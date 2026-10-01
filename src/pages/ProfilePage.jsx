@@ -189,7 +189,7 @@ const ProfilePhotoCropModal = ({ imageSrc, onCancel, onConfirm }) => {
   );
 };
 
-const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, accountCreatedAt, profilePhotoUrl = "", onBack, onSwipeRevealChange, onEditName, onUpdateProfilePhoto, onSignOut, onDeleteAccount, currentPaymentMethods = [], onSavePayment, savingPayment = false, paymentError = "" }) => {
+const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, accountCreatedAt, profilePhotoUrl = "", onBack, onSwipeRevealChange, onEditName, onUpdateProfilePhoto, onSignOut, onDeleteAccount, currentPaymentMethods = [], onSavePayment, savingPayment = false, paymentError = "", showFounderDashboard = false, onOpenFounderDashboard }) => {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
@@ -214,6 +214,9 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
   // sibling of a harmless one.
   const accountRows = [
     { label: "Email", value: email || "—", kind: "display" },
+    // Founder-only. It lives here rather than on the Bloc switcher so that
+    // header looks the same for everyone.
+    ...(showFounderDashboard ? [{ label: "Dashboard", kind: "action", onClick: onOpenFounderDashboard }] : []),
     { label: "Sign out", kind: "action", onClick: onSignOut }
   ];
   const handlePhotoFile = async event => {
@@ -319,13 +322,13 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
     }
   };
 
-  return React.createElement('div', { ref:surfaceRef, onTouchStart: startSwipeBack, onTouchMove: moveSwipeBack, onTouchEnd: endSwipeBack, onTouchCancel: () => { swipeRef.current = { sx: 0, sy: 0, active: false, mode: null }; onSwipeRevealChange?.(false); setDragging(false); resetSwipeTransform(); }, style: { position: "relative", isolation: "isolate", minHeight: "100dvh", width: "100%", maxWidth: 640, margin: "0 auto", padding: "10px 14px 40px", display: "flex", flexDirection: "column", gap: 14, background: "var(--bg-gradient)", backgroundImage: "var(--bg-radial-hint), var(--bg-gradient)", transform: dragXRef.current ? `translateX(${dragXRef.current}px)` : "translateX(0)", transition: dragging ? "none" : "transform .12s ease", boxShadow: dragXRef.current ? "-18px 0 34px rgba(0,0,0,.28)" : "none", willChange: dragging||dragXRef.current ? "transform" : "auto", touchAction: "pan-y" } },
+  return React.createElement('div', { ref:surfaceRef, onTouchStart: startSwipeBack, onTouchMove: moveSwipeBack, onTouchEnd: endSwipeBack, onTouchCancel: () => { swipeRef.current = { sx: 0, sy: 0, active: false, mode: null }; onSwipeRevealChange?.(false); setDragging(false); resetSwipeTransform(); }, style: { position: "relative", isolation: "isolate", minHeight: "100dvh", width: "100%", maxWidth: 640, margin: "0 auto", padding: "calc(env(safe-area-inset-top) + 10px) 14px calc(40px + env(safe-area-inset-bottom))", display: "flex", flexDirection: "column", gap: 14, background: "var(--bg-gradient)", backgroundImage: "var(--bg-radial-hint), var(--bg-gradient)", transform: dragXRef.current ? `translateX(${dragXRef.current}px)` : "translateX(0)", transition: dragging ? "none" : "transform .12s ease", boxShadow: dragXRef.current ? "-18px 0 34px rgba(0,0,0,.28)" : "none", willChange: dragging||dragXRef.current ? "transform" : "auto", touchAction: "pan-y" } },
     cropSource ? React.createElement(ProfilePhotoCropModal, { imageSrc:cropSource, onCancel:()=>setCropSource(""), onConfirm:handleCroppedPhoto }) : null,
     React.createElement('div', { "aria-hidden": true, style: { position: "fixed", inset: 0, zIndex: -1, pointerEvents: "none", background: "var(--bg-gradient)", backgroundImage: "var(--bg-radial-hint), var(--bg-gradient)" } }),
     // Header
     React.createElement('div', { style: { position: "relative", display: "flex", alignItems: "center", justifyContent: "center", height: 40, marginBottom: 2 } },
-      React.createElement('button', { type: "button", onClick: onBack, "aria-label": "Back", style: { position: "absolute", left: 0, top: "50%", transform: "translateY(-50%)", width: 34, height: 34, display: "inline-flex", alignItems: "center", justifyContent: "center", background: "transparent", border: "none", color: "var(--text)", cursor: "pointer", padding: 0 } },
-        React.createElement(AppIcon, { name: "chevron-left", size: 20, stroke: "var(--text)" })),
+      React.createElement('button', { type: "button", onClick: onBack, "aria-label": "Back", style: { position: "absolute", left: 0, top: "50%", transform: "translateY(-50%)", width: 44, height: 44, display: "inline-flex", alignItems: "center", justifyContent: "flex-start", background: "transparent", border: "none", color: "var(--muted)", cursor: "pointer", padding: 0 } },
+        React.createElement(AppIcon, { name: "chevron-left", size: 22, stroke: "var(--muted)" })),
       React.createElement('div', { style: { fontSize: 16, fontWeight: MED } }, "Profile")
     ),
 

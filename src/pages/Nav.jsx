@@ -1,17 +1,63 @@
 import React from "react";
-const { useState, useEffect, useMemo, useCallback, useRef } = React;
+const { useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef } = React;
 import { AppIcon, AnteWordmark, Avatar } from "../components/primitives.jsx";
+
+// Follows Apple's badge convention: a red oval with white text, sitting at the
+// top-right. The centre is placed on the button circle's 45° diagonal so it
+// hugs the corner instead of floating over the glyph, and the numeral is sized
+// to fill the oval rather than swim in it.
+const UnreadBadge = ({ count }) => React.createElement('span', {
+  style: { position:"absolute", top:-4, right:-4, minWidth:18, height:18, padding:"0 4.5px", borderRadius:999, background:"#D44A4A", color:"#FFFFFF", fontFamily:"'Outfit', sans-serif", fontSize:12.5, fontWeight:600, letterSpacing:"-.01em", lineHeight:1, display:"inline-flex", alignItems:"center", justifyContent:"center", boxShadow:"0 0 0 2px #0a1514" }
+}, count > 9 ? "9+" : count);
 
 const StreamIconButton = ({ onOpenStream, unreadCount = 0, size }) => {
   const hasUnread = unreadCount > 0;
   return React.createElement('button', {
-    onClick: onOpenStream, className: "icon-btn live-icon-btn", title: "Bloc Stream",
+    onClick: onOpenStream, className: `icon-btn ${size ? "nav-glass-btn" : "live-icon-btn"}`, title: "Bloc Stream",
     style: { position: "relative", ...(size ? { width: size, height: size, display: "inline-flex", alignItems: "center", justifyContent: "center" } : {}) }
   },
-    React.createElement(AppIcon, { name: "message-circle", size: size ? 18 : 14, stroke: "currentColor" }),
-    hasUnread && React.createElement('span', {
-      style: { position: "absolute", top: -4, left: -5, minWidth: 12, height: 12, padding: "0 2.5px", borderRadius: 999, background: "#4ECDC4", color: "#04110e", fontFamily: "'Outfit', sans-serif", fontSize: 7, fontWeight: 700, lineHeight: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", boxShadow: "0 0 0 1.5px var(--s1)" }
-    }, unreadCount > 9 ? "9+" : unreadCount)
+    React.createElement(AppIcon, { name: "message-circle", size: size ? 26 : 14, stroke: "currentColor" }),
+    hasUnread && (size
+      ? React.createElement(UnreadBadge, { count: unreadCount })
+      : React.createElement('span', {
+          style: { position: "absolute", top: -4, left: -5, minWidth: 12, height: 12, padding: "0 2.5px", borderRadius: 999, background: "#4ECDC4", color: "#04110e", fontFamily: "'Outfit', sans-serif", fontSize: 7, fontWeight: 700, lineHeight: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", boxShadow: "0 0 0 1.5px var(--s1)" }
+        }, unreadCount > 9 ? "9+" : unreadCount))
+  );
+};
+
+const BLOC_NAME_MAX_FONT = 19;
+const BLOC_NAME_MIN_FONT = 12;
+
+const BlocNameButton = ({ groupName, onSwitchGroup }) => {
+  const textRef = useRef(null);
+  const [fontSize, setFontSize] = useState(BLOC_NAME_MAX_FONT);
+
+  useLayoutEffect(() => {
+    const fit = () => {
+      const el = textRef.current;
+      if (!el) return;
+      let size = BLOC_NAME_MAX_FONT;
+      el.style.fontSize = `${size}px`;
+      // Step down a point at a time until the name fits its own box.
+      while (size > BLOC_NAME_MIN_FONT && el.scrollWidth > el.clientWidth + 0.5) {
+        size -= 1;
+        el.style.fontSize = `${size}px`;
+      }
+      setFontSize(size);
+    };
+    fit();
+    window.addEventListener("resize", fit);
+    window.addEventListener("orientationchange", fit);
+    return () => {
+      window.removeEventListener("resize", fit);
+      window.removeEventListener("orientationchange", fit);
+    };
+  }, [groupName]);
+
+  return React.createElement('button',{type:"button",onClick:onSwitchGroup,style:{minWidth:0,maxWidth:"100%",background:"transparent",border:"none",padding:"6px 0",display:"inline-flex",alignItems:"center",gap:3,color:"#4ECDC4",fontFamily:"'Outfit', sans-serif",fontWeight:700,lineHeight:1,textAlign:"left"}},
+    React.createElement('span',{ref:textRef,style:{minWidth:0,fontSize,overflow:"hidden",whiteSpace:"nowrap"}},groupName),
+    // Nudged down to the centre of the lowercase letters; box-centred it lines up with the capitals and reads high.
+    React.createElement('span',{style:{display:"inline-flex",flexShrink:0,transform:"translateY(.1em)"}},React.createElement(AppIcon,{name:"chevron-down",size:18,stroke:"#4ECDC4",strokeWidth:"2.4"}))
   );
 };
 
@@ -21,7 +67,7 @@ const Nav = ({page,setPage,user,groupName,canEditGroup,onOpenSettings,settingsAl
   const navItems = [["today","Today","today"],["activity","Activity","activity"],["month","Month","results"],["history","History","history"]];
   const mobilePageSlots = { today: 0, activity: 1, month: 3, history: 4 };
   const mobileActiveSlot = mobilePageSlots[page] ?? 0;
-  const mobileBottomNav = React.createElement('div',{ref:mobileBottomNavRef,className:"mobile-only mobile-bottom-nav",style:{transform:mobileBottomDragX?`translateX(${mobileBottomDragX}px)`:"none",transition:mobileBottomDragging?"none":"transform .08s ease-out",willChange:mobileBottomDragging||mobileBottomDragX?"transform":"auto"}},
+  const mobileBottomNavBar = React.createElement('div',{ref:mobileBottomNavRef,className:"mobile-only mobile-bottom-nav",style:{transform:mobileBottomDragX?`translateX(${mobileBottomDragX}px)`:"none",transition:mobileBottomDragging?"none":"transform .08s ease-out",willChange:mobileBottomDragging||mobileBottomDragX?"transform":"auto"}},
     React.createElement('div',{className:"mobile-bottom-nav-grid"},
       React.createElement('div',{className:"mobile-tab-indicator",style:{"--mobile-active-slot":mobileActiveSlot}}),
       [
@@ -46,6 +92,12 @@ const Nav = ({page,setPage,user,groupName,canEditGroup,onOpenSettings,settingsAl
         )
       )
     )
+  );
+  // The bar floats, so content used to scroll visibly beneath it. This fades
+  // the page into the background colour behind the bar instead.
+  const mobileBottomNav = React.createElement(React.Fragment,null,
+    React.createElement('div',{className:"mobile-only mobile-bottom-scrim"}),
+    mobileBottomNavBar
   );
   if (onlyMobileBottomNav) return mobileBottomNav;
   return React.createElement(React.Fragment,null,
@@ -80,18 +132,20 @@ const Nav = ({page,setPage,user,groupName,canEditGroup,onOpenSettings,settingsAl
     )
   ),
   React.createElement('div',{className:"mobile-only mobile-nav-shell"},
-    React.createElement('div',{style:{height:44,padding:"0 10px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,position:"relative"}},
-      React.createElement('div',{style:{display:"flex",alignItems:"center",minWidth:0,flexShrink:0}},
-        React.createElement(AnteWordmark,{size:20})
+    React.createElement('div',{style:{height:58,padding:"0 10px 0 14px",display:"flex",alignItems:"flex-start",gap:8}},
+      // The wordmark is gone from here on purpose: it was eating ~70pt that the
+      // Bloc name needs. The name must never truncate, and FERO still fronts
+      // the Bloc switcher, so the brand is not lost.
+      React.createElement('div',{style:{display:"flex",alignItems:"center",height:52,marginTop:6,minWidth:0,flex:"1 1 auto"}},
+        React.createElement(BlocNameButton,{groupName,onSwitchGroup})
       ),
-      React.createElement('button',{type:"button",onClick:onSwitchGroup,style:{position:"absolute",left:"50%",transform:"translateX(-50%)",background:"transparent",color:"#4ECDC4",fontFamily:"'Outfit', sans-serif",lineHeight:1,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:"calc(100% - 132px)",display:"inline-flex",alignItems:"center",minHeight:32,padding:"6px 4px",border:"none",fontSize:14.5,fontWeight:500,gap:2}},
-        groupName,
-        // Nudged down to the centre of the lowercase letters; box-centred it lines up with the capitals and reads high.
-        React.createElement('span',{style:{display:"inline-flex",transform:"translateY(.1em)"}},React.createElement(AppIcon,{name:"chevron-down",size:16,stroke:"#4ECDC4",strokeWidth:"2.4"}))
-      ),
-      React.createElement('div',{style:{display:"flex",alignItems:"center",gap:4,flexShrink:0}},
-        React.createElement(StreamIconButton,{onOpenStream,unreadCount:streamUnreadCount,size:28}),
-        React.createElement('button',{onClick:onOpenSettings,className:"icon-btn live-icon-btn",title:"Bloc settings",style:{width:28,height:28,display:"inline-flex",alignItems:"center",justifyContent:"center",position:"relative"}},React.createElement(AppIcon,{name:"settings",size:18}),settingsAlert&&React.createElement(SettingsDot,null)),
+      React.createElement('div',{style:{display:"flex",alignItems:"center",height:42,marginTop:6,gap:10,flexShrink:0}},
+        React.createElement(StreamIconButton,{onOpenStream,unreadCount:streamUnreadCount,size:42}),
+        // Notification centre — MOCK ONLY, deliberately does nothing. It is here
+        // so the header is spaced for three buttons and is not reworked when the
+        // real thing lands. See docs/concept-2026-09-24-notification-centre.md.
+        React.createElement('button',{type:"button",className:"icon-btn nav-glass-btn",title:"Notifications","aria-hidden":"true",tabIndex:-1,style:{width:42,height:42,display:"inline-flex",alignItems:"center",justifyContent:"center",position:"relative"}},React.createElement(AppIcon,{name:"bell",size:26})),
+        React.createElement('button',{onClick:onOpenSettings,className:"icon-btn nav-glass-btn",title:"Bloc settings",style:{width:42,height:42,display:"inline-flex",alignItems:"center",justifyContent:"center",position:"relative"}},React.createElement(AppIcon,{name:"settings",size:26}),settingsAlert&&React.createElement(SettingsDot,null)),
         null
       )
     )
