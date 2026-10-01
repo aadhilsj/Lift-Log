@@ -23,6 +23,7 @@ import { Avatar, TrophyIcon } from "../components/primitives.jsx";
 import { ShareSticker } from "../components/ShareSticker.jsx";
 import { MonthCalendarCard } from "../components/MonthCalendarCard.jsx";
 import { buildStickerData } from "../lib/shareSticker.js";
+import { getLogDisplayActivity } from "../lib/activities.js";
 import { buildPaymentTargets } from "../lib/paymentLinks.js";
 import { createPortal } from "react-dom";
 import { PaymentHandleSection } from "../components/PaymentHandleSection.jsx";
@@ -340,9 +341,15 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
   // to the same person.
   const mostDiverse = (() => {
     const scored = activeCounts.map(member => {
+      // Count the activity someone actually logged -- Basketball, Padel,
+      // Badminton -- not the five broad categories it rolls up into. Reading
+      // `type` made six different sports look like one "Sports", so whoever
+      // spread across categories won over whoever genuinely varied their
+      // training. getLogDisplayActivity falls back to the category for logs
+      // saved before activities existed.
       const types = new Set(
         getCountedLogs(month.logsByUser?.[member.name] || [])
-          .map(log => String(log?.type || "").trim())
+          .map(log => String(getLogDisplayActivity(log) || "").trim())
           .filter(Boolean)
       );
       return { name: member.name, variety: types.size, count: member.count };
