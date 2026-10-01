@@ -341,3 +341,239 @@ workouts, 15 below target and facing a penalty.
 back to `2026-3` — settlements still live in the blob, not in those canonical
 tables. Not a rollover failure, and not a regression. Worth knowing before
 anyone reads those tables as a health signal during Wave B.
+
+---
+
+## 12. READ FIRST — the month close was broken all of 1 October, and is now fixed
+
+**This is the one that matters.** It is your area, it was live for roughly six
+hours, and it is the cause of almost everything else on this page.
+
+### What was wrong
+
+`rebuildClosedMonthSnapshotFromCanonicalLogs` was being fed the wrong month's
+logs. The rollover fetched them with `fetchAnteCurrentLogs()`, and the RPC
+behind it ends:
+
+```sql
+where s.status = 'open' and b.legacy_group_key is not null and wl.moderation_hidden_at is null
+```
+
+The canonical rollover closes September and opens October **before** the blob
+rollover runs. So by the time month close asked for logs, the only open season
+was the new, empty one. The guard saw zero canonical rows against a blob that
+counted workouts and refused to freeze the month — which is exactly what you
+designed it to do, and it was right. It was simply reading October.
+
+The Bloc was then skipped and retried on every read:
+
+```
+month close snapshot rebuild failed: canonical logs empty for 2026-8 while blob counted 107
+```
+
+**862 `rollover_skipped` events in 7 days, 9 distinct Blocs, 216 in the 04:00
+hour alone.** Aadhil found it on the founder dashboard; I had been reading code
+for an hour while the app was already reporting it. Check the dashboard first
+next time — I should have.
+
+### What it caused
+
+Nine of eighteen Blocs never wrote September to the blob, which in turn:
+
+- **Lost the Solo standard-penalty marker.** Canonical has no rule column, so
+  `buildCanonicalMonthHistoryForGroup` carries it from `blobMonth.solo`. No
+  snapshot, no marker, and the Solo silently reverted to the old rules. Rahul
+  in Go To Da Gym — Solo target 6, logged 5 — showed "Nothing to settle"
+  instead of owing $20, and £10 in Sarandawgs. Rithu the same.
+  Per `docs/handover-2026-09-18-solo-new-rules.md`, **September 2026 is the
+  only month this can happen in**: `SOLO_STANDARD_PENALTY_FROM = "2026-9"`, so
+  from October the rule follows from the month alone.
+- Made StavanGang and others look like they had reset.
+- Left the in-memory rollover recomputing September on every single read.
+
+### The fix — `c9ce86a`
+
+**Migration applied to production:**
+`supabase/migrations/20261001070000_read_ante_core_logs_for_month.sql`
+
+Adds `public.read_ante_core_logs_for_month(p_month_key text)`. Byte-identical
+to `read_ante_core_current_logs()` except `s.status = 'open'` becomes
+`s.month_key = p_month_key`. **`read_ante_core_current_logs` is untouched** and
+still serves the live month.
+
+Grants match its sibling exactly:
+
+| | |
+| --- | --- |
+| acl | `postgres=X/postgres \| service_role=X/postgres` |
+| `anon` | cannot execute |
+| `authenticated` | cannot execute |
+
+**API:** the rollover now calls `fetchAnteLogsForMonth(closedMonthKey)`, once
+per *distinct* closed month — Blocs roll at their own 3am, so two time zones
+can close different months in one pass. The failure mode is unchanged: a null
+fetch still skips the Bloc rather than freezing anything unverified. Your guard
+is intact; it is simply fed the right month.
+
+### Verified on production after the fix
+
+| Check | Before | After |
+| --- | --- | --- |
+| Blocs with September in the blob | 9 of 18 | **18 of 18** |
+| Blocs still on `lastMonth 2026-8` | 9 | **0** |
+| `rollover_skipped` after 04:47 UTC | — | **0** |
+| Last skip ever | 04:46:39 UTC | none since |
+| `read_ante_core_logs_for_month('2026-8')` | — | **699 rows** |
+| `read_ante_core_logs_for_month('2026-9')` | — | 0 rows |
+| `read_ante_core_current_logs()` | 0 | 0, unchanged |
+| Rahul's saved marker | absent | `{"rule":"standard_penalty","target":6}` |
+
+Aadhil confirmed on his phone: Rahul and Rithu now show correctly.
+
+**The 862 on the dashboard is historical.** The card counts a rolling 7 days,
+so it will keep showing those events until they age out. No new ones since
+04:46:39 UTC.
+
+### What I would like you to look at
+
+1. **Sanity-check the new RPC.** It is yours by area and I wrote it at 6am.
+2. **The `status = 'open'` pattern may exist elsewhere.** I only fixed the
+   rollover path. Anything else that reads "current" data to reason about a
+   *closed* month has the same latent bug, and it only shows on the 1st.
+3. **This is untested in CI.** There is no test that closes a month after the
+   canonical season has already flipped. That is the exact shape of this bug
+   and nothing would have caught it.
+
+---
+
+## 13. The lazy month close — Aadhil considers this a bug, not a design
+
+Separate from §12 and still open.
+
+The blob rollover is computed in memory on every read but only **persisted on a
+write**. A Bloc nobody touches can sit half-closed indefinitely: canonical says
+closed, the blob still says the month is current. During 1 October that state
+lasted hours and hid real settlements.
+
+His words: *"that shouldn't be the case, that's not the most optimal or
+efficient way, it's a bug, it's a delay."*
+
+He would like the close to write itself as soon as the month turns rather than
+waiting for someone to happen to save something. Flagging rather than
+designing it — your call on shape.
+
+---
+
+## 14. Two money bugs found and fixed, both the same shape
+
+Both are the "same figure computed in more than one place" problem from
+`AGENTS.md` §7, and both were wrong in the copy nobody re-checked.
+
+**`cc6c990` — the all-time leaderboard charged exempt members.**
+`HistoryPage.jsx`'s money loop checked only `excused`, so a Solo month or a
+Training Wheels month still counted as a failure to hit target.
+`PlayerProfile.jsx` had it right all along. Verified against production:
+Sarandawgs August, Rithu and Deveen both had Training Wheels and were each
+shown owing 15 — both now 0. It also invented winnings, because the pot was
+funded by those phantom fines: mindi 30 → 0.
+
+**`9b25e74` — Most Diverse counted the category, not the activity.**
+It read `log.type`, the five broad buckets. Basketball, Padel, Badminton and
+Volleyball all collapse into "Sports", so four different sports scored one. Now
+reads `getLogDisplayActivity`. Go To Da Gym September: Isira with 4 becomes
+Aadhil with 6. Ties were already broken on count then name; unchanged.
+
+---
+
+## 15. A real bug I found and did **not** fix — prorated target can exceed the full target
+
+**Active divas, September: `season_overrides.prorated_mas` is 12 while
+`seasons.min_target` is 11.** A prorated target should only ever reduce.
+
+Proration is `round(daysRemaining / daysInMonth × minTarget)`, computed once
+when the admin chooses it (`src/App.jsx:3453`). Active divas was created on 2
+September — 29 of 30 days — so with a target of 12 the prorated value was 12.
+The Bloc target was later lowered to 11 and **nothing recomputed the override**.
+I checked the settings-update path; it never touches `season_overrides`.
+
+Nobody was harmed here — Emma logged 0 and Masha cleared either way — but any
+Bloc that lowers its target mid-month leaves its members on a higher one.
+
+Suggested fix: recompute the prorated target when the Bloc target changes, and
+clamp it so it can never exceed the full target. Not done; it is a behaviour
+change and deserves a decision rather than a 6am patch.
+
+**Related trap, worth knowing:** starting on the 2nd of a 30-day month gives
+29/30, so a "prorated" target is 97% of the full one. Two & a half men starting
+on the 27th got 2. Both correct by the formula, wildly different in feel.
+
+---
+
+## 16. Production data I changed, and the backups
+
+All at Aadhil's explicit request, all verified afterwards by running the real
+settlement code against production.
+
+| Bloc | Member | Change |
+| --- | --- | --- |
+| StavanGang | Marlène | July sit-out; August + September Solo, target 5 |
+| Active divas | Emma | September Training Wheels |
+| Sweat Equity | Manz | September Training Wheels |
+
+Written to **both** `ante_core.season_member_status` and the blob, plus two
+approved `solo_requests` rows for Marlène so the grants have a paper trail.
+Verified with `buildDefaultSettlements` / `buildSettlementPairsForMonth`: none
+of the three owes anything, and Bananaaaa's genuine September miss is untouched.
+
+Backups, all read-only copies, safe to drop once you are satisfied:
+
+```
+ante_core.backup_solo_tw_2026_10_01_blob
+ante_core.backup_solo_tw_2026_10_01_member_status
+ante_core.backup_marlene_jul_aug_2026_10_01
+ante_core.backup_blob_before_force_rollover_2026_10_01
+```
+
+**A correction worth keeping.** June was *not* a month Marlène owed for. Her
+June target was prorated to 7 and she logged exactly 7. I twice reported people
+as owing money by reading `seasons.min_target` instead of the frozen
+per-member target. **Read `monthHistory[].memberTargets[name]`** — or
+`season_overrides.prorated_mas` — never the Bloc MAS. Two confidently wrong
+answers came from that: Two & a half men (real target 2, reported as 15) and
+this one.
+
+---
+
+## 17. Training Wheels — two things that are not written down anywhere
+
+Both came up when Aadhil asked for a Bloc's whole first month to be covered.
+
+1. **The Bloc creator never gets Training Wheels.** `getCreatorMonthContext`
+   returns null for the admin who created the Bloc that month, so they are not
+   treated as a late joiner. Deliberate — they chose when to start and set the
+   target — but it is not documented and it surprised us.
+2. **There is no "whole Bloc's first month" switch.** `settings.trainingWheels`
+   only controls whether the *offer* appears; the grant is per member, per
+   month, by the member's own choice. Covering a Bloc's first month means
+   writing a grant per member.
+
+Recording both so the next person does not re-derive them.
+
+---
+
+## 18. Housekeeping that affects you
+
+- **Worktrees moved.** `AGENTS.md` told every agent to create worktrees under
+  `~/Documents/FERO`, which is iCloud-synced. By 1 October there were 27 there,
+  25 holding a built `dist/`. `npm run lint` took 90s instead of 3, `git status`
+  hung for minutes, and iCloud had started writing conflict duplicates
+  (`config 2.xml`, `README 2.md`) **inside the repo**. 26 were deleted — every
+  branch was already pushed — and `AGENTS.md` now says `~/Developer/FERO`
+  (`eee3e91`). `git status` went from timing out at 120s to 0.04s.
+  **Do not commit any file whose name ends in " 2" or " 3".**
+- **`main` moved a lot this session:** `cc6c990`, `eee3e91`, `9b25e74`,
+  `7ac1220`, `64fab2f`, `c9ce86a`. All deployed green.
+- **Not run this session: `npm run lint` and `npm run build` on the last four
+  commits.** Each file was syntax-checked with `node --check` and every Vercel
+  Production build succeeded, but that is not the same thing. Worth a clean
+  `lint` + `build` pass when you pick this up.
