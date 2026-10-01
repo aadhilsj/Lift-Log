@@ -9,6 +9,10 @@ import {
   curKey,
   MONTH_NAMES,
   calcPenalties,
+  addStandardSoloPenalties,
+  getStandardSoloMisses,
+  isExemptFromStakes,
+  isStandardPenaltySoloForMonth,
   getLoserAmount,
   getCurrentMemberTarget,
   getHistoricalMemberNamesForMonth,
@@ -158,8 +162,16 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
       const monthNames = getHistoricalMemberNamesForMonth(m, historicalNames);
       if(!monthNames.includes(name)) return;
       if(m.excused?.[name]) return;
-      const ac=monthNames.filter(n=>isJoinedForMonth(n, m.key) && !m.excused?.[n]).map(n=>({name:n,count:m.counts[n]||0,target:m.memberTargets?.[n] || m.settings?.minTarget || MIN_TARGET}));
-      const penalties = calcPenalties(ac, m.settings || {});
+      // Solo and Training Wheels keep a member out of the money, exactly as
+      // the in-Bloc profile already does. This loop used to check only
+      // `excused`, so an exempt member was billed here while their own
+      // profile showed them clear -- the same figure computed two ways.
+      // A new-rules Solo miss is the one exempt case that still costs money.
+      const memberIsExempt = isExemptFromStakes(m, name, m.key);
+      if (memberIsExempt && !isStandardPenaltySoloForMonth(m, name, m.key)) return;
+      const ac=monthNames.filter(n=>isJoinedForMonth(n, m.key) && !m.excused?.[n] && !isExemptFromStakes(m, n, m.key)).map(n=>({name:n,count:m.counts[n]||0,target:m.memberTargets?.[n] || m.settings?.minTarget || MIN_TARGET}));
+      const soloMisses = getStandardSoloMisses(m, monthNames.filter(n=>isJoinedForMonth(n, m.key)));
+      const penalties = addStandardSoloPenalties(calcPenalties(ac, m.settings || {}), soloMisses, m.settings || {});
       const {winners,losers,perWinner}=penalties;
       if(winners.find(w=>w.name===name)){wins++;moneyWon+=perWinner;}
       if(losers.find(l=>l.name===name)){moneyLost+=getLoserAmount(penalties, name);}
