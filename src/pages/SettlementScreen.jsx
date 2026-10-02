@@ -171,7 +171,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
         tag: "Sat Out",
         stat: "Month off",
         line: `You sat ${selectedMonthName} out. Back in it next month.`,
-        tone: "neutral"
+        tone: "satout"
       };
     }
     // Exempt but present: they logged, they ranked, they simply could not be
@@ -245,12 +245,16 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
   // The rebuilt report card: a stamp, the work, one line, and the money when
   // money moved. Each result keeps a hint of its old colour rather than a full
   // coloured headline: the ring above already carries the month.
+  // Brightened 2026-10-02 at the founder's request: the old washes were ~10% and read as
+  // faint. Each result now has a corner glow and a stronger edge. Sitting out has its own
+  // periwinkle so it no longer looks identical to Target Hit.
   const REPORT_TONES = {
-    perfect:  { edge: "rgba(78,205,196,.30)", wash: "linear-gradient(150deg, rgba(78,205,196,.10), rgba(10,20,19,0) 62%)", stamp: "#7FD8D0", money: "#7FD49A" },
-    winner:   { edge: "rgba(127,212,154,.30)", wash: "linear-gradient(150deg, rgba(127,212,154,.11), rgba(10,20,19,0) 62%)", stamp: "#8FD9A8", money: "#7FD49A" },
-    neutral:  { edge: "rgba(190,205,203,.24)", wash: "linear-gradient(150deg, rgba(200,214,212,.08), rgba(10,20,19,0) 62%)", stamp: "#C2D2CF", money: "#C2D2CF" },
-    missed:   { edge: "rgba(232,110,110,.30)", wash: "linear-gradient(150deg, rgba(232,110,110,.10), rgba(10,20,19,0) 62%)", stamp: "#E89A9A", money: "#E86A6A" },
-    training: { edge: "rgba(245,200,66,.30)", wash: "linear-gradient(150deg, rgba(245,200,66,.10), rgba(10,20,19,0) 62%)", stamp: "#F0CB6B", money: "#F0CB6B" }
+    perfect:  { edge: "rgba(78,205,196,.55)", wash: "radial-gradient(circle at 0% 0%, rgba(78,205,196,.26), transparent 62%), linear-gradient(150deg, rgba(78,205,196,.16), rgba(10,20,19,0) 72%)", stamp: "#8FF0E6", money: "#8FEAAC" },
+    winner:   { edge: "rgba(127,212,154,.55)", wash: "radial-gradient(circle at 0% 0%, rgba(127,212,154,.26), transparent 62%), linear-gradient(150deg, rgba(127,212,154,.16), rgba(10,20,19,0) 72%)", stamp: "#A6F0BF", money: "#8FEAAC" },
+    neutral:  { edge: "rgba(214,226,224,.46)", wash: "radial-gradient(circle at 0% 0%, rgba(214,226,224,.18), transparent 62%), linear-gradient(150deg, rgba(214,226,224,.11), rgba(10,20,19,0) 72%)", stamp: "#E4EEEC", money: "#E4EEEC" },
+    missed:   { edge: "rgba(240,110,110,.55)", wash: "radial-gradient(circle at 0% 0%, rgba(240,110,110,.24), transparent 62%), linear-gradient(150deg, rgba(240,110,110,.15), rgba(10,20,19,0) 72%)", stamp: "#FFB0B0", money: "#FF7A7A" },
+    training: { edge: "rgba(245,200,66,.55)", wash: "radial-gradient(circle at 0% 0%, rgba(245,200,66,.24), transparent 62%), linear-gradient(150deg, rgba(245,200,66,.15), rgba(10,20,19,0) 72%)", stamp: "#FFD978", money: "#FFD978" },
+    satout:   { edge: "rgba(150,165,235,.55)", wash: "radial-gradient(circle at 0% 0%, rgba(150,165,235,.24), transparent 62%), linear-gradient(150deg, rgba(150,165,235,.15), rgba(10,20,19,0) 72%)", stamp: "#C3CCFA", money: "#C3CCFA" }
   };
   const heroStyle = hero.tone === "perfect"
     ? {background:"linear-gradient(135deg, rgba(78,205,196,.2), rgba(215,226,225,.12) 48%, rgba(58,168,90,.2))", border:"1px solid rgba(78,205,196,.3)"}
@@ -513,22 +517,18 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
         ),
         money && React.createElement('span',{style:{flex:"0 0 auto",marginRight:10,fontFamily:LOOP_FONTS.mono,fontSize:26,fontWeight:700,lineHeight:1,letterSpacing:"-.01em",color:tone.money}},money)
       ),
-      // A rule with the month set into it, like a stamped slip.
-      React.createElement('div',{style:{display:"flex",alignItems:"center",gap:6,margin:"10px 0"}},
-        React.createElement('span',{style:{flex:"1 1 0",height:1,background:"#16302C"}}),
-        React.createElement('span',{style:{fontFamily:LOOP_FONTS.mono,fontSize:7.5,letterSpacing:".14em",color:"#3E5652"}},String(month.label || "").toUpperCase()),
-        React.createElement('span',{style:{flex:"1 1 0",height:1,background:"#16302C"}})
-      ),
-      React.createElement('div',{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}},
-        React.createElement(PanelCard,{label:"Personal best",big:pbBody.big,small:pbBody.small}),
-        React.createElement('div',{style:{border:"0.5px solid #0D1F1E",background:"#080F0F",borderRadius:10,padding:"10px 11px",display:"flex",flexDirection:"column",gap:6,minWidth:0}},
-          React.createElement('span',{style:recordParts.label},"Track record"),
-          recordParts.rings,
-          React.createElement('em',{style:{fontStyle:"normal",fontFamily:LOOP_FONTS.body,fontSize:11,fontWeight:500,color:"#B8C7C4"}},recordParts.summary)
-        )
-      )
     );
   };
+  // Personal best and Track record used to sit inside the report card, which made it the
+  // tallest thing on the screen. They now follow the Bloc's ring, lower down.
+  const renderRecordRow = () => userInMonth && React.createElement('div',{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}},
+    React.createElement(PanelCard,{label:"Personal best",big:pbBody.big,small:pbBody.small}),
+    React.createElement('div',{style:{border:"0.5px solid #0D1F1E",background:"#080F0F",borderRadius:10,padding:"10px 11px",display:"flex",flexDirection:"column",gap:6,minWidth:0}},
+      React.createElement('span',{style:recordParts.label},"Track record"),
+      recordParts.rings,
+      React.createElement('em',{style:{fontStyle:"normal",fontFamily:LOOP_FONTS.body,fontSize:11,fontWeight:500,color:"#B8C7C4"}},recordParts.summary)
+    )
+  );
 
   // ── Settlements: your own payments open, everyone else's folded ──────────
   const plateStyle = {border:"0.5px solid #163d36",background:"#0A1412",borderRadius:12,padding:"10px 12px",display:"flex",flexDirection:"column",gap:7};
@@ -629,30 +629,39 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
 
   return React.createElement(React.Fragment,null,
     React.createElement('div',{style:{width:"100%",maxWidth:"100%",margin:"0 auto",padding:"0 0 48px",display:"flex",flexDirection:"column",gap:14,fontFamily:LOOP_FONTS.body}},
-      // Your own month first, the Bloc's second. On an ended month the first
-      // thing you want is how you did, not how the loop closed -- so the
-      // personal card leads and the dial follows it. renderReport returns null
-      // for a month you were not in, and then the dial leads as before.
+      // The ended month, in the order agreed with the founder on 2026-10-02: how you did,
+      // your calendar and the button to share it, the awards, the Bloc's ring, your
+      // records, then money. The calendar is what we want people to share, so it sits
+      // on the first screen with one obvious button instead of a corner icon.
+      React.createElement('div',{style:{fontFamily:LOOP_FONTS.body,fontSize:12,fontWeight:700,color:"#B8C7C4",letterSpacing:".02em",textAlign:"center",marginBottom:-6}},`${selectedMonthName}'s Recap`),
       renderReport(),
-      React.createElement(MonthDial,{ members: loopMembers, perfect: isBlocPerfect, focus, onToggle: name => setFocus(prev => prev === name ? null : name), readout: ringReadout, live: true }),
-      React.createElement(LoopCaption,{ lines: loopCaption(loopMembers, { ended: true }) }),
-      React.createElement('div',{style:{fontFamily:LOOP_FONTS.body,fontSize:7,fontWeight:500,color:"#6B9690",opacity:.8,textAlign:"center",marginTop:-8}},"Tap a slice to see that person"),
-      perfectRun > 0 && React.createElement(PerfectRunPill,{ run: perfectRun }),
-      // Stays with the dial: it is what a slice tap opens.
-      renderFocusPlate(),
+      reportCalendar ? React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:8}},
+        React.createElement(MonthCalendarCard,{
+          title:stickerMonthLabel,
+          logsByDay:reportCalendar.logsByDay,
+          year:reportCalendar.year,
+          monthIndex:reportCalendar.monthIndex,
+          daysInMonth:reportCalendar.daysInMonth,
+          firstWeekdayOffset:reportCalendar.firstWeekdayOffset
+        }),
+        React.createElement('button',{type:"button",onClick:handleShare,style:{height:44,borderRadius:12,border:0,background:"#4ECDC4",color:"#041312",fontFamily:LOOP_FONTS.body,fontSize:14,fontWeight:800,cursor:"pointer"}},"Share your month")
+      ) : null,
       React.createElement('div',{style:{border:"0.5px solid #163d36",background:"#0A1412",borderRadius:14,padding:14,display:"flex",flexDirection:"column",gap:12}},
         plateHead(`${selectedMonthName}'s awards`),
         renderAwards()
       ),
-      reportCalendar ? React.createElement(MonthCalendarCard,{
-        title:stickerMonthLabel,
-        logsByDay:reportCalendar.logsByDay,
-        year:reportCalendar.year,
-        monthIndex:reportCalendar.monthIndex,
-        daysInMonth:reportCalendar.daysInMonth,
-        firstWeekdayOffset:reportCalendar.firstWeekdayOffset,
-        onShare:handleShare
-      }) : null,
+      React.createElement('div',{style:{border:"0.5px solid #163d36",background:"#0A1412",borderRadius:14,padding:"14px 14px 12px",display:"flex",flexDirection:"column",gap:10}},
+        plateHead(`The Bloc's ${selectedMonthName}`),
+        React.createElement('div',{style:{width:"84%",margin:"0 auto"}},
+          React.createElement(MonthDial,{ members: loopMembers, perfect: isBlocPerfect, focus, onToggle: name => setFocus(prev => prev === name ? null : name), readout: ringReadout, live: true })
+        ),
+        React.createElement(LoopCaption,{ lines: loopCaption(loopMembers, { ended: true }) }),
+        React.createElement('div',{style:{fontFamily:LOOP_FONTS.body,fontSize:7,fontWeight:500,color:"#6B9690",opacity:.8,textAlign:"center",marginTop:-6}},"Tap a slice to see that person"),
+        perfectRun > 0 && React.createElement(PerfectRunPill,{ run: perfectRun }),
+        // Stays with the dial: it is what a slice tap opens.
+        renderFocusPlate()
+      ),
+      renderRecordRow(),
       React.createElement('div',{ref:ledgerRef},renderSettlements())
     ),
     claimConfirmation,

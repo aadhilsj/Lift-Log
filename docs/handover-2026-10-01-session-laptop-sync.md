@@ -243,6 +243,50 @@ it centred. **Not verified on a real iPhone** — no simulator on this laptop.
 
 ---
 
+### 2.10 Today approved on the phone; held back from `main`
+
+The founder tested the Today build on his phone over wifi (sandbox at
+`http://192.168.1.224:3000`): *"so much nicer... I'm a big fan of this work."*
+**He asked not to push it to `main` yet** — it stays on `feat/today-calmer-top`
+with the Month work below, to go out together.
+
+Side finding while he tested: he typed `joe@local.test` instead of
+`jo@local.test` and landed on "what should your Bloc call you". Not a
+regression — the sandbox's local-dev OTP shortcut (`ENABLE_LOCAL_DEV_OTP`)
+accepts any `@local.test` address and skips the account check. **Live has the
+"No Fero account found" message** (`3612223`, confirmed in the live bundle).
+The practice data now has an extra member "Joe" in Sandbox Bloc.
+
+### 2.11 The ended-month screen, reordered and brightened
+
+Planned over four mockup rounds, built on the same branch, in
+`src/pages/SettlementScreen.jsx` only.
+
+- **Order:** a small centred "September's Recap" → your result card → your
+  calendar with a full-width **"Share your month"** button (the small corner
+  Share on the calendar is removed, so there is one) → the month's awards →
+  "The Bloc's September" card holding the ring (84% width, slice taps still
+  open the focus plate) → Personal best + Track record → what you owe.
+- **Result card slimmer:** Personal best, Track record and the thin "SEP '26"
+  divider moved out of it. **Every line of copy is unchanged** — the founder
+  was explicit about that ("Bounce back next month" stays).
+- **Brighter colours** for all six cards (Winner, Perfect Bloc month, Target
+  hit, Tough month, First month, Sat out): stronger edge, corner glow, ~2× wash.
+- **Sat out has its own periwinkle** (`rgba(150,165,235)`), so it no longer
+  looks identical to Target hit's silver.
+- Headings rejected along the way: a large "September's in the books".
+
+Verified in the sandbox at 393px: order measured top to bottom, no horizontal
+scroll, the small Share gone, "Share your month" opens the sticker for a
+winner, a slice tap opens that member's plate. Lint, build, 20/20 CI suites.
+
+**Open question put to the founder:** on a *missed* month, `handleShare`
+deliberately scrolls to what you owe instead of opening the sticker (an older
+decision, commented in the code). Behind a big "Share your month" button that
+feels broken. Unchanged until he decides.
+
+---
+
 ## 3. Still open (carried forward, not worked on yet)
 
 - **Lazy month close** — a Bloc nobody touches sits half-closed after the
@@ -257,8 +301,10 @@ it centred. **Not verified on a real iPhone** — no simulator on this laptop.
 - `test:auth-edge-flows` and `test:mobile-navigation` are still broken.
 - **The sandbox cannot close a month** (§2.6), so closed-month screens cannot
   be rehearsed locally.
-- **Redesign queue (§2.9):** Month page order (founder has ideas), Profile as
+- **Redesign queue (§2.9):** ~~Month page order~~ (built, §2.11), Profile as
   the fifth tab + where History goes, large-photo Activity view.
+- **`feat/today-calmer-top` is unpushed on purpose** (§2.10): Today + Month
+  go to `main` together when the founder says so.
 - **Desktop Pace Detail shows a red bar when the target is hit** (§2.9).
 - **`docs/WHATS-LIVE.md`'s website column is stale.** It still says
   `cd5e912` and lists none of the previous session's fixes (month close,
