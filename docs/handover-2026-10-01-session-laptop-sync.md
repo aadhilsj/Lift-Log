@@ -289,6 +289,27 @@ sandbox for Jo as missed (sticker opens, "10 SESSIONS") and as sat out
 (no calendar, no button). The profile's own share already hides a sat-out
 month, because it needs logged workouts and sitting out blocks logging.
 
+### 2.12 The result card's empty right side
+
+When no money moved, the right of the result card was empty. It now carries
+the mark that already means that result in the app, in the card's colour, at
+about the money's size (`reportMark` in `SettlementScreen.jsx`; the card body
+is now `renderReportCard`, called by `renderReport`):
+
+| Result | Right side |
+| --- | --- |
+| Winner with a pot / Tough month | money, unchanged |
+| Winner, nothing in the pot | trophy (`TrophyIcon`) |
+| Perfect Bloc month | target-hit hexagon, teal, soft glow |
+| Target hit | target-hit hexagon, silver |
+| First month | Training Wheels sprout |
+| Sat out | a new pause mark (two rounded bars), periwinkle |
+
+Sat out also drops the "—" and reads **"Month Off"** (capital O), founder's
+request. Approved from a seven-card test page in the sandbox (temporary, not
+committed). Verified on real cards: Sam (Target hit, hexagon) and Jo marked
+sat out (pause, "Month Off").
+
 ---
 
 ## 3. Still open (carried forward, not worked on yet)

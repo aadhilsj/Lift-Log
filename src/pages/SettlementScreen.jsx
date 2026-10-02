@@ -19,7 +19,7 @@ import {
   getCountedLogs,
   getMonthPartsFromKey
 } from "../lib/appState.js";
-import { Avatar, TrophyIcon } from "../components/primitives.jsx";
+import { Avatar, TrophyIcon, TargetHitHexIcon, TrainingSproutIcon } from "../components/primitives.jsx";
 import { ShareSticker } from "../components/ShareSticker.jsx";
 import { MonthCalendarCard } from "../components/MonthCalendarCard.jsx";
 import { buildStickerData } from "../lib/shareSticker.js";
@@ -490,12 +490,31 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
   const recordParts = trackRecordParts({ months: myRecord, highlightLast: true, compact: true, firstMonth: myRecord.length <= 1 && !myBest });
   // Someone who wasn't in this month (joined later) has no report to show.
   const userInMonth = !!currentUser && Object.prototype.hasOwnProperty.call(month.counts || {}, currentUser);
+  // The right side of the card carries the money when money moved. When it did not, it
+  // carries the mark that already means that result elsewhere in the app, so the card
+  // never looks unfinished: the target-hit hexagon (teal and glowing for a perfect Bloc
+  // month), the Training Wheels sprout, a trophy for a win with nothing in the pot, and a
+  // pause for a month sat out. A missed month with no debt shows nothing.
+  const reportMark = (heroTone, tone) => {
+    const box = child => React.createElement('span',{style:{flex:"0 0 auto",marginRight:10,display:"inline-flex",alignItems:"center",justifyContent:"center",width:34,height:34}},child);
+    if (heroTone === "neutral") return box(React.createElement(TargetHitHexIcon,{size:32,color:tone.stamp}));
+    if (heroTone === "perfect") return box(React.createElement('span',{style:{display:"inline-flex",filter:"drop-shadow(0 0 6px rgba(78,205,196,.55))"}},React.createElement(TargetHitHexIcon,{size:32,color:tone.stamp})));
+    if (heroTone === "training") return box(React.createElement(TrainingSproutIcon,{size:30,color:tone.stamp}));
+    if (heroTone === "winner") return box(React.createElement(TrophyIcon,{size:30,color:tone.stamp}));
+    if (heroTone === "satout") return box(React.createElement('svg',{width:26,height:26,viewBox:"0 0 24 24",role:"img","aria-label":"Sat out"},
+      React.createElement('rect',{x:6,y:4.5,width:4,height:15,rx:2,fill:tone.stamp}),
+      React.createElement('rect',{x:14,y:4.5,width:4,height:15,rx:2,fill:tone.stamp})));
+    return null;
+  };
   const renderReport = () => {
     if (!userInMonth) return null;
-    const tone = REPORT_TONES[hero.tone] || REPORT_TONES.neutral;
     // Money is shown only when money actually moved. A perfect month settles nothing.
     const owed = receiverTotal(currentUser), owes = payerTotal(currentUser);
     const money = owed > 0 ? `+${fmtCurrency(owed, currency)}` : owes > 0 ? `\u2212${fmtCurrency(owes, currency)}` : "";
+    return renderReportCard(hero, userCount, userSatOut, money);
+  };
+  const renderReportCard = (hero, userCount, userSatOut, money) => {
+    const tone = REPORT_TONES[hero.tone] || REPORT_TONES.neutral;
     const cardLines = hero.tone === "winner" ? [[hero.topLine, hero.keepLine].filter(Boolean).join(" ")]
       : hero.tone === "perfect" ? [perfectCardLine]
       : [String(hero.line || "")].filter(Boolean);
@@ -504,14 +523,14 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
         React.createElement('div',{style:{flex:"1 1 0",minWidth:0}},
           React.createElement('span',{style:{fontFamily:LOOP_FONTS.body,fontSize:8.5,fontWeight:700,letterSpacing:".14em",textTransform:"uppercase",color:tone.stamp}},hero.cardStamp || hero.tag),
           React.createElement('div',{style:{display:"flex",alignItems:"baseline",gap:7,marginTop:8}},
-            React.createElement('span',{style:{fontFamily:LOOP_FONTS.mono,fontSize:26,fontWeight:700,lineHeight:1,color:"var(--text)"}},userSatOut ? "\u2014" : String(userCount)),
-            React.createElement('span',{style:{fontFamily:LOOP_FONTS.body,fontSize:13,fontWeight:600,color:"var(--text)"}},userSatOut ? "Month off" : userCount === 1 ? "workout" : "workouts")
+            !userSatOut && React.createElement('span',{style:{fontFamily:LOOP_FONTS.mono,fontSize:26,fontWeight:700,lineHeight:1,color:"var(--text)"}},String(userCount)),
+            React.createElement('span',{style:{fontFamily:LOOP_FONTS.body,fontSize:13,fontWeight:600,color:"var(--text)"}},userSatOut ? "Month Off" : userCount === 1 ? "workout" : "workouts")
           ),
           cardLines.length > 0 && React.createElement('div',{style:{fontFamily:LOOP_FONTS.body,fontSize:12,lineHeight:1.45,color:"#B8C7C4",marginTop:5}},
             cardLines.map((line, index) => React.createElement('span',{key:index,style:{display:"block"}},line))
           )
         ),
-        money && React.createElement('span',{style:{flex:"0 0 auto",marginRight:10,fontFamily:LOOP_FONTS.mono,fontSize:26,fontWeight:700,lineHeight:1,letterSpacing:"-.01em",color:tone.money}},money)
+        money ? React.createElement('span',{style:{flex:"0 0 auto",marginRight:10,fontFamily:LOOP_FONTS.mono,fontSize:26,fontWeight:700,lineHeight:1,letterSpacing:"-.01em",color:tone.money}},money) : reportMark(hero.tone, tone)
       ),
     );
   };
