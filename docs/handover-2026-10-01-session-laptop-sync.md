@@ -176,6 +176,71 @@ would read zero most of the time. The data exists — the server already
 computes daily and weekly figures for it — so showing it would be one line.
 **The founder decided to leave it as it is.** Do not change it without asking.
 
+### 2.8 Deveen asked what was pushed
+
+On 1 October Deveen planned to "hit some of the rollover checks tonight" and
+asked whether anything had been pushed. Answer drafted for the founder and
+sent: ~45 commits to `main` since 24 September; all 14 of Deveen's commits
+since 15 September are on `main`; the month-close break and fix (`c9ce86a`)
+are written up in his handover §11–§18; his §10.3 ask (pin the date tests) is
+done in `689d9d9`. Flagged that his `0da04b4` before/after month-close check
+can no longer take its "before" snapshot — the close already ran.
+
+### 2.9 Today redesign — the top of the screen, and centred pop-ups
+
+**Planned with the founder over six mockup rounds** (real screenshots from the
+sandbox at 393×852, in a throwaway worktree). Agreed order for the wider
+redesign: **Today → Month → a Profile tab in the bottom-right (and where
+History goes — suggested: merged into Month as This month / All time) →
+an optional large-photo Activity view.** Only Today is built so far.
+
+What was decided, and built on branch `feat/today-calmer-top`:
+
+- **Phone only:** the four stat cards (Target, Pace Check, Week's MVP, Bloc
+  Loop) are gone from the phone layout. Their place is two small pills on the
+  "OCTOBER · DAY n/31" line: **"N to go ›"** and **"Week's MVP: Name ›"**.
+  - "N to go" opens the Your Log pop-up, which now shows pace on top (bar,
+    "You are 1 workout ahead of pace", "N to go · X by today · Y days left")
+    above the calendar. Pace Check's own pop-up is no longer reachable on the
+    phone; its content is here.
+  - Week's MVP still opens its pop-up and still fires `mvp_card_opened`.
+  - **Bloc Loop is dropped** on the phone (the Month tab has the ring), so
+    `bloc_loop_opened` will stop growing from phones.
+  - The founder rejected: moving the cards below the leaderboard (nobody
+    scrolls there in a big Bloc), an MVP tag on leaderboard rows (crowds it),
+    and two half-width cards (too heavy).
+  - Pills are drawn 20px tall but the button is 36px (negative margin), so the
+    row stays 20px and the tap target is not tiny.
+  - Hidden when sitting out (as the cards were). Solo counts to the Solo goal
+    ("5 to go" for goal 6, 1 logged). Target hit reads "Target hit ›".
+  - Measured at 360px with "12 to go" and names up to 11 letters: fits, 25px+
+    clear of the date, no horizontal scroll.
+- **Desktop layout is unchanged** — it keeps its four cards.
+- **Ties:** "Tied" / "3-way tie" became **"2 tied" / "3 tied"** everywhere the
+  MVP value shows (founder asked for both places to match).
+- **Recap banner (first 5 days):** "LAST MONTH" label removed, slimmer
+  (padding 8px), see-through silver gradient instead of dark teal, copy
+  **"Your September Recap" / "See how you and your Bloc did."** Several
+  brightness rounds; the shipped values are the founder-approved middle.
+- **Duplicate title fixed:** the Your Log pop-up said "Oct · Your Log" twice.
+  `renderMonthLogCalendar` now takes an optional title.
+- **Bar colour bug, partly fixed:** `barColor` has no `locked-in` case and
+  falls through to red. The new pace block uses the Cleared silver for
+  target-hit. **The old desktop Pace Detail pop-up still shows red for
+  target-hit — not touched.**
+
+**Pop-ups centred in the visible screen** (founder's request): the Your Log /
+Week's MVP pop-up and the log-a-workout pop-up are now portalled to
+`document.body` and centred with symmetric safe-area padding. Before, the
+detail pop-up reserved 94px at the bottom for the nav, so it sat ~40px high,
+and both were rendered inside the page, where a transformed ancestor in Safari
+moves `position:fixed` (playbook: "any modal opened from a transformed screen
+must portal"). Measured in Chromium with Today scrolled to the bottom: all
+three centre exactly (0px off), the page does not jump, and the backdrop now
+also dims the header and nav. The activity list sheet still stacks above the
+log pop-up (1001/1002 over 1000). The + pressed from the Month tab also opens
+it centred. **Not verified on a real iPhone** — no simulator on this laptop.
+
 ---
 
 ## 3. Still open (carried forward, not worked on yet)
@@ -192,6 +257,9 @@ computes daily and weekly figures for it — so showing it would be one line.
 - `test:auth-edge-flows` and `test:mobile-navigation` are still broken.
 - **The sandbox cannot close a month** (§2.6), so closed-month screens cannot
   be rehearsed locally.
+- **Redesign queue (§2.9):** Month page order (founder has ideas), Profile as
+  the fifth tab + where History goes, large-photo Activity view.
+- **Desktop Pace Detail shows a red bar when the target is hit** (§2.9).
 - **`docs/WHATS-LIVE.md`'s website column is stale.** It still says
   `cd5e912` and lists none of the previous session's fixes (month close,
   leaderboard money, Most Diverse, share-sheet close button). Only the emoji

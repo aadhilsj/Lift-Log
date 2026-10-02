@@ -762,7 +762,10 @@ const LogModal = ({user,currentUserId,currentGroupId,groups,onConfirm,onClose,on
 
   if (cropSource) return React.createElement(CropModal, {imageSrc:cropSource, onConfirm:handleCropConfirm, onCancel:handleCropCancel});
 
-  return React.createElement(React.Fragment,null,
+  // Portalled to document.body so it centres in the visible screen wherever the page is
+  // scrolled: inside the page, a transformed ancestor becomes the containing block for
+  // position:fixed in Safari. See the recurring debugging playbook.
+  return createPortal(React.createElement(React.Fragment,null,
     React.createElement('div',{onClick:onClose,style:{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",zIndex:999}}),
     React.createElement('div',{className:"log-workout-modal",onClick:e=>e.stopPropagation(),style:modalFrameStyle},
       React.createElement('div',{style:{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:10,marginBottom:compactMobile?9:14}},
@@ -872,7 +875,7 @@ const LogModal = ({user,currentUserId,currentGroupId,groups,onConfirm,onClose,on
       onPick:name=>pickActivity(name,true),
       onClose:()=>setShowActivityList(false)
     })
-  );
+  ), document.body);
 };
 
 const activityTileStyle = (active, compactMobile) => ({
@@ -892,9 +895,9 @@ const activityTileStyle = (active, compactMobile) => ({
 const activityTileLabelStyle = {fontSize:10.5,fontWeight:600,lineHeight:1.1,maxWidth:"100%",padding:"0 4px",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"};
 
 // The full activity list, sliding up over the log pop-up. A–Z with search;
-// "Other" always sits last because it is the catch-all. Portalled to the body:
-// the log pop-up renders inside the page's stacking context, which sits below
-// the mobile bottom nav, so a sheet left there is covered by the nav.
+// "Other" always sits last because it is the catch-all. Portalled to the body,
+// like the log pop-up itself (z-index 1000), and stacked just above it (1001/1002);
+// left inside the page it would sit under the mobile bottom nav.
 const ActivityListSheet = ({open,search,onSearch,named,hasOther,selected,onPick,onClose}) => {
   const listRef = useRef(null);
   useEffect(() => {

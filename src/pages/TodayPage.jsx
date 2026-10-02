@@ -423,13 +423,14 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
   const lastClosedMonth = monthHistory.length ? [...monthHistory].sort((a,b)=>b.key.localeCompare(a.key))[0] : null;
   const showLastMonthBanner = (monthSummary?.day || DAY_OF_MON) <= 5;
   const lastMonthBanner = showLastMonthBanner && lastClosedMonth && onViewLastMonth
-    ? React.createElement('button',{onClick:()=>{onTrackUsage?.("last_month_banner_clicked");onViewLastMonth();},style:{width:"100%",textAlign:"left",background:"radial-gradient(circle at top right, rgba(78,205,196,.10) 0%, transparent 45%), linear-gradient(135deg, rgba(8,20,20,1) 0%, rgba(6,13,13,1) 55%, rgba(7,10,14,1) 100%)",border:"0.5px solid #0D2828",borderRadius:12,padding:"10px 14px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:10}},
+    // See-through silver, so the page's dark seeps in: it has to stand apart from the
+    // streak card and the cyan Confirm buttons around it without reading as a solid slab.
+    ? React.createElement('button',{onClick:()=>{onTrackUsage?.("last_month_banner_clicked");onViewLastMonth();},style:{width:"100%",textAlign:"left",background:"radial-gradient(circle at 88% 0%, rgba(241,245,249,.27) 0%, transparent 54%), linear-gradient(120deg, rgba(203,213,225,.27) 0%, rgba(148,163,184,.135) 47%, rgba(100,116,139,.06) 100%)",border:"0.5px solid rgba(226,232,240,.28)",boxShadow:"inset 0 1px 0 rgba(255,255,255,.14)",borderRadius:12,padding:"8px 14px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:10}},
         React.createElement('div',null,
-          React.createElement('div',{style:{fontSize:9,color:"#4ECDC4",textTransform:"uppercase",letterSpacing:".12em",marginBottom:3,fontFamily:"'Outfit',sans-serif",fontWeight:700}},"Last month"),
-          React.createElement('div',{style:{fontSize:14,fontWeight:700,color:"var(--text)"}},`${lastClosedMonth.label} results are in`),
-          React.createElement('div',{style:{fontSize:12,color:"var(--muted)",marginTop:2}},"See how you finished.")
+          React.createElement('div',{style:{fontSize:14,fontWeight:700,color:"#F8FAFC"}},`Your ${FULL_MONTH_NAMES[Number(String(lastClosedMonth.key).split("-")[1])] || lastClosedMonth.label} Recap`),
+          React.createElement('div',{style:{fontSize:12,color:"rgba(226,232,240,.78)",marginTop:2}},"See how you and your Bloc did.")
         ),
-        React.createElement('span',{style:{fontSize:18,color:"#4ECDC4"}},"→")
+        React.createElement('span',{style:{fontSize:18,color:"#E2E8F0"}},"→")
       )
     : null;
   const settlementReminderCards = currentGroup?.settlementConfirmationsPreviewMode
@@ -543,16 +544,14 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
     ? "—"
     : weeklyLeaders.length === 1
       ? weeklyLeaders[0].name
-      : weeklyLeaders.length === 2
-        ? "Tied"
-        : `${weeklyLeaders.length}-way tie`;
+      : `${weeklyLeaders.length} tied`;
   const renderMonthLogCalendar = ({memberName, title, year, monthIndex, logsByDay}) => {
     const firstDay = (new Date(year, monthIndex, 1).getDay() + 6) % 7;
     const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
     const calDays = [...Array(firstDay).fill(null), ...Array.from({length: daysInMonth}, (_, i) => i + 1)];
     return React.createElement(Card,{style:{padding:15}},
-      React.createElement('span',{className:"lbl"},title),
-      React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(7,minmax(0,1fr))",gap:6,marginTop:8}},
+      title && React.createElement('span',{className:"lbl"},title),
+      React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(7,minmax(0,1fr))",gap:6,marginTop:title ? 8 : 0}},
         ["M","T","W","T","F","S","S"].map((d, i)=>React.createElement('div',{key:`${memberName}-head-${d}-${i}`,className:"mono",style:{fontSize:10,color:"var(--muted)",textAlign:"center"}},d)),
         calDays.map((day,index)=>{
           const dayLogsValue = day ? logsByDay[day] : null;
@@ -685,6 +684,12 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
     cursor:"pointer"
   };
   const mobileStatCardStyle = {...statCardSurfaceStyle,padding:"8px 10px",minHeight:74};
+  // Phone: the month's two numbers sit as small pills on the date line instead of a row
+  // of cards, so the leaderboard is near the top. The button is taller than the pill it
+  // draws (negative margin keeps the row 20px) so the tap target is not 20px.
+  const todayPillHitStyle = {background:"none",border:0,padding:"8px 0",margin:"-8px 0",cursor:"pointer",minWidth:0,display:"flex"};
+  const todayPillStyle = {display:"inline-flex",alignItems:"center",gap:3,height:20,padding:"0 8px",borderRadius:999,background:"rgba(78,205,196,.06)",border:"0.5px solid rgba(78,205,196,.2)",fontFamily:"'Outfit', sans-serif",fontSize:9.5,fontWeight:700,whiteSpace:"nowrap",minWidth:0};
+  const todayPillChevron = React.createElement('span',{style:{display:"inline-flex",marginLeft:-2}},React.createElement(ChevronRightIcon,{size:9,color:"#5E8580"}));
   const desktopStatCardStyle = {...statCardSurfaceStyle,padding:"10px 12px",minHeight:106};
 
   // One tick per day, the last fourteen, with today's tick last.
@@ -1179,8 +1184,12 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
       );
     })
   );
-  const statDetailOverlay = statDetail && React.createElement('div',{className:"overlay center-mobile",onClick:()=>setStatDetail(null),style:{padding:"16px 12px calc(94px + env(safe-area-inset-bottom))"}},
-    React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{width:"min(680px, calc(100vw - 28px))",maxHeight:statDetail.kind === "week-mvp" ? "min(78vh, calc(100dvh - 124px))" : "min(80vh, 760px)",overflow:"auto",padding:"18px 16px 16px",display:"grid",gap:14}},
+  // Portalled to document.body and centred in the visible screen, wherever Today is
+  // scrolled to. Rendered inside the page, a transformed ancestor (Safari treats any
+  // transform as the containing block for position:fixed) moves it off-centre; see the
+  // recurring debugging playbook.
+  const statDetailOverlay = statDetail && createPortal(React.createElement('div',{className:"overlay center-mobile",onClick:()=>setStatDetail(null),style:{zIndex:1100,padding:"calc(16px + env(safe-area-inset-top)) 12px calc(16px + env(safe-area-inset-bottom))"}},
+    React.createElement('div',{className:"modal pi",onClick:e=>e.stopPropagation(),style:{width:"min(680px, calc(100vw - 28px))",maxHeight:"min(80vh, calc(100dvh - 32px - env(safe-area-inset-top) - env(safe-area-inset-bottom)))",overscrollBehavior:"contain",overflow:"auto",padding:"18px 16px 16px",display:"grid",gap:14}},
       React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}},
         React.createElement('div',{style:{fontSize:18,fontWeight:800,color:"var(--text)"}},
           statDetail.kind === "pace"
@@ -1202,9 +1211,22 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
           React.createElement('div',null,`${getDaysLeft()} days left`)
         )
       ),
+      // Pace lives here now that the phone shows one "N to go" pill instead of
+      // separate Target and Pace Check cards.
+      // barColor has no "locked-in" case and falls through to red; a member who has hit
+      // target gets the Cleared badge's silver here instead.
+      statDetail.kind === "target" && !isExcused && React.createElement('div',{style:{display:"grid",gap:6}},
+        React.createElement(Bar,{value:me.count,max:Math.max(expected,1),color:me.status === "locked-in" ? "#E2E8F0" : barColor(me.status),h:5}),
+        React.createElement('div',{style:{fontSize:15,fontWeight:800,color:groupStatusColor(me.status)}},paceCheckMessage),
+        React.createElement('div',{style:{display:"flex",flexWrap:"wrap",columnGap:14,rowGap:4,fontSize:12.5,color:"var(--muted)"}},
+          React.createElement('span',null,needed === 0 ? "Target hit" : `${needed} to go`),
+          React.createElement('span',null,`${expected} by today`),
+          React.createElement('span',null,`${getDaysLeft()} days left`)
+        )
+      ),
       statDetail.kind === "target" && renderMonthLogCalendar({
         memberName: user,
-        title: `${MONTH_NAMES[CUR_MONTH]} · Your Log`,
+        title: null,
         year: CUR_YEAR,
         monthIndex: CUR_MONTH,
         logsByDay: desktopLogsByDay
@@ -1264,7 +1286,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
         }})
       ),
     )
-  );
+  ), document.body);
 
   const setupReviewBanner = setupReviewCount > 0 && React.createElement('button',{
     type:"button",
@@ -1334,24 +1356,27 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
   );
 
   const mobileView = React.createElement('div',{className:"mobile-only",style:{padding:"12px 14px 0",display:"flex",flexDirection:"column",gap:12}},
-    React.createElement('div',{style:{display:"grid",gap:10}},
-      React.createElement('div',{style:{minWidth:0,flex:1}},
-        React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontSize:9,fontWeight:700,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".12em"}},`${todayHeaderMonthName} · Day ${DAY_OF_MON}/${DAYS_IN_MON}`),
-      ),
+    React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,minHeight:20}},
+      React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontSize:9,fontWeight:700,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".12em",whiteSpace:"nowrap"}},`${todayHeaderMonthName} · Day ${DAY_OF_MON}/${DAYS_IN_MON}`),
+      !isExcused && React.createElement('div',{style:{display:"flex",gap:6,minWidth:0}},
+        React.createElement('button',{type:"button",onClick:()=>setStatDetail({kind:"target"}),style:todayPillHitStyle,'aria-label':needed === 0 ? "Target hit. Open your log" : `${needed} to go. Open your log and pace`},
+          React.createElement('span',{style:todayPillStyle},
+            React.createElement('span',{style:{color:"#4ECDC4"}},needed === 0 ? "Target hit" : `${needed} to go`),
+            todayPillChevron
+          )
+        ),
+        React.createElement('button',{type:"button",onClick:()=>{onTrackUsage?.("mvp_card_opened"); setStatDetail({kind:"week-mvp"});},style:todayPillHitStyle,'aria-label':"Open Week's MVP"},
+          React.createElement('span',{style:todayPillStyle},
+            React.createElement('span',{style:{color:"var(--muted)",fontWeight:600}},"Week's MVP:"),
+            React.createElement('span',{style:{color:"var(--text)",minWidth:0,overflow:"hidden",textOverflow:"ellipsis"}},weeklyMvpTileValue),
+            todayPillChevron
+          )
+        )
+      )
     ),
     lastMonthBanner,
     setupReviewBanner,
     streakStrip,
-!isExcused&&React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(4,minmax(0,1fr))",gap:6,paddingBottom:2}},
-  statCards.map(s=>React.createElement(Card,{key:s.label,onClick:()=>{if(s.kind==="bloc-loop"){onTrackUsage?.("bloc_loop_opened"); onOpenMonth?.(); return;} if(s.kind==="week-mvp") onTrackUsage?.("mvp_card_opened"); setStatDetail({kind:s.kind})},style:mobileStatCardStyle},
-    React.createElement('span',{className:"lbl",style:mobileStatLabelStyle},s.label),
-    React.createElement('div',{style:{width:"100%",display:"flex",flexDirection:"column",alignItems:"center",paddingTop:8}},
-      React.createElement('div',{style:Object.assign({fontSize:16,fontWeight:800,color:s.color || "#4ECDC4",lineHeight:1,minHeight:16,display:"flex",alignItems:"center",justifyContent:"center",textAlign:"center",whiteSpace:"nowrap",width:"100%",fontFamily:"'Outfit', sans-serif"}, s.valueStyle || {})},s.valueNode || s.val),
-      s.sub !== "" && React.createElement('div',{style:mobileStatSubStyle},s.sub),
-      s.meta && React.createElement('div',{className:"mono",style:{fontSize:7,color:"#4ECDC4",marginTop:1,textTransform:"uppercase",letterSpacing:".1em"}},s.meta)
-    )
-  ))
-),
     settlementReminderSlotMobile,
     React.createElement(Card,null,
       React.createElement('div',{style:{padding:"11px 14px",borderBottom:"1px solid var(--border)",display:"flex",justifyContent:"space-between",alignItems:"center"}},
