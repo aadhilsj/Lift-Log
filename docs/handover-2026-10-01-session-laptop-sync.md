@@ -280,10 +280,14 @@ Verified in the sandbox at 393px: order measured top to bottom, no horizontal
 scroll, the small Share gone, "Share your month" opens the sticker for a
 winner, a slice tap opens that member's plate. Lint, build, 20/20 CI suites.
 
-**Open question put to the founder:** on a *missed* month, `handleShare`
-deliberately scrolls to what you owe instead of opening the sticker (an older
-decision, commented in the code). Behind a big "Share your month" button that
-feels broken. Unchanged until he decides.
+**Decided by the founder:** a *missed* month shares too — `handleShare` no
+longer scrolls to what you owe first (that older rule felt broken behind a
+"Share your month" button), and the unused `outcome` variable it relied on is
+gone. **A month you sat out shows no calendar and no Share button** — the
+periwinkle Sat out card is followed straight by the awards. Verified in the
+sandbox for Jo as missed (sticker opens, "10 SESSIONS") and as sat out
+(no calendar, no button). The profile's own share already hides a sat-out
+month, because it needs logged workouts and sitting out blocks logging.
 
 ---
 

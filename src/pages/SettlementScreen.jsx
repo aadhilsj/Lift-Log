@@ -78,7 +78,6 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
   const userSatOut = !!(currentUser && month.excused?.[currentUser]);
   const userIsWinner = winners.some(w => w.name === currentUser);
   const userIsLoser = losers.some(l => l.name === currentUser);
-  const outcome = userIsWinner ? "winner" : userIsLoser ? "missed" : "hit_mas";
   const sortedActive = [...activeCounts].sort((a,b) => b.count - a.count || a.name.localeCompare(b.name));
   const userRank = sortedActive.findIndex(m => m.name === currentUser) + 1 || 1;
   const currency = month.settings?.currency || "USD";
@@ -444,12 +443,9 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
 
 
   const handleShare = () => {
-    // Preserved from the text-only share this replaced: a missed month sends you to the
-    // ledger instead, because what you need then is what you owe, not a trophy.
-    if (outcome === "missed") {
-      ledgerRef.current?.scrollIntoView({behavior:"smooth", block:"center"});
-      return;
-    }
+    // A missed month shares too (founder, 2026-10-02): the calendar shows the work that
+    // was done, and the debt is already on the result card. It used to scroll to the
+    // ledger instead, which behind a "Share your month" button read as broken.
     // Counted only when something is actually shared. This used to fire on the
     // ledger jump too, which inflated the figure with taps that shared nothing.
     onTrackUsage?.("share_month_clicked");
@@ -635,7 +631,8 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
       // on the first screen with one obvious button instead of a corner icon.
       React.createElement('div',{style:{fontFamily:LOOP_FONTS.body,fontSize:12,fontWeight:700,color:"#B8C7C4",letterSpacing:".02em",textAlign:"center",marginBottom:-6}},`${selectedMonthName}'s Recap`),
       renderReport(),
-      reportCalendar ? React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:8}},
+      // Someone who sat the month out has no month to show or share.
+      reportCalendar && !userSatOut ? React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:8}},
         React.createElement(MonthCalendarCard,{
           title:stickerMonthLabel,
           logsByDay:reportCalendar.logsByDay,
