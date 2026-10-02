@@ -312,6 +312,21 @@ a new line on the card). Approved from a seven-card test page in the sandbox
 (temporary, not committed). Verified on real cards: Sam (Target hit, hexagon) and Jo marked
 sat out (pause, "Month Off").
 
+### 2.13 The share-sticker sheet: centred, scroll-locked, smaller
+
+Founder's report: with "Share your month" open you could scroll the page
+behind it, and the sheet felt too big. Cause of the scroll-through: the sheet
+rendered inside the scrolling page, so swipes on its backdrop reached the
+page. `src/components/ShareSticker.jsx` now portals to `document.body`
+(z-index 1100), cancels touchmove/wheel anywhere outside its own panel while
+open, and is 340px wide (`min(340px, 100vw - 52px)`; was ~369 on a 393 phone)
+with slightly tighter padding; the preview scales with it. Applies to both
+places the sheet opens — the ended-month screen and your profile.
+
+Measured at 393×852 with the page scrolled 250px: panel centred exactly,
+340×507, page did not move, wheel and touchmove on the backdrop cancelled,
+scrolling allowed again after closing. Same result opened from Jo's profile.
+
 ---
 
 ## 3. Still open (carried forward, not worked on yet)
