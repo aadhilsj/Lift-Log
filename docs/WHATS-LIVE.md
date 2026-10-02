@@ -4,9 +4,10 @@
 Update it whenever something ships. Same filename forever — never date it, never
 fork it. If it disagrees with a handover, this file wins.
 
-Last updated: **1 October 2026** — the Today and History member-profile scroll
-fix landed at `4ba67e3` and is live; the website has since moved to `cd5e912`.
-TestFlight remains on build 10.
+Last updated: **2 October 2026** — the website is at **`473c761`**: the Today
+redesign, the reordered ended-month screen, centred pop-ups and the new share
+stickers are live. TestFlight remains on build 10, so **none of 1–2 October's
+work is on the phone app yet**. Details: `docs/handover-2026-10-01-session-laptop-sync.md`.
 
 > **Emoji sheet: no bottom band.** The 30 September review predicted one in
 > the installed iOS PWA; the founder checked on his phone on 1 October and the
@@ -25,7 +26,14 @@ TestFlight remains on build 10.
 
 | | Website (PWA) | TestFlight (phone) |
 | --- | --- | --- |
-| **At commit** | **`cd5e912`** | `77fe4d8` (build 10) |
+| **At commit** | **`473c761`** | `77fe4d8` (build 10) |
+| Today: "N to go" / "Week's MVP" pills replace the four stat cards; silver "Your September Recap" banner | ✅ | ❌ |
+| Ended month: Recap → result card → calendar + "Share your month" → awards → Bloc ring → records → money | ✅ | ❌ |
+| Ended month: brighter result colours, periwinkle Sat out, a mark when no money moved | ✅ | ❌ |
+| A missed month can share; a sat-out month shows no calendar | ✅ | ❌ |
+| Pop-ups (Your Log, Week's MVP, log a workout, share sheet) centred in the visible screen | ✅ **unverified on an iPhone** | ❌ |
+| Share stickers: navy icon outline, "SESSIONS", bigger month | ✅ | ❌ |
+| Month close reads the closing month (`c9ce86a`), money fixes (`cc6c990`, `9b25e74`) | ✅ | ❌ |
 | Member profiles stay fixed and scroll from Today and History | ✅ | ❌ |
 | Rebuilt header, safe area, motion, haptics | ✅ | ✅ |
 | Comment load failure is honest | ✅ | ✅ |
@@ -47,6 +55,23 @@ TestFlight remains on build 10.
 website-only; one merge and a build 11 closes the gap again. The emoji-sheet
 blocker on build 11 is lifted: the founder found no band on his phone
 (1 October).
+
+### Verified live, 1–2 October
+
+Each checked the same three ways — commit on `main`, a successful Vercel
+Production deployment for that exact commit, the change in the live bundle —
+and the live site loaded with no console errors.
+
+- `689d9d9` — the two calendar-dependent test suites pinned (no app change)
+- `5a84359` — share stickers: navy outline (Grid/Bare), SESSIONS, month 18
+- `473c761` — Today redesign, ended-month redesign, centred pop-ups, share
+  sheet; live bundle `index-BLGC5dOj.js` contains "Share your month",
+  "Week's MVP:", "See how you and your Bloc did" and "Month Off"
+
+The founder tested the Today and ended-month work on his own phone through
+the sandbox over wifi before it shipped. **The pop-up centring has not been
+seen on a real iPhone against live data** — it follows the playbook's
+portal rule, measured in Chromium.
 
 ### Verified live, 29 September
 

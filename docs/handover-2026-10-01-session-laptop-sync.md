@@ -1,4 +1,4 @@
-# Handover — 1 October 2026, second session: back on the work laptop
+# Handover — 1–2 October 2026, second session: back on the work laptop, Today and the ended month redesigned
 
 Claude, operating. **This is a live handover: it is updated as the session
 goes, not written at the end.** The latest entry in §2 is the most recent
@@ -327,6 +327,23 @@ Measured at 393×852 with the page scrolled 250px: panel centred exactly,
 340×507, page did not move, wheel and touchmove on the backdrop cancelled,
 scrolling allowed again after closing. Same result opened from Jo's profile.
 
+### 2.14 Shipped: everything on `feat/today-calmer-top` is live — `473c761`
+
+The founder said to push it all live (2 October). `origin/main` was still
+`5a84359` and an ancestor of the branch; pushed with `--force-with-lease`,
+`5a84359..473c761`. GitHub CI green; Vercel Production deploy succeeded; the
+live bundle `index-BLGC5dOj.js` contains "Share your month", "Week's MVP:",
+"See how you and your Bloc did" and "Month Off"; the live site loads with no
+console errors. `docs/WHATS-LIVE.md` brought up to date in the next commit
+(it had not been touched since `cd5e912`).
+
+**On the website only.** TestFlight is still build 10, so the phone app has
+none of 1–2 October's work (stickers, Today, ended month) until build 11.
+
+**Not seen against live data:** the founder tested on his phone through the
+sandbox (fake data), and pop-up centring was measured in Chromium, not on a
+real iPhone.
+
 ---
 
 ## 3. Still open (carried forward, not worked on yet)
@@ -345,13 +362,9 @@ scrolling allowed again after closing. Same result opened from Jo's profile.
   be rehearsed locally.
 - **Redesign queue (§2.9):** ~~Month page order~~ (built, §2.11), Profile as
   the fifth tab + where History goes, large-photo Activity view.
-- **`feat/today-calmer-top` is unpushed on purpose** (§2.10): Today + Month
-  go to `main` together when the founder says so.
+- **TestFlight build 11** is now well behind the website (§2.14).
 - **Desktop Pace Detail shows a red bar when the target is hit** (§2.9).
-- **`docs/WHATS-LIVE.md`'s website column is stale.** It still says
-  `cd5e912` and lists none of the previous session's fixes (month close,
-  leaderboard money, Most Diverse, share-sheet close button). Only the emoji
-  note was corrected this session.
+- ~~`docs/WHATS-LIVE.md` stale~~ — brought up to `473c761` on 2 October.
 - Unmerged branches from the last two days: `feat/settlement-note` and
   `feat/safe-area` (both "WIP: preserve ..." commits from 1 October),
   `testflight-build-11`, `claude/push-notifications-plan-2026-09-30`,
@@ -359,10 +372,29 @@ scrolling allowed again after closing. Same result opened from Jo's profile.
 
 ---
 
-## 4. Commits this session
+## 4. Left running on this laptop
+
+- Worktree `/Users/opera_user/Developer/FERO/today-calmer` on
+  `feat/today-calmer-top` (now equal to `main`), with an **uncommitted**
+  port change in `scripts/sandbox.mjs` (54321 → 54331, because a Docker
+  container holds 54321 here). Do not commit that line.
+- The sandbox from that worktree on ports 3000 and 54331, reachable from the
+  founder's phone at `http://192.168.1.224:3000`. Practice data: Sandbox Bloc,
+  invite code 6P98AS, 13 members including Jo (missed September), Riley
+  (winner), Sam (target hit) and Joe (joined October).
+
+## 5. Commits this session
 
 | | |
 | --- | --- |
 | `689d9d9` | pin the two calendar-dependent suites to the 15th |
 | `aea861f` | docs: AGENTS.md §0, `docs/HANDOVERS.md`, this handover, emoji note removed from WHATS-LIVE |
 | `5a84359` | stickers: navy icon outline (Grid/Bare), SESSIONS, month 18; references replaced — **live** |
+| `e49e1b3` | docs: handover — stickers live, banner stays off Daily/Weekly |
+| `ea1e79f` | Today: pills on the date line, silver recap banner, centred pop-ups |
+| `4b77c78` | ended month: new order, brighter colours, periwinkle Sat out |
+| `bf46cd9` | ended month: missed months share; sat-out months show no calendar |
+| `50fc2d4` | ended month: a mark on the right when no money moved; "Month Off" |
+| `d0902ae` | ended month: First month's penalty line on its own line |
+| `473c761` | share sheet: centred, scroll-locked, ~10% smaller — **all of the above live** |
+| *(next commit)* | docs: WHATS-LIVE up to date, this handover |
