@@ -185,7 +185,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
           ? "Target hit. No penalty either way \u2014 but you hit it."
           // Not "next month counts": this month counted too. They logged, they
           // ranked, they appear. The only thing absent was the penalty.
-          : `Target was ${target}. No penalty yet \u2014 penalties kick off from next month.`,
+          : `Target was ${target}. No penalty yet.\nPenalties kick off from next month.`,
         tone: "training"
       };
     }
@@ -517,7 +517,8 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
     const tone = REPORT_TONES[hero.tone] || REPORT_TONES.neutral;
     const cardLines = hero.tone === "winner" ? [[hero.topLine, hero.keepLine].filter(Boolean).join(" ")]
       : hero.tone === "perfect" ? [perfectCardLine]
-      : [String(hero.line || "")].filter(Boolean);
+      // A "\n" in a line starts a new line on the card.
+      : String(hero.line || "").split("\n").filter(Boolean);
     return React.createElement('div',{style:{border:`0.5px solid ${tone.edge}`,background:`${tone.wash}, #0A1412`,borderRadius:14,padding:12,display:"flex",flexDirection:"column"}},
       React.createElement('div',{style:{display:"flex",alignItems:"center",gap:12}},
         React.createElement('div',{style:{flex:"1 1 0",minWidth:0}},

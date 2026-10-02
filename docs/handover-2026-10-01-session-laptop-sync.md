@@ -306,8 +306,10 @@ is now `renderReportCard`, called by `renderReport`):
 | Sat out | a new pause mark (two rounded bars), periwinkle |
 
 Sat out also drops the "—" and reads **"Month Off"** (capital O), founder's
-request. Approved from a seven-card test page in the sandbox (temporary, not
-committed). Verified on real cards: Sam (Target hit, hexagon) and Jo marked
+request. **First month** now reads on two lines: "Target was 12. No penalty
+yet." / "Penalties kick off from next month." (a `\n` in a hero line now starts
+a new line on the card). Approved from a seven-card test page in the sandbox
+(temporary, not committed). Verified on real cards: Sam (Target hit, hexagon) and Jo marked
 sat out (pause, "Month Off").
 
 ---
