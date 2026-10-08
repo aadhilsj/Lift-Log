@@ -99,6 +99,8 @@ import { TodayPage } from "./pages/TodayPage.jsx";
 import { ActivityPage } from "./pages/ActivityPage.jsx";
 import { MonthPage } from "./pages/MonthPage.jsx";
 import { HistoryPage } from "./pages/HistoryPage.jsx";
+import { PlayerProfile } from "./pages/PlayerProfile.jsx";
+import { PaymentHandleSection } from "./components/PaymentHandleSection.jsx";
 import { BlocStream } from "./pages/BlocStream.jsx";
 import { ProfilePage } from "./pages/ProfilePage.jsx";
 import { BlocSettingsScreen } from "./pages/BlocSettingsScreen.jsx";
@@ -413,6 +415,7 @@ const App = () => {
   const [paymentSaving,setPaymentSaving]=useState(false);
   const [paymentError,setPaymentError]=useState("");
   const [showProfile,setShowProfile]=useState(false);
+  const [mockMonthView,setMockMonthView]=useState("month"); // MOCKUP
   const [showFounderDashboard,setShowFounderDashboard]=useState(false);
   const [founderDashboardAvailable,setFounderDashboardAvailable]=useState(()=>readFounderDashboardAvailability(initialPersistedSession?.userId));
   const [showStream,setShowStream]=useState(false);
@@ -3523,10 +3526,24 @@ const App = () => {
       React.createElement(ActivityPage,{group:currentGroup,currentUser,currentUserId:effectiveAuthSession?.userId,onLogMutation:handleLogMutation,clockTick,reactionOverrides,setReactionOverrides,commentCountOverrides:logCommentCountOverrides,onCommentCountsLoaded:setLogCommentCountOverrides,onOpenLogComments:handleOpenLogComments,onTrackUsage:trackUsage})
     ),
     pageName==="month"  &&React.createElement(InBlocPageErrorBoundary,{pageLabel:"Month",resetKey:`${selectedGroupId}:${navResetToken}:${currentUser}:${monthInitialIdx ?? "current"}`},
-      React.createElement(MonthPage,  {key:`${selectedGroupId}:${monthInitialIdx ?? "current"}`,group:currentGroup,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,groupSettings:currentGroup.settings,currentUser,currentUserId:effectiveAuthSession?.userId,initialSelIdx:monthInitialIdx,onStartNextMonth:()=>{setMonthInitialIdx(null);setPage("today");},onOpenToday:()=>setPage("today"),onSettlementClaimPaid:handleSettlementClaimPaid,onSettlementConfirmPaid:handleSettlementConfirmPaid,profiles:appState?.profiles||{},onOpenAccount:()=>setShowProfile(true),navResetToken,onTrackUsage:trackUsage,currentPaymentMethods:effectiveProfile?.paymentMethods||[],onSavePayment:handleSavePaymentHandle,savingPayment:paymentSaving,paymentError:paymentError})
+      React.createElement(React.Fragment,null,
+      React.createElement('div',{style:{display:"flex",justifyContent:"center",padding:"10px 14px 0"}},
+        React.createElement('div',{style:{display:"inline-flex",padding:3,borderRadius:999,background:"rgba(78,205,196,.06)",border:"0.5px solid rgba(78,205,196,.2)"}},
+          [["month","Month"],["all","All Time"]].map(([id,label])=>React.createElement('button',{key:id,type:"button",onClick:()=>setMockMonthView(id),style:{border:0,cursor:"pointer",padding:"6px 16px",borderRadius:999,fontFamily:"'Outfit', sans-serif",fontSize:12,fontWeight:700,background:mockMonthView===id?"#4ECDC4":"transparent",color:mockMonthView===id?"#041312":"#8FAEAA"}},label))
+        )
+      ),
+      mockMonthView==="all" ? React.createElement(HistoryPage,{group:currentGroup,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,groupSettings:currentGroup.settings,navResetToken,currentUser,groups,onTrackUsage:trackUsage,currentUserId:effectiveAuthSession?.userId,accountCreatedAt:profile?.createdAt}) : React.createElement(MonthPage,  {key:`${selectedGroupId}:${monthInitialIdx ?? "current"}`,group:currentGroup,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,groupSettings:currentGroup.settings,currentUser,currentUserId:effectiveAuthSession?.userId,initialSelIdx:monthInitialIdx,onStartNextMonth:()=>{setMonthInitialIdx(null);setPage("today");},onOpenToday:()=>setPage("today"),onSettlementClaimPaid:handleSettlementClaimPaid,onSettlementConfirmPaid:handleSettlementConfirmPaid,profiles:appState?.profiles||{},onOpenAccount:()=>setShowProfile(true),navResetToken,onTrackUsage:trackUsage,currentPaymentMethods:effectiveProfile?.paymentMethods||[],onSavePayment:handleSavePaymentHandle,savingPayment:paymentSaving,paymentError:paymentError}))
     ),
-    pageName==="history"&&React.createElement(InBlocPageErrorBoundary,{pageLabel:"History",resetKey:`${selectedGroupId}:${navResetToken}:${currentUser}`},
-      React.createElement(HistoryPage,{group:currentGroup,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,groupSettings:currentGroup.settings,navResetToken,currentUser,groups,onTrackUsage:trackUsage,currentUserId:effectiveAuthSession?.userId,accountCreatedAt:profile?.createdAt})
+    pageName==="history"&&React.createElement(InBlocPageErrorBoundary,{pageLabel:"Profile",resetKey:`${selectedGroupId}:${navResetToken}:${currentUser}`},
+      React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:12}},
+        React.createElement(PlayerProfile,{group:currentGroup,name:currentUser,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,onBack:()=>{},groupSettings:currentGroup.settings,memberUserId:effectiveAuthSession?.userId||"",currentUserId:effectiveAuthSession?.userId,visibleGroups:groups,accountCreatedAt:profile?.createdAt,profilePhotoUrl:effectiveProfile?.profilePhotoUrl||"",onTrackUsage:trackUsage,isOwnProfile:true,asTab:true,onUpdateProfilePhoto:handleUpdateProfilePhoto}),
+        React.createElement('div',{style:{padding:"0 14px",display:"flex",flexDirection:"column",gap:12}},
+          React.createElement('button',{type:"button",onClick:()=>setShowProfile(true),style:{display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",padding:"14px",borderRadius:14,border:"0.5px solid #163d36",background:"#0A1412",color:"var(--text)",fontFamily:"'Outfit', sans-serif",fontSize:14,fontWeight:700,cursor:"pointer"}},
+            "Account settings",
+            React.createElement('span',{style:{color:"#5E8580",fontSize:12,fontWeight:600}},"Name, payments, sign out \u203a")
+          )
+        )
+      )
     )
   );
 

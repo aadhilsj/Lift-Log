@@ -1,5 +1,7 @@
+import { createPortal } from "react-dom";
 import React from "react";
 const { useState, useEffect, useMemo, useRef } = React;
+import { ProfilePhotoCropModal, readFileAsDataUrl } from "./ProfilePage.jsx";
 import {
   WORKOUT_TYPES,
   DEFAULT_CURRENCY,
@@ -66,7 +68,13 @@ const formatWorkoutDetailDate = isoDate => {
   return `${day} ${PROFILE_FULL_MONTH_NAMES[month - 1]} ${year}`;
 };
 
-const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevealChange,groupSettings,onDeleteLog,initialMonthKey,memberUserId,currentUserId,visibleGroups,accountCreatedAt,profilePhotoUrl,onTrackUsage,isOwnProfile=false}) => {
+const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevealChange,groupSettings,onDeleteLog,initialMonthKey,memberUserId,currentUserId,visibleGroups,accountCreatedAt,profilePhotoUrl,onTrackUsage,isOwnProfile=false,asTab=false,onUpdateProfilePhoto}) => {
+  // MOCKUP: tap your own avatar to add or change your photo.
+  const mockPhotoInputRef = React.useRef(null);
+  const [mockCropSource, setMockCropSource] = React.useState("");
+  const [mockLocalPhoto, setMockLocalPhoto] = React.useState("");
+  const canEditPhoto = isOwnProfile && typeof onUpdateProfilePhoto === "function";
+  const ownPhoto = mockLocalPhoto || profilePhotoUrl || "";
   const compactMobile = isMobile();
   const [deleteTarget,setDeleteTarget]=useState(null);
   const [deleteChoices,setDeleteChoices]=useState(null);
@@ -516,7 +524,7 @@ const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevea
     x.sub&&React.createElement('div',{style:{fontFamily:"'Outfit',sans-serif",fontSize:x.subSize||10,color:x.subColor||"var(--muted)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",textAlign:"center"}},x.sub),
     x.subNote&&React.createElement('div',{style:{fontFamily:"'Outfit',sans-serif",fontSize:8,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".08em",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},x.subNote)
   );
-  return React.createElement('div',{ref:surfaceRef,onTouchStart:startSwipeBack,onTouchMove:moveSwipeBack,onTouchEnd:endSwipeBack,onTouchCancel:e=>{e.stopPropagation();swipeRef.current={sx:0,sy:0,active:false,mode:null};onSwipeRevealChange?.(false);setDragging(false);resetSwipeTransform();},style:{minHeight:"100dvh",background:"var(--bg-gradient)",backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)",transform:dragXRef.current?`translateX(${dragXRef.current}px)`:"translateX(0)",transition:dragging?"none":"transform .08s ease-out",boxShadow:dragXRef.current?"-18px 0 34px rgba(0,0,0,.28)":"none",willChange:dragging||dragXRef.current?"transform":"auto",touchAction:"pan-y",overscrollBehavior:"contain"}},
+  return React.createElement('div',{ref:surfaceRef,onTouchStart:startSwipeBack,onTouchMove:moveSwipeBack,onTouchEnd:endSwipeBack,onTouchCancel:e=>{e.stopPropagation();swipeRef.current={sx:0,sy:0,active:false,mode:null};onSwipeRevealChange?.(false);setDragging(false);resetSwipeTransform();},style:{minHeight:asTab?"auto":"100dvh",background:asTab?"none":"var(--bg-gradient)",backgroundImage:"var(--bg-radial-hint), var(--bg-gradient)",transform:dragXRef.current?`translateX(${dragXRef.current}px)`:"translateX(0)",transition:dragging?"none":"transform .08s ease-out",boxShadow:dragXRef.current?"-18px 0 34px rgba(0,0,0,.28)":"none",willChange:dragging||dragXRef.current?"transform":"auto",touchAction:"pan-y",overscrollBehavior:"contain"}},
     openStatusNote === "training" && React.createElement(TrainingNoteModal,{
       memberName: name,
       isSelf: currentUserId ? memberUserId === currentUserId : false,
@@ -586,20 +594,30 @@ const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevea
       )
     ),
     React.createElement('div',{style:{maxWidth:740,margin:"0 auto",padding:"16px",display:"flex",flexDirection:"column",gap:12}},
-    // Header row
-		    React.createElement('div',{className:"fu",style:{display:"grid",gridTemplateColumns:"96px minmax(0,1fr) 96px",alignItems:"center",gap:8}},
-	      React.createElement('div',{style:{justifySelf:"start"}},backButton),
-	      React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"center",gap:8,minWidth:0,textAlign:"center"}},
-		        React.createElement(Avatar,{name,size:24}),
-		        React.createElement('div',{style:{minWidth:0,fontFamily:"'Outfit',sans-serif",fontSize:16,fontWeight:800,lineHeight:1.08,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},name)
-	      ),
-	      profileTab === "bloc" && React.createElement('div',{style:{justifySelf:"end"}},monthSelector)
-	    ),
+    // MOCKUP header: photo centred, name underneath with the full width, Back (when it
+    // slides in) pinned top-left. The month switcher moved into This Bloc.
+    React.createElement('div',{className:"fu",style:{position:"relative",display:"flex",flexDirection:"column",alignItems:"center",gap:8,paddingTop:asTab?2:6}},
+      !asTab && React.createElement('div',{style:{position:"absolute",left:0,top:0}},backButton),
+		        canEditPhoto
+		          ? React.createElement('button',{type:"button",onClick:()=>mockPhotoInputRef.current?.click(),"aria-label":ownPhoto?"Change your profile photo":"Add a profile photo",style:{position:"relative",flexShrink:0,width:68,height:68,borderRadius:999,padding:0,border:0,background:"none",cursor:"pointer"}},
+		              ownPhoto
+		                ? React.createElement(Avatar,{name,size:68,photoUrl:ownPhoto})
+		                : React.createElement('span',{style:{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",width:68,height:68,borderRadius:999,border:"1.5px dashed rgba(78,205,196,.55)",background:"rgba(78,205,196,.06)",color:"#4ECDC4"}},
+		                    React.createElement('span',{style:{fontSize:20,lineHeight:1,fontWeight:500}},"+"),
+		                    React.createElement('span',{style:{fontFamily:"'Outfit',sans-serif",fontSize:7.5,fontWeight:700,letterSpacing:".06em",textTransform:"uppercase",marginTop:1}},"Photo")
+		                  ),
+		              ownPhoto && React.createElement('span',{style:{position:"absolute",right:-2,bottom:-2,width:18,height:18,borderRadius:999,background:"#4ECDC4",color:"#041312",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800,border:"2px solid #070C0C"}},"+")
+		            )
+		          : React.createElement(Avatar,{name,size:68}),
+		        canEditPhoto && React.createElement('input',{ref:mockPhotoInputRef,type:"file",accept:"image/*",style:{display:"none"},onChange:async e=>{const f=e.target.files?.[0]; e.target.value=""; if(!f) return; setMockCropSource(await readFileAsDataUrl(f));}}),
+		        mockCropSource && createPortal(React.createElement(ProfilePhotoCropModal,{imageSrc:mockCropSource,onCancel:()=>setMockCropSource(""),onConfirm:async dataUrl=>{setMockCropSource(""); setMockLocalPhoto(dataUrl); const r=await onUpdateProfilePhoto(dataUrl); if(r?.profilePhotoUrl) setMockLocalPhoto(r.profilePhotoUrl);}}), document.body),
+      React.createElement('div',{style:{maxWidth:"100%",fontFamily:"'Outfit',sans-serif",fontSize:18,fontWeight:800,lineHeight:1.15,textAlign:"center",overflowWrap:"anywhere"}},name)
+    ),
 	    // This Bloc / All Blocs tabs. The pair differs by scope, not by time:
 	    // the left tab is this Bloc's month, the right one the cross-Bloc stats
 	    // that used to be reachable only from the account profile outside a
 	    // Bloc. The value stays "alltime" so stored state keeps working.
-	    React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:5,padding:3,borderRadius:12,background:"rgba(8,20,19,.76)",border:"0.5px solid rgba(22,61,54,.72)"}},
+	    React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:4,padding:2,borderRadius:10,width:"min(260px, 100%)",alignSelf:"center",background:"rgba(8,20,19,.76)",border:"0.5px solid rgba(22,61,54,.72)"}},
 	      [["bloc","This Bloc"],["alltime","All Blocs"]].map(([value,label])=>React.createElement('button',{
 	        key:value,type:"button",onClick:()=>{
 	          // Own and other are separate counts: the founder wants to know
@@ -609,17 +627,49 @@ const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevea
 	          if (value === "alltime" && profileTab !== "alltime") onTrackUsage?.(isOwnProfile ? "own_profile_all_blocs_opened" : "other_profile_all_blocs_opened");
 	          setProfileTab(value);
 	        },
-	        style:{minHeight:31,borderRadius:9,border:"none",cursor:"pointer",background:profileTab===value?"rgba(78,205,196,.12)":"transparent",color:profileTab===value?"#4ECDC4":"var(--muted)",fontFamily:"'Outfit',sans-serif",fontSize:9.5,fontWeight:900,textTransform:"uppercase",letterSpacing:".055em"}
+	        style:{minHeight:24,borderRadius:8,border:"none",cursor:"pointer",background:profileTab===value?"rgba(78,205,196,.12)":"transparent",color:profileTab===value?"#4ECDC4":"var(--muted)",fontFamily:"'Outfit',sans-serif",fontSize:8.5,fontWeight:900,textTransform:"uppercase",letterSpacing:".055em"}
 	      },label))
 	    ),
 	    profileTab==="alltime"
 	      ? allTimePanel
 	      : React.createElement(React.Fragment,null,
+	    // MOCKUP: one-tap month switcher, like the Month screen.
+	    React.createElement('div',{style:{display:"flex",justifyContent:"center"}},
+	      React.createElement('div',{style:{display:"inline-flex",alignItems:"center",height:28,borderRadius:999,background:"rgba(8,15,15,.48)",border:"0.5px solid rgba(78,205,196,.22)"}},
+	        React.createElement('button',{type:"button","aria-label":"Earlier month",disabled:(selMonthIdx??-1)>=visibleHistoryMonths.length-1,onClick:()=>setSelMonthIdx(i=>i==null?0:Math.min(visibleHistoryMonths.length-1,i+1)),style:{background:"none",border:0,padding:"0 9px",height:28,color:(selMonthIdx??-1)>=visibleHistoryMonths.length-1?"#24403c":"#4ECDC4",fontSize:14,cursor:"pointer"}},"\u2039"),
+	        React.createElement('span',{style:{minWidth:88,textAlign:"center",fontFamily:"'Outfit',sans-serif",fontSize:11,fontWeight:700,color:"var(--text)",whiteSpace:"nowrap"}},String(selLabel).replace(/ (\d{2})(\d{2})$/," '$2")),
+	        React.createElement('button',{type:"button","aria-label":"Later month",disabled:selMonthIdx==null,onClick:()=>setSelMonthIdx(i=>i==null||i===0?null:i-1),style:{background:"none",border:0,padding:"0 9px",height:28,color:selMonthIdx==null?"#24403c":"#4ECDC4",fontSize:14,cursor:"pointer"}},"\u203a")
+	      )
+	    ),
 	    // Sit out banner
 	    notJoinedBanner || sitOutBanner,
 	    // Stats — always show summary cards
-	    isJoinedThisMonth&&!isExcusedThisMonth&&React.createElement('div',{className:"fu2",style:{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}},
-	      stats.map(renderStatCard)
+	    // MOCKUP: the month's progress as a ring, three cards in All Blocs' style, money quiet.
+	    isJoinedThisMonth&&!isExcusedThisMonth&&React.createElement(Card,{className:"fu2",style:{padding:"10px 14px"}},
+	      React.createElement('div',{style:{display:"flex",alignItems:"center",gap:12}},
+	        React.createElement('div',{style:{position:"relative",width:50,height:50,flexShrink:0}},
+	          React.createElement('svg',{width:50,height:50,viewBox:"0 0 44 44",style:{transform:"rotate(-90deg)"}},
+	            React.createElement('circle',{cx:22,cy:22,r:18,fill:"none",stroke:"rgba(255,255,255,.07)",strokeWidth:4}),
+	            React.createElement('circle',{cx:22,cy:22,r:18,fill:"none",stroke:needed===0?"#E2E8F0":"#58EBE1",strokeWidth:4,strokeLinecap:"round",strokeDasharray:113.1,strokeDashoffset:113.1*(1-Math.min(1,selectedTarget?selCount/selectedTarget:0))})
+	          ),
+	          React.createElement('div',{style:{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Outfit',sans-serif",fontSize:13,fontWeight:800,color:"var(--text)"}},selCount||0)
+	        ),
+	        React.createElement('div',{style:{minWidth:0,fontFamily:"'Outfit',sans-serif"}},
+	          React.createElement('div',{style:{fontSize:14,fontWeight:700,color:"var(--text)"}},(!isCurMonth || selCount>selectedTarget) ? `${selCount||0} workout${selCount===1?"":"s"}` : `${selCount||0} of ${selectedTarget} workouts`),
+	          React.createElement('div',{style:{fontSize:12,fontWeight:600,marginTop:2,color:selCount>selectedTarget?"#4ECDC4":needed===0?"#E2E8F0":isCurMonth?"#4ECDC4":"#E89A9A"}},selCount>selectedTarget?`${selCount-selectedTarget} ahead of target`:needed===0?"Target hit":isCurMonth?`${needed} to target`:`Missed by ${needed}`)
+	        )
+	      )
+	    ),
+	    isJoinedThisMonth&&!isExcusedThisMonth&&React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6}},
+	      [["Average",closedStats.avg,"var(--text)"],["Perfect months",perfectMonthStats.count||"\u2014","var(--text)"],["Months won",hasHistory?(closedStats.wins||"\u2014"):"\u2014",hasHistory&&closedStats.wins>0?"var(--gold)":"var(--text)"]].map(([label,val,color])=>
+	        React.createElement(Card,{key:label,style:{position:"relative",padding:"7px 7px 8px",display:"flex",flexDirection:"column",alignItems:"center",overflow:"hidden",boxShadow:"0 12px 24px rgba(0,0,0,.26), 0 2px 10px rgba(78,205,196,.07)"}},
+	          React.createElement('div',{style:{position:"absolute",left:9,right:9,top:0,height:1,background:"rgba(115,232,223,.42)"}}),
+	          React.createElement('span',{style:{display:"block",fontSize:8.5,fontWeight:500,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".06em",marginBottom:4,textAlign:"center"}},label),
+	          React.createElement('div',{style:{fontSize:15.5,fontWeight:500,lineHeight:1.02,color}},val)
+	        ))
+	    ),
+	    isJoinedThisMonth&&!isExcusedThisMonth&&hasHistory&&netPL!==0&&React.createElement('div',{style:{textAlign:"center",fontFamily:"'Outfit',sans-serif",fontSize:11.5,color:"var(--muted)",marginTop:-2}},
+	      "Net in this Bloc: ",React.createElement('span',{style:{fontWeight:700,color:netPL>0?"var(--green)":"var(--red)"}},`${netPL>0?"+":"-"}${fmtCurrency(Math.abs(netPL),currency)}`)
 	    ),
 	    isJoinedThisMonth&&!isExcusedThisMonth&&React.createElement(Card,{className:"fu4",style:{padding:"13px 14px",background:"radial-gradient(circle at 12% 0%, rgba(255,255,255,.032), transparent 34%), radial-gradient(circle at 88% 100%, rgba(78,205,196,.052), transparent 42%), linear-gradient(180deg, rgba(10,19,19,.98), rgba(7,14,14,.98))",boxShadow:"inset 0 1px 0 rgba(255,255,255,.035), 0 7px 16px rgba(0,0,0,.12)"}},
 	      React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,marginBottom:12}},

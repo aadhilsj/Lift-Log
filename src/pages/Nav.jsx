@@ -78,7 +78,7 @@ const Nav = ({page,setPage,user,groupName,canEditGroup,onOpenSettings,settingsAl
         ["activity","Activity","activity"],
         ["log","","plus"],
         ["month","Month","results"],
-        ["history","History","history"]
+        ["history","Profile","history"]
       ].map(([id,label,icon])=>
         id === "log"
           ? React.createElement('div',{key:id,className:"mobile-plus-tab-wrap"},
@@ -89,7 +89,13 @@ const Nav = ({page,setPage,user,groupName,canEditGroup,onOpenSettings,settingsAl
           : React.createElement('button',{key:id,onClick:()=>setPage(id),className:`mobile-tab${page===id?" on":""}`,"data-page":id,"aria-current":page===id?"page":undefined},
           React.createElement('span',{className:"mobile-tab-inner",style:{transition:mobileTabLiftSettle||undefined}},
             React.createElement('div',{style:{position:"relative",display:"inline-flex",alignItems:"center",justifyContent:"center"}},
-              React.createElement('span',{style:{fontSize:18,lineHeight:1,display:"inline-flex"}},React.createElement(AppIcon,{name:icon,size:18})),
+              React.createElement('span',{style:{fontSize:18,lineHeight:1,display:"inline-flex"}},id==="history"
+                ? (profilePhotoUrl
+                    ? React.createElement('span',{style:{display:"inline-flex",borderRadius:999,padding:1.5,boxShadow:page==="history"?"0 0 0 1.5px #4ECDC4":"none",opacity:page==="history"?1:.6,filter:page==="history"?"none":"saturate(.6)"}},React.createElement(Avatar,{name:user,size:19,photoUrl:profilePhotoUrl}))
+                    : React.createElement('svg',{width:18,height:18,viewBox:"0 0 24 24",fill:"none",stroke:"currentColor",strokeWidth:1.8,strokeLinecap:"round",strokeLinejoin:"round","aria-hidden":"true"},
+                        React.createElement('circle',{cx:12,cy:8,r:4}),
+                        React.createElement('path',{d:"M4.5 20.5c1.2-4 4.2-6 7.5-6s6.3 2 7.5 6"})))
+                : React.createElement(AppIcon,{name:icon,size:18})),
               id==="activity" && activityAlertCount>0 && React.createElement('span',{className:"mono",style:{position:"absolute",top:-6,right:-14,minWidth:18,height:18,padding:"0 5px",borderRadius:999,background:"rgba(232,69,69,.18)",border:"1px solid rgba(232,69,69,.28)",fontSize:9,color:"#ff9c9c",display:"inline-flex",alignItems:"center",justifyContent:"center"}},activityAlertCount)
             ),
             React.createElement('span',{style:{fontSize:11,fontWeight:700}},label)
