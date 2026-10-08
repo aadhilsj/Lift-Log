@@ -1,4 +1,7 @@
-# Handover — 1–2 October 2026, second session: back on the work laptop, Today and the ended month redesigned
+# Handover — 1–3 October 2026, second session: back on the work laptop, Today and the ended month redesigned, Profile tab designed
+
+**Closed on 8 October 2026.** The founder was away 3–8 October; nothing
+landed on GitHub in that time (`origin/main` still `de75946` on 8 October).
 
 Claude, operating. **This is a live handover: it is updated as the session
 goes, not written at the end.** The latest entry in §2 is the most recent
@@ -10,6 +13,30 @@ disagrees with `docs/WHATS-LIVE.md`, that file wins.
 Previous session: `docs/handover-2026-10-01-month-close-and-money-fixes.md`
 (ended at `7f2bd10`, then `3446b6d` and `8aa8f47` landed from the founder's
 personal laptop).
+
+---
+
+## Where we stopped — read this first
+
+1. **Live on the website** (`473c761`, verified 2 October): new share
+   stickers, the Today redesign, the reordered ended-month screen, centred
+   pop-ups. **Not on the phone app** — TestFlight is still build 10.
+2. **In progress, not built:** the **Profile tab + History-into-Month**
+   redesign (§2.15). The founder approved the direction over five mockup
+   rounds on 3 October. **The last open question to him was "shall I build
+   this for real?" — unanswered.** The mockup code is saved on the branch
+   `mockup/profile-tab-2026-10-03` (`3fd8956`, **mockup only, never merge
+   it as-is**); the spec is §2.15.
+3. **After that, the redesign queue:** an optional large-photo
+   ("BeReal-style") view on the Activity tab, as a toggle (§2.9). Remember:
+   workout photos are deleted after 72 hours, so such a view only ever has
+   ~3 days of pictures.
+4. **Time-sensitive:** the **1 November month close** is the first since the
+   1 October break was fixed (`c9ce86a`). Check the founder dashboard's
+   skipped-Bloc count on 1 November before anything else that morning. The
+   two date-dependent tests were pinned (§2.3), so CI should stay green.
+5. **Waiting on others:** Deveen's RLS rollout to production was planned for
+   2–3 October and is not confirmed anywhere in the repo — ask the founder.
 
 ---
 
@@ -344,6 +371,94 @@ none of 1–2 October's work (stickers, Today, ended month) until build 11.
 sandbox (fake data), and pop-up centring was measured in Chromium, not on a
 real iPhone.
 
+### 2.15 The Profile tab and History — designed, approved, **not built**
+
+3 October. Five mockup rounds in a throwaway copy, shown on the founder's
+phone through the sandbox. Saved as `mockup/profile-tab-2026-10-03`
+(`3fd8956`) — rough mockup code, rebuild it properly.
+
+**Decided by the founder:**
+
+- **The fifth tab becomes "Profile"** (replacing History), your own
+  in-Bloc profile.
+  - Tab icon: **no photo → grey person outline** like the other tabs (cyan
+    when selected); **with a photo → the photo, dimmed (~60%, desaturated)
+    when not selected, full brightness with a thin cyan ring when
+    selected.** The bright coloured initial was rejected as too loud.
+  - **Tapping your own avatar adds or changes your profile picture** (same
+    crop screen and save path as the account screen,
+    `handleUpdateProfilePhoto`). No photo → a dashed circle with "+ Photo" so
+    it is obvious; with a photo → a small cyan "+" badge.
+  - **Name and payment details stay on the account screen** (opened from the
+    Bloc switcher). Email, sign out and delete account also stay there,
+    deliberately a few taps away. The Profile tab ends with one
+    "Account settings › Name, payments, sign out" row linking to it — **in
+    the mockup that row does not open anything yet; wire it to
+    `setShowProfile(true)` / `accountOverlay()`.**
+- **History moves into the Month tab** as a **"Month | All Time"** toggle.
+- **Profile header, for every profile (yours and others'):** photo centred
+  and bigger (68px in the mockup, up from 24), **name underneath** with the
+  full width so 16-character names fit (tested "Kofi Mensah-Owus"). "‹ Back"
+  pinned top-left only when the profile slides in, never on the tab.
+- **This Bloc / All Blocs toggle much smaller** (~260px wide, 24px tall).
+- **Month switcher:** the dropdown becomes a one-tap **"‹ October '26 ›"**
+  pill, **the same size and style as the Month screen's** (28px tall, 11px
+  text), inside This Bloc only.
+- **This Bloc content:** the six equal cards become
+  1. a ring card: current month "1 of 12 workouts · 11 to target"; **ended
+     month missed → "7 workouts · Missed by 5"** (soft red); **over target
+     (any month) → "14 workouts · 2 ahead of target"**; exactly on →
+     "Target hit";
+  2. three cards in the **All Blocs style** (icon-less in the mockup):
+     Average, Perfect months, Months won;
+  3. **"Net in this Bloc: -£10"** as a quiet line (money out of the
+     foreground);
+  4. calendar, workout breakdown, allowance — unchanged.
+  Nothing removed; the founder said explicitly no information should go.
+- **All Time (the old History page) inside the Month tab:**
+  - no big "Bloc History" heading;
+  - one line: "Since August 2026 · 84 workouts logged";
+  - three cards: Most wins, Most consistent, Most £ lost;
+  - **the all-time leaderboard as a snapshot** — top 3 plus your own row if
+    you are outside it, "See full leaderboard ›" — that opens a
+    **full-screen leaderboard** (portalled) with every member and the
+    swipeable extra columns; **tapping a name closes it and opens that
+    member's profile.** The founder disliked swiping and "Show 8 more" on
+    the page itself. Mockup leftovers to fix: duplicate title, an old "Show
+    Less" button inside the full view;
+  - then the 12-month chart, workout types, Bloc details.
+
+**Found while mocking, apply in the real build:**
+
+- The crop screen rendered *behind* the profile cards until portalled —
+  portal it (same rule as every other pop-up, see the playbook).
+- `PlayerProfile` has `minHeight: 100dvh`; as a tab it must size to its
+  content (the mockup added an `asTab` prop) or anything after it is pushed
+  off screen.
+- Moving History into Month puts the Profile page to the right of Month in
+  the page track, so the track can now be scrolled sideways. With real taps
+  it never shifted, but the browser tool's "scroll into view" clicks shifted
+  it by 34px twice. Consider `overflow-x: clip` on the track — and re-check
+  swipe against the playbook if you touch it.
+- Dashboard: `history_opened` will stop meaning the History tab; decide what
+  "All Time opened" should record.
+
+### 2.16 Sandbox notes from this stretch
+
+- **The sandbox ran out of memory after ~13 hours** (4 GB heap). The local
+  dev server re-imports `api/lift-log.js` with a cache-busting `?t=` on every
+  request and the old modules are never freed. Practice copy only — Vercel
+  functions are unaffected. Restart it if it has been up a long time.
+- **The sandbox has no photo storage**, so a profile photo saved there
+  vanishes on reload. To show a photo, put a small `data:` URL into
+  `state.profiles[<id>].profilePhotoUrl` in `.sandbox-data/blob.json`.
+- On this laptop a Docker container holds port 54321, which
+  `scripts/sandbox.mjs` hardcodes. Change it to 54331 **in your worktree only,
+  uncommitted**.
+- The sandbox still cannot close a month (§2.6); for closed-month screens a
+  throwaway copy relaxed the guard in `rebuildClosedMonthSnapshotFromCanonicalLogs`
+  — never commit that.
+
 ---
 
 ## 3. Still open (carried forward, not worked on yet)
@@ -360,8 +475,11 @@ real iPhone.
 - `test:auth-edge-flows` and `test:mobile-navigation` are still broken.
 - **The sandbox cannot close a month** (§2.6), so closed-month screens cannot
   be rehearsed locally.
-- **Redesign queue (§2.9):** ~~Month page order~~ (built, §2.11), Profile as
-  the fifth tab + where History goes, large-photo Activity view.
+- **Redesign queue (§2.9):** ~~Month page order~~ (built, §2.11); **Profile
+  tab + History into Month — designed and approved, not built (§2.15)**;
+  large-photo Activity view.
+- **1 November month close** — first since the `c9ce86a` fix; check the
+  dashboard's skipped-Bloc count that morning.
 - **TestFlight build 11** is now well behind the website (§2.14).
 - **Desktop Pace Detail shows a red bar when the target is hit** (§2.9).
 - ~~`docs/WHATS-LIVE.md` stale~~ — brought up to `473c761` on 2 October.
@@ -372,16 +490,18 @@ real iPhone.
 
 ---
 
-## 4. Left running on this laptop
+## 4. State of this laptop at close (8 October)
 
-- Worktree `/Users/opera_user/Developer/FERO/today-calmer` on
-  `feat/today-calmer-top` (now equal to `main`), with an **uncommitted**
-  port change in `scripts/sandbox.mjs` (54321 → 54331, because a Docker
-  container holds 54321 here). Do not commit that line.
-- The sandbox from that worktree on ports 3000 and 54331, reachable from the
-  founder's phone at `http://192.168.1.224:3000`. Practice data: Sandbox Bloc,
-  invite code 6P98AS, 13 members including Jo (missed September), Riley
-  (winner), Sam (target hit) and Joe (joined October).
+- **Nothing running.** The sandbox had already stopped (§2.16).
+- **Worktrees removed:** `today-calmer` (its branch was merged into `main`
+  and deleted) and `profile-mockup` (its work is on
+  `mockup/profile-tab-2026-10-03`). The practice data went with them; a new
+  session starts the sandbox fresh with `npm run sandbox:seed` (which cannot
+  close a month — §2.6).
+- Main folder on `main` at the latest commit. Still untouched: the four
+  August `.dmg` backups and the two old August worktrees (`Lift Log
+  Extraction`, `Lift Log iOS Preview`) — candidates for cleanup with the
+  founder's yes.
 
 ## 5. Commits this session
 
@@ -397,4 +517,6 @@ real iPhone.
 | `50fc2d4` | ended month: a mark on the right when no money moved; "Month Off" |
 | `d0902ae` | ended month: First month's penalty line on its own line |
 | `473c761` | share sheet: centred, scroll-locked, ~10% smaller — **all of the above live** |
-| *(next commit)* | docs: WHATS-LIVE up to date, this handover |
+| `de75946` | docs: WHATS-LIVE up to date, this handover — **live** |
+| `3fd8956` | **on `mockup/profile-tab-2026-10-03` only, never merge** — Profile tab / All Time mockup (§2.15) |
+| *(this commit)* | docs: handover closed out on 8 October |
