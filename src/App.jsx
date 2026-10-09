@@ -3554,9 +3554,12 @@ const App = () => {
         // Name, payments, email, sign out and delete account stay on the
         // account screen, deliberately a few taps away. This is the way in.
         React.createElement('div',{style:{maxWidth:740,width:"100%",margin:"0 auto",padding:"0 16px 16px"}},
-          React.createElement('button',{type:"button",onClick:()=>{trackUsage("own_profile_opened");setShowProfile(true);},style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,width:"100%",padding:"14px",borderRadius:14,border:"0.5px solid #163d36",background:"#0A1412",color:"var(--text)",fontFamily:"'Outfit', sans-serif",fontSize:14,fontWeight:700,cursor:"pointer",textAlign:"left"}},
-            "Account settings",
-            React.createElement('span',{style:{color:"#5E8580",fontSize:12,fontWeight:600}},"Name, payments, sign out \u203a")
+          // Not a card: the page already ends in cards, and one more would read
+          // as another block of stats. Plain cyan text, the same cue the rest
+          // of the app uses for "this opens something".
+          React.createElement('button',{type:"button",onClick:()=>{trackUsage("own_profile_opened");setShowProfile(true);},style:{display:"block",width:"100%",padding:"6px 0 2px",background:"none",border:0,cursor:"pointer",textAlign:"center",fontFamily:"'Outfit', sans-serif"}},
+            React.createElement('span',{style:{display:"block",fontSize:13.5,fontWeight:700,color:"#4ECDC4"}},"Account settings \u203a"),
+            React.createElement('span',{style:{display:"block",marginTop:3,fontSize:11,fontWeight:600,color:"var(--muted)"}},"Name, payments, sign out")
           )
         )
       )
