@@ -330,6 +330,19 @@ above could be checked at all. No app code caused it.
 
 ---
 
+### 2.10 Account settings: text, not a card
+
+The founder asked for it not to be its own card, just clear clickable text.
+(He raised the capital letter on the hint line and then withdrew it, so the
+copy is untouched.)
+
+Now plain cyan "Account settings ›" with "Name, payments, sign out" under it,
+centred, no border or background. Verified: still opens the account screen,
+and the tap target is the full 361px width and 42px tall despite looking like
+text. Commit `9e4c7b1`-era follow-up on `feat/profile-tab`.
+
+---
+
 ---
 
 ## 3. Still open (carried forward)
