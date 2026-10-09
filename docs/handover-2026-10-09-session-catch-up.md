@@ -343,6 +343,31 @@ text. Commit `22bac70` on `feat/profile-tab`.
 
 ---
 
+### 2.11 Shipped: the Profile tab is live — `22ea440`
+
+The founder said to push it to `main`.
+
+Before pushing: `git fetch`, `origin/main` (`2e7f87b`) confirmed an ancestor of
+the branch; the branch rebased onto local `main` so this session's ten docs
+commits went up with it; `npm run lint` and `npm run build` clean. Pushed with
+`--force-with-lease=refs/heads/main:2e7f87b...`, `2e7f87b..22ea440`.
+
+**Verified live, three ways:** commit on `main`; Vercel Production deployment
+`6964278301` reports success; the live bundle `index-Rgy-apHa.js` contains
+"See full leaderboard", "Account settings", "Months active" and "workouts
+logged". GitHub CI green on `22ea440`. The live site loads with no console
+errors.
+
+`docs/WHATS-LIVE.md` updated in the following commit.
+
+**Website only.** TestFlight is still build 10, so none of this is on the phone
+app.
+
+**Still not seen against live data:** nobody has opened the Profile tab on the
+live site or on a real iPhone, and swipe between tabs remains unexercised.
+
+---
+
 ---
 
 ## 3. Still open (carried forward)
