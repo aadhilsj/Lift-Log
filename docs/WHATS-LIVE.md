@@ -4,10 +4,13 @@
 Update it whenever something ships. Same filename forever — never date it, never
 fork it. If it disagrees with a handover, this file wins.
 
-Last updated: **2 October 2026** — the website is at **`473c761`**: the Today
-redesign, the reordered ended-month screen, centred pop-ups and the new share
-stickers are live. TestFlight remains on build 10, so **none of 1–2 October's
-work is on the phone app yet**. Details: `docs/handover-2026-10-01-session-laptop-sync.md`.
+Last updated: **9 October 2026** — the website now has the **Profile tab**:
+the fifth tab is your own profile in the Bloc, and History moved inside Month
+as a **Month | All Time** toggle. Before that, 2 October's Today redesign,
+reordered ended-month screen, centred pop-ups and new share stickers are live.
+TestFlight remains on build 10, so **none of October's work is on the phone app
+yet**. Details: `docs/handover-2026-10-09-session-catch-up.md` and
+`docs/handover-2026-10-01-session-laptop-sync.md`.
 
 > **Emoji sheet: no bottom band.** The 30 September review predicted one in
 > the installed iOS PWA; the founder checked on his phone on 1 October and the
@@ -26,7 +29,11 @@ work is on the phone app yet**. Details: `docs/handover-2026-10-01-session-lapto
 
 | | Website (PWA) | TestFlight (phone) |
 | --- | --- | --- |
-| **At commit** | **`473c761`** | `77fe4d8` (build 10) |
+| **At commit** | **`22ea440`** | `77fe4d8` (build 10) |
+| Fifth tab is **Profile** (your photo in the tab, tap it to change it); History is inside Month as **Month \| All Time** | ✅ | ❌ |
+| Profile header: photo left, name over the This Bloc / All Blocs buttons; the month is a one-tap pill; the month as a ring | ✅ | ❌ |
+| All Time: no heading, three awards, top-3 leaderboard with the full table one tap away; Bloc details half the height | ✅ | ❌ |
+| In a Bloc, the account screen opens from anywhere (it used to render only inside an open comment thread) | ✅ | ❌ |
 | Today: "N to go" / "Week's MVP" pills replace the four stat cards; silver "Your September Recap" banner | ✅ | ❌ |
 | Ended month: Recap → result card → calendar + "Share your month" → awards → Bloc ring → records → money | ✅ | ❌ |
 | Ended month: brighter result colours, periwinkle Sat out, a mark when no money moved | ✅ | ❌ |
@@ -55,6 +62,23 @@ work is on the phone app yet**. Details: `docs/handover-2026-10-01-session-lapto
 website-only; one merge and a build 11 closes the gap again. The emoji-sheet
 blocker on build 11 is lifted: the founder found no band on his phone
 (1 October).
+
+### Verified live, 9 October
+
+Checked the same three ways — the commit on `main`, a successful Vercel
+Production deployment for that exact commit, and the change in the live
+bundle — and the live site loaded with no console errors.
+
+- `22ea440` — the Profile tab, History inside Month as All Time, the smaller
+  Bloc details card, and the in-Bloc account screen fix. Production deployment
+  `6964278301` success; CI green; live bundle `index-Rgy-apHa.js` contains
+  "See full leaderboard", "Account settings", "Months active" and
+  "workouts logged".
+
+**Not seen against live data.** It was driven end to end in the sandbox at
+393×812 — every state the practice data allowed — but nobody has opened the
+Profile tab on the live site or on a real iPhone yet. Swiping between tabs was
+not exercised either: the test browser sends mouse events, not touch.
 
 ### Verified live, 1–2 October
 
