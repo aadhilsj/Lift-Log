@@ -265,6 +265,71 @@ uncommitted.
 
 ---
 
+### 2.9 Built for real: the Profile tab and History into Month
+
+The founder said to build it. Built on `feat/profile-tab` in a fresh worktree
+off `origin/main` (`2e7f87b`) at `/Users/opera_user/Developer/FERO/profile-tab`.
+Commit `c31043b`. **Not pushed** — the founder has not said where it goes yet.
+
+Files changed, and nothing else: `src/App.jsx`, `src/pages/Nav.jsx`,
+`src/pages/PlayerProfile.jsx`, `src/pages/HistoryPage.jsx`,
+`src/pages/ProfilePage.jsx` (one export), `src/pages/FounderDashboard.jsx`
+(usage labels).
+
+Done properly rather than ported from the mockup:
+
+- the page id is **renamed** `history` → `profile` everywhere
+  (`IN_BLOC_PAGES`, `MOBILE_PAGE_SLOTS`, the nav, the error boundary label), so
+  the usage event becomes `profile_opened` on its own;
+- **one** piece of leaderboard state (`showFullLeaderboard`) instead of the
+  mockup's two, so the duplicate title and the stray "Show Less" are gone;
+- the month dropdown was **replaced by** the pill rather than left beside it —
+  `SelectField`, `profileMonthOptionLabel`, the six-card `stats` array,
+  `renderStatCard`, `labelStyle`, `TargetHitHexIcon` and `gradientText` were
+  all left dead by the redesign and are removed;
+- the "Since ..." line gets its own `startedLabel` instead of reading
+  `legacyRows[0]`, which no longer holds "Started".
+
+**A real bug found and fixed, because the new row depends on it.** Inside a
+Bloc, `accountOverlay()` was nested **inside** the comment-thread layer
+(`logCommentScreen && ...`), so the account screen only opened while a comment
+thread was open. On `main` today that means tapping "add a payment method" on
+a settlement reminder inside a Bloc does nothing. It is now a sibling. This is
+inside the task — the Profile tab's last row opens that screen.
+
+**Verified in the sandbox at 393×852, every state the data allowed:**
+
+| Checked | Result |
+| --- | --- |
+| Profile tab, no photo | outline icon in the nav, dashed "+ Photo" in the header |
+| Add a photo | crop screen opens portalled **over** the cards, saves, header and tab icon pick it up |
+| Account settings row | opens the real account screen (payments, email, sign out, delete) |
+| Month tab | Month \| All Time toggle; Month unchanged |
+| All Time | "Since August 2026 · 30 workouts logged", three awards, snapshot leaderboard |
+| Full leaderboard | opens portalled, every member, one title, no "Show Less"; tapping a name closes it and opens that profile |
+| Closed month, target beaten | "13 workouts / 1 ahead of target", Share on the calendar |
+| Closed month, missed | "5 workouts / Missed by 7" in soft red, "Net in this Bloc: -£10" |
+| Bloc details | 106px, colon separators, Money settled £10 |
+| Layout | no horizontal scroll anywhere (`scrollWidth` 393 = `clientWidth`); the page track is `overflow:hidden`, so the mockup's sideways-scrolling track does not happen here |
+
+`npm run lint` clean, `npm run build` clean, **25 of 27 test suites pass**.
+The two failures are `test:auth-edge-flows` and `test:mobile-navigation`, and
+both **fail identically on `main`** — checked in the main checkout before
+blaming the branch.
+
+**Not verified:** swipe between tabs (the browser pane sends mouse events, not
+touch) — nothing in the change touches the swipe code, and the page order and
+slot map were renamed together; anything on a real iPhone; and the sandbox's
+own "Revision fetch error" console noise, which is a poll to a service the
+sandbox does not run and is not from these screens.
+
+**Sandbox note:** the seed still cannot close a month, so the Bloc started with
+last month's logs sitting in the open month. The first API write (saving the
+photo) ran the rollover and closed it — which is why the closed-month states
+above could be checked at all. No app code caused it.
+
+---
+
 ---
 
 ## 3. Still open (carried forward)
