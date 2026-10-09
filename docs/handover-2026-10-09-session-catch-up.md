@@ -229,6 +229,21 @@ Still uncommitted mockup work.
 
 ---
 
+### 2.7 Founder's follow-ups on the Bloc details card
+
+All three applied in the mockup, `src/pages/HistoryPage.jsx`:
+
+- **"Money settled" is now "Money owed"** — he agreed to rename the label
+  rather than change what is counted (§2.5). The figure is untouched.
+- **The separator is a semicolon**, not a middle dot: "October 2026; 30".
+- **The value text is 1px smaller**, 13px → 12px. It is one shared style, so
+  all four values moved together and the cells still match each other.
+
+Card height 109px → 106px; "October 2026; 30" measures 163px and fits its
+half of the grid with room to spare. Lint and build pass. Still uncommitted.
+
+---
+
 ---
 
 ## 3. Still open (carried forward)
