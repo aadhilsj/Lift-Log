@@ -368,6 +368,35 @@ live site or on a real iPhone, and swipe between tabs remains unexercised.
 
 ---
 
+### 2.12 Two fixes from the founder's phone — live at `8649e93`
+
+He opened the Profile tab on his own phone and found both.
+
+1. **The ringed photo broke out of the nav highlight.** The icon was an 18px
+   photo plus 1px padding and a 1px border, so 20px where every other tab icon
+   is 18, and `.mobile-tab.on` scales the active tab by 1.16 -- which pushed it
+   through the top of the pill. The ring is now the border of an 18px
+   `box-sizing: border-box` span, so the footprint matches the other icons.
+2. **Swiping on the Profile tab did nothing.** `PlayerProfile`'s own
+   `startSwipeBack` calls `e.stopPropagation()` on every `touchstart`, so the
+   page track never saw the gesture. As a tab there is nothing to swipe back
+   to, so the back-swipe handlers are not attached when `asTab` is set.
+
+**Verified at 393×852, with a photo injected into `.sandbox-data/blob.json`
+(the sandbox still has no photo storage):** the photo box measures inside the
+highlight's bounds; synthetic touch gestures move Profile → Month and
+Month → Profile; and a member profile opened from the leaderboard still
+closes on a left-edge swipe, so the non-tab behaviour is intact.
+
+Lint, build and all 24 runnable suites pass. Pushed `0c6b14b..8649e93`;
+Production deployment `6964749451` success; live bundle `index-vQlxAXGb.js`.
+
+**Worth remembering:** swipe could not be exercised earlier because the browser
+pane sends mouse events. Dispatching real `TouchEvent`s from the page is how
+it was tested here, and it caught the regression that a mouse never would.
+
+---
+
 ---
 
 ## 3. Still open (carried forward)
