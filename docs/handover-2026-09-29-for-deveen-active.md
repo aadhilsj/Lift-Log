@@ -16,7 +16,9 @@ taken from the older docs.** Where an older doc is now wrong, this one says so.
 | 5. Things you asked for that are now done | Nothing to do |
 | 6. Wave B | After the 1 Oct close, unchanged |
 | 7. A 14-minute total outage today | Your area — scaling/reliability |
-| 8. Still open from before | Region, outbox, scaling doc, download size |
+| 8. Still open from before | Region, outbox, download size |
+| **19. Since this was written** | The 1 Oct close held; your §10.3 ask is done |
+| **20. Scaling before launch** | **Not started. The biggest pre-launch item — read this** |
 
 ---
 
@@ -229,8 +231,9 @@ Hobby allows region selection before planning on it.
 2. **§6.5, the offline outbox** — keep a failed workout save on the phone and
    retry it. Planned for after 1 October. Note it touches month close: a
    30 September log retried on 1 October must still count for September.
-3. **The scaling doc / traffic incident** (five simultaneous users), from
-   15 September. Still not started.
+3. **The scaling doc / traffic incident**, from 15 September. Still not
+   started — and now the largest piece of work left before launch. It has its
+   own section at the end of this file: **§20**.
 4. **The app download size check.** Still open.
 5. **CI does not block anything.** Your workflow runs on push to `main` and on
    PRs, but `main` has no required status checks, and pushes to `main` deploy to
@@ -593,3 +596,102 @@ The founder dashboard still reads **862 skipped in 7 days**. That is the
 historical total inside a rolling 7-day window, not new failures; it will
 decay on its own. If that number ever climbs again, the fix has regressed and
 it is the first thing to look at.
+
+---
+
+## 19. Since this handover was written (updated 9 October)
+
+Nothing below is in your area, but it is what changed while you were away, so
+nothing here surprises you on Saturday.
+
+- **Your §10.3 ask is done.** Both date-dependent suites are pinned to
+  2026-09-15 (`689d9d9`, on `main`). CI has been green since. The pattern is
+  the `NODE_OPTIONS` date shim you suggested, with `api/lift-log.js` imported
+  after the clock is pinned.
+- **The 1 October close held.** No new `rollover_skipped` since the fix. The
+  next real test is the **1 November close** — the first full one since
+  `c9ce86a`. First thing to check that morning is the founder dashboard's
+  skipped-Bloc count.
+- **`main` has moved a long way** — the Today and ended-month redesigns, the
+  share stickers, and on 9 October a new **Profile tab** (the fifth tab is a
+  member's own profile; History moved inside Month). All front-end. **No
+  schema, API or RPC changes**, so none of it touches your work.
+- **One server-side fix worth knowing:** inside a Bloc the account screen was
+  rendered inside the comment-thread layer, so it only opened while a comment
+  thread was open. Front-end only, now fixed.
+- **Lint and build were run clean** on everything, which closes the gap §18
+  flagged.
+- **Nothing in your area was touched by anyone else.** The RLS migration, the
+  rehearsal harness and the month-close check are exactly as you left them on
+  27 September.
+
+---
+
+## 20. Scaling before launch — not started, and now the biggest thing left
+
+**This is the one item on your list that blocks launch rather than tidying up
+after it.** It has been open since 15 September and nothing has started. The
+full write-up, with the evidence, is
+[`scaling-before-launch-2026-09-15.md`](scaling-before-launch-2026-09-15.md);
+this is the short version so it stops living only in an older doc.
+
+### What happened
+
+On 14 September, between 20:51 and 20:53 UTC, the database was overloaded.
+Normal sub-second requests took **15–44 seconds** and some failed. A comment
+looked like it had failed, was sent again, and was stored **twice**.
+
+**It was not a crowd. About two to four phones had the app open.**
+
+### Why so few phones could do that
+
+Three things multiply together:
+
+1. **Every refresh reads the whole app** — all members, all Blocs, about
+   1.4 MB — and only then cuts it down to the one member asking.
+2. **There is one global "something changed" counter.** Any action in any Bloc
+   makes **every open phone** reload everything.
+3. The database is on Supabase's smallest paid size (**Micro**, 1 GB).
+
+So load grows with *people online × actions × total data*, not with member
+count. At launch traffic this does not hold up, and **nobody knows the real
+ceiling** because no load test has been run.
+
+### What needs doing, in order
+
+Each step ships and is testable on its own. All of it is your area except
+Step 0.
+
+| Step | What | Whose |
+| --- | --- | --- |
+| 0 | **Server size** Micro → Small (2 GB), ~$5/month more. A stopgap, not a fix. Takes the database offline ~2 minutes. **No record exists that this was ever done — please check the dashboard first.** | Aadhil |
+| 1 | **Scope reads to the member's own Blocs.** The biggest single win. Keep `scopeReadableStateForUser` as the final filter, and scope the blob fallback the same way. | You |
+| 2 | **A revision per Bloc** instead of one global `revision_clock`, and make the poll read-only (no `insert … on conflict` on every call). | You |
+| 3 | **Stop sending past months on every refresh.** Inventory every reader of closed months first — settlement banners, redemption notes and profile stats all read them. | You |
+| 4 | **Lighter mutations:** a one-Bloc membership check instead of a full-app read, plus a duplicate guard on `log-comment-create` (the 14 September double comment). | You |
+| 5 | **Polling:** the 3-second comment poll, pausing polls while the page is hidden, and validating the JWT locally instead of calling `/auth/v1/user` on every request. | You |
+
+### The number nobody has
+
+**A load test is the only way to know how many members Fero can take.** Never
+against production, and the sandbox cannot do it (it stubs the canonical
+readers with empty results). The documented way is a **restore-to-new-project**
+from a daily backup, driven by a local API build, then delete the scratch
+project. Agree the target first: how many members online at once in the busiest
+hour at launch.
+
+### Why it matters more this week
+
+Two outages in eight days (22 September Cloudflare, 29 September Supabase, §7)
+both surfaced to members as *apparent data loss* rather than as an outage. The
+same shape as 14 September. And the App Store submission is now the active
+piece of work, so launch traffic stops being hypothetical.
+
+### Done means
+
+- A refresh costs the same whether the Bloc has 3 members or the app has 300.
+- An action in one Bloc does not reload phones in other Blocs.
+- Past months are not reloaded on every refresh.
+- A load test at the agreed concurrency: no statement timeouts, no pool
+  exhaustion, p95 reads under an agreed limit.
+- A slow or failed comment says so, and sending again does not store it twice.
