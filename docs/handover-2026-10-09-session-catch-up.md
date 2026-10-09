@@ -397,6 +397,20 @@ it was tested here, and it caught the regression that a mouse never would.
 
 ---
 
+### 2.13 The nav photo given more room — live at `bd43b8b`
+
+Founder, after §2.12: better, but the photo still sits too close to the
+highlight's edge. It filled its 18px box edge to edge, while the other tabs
+are line icons carrying their own transparent margin, so at the same box size
+a photo reads heavier.
+
+Now 16px inside an 18px row. **Measured at 393×852: clearance above the photo
+1.8px → 2.9px**, which is more than any other active tab icon has, and the row
+height is unchanged. Lint and all 24 runnable suites pass. Production
+deployment `6964931526` success; live bundle `index-K1ol78pl.js`.
+
+---
+
 ---
 
 ## 3. Still open (carried forward)

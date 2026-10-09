@@ -29,7 +29,7 @@ yet**. Details: `docs/handover-2026-10-09-session-catch-up.md` and
 
 | | Website (PWA) | TestFlight (phone) |
 | --- | --- | --- |
-| **At commit** | **`8649e93`** | `77fe4d8` (build 10) |
+| **At commit** | **`bd43b8b`** | `77fe4d8` (build 10) |
 | Fifth tab is **Profile** (your photo in the tab, tap it to change it); History is inside Month as **Month \| All Time** | ✅ | ❌ |
 | Profile header: photo left, name over the This Bloc / All Blocs buttons; the month is a one-tap pill; the month as a ring | ✅ | ❌ |
 | All Time: no heading, three awards, top-3 leaderboard with the full table one tap away; Bloc details half the height | ✅ | ❌ |
@@ -69,6 +69,9 @@ Checked the same three ways — the commit on `main`, a successful Vercel
 Production deployment for that exact commit, and the change in the live
 bundle — and the live site loaded with no console errors.
 
+- `bd43b8b` — a little more air around the photo in the nav: 16px in an 18px
+  row, clearance above it 1.8px → 2.9px. Production deployment `6964931526`
+  success; live bundle `index-K1ol78pl.js`.
 - `8649e93` — two things the founder found on his phone: the Profile tab's
   ringed photo no longer breaks out of the highlight behind it (it was 20px
   where every other tab icon is 18), and swiping on the Profile tab now moves
