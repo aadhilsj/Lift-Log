@@ -105,6 +105,45 @@ The sandbox was left running for now.
 
 ---
 
+### 2.3 Mockup change: the profile header is one row, not a stack
+
+The founder is happy with the design but said the photo had too much empty
+space round it, making the screen taller than it needs to be. He asked for the
+photo left-aligned (same size or slightly smaller), vertically centred, with
+the This Bloc / All Blocs buttons beside it.
+
+Built in the mockup worktree only, in `src/pages/PlayerProfile.jsx`:
+
+- the header is now a row — photo on the left at the same 68px, then a column
+  holding the name (left-aligned) above the toggle;
+- the toggle moved inside that column and fills its width, instead of being a
+  separate centred 260px row below the name;
+- "‹ Back" (other members' profiles only) is now in the row rather than
+  absolutely positioned, where it would have sat on top of the photo.
+
+**Measured at 393×852, same screen, before and after:**
+
+| | before | after |
+| --- | --- | --- |
+| header block | 99px + a 28px toggle row below | **70px**, toggle included |
+| top of the first card | y 351 | **y 282** |
+
+**69px of vertical space saved**, and the ring card and the whole calendar now
+fit on the first screen without scrolling. No horizontal scroll
+(`scrollWidth` 393 = `clientWidth` 393).
+
+**Long names:** with "Kofi Mensah-Owus" (16 characters) on another member's
+profile — the tighter case, because "‹ Back" also takes room — the name stays
+on one line and ends 16px from the right edge, exactly on the page padding. A
+longer name wraps to a second line and the header grows; on your own profile
+there is about 40px more room.
+
+`npm run lint` on the file and `npm run build` both pass. **Nothing is
+committed** — the change lives in the throwaway worktree only, and `main` and
+the mockup branch are untouched.
+
+---
+
 ---
 
 ## 3. Still open (carried forward)
