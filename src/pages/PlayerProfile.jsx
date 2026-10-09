@@ -515,7 +515,16 @@ const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevea
     React.createElement(AppIcon,{name:"chevron-left",size:13,stroke:"#1E4040"}),
     "Back"
   );
-  return React.createElement('div',{ref:surfaceRef,onTouchStart:startSwipeBack,onTouchMove:moveSwipeBack,onTouchEnd:endSwipeBack,onTouchCancel:e=>{e.stopPropagation();swipeRef.current={sx:0,sy:0,active:false,mode:null};onSwipeRevealChange?.(false);setDragging(false);resetSwipeTransform();},style:{minHeight:asTab?"auto":"100dvh",background:asTab?"none":"var(--bg-gradient)",backgroundImage:asTab?"none":"var(--bg-radial-hint), var(--bg-gradient)",transform:dragXRef.current?`translateX(${dragXRef.current}px)`:"translateX(0)",transition:dragging?"none":"transform .08s ease-out",boxShadow:dragXRef.current?"-18px 0 34px rgba(0,0,0,.28)":"none",willChange:dragging||dragXRef.current?"transform":"auto",touchAction:"pan-y",overscrollBehavior:"contain"}},
+  // As a tab there is nothing to swipe back to, and these handlers call
+  // stopPropagation on every touch, so the page swipe between tabs never saw
+  // the gesture: swiping on the Profile tab did nothing at all.
+  const swipeBackHandlers = asTab ? {} : {
+    onTouchStart:startSwipeBack,
+    onTouchMove:moveSwipeBack,
+    onTouchEnd:endSwipeBack,
+    onTouchCancel:e=>{e.stopPropagation();swipeRef.current={sx:0,sy:0,active:false,mode:null};onSwipeRevealChange?.(false);setDragging(false);resetSwipeTransform();}
+  };
+  return React.createElement('div',{ref:surfaceRef,...swipeBackHandlers,style:{minHeight:asTab?"auto":"100dvh",background:asTab?"none":"var(--bg-gradient)",backgroundImage:asTab?"none":"var(--bg-radial-hint), var(--bg-gradient)",transform:dragXRef.current?`translateX(${dragXRef.current}px)`:"translateX(0)",transition:dragging?"none":"transform .08s ease-out",boxShadow:dragXRef.current?"-18px 0 34px rgba(0,0,0,.28)":"none",willChange:dragging||dragXRef.current?"transform":"auto",touchAction:"pan-y",overscrollBehavior:"contain"}},
     openStatusNote === "training" && React.createElement(TrainingNoteModal,{
       memberName: name,
       isSelf: currentUserId ? memberUserId === currentUserId : false,
