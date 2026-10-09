@@ -36,6 +36,7 @@ Read every one of these. Each is a dated record of one session.
 
 | Date | Handover | About |
 | --- | --- | --- |
+| 9 Oct — **active** | [`handover-2026-10-09-session-catch-up.md`](handover-2026-10-09-session-catch-up.md) | Back after a week away; nothing moved since 8 Oct; state of play, open items, cleanup candidates |
 | 1–3 Oct (closed 8 Oct) | [`handover-2026-10-01-session-laptop-sync.md`](handover-2026-10-01-session-laptop-sync.md) | Back on the work laptop; new stickers; Today and the ended month redesigned — live at `473c761`; **Profile tab + History-into-Month designed, not built** |
 | 1 Oct | [`handover-2026-10-01-month-close-and-money-fixes.md`](handover-2026-10-01-month-close-and-money-fixes.md) | The 1 October month close broke and was fixed; two money bugs; iCloud slowdown |
 
