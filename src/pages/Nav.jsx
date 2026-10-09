@@ -1,6 +1,7 @@
 import React from "react";
 const { useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef } = React;
 import { AppIcon, AnteWordmark, Avatar } from "../components/primitives.jsx";
+import { resolveStorageImageUrl } from "../lib/appState.js";
 
 // Follows Apple's badge convention: a red oval with white text, sitting at the
 // top-right. The centre is placed on the button circle's 45° diagonal so it
@@ -61,14 +62,24 @@ const BlocNameButton = ({ groupName, onSwitchGroup }) => {
   );
 };
 
-// Slot 2 is the centre log button, so Month and History sit at 3 and 4. App.jsx
+// Slot 2 is the centre log button, so Month and Profile sit at 3 and 4. App.jsx
 // moves the indicator imperatively at swipe release and needs the same map.
-const MOBILE_PAGE_SLOTS = { today: 0, activity: 1, month: 3, history: 4 };
+const MOBILE_PAGE_SLOTS = { today: 0, activity: 1, month: 3, profile: 4 };
 
 const SettingsDot = () => React.createElement('span',{style:{position:"absolute",top:2,right:2,width:7,height:7,borderRadius:999,background:"#4ECDC4",boxShadow:"0 0 0 1.5px #050909"}});
 
 const Nav = ({page,setPage,user,groupName,canEditGroup,onOpenSettings,settingsAlert=false,onOpenProfile,onOpenStream,onOpenNotifications,streamUnreadCount=0,onSwitchUser,onSwitchGroup,onOpenLog,syncing,lastSyncedAt,syncError,onRefresh,showJustSynced,activityAlertCount=0,hideMobileBottomNav=false,onlyMobileBottomNav=false,mobileBottomDragX=0,mobileBottomDragging=false,mobileBottomNavRef=null,mobileBottomSettle="transform .08s ease-out",mobileTabIndicatorRef=null,mobileTabSettle=null,mobileTabLiftSettle=null,currentUserId="",profilePhotoUrl=""}) => {
-  const navItems = [["today","Today","today"],["activity","Activity","activity"],["month","Month","results"],["history","History","history"]];
+  const navItems = [["today","Today","today"],["activity","Activity","activity"],["month","Month","results"],["profile","Profile","profile"]];
+  // The Profile tab wears your own photo when you have one: dimmed while you
+  // are elsewhere, full brightness inside a cyan ring when you are on it. With
+  // no photo it is the same outline icon as the other tabs, so the row stays
+  // even. The bright coloured initial was tried and rejected as too loud.
+  const ownPhotoUrl = resolveStorageImageUrl(String(profilePhotoUrl || "").trim());
+  const renderMobileTabIcon = (id,icon) => (id === "profile" && ownPhotoUrl)
+    ? React.createElement('span',{style:{display:"inline-flex",width:18,height:18,borderRadius:999,padding:page===id?1:0,border:page===id?"1px solid #4ECDC4":"none",boxSizing:"content-box"}},
+        React.createElement('img',{src:ownPhotoUrl,alt:"",style:{width:18,height:18,borderRadius:999,objectFit:"cover",display:"block",opacity:page===id?1:.6,filter:page===id?"none":"saturate(.55)"}})
+      )
+    : React.createElement(AppIcon,{name:icon,size:18});
   const mobileActiveSlot = MOBILE_PAGE_SLOTS[page] ?? 0;
   const mobileBottomNavBar = React.createElement('div',{ref:mobileBottomNavRef,className:"mobile-only mobile-bottom-nav",style:{transform:mobileBottomDragX?`translateX(${mobileBottomDragX}px)`:"none",transition:mobileBottomDragging?"none":mobileBottomSettle,willChange:mobileBottomDragging||mobileBottomDragX?"transform":"auto"}},
     React.createElement('div',{className:"mobile-bottom-nav-grid"},
@@ -78,7 +89,7 @@ const Nav = ({page,setPage,user,groupName,canEditGroup,onOpenSettings,settingsAl
         ["activity","Activity","activity"],
         ["log","","plus"],
         ["month","Month","results"],
-        ["history","History","history"]
+        ["profile","Profile","profile"]
       ].map(([id,label,icon])=>
         id === "log"
           ? React.createElement('div',{key:id,className:"mobile-plus-tab-wrap"},
@@ -89,7 +100,7 @@ const Nav = ({page,setPage,user,groupName,canEditGroup,onOpenSettings,settingsAl
           : React.createElement('button',{key:id,onClick:()=>setPage(id),className:`mobile-tab${page===id?" on":""}`,"data-page":id,"aria-current":page===id?"page":undefined},
           React.createElement('span',{className:"mobile-tab-inner",style:{transition:mobileTabLiftSettle||undefined}},
             React.createElement('div',{style:{position:"relative",display:"inline-flex",alignItems:"center",justifyContent:"center"}},
-              React.createElement('span',{style:{fontSize:18,lineHeight:1,display:"inline-flex"}},React.createElement(AppIcon,{name:icon,size:18})),
+              React.createElement('span',{style:{fontSize:18,lineHeight:1,display:"inline-flex"}},renderMobileTabIcon(id,icon)),
               id==="activity" && activityAlertCount>0 && React.createElement('span',{className:"mono",style:{position:"absolute",top:-6,right:-14,minWidth:18,height:18,padding:"0 5px",borderRadius:999,background:"rgba(232,69,69,.18)",border:"1px solid rgba(232,69,69,.28)",fontSize:9,color:"#ff9c9c",display:"inline-flex",alignItems:"center",justifyContent:"center"}},activityAlertCount)
             ),
             React.createElement('span',{style:{fontSize:11,fontWeight:700}},label)

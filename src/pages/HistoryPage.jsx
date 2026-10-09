@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import React from "react";
 const { useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef } = React;
 import {
@@ -83,7 +84,7 @@ const buildRankMap = rows => {
 
 const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToken,currentUser,groups,currentUserId,accountCreatedAt,onTrackUsage}) => {
   const currency = groupSettings?.currency || DEFAULT_CURRENCY;
-  const [showAllLeaderboard,setShowAllLeaderboard]=useState(false);
+  const [showFullLeaderboard,setShowFullLeaderboard]=useState(false);
   const [viewPlayer,setViewPlayer]=useState(null);
   const profileLayerRef = useRef(null);
   const [profileRevealActive,setProfileRevealActive]=useState(false);
@@ -218,7 +219,14 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
     }));
   },[monthHistory]);
   const sortedAll=[...allTime].sort((a,b)=>b.total-a.total);
-  const visibleLeaderboard=showAllLeaderboard?sortedAll:sortedAll.slice(0,5);
+  // The page shows the top three plus your own row when you are outside it;
+  // the full screen shows everyone.
+  const leaderboardSnapshot=(()=>{
+    const rows=sortedAll.slice(0,3).map((member,rank)=>({member,rank}));
+    const myRank=sortedAll.findIndex(u=>u.name===currentUser);
+    if (myRank>2) rows.push({member:sortedAll[myRank],rank:myRank});
+    return rows;
+  })();
   const maxChartTotal=Math.max(...trailingMonthlyAvg.map(m=>m.total),1);
   const hasClosedHistory=monthHistory.length>0;
   const mostWins=[...allTime].sort((a,b)=>b.wins-a.wins)[0];
@@ -236,19 +244,13 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
     return {...m,total,activeCount:active.length};
   });
   const toughestMonth=[...closedMonthlyTotals].filter(m=>m.activeCount>0).sort((a,b)=>a.total-b.total)[0];
+  const startedLabel = earliestMonth ? cleanMonthLabel(earliestMonth.label, earliestMonth.key, true) : shortDate(group?.createdAt);
   const legacyRows=[
-    ["Started", earliestMonth ? cleanMonthLabel(earliestMonth.label, earliestMonth.key, true) : shortDate(group?.createdAt)],
-    ["Months completed", completedMonths ? String(completedMonths) : "No closed months yet"],
+    ["Months active", completedMonths ? String(completedMonths) : "—"],
     ["Money settled", totalSettled ? fmtCurrency(totalSettled,currency) : "—"],
-    ["Best month", highestMonth?.total ? `${cleanMonthLabel(highestMonth.label, highestMonth.key, true)} - ${highestMonth.total}` : "—"],
-    ["Toughest month", toughestMonth?.total>=0 ? `${cleanMonthLabel(toughestMonth.label, toughestMonth.key, true)} - ${toughestMonth.total}` : "—"]
+    ["Best month", highestMonth?.total ? `${cleanMonthLabel(highestMonth.label, highestMonth.key, true)}: ${highestMonth.total}` : "—"],
+    ["Toughest month", toughestMonth?.total>=0 ? `${cleanMonthLabel(toughestMonth.label, toughestMonth.key, true)}: ${toughestMonth.total}` : "—"]
   ];
-  const gradientText = gradient => ({
-    background: gradient,
-    WebkitBackgroundClip: "text",
-    backgroundClip: "text",
-    color: "transparent"
-  });
   const rankDeltaNode = delta => {
     const value = Number(delta || 0);
     const color = value > 0 ? "#7FE7A2" : value < 0 ? "#E98585" : "rgba(214,226,224,.38)";
@@ -257,20 +259,86 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
   };
 
   const historyContent = React.createElement('div',{style:{maxWidth:960,margin:"0 auto",padding:"16px",display:"flex",flexDirection:"column",gap:12}},
-    React.createElement('div',{className:"fu",style:{textAlign:"center"}},
-      React.createElement('div',{style:{fontSize:24,fontWeight:800,textAlign:"center"}},"Bloc History")
+    // Inside the Month tab the toggle already says where you are, so the page
+    // carries no heading of its own -- one line instead.
+    React.createElement('div',{className:"fu",style:{textAlign:"center",fontFamily:"'Outfit', sans-serif",fontSize:11.5,color:"var(--muted)"}},
+      `Since ${startedLabel} \u00b7 `, React.createElement('b',{style:{color:"#4ECDC4",fontWeight:700}},totalGroupLogs||0), " workouts logged"
     ),
-    HISTORY_FEATURES.summaryStats&&React.createElement('div',{className:"fu2",style:{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:6}},
-      [{label:"Total workouts",val:totalGroupLogs||"—",sub:"logged",gradient:"linear-gradient(135deg,#DFFFFC,#4ECDC4 52%,#1A8E88)"},
-       {label:"Most wins",val:hasClosedHistory&&mostWins?.wins>0?mostWins.name:"—",sub:hasClosedHistory&&mostWins?.wins>0?`${mostWins.wins} win${mostWins.wins>1?"s":""}`:"no closed months yet",gradient:"linear-gradient(135deg,#FFE7A3,#F5A623 45%,#C47A18)"},
-       {label:"Most consistent",val:hasClosedHistory&&mostConsistent?.avg!=="—"?mostConsistent.name:"—",sub:hasClosedHistory&&mostConsistent?.avg!=="—"?`${mostConsistent.avg} avg/mo`:"no closed months yet",gradient:"linear-gradient(135deg,#FFFFFF,#DDE7EE 52%,#94B7C7)"},
-       {label:`Most ${currencyShortLabel(currency)} lost`,val:hasClosedHistory&&biggestLoser?.moneyLost>0?biggestLoser.name:"—",sub:hasClosedHistory&&biggestLoser?.moneyLost>0?`-${fmtCurrency(biggestLoser.moneyLost, currency)} total`:"no losses yet",gradient:"linear-gradient(135deg,#F7C8C0,#E95F45 52%,#A93A3A)"}
-      ].map(x=>React.createElement(Card,{key:x.label,style:{padding:"8px 9px",background:"radial-gradient(circle at 50% 0%, rgba(255,255,255,.026), transparent 38%), linear-gradient(180deg, rgba(11,20,20,.98), rgba(8,14,14,.98))",borderColor:"rgba(78,205,196,.13)",boxShadow:"inset 0 1px 0 rgba(255,255,255,.035), 0 6px 14px rgba(0,0,0,.10)"}},
-        React.createElement('span',{style:{display:"block",fontFamily:"'Outfit', sans-serif",fontSize:8,fontWeight:700,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".06em",marginBottom:3,textAlign:"center",width:"100%"}},x.label),
-        React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontSize:15,fontWeight:800,color:x.color,lineHeight:1.06,textAlign:"center",width:"100%",...(x.gradient?gradientText(x.gradient):{})}},x.val),
-        React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontSize:8.5,fontWeight:600,color:"var(--muted)",marginTop:4,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",textAlign:"center",width:"100%"}},x.sub)
+    // Three awards, in the same style as the profile's All Blocs cards.
+    HISTORY_FEATURES.summaryStats&&React.createElement('div',{className:"fu2",style:{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:6}},
+      [["Most wins",hasClosedHistory&&mostWins?.wins>0?mostWins.name:"\u2014",hasClosedHistory&&mostWins?.wins>0?`${mostWins.wins} win${mostWins.wins>1?"s":""}`:""],
+       ["Most consistent",hasClosedHistory&&mostConsistent?.avg!=="\u2014"?mostConsistent.name:"\u2014",hasClosedHistory&&mostConsistent?.avg!=="\u2014"?`${mostConsistent.avg} avg/mo`:""],
+       [`Most ${currencyShortLabel(currency)} lost`,hasClosedHistory&&biggestLoser?.moneyLost>0?biggestLoser.name:"\u2014",hasClosedHistory&&biggestLoser?.moneyLost>0?`-${fmtCurrency(biggestLoser.moneyLost,currency)}`:""]
+      ].map(([label,val,sub])=>React.createElement(Card,{key:label,style:{position:"relative",padding:"7px 6px 8px",display:"flex",flexDirection:"column",alignItems:"center",overflow:"hidden",minWidth:0,boxShadow:"0 12px 24px rgba(0,0,0,.26), 0 2px 10px rgba(78,205,196,.07)"}},
+        React.createElement('div',{style:{position:"absolute",left:9,right:9,top:0,height:1,background:"rgba(115,232,223,.42)"}}),
+        React.createElement('span',{style:{display:"block",fontSize:8,fontWeight:500,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".05em",marginBottom:4,textAlign:"center",whiteSpace:"nowrap",maxWidth:"100%",overflow:"hidden",textOverflow:"ellipsis"}},label),
+        React.createElement('div',{style:{fontSize:14,fontWeight:600,lineHeight:1.05,color:"var(--text)",maxWidth:"100%",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},val),
+        sub && React.createElement('div',{style:{fontSize:8.5,color:"var(--muted)",marginTop:3,whiteSpace:"nowrap"}},sub)
       ))
     ),
+    // A snapshot on the page -- the top three, plus your own row when you are
+    // outside it -- and the full table one tap away. Swiping columns on the
+    // page itself fought the page swipe and hid most members behind a
+    // "Show more" button.
+    HISTORY_FEATURES.allTimeLeaderboard&&React.createElement(Card,{className:"fu5",style:{padding:"11px 12px"}},
+      React.createElement('div',{style:{fontWeight:800,fontSize:13,textAlign:"center",marginBottom:8}},"All-Time Leaderboard"),
+      React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:4}},
+        leaderboardSnapshot.map(({member,rank})=>React.createElement('div',{key:member.name,style:{display:"grid",gridTemplateColumns:"26px 24px minmax(0,1fr) auto",alignItems:"center",gap:8,padding:"6px 8px",borderRadius:10,background:rank===0?"radial-gradient(circle at 8% 0%, rgba(245,166,35,.075), transparent 42%), #0A1413":"#0A1413",border:member.name===currentUser?"0.5px solid rgba(78,205,196,.35)":"0.5px solid #10201F"}},
+          React.createElement('span',{style:{fontSize:10,fontWeight:700,color:"var(--muted)",textAlign:"center"}},`#${rank+1}`),
+          React.createElement(Avatar,{name:member.name,size:22}),
+          React.createElement('span',{style:{fontSize:12.5,fontWeight:700,color:"var(--text)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}},member.name,member.name===currentUser&&React.createElement('span',{className:"mono",style:{fontSize:7.5,color:"#3d5e59",marginLeft:6}},"you")),
+          React.createElement('span',{style:{fontSize:12,fontWeight:700,color:"var(--text)",whiteSpace:"nowrap"}},member.total||"\u2014",React.createElement('span',{style:{fontSize:9,color:"var(--muted)",fontWeight:600,marginLeft:4}},"workouts"))
+        ))
+      ),
+      React.createElement('button',{type:"button",onClick:()=>{onTrackUsage?.("all_time_leaderboard_opened");setShowFullLeaderboard(true);},style:{display:"block",width:"100%",marginTop:9,padding:0,background:"none",border:0,cursor:"pointer",textAlign:"center",fontFamily:"'Outfit', sans-serif",fontSize:11.5,fontWeight:700,color:"#4ECDC4"}},"See full leaderboard \u203a")
+    ),
+    // The full table, portalled so no transformed ancestor can move it.
+    showFullLeaderboard&&createPortal(React.createElement('div',{style:{position:"fixed",inset:0,zIndex:1100,background:"rgba(4,9,9,.96)",display:"flex",flexDirection:"column",padding:"calc(14px + env(safe-area-inset-top)) 12px calc(14px + env(safe-area-inset-bottom))"}},
+      React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,marginBottom:10}},
+        React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontWeight:800,fontSize:16,color:"var(--text)"}},"All-Time Leaderboard"),
+        React.createElement('button',{type:"button",onClick:()=>setShowFullLeaderboard(false),"aria-label":"Close",style:{width:30,height:30,borderRadius:999,background:"var(--s2)",border:"0.5px solid var(--border2)",color:"var(--text)",cursor:"pointer",flexShrink:0}},"\u2715")
+      ),
+      React.createElement('div',{style:{overflowY:"auto",flex:1}},
+        React.createElement(Card,{style:{overflow:"hidden"}},
+          React.createElement('div',{style:{position:"relative"}},
+            React.createElement('div',{style:{position:"absolute",top:0,right:0,bottom:0,width:28,pointerEvents:"none",background:"linear-gradient(to right, rgba(8,15,15,0), #080F0F)",zIndex:1}}),
+            React.createElement('div',{"data-page-swipe-priority":"horizontal-scroll",style:{overflowX:"auto",WebkitOverflowScrolling:"touch",touchAction:"pan-x pan-y"}},
+            React.createElement('div',{style:{minWidth:550,padding:"7px"}},
+              React.createElement('div',{style:{display:"grid",gridTemplateColumns:"21px 24px 150px 44px 38px 46px 34px 56px 56px",padding:"6px 8px",borderBottom:"1px solid rgba(255,255,255,.055)",gap:5,fontFamily:"'Outfit', sans-serif",fontSize:8,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".055em",fontWeight:800}},
+                ["#","","Name","Total","AVG","Months","Wins",null,null].map((h,i)=>React.createElement('div',{key:i,style:{textAlign:i>2?"right":"left",display:"flex",alignItems:"center",justifyContent:i>2?"flex-end":"flex-start",gap:3}},
+                  i===7||i===8
+                    ? React.createElement(React.Fragment,null,React.createElement(AppIcon,{name:"money-bag",size:10,stroke:"rgba(214,226,224,.72)"}),React.createElement('span',null,i===7?"Won":"Lost"))
+                    : h
+                ))
+              ),
+              React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:5,marginTop:5}},
+              sortedAll.map((u,i)=>{
+                const isMe = u.name === currentUser;
+                const rankGlow = i === 0 ? "rgba(245,166,35,.075)" : i === 1 ? "rgba(214,226,224,.055)" : i === 2 ? "rgba(78,205,196,.045)" : "rgba(255,255,255,.02)";
+                return React.createElement('button',{key:u.name,type:"button",onClick:()=>{setShowFullLeaderboard(false);openPlayerProfile(u.name);},
+                style:{display:"grid",gridTemplateColumns:"21px 24px 150px 44px 38px 46px 34px 56px 56px",width:"100%",padding:"8px 8px",gap:5,alignItems:"center",background:`radial-gradient(circle at 8% 0%, ${rankGlow}, transparent 42%), radial-gradient(circle at 92% 0%, rgba(78,205,196,.045), transparent 38%), linear-gradient(180deg, rgba(18,31,31,.82), rgba(8,15,15,.62))`,border:`0.5px solid ${isMe?"rgba(78,205,196,.24)":"rgba(255,255,255,.065)"}`,borderRadius:9,boxShadow:`inset 0 1px 0 rgba(255,255,255,.055), 0 8px 18px rgba(0,0,0,.16)${isMe?", 0 0 0 1px rgba(78,205,196,.035)":""}`,textAlign:"left",fontFamily:"'Outfit', sans-serif",color:"var(--text)",cursor:"pointer"}},
+                React.createElement('div',{style:{fontSize:10,fontWeight:700,color:"var(--muted)",textAlign:"center"}},`#${i+1}`),
+                React.createElement(Avatar,{name:u.name,size:21}),
+                React.createElement('div',{style:{fontWeight:700,fontSize:12.5,display:"flex",alignItems:"baseline",gap:5,flexWrap:"nowrap",color:"var(--text)",minWidth:0,whiteSpace:"nowrap"}},
+                  React.createElement('span',null,u.name),
+                  rankDeltaNode(rankDeltas[u.name]),
+                  isMe&&React.createElement('span',{className:"mono",style:{fontSize:7.5,color:"#3d5e59",flexShrink:0}},"you")
+                ),
+                React.createElement('span',{style:{fontSize:12,fontWeight:700,textAlign:"right",color:"var(--text)"}},u.total||"—"),
+                React.createElement('span',{style:{fontSize:10,fontWeight:700,color:"var(--muted)",textAlign:"right"}},u.avg),
+                React.createElement('span',{style:{fontSize:10,fontWeight:700,color:"var(--muted)",textAlign:"right"}},u.activeMonths||"—"),
+                React.createElement('span',{style:{fontSize:10,fontWeight:700,textAlign:"right",color:hasClosedHistory&&u.wins>0?"var(--gold)":"var(--muted)",display:"inline-flex",alignItems:"center",justifyContent:"flex-end",gap:4}},
+                  hasClosedHistory&&u.wins>0 ? u.wins : "—"
+                ),
+                React.createElement('span',{style:{fontSize:10,fontWeight:700,textAlign:"right",color:hasClosedHistory&&u.moneyWon>0?"var(--green)":"var(--muted)"}},hasClosedHistory&&u.moneyWon>0?`+${fmtCurrency(u.moneyWon, currency)}`:"—"),
+                React.createElement('span',{style:{fontSize:10,fontWeight:700,textAlign:"right",color:hasClosedHistory&&u.moneyLost>0?"var(--red)":"var(--muted)"}},hasClosedHistory&&u.moneyLost>0?`-${fmtCurrency(u.moneyLost, currency)}`:"—")
+              )})
+            ),
+            ))
+          )
+        )
+      )
+    ), document.body),
     HISTORY_FEATURES.trailingWorkoutHistory&&React.createElement(Card,{className:"fu3",style:{padding:"11px 12px",background:"radial-gradient(circle at 12% 0%, rgba(255,255,255,.032), transparent 34%), radial-gradient(circle at 88% 100%, rgba(78,205,196,.052), transparent 42%), linear-gradient(180deg, rgba(12,22,22,.98), rgba(8,15,15,.98))",boxShadow:"inset 0 1px 0 rgba(255,255,255,.035), 0 7px 16px rgba(0,0,0,.12)"}},
       React.createElement('div',{style:{fontWeight:800,fontSize:13,marginBottom:10,textAlign:"center"}},"Last 12 Months"),
       trailingMonthlyAvg.every(m=>m.total===0)
@@ -292,57 +360,12 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
     HISTORY_FEATURES.workoutMix&&React.createElement(Card,{className:"fu4",style:{padding:"11px 12px",background:"radial-gradient(circle at 88% 0%, rgba(255,255,255,.03), transparent 34%), radial-gradient(circle at 16% 100%, rgba(78,205,196,.05), transparent 42%), linear-gradient(180deg, rgba(12,22,22,.98), rgba(8,15,15,.98))",boxShadow:"inset 0 1px 0 rgba(255,255,255,.035), 0 7px 16px rgba(0,0,0,.12)"}},
       React.createElement(ActivityMix,{title:"Workout Type Distribution",counts:groupTypeBreakdown,variant:"history",titleStyle:{fontWeight:800}})
     ),
-    HISTORY_FEATURES.allTimeLeaderboard&&React.createElement(Card,{className:"fu5",style:{overflow:"hidden"}},
-      React.createElement('div',{style:{position:"relative",padding:"11px 15px",borderBottom:"1px solid var(--border)",display:"flex",alignItems:"center",justifyContent:"center"}},
-        React.createElement('div',{style:{fontFamily:"'Outfit', sans-serif",fontWeight:800,fontSize:13,textAlign:"center"}},"All-Time Leaderboard"),
-        React.createElement('div',{style:{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",fontFamily:"'Outfit', sans-serif",fontSize:6.5,color:"var(--muted)",fontWeight:700,letterSpacing:".035em",textTransform:"uppercase"}},"Swipe →")
-      ),
-      React.createElement('div',{style:{position:"relative"}},
-        React.createElement('div',{style:{position:"absolute",top:0,right:0,bottom:0,width:28,pointerEvents:"none",background:"linear-gradient(to right, rgba(8,15,15,0), #080F0F)",zIndex:1}}),
-        React.createElement('div',{"data-page-swipe-priority":"horizontal-scroll",style:{overflowX:"auto",WebkitOverflowScrolling:"touch",touchAction:"pan-x pan-y"}},
-        React.createElement('div',{style:{minWidth:550,padding:"7px"}},
-          React.createElement('div',{style:{display:"grid",gridTemplateColumns:"21px 24px 150px 44px 38px 46px 34px 56px 56px",padding:"6px 8px",borderBottom:"1px solid rgba(255,255,255,.055)",gap:5,fontFamily:"'Outfit', sans-serif",fontSize:8,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".055em",fontWeight:800}},
-            ["#","","Name","Total","AVG","Months","Wins",null,null].map((h,i)=>React.createElement('div',{key:i,style:{textAlign:i>2?"right":"left",display:"flex",alignItems:"center",justifyContent:i>2?"flex-end":"flex-start",gap:3}},
-              i===7||i===8
-                ? React.createElement(React.Fragment,null,React.createElement(AppIcon,{name:"money-bag",size:10,stroke:"rgba(214,226,224,.72)"}),React.createElement('span',null,i===7?"Won":"Lost"))
-                : h
-            ))
-          ),
-          React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:5,marginTop:5}},
-          visibleLeaderboard.map((u,i)=>{
-            const isMe = u.name === currentUser;
-            const rankGlow = i === 0 ? "rgba(245,166,35,.075)" : i === 1 ? "rgba(214,226,224,.055)" : i === 2 ? "rgba(78,205,196,.045)" : "rgba(255,255,255,.02)";
-            return React.createElement('button',{key:u.name,type:"button",onClick:()=>openPlayerProfile(u.name),
-            style:{display:"grid",gridTemplateColumns:"21px 24px 150px 44px 38px 46px 34px 56px 56px",width:"100%",padding:"8px 8px",gap:5,alignItems:"center",background:`radial-gradient(circle at 8% 0%, ${rankGlow}, transparent 42%), radial-gradient(circle at 92% 0%, rgba(78,205,196,.045), transparent 38%), linear-gradient(180deg, rgba(18,31,31,.82), rgba(8,15,15,.62))`,border:`0.5px solid ${isMe?"rgba(78,205,196,.24)":"rgba(255,255,255,.065)"}`,borderRadius:9,boxShadow:`inset 0 1px 0 rgba(255,255,255,.055), 0 8px 18px rgba(0,0,0,.16)${isMe?", 0 0 0 1px rgba(78,205,196,.035)":""}`,textAlign:"left",fontFamily:"'Outfit', sans-serif",color:"var(--text)",cursor:"pointer"}},
-            React.createElement('div',{style:{fontSize:10,fontWeight:700,color:"var(--muted)",textAlign:"center"}},`#${i+1}`),
-            React.createElement(Avatar,{name:u.name,size:21}),
-            React.createElement('div',{style:{fontWeight:700,fontSize:12.5,display:"flex",alignItems:"baseline",gap:5,flexWrap:"nowrap",color:"var(--text)",minWidth:0,whiteSpace:"nowrap"}},
-              React.createElement('span',null,u.name),
-              rankDeltaNode(rankDeltas[u.name]),
-              isMe&&React.createElement('span',{className:"mono",style:{fontSize:7.5,color:"#3d5e59",flexShrink:0}},"you")
-            ),
-            React.createElement('span',{style:{fontSize:12,fontWeight:700,textAlign:"right",color:"var(--text)"}},u.total||"—"),
-            React.createElement('span',{style:{fontSize:10,fontWeight:700,color:"var(--muted)",textAlign:"right"}},u.avg),
-            React.createElement('span',{style:{fontSize:10,fontWeight:700,color:"var(--muted)",textAlign:"right"}},u.activeMonths||"—"),
-            React.createElement('span',{style:{fontSize:10,fontWeight:700,textAlign:"right",color:hasClosedHistory&&u.wins>0?"var(--gold)":"var(--muted)",display:"inline-flex",alignItems:"center",justifyContent:"flex-end",gap:4}},
-              hasClosedHistory&&u.wins>0 ? u.wins : "—"
-            ),
-            React.createElement('span',{style:{fontSize:10,fontWeight:700,textAlign:"right",color:hasClosedHistory&&u.moneyWon>0?"var(--green)":"var(--muted)"}},hasClosedHistory&&u.moneyWon>0?`+${fmtCurrency(u.moneyWon, currency)}`:"—"),
-            React.createElement('span',{style:{fontSize:10,fontWeight:700,textAlign:"right",color:hasClosedHistory&&u.moneyLost>0?"var(--red)":"var(--muted)"}},hasClosedHistory&&u.moneyLost>0?`-${fmtCurrency(u.moneyLost, currency)}`:"—")
-          )})
-        ),
-        sortedAll.length>5&&React.createElement('button',{type:"button",onClick:()=>setShowAllLeaderboard(v=>!v),style:{width:"100%",minWidth:550,margin:"5px 7px 7px",padding:"8px",background:"transparent",border:"1px solid var(--border)",borderRadius:8,color:"var(--text)",fontSize:11,fontWeight:800,textAlign:"center"}},
-          showAllLeaderboard?"Show Less":`Show ${sortedAll.length-5} More`
-        )
-      ))
-    ),
-    ),
-    HISTORY_FEATURES.blocLegacy&&React.createElement(Card,{className:"fu6",style:{overflow:"hidden"}},
-      React.createElement('div',{style:{padding:"11px 15px",borderBottom:"1px solid var(--border)",fontWeight:800,fontSize:14}},"Bloc Details"),
-      React.createElement('div',{style:{display:"flex",flexDirection:"column"}},
-        legacyRows.map((row,i)=>React.createElement('div',{key:row[0],style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,padding:"10px 15px",borderBottom:i<legacyRows.length-1?"1px solid rgba(255,255,255,.055)":"none"}},
-          React.createElement('span',{style:{fontSize:12,color:"var(--muted)",fontWeight:700}},row[0]),
-          React.createElement('span',{style:{fontSize:12,color:"var(--text)",fontWeight:530,textAlign:"right"}},row[1])
+    HISTORY_FEATURES.blocLegacy&&React.createElement(Card,{className:"fu6",style:{overflow:"hidden",padding:"10px 12px 11px"}},
+      React.createElement('div',{style:{fontFamily:"'Outfit',sans-serif",fontSize:9,fontWeight:900,letterSpacing:".07em",textTransform:"uppercase",color:"var(--muted)",marginBottom:8}},"Bloc Details"),
+      React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",columnGap:10,rowGap:9}},
+        legacyRows.map(row=>React.createElement('div',{key:row[0],style:{minWidth:0}},
+          React.createElement('div',{style:{fontFamily:"'Outfit',sans-serif",fontSize:8.5,fontWeight:800,letterSpacing:".055em",textTransform:"uppercase",color:"var(--muted)"}},row[0]),
+          React.createElement('div',{style:{fontFamily:"'Outfit',sans-serif",fontSize:12,fontWeight:700,color:"var(--text)",marginTop:2,overflowWrap:"anywhere"}},row[1])
         ))
       )
     )

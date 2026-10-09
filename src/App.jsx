@@ -99,6 +99,7 @@ import { TodayPage } from "./pages/TodayPage.jsx";
 import { ActivityPage } from "./pages/ActivityPage.jsx";
 import { MonthPage } from "./pages/MonthPage.jsx";
 import { HistoryPage } from "./pages/HistoryPage.jsx";
+import { PlayerProfile } from "./pages/PlayerProfile.jsx";
 import { BlocStream } from "./pages/BlocStream.jsx";
 import { ProfilePage } from "./pages/ProfilePage.jsx";
 import { BlocSettingsScreen } from "./pages/BlocSettingsScreen.jsx";
@@ -272,7 +273,9 @@ const SetupProgressScreen = ({stage="savingName"}) => {
   );
 };
 
-const IN_BLOC_PAGES = ["today", "activity", "month", "history"];
+// The fifth tab is your own in-Bloc profile. It replaced History, which now
+// lives inside Month as the All Time view.
+const IN_BLOC_PAGES = ["today", "activity", "month", "profile"];
 // One settle for every screen-to-screen move in the app. Tab swipes were 80ms,
 // tab taps 180ms and the Bloc back-swipe 260ms, which is why moving between
 // screens read as abrupt and inconsistent. Both the CSS duration and the commit
@@ -413,6 +416,8 @@ const App = () => {
   const [paymentSaving,setPaymentSaving]=useState(false);
   const [paymentError,setPaymentError]=useState("");
   const [showProfile,setShowProfile]=useState(false);
+  // Month | All Time inside the Month tab. "alltime" is the old History page.
+  const [monthView,setMonthView]=useState("month");
   const [showFounderDashboard,setShowFounderDashboard]=useState(false);
   const [founderDashboardAvailable,setFounderDashboardAvailable]=useState(()=>readFounderDashboardAvailability(initialPersistedSession?.userId));
   const [showStream,setShowStream]=useState(false);
@@ -3523,10 +3528,38 @@ const App = () => {
       React.createElement(ActivityPage,{group:currentGroup,currentUser,currentUserId:effectiveAuthSession?.userId,onLogMutation:handleLogMutation,clockTick,reactionOverrides,setReactionOverrides,commentCountOverrides:logCommentCountOverrides,onCommentCountsLoaded:setLogCommentCountOverrides,onOpenLogComments:handleOpenLogComments,onTrackUsage:trackUsage})
     ),
     pageName==="month"  &&React.createElement(InBlocPageErrorBoundary,{pageLabel:"Month",resetKey:`${selectedGroupId}:${navResetToken}:${currentUser}:${monthInitialIdx ?? "current"}`},
-      React.createElement(MonthPage,  {key:`${selectedGroupId}:${monthInitialIdx ?? "current"}`,group:currentGroup,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,groupSettings:currentGroup.settings,currentUser,currentUserId:effectiveAuthSession?.userId,initialSelIdx:monthInitialIdx,onStartNextMonth:()=>{setMonthInitialIdx(null);setPage("today");},onOpenToday:()=>setPage("today"),onSettlementClaimPaid:handleSettlementClaimPaid,onSettlementConfirmPaid:handleSettlementConfirmPaid,profiles:appState?.profiles||{},onOpenAccount:()=>setShowProfile(true),navResetToken,onTrackUsage:trackUsage,currentPaymentMethods:effectiveProfile?.paymentMethods||[],onSavePayment:handleSavePaymentHandle,savingPayment:paymentSaving,paymentError:paymentError})
+      React.createElement(React.Fragment,null,
+      React.createElement('div',{style:{display:"flex",justifyContent:"center",padding:"10px 14px 0"}},
+        React.createElement('div',{style:{display:"inline-flex",padding:3,borderRadius:999,background:"rgba(78,205,196,.06)",border:"0.5px solid rgba(78,205,196,.2)"}},
+          [["month","Month"],["alltime","All Time"]].map(([id,label])=>React.createElement('button',{
+            key:id,
+            type:"button",
+            onClick:()=>{
+              // The History tab is gone, so history_opened stops growing. This
+              // is what replaces it on the dashboard.
+              if (id === "alltime" && monthView !== "alltime") trackUsage("all_time_opened");
+              setMonthView(id);
+            },
+            style:{border:0,cursor:"pointer",padding:"6px 16px",borderRadius:999,fontFamily:"'Outfit', sans-serif",fontSize:12,fontWeight:700,background:monthView===id?"#4ECDC4":"transparent",color:monthView===id?"#041312":"#8FAEAA"}
+          },label))
+        )
+      ),
+      monthView==="alltime"
+        ? React.createElement(HistoryPage,{group:currentGroup,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,groupSettings:currentGroup.settings,navResetToken,currentUser,groups,onTrackUsage:trackUsage,currentUserId:effectiveAuthSession?.userId,accountCreatedAt:profile?.createdAt})
+        : React.createElement(MonthPage,  {key:`${selectedGroupId}:${monthInitialIdx ?? "current"}`,group:currentGroup,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,groupSettings:currentGroup.settings,currentUser,currentUserId:effectiveAuthSession?.userId,initialSelIdx:monthInitialIdx,onStartNextMonth:()=>{setMonthInitialIdx(null);setPage("today");},onOpenToday:()=>setPage("today"),onSettlementClaimPaid:handleSettlementClaimPaid,onSettlementConfirmPaid:handleSettlementConfirmPaid,profiles:appState?.profiles||{},onOpenAccount:()=>setShowProfile(true),navResetToken,onTrackUsage:trackUsage,currentPaymentMethods:effectiveProfile?.paymentMethods||[],onSavePayment:handleSavePaymentHandle,savingPayment:paymentSaving,paymentError:paymentError}))
     ),
-    pageName==="history"&&React.createElement(InBlocPageErrorBoundary,{pageLabel:"History",resetKey:`${selectedGroupId}:${navResetToken}:${currentUser}`},
-      React.createElement(HistoryPage,{group:currentGroup,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,groupSettings:currentGroup.settings,navResetToken,currentUser,groups,onTrackUsage:trackUsage,currentUserId:effectiveAuthSession?.userId,accountCreatedAt:profile?.createdAt})
+    pageName==="profile"&&React.createElement(InBlocPageErrorBoundary,{pageLabel:"Profile",resetKey:`${selectedGroupId}:${navResetToken}:${currentUser}`},
+      React.createElement('div',{style:{display:"flex",flexDirection:"column"}},
+        React.createElement(PlayerProfile,{group:currentGroup,name:currentUser,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,onBack:()=>{},groupSettings:currentGroup.settings,memberUserId:effectiveAuthSession?.userId||"",currentUserId:effectiveAuthSession?.userId,visibleGroups:groups,accountCreatedAt:profile?.createdAt,profilePhotoUrl:effectiveProfile?.profilePhotoUrl||"",onTrackUsage:trackUsage,isOwnProfile:true,asTab:true,onUpdateProfilePhoto:handleUpdateProfilePhoto}),
+        // Name, payments, email, sign out and delete account stay on the
+        // account screen, deliberately a few taps away. This is the way in.
+        React.createElement('div',{style:{maxWidth:740,width:"100%",margin:"0 auto",padding:"0 16px 16px"}},
+          React.createElement('button',{type:"button",onClick:()=>{trackUsage("own_profile_opened");setShowProfile(true);},style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,width:"100%",padding:"14px",borderRadius:14,border:"0.5px solid #163d36",background:"#0A1412",color:"var(--text)",fontFamily:"'Outfit', sans-serif",fontSize:14,fontWeight:700,cursor:"pointer",textAlign:"left"}},
+            "Account settings",
+            React.createElement('span',{style:{color:"#5E8580",fontSize:12,fontWeight:600}},"Name, payments, sign out \u203a")
+          )
+        )
+      )
     )
   );
 
@@ -3706,11 +3739,13 @@ const App = () => {
         onClose:handleCloseLogComments,
         onCommentCountChange:handleLogCommentCountChange,
         onTrackUsage:trackUsage
-      }),
+      })
+    ),
     // Also rendered inside a Bloc, so adding a payment method from a
-    // settlement reminder does not eject you back to the Bloc Switcher.
+    // settlement reminder, or opening it from the Profile tab, does not eject
+    // you back to the Bloc Switcher. It was nested inside the comment-thread
+    // layer, so in a Bloc it only appeared while a comment thread was open.
     accountOverlay()
-    )
   );
 };
 

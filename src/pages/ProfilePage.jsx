@@ -421,4 +421,4 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
   );
 };
 
-export { ProfilePage };
+export { ProfilePage, ProfilePhotoCropModal, readFileAsDataUrl };
