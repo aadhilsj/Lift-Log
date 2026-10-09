@@ -339,7 +339,7 @@ copy is untouched.)
 Now plain cyan "Account settings ›" with "Name, payments, sign out" under it,
 centred, no border or background. Verified: still opens the account screen,
 and the tap target is the full 361px width and 42px tall despite looking like
-text. Commit `9e4c7b1`-era follow-up on `feat/profile-tab`.
+text. Commit `22bac70` on `feat/profile-tab`.
 
 ---
 
