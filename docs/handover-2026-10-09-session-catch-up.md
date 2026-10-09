@@ -181,6 +181,54 @@ untouched.
 
 ---
 
+### 2.5 Answered: what "Money settled" actually counts
+
+The founder asked whether the figure counts every loser, or only settlements
+confirmed as paid and received. Read from the code, not assumed:
+
+`totalSettled` in `src/pages/HistoryPage.jsx` sums
+`buildSettlementPairsForMonth(...)` over every closed month.
+`buildSettlementPairsForMonth` (`src/lib/appState.js:904`) derives the
+winner/loser pairs from that month's penalties and never looks at
+`month.settlements`, at a settlement's `status`, or at any confirmation.
+
+**So the number is money owed, not money paid.** Every penalty raised by a
+missed month is in it, whether or not anybody ever paid. The app does hold the
+other thing separately -- a settlement's `status: "settled"`, the
+`settlement-confirm-paid` action and `confirmedAt` -- so a confirmed-only
+figure is buildable, but it is only meaningful in Blocs with
+`settlementConfirmationsEnabled`.
+
+Recommended to the founder: keep the same number and rename the label, rather
+than change what is counted. **Awaiting his answer.**
+
+### 2.6 Mockup change: Bloc details shrunk to a 2x2 card
+
+The founder said the Bloc details card at the bottom of All Time does not
+deserve its size, and that "Started ..." can go because the top of the page
+already says since when.
+
+In `src/pages/HistoryPage.jsx`, mockup worktree only:
+
+- the "Started" row is removed;
+- "Months completed" is now "Months active";
+- the five-row table with its own header bar became a small uppercase
+  "BLOC DETAILS" label over a 2x2 grid: Months active, Money settled, Best
+  month, Toughest month, each a tiny label with the value under it;
+- best and toughest months now read "October 2026 · 30" (middle dot
+  instead of a hyphen).
+
+**Measured at 393×852: the card went from 221px to 109px**, the same four
+facts in half the height, no horizontal scroll. `npm run lint` on the file and
+`npm run build` pass.
+
+Note for the real build: `earliestMonth` is now unused in that file -- the
+correctness-only lint does not flag it, but it should go.
+
+Still uncommitted mockup work.
+
+---
+
 ---
 
 ## 3. Still open (carried forward)
