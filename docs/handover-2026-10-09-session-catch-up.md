@@ -144,6 +144,43 @@ the mockup branch are untouched.
 
 ---
 
+### 2.4 Mockup change: photo level with the buttons, name centred over them
+
+Second round on the same header. The founder asked for the photo to be
+vertically centred against the This Bloc / All Blocs buttons (not against the
+whole name-plus-buttons block), and the name horizontally centred over the
+buttons.
+
+How it is done, so a real build does not re-derive it: the header is a column
+with `paddingLeft: 82` (photo 68 + 14 gap); the name is centred inside that
+padded column, so it centres over the buttons; the photo is absolutely
+positioned against the buttons' own wrapper with
+`right: calc(100% + 14px); top: 50%; transform: translateY(-50%)`, so it
+centres on the buttons with no hard-coded offset, and `paddingBottom: 22`
+keeps the part of the photo that hangs below the buttons clear of the month
+pill. "‹ Back" (other members' profiles) moved onto its own line above,
+because the photo now occupies the top-left corner.
+
+**Measured at 393×852:**
+
+| | |
+| --- | --- |
+| photo centre / buttons centre | y 186 / y 186 — exactly level |
+| name centre / buttons centre | x 238 / x 238 — exactly centred |
+| photo left edge | x 16, flush with the page padding |
+| header block | 81px (was 99px + a 28px row in the original) |
+| top of the first card | y 292 (original y 351) |
+| horizontal scroll | none (`scrollWidth` 393 = `clientWidth` 393) |
+
+A 16-character name ("Kofi Mensah-Owus") still sits on one line. Net saving
+against the original header: **59px**.
+
+`npm run lint` on the file and `npm run build` pass. **Still uncommitted
+mockup work** in the throwaway worktree; `main` and the mockup branch are
+untouched.
+
+---
+
 ---
 
 ## 3. Still open (carried forward)
