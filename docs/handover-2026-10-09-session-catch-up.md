@@ -76,6 +76,35 @@ was changed, built or deployed; no SQL was run.
 
 This handover and its line in `docs/HANDOVERS.md` are the only change so far.
 
+### 2.2 The Profile tab mockup put back on screen
+
+The founder asked to see the mockup again. Checked out
+`origin/mockup/profile-tab-2026-10-03` (`3fd8956`) detached in a throwaway
+worktree at `/Users/opera_user/Developer/FERO/profile-mockup-view`
+(`node_modules` symlinked from the main folder, `.env.local` copied in), built
+it, and ran the sandbox at `http://localhost:3000`. No branch was switched in
+the main folder and no file in it was changed.
+
+`npm run sandbox:seed` stopped where the previous handover §2.6 said it would —
+"Rollover did not close August" — after creating the Bloc, Riley, Jo and Sam
+and their logs. That is enough for the Profile tab and All Time; only
+closed-month screens are out of reach. Ports 54321 and 3000 were both free on
+this laptop today, so the Docker port clash from last session did not apply
+and nothing was changed in `scripts/sandbox.mjs`.
+
+Six screenshots taken at 393×852 and sent to the founder: the Profile tab top
+and bottom, All Blocs, the Month tab with the Month | All Time toggle, All
+Time, and the full-screen leaderboard.
+
+**Seen again in the mockup, consistent with the previous handover's list of
+things to fix in a real build:** the full-screen leaderboard shows its title
+twice (a screen header and the card heading). Nothing was fixed — this is a
+viewing session.
+
+The sandbox was left running for now.
+
+---
+
 ---
 
 ## 3. Still open (carried forward)
