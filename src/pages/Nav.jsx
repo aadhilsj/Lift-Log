@@ -75,11 +75,12 @@ const Nav = ({page,setPage,user,groupName,canEditGroup,onOpenSettings,settingsAl
   // no photo it is the same outline icon as the other tabs, so the row stays
   // even. The bright coloured initial was tried and rejected as too loud.
   const ownPhotoUrl = resolveStorageImageUrl(String(profilePhotoUrl || "").trim());
-  // The whole thing stays inside an 18px box, the size of every other tab
-  // icon: the ring is drawn on the box's own border, so a ringed photo cannot
-  // grow the row and spill out of the highlight behind it.
+  // 16px inside an 18px row, where the other icons are 18: the ring is drawn
+  // on the box's own border, so it cannot grow the row and spill out of the
+  // highlight behind it, and a filled photo circle reads heavier than a line
+  // icon of the same size, so it is given a little more room to breathe.
   const renderMobileTabIcon = (id,icon) => (id === "profile" && ownPhotoUrl)
-    ? React.createElement('span',{style:{display:"inline-flex",alignItems:"center",justifyContent:"center",width:18,height:18,borderRadius:999,boxSizing:"border-box",border:page===id?"1px solid #4ECDC4":"1px solid transparent"}},
+    ? React.createElement('span',{style:{display:"inline-flex",alignItems:"center",justifyContent:"center",width:16,height:16,margin:1,borderRadius:999,boxSizing:"border-box",border:page===id?"1px solid #4ECDC4":"1px solid transparent"}},
         React.createElement('img',{src:ownPhotoUrl,alt:"",style:{width:"100%",height:"100%",borderRadius:999,objectFit:"cover",display:"block",opacity:page===id?1:.6,filter:page===id?"none":"saturate(.55)"}})
       )
     : React.createElement(AppIcon,{name:icon,size:18});
