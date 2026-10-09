@@ -244,6 +244,27 @@ half of the grid with room to spare. Lint and build pass. Still uncommitted.
 
 ---
 
+### 2.8 Separator is a colon, and the relabel was reverted
+
+- **Separator changed again to a colon**: "October 2026: 30".
+- **"Money owed" reverted to "Money settled".** The label change was never
+  asked for: the founder's "okay, that works" was about the card redesign, and
+  it was read as agreement to the rename. He said so and it was put back
+  immediately. **The figure was never changed** — only the label moved, and
+  it is back to what it always was.
+
+Lesson for the rest of this work, worth keeping: a recommendation answered
+with approval of something else is not approval. Ask for the rename on its
+own, or leave it.
+
+So §2.5 stands as a finding only: "Money settled" counts money owed, and
+nothing in the app has been changed about it.
+
+Value size is still 12px, card height 106px, lint and build pass, still
+uncommitted.
+
+---
+
 ---
 
 ## 3. Still open (carried forward)
