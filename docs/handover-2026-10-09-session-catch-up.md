@@ -1,4 +1,6 @@
-# Handover — 9 October 2026: back after a week, catch-up and state of play
+# Handover — 9 October 2026: back after a week, then the Profile tab shipped
+
+**Closed on 9 October 2026.**
 
 Claude, operating. **This is a live handover: it is updated as the session
 goes, not written at the end.** The latest entry in §2 is the most recent
@@ -14,30 +16,28 @@ Previous session: `docs/handover-2026-10-01-session-laptop-sync.md`
 
 ## Where we stopped — read this first
 
-1. **Nothing has changed since 8 October.** `origin/main` is still `2e7f87b`;
-   no branch, commit or deployment anywhere in the repo is newer. Nothing
-   arrived from the personal laptop, from Codex, or from Deveen during the
-   week away.
-2. **Live on the website:** `2e7f87b` (the app code is `473c761`; the two
-   commits after it are docs only). Verified 9 October — Vercel Production
-   deployment `6925431209` success, live bundle `index-Dlk5Uk0G.js` contains
-   "Share your month" and "Month Off". CI green on `2e7f87b`.
-3. **TestFlight is still build 10** (`77fe4d8`). The branch
-   `testflight-build-11` exists (`c0157ec`, build number set, main merged in
-   up to `66943f0` on 30 September) but was never built or released, and
-   `main` has since moved 29 commits past it. So the phone app has none of
-   1–2 October's work.
-4. **In progress, not built:** the Profile tab + History-into-Month redesign.
-   Approved over five mockup rounds on 3 October; spec in the previous
-   handover §2.15; mockup code on `mockup/profile-tab-2026-10-03` (`3fd8956`,
-   **mockup only, never merge as-is**). The last open question — "shall I
-   build this for real?" — is still unanswered.
-5. **Time-sensitive:** the 1 November month close is the first since the
+1. **Live on the website: `cc3644e`** (app code `bd43b8b`). The **Profile tab**
+   is live: the fifth tab is your own profile in the Bloc, History moved into
+   Month as a **Month | All Time** toggle, and the Bloc details card is half
+   its old height. Verified three ways each time (see §2.11–§2.13).
+2. **TestFlight is still build 10.** The phone app has none of October's work.
+   The `testflight-build-11` branch exists but was never built, and `main` is
+   now **47 commits** past it.
+3. **The founder tested on his own phone** and found two real bugs, both fixed
+   and live: the nav photo breaking out of the highlight, and the Profile tab
+   not swiping. A third round gave the photo more room.
+4. **Found and fixed on the way:** in a Bloc, the account screen only rendered
+   inside an open comment thread, so "add a payment method" on a settlement
+   reminder did nothing. §2.9.
+5. **Time-sensitive:** the **1 November month close** is the first since the
    1 October break was fixed (`c9ce86a`). Check the founder dashboard's
    skipped-Bloc count that morning before anything else.
-6. **Waiting on others:** Deveen's RLS production rollout was planned for
-   2–3 October and is still not confirmed anywhere in the repo. No commit,
-   branch or doc records it being applied. Needs asking.
+6. **Waiting on Deveen, unchanged all week:** the RLS production rollout
+   (planned 2–3 October) is still not recorded anywhere, `push_devices` is
+   still missing from his migration, and `fero-staging` is still billing
+   ~$9.68/month until the rollout lands.
+7. **The sandbox still cannot close a month** from a clean seed. It closed one
+   mid-session only because an API write triggered the rollover.
 
 ---
 
@@ -441,3 +441,34 @@ deployment `6964931526` success; live bundle `index-K1ol78pl.js`.
 | | |
 | --- | --- |
 | *(this commit)* | docs: open the 9 October handover |
+
+---
+
+## 4. State of this laptop at close
+
+- **Nothing running.** The sandbox was stopped by PID; ports 3000 and 54321
+  are both free. The browser viewport was reset.
+- **Scratch worktrees removed:** `profile-tab` (its work is on `main`) and
+  `profile-mockup-view`. Both `node_modules` symlinks were deleted first, so
+  the main folder's is untouched. The local branch `feat/profile-tab` is
+  deleted; it was an ancestor of `main`.
+- **Left alone, as before:** the two August worktrees in `~/Documents`
+  (`Lift Log Extraction`, `Lift Log iOS Preview`), the four August `.dmg`
+  backups, and ~40 stale local branches. Still cleanup candidates, with the
+  founder's yes.
+- Main folder on `main` at `cc3644e`, level with `origin/main`.
+
+## 5. Commits this session
+
+| | |
+| --- | --- |
+| `571671a` … `4671369` | docs: this handover, opened at the start and kept live |
+| `6ad8821` | Profile becomes the fifth tab; History moves into Month |
+| `22ea440` | Profile tab: Account settings is text, not a card |
+| `e551758`, `0c6b14b` | docs: what's live at `22ea440` |
+| `8649e93` | the nav photo stays inside the highlight; the Profile tab swipes |
+| `7e605d2` | docs: what's live at `8649e93` |
+| `bd43b8b` | more air around the nav photo |
+| `cc3644e` | docs: what's live at `bd43b8b` |
+
+All of it is on `main` and live on the website. Nothing is on the phone app.
