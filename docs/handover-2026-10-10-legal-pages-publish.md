@@ -59,10 +59,58 @@ untouched.
 
 ## Verified before publishing
 
-Filled in as the session runs.
+Everything below was checked on a local build of this branch, before any push.
+
+- `npm run lint` clean. `npm run build` clean.
+- Vite's default `public/` handling puts the files at the site root with no
+  config change: `dist/privacy/index.html`, `dist/support/index.html` and
+  `dist/legal.css`. No `publicDir` override exists in `vite.config.js`.
+- **No Vercel rewrites were added, and none are needed.** `vercel.json` has no
+  rewrites at all, so the single-page app cannot swallow these URLs. Confirmed
+  against live: `https://lift-log-nu.vercel.app/some-random-path` returns a
+  plain Vercel 404, not the app shell, and `/manifest.webmanifest`, `/sw.js`
+  and `/icon-192.png` already serve from `public/` at the root today.
+- Served the build locally: `/privacy`, `/privacy/`, `/support`, `/support/`
+  and `/legal.css` all 200. The no-slash form on Vercel specifically cannot be
+  proven until this is deployed.
+- Rendered at **393x852** and **1440x900**. Stylesheet loads on both pages,
+  Outfit resolves (`document.fonts.check('700 16px Outfit')` true),
+  `scrollWidth` equals `clientWidth` at phone width so there is no sideways
+  scroll, and the column is 760px centred on desktop. Screenshots were taken.
+- The word "block" no longer appears in either page's rendered text.
+- **23 of 25 `test:*` scripts pass.** `test:auth-edge-flows` and
+  `test:mobile-navigation` fail on a Playwright `networkidle` timeout. These
+  were confirmed pre-existing: with all three new files removed and a pristine
+  `origin/main` rebuilt, `test:mobile-navigation` fails identically. Nothing in
+  this change is reachable from the app bundle - these are static files the app
+  never imports.
+
+### Deliberately not done
+
+- The effective date is left at 27 September 2026. The corrections describe the
+  service more accurately; they do not change what Fero collects or does, so
+  the page's own "materially change" trigger is arguably not met. Say the word
+  and it moves to today.
+- `docs/app-store-submission-runbook.md` and `docs/WHATS-LIVE.md` are not
+  updated yet; `WHATS-LIVE.md` is updated when this actually goes live.
+- Blocking was not built. That is a separate job on
+  `codex/app-store-readiness`.
+
+### Still unverified - needs the founder
+
+**Whether `support@joinfero.app` is a real, monitored mailbox.** No test email
+was sent. The domain's MX records are Cloudflare Email Routing
+(`route1/2/3.mx.cloudflare.net`) with a matching SPF record, so mail is routed
+somewhere. In the Gmail account connected to the review session the only trace
+of that address is one message *sent* to it on 27 September and nothing
+received, which is inconclusive - the forward may target a different mailbox.
+Both pages name this address as the only way to reach support, so it needs
+confirming.
 
 ## Commits
 
 | Commit | What |
 | --- | --- |
-| (this one) | Open the handover before the first change |
+| `53a4afb` | Open the handover before the first change |
+| `804c07c` | The two pages and the stylesheet, with the four corrections |
+| (this one) | Record how it was verified |
