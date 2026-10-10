@@ -36,6 +36,7 @@ Read every one of these. Each is a dated record of one session.
 
 | Date | Handover | About |
 | --- | --- | --- |
+| 10 Oct — **active** | [`handover-2026-10-10-all-time-members.md`](handover-2026-10-10-all-time-members.md) | Hide departed members from the All-Time leaderboard without losing history; remove two confirmed members from their Blocs |
 | 10 Oct — **closed** | [`handover-2026-10-10-branch-cleanup.md`](handover-2026-10-10-branch-cleanup.md) | Six old GitHub branches and four matching local names removed after saving a restore copy; 14 non-main GitHub branches remain |
 | 9 Oct — **active** | [`handover-2026-10-09-session-catch-up.md`](handover-2026-10-09-session-catch-up.md) | Back after a week away; nothing moved since 8 Oct; state of play, open items, cleanup candidates |
 | 1–3 Oct (closed 8 Oct) | [`handover-2026-10-01-session-laptop-sync.md`](handover-2026-10-01-session-laptop-sync.md) | Back on the work laptop; new stickers; Today and the ended month redesigned — live at `473c761`; **Profile tab + History-into-Month designed, not built** |

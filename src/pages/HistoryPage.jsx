@@ -147,11 +147,18 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
     () => getHistoricalGroupMemberNames(fullHistory, logs, excused, NAMES),
     [fullHistory, logs, excused]
   );
+  // Historical names still drive month totals and the activity mix. Only the
+  // member rows and member-name awards on All Time are limited to current members.
+  const activeMemberNames = Array.isArray(group?.activeMemberOrder) ? group.activeMemberOrder : NAMES;
+  const allTimeVisibleNames = useMemo(
+    () => historicalNames.filter(name => activeMemberNames.includes(name)),
+    [historicalNames, activeMemberNames]
+  );
 
   const isActualParticipant = (month, name) =>
     getHistoricalMemberNamesForMonth(month, historicalNames).includes(name) && !month?.excused?.[name];
 
-  const allTime=useMemo(()=>historicalNames.map(name=>{
+  const allTime=useMemo(()=>allTimeVisibleNames.map(name=>{
     const participated=fullHistory.filter(m=>isActualParticipant(m, name));
     const activeMonths=participated.length;
     const total=participated.reduce((s,m)=>s+(m.counts[name]||0),0);
@@ -178,7 +185,7 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
       if(losers.find(l=>l.name===name)){moneyLost+=getLoserAmount(penalties, name);}
     });
     return {name,total,avg,activeMonths,wins,moneyWon,moneyLost};
-  }),[fullHistory, monthHistory, historicalNames]);
+  }),[fullHistory, monthHistory, historicalNames, allTimeVisibleNames]);
 
   const groupMonthlyAvg=useMemo(()=>{
     return fullHistory.map(m=>{
