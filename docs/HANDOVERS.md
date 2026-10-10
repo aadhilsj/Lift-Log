@@ -36,6 +36,7 @@ Read every one of these. Each is a dated record of one session.
 
 | Date | Handover | About |
 | --- | --- | --- |
+| 10 Oct — **closed** | [`handover-2026-10-10-october-activity-check.md`](handover-2026-10-10-october-activity-check.md) | Who returned to Fero in October and who logged workouts, checked against live records |
 | 10 Oct — **closed** | [`handover-2026-10-10-member-workout-backfills.md`](handover-2026-10-10-member-workout-backfills.md) | Mark Rodri excused for August; backfill Banana’s September Home Workout and Kisal’s October workout into Sweat Equity |
 | 10 Oct — **closed** | [`handover-2026-10-10-all-time-members.md`](handover-2026-10-10-all-time-members.md) | Hide departed members from the All-Time leaderboard without losing history; remove two confirmed members from their Blocs |
 | 10 Oct — **closed** | [`handover-2026-10-10-branch-cleanup.md`](handover-2026-10-10-branch-cleanup.md) | Six old GitHub branches and four matching local names removed after saving a restore copy; 14 non-main GitHub branches remain |
