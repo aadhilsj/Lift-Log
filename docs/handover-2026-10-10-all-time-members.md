@@ -118,3 +118,4 @@ founder may want to check the visible All-Time view on a signed-in phone.
 | Commit | Purpose | State |
 | --- | --- | --- |
 | `d5781a4` | Hide former members from All Time | On `main`, production READY |
+| `c631493` | Record the live result and production data check | On `main` |
