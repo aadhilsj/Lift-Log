@@ -6,7 +6,8 @@ commit records it.
 
 ## Starting point
 
-- `origin/main` and the shared checkout are at `19ed525`.
+- The cleanup record was pushed to `main` in `4f13505` (parent
+  `19ed525`).
 - The live website is the 9 October production version; the cleanup does not
   change app code or the live site.
 - The shared checkout has four untracked backup disk images. They are untouched.
@@ -37,8 +38,8 @@ commit records it.
 - The other six branches had no matching local branch names in this checkout.
 - No app files, live app behaviour, existing worktrees, or untracked backup
   images were changed.
-- `origin/main` and production remain at `19ed525`; the live site returned HTTP
-  200. This cleanup changed branch names only.
+- Production deployment `6975356071` for `4f13505` succeeded. The live site
+  still runs the same app code; this cleanup changed branch names and docs only.
 
 ## Closeout
 
@@ -47,7 +48,10 @@ commit records it.
   and unrelated local branches remain untouched.
 - Verification: the backup bundle passed `git bundle verify`; `git fetch
   --all --prune` showed the six remote names gone and 14 non-main remote names
-  remaining; the live website still returns HTTP 200.
-- Commit: this docs-only closeout will be pushed to `main`; production remains
-  unchanged.
+  remaining; the `verify` check and Vercel deployment succeeded. The live site
+  loaded with HTTP 200 and no browser console errors.
+- `npm` is not available in this shell. Ran the project's ESLint and Vite build
+  commands directly through the installed Node.js runtime; both passed. The
+  build emitted only its existing large-chunk warning.
+- Commit: `4f13505` records the cleanup and is on `main`.
 - Production: unchanged; no app deployment was requested or needed.
