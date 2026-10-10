@@ -107,8 +107,10 @@ Gregorio had left his only Bloc in September, per the current handovers.
   `supabase/migrations/20260908183917_correct_founder_dashboard_retention.sql`
   and `supabase/migrations/20260828030000_add_founder_dashboard_metrics.sql`.
 - The live website returned HTTP 200. The latest Vercel production deployment
-  observed was Ready for `3b4139c`.
-- No app code, user data or deployment was changed for this report.
+  observed before this report was Ready for `3b4139c`. After the handover was
+  pushed, Vercel production deployment `dpl_FX72avj2PAADFgqcWMPyUeagyf3i` for
+  commit `9bd24d7` reported Ready. The push was documentation-only; no app
+  bundle or user data changed.
 - The shared Documents checkout was at `19ed525`, eight commits behind
   `origin/main` at `3b4139c`. Four untracked August `.dmg` backups were left
   untouched. Work was recorded in a separate worktree based on `origin/main`.
@@ -122,6 +124,7 @@ Nothing else was modified.
 
 ## Close-out
 
-This is a read-only report of live data through 10 October 2026. No product
-change was made. The handover and index are committed together; publication
-state is recorded after the commit.
+This is a read-only report of live data through 10 October 2026. The report
+commit `9bd24d7` and index are on `main`; its Vercel production deployment is
+Ready. No product or user data change was made. This close-out update records
+the deployment check.
