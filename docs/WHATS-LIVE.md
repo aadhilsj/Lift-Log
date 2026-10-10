@@ -4,7 +4,15 @@
 Update it whenever something ships. Same filename forever — never date it, never
 fork it. If it disagrees with a handover, this file wins.
 
-Last updated: **9 October 2026** — the website now has the **Profile tab**:
+Last updated: **10 October 2026** — the website's **All Time** leaderboard and
+member-name awards now show only people who currently belong to that Bloc.
+Former members' workout history, month totals, and activity mix are preserved.
+Abhishek has left Go To Da Gym and Aki Jain 2000 has left Ctrl Alt De-feat;
+their workout records remain, and no removal message was posted to either
+stream. TestFlight remains on build 10, so this website change is **not on the
+phone app yet**. Details: `docs/handover-2026-10-10-all-time-members.md`.
+
+Before that, on 9 October 2026, the website gained the **Profile tab**:
 the fifth tab is your own profile in the Bloc, and History moved inside Month
 as a **Month | All Time** toggle. Before that, 2 October's Today redesign,
 reordered ended-month screen, centred pop-ups and new share stickers are live.
@@ -33,6 +41,7 @@ yet**. Details: `docs/handover-2026-10-09-session-catch-up.md` and
 | Fifth tab is **Profile** (your photo in the tab, tap it to change it); History is inside Month as **Month \| All Time** | ✅ | ❌ |
 | Profile header: photo left, name over the This Bloc / All Blocs buttons; the month is a one-tap pill; the month as a ring | ✅ | ❌ |
 | All Time: no heading, three awards, top-3 leaderboard with the full table one tap away; Bloc details half the height | ✅ | ❌ |
+| All Time: current members only in the leaderboard and member-name awards; historical totals remain | ✅ | ❌ |
 | In a Bloc, the account screen opens from anywhere (it used to render only inside an open comment thread) | ✅ | ❌ |
 | Today: "N to go" / "Week's MVP" pills replace the four stat cards; silver "Your September Recap" banner | ✅ | ❌ |
 | Ended month: Recap → result card → calendar + "Share your month" → awards → Bloc ring → records → money | ✅ | ❌ |
@@ -88,6 +97,17 @@ bundle — and the live site loaded with no console errors.
 393×812 — every state the practice data allowed — but nobody has opened the
 Profile tab on the live site or on a real iPhone yet. Swiping between tabs was
 not exercised either: the test browser sends mouse events, not touch.
+
+### Verified live, 10 October
+
+- `d5781a4` — former Bloc members no longer appear in the All-Time leaderboard
+  or member-name awards; historical totals and activity mix still include
+  history. Production deployment `dpl_3NxgUt8ZxWNKb8gvdrjypsRiigjf` is READY
+  and aliases to `joinfero.app` and `lift-log-nu.vercel.app`. The live bundle
+  contains the current-member filter.
+- Production member records: Abhishek left Go To Da Gym and Aki Jain 2000
+  (`akijain2000` in the app) left Ctrl Alt De-feat. Backup `2983` was saved
+  first. Their 73 and 8 workouts remain. No removal stream message was added.
 
 ### Verified live, 1–2 October
 

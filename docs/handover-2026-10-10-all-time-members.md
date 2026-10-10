@@ -7,8 +7,8 @@
 Show only current Bloc members on the All-Time leaderboard and its member-name
 highlights. Preserve historical months, workout totals, and activity mix. Then
 remove Abhishek from Go To Da Gym and Aki Jain 2000 from Ctrl Alt De-feat,
-preserving their records and clearing only any removal notice created by those
-actions, as previously requested.
+preserving their records and leaving both Bloc streams without a removal
+notice, as previously requested.
 
 ## Starting state
 
@@ -23,7 +23,7 @@ actions, as previously requested.
 - `gh` is not installed in this laptop environment; deployment details will be
   checked through Vercel's connected tools if available.
 - Founder selected direct release to `main` for this change.
-- No source or production data has been changed yet.
+- At session start no source or production data had been changed.
 
 ## Decisions and verification
 
@@ -56,15 +56,65 @@ actions, as previously requested.
   active member of `Ctrl Alt De-feat`.
 - Before-removal live workout counts: Abhishek 73, akijain2000 8. These are
   baselines to verify remain after departure.
-- Latest existing `lift_log_backups` entry is from 10 October. A fresh backup
-  will be made immediately before the membership changes.
-- Vercel project `lift-log` is correctly linked; the latest production deploy
-  is READY for `2934a62`.
-- No production data has been changed yet.
+- The live member rows were confirmed as ordinary members, not Bloc admins.
+- Both departed members had empty current-month blob log arrays, so the normal
+  departure cleanup had no current log reactions or flags to change.
 
-Record the commit, push, deployment, backup, removals, and final verification
-here as they happen.
+### Changes shipped and production data update
+
+- Commit `d5781a4` (`Hide former members from All-Time leaderboard`) was pushed
+  directly to `main` after confirming `origin/main` was its ancestor.
+- Vercel deployment `dpl_3NxgUt8ZxWNKb8gvdrjypsRiigjf` is READY for commit
+  `d5781a489cce2c78bb5f6b8fc789db11b96c2998`, with the production aliases
+  `www.joinfero.app`, `joinfero.app`, and `lift-log-nu.vercel.app`. The live
+  bundle contains the new `activeMemberOrder` filter. The public home page
+  loaded successfully in the browser.
+- Fresh full-state backup `public.lift_log_backups.backup_id = 2983`, saved at
+  revision 2910 before the writes.
+- Both removals were applied together in one guarded database operation. Each
+  canonical membership now has `left_at` set, each blob membership is removed
+  from the active lists and recorded in `leftMemberNames`, and the revision
+  clock was advanced. No `member_removed` message was inserted.
+- Verification: Abhishek is no longer active in Go To Da Gym and his 73 workout
+  rows remain. `akijain2000` is no longer active in Ctrl Alt De-feat and the
+  account's 8 workout rows remain. Both names are absent from `memberOrder` and
+  present in `leftMemberNames`; neither membership remains in the blob map.
+- No historical month snapshot, workout record, month count, or activity-mix
+  data was changed. A later rejoin can reactivate the same canonical membership
+  and restore the name to the active list without deleting the old records.
+- No stream removal message was added. The normal app removal helper would add
+  one, so the operation deliberately updated the membership and mirrored member
+  lists directly while retaining the same departed-member markers.
+
+## Verification details
+
+- ESLint passed via its installed binary (`./node_modules/.bin/eslint src api
+  scripts`) because this laptop has no `npm` command.
+- Vite production build passed via `./node_modules/.bin/vite build`, with only
+  the existing large-bundle warning.
+- 23 runnable `test:*` scripts passed. `test:auth-edge-flows` and
+  `test:mobile-navigation` could not run because Docker/local database is not
+  available. The server-render check confirmed former members disappear from
+  All Time and return if active again, while historical counts stay intact.
+- Browser inspection confirmed the live Fero homepage loads. The live member
+  leaderboard itself could not be opened because this browser has no signed-in
+  Fero session; the production data and deployed bundle were verified directly.
+
+## Files changed
+
+- `src/pages/HistoryPage.jsx`
+- `docs/HANDOVERS.md`
+- `docs/handover-2026-10-10-all-time-members.md`
+- `docs/WHATS-LIVE.md`
+
+Nothing else was modified in the repository.
 
 ## Closeout
 
-Pending.
+Live on `main` and production. The two memberships are marked departed; their
+past workouts remain, and no stream notices were created. Open item: the
+founder may want to check the visible All-Time view on a signed-in phone.
+
+| Commit | Purpose | State |
+| --- | --- | --- |
+| `d5781a4` | Hide former members from All Time | On `main`, production READY |
