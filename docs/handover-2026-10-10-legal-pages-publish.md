@@ -1,6 +1,6 @@
 # Handover — 10 October 2026: publish the Privacy and Support pages
 
-**Status: open.** Publishing the two legal pages from `aa57985`, with four
+**Status: closed — live.** Publishing the two legal pages from `aa57985`, with four
 corrections the founder approved after an independent review of Codex's
 9 October attempt.
 
@@ -114,3 +114,48 @@ confirming.
 | `53a4afb` | Open the handover before the first change |
 | `804c07c` | The two pages and the stylesheet, with the four corrections |
 | (this one) | Record how it was verified |
+
+## Live
+
+Pushed to `main` at `72906b6` on 10 October 2026, with
+`--force-with-lease` against `9c404e8` after confirming `origin/main` was still
+an ancestor. The founder chose to go straight to `main` rather than preview.
+Vercel reported the production deployment for `72906b6` as **success**.
+
+All eight target URLs return 200 with the right page title:
+
+| URL | |
+| --- | --- |
+| `https://joinfero.app/privacy` | ✅ |
+| `https://joinfero.app/privacy/` | ✅ |
+| `https://joinfero.app/support` | ✅ |
+| `https://joinfero.app/support/` | ✅ |
+| `https://lift-log-nu.vercel.app/privacy` | ✅ |
+| `https://lift-log-nu.vercel.app/privacy/` | ✅ |
+| `https://lift-log-nu.vercel.app/support` | ✅ |
+| `https://lift-log-nu.vercel.app/support/` | ✅ |
+
+The apex redirects to `www.joinfero.app`, which serves the pages; `/legal.css`
+returns 200 as `text/css` on both hosts. Checked in the browser on the live
+site at 393x852: Outfit resolves, the stylesheet loads, no sideways scroll, and
+**no console errors**. The word "block" appears nowhere in either live page.
+The app itself still renders at `joinfero.app` with no console errors, as
+expected - nothing outside `public/` was touched.
+
+## Open
+
+- **`support@joinfero.app` is still unconfirmed.** This is the one item that
+  needs the founder. Both live pages name it as the only support channel.
+- **Blocking does not exist.** Apple generally expects a block control in any
+  app with user-generated content. It is built on
+  `codex/app-store-readiness` (`src/pages/PlayerProfile.jsx:337`) and merging
+  that branch is a separate, much larger job. If it ships, the two sentences
+  removed here should go back.
+- Reporting still covers opened workout photos only - no comment or member
+  reporting.
+- `docs/app-store-submission-runbook.md` was not updated with these URLs.
+- The effective date stays 27 September 2026.
+- Codex's 9 October handover is still only on the local branch
+  `codex/legal-pages-publish-2026-10-09`, unpushed.
+
+Nothing else was modified.

@@ -4,7 +4,23 @@
 Update it whenever something ships. Same filename forever — never date it, never
 fork it. If it disagrees with a handover, this file wins.
 
-Last updated: **10 October 2026** — the website's **All Time** leaderboard and
+Last updated: **10 October 2026** — **the Privacy Policy and Support pages are
+live** at `joinfero.app/privacy` and `joinfero.app/support` (and on
+`lift-log-nu.vercel.app`), with and without a trailing slash. They had been 404
+since they were written on 27 September, because they were never merged to
+`main`. Four claims were corrected first: the Support page's account-deletion
+directions pointed at a screen that has no delete button, both pages promised
+member blocking that does not exist outside the unmerged
+`codex/app-store-readiness` branch, reporting was described more broadly than
+the app allows, and the pages asked for a typeface the app never loads. These
+are static pages; the app is untouched, so there is nothing here for TestFlight
+to catch up on. Details: `docs/handover-2026-10-10-legal-pages-publish.md`.
+
+> **`support@joinfero.app` is unconfirmed.** Both pages name it as the only
+> support channel, and nobody has verified that mail sent there arrives in a
+> mailbox someone reads. No test email was sent.
+
+Before that, on 10 October, the website's **All Time** leaderboard and
 member-name awards now show only people who currently belong to that Bloc.
 Former members' workout history, month totals, and activity mix are preserved.
 Abhishek has left Go To Da Gym and Aki Jain 2000 has left Ctrl Alt De-feat;
@@ -37,7 +53,8 @@ yet**. Details: `docs/handover-2026-10-09-session-catch-up.md` and
 
 | | Website (PWA) | TestFlight (phone) |
 | --- | --- | --- |
-| **At commit** | **`bd43b8b`** | `77fe4d8` (build 10) |
+| **At commit** | **`72906b6`** | `77fe4d8` (build 10) |
+| Privacy Policy and Support pages at `/privacy` and `/support` | ✅ | n/a — web pages, not part of the app |
 | Fifth tab is **Profile** (your photo in the tab, tap it to change it); History is inside Month as **Month \| All Time** | ✅ | ❌ |
 | Profile header: photo left, name over the This Bloc / All Blocs buttons; the month is a one-tap pill; the month as a ring | ✅ | ❌ |
 | All Time: no heading, three awards, top-3 leaderboard with the full table one tap away; Bloc details half the height | ✅ | ❌ |
