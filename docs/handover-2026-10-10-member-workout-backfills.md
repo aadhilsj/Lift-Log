@@ -71,11 +71,12 @@ authorized two workout backfills:
 | Commit | Description | Live |
 | --- | --- | --- |
 | `1f1867d` | Record the first confirmed workout backfill and before-state | Data live; docs branch only |
-| This close-out commit | Record Rodri and Kisal corrections and final verification | Data live |
+| `b2185dd` | Record Rodri and Kisal corrections and final verification | Data live; Vercel production deployment `dpl_8E33GX7Ap3A6sFaCPCTs2M3x68q2` reports Ready |
+| This close-out commit | Record the production deployment check | Docs only |
 
 ## Close-out
 
 Rodri's August sit-out, Banana's September Home Workout, and Kisal's copied
-October 1 workout are in production data. No app code changed and no Vercel
-deployment was needed for these data-only corrections. Documentation is ready
-on `codex/backfill-review-2026-10-10`; push to `main` is pending.
+October 1 workout are in production data. No app code changed. The documentation
+commit `b2185dd` is on `main`; its Vercel production deployment reports Ready.
+This final handover update records that check.
