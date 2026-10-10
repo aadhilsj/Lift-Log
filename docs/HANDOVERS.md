@@ -36,6 +36,7 @@ Read every one of these. Each is a dated record of one session.
 
 | Date | Handover | About |
 | --- | --- | --- |
+| 10 Oct — **active** | [`handover-2026-10-10-member-workout-backfills.md`](handover-2026-10-10-member-workout-backfills.md) | Check Rodri’s sit-out allowance; backfill Banana’s second September workout and Kisal’s October workout into Sweat Equity |
 | 10 Oct — **closed** | [`handover-2026-10-10-all-time-members.md`](handover-2026-10-10-all-time-members.md) | Hide departed members from the All-Time leaderboard without losing history; remove two confirmed members from their Blocs |
 | 10 Oct — **closed** | [`handover-2026-10-10-branch-cleanup.md`](handover-2026-10-10-branch-cleanup.md) | Six old GitHub branches and four matching local names removed after saving a restore copy; 14 non-main GitHub branches remain |
 | 9 Oct — **active** | [`handover-2026-10-09-session-catch-up.md`](handover-2026-10-09-session-catch-up.md) | Back after a week away; nothing moved since 8 Oct; state of play, open items, cleanup candidates |
