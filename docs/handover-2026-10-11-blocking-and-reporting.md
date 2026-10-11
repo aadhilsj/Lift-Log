@@ -64,10 +64,82 @@ is inconsistent, so this cannot be made certain — only more defensible.
 
 ## Verified before publishing
 
-Filled in as the session runs.
+The session that wrote the six commits below ran out of credits before it
+verified anything. A second session picked the branch up on 11 October and
+checked it without changing a line of the work.
+
+**Clean:**
+
+- `npm run lint` — no findings.
+- `npm run build` — succeeds.
+- `test:content-safety`, `test:two-workouts`, `test:identity`,
+  `test:founder-dashboard` — all pass.
+- Every new screen loads at 375x812 with no console errors: the Safety ->
+  Blocked row on the account screen, the Blocked panel, the centred
+  report-or-block menu, the report reason dialog and the block confirm.
+- The four instructions of 11 October are all met on screen: the heading is
+  just the person's name, the wording follows Instagram, every pop-up is
+  centred rather than a bottom sheet, and the block confirm states the
+  interaction guard in words.
+- Blocking Jo removed her posts from the Activity Feed straight away, and the
+  report submitted without an error.
+
+**Not verified, and why:**
+
+- *Whether a block or a report actually persists.* The sandbox answers every
+  `/rest/v1/rpc/` address with `200 []`
+  (`scripts/sandbox-supabase.mjs:179`), so the write appears to succeed and the
+  Blocked list then reads back empty. That empty list is the sandbox, not a
+  bug. Proving persistence needs the restored-copy route in the 2026-09-16
+  handover, or production.
+- `test:mobile-navigation` fails on this branch **and has nothing to do with
+  it** — the branch touches no seed or rollover code. It signs in as
+  `seed-invite@local.test` and waits for "Your Blocs"; in the current sandbox
+  blob that address has never been onboarded, so the screen asks for a display
+  name instead. Re-seeding from scratch does not fix it either: the seed's
+  rollover step fails with "canonical logs empty for 2026-7 while blob counted
+  30", the same documented sandbox limitation as above.
+
+## The one thing that must happen before this ships
+
+`supabase/migrations/20261011090000_add_block_interaction_guard.sql` has
+**not** been applied to production. Schema goes first, as always — but here it
+is sharper than usual, because the two halves of the guard behave differently
+if the code arrives first.
+
+`isInteractionBlockedByTarget` was deliberately written to fail open: its
+lookup is wrapped in try/catch, so a missing function just means the guard
+does not bite. Comments on workouts and reactions to workouts are therefore
+safe either way.
+
+`readWorkoutLogCommentAuthorFromCanonical`, at `api/lift-log.js:10070`, is
+**not** wrapped. `supabaseFetch` throws on any non-2xx, and PostgREST answers
+404 for a function that does not exist, so the outermost handler
+(`api/lift-log.js:11406`) returns that 404 to the client. The effect, if the
+code ships before the migration: **adding a reaction to a comment fails for
+everyone.** Removing one is unaffected, because the guard only runs when
+`isAdding === true`.
+
+Two ways out, and they are not exclusive:
+
+1. Apply the migration first, then deploy. This is the normal rule and it is
+   sufficient.
+2. Wrap the author lookup the way its sibling is wrapped, so the order stops
+   mattering at all. One small change, inside the task, not yet made — the
+   founder's call.
 
 ## Commits
 
 | Commit | What |
 | --- | --- |
-| (this one) | Open the handover before the first change |
+| 2bc0ea8 | Open the handover before the first change |
+| 3d27291 | db: record the September moderation schema, add the block interaction guard |
+| 9c27372 | api: blocking, reporting, the moderation queue and the content filter |
+| d913610 | Report and Block on the four surfaces that show other people's content |
+| 95f80f0 | The Blocked list, and the report queue on the founder dashboard |
+| 38cdcaa | Move Blocked onto the account screen, where people actually look |
+
+All six are on `claude/blocking-and-reporting-2026-10-11` only. **Nothing is
+live.** The branch sits 6 commits ahead of `origin/main` and `origin/main` is
+an ancestor of it, so it is ready to push once the founder says where it goes
+and the migration has been applied.
