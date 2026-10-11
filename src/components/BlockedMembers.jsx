@@ -52,7 +52,9 @@ const BlockedMembersPanel = ({ members, loaded, onUnblocked, onBack }) => {
     React.createElement('button', {
       type: "button",
       onClick: onBack,
-      style: { background: "transparent", border: "none", color: "var(--muted)", fontSize: 13, fontWeight: 700, padding: "0 0 10px", fontFamily: "inherit", cursor: "pointer" }
+      // The host screen is a flex column, so without alignSelf the button
+      // stretches and its label centres.
+      style: { alignSelf: "flex-start", textAlign: "left", background: "transparent", border: "none", color: "var(--muted)", fontSize: 13, fontWeight: 700, padding: "0 0 10px", fontFamily: "inherit", cursor: "pointer" }
     }, "‹ Account"),
     React.createElement('div', { style: { fontWeight: 800, fontSize: 18, marginBottom: 3 } }, "Blocked"),
     React.createElement('div', { style: { fontSize: 12, color: "var(--muted)", lineHeight: 1.5, marginBottom: 14 } },
