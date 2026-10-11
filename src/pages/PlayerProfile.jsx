@@ -48,6 +48,7 @@ import { ACTIVITIES, getLogDisplayActivity } from "../lib/activities.js";
 import { ShareSticker } from "../components/ShareSticker.jsx";
 import { buildStickerData } from "../lib/shareSticker.js";
 import { fetchProfileStatsData } from "../lib/api.js";
+import { SafetyFlow } from "../components/SafetyControls.jsx";
 import {
   cancelSwipeFrame,
   releaseSwipeBack,
@@ -347,6 +348,7 @@ const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevea
   // Viewing yourself needs no request at all: your client already holds every
   // Bloc you are in, so the local aggregation is already the complete answer.
   const isSelf = Boolean(memberUserId) && memberUserId === currentUserId;
+  const [safetyTarget,setSafetyTarget] = useState(null);
 
   // Fetch a member's genuine cross-Bloc stats when the tab is first opened.
   // Deferred rather than fetched on mount so opening a profile stays cheap;
@@ -524,7 +526,13 @@ const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevea
     onTouchEnd:endSwipeBack,
     onTouchCancel:e=>{e.stopPropagation();swipeRef.current={sx:0,sy:0,active:false,mode:null};onSwipeRevealChange?.(false);setDragging(false);resetSwipeTransform();}
   };
-  return React.createElement('div',{ref:surfaceRef,...swipeBackHandlers,style:{minHeight:asTab?"auto":"100dvh",background:asTab?"none":"var(--bg-gradient)",backgroundImage:asTab?"none":"var(--bg-radial-hint), var(--bg-gradient)",transform:dragXRef.current?`translateX(${dragXRef.current}px)`:"translateX(0)",transition:dragging?"none":"transform .08s ease-out",boxShadow:dragXRef.current?"-18px 0 34px rgba(0,0,0,.28)":"none",willChange:dragging||dragXRef.current?"transform":"auto",touchAction:"pan-y",overscrollBehavior:"contain"}},
+  return React.createElement(React.Fragment,null,
+  React.createElement(SafetyFlow,{
+    target:safetyTarget,
+    groupId:group?.id,
+    onClose:()=>setSafetyTarget(null)
+  }),
+  React.createElement('div',{ref:surfaceRef,...swipeBackHandlers,style:{minHeight:asTab?"auto":"100dvh",background:asTab?"none":"var(--bg-gradient)",backgroundImage:asTab?"none":"var(--bg-radial-hint), var(--bg-gradient)",transform:dragXRef.current?`translateX(${dragXRef.current}px)`:"translateX(0)",transition:dragging?"none":"transform .08s ease-out",boxShadow:dragXRef.current?"-18px 0 34px rgba(0,0,0,.28)":"none",willChange:dragging||dragXRef.current?"transform":"auto",touchAction:"pan-y",overscrollBehavior:"contain"}},
     openStatusNote === "training" && React.createElement(TrainingNoteModal,{
       memberName: name,
       isSelf: currentUserId ? memberUserId === currentUserId : false,
@@ -601,7 +609,18 @@ const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevea
     // clear of what follows. "Back" takes its own line above, because the
     // photo now owns the top-left corner. The month switcher moved into This
     // Bloc as a one-tap pill.
-    !asTab && React.createElement('div',{className:"fu",style:{marginBottom:-4}},backButton),
+    !asTab && React.createElement('div',{className:"fu",style:{marginBottom:-4,display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}},
+      backButton,
+      // Report / Block for someone else's profile. Shares the Back row so the
+      // header block below it, and the photo spacing in particular, is
+      // untouched.
+      !isSelf && memberUserId && React.createElement('button',{
+        type:"button",
+        "aria-label":`Report or block ${name}`,
+        onClick:()=>setSafetyTarget({ userId:String(memberUserId), name, contentType:"profile", contentId:String(memberUserId) }),
+        style:{background:"transparent",border:"none",color:"var(--muted2)",padding:"2px 2px",fontSize:15,lineHeight:1.1,letterSpacing:1,cursor:"pointer"}
+      },"···")
+    ),
     React.createElement('div',{className:"fu",style:{position:"relative",display:"flex",flexDirection:"column",alignItems:"stretch",gap:7,paddingTop:asTab?2:6,paddingLeft:PROFILE_PHOTO_SIZE+PROFILE_PHOTO_GAP,paddingBottom:22}},
       React.createElement('div',{style:{maxWidth:"100%",fontFamily:"'Outfit',sans-serif",fontSize:18,fontWeight:800,lineHeight:1.15,textAlign:"center",overflowWrap:"anywhere"}},name),
       React.createElement('div',{style:{position:"relative"}},
@@ -750,7 +769,8 @@ const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevea
     // story; today's yearly allowance belongs on the active month instead.
     (isCurMonth || !isExcusedThisMonth) && renderAllowanceLine()
 	      )
-	  ));
+	  ))
+  );
 };
 
 // ─── TODAY PAGE ───────────────────────────────────────────────────────────────

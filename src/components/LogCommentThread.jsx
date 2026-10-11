@@ -10,6 +10,7 @@ import {
   toggleLogCommentReactionData
 } from "../lib/api.js";
 import { QUICK_REACTIONS, resolveStorageImageUrl } from "../lib/appState.js";
+import { SafetyFlow, useBlockedUserIds } from "./SafetyControls.jsx";
 import { formatShortDate } from "../lib/utils.js";
 
 // Skeleton bubbles while a thread loads. We already know how many comments
@@ -139,6 +140,15 @@ function LogHeader({ log }) {
 
 function LogCommentThread({ groupId, log, currentUserId, currentUserName, onClose, onCommentCountChange, onTrackUsage }) {
   const [comments, setComments] = useState([]);
+  const [safetyTarget, setSafetyTarget] = useState(null);
+  const { blockedUserIds, addBlockedUserId } = useBlockedUserIds();
+  // A blocked member's comments leave the thread. The count the server
+  // reports is deliberately left alone: silently correcting it would tell
+  // everyone else that a block exists.
+  const visibleComments = useMemo(
+    () => comments.filter(comment => !blockedUserIds.includes(String(comment?.commenterUserId || ""))),
+    [comments, blockedUserIds]
+  );
   const [loaded, setLoaded] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
   const [draft, setDraft] = useState("");
@@ -467,7 +477,14 @@ function LogCommentThread({ groupId, log, currentUserId, currentUserName, onClos
     }
   };
 
-  return React.createElement('div', {
+  return React.createElement(React.Fragment, null,
+  React.createElement(SafetyFlow, {
+    target: safetyTarget,
+    groupId,
+    onBlocked: addBlockedUserId,
+    onClose: () => setSafetyTarget(null)
+  }),
+  React.createElement('div', {
     onPointerDownCapture: event => {
       if (reactionTarget && !event.target?.closest?.('[data-comment-reaction-picker="true"]')) setReactionTarget(null);
     },
@@ -543,12 +560,12 @@ function LogCommentThread({ groupId, log, currentUserId, currentUserName, onClos
               React.createElement('button', { type: "button", onClick: () => { void refresh(); }, style: { marginTop: 12, padding: "8px 14px", borderRadius: 10, border: "1px solid rgba(232,69,69,.4)", background: "rgba(232,69,69,.1)", color: "#ffd7d7", fontSize: 12, fontWeight: 700, cursor: "pointer" } }, "Try again"))
           : comments.length === 0 && !loaded && knownCommentCount > 0
           ? React.createElement(CommentThreadSkeleton, { count: knownCommentCount })
-          : comments.length === 0
+          : visibleComments.length === 0
           ? React.createElement('div', { style: { padding: "22px 14px", color: "var(--muted2)", fontSize: 13, textAlign: "center" } }, "No comments yet")
           : React.createElement('div', { style: { display: "flex", flexDirection: "column", gap: 6, padding: "12px 12px 18px" } },
-              comments.map((comment, index) => {
+              visibleComments.map((comment, index) => {
                 const isOwn = Boolean((currentUserId && comment.commenterUserId === currentUserId) || (!currentUserId && currentUserName && comment.commenterName === currentUserName));
-                const previous = comments[index - 1];
+                const previous = visibleComments[index - 1];
                 const showName = !isOwn && previous?.commenterUserId !== comment.commenterUserId;
                 const previousIsDifferentUser = Boolean(previous && previous.commenterUserId !== comment.commenterUserId);
                 return React.createElement('div', { key: comment.id, style: { display: "flex", alignItems: "flex-end", justifyContent: isOwn ? "flex-end" : "flex-start", gap: 7, marginTop: previousIsDifferentUser ? 3.5 : 0 } },
@@ -572,7 +589,21 @@ function LogCommentThread({ groupId, log, currentUserId, currentUserName, onClos
                       style: { position: "relative", color: "#fff", fontSize: 12, lineHeight: 1.32, whiteSpace: "pre-wrap", wordBreak: "break-word", background: isOwn ? "linear-gradient(135deg, #116B65, #0D4642)" : "#0D1F1E", border: `1px solid ${isOwn ? "rgba(78,205,196,.28)" : "#163d36"}`, borderRadius: isOwn ? "12px 4px 12px 12px" : "4px 12px 12px 12px", padding: "7px 9px", userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none", touchAction: "manipulation" }
                     }, comment.body, renderCommentReactions(comment, isOwn))
                   ),
-                  null
+                  // Report / Block for someone else's comment, in the space
+                  // the row already leaves at its end.
+                  !isOwn && comment.commenterUserId
+                    ? React.createElement('button', {
+                        type: "button",
+                        "aria-label": `Report or block ${comment.commenterName}`,
+                        onClick: () => setSafetyTarget({
+                          userId: String(comment.commenterUserId),
+                          name: comment.commenterName,
+                          contentType: "workout_comment",
+                          contentId: String(comment.id)
+                        }),
+                        style: { border: 0, background: "transparent", color: "var(--muted2)", fontSize: 14, lineHeight: 1, letterSpacing: 1, padding: "0 2px", alignSelf: "flex-end", cursor: "pointer" }
+                      }, "···")
+                    : null
                 )
               })
             )
@@ -609,6 +640,7 @@ function LogCommentThread({ groupId, log, currentUserId, currentUserName, onClos
         onPick: emoji => toggleReaction(emojiSheetCommentId, emoji)
       })
     )
+  )
   );
 }
 

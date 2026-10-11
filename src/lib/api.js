@@ -917,6 +917,56 @@ async function markBlocStreamReadData(groupId) {
   return { ok:true };
 }
 
+// --- Blocking and reporting (App Store guideline 1.2) ----------------------
+// Blocking is one-way by design: these ids are the people *you* blocked, and
+// the surfaces below hide them. The server separately refuses to let someone
+// you blocked comment on or react to your workouts. Nothing here ever tells a
+// member who has blocked them.
+
+async function getSafetyStatusData() {
+  const result = await postApi("safety-status");
+  if (!result.ok) return { ok:false, error:result.error || "Unable to load safety settings", blockedUserIds:[] };
+  return { ok:true, blockedUserIds:Array.isArray(result.body?.blockedUserIds) ? result.body.blockedUserIds : [] };
+}
+
+async function setUserBlockData(blockedUserId, blocked = true) {
+  const result = await postApi("block-user", { blockedUserId, blocked });
+  if (!result.ok) return { ok:false, error:result.error || "Unable to update block", blocked:!blocked };
+  return { ok:true, blocked:!!result.body?.blocked };
+}
+
+// The Blocked screen needs names and photos, which the id list alone does not
+// carry. Scoped to the caller by the server.
+async function getBlockedMembersData() {
+  const result = await postApi("blocked-members");
+  if (!result.ok) return { ok:false, error:result.error || "Unable to load blocked members", members:[] };
+  return { ok:true, members:Array.isArray(result.body?.members) ? result.body.members : [] };
+}
+
+async function createContentReportData(payload) {
+  const result = await postApi("report-content", payload);
+  if (!result.ok) return { ok:false, error:result.error || "Unable to submit report" };
+  return { ok:true, report:result.body?.report || null };
+}
+
+async function listFounderModerationReportsData(limit = 100) {
+  const result = await postApi("founder-moderation-reports", { limit });
+  if (!result.ok) return { ok:false, status:result.status || 0, error:result.error || "Unable to load reports", reports:[] };
+  return { ok:true, reports:Array.isArray(result.body?.reports) ? result.body.reports : [] };
+}
+
+async function reviewFounderModerationReportData(reportId, status, reviewNote = "") {
+  const result = await postApi("founder-review-report", { reportId, status, reviewNote });
+  if (!result.ok) return { ok:false, error:result.error || "Unable to review report" };
+  return { ok:true, report:result.body?.report || null };
+}
+
+async function moderateFounderReportedContentData(reportId, action, reviewNote = "") {
+  const result = await postApi("founder-moderate-reported-content", { reportId, actionType:action, reviewNote });
+  if (!result.ok) return { ok:false, error:result.error || "Unable to change content visibility" };
+  return { ok:true, report:result.body?.report || null };
+}
+
 async function listLogCommentsData(groupId, logId) {
   const result = await postApi("log-comments-list", { groupId, logId });
   if (!result.ok) return { ok:false, error: result.error || "Unable to load comments", comments: [] };
@@ -1037,6 +1087,13 @@ export {
   sendBlocStreamMessageData,
   createBlocStreamEventData,
   setBlocStreamRsvpData,
+  getSafetyStatusData,
+  setUserBlockData,
+  getBlockedMembersData,
+  createContentReportData,
+  listFounderModerationReportsData,
+  reviewFounderModerationReportData,
+  moderateFounderReportedContentData,
   toggleBlocStreamReactionData,
   markBlocStreamReadData,
   listLogCommentsData,

@@ -3,6 +3,7 @@ const { useState, useEffect, useLayoutEffect, useRef } = React;
 import { Avatar, AppIcon, WorkoutTypeIcon } from "../components/primitives.jsx";
 import { ReactionChip } from "../components/ReactionRoster.jsx";
 import { EmojiSheet, QuickReactionChoices } from "../components/EmojiReactionPicker.jsx";
+import { SafetyFlow, useBlockedUserIds } from "../components/SafetyControls.jsx";
 import {
   createBlocStreamEventData,
   getBlocStreamUnreadCountData,
@@ -293,7 +294,7 @@ const Reactable = ({ msg, currentUserId, onReact, onReply, nameFor, photoFor, al
 // `showName` (received only) on the first of a run, `showAvatar` on the last,
 // and `showTime` only on the last message of a same-minute cluster. Own
 // messages never show a name. The tail corner is only on the first bubble.
-const TextBubble = ({ msg, isOwn, authorName, authorPhotoUrl, nameFor, members, replyToMsg, showName, showTime, showAvatar, firstInGroup, reactionNode }) => {
+const TextBubble = ({ msg, isOwn, authorName, authorPhotoUrl, nameFor, members, replyToMsg, showName, showTime, showAvatar, firstInGroup, reactionNode, onSafetyMenu }) => {
   const nameText = !isOwn && showName ? authorName : "";
   const timeText = showTime ? formatStamp(msg.created_at) : "";
   const radius = 18;
@@ -305,8 +306,18 @@ const TextBubble = ({ msg, isOwn, authorName, authorPhotoUrl, nameFor, members, 
       : React.createElement('div', { style: { width: 28, flexShrink: 0 } })),
     React.createElement('div', { style: { maxWidth: isOwn ? "76%" : "74%", width: "fit-content", display: "flex", flexDirection: "column", alignItems: isOwn ? "flex-end" : "flex-start" } },
       nameText && React.createElement('div', {
-        style: { fontFamily: "'Outfit', sans-serif", fontSize: 11, fontWeight: 500, color: C.meta, margin: "0 0 3px 4px" }
-      }, nameText),
+        style: { display: "flex", alignItems: "center", gap: 4, margin: "0 0 3px 4px" }
+      },
+        React.createElement('span', {
+          style: { fontFamily: "'Outfit', sans-serif", fontSize: 11, fontWeight: 500, color: C.meta }
+        }, nameText),
+        !isOwn && onSafetyMenu && React.createElement('button', {
+          type: "button",
+          onClick: () => onSafetyMenu(msg),
+          "aria-label": `Report or block ${authorName}`,
+          style: { border: 0, background: "transparent", color: C.meta, padding: "0 2px", fontSize: 12, lineHeight: 1, letterSpacing: 1, cursor: "pointer" }
+        }, "···")
+      ),
       React.createElement('div', {
         style: {
           position: "relative",
@@ -654,8 +665,13 @@ const MentionList = ({ items, onPick }) =>
 const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, initialUnreadCount = 0, currentUserId, members = [], streamBlocs = [], onSeasonClosedTap, onUnreadCountChange, onOpenLogComments, onClose }) => {
   const [mounted, setMounted] = useState(false);
   const [messages, setMessages] = useState([]);
+  // A blocked member's messages leave the Stream. Derived rather than stored,
+  // so a block applies the moment it lands without refetching the thread.
+  const visibleMessages = messages.filter(message => !blockedUserIds.includes(String(message?.author_id || "")));
   const [messagesByBloc, setMessagesByBloc] = useState(readStreamMessageCache);
   const [viewedBlocId, setViewedBlocId] = useState(blocId);
+  const [safetyTarget, setSafetyTarget] = useState(null);
+  const { blockedUserIds, addBlockedUserId } = useBlockedUserIds();
   const [draft, setDraft] = useState("");
   const [eventDraft, setEventDraft] = useState(emptyEventDraft);
   const [showEventSheet, setShowEventSheet] = useState(false);
@@ -694,6 +710,15 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, 
   const canSwitchStreams = availableBlocs.length > 1;
 
   const nameFor = id => (activeMembers.find(m => m.id === id)?.name) || "Member";
+  const openSafetyMenu = message => {
+    if (!message?.author_id || message.author_id === currentUserId) return;
+    setSafetyTarget({
+      userId: String(message.author_id),
+      name: nameFor(message.author_id),
+      contentType: "stream_message",
+      contentId: String(message.id)
+    });
+  };
   const photoFor = id => activeMembers.find(m => m.id === id)?.photoUrl || "";
 
   useEffect(() => {
@@ -1178,7 +1203,14 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, 
     });
   };
 
-  return React.createElement('div', {
+  return React.createElement(React.Fragment, null,
+  React.createElement(SafetyFlow, {
+    target: safetyTarget,
+    groupId: activeBlocId,
+    onBlocked: addBlockedUserId,
+    onClose: () => setSafetyTarget(null)
+  }),
+  React.createElement('div', {
     onClick: closeStream,
     style: {
       position: "fixed", inset: 0, zIndex: 300, display: "flex", flexDirection: "column",
@@ -1246,9 +1278,9 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, 
       },
         messages.length === 0
           ? React.createElement('div', { style: { margin: "auto", color: "var(--muted2)", fontSize: 13 } }, "No messages yet")
-          : messages.map((msg, i) => {
-              const prev = messages[i - 1];
-              const next = messages[i + 1];
+          : visibleMessages.map((msg, i) => {
+              const prev = visibleMessages[i - 1];
+              const next = visibleMessages[i + 1];
               const isText = msg.message_type !== "system" && msg.message_type !== "event" && msg.message_type !== "log_comment";
               const sameAuthorPrev = isText && prev && prev.message_type !== "system" && prev.message_type !== "event" && prev.message_type !== "log_comment" && prev.author_id === msg.author_id;
               const sameAuthorNext = isText && next && next.message_type !== "system" && next.message_type !== "event" && next.message_type !== "log_comment" && next.author_id === msg.author_id;
@@ -1288,7 +1320,7 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, 
               // Time shows on the last message of a five-minute run from this sender.
               const showTime = !(sameAuthorNext && sameFiveMinuteWindow(msg.created_at, next.created_at));
               return wrap(React.createElement(Reactable, { msg, currentUserId, onReact: handleReact, onReply: handleReply, nameFor, photoFor, align: isOwn ? "right" : "left", swipeEnabled: true },
-                reactionNode => React.createElement(TextBubble, { msg, isOwn, authorName: nameFor(msg.author_id), authorPhotoUrl: photoFor(msg.author_id), nameFor, members: activeMembers, replyToMsg, showName: firstInGroup, showTime, showAvatar: !sameAuthorNext, firstInGroup, reactionNode })));
+                reactionNode => React.createElement(TextBubble, { msg, isOwn, authorName: nameFor(msg.author_id), authorPhotoUrl: photoFor(msg.author_id), nameFor, members: activeMembers, onSafetyMenu: openSafetyMenu, replyToMsg, showName: firstInGroup, showTime, showAvatar: !sameAuthorNext, firstInGroup, reactionNode })));
             })
       ),
       // Input bar
@@ -1351,6 +1383,7 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, 
       onClose: () => setShowEventSheet(false),
       onCreate: handleCreateEvent
     })
+  )
   );
 };
 

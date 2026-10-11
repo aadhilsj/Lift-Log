@@ -9,6 +9,7 @@ import {
   resolveStorageImageUrl
 } from "../lib/appState.js";
 import { getLogCommentCountsData } from "../lib/api.js";
+import { SafetyFlow, useBlockedUserIds } from "../components/SafetyControls.jsx";
 import {
   formatShortDate,
   formatCompactRelativeTime,
@@ -52,6 +53,8 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
   const [photoZoomResetting,setPhotoZoomResetting]=useState(false);
   const [commentCounts,setCommentCounts]=useState({});
   const [notice,setNotice]=useState(null);
+  const [safetyTarget,setSafetyTarget]=useState(null);
+  const { blockedUserIds, addBlockedUserId } = useBlockedUserIds();
   const reactionPressTimer = useRef(null);
   const reactionLongPressKey = useRef("");
   const reactionSuppressClickKey = useRef("");
@@ -76,12 +79,28 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
       else delete reactions[override.emoji];
     });
     return { ...post, reactions };
-  }),[activeReactionOverrides, baseFeedPosts, group?.id]);
+  // A blocked member's workouts leave the feed entirely. Their totals still
+  // count towards the Bloc - blocking hides activity, it does not change the
+  // leaderboard.
+  }).filter(post => !blockedUserIds.includes(String(userIdForOwner(post.owner) || ""))),
+  [activeReactionOverrides, baseFeedPosts, blockedUserIds, group?.id, userIdForOwner]);
   const photoFeedPosts = useMemo(()=>feedPosts.filter(post=>post.photoUrl),[feedPosts]);
   const isAdmin = group?.adminName === currentUser;
   const approvedFlagCount = countApprovedFlagsForActor(group, currentUser);
   const cannotFlagMore = approvedFlagCount >= 3;
   const compactFeed = isMobile();
+  // The ... that opens Report / Block. Hidden on your own workouts.
+  const renderSafetyButton = post => {
+    const userId = userIdForOwner(post.owner);
+    if (!userId || userId === currentUserId) return null;
+    return React.createElement('button',{
+      type:"button",
+      "aria-label":`Report or block ${post.owner}`,
+      onClick:e=>{ e.stopPropagation(); setSafetyTarget({ userId:String(userId), name:post.owner, contentType:"workout_log", contentId:String(post.id) }); },
+      style:{ border:0, background:"transparent", color:"var(--muted2)", fontSize:15, lineHeight:1, letterSpacing:1, padding:"2px 2px", cursor:"pointer" }
+    },"···");
+  };
+
   const getCommentCount = useCallback(post => {
     const key = String(post?.id || "");
     const appOverride = commentCountOverrides[key];
@@ -513,6 +532,12 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
       onPick:emoji=>handleReact(emojiSheetPost,emoji)
     }),
     renderExpandedPhoto(),
+    React.createElement(SafetyFlow,{
+      target:safetyTarget,
+      groupId:group?.id,
+      onBlocked:addBlockedUserId,
+      onClose:()=>setSafetyTarget(null)
+    }),
     notice && React.createElement(NoticeModal,{title:notice.title,body:notice.body,onClose:()=>setNotice(null)}),
     flagTarget && React.createElement(TextEntryModal,{
       title:"Flag this workout?",
@@ -591,7 +616,8 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
                               ),
                             ),
                             React.createElement('div',{style:{display:"flex",alignItems:"center",gap:5,flexShrink:0,marginLeft:6}},
-                              post.verifiedVia==="strava" && React.createElement('span',{className:"mono",style:{fontSize:9,color:"var(--cyan)",letterSpacing:".05em",textTransform:"uppercase"}},"Strava")
+                              post.verifiedVia==="strava" && React.createElement('span',{className:"mono",style:{fontSize:9,color:"var(--cyan)",letterSpacing:".05em",textTransform:"uppercase"}},"Strava"),
+                              renderSafetyButton(post)
                             )
                           ),
                           post.note && React.createElement('div',{style:{fontSize:12,lineHeight:1.32,color:"var(--text-soft)",fontStyle:"italic",overflow:"hidden",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",whiteSpace:"normal"}},post.note)
@@ -621,7 +647,8 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
                       ),
                       React.createElement('div',{style:{display:"flex",alignItems:"center",gap:5,flexShrink:0,marginLeft:6}},
                         compactRelativeTime && React.createElement('span',{className:"mono",style:{fontSize:8,color:"var(--muted)",opacity:0.58}},compactRelativeTime),
-                        post.verifiedVia==="strava" && React.createElement('span',{className:"mono",style:{fontSize:9,color:"var(--cyan)",letterSpacing:".05em",textTransform:"uppercase",flexShrink:0}},"Strava")
+                        post.verifiedVia==="strava" && React.createElement('span',{className:"mono",style:{fontSize:9,color:"var(--cyan)",letterSpacing:".05em",textTransform:"uppercase",flexShrink:0}},"Strava"),
+                        renderSafetyButton(post)
                       )
                     ),
                     post.note && React.createElement('div',{style:{fontSize:11.5,lineHeight:1.35,color:"var(--text-soft)",fontStyle:"italic",whiteSpace:"pre-wrap",padding:"0 1px"}},post.note),
