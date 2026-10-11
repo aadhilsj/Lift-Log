@@ -36,6 +36,7 @@ Read every one of these. Each is a dated record of one session.
 
 | Date | Handover | About |
 | --- | --- | --- |
+| 11 Oct — **open** | [`handover-2026-10-11-blocking-migration-session-2.md`](handover-2026-10-11-blocking-migration-session-2.md) | Session 2: the block interaction guard was already in production, so the blocking branch has no blocker left; and the app-opens average |
 | 11 Oct — **active** | [`handover-2026-10-11-blocking-pickup-verification.md`](handover-2026-10-11-blocking-pickup-verification.md) | The blocking branch picked up after the session before it ran out of credits: lint, build, tests and every new screen verified; the interaction-guard migration still not applied to production, which must happen first |
 | 11 Oct — **active** | [`handover-2026-10-11-blocking-and-reporting.md`](handover-2026-10-11-blocking-and-reporting.md) | Blocking and reporting brought back from the App Store branch, centred pop-ups, the Blocked list, and a guard that stops a blocked member interacting with you |
 | 10 Oct — **closed** | [`handover-2026-10-10-legal-pages-publish.md`](handover-2026-10-10-legal-pages-publish.md) | The Privacy and Support pages published at last; four wording and type corrections after an independent review of the 9 Oct attempt |
