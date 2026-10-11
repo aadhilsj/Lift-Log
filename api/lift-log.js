@@ -29,6 +29,15 @@ const DEFAULT_CURRENCY = "NOK";
 const DEFAULT_MIN_RUN_DISTANCE = 3;
 const DEFAULT_DISTANCE_UNIT = "km";
 const DEFAULT_STRAVA_ENABLED = true;
+// First-line UGC guardrail (App Store guideline 1.2). This deliberately
+// catches only clear, high-risk abuse; reports and human review handle the
+// context a word list cannot judge. Do not grow this into a general profanity
+// filter - members swear at their own workouts constantly.
+const OBJECTIONABLE_CONTENT_PATTERNS = [
+  /\b(?:kill\s+yourself|kys)\b/i,
+  /\b(?:rape|rapist)\b/i,
+  /\b(?:nigg(?:er|a)|fagg(?:ot)?|cunt)\b/i
+];
 // One Bloc is capped at 20 members, so this comfortably covers a full roster
 // while bounding the work a single request can ask for.
 const PROFILE_STATS_MAX_SUBJECTS = 40;
@@ -3389,6 +3398,139 @@ async function createBlocStreamEventInCanonical(legacyGroupKey, authorAuthUserId
   return await response.json();
 }
 
+// ---------------------------------------------------------------------------
+// Blocking and reporting (App Store guideline 1.2).
+//
+// The tables and RPCs below live in ante_core and are reachable only with the
+// service_role key, so a member can never read or write another member's
+// blocks by calling the database directly. Every identity check happens inside
+// the RPC rather than here, so an API caller cannot substitute someone else's
+// identifier.
+// ---------------------------------------------------------------------------
+
+async function readUserBlocksFromCanonical(authUserId) {
+  const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_user_blocks", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ p_auth_user_id: authUserId })
+  });
+  return await response.json();
+}
+
+// The reverse direction: everyone who has blocked this person. Used only to
+// refuse an interaction, never sent to a client - telling someone who blocked
+// them is exactly what the feature is meant to avoid.
+async function readBlockersOfFromCanonical(authUserId) {
+  const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_blockers_of", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ p_auth_user_id: authUserId })
+  });
+  const blockers = await response.json();
+  return Array.isArray(blockers) ? blockers.map(String) : [];
+}
+
+async function readWorkoutLogCommentAuthorFromCanonical(commentId) {
+  const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_workout_log_comment_author", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ p_comment_id: commentId })
+  });
+  const authorId = await response.json();
+  return typeof authorId === "string" ? authorId : "";
+}
+
+// Has `targetAuthUserId` blocked `actorAuthUserId`? Interacting with someone
+// who blocked you - commenting on their workout, reacting to it, reacting to
+// their comment - is refused. Without this, blocking would only blindfold the
+// blocker while the blocked member carried on in front of the whole Bloc.
+//
+// A lookup failure must never block an ordinary comment, so this answers
+// "not blocked" if the database cannot be reached. Failing open is the right
+// trade here: the cost is one unblocked comment, and failing closed would take
+// commenting down for everyone whenever the RPC had a bad minute.
+async function isInteractionBlockedByTarget(actorAuthUserId, targetAuthUserId) {
+  const actor = String(actorAuthUserId || "").trim();
+  const target = String(targetAuthUserId || "").trim();
+  if (!actor || !target || actor === target) return false;
+  try {
+    const blockers = await readBlockersOfFromCanonical(actor);
+    return blockers.includes(target);
+  } catch (err) {
+    console.error("Block guard lookup failed; allowing the interaction", err);
+    return false;
+  }
+}
+
+const BLOCKED_INTERACTION_MESSAGE = "You can't interact with this member.";
+
+async function setUserBlockInCanonical(authUserId, blockedAuthUserId, blocked) {
+  const response = await supabaseFetch("/rest/v1/rpc/set_ante_core_user_block", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({
+      p_auth_user_id: authUserId,
+      p_blocked_auth_user_id: blockedAuthUserId,
+      p_blocked: !!blocked
+    })
+  });
+  return await response.json();
+}
+
+async function createContentReportInCanonical(authUserId, payload) {
+  const response = await supabaseFetch("/rest/v1/rpc/create_ante_core_content_report", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({
+      p_auth_user_id: authUserId,
+      p_legacy_group_key: payload.groupId,
+      p_reported_auth_user_id: payload.reportedUserId,
+      p_content_type: payload.contentType,
+      p_content_id: payload.contentId,
+      p_reason: payload.reason,
+      p_details: payload.details || ""
+    })
+  });
+  return await response.json();
+}
+
+async function readContentReportsFromCanonical(limit = 100) {
+  const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_content_reports", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ p_limit: limit })
+  });
+  return await response.json();
+}
+
+async function reviewContentReportInCanonical(reportId, status, reviewerAuthUserId, reviewNote = "") {
+  const response = await supabaseFetch("/rest/v1/rpc/review_ante_core_content_report", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({
+      p_report_id: reportId,
+      p_status: status,
+      p_reviewer_auth_user_id: reviewerAuthUserId,
+      p_review_note: reviewNote
+    })
+  });
+  return await response.json();
+}
+
+async function moderateReportedContentInCanonical(reportId, action, reviewerAuthUserId, reviewNote = "") {
+  const response = await supabaseFetch("/rest/v1/rpc/moderate_ante_core_report_content", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({
+      p_report_id: reportId,
+      p_action: action,
+      p_reviewer_auth_user_id: reviewerAuthUserId,
+      p_review_note: reviewNote
+    })
+  });
+  return await response.json();
+}
+
 async function setBlocStreamEventRsvpInCanonical(legacyGroupKey, authUserId, messageId, status) {
   await supabaseFetch("/rest/v1/rpc/set_ante_core_bloc_event_rsvp", {
     method: "POST",
@@ -5871,6 +6013,16 @@ async function getSupabaseAdminClient() {
 
 function normalizeEmailAddress(value) {
   return String(value || "").trim().toLowerCase();
+}
+
+function assertAllowedUserContent(value, fieldName = "content") {
+  const text = String(value || "").normalize("NFKC").replace(/\s+/g, " ").trim();
+  if (!text) return;
+  if (OBJECTIONABLE_CONTENT_PATTERNS.some(pattern => pattern.test(text))) {
+    const error = new Error(`That ${fieldName} cannot be posted. Please remove abusive language and try again.`);
+    error.status = 422;
+    throw error;
+  }
 }
 
 function isProbablyEmail(value) {
@@ -9597,6 +9749,7 @@ export {
   applyUpsertProfile,
   scopeReadableStateForUser,
   parseFeroStorageReference,
+  assertAllowedUserContent,
   isMissingStorageBucketResponse
 };
 
@@ -9736,6 +9889,44 @@ export default async function handler(req, res) {
         return res.status(200).json({ ok: true, messages: await signBlocStreamMessagePhotos(messages) });
       }
 
+      if (payload?.action === "safety-status") {
+        const authUser = await fetchAuthenticatedUser(readBearerToken(req, payload));
+        const blockedUserIds = await readUserBlocksFromCanonical(authUser.id);
+        return res.status(200).json({ ok: true, blockedUserIds: Array.isArray(blockedUserIds) ? blockedUserIds : [] });
+      }
+
+      if (payload?.action === "block-user") {
+        const authUser = await fetchAuthenticatedUser(readBearerToken(req, payload));
+        const result = await setUserBlockInCanonical(authUser.id, String(payload?.blockedUserId || ""), payload?.blocked !== false);
+        return res.status(200).json({ ok: true, blocked: !!result?.blocked });
+      }
+
+      // The list behind the Blocked screen. It carries display names and photos
+      // so the screen can be rendered without a second trip, and it is scoped to
+      // the caller by the RPC, never by anything the client sends.
+      if (payload?.action === "blocked-members") {
+        const authUser = await fetchAuthenticatedUser(readBearerToken(req, payload));
+        const blockedUserIds = await readUserBlocksFromCanonical(authUser.id);
+        const ids = Array.isArray(blockedUserIds) ? blockedUserIds.map(String) : [];
+        if (!ids.length) return res.status(200).json({ ok: true, members: [] });
+        const readable = await getReadableCurrent();
+        const members = ids.map(userId => {
+          const profile = readable?.profiles?.[userId] || null;
+          return {
+            userId,
+            displayName: profile?.displayName || "Former member",
+            profilePhotoUrl: profile?.profilePhotoUrl || ""
+          };
+        });
+        return res.status(200).json({ ok: true, members });
+      }
+
+      if (payload?.action === "report-content") {
+        const authUser = await fetchAuthenticatedUser(readBearerToken(req, payload));
+        const result = await createContentReportInCanonical(authUser.id, payload || {});
+        return res.status(201).json({ ok: true, report: result || null });
+      }
+
       if (payload?.action === "usage-event") {
         const authUser = await fetchAuthenticatedUser(readBearerToken(req, payload));
         await recordCanonicalUsageEvent(authUser, payload?.eventName);
@@ -9751,6 +9942,7 @@ export default async function handler(req, res) {
 
       if (payload?.action === "stream-send") {
         const authUser = await fetchAuthenticatedUser(readBearerToken(req, payload));
+        assertAllowedUserContent(payload.body, "message");
         const result = await sendBlocStreamMessageToCanonical(
           payload.groupId,
           authUser.id,
@@ -9764,6 +9956,8 @@ export default async function handler(req, res) {
 
       if (payload?.action === "stream-create-event") {
         const authUser = await fetchAuthenticatedUser(readBearerToken(req, payload));
+        assertAllowedUserContent(payload.activity, "event title");
+        assertAllowedUserContent(payload.location, "event location");
         const result = await createBlocStreamEventInCanonical(
           payload.groupId,
           authUser.id,
@@ -9820,6 +10014,7 @@ export default async function handler(req, res) {
 
       if (payload?.action === "log-comment-create") {
         const auth = await requireAuthenticatedContext(req, payload, await getReadableCurrent());
+        assertAllowedUserContent(payload.body, "comment");
         const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
         const canonicalActor = resolveDisplayNameForUser(canonicalState, payload.groupId, auth.user.id, auth.user.email);
         const group = canonicalState.groups?.[payload.groupId];
@@ -9842,6 +10037,12 @@ export default async function handler(req, res) {
         }
         if (!group || !logId) return res.status(404).json({ error: "Workout not found" });
         if (!isCurrentGroupMember(group, canonicalActor, auth.user.id)) return res.status(403).json({ error: "Only Bloc members can comment" });
+        // Someone who has been blocked cannot comment on the blocker's
+        // workout. Checked here rather than in the client, which the blocked
+        // member controls.
+        if (await isInteractionBlockedByTarget(auth.user.id, findAuthUserIdForDisplayName(group, owner))) {
+          return res.status(403).json({ error: BLOCKED_INTERACTION_MESSAGE });
+        }
         if (openLog && owner) {
           await syncOpenWorkoutLogSnapshotToCanonical(group, owner, openLog, { throwOnError: true });
         }
@@ -9861,6 +10062,16 @@ export default async function handler(req, res) {
         const commentId = String(payload?.commentId || "").trim();
         const emoji = String(payload?.emoji || "").trim();
         if (!commentId || !emoji) return res.status(400).json({ error: "commentId and emoji are required" });
+        // Reacting to a comment is an interaction with whoever wrote it. Only
+        // a definite add is refused. `isAdding` false removes, and an absent
+        // `isAdding` is a plain toggle that may well be a removal - guarding
+        // either would strand a reaction the member could never clear.
+        if (payload?.isAdding === true) {
+          const commentAuthorId = await readWorkoutLogCommentAuthorFromCanonical(commentId);
+          if (await isInteractionBlockedByTarget(authUser.id, commentAuthorId)) {
+            return res.status(403).json({ error: BLOCKED_INTERACTION_MESSAGE });
+          }
+        }
         await toggleWorkoutLogCommentReactionInCanonical(
           payload.groupId,
           authUser.id,
@@ -9878,6 +10089,27 @@ export default async function handler(req, res) {
         assertFounderDashboardUser(authUser);
         const dashboard = await readCanonicalFounderDashboard();
         return res.status(200).json({ ok:true, dashboard });
+      }
+
+      if (payload?.action === "founder-moderation-reports") {
+        const authUser = await fetchAuthenticatedUser(readBearerToken(req, payload));
+        assertFounderDashboardUser(authUser);
+        const reports = await readContentReportsFromCanonical(payload?.limit);
+        return res.status(200).json({ ok: true, reports: Array.isArray(reports) ? reports : [] });
+      }
+
+      if (payload?.action === "founder-review-report") {
+        const authUser = await fetchAuthenticatedUser(readBearerToken(req, payload));
+        assertFounderDashboardUser(authUser);
+        const result = await reviewContentReportInCanonical(payload?.reportId, payload?.status, authUser.id, payload?.reviewNote || "");
+        return res.status(200).json({ ok: true, report: result || null });
+      }
+
+      if (payload?.action === "founder-moderate-reported-content") {
+        const authUser = await fetchAuthenticatedUser(readBearerToken(req, payload));
+        assertFounderDashboardUser(authUser);
+        const result = await moderateReportedContentInCanonical(payload?.reportId, payload?.actionType, authUser.id, payload?.reviewNote || "");
+        return res.status(200).json({ ok: true, report: result || null });
       }
 
       if (payload?.action === "auth-sync") {
@@ -10150,6 +10382,7 @@ export default async function handler(req, res) {
 
       if (payload?.action === "create-group") {
         const auth = await requireAuthenticatedContext(req, payload, current);
+        assertAllowedUserContent(payload.groupName, "Bloc name");
         const creatorName = auth.profile?.displayName || capDisplayName(payload?.creatorName);
         const createPayload = {
           ...payload,
@@ -10184,6 +10417,7 @@ export default async function handler(req, res) {
       if (payload?.action === "upsert-profile") {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const requestedDisplayName = String(payload?.displayName || "").trim();
+        assertAllowedUserContent(requestedDisplayName, "display name");
         const shellOldNames = collectProfileRenameOldNames(
           auth.state.groups || {},
           auth.user.id,
@@ -10445,6 +10679,7 @@ export default async function handler(req, res) {
 
       if (payload?.action === "multi-log") {
         const auth = await requireAuthenticatedContext(req, payload, current);
+        assertAllowedUserContent(payload.note, "workout note");
         await markCanonicalDailyAppActive(auth.user.id);
         const actor = resolveDisplayNameForUser(auth.state, payload.sourceGroupId, auth.user.id, auth.user.email);
         const allTargetIds = [...new Set([payload.sourceGroupId, ...(Array.isArray(payload.targetGroupIds) ? payload.targetGroupIds.filter(Boolean) : [])])];
@@ -10520,6 +10755,7 @@ export default async function handler(req, res) {
 
       if (payload?.action === "add-log") {
         const auth = await requireAuthenticatedContext(req, payload, current);
+        assertAllowedUserContent(payload.note, "workout note");
         await markCanonicalDailyAppActive(auth.user.id);
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
         const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
@@ -10934,6 +11170,14 @@ export default async function handler(req, res) {
         const emoji = String(payload?.emoji || "").trim();
         const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
         const canonicalActor = assertGroupMembershipForUser(canonicalState, payload.groupId, auth.user.id);
+        // Same rule for reacting to a workout: only a definite add is
+        // refused, so a block can never strand a reaction.
+        if (payload?.isAdding === true) {
+          const reactionOwnerId = findAuthUserIdForDisplayName(canonicalState.groups?.[payload.groupId], payload.owner);
+          if (await isInteractionBlockedByTarget(auth.user.id, reactionOwnerId)) {
+            return res.status(403).json({ error: BLOCKED_INTERACTION_MESSAGE });
+          }
+        }
         const result = applyToggleReaction(canonicalState, { ...payload, actor: canonicalActor, actorUserId: auth.user.id });
         let shadowBlobResult = null;
         try {
