@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { fetchFounderDashboardData } from "../lib/api.js";
+import { fetchFounderDashboardData, listFounderModerationReportsData, reviewFounderModerationReportData } from "../lib/api.js";
 import { summarizeSystemHealth } from "../lib/systemHealth.js";
 
 const number = value => new Intl.NumberFormat("en-GB").format(Math.max(0, Number(value) || 0));
@@ -128,6 +128,29 @@ const FounderDashboard = ({onClose}) => {
   const [dashboard,setDashboard] = useState(null);
   const [error,setError] = useState("");
   const [tab,setTab] = useState("overview");
+  // Where member reports land. Without this they would sit in the database
+  // unseen, and Apple's guideline asks for timely responses to them.
+  const [reports,setReports] = useState([]);
+  const [reportsStatus,setReportsStatus] = useState("idle");
+  const [reportsError,setReportsError] = useState("");
+  const loadReports = useCallback(async()=>{
+    setReportsStatus("loading");
+    setReportsError("");
+    const result = await listFounderModerationReportsData();
+    if (!result.ok) {
+      setReportsStatus("error");
+      setReportsError(result.status === 403 ? "This account is not authorised to review reports." : result.error || "Unable to load reports.");
+      return;
+    }
+    setReports(result.reports);
+    setReportsStatus("ready");
+  },[]);
+  useEffect(()=>{ if (tab === "reports") loadReports(); },[tab,loadReports]);
+  const reviewReport = useCallback(async(reportId, nextStatus)=>{
+    const result = await reviewFounderModerationReportData(reportId, nextStatus);
+    if (!result.ok) { setReportsError(result.error || "Unable to update report."); return; }
+    setReports(current=>current.map(report=>report.id === reportId ? {...report,status:nextStatus,reviewedAt:new Date().toISOString()} : report));
+  },[]);
   const [usagePeriod,setUsagePeriod] = useState("monthly");
   const [usageSort,setUsageSort] = useState("users");
   const load = useCallback(async()=>{
@@ -195,8 +218,8 @@ const FounderDashboard = ({onClose}) => {
         React.createElement("button", {type:"button",onClick:load,style:{border:0,borderRadius:9,padding:"10px 13px",fontWeight:800,background:"#4ECDC4",color:"#061010",cursor:"pointer"}}, "Try again")
       ),
       status === "ready" && React.createElement(React.Fragment,null,
-        React.createElement("div", {style:{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:6,padding:4,margin:"0 0 14px",borderRadius:11,background:"rgba(255,255,255,.045)"}},
-          ["overview","growth","usage"].map(item=>React.createElement("button", {type:"button",key:item,onClick:()=>setTab(item),style:{border:0,borderRadius:8,padding:"9px 8px",background:tab===item?"#4ECDC4":"transparent",color:tab===item?"#061010":"var(--muted)",fontSize:11,fontWeight:900,cursor:"pointer",textTransform:"capitalize"}}, item))
+        React.createElement("div", {style:{display:"grid",gridTemplateColumns:"repeat(4,minmax(0,1fr))",gap:6,padding:4,margin:"0 0 14px",borderRadius:11,background:"rgba(255,255,255,.045)"}},
+          ["overview","growth","usage","reports"].map(item=>React.createElement("button", {type:"button",key:item,onClick:()=>setTab(item),style:{border:0,borderRadius:8,padding:"9px 8px",background:tab===item?"#4ECDC4":"transparent",color:tab===item?"#061010":"var(--muted)",fontSize:11,fontWeight:900,cursor:"pointer",textTransform:"capitalize"}}, item))
         ),
         tab === "overview" && React.createElement(React.Fragment,null,
         React.createElement(SystemHealth,{events:dashboard?.systemEvents}),
@@ -285,6 +308,29 @@ const FounderDashboard = ({onClose}) => {
             React.createElement(Metric,{label:"Comments",value:dashboard?.growth?.featureEngagement?.commentUsers,detail:`of ${number(dashboard?.growth?.featureEngagement?.activeUsers)} active`}),
             React.createElement(Metric,{label:"Reactions",value:dashboard?.growth?.featureEngagement?.reactionUsers,detail:`of ${number(dashboard?.growth?.featureEngagement?.activeUsers)} active`})
           )
+        ),
+        tab === "reports" && React.createElement("section", {style:{marginBottom:20,textAlign:"left"}},
+          React.createElement("p", {style:{margin:"0 0 12px",fontSize:11,lineHeight:1.45,color:"var(--muted)"}},
+            "Member reports land here. Mark one reviewed once you have dealt with it, or dismiss it. Apple expects a response within a day."),
+          reportsStatus === "loading" && React.createElement("p", {style:{color:"var(--muted)",fontSize:12}}, "Loading reports\u2026"),
+          reportsStatus === "error" && React.createElement("div", null,
+            React.createElement("p", {style:{color:"#f5b5b5",fontSize:12,marginBottom:9}}, reportsError),
+            React.createElement("button", {type:"button",onClick:loadReports,style:{border:0,borderRadius:9,padding:"9px 12px",fontWeight:800,background:"#4ECDC4",color:"#061010",cursor:"pointer",fontFamily:"inherit"}}, "Try again")
+          ),
+          reportsStatus === "ready" && reports.length === 0 && React.createElement("p", {style:{color:"var(--muted)",fontSize:12}}, "No member reports yet."),
+          reportsStatus === "ready" && reports.map(report=>React.createElement("article", {key:report.id,style:{marginBottom:9,padding:"12px",borderRadius:12,border:"1px solid rgba(78,205,196,.16)",background:"rgba(255,255,255,.03)"}},
+            React.createElement("div", {style:{display:"flex",justifyContent:"space-between",gap:8,alignItems:"start"}},
+              React.createElement("strong", {style:{fontSize:12}}, `${report.reportedName || "Unknown member"} \u00b7 ${String(report.reason || "other").split("_").join(" ")}`),
+              React.createElement("span", {style:{fontSize:10,fontWeight:900,color:report.status === "open" ? "#EF9F27" : "var(--text-faint)",textTransform:"uppercase"}}, report.status)
+            ),
+            React.createElement("div", {style:{marginTop:5,fontSize:11,lineHeight:1.45,color:"var(--text-soft)"}},
+              `${report.contentType || "content"} in ${report.blocName || "a Bloc"} \u00b7 reported by ${report.reporterName || "a member"}`),
+            report.details && React.createElement("div", {style:{marginTop:7,fontSize:11,lineHeight:1.45,color:"var(--muted)",whiteSpace:"pre-wrap"}}, report.details),
+            report.status === "open" && React.createElement("div", {style:{display:"flex",gap:7,marginTop:10}},
+              React.createElement("button", {type:"button",onClick:()=>reviewReport(report.id,"reviewed"),style:{border:0,borderRadius:8,padding:"8px 10px",fontSize:11,fontWeight:800,background:"#4ECDC4",color:"#061010",cursor:"pointer",fontFamily:"inherit"}}, "Mark reviewed"),
+              React.createElement("button", {type:"button",onClick:()=>reviewReport(report.id,"dismissed"),style:{border:"1px solid rgba(255,255,255,.16)",borderRadius:8,padding:"8px 10px",fontSize:11,fontWeight:800,background:"transparent",color:"var(--muted)",cursor:"pointer",fontFamily:"inherit"}}, "Dismiss")
+            )
+          ))
         ),
         tab === "usage" && React.createElement("section", {style:{marginBottom:20}},
           React.createElement("p", {style:{margin:"0 0 12px",fontSize:11,lineHeight:1.45,color:"var(--muted)"}}, "Unique users counts people once. Total uses counts every open or tap."),

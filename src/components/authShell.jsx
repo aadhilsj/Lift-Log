@@ -1,6 +1,7 @@
 import React from "react";
 import { createPortal } from "react-dom";
 import { PaymentHandleSection } from "./PaymentHandleSection.jsx";
+import { BlockedMembersPanel, useBlockedMembers } from "./BlockedMembers.jsx";
 const { useState, useEffect, useMemo, useCallback, useRef } = React;
 import {
   DEFAULT_GROUP_TIME_ZONE,
@@ -232,6 +233,8 @@ const ProfileModal = ({email,onSignOut,onClose,showDisplayName,currentDisplayNam
   const [showDeleteConfirm,setShowDeleteConfirm]=React.useState(false);
   const [deleting,setDeleting]=React.useState(false);
   const [deleteError,setDeleteError]=React.useState("");
+  const [showBlocked,setShowBlocked]=React.useState(false);
+  const blocked = useBlockedMembers();
   const textLink = {background:"transparent",border:"none",padding:0,color:"var(--text-faint)",fontSize:12,fontWeight:500,cursor:"pointer",textDecoration:"underline",textDecorationColor:"rgba(255,255,255,.12)",textUnderlineOffset:"3px"};
   const signOutLink = {...textLink,color:"rgba(220,100,100,.55)"};
   const deleteAccountLink = {...textLink,color:"rgba(180,60,60,.45)",fontSize:10,fontWeight:500};
@@ -239,6 +242,14 @@ const ProfileModal = ({email,onSignOut,onClose,showDisplayName,currentDisplayNam
     React.createElement('div',{onClick:onClose,style:{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",zIndex:1050}}),
     React.createElement('div',{onClick:e=>e.stopPropagation(),style:{position:"fixed",top:"50%",left:"50%",transform:"translate(-50%,-50%)",zIndex:1051,width:"calc(100% - 40px)",maxWidth:400,background:"#080F0F",border:"0.5px solid #0D1F1E",borderRadius:20,padding:"18px 16px",boxSizing:"border-box"}},
       React.createElement('button',{onClick:onClose,style:{position:"absolute",top:12,right:14,background:"transparent",border:"none",color:"var(--muted)",fontSize:20,lineHeight:1,padding:4,cursor:"pointer"}},"×"),
+      showBlocked
+        ? React.createElement(BlockedMembersPanel,{
+            members:blocked.members,
+            loaded:blocked.loaded,
+            onUnblocked:blocked.removeMember,
+            onBack:()=>setShowBlocked(false)
+          })
+        : React.createElement(React.Fragment,null,
       React.createElement('div',{style:{fontWeight:800,fontSize:18,marginBottom:14}},"Account"),
       React.createElement('label',{style:{display:"block",marginBottom:showDisplayName?12:16}},
         React.createElement('span',{className:"lbl",style:{marginBottom:6}},"Email"),
@@ -248,6 +259,21 @@ const ProfileModal = ({email,onSignOut,onClose,showDisplayName,currentDisplayNam
         currentPaymentMethods,
         onSavePayment, savingPayment, paymentError
       }),
+      // The only way to undo a block anywhere in Fero.
+      React.createElement('div',{style:{marginBottom:16}},
+        React.createElement('span',{className:"lbl",style:{marginBottom:6}},"Safety"),
+        React.createElement('button',{
+          type:"button",
+          onClick:()=>setShowBlocked(true),
+          style:{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,padding:"11px 13px",borderRadius:10,background:"var(--s2)",border:"1px solid var(--border)",fontSize:14,color:"var(--text)",fontFamily:"inherit",cursor:"pointer",textAlign:"left"}
+        },
+          React.createElement('span',null,"Blocked"),
+          React.createElement('span',{style:{display:"flex",alignItems:"center",gap:8,flexShrink:0}},
+            blocked.members.length > 0 && React.createElement('span',{style:{fontSize:10,fontWeight:800,color:"#04110e",background:"var(--cyan)",borderRadius:999,padding:"2px 7px"}},String(blocked.members.length)),
+            React.createElement('span',{style:{color:"var(--muted2)"}},"\u203A")
+          )
+        )
+      ),
       showDisplayName
         ? React.createElement(React.Fragment,null,
             showLeaveConfirm
@@ -296,6 +322,7 @@ const ProfileModal = ({email,onSignOut,onClose,showDisplayName,currentDisplayNam
               React.createElement('button',{onClick:onSignOut,style:signOutLink},"Sign out")
             )
           )
+    )
     )
   );
 };
