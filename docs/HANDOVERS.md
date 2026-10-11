@@ -36,6 +36,7 @@ Read every one of these. Each is a dated record of one session.
 
 | Date | Handover | About |
 | --- | --- | --- |
+| 11 Oct — **active** | [`handover-2026-10-11-blocking-and-reporting.md`](handover-2026-10-11-blocking-and-reporting.md) | Blocking and reporting brought back from the App Store branch, centred pop-ups, the Blocked list, and a guard that stops a blocked member interacting with you |
 | 10 Oct — **closed** | [`handover-2026-10-10-legal-pages-publish.md`](handover-2026-10-10-legal-pages-publish.md) | The Privacy and Support pages published at last; four wording and type corrections after an independent review of the 9 Oct attempt |
 | 10 Oct — **closed** | [`handover-2026-10-10-october-activity-check.md`](handover-2026-10-10-october-activity-check.md) | Who returned to Fero in October and who logged workouts, checked against live records |
 | 10 Oct — **closed** | [`handover-2026-10-10-member-workout-backfills.md`](handover-2026-10-10-member-workout-backfills.md) | Mark Rodri excused for August; backfill Banana’s September Home Workout and Kisal’s October workout into Sweat Equity |
