@@ -338,6 +338,53 @@ Live at `94f1698`, Vercel deployment `7015352738` success, bundle
 `Report or block` labels, and that is **correct**: the `...` on a member
 profile and on a comment was not part of this request and was left alone.
 
+### 2.10 Block and report persistence — proven at last, on `fero-staging`
+
+The one thing nobody had ever confirmed: whether a block or a report actually
+**saves**. The sandbox can never show it (every canonical call answers `[]`),
+and proving it on production would mean blocking a real member.
+
+`fero-staging` (`okwrrspdmoluxatyokzh`) turned out to be the right place: it is
+**ACTIVE_HEALTHY and holds a full practice copy** — 46 profiles, 17 Blocs, 63
+memberships, 1,717 workouts, 220 comments, and zero blocks or reports. Its
+schema matched production except for the two guard functions, so
+`add_block_interaction_guard` was applied there first. Staging now matches.
+
+Every write function was read with `pg_get_functiondef` before being called.
+
+**What was proven, end to end, with real rows:**
+
+| Step | Result |
+| --- | --- |
+| `set_ante_core_user_block(Aadhil, Abhishek, true)` | `{"blocked": true}` |
+| Row written? | **Yes** — "Aadhil blocked Abhishek" |
+| `read_ante_core_user_blocks(Aadhil)` — the Blocked list | returns Abhishek |
+| `read_ante_core_blockers_of(Abhishek)` — the interaction guard | returns Aadhil |
+| `read_ante_core_blockers_of(Aadhil)` | `[]` — correctly **one-way** |
+| Block yourself | refused: *you cannot block yourself* |
+| Block a non-member | refused: *you can only block a current Bloc member* |
+| Block an unknown id | refused: *profile not found* |
+| `create_ante_core_content_report(... workout_log, spam ...)` | `{"id": ..., "status": "open"}` |
+| Row written? | **Yes** |
+| `read_ante_core_content_reports(10)` — the dashboard queue | returns it with reporter, reported, Bloc, reason, status |
+| `review_ante_core_content_report(..., 'dismissed', ...)` | `{"status": "dismissed"}` |
+| `set_ante_core_user_block(..., false)` — unblock | `{"blocked": false}`, row deleted, both reads empty |
+
+**So blocking and reporting genuinely persist, read back correctly in both
+directions, enforce their guard rails, and can be undone.** The interaction
+guard — the function this session's first half was wrongly told was missing —
+does exactly what it was written to do.
+
+**Cleanup.** The test report was deleted by id. `fero-staging` is back to
+**0 blocks, 0 reports**, exactly as found. **Production was never written to**
+and still reads 0 blocks, 0 reports, 48 profiles.
+
+**Caveat, stated plainly:** this proves the *database* half end to end. It does
+not prove the API's path to these functions, which the app exercises. The
+sandbox showed those screens calling through without error, but the two halves
+have still never been joined in one run. That needs the restored-copy route or
+a real block on production.
+
 ---
 
 ## 3. Still open
@@ -350,8 +397,8 @@ where noted:
 - **The legal pages need blocking put back.** On 10 October every mention of
   blocking was removed from the Privacy and Support pages because the feature
   did not exist. When this branch ships, that wording has to return.
-- **Block/report persistence unproven** — needs production or the restored-copy
-  route.
+- **Block/report persistence: proven on staging** (§2.10). What remains unproven
+  is the API path joining the app to those functions in one run.
 - **TestFlight build 11** — never built; `main` is far past it.
 - **1 November month close** — first since the `c9ce86a` fix.
 - **Waiting on Deveen:** RLS production rollout unrecorded, `push_devices`

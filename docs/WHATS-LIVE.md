@@ -32,10 +32,11 @@ commenting on or reacting to the blocker's workouts. This covers Apple
 guideline 1.2, which needs a filter, reporting, blocking and published contact
 details before an app with user content can ship.
 
-> **Block and report persistence is still unproven on production.** Both tables
-> hold zero rows and nothing has been written through the live app. The sandbox
-> cannot prove it — it answers every canonical call with an empty list. Proving
-> it means blocking one real account with another, which has not been done.
+> **Block and report persistence is proven — on `fero-staging`, not production.**
+> A real block and a real report were written, read back both ways, guard-railed
+> and undone against a full practice copy of the data, then cleaned up. Staging
+> is back to zero and production was never written to. What is still unproven is
+> the API path joining the app to those functions in one run.
 
 Also on 12 October: the **Profile tab, Month and All Time can delete your own
 workout** from their calendars. Until now only the profile reached from Today
