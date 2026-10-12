@@ -63,7 +63,8 @@ import { buildPaymentTargets } from "../lib/paymentLinks.js";
 import { prefetchProfileStatsData } from "../lib/api.js";
 import { buildPaymentTargets as buildOwnPaymentTargets } from "../lib/paymentLinks.js";
 import { PaymentHandleSection } from "../components/PaymentHandleSection.jsx";
-import { tapMedium, warning } from "../lib/haptics.js";
+import { tapMedium } from "../lib/haptics.js";
+import { createOwnLogDeleter } from "../lib/ownLogDelete.js";
 
 const FULL_MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
@@ -252,31 +253,7 @@ const TodayPage = ({user,currentUserId,currentGroupId,groups,profiles,accountCre
     onSave({ workoutType, activity, isoDate, note, photoUrl });
   };
 
-  // Deletes from this Bloc first, then — only if asked — the same workout's
-  // copies in the member's other Blocs, one ordinary delete-log each so every
-  // Bloc gets its own stream retraction. Copies are found before the first
-  // delete, while this Bloc's state still holds the workout.
-  const deleteOwnLog = async (log, { alsoOtherBlocs = false } = {}) => {
-    // One buzz for a destructive confirm, in the funnel all three delete
-    // buttons reach -- this Bloc only, every Bloc, and the single-workout
-    // case -- so deleting from six Blocs still feels like one action.
-    void warning();
-    const copies = alsoOtherBlocs ? findWorkoutCopiesInOtherBlocs(groups, currentGroupId, currentUserId, log) : [];
-    const first = await onLogMutation({action:"delete-log",groupId:currentGroupId,actor:user,owner:user,logId:log.id});
-    // The optimistic removal has already been rolled back by now, so the
-    // workout is back on screen; without this it looks like the tap did nothing.
-    if (!first?.ok) {
-      window.alert("Workout couldn't be deleted. Please check your connection and try again.");
-      return;
-    }
-    if (!copies.length) return;
-    let failed = 0;
-    for (const copy of copies) {
-      const result = await onLogMutation({action:"delete-log",groupId:copy.groupId,actor:copy.owner,owner:copy.owner,logId:copy.logId});
-      if (!result?.ok) failed += 1;
-    }
-    if (failed) window.alert(`Deleted here, but it couldn't be removed from ${failed === 1 ? "one of your other Blocs" : `${failed} of your other Blocs`}. Please try again from there.`);
-  };
+  const deleteOwnLog = createOwnLogDeleter({ onLogMutation, groups, groupId: currentGroupId, currentUserId, user });
 
   const [previewSettlementCards, setPreviewSettlementCards] = useState([]);
 

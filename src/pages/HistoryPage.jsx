@@ -82,7 +82,7 @@ const buildRankMap = rows => {
   return Object.fromEntries(sorted.map(([name], index) => [name, index + 1]));
 };
 
-const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToken,currentUser,groups,currentUserId,accountCreatedAt,onTrackUsage}) => {
+const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToken,currentUser,groups,currentUserId,accountCreatedAt,onTrackUsage,onDeleteOwnLog}) => {
   const currency = groupSettings?.currency || DEFAULT_CURRENCY;
   const [showFullLeaderboard,setShowFullLeaderboard]=useState(false);
   const [viewPlayer,setViewPlayer]=useState(null);
@@ -386,7 +386,7 @@ const HistoryPage = ({group,logs,excused,monthHistory,groupSettings,navResetToke
         // Blocs tab has no member to look up and says the stats are not
         // available, even though opening the very same profile from Today
         // loads them.
-        React.createElement(PlayerProfile,{group:group,name:viewPlayer,logs,excused,monthHistory,onBack:closePlayerProfile,onSwipeRevealChange:setProfileRevealActive,groupSettings,memberUserId:Object.values(group?.memberships||{}).find(m=>m?.displayName===viewPlayer)?.userId||"",currentUserId,visibleGroups:groups,accountCreatedAt,onTrackUsage,isOwnProfile:viewPlayer===currentUser})
+        React.createElement(PlayerProfile,{group:group,name:viewPlayer,logs,excused,monthHistory,onBack:closePlayerProfile,onSwipeRevealChange:setProfileRevealActive,groupSettings,memberUserId:Object.values(group?.memberships||{}).find(m=>m?.displayName===viewPlayer)?.userId||"",currentUserId,visibleGroups:groups,accountCreatedAt,onTrackUsage,isOwnProfile:viewPlayer===currentUser,onDeleteLog:viewPlayer===currentUser?onDeleteOwnLog:undefined})
       )
     )
   );

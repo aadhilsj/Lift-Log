@@ -109,6 +109,7 @@ import { FounderDashboard } from "./pages/FounderDashboard.jsx";
 import { NotificationsPage } from "./pages/NotificationsPage.jsx";
 import { Capacitor } from "@capacitor/core";
 import { tapLight } from "./lib/haptics.js";
+import { createOwnLogDeleter } from "./lib/ownLogDelete.js";
 
 const normalizeReactionMembers = (members) => Array.isArray(members)
   ? Array.from(new Set(members.filter(Boolean))).sort()
@@ -2341,6 +2342,17 @@ const App = () => {
   const showIosHint = !standalone && !installDismissed && isIos() && isSafari() && !installPrompt;
   const showInstallBanner = !standalone && !installDismissed && (Boolean(installPrompt) || showIosHint);
   const groups = appState.groupOrder.map(groupId => appState.groups[groupId]).filter(Boolean);
+
+  // The same deleter TodayPage uses, so the Profile tab, Month and All Time
+  // can delete your own workout from their calendars too. Without it those
+  // screens fell through to the read-only workout detail popup.
+  const deleteOwnLogInCurrentBloc = createOwnLogDeleter({
+    onLogMutation: handleLogMutation,
+    groups,
+    groupId: selectedGroupId,
+    currentUserId: effectiveAuthSession?.userId,
+    user: currentUser
+  });
   const visibleGroups = groups.filter(group => {
     const displayName = String(effectiveProfile?.displayName || "").trim();
     if (hiddenLeftGroupIds[group.id]) return false;
@@ -3545,12 +3557,12 @@ const App = () => {
         )
       ),
       monthView==="alltime"
-        ? React.createElement(HistoryPage,{group:currentGroup,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,groupSettings:currentGroup.settings,navResetToken,currentUser,groups,onTrackUsage:trackUsage,currentUserId:effectiveAuthSession?.userId,accountCreatedAt:profile?.createdAt})
-        : React.createElement(MonthPage,  {key:`${selectedGroupId}:${monthInitialIdx ?? "current"}`,group:currentGroup,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,groupSettings:currentGroup.settings,currentUser,currentUserId:effectiveAuthSession?.userId,initialSelIdx:monthInitialIdx,onStartNextMonth:()=>{setMonthInitialIdx(null);setPage("today");},onOpenToday:()=>setPage("today"),onSettlementClaimPaid:handleSettlementClaimPaid,onSettlementConfirmPaid:handleSettlementConfirmPaid,profiles:appState?.profiles||{},onOpenAccount:()=>setShowProfile(true),navResetToken,onTrackUsage:trackUsage,currentPaymentMethods:effectiveProfile?.paymentMethods||[],onSavePayment:handleSavePaymentHandle,savingPayment:paymentSaving,paymentError:paymentError}))
+        ? React.createElement(HistoryPage,{group:currentGroup,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,groupSettings:currentGroup.settings,navResetToken,currentUser,groups,onTrackUsage:trackUsage,currentUserId:effectiveAuthSession?.userId,accountCreatedAt:profile?.createdAt,onDeleteOwnLog:deleteOwnLogInCurrentBloc})
+        : React.createElement(MonthPage,  {key:`${selectedGroupId}:${monthInitialIdx ?? "current"}`,group:currentGroup,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,groupSettings:currentGroup.settings,currentUser,currentUserId:effectiveAuthSession?.userId,initialSelIdx:monthInitialIdx,onStartNextMonth:()=>{setMonthInitialIdx(null);setPage("today");},onOpenToday:()=>setPage("today"),onSettlementClaimPaid:handleSettlementClaimPaid,onSettlementConfirmPaid:handleSettlementConfirmPaid,profiles:appState?.profiles||{},onOpenAccount:()=>setShowProfile(true),navResetToken,onTrackUsage:trackUsage,currentPaymentMethods:effectiveProfile?.paymentMethods||[],onSavePayment:handleSavePaymentHandle,savingPayment:paymentSaving,paymentError:paymentError,groups,onDeleteOwnLog:deleteOwnLogInCurrentBloc}))
     ),
     pageName==="profile"&&React.createElement(InBlocPageErrorBoundary,{pageLabel:"Profile",resetKey:`${selectedGroupId}:${navResetToken}:${currentUser}`},
       React.createElement('div',{style:{display:"flex",flexDirection:"column"}},
-        React.createElement(PlayerProfile,{group:currentGroup,name:currentUser,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,onBack:()=>{},groupSettings:currentGroup.settings,memberUserId:effectiveAuthSession?.userId||"",currentUserId:effectiveAuthSession?.userId,visibleGroups:groups,accountCreatedAt:profile?.createdAt,profilePhotoUrl:effectiveProfile?.profilePhotoUrl||"",onTrackUsage:trackUsage,isOwnProfile:true,asTab:true,onUpdateProfilePhoto:handleUpdateProfilePhoto}),
+        React.createElement(PlayerProfile,{group:currentGroup,name:currentUser,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,onBack:()=>{},groupSettings:currentGroup.settings,memberUserId:effectiveAuthSession?.userId||"",currentUserId:effectiveAuthSession?.userId,visibleGroups:groups,accountCreatedAt:profile?.createdAt,profilePhotoUrl:effectiveProfile?.profilePhotoUrl||"",onTrackUsage:trackUsage,isOwnProfile:true,asTab:true,onUpdateProfilePhoto:handleUpdateProfilePhoto,onDeleteLog:deleteOwnLogInCurrentBloc}),
         // Name, payments, email, sign out and delete account stay on the
         // account screen, deliberately a few taps away. This is the way in.
         React.createElement('div',{style:{maxWidth:740,width:"100%",margin:"0 auto",padding:"0 16px 16px"}},
