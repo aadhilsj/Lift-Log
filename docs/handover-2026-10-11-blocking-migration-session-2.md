@@ -116,6 +116,103 @@ lowest in the window at 18 opens from 14 people. Eighteen days is too short,
 and the 1 October month close plus the September Recap banner is a plausible
 cause of the earlier peak.
 
+### 2.4 The week's plan, and Monday executed
+
+The session ran past midnight; entries from here are **12 October**. The
+founder asked for a week-by-week plan aimed at App Store submission this week,
+one substantial task a day, and said to start on Monday's.
+
+**The finding that shaped the plan: `main` has no `ios/` directory.** The
+iPhone project exists only on `testflight-build-10`, `testflight-build-11`,
+`codex/app-store-readiness`, `feat/safe-area` and
+`claude/rls-correction-2026-09-30`. `testflight-build-11` is **63 commits
+behind `main`**, so none of October's work has ever been compiled into the
+app. Submitting means merging October into the TestFlight lineage and building
+12 — the critical path, and the riskiest step of the week, because the
+playbook records swipe and reactions breaking after merges.
+
+**Xcode is not installed on this laptop** — only the Command Line Tools
+(`xcode-select -p` is `/Library/Developer/CommandLineTools`, and there is no
+`Xcode.app` anywhere). The build day cannot happen here.
+
+The agreed week: Mon safety + the delete bug; Tue the profile header redesign
+and removing photo-change from account settings, then **feature freeze**; Wed
+the merge and build 12; Thu the reviewer environment; Fri screenshots, the
+recording and App Review notes; Sat the final test matrix and **submit**; Sun
+spare. Push notifications are deliberately out of scope for the week.
+
+### 2.5 Monday: blocking and reporting are live — `c20fba6`
+
+Pre-flight on the branch: `origin/main` an ancestor, worktree clean, lint and
+build clean, **24 of 26 suites pass**. The two failures are
+`test:auth-edge-flows` and `test:mobile-navigation`, the known pair that fails
+on `main` too.
+
+All four moderation migrations confirmed applied in production before pushing:
+`add_ugc_moderation`, `add_founder_content_removal`,
+`add_workout_post_moderation` and `add_block_interaction_guard`. All seven
+moderation functions exist and carry `{postgres=X/postgres,service_role=X/postgres}` —
+`anon` and `authenticated` cannot execute any of them.
+
+Pushed `c897ac6..c20fba6` with `--force-with-lease`. Vercel Production
+deployment `7010652066` success; live bundle `index-L815rw6m.js` contains
+"Harassment or bullying", "Send report", "Threat or safety concern",
+"Hate or discrimination" and "Unable to block this member."; the live site
+loads with no console errors; CI green.
+
+### 2.6 Monday: the legal pages describe blocking again, and the delete bug is fixed — `45d3fd2`
+
+**Legal pages.** Three sentences restored, exactly the ones removed on
+10 October: "blocks" back in the list of records Fero holds, "Reports and
+blocks can affect visibility and moderation", and the Support page pointing at
+"the report and block controls in the app for content or member-safety
+concerns" rather than only the report control on an opened photo — reporting
+now covers the activity feed, the Stream, comments and profiles. Nothing else
+in the legal wording, colours or layout was touched. Verified live on both
+`lift-log-nu.vercel.app` and `joinfero.app`.
+
+**The delete bug.** A member reported that the Profile tab's calendar could not
+delete a workout, while the same calendar reached from Today could.
+
+The cause was not the calendar. `PlayerProfile` only offers delete when it is
+given an `onDeleteLog` handler (`canDelete`, `src/pages/PlayerProfile.jsx:725`),
+and that handler lived inside `TodayPage`. Rendered as the Profile tab from
+`App.jsx:3553` it was never passed, so the tap fell through to the read-only
+workout detail popup with nothing explaining why. **Month and All Time had the
+same gap** and nobody had reported them.
+
+Fixed by moving the deleter to `src/lib/ownLogDelete.js` as a factory, so there
+is one implementation rather than four, and building it once in `App.jsx` for
+the three screens that lacked it. `TodayPage` now uses the same factory; its
+behaviour is unchanged, code for code.
+
+**Also answered, no change made:** pressing "Delete workout" does **not** ask
+again. The first pop-up is the confirmation. A second step exists only when the
+same workout also sits in other Blocs, and that one asks about scope — "Delete
+from your other Blocs too?" — not "are you sure". The founder thought a double
+confirm had been built; it has not, and he has not asked for one.
+
+**How the fix was verified.** The sandbox's seeded logs are August-dated and
+not canonical, so deleting one returns 404 "Workout not found" — that is the
+documented seed limitation, not the wiring. A clean workout was logged for
+today through the real API instead (`add-log`, which also triggered the
+documented rollover), and then deleted through the Profile tab: the centred
+delete modal opened with the right workout ("Gym, Mon 12 Oct"), confirming it
+removed the workout, and a read-back showed **zero logs for that date**.
+
+**Not verified:** Month and All Time were wired the same way and pass lint and
+build, but the sandbox UI could not be driven far enough to click through
+either. They are unproven.
+
+Lint, build and twelve suites clean. Pushed `c20fba6..45d3fd2`; Vercel
+Production deployment `7011624626` success; live bundle `index-CPFNjcPW.js`;
+no console errors; CI green.
+
+**The one Monday item not done:** proving a block or a report persists on
+production. Both tables still hold zero rows. Proving it means blocking one
+real member with another real account, which was not something to do
+unasked — it belongs with Thursday's seeded review accounts.
+
 ---
 
 ## 3. Still open
@@ -144,4 +241,8 @@ where noted:
 
 | Commit | What |
 | --- | --- |
-| *(this one)* | Open the session-2 handover, and record that the migration was already applied |
+| `c20fba6` | Open the session-2 handover, and record that the migration was already applied |
+| `c20fba6` | **Blocking and reporting live** — the branch's 8 commits pushed to `main` |
+| `56350f6` | Put blocking back into the Privacy and Support pages |
+| `45d3fd2` | Let the Profile tab, Month and All Time delete your own workout |
+| *(this one)* | Monday's record, and what's live |

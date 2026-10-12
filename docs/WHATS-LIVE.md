@@ -4,7 +4,35 @@
 Update it whenever something ships. Same filename forever — never date it, never
 fork it. If it disagrees with a handover, this file wins.
 
-Last updated: **10 October 2026** — **the Privacy Policy and Support pages are
+Last updated: **12 October 2026** — **blocking and reporting are live** on the
+website at `45d3fd2`. You can report a member or their content, and block a
+member, from the four places that show other people's content: the Activity
+Feed, the Bloc Stream, a comment thread and a member's profile. Every one of
+those pop-ups is centred, not a bottom sheet. Blocked people are listed under
+**Safety -> Blocked** on the account screen, where a block can be undone.
+Reports reach a queue on the founder dashboard. Blocking is **one-way for
+seeing** — you stop seeing them, they carry on seeing you, because a Bloc
+shares one leaderboard — but a server-side guard stops a blocked member
+commenting on or reacting to the blocker's workouts. This covers Apple
+guideline 1.2, which needs a filter, reporting, blocking and published contact
+details before an app with user content can ship.
+
+> **Block and report persistence is still unproven on production.** Both tables
+> hold zero rows and nothing has been written through the live app. The sandbox
+> cannot prove it — it answers every canonical call with an empty list. Proving
+> it means blocking one real account with another, which has not been done.
+
+Also on 12 October: the **Profile tab, Month and All Time can delete your own
+workout** from their calendars. Until now only the profile reached from Today
+could; everywhere else the tap silently opened the read-only workout detail
+popup instead. Reported by a member. And the **Privacy and Support pages
+describe blocking again**, having had every mention stripped on 10 October when
+the feature did not exist. Details:
+`docs/handover-2026-10-11-blocking-migration-session-2.md`.
+
+TestFlight remains on build 10, so **none of this is on the phone app**.
+
+Before that, on 10 October 2026 — **the Privacy Policy and Support pages are
 live** at `joinfero.app/privacy` and `joinfero.app/support` (and on
 `lift-log-nu.vercel.app`), with and without a trailing slash. They had been 404
 since they were written on 27 September, because they were never merged to
@@ -53,7 +81,9 @@ yet**. Details: `docs/handover-2026-10-09-session-catch-up.md` and
 
 | | Website (PWA) | TestFlight (phone) |
 | --- | --- | --- |
-| **At commit** | **`72906b6`** | `77fe4d8` (build 10) |
+| **At commit** | **`45d3fd2`** | `77fe4d8` (build 10) |
+| Report and Block on the activity feed, Bloc Stream, comments and member profiles; Blocked list on the account screen; report queue on the founder dashboard | ✅ | ❌ |
+| Your own workout deletes from the Profile tab, Month and All Time calendars, not only from Today | ✅ | ❌ |
 | Privacy Policy and Support pages at `/privacy` and `/support` | ✅ | n/a — web pages, not part of the app |
 | Fifth tab is **Profile** (your photo in the tab, tap it to change it); History is inside Month as **Month \| All Time** | ✅ | ❌ |
 | Profile header: photo left, name over the This Bloc / All Blocs buttons; the month is a one-tap pill; the month as a ring | ✅ | ❌ |
