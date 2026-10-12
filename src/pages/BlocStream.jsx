@@ -665,13 +665,15 @@ const MentionList = ({ items, onPick }) =>
 const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, initialUnreadCount = 0, currentUserId, members = [], streamBlocs = [], onSeasonClosedTap, onUnreadCountChange, onOpenLogComments, onClose }) => {
   const [mounted, setMounted] = useState(false);
   const [messages, setMessages] = useState([]);
-  // A blocked member's messages leave the Stream. Derived rather than stored,
-  // so a block applies the moment it lands without refetching the thread.
-  const visibleMessages = messages.filter(message => !blockedUserIds.includes(String(message?.author_id || "")));
   const [messagesByBloc, setMessagesByBloc] = useState(readStreamMessageCache);
   const [viewedBlocId, setViewedBlocId] = useState(blocId);
   const [safetyTarget, setSafetyTarget] = useState(null);
   const { blockedUserIds, addBlockedUserId } = useBlockedUserIds();
+  // A blocked member's messages leave the Stream. Derived rather than stored,
+  // so a block applies the moment it lands without refetching the thread.
+  // Must stay below useBlockedUserIds: as a const, reading blockedUserIds
+  // above its declaration throws the moment the Stream holds one message.
+  const visibleMessages = messages.filter(message => !blockedUserIds.includes(String(message?.author_id || "")));
   const [draft, setDraft] = useState("");
   const [eventDraft, setEventDraft] = useState(emptyEventDraft);
   const [showEventSheet, setShowEventSheet] = useState(false);
