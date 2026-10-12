@@ -274,6 +274,70 @@ the live site loads with no console errors.
 whether the build that landed was the CLI one. **This matters before
 Wednesday**, when the TestFlight build happens on the other MacBook.
 
+### 2.9 Press and hold replaces the `...` — live at `94f1698`
+
+The founder checked the live PWA, confirmed blocking and reporting all work,
+and said the `...` looked wrong on the Stream and the Activity feed. He asked
+for Instagram's interaction instead.
+
+**Researched first, and the honest finding: there is no public Instagram
+spec.** No credible teardown gives durations, easing or blur values. But the
+interaction is not an Instagram invention — it is the **iOS context menu**
+(`UIContextMenuInteraction`), which Instagram and Messages both use. That is
+documented, so there is a correct thing to match rather than a guess.
+
+Three rules from it, which are the whole feel:
+
+1. The pressed thing stays **sharp** and lifts; everything else blurs and dims.
+2. The menu is **anchored** to it and slides only enough to stay on screen.
+3. Lift, blur and menu run off **one** transition — separate timelines are
+   explicitly what makes a homemade copy feel wrong.
+
+New `src/components/HoldMenu.jsx` with two exports: `HoldMenu` (the overlay)
+and `HoldTarget` (a wrapper for anything that is one big element, used by the
+feed). It portals to `document.body`, because the Stream and the profile sit
+inside transformed parents — the playbook rule.
+
+**Reactions appear on the Stream and not on the feed, deliberately.** The
+founder pointed out every feed card already has a `+` for reactions, so
+repeating the emoji row there was noise; on the Stream, holding is the only way
+to react to a message. Holding your own content now opens nothing at all.
+
+**Report and Block skip a step.** They used to open a `name / Report / Block`
+sheet; the hold menu has already asked, so `SafetyFlow` takes an optional
+opening step and goes straight to the reasons or the confirm.
+
+**Haptics:** the hold fires `tapMedium`, so it is real on TestFlight and
+silent on the PWA — like every other haptic in Fero. Recorded because the
+founder will test on the PWA and feel nothing; that is expected, not a bug, and
+not a reason to change the animation.
+
+**A bug caught in review before shipping:** `HoldTarget` wrapped `onPick` in
+its own arrow function, so `HoldMenu` always received a truthy handler and drew
+the reaction row even where the caller wanted none. It now passes the handler
+through only when one was given.
+
+**How it was verified.** Both surfaces at 393x852 with real content: hold opens
+the menu, a reaction lands on the post, tapping outside dismisses, moving the
+finger scrolls instead, Report opens the reasons, Block opens the confirm, and
+nothing opens on your own content.
+
+**The Stream needed a harness.** The sandbox answers `stream-list` with an
+empty list, which is why the Stream has never had messages locally. `fetch` was
+stubbed **in the browser only** to return three messages — no app code was
+changed for it. That is the technique to reuse; it also re-confirmed §2.7's
+crash fix with messages present, which is the exact condition that broke.
+
+Lint, build and **24 of 26** suites pass. The two failures are
+`test:auth-edge-flows` and `test:mobile-navigation`, waiting on sign-in
+fixtures (`Account already exists`, `Your Blocs`) — the known pair, nothing to
+do with these screens.
+
+Live at `94f1698`, Vercel deployment `7015352738` success, bundle
+`index-_MsqEnjb.js`, no console errors. The live bundle still contains two
+`Report or block` labels, and that is **correct**: the `...` on a member
+profile and on a comment was not part of this request and was left alone.
+
 ---
 
 ## 3. Still open
@@ -309,4 +373,6 @@ where noted:
 | `b57ddfc` | docs: what's live at 45d3fd2, and Monday's record |
 | `58c713c` | **Fix the blank Stream** — the regression this session shipped hours earlier |
 | `974037f` | chore: empty commit to retrigger a deploy Vercel had not picked up |
+| `610fd94` | docs: the Stream regression and the Vercel trouble |
+| `94f1698` | **Press and hold** replaces the `...` on the Stream and the feed |
 | *(this one)* | Monday's record, and what's live |

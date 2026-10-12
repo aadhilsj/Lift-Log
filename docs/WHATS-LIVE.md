@@ -4,8 +4,15 @@
 Update it whenever something ships. Same filename forever — never date it, never
 fork it. If it disagrees with a handover, this file wins.
 
-Last updated: **12 October 2026** — **blocking and reporting are live** on the
-website, now at `974037f`.
+Last updated: **12 October 2026** — **press and hold** replaces the `...` on the
+Bloc Stream and the Activity feed, at `94f1698`. Hold a message or a workout for
+half a second: it lifts and stays sharp, everything behind blurs, and its
+actions sit under it. The Stream also gets a large reaction row, because holding
+is the only way to react to a message; the feed does not, because every card
+already has a `+`. The `...` on a member profile and on a comment is unchanged.
+Haptics fire on TestFlight only, never on the PWA.
+
+Before that, on 12 October, **blocking and reporting went live**.
 
 > **One regression, shipped and fixed the same day.** The blocking work blanked
 > the Bloc Stream for any Bloc that had messages (an empty Stream was fine,
@@ -89,8 +96,9 @@ yet**. Details: `docs/handover-2026-10-09-session-catch-up.md` and
 
 | | Website (PWA) | TestFlight (phone) |
 | --- | --- | --- |
-| **At commit** | **`45d3fd2`** | `77fe4d8` (build 10) |
+| **At commit** | **`94f1698`** | `77fe4d8` (build 10) |
 | Report and Block on the activity feed, Bloc Stream, comments and member profiles; Blocked list on the account screen; report queue on the founder dashboard | ✅ | ❌ |
+| Press and hold a workout or a Stream message for its menu, instead of a `...` | ✅ | ❌ |
 | Your own workout deletes from the Profile tab, Month and All Time calendars, not only from Today | ✅ | ❌ |
 | Privacy Policy and Support pages at `/privacy` and `/support` | ✅ | n/a — web pages, not part of the app |
 | Fifth tab is **Profile** (your photo in the tab, tap it to change it); History is inside Month as **Month \| All Time** | ✅ | ❌ |
