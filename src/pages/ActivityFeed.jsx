@@ -10,6 +10,7 @@ import {
 } from "../lib/appState.js";
 import { getLogCommentCountsData } from "../lib/api.js";
 import { SafetyFlow, useBlockedUserIds } from "../components/SafetyControls.jsx";
+import { HoldTarget } from "../components/HoldMenu.jsx";
 import {
   formatShortDate,
   formatCompactRelativeTime,
@@ -89,16 +90,17 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
   const approvedFlagCount = countApprovedFlagsForActor(group, currentUser);
   const cannotFlagMore = approvedFlagCount >= 3;
   const compactFeed = isMobile();
-  // The ... that opens Report / Block. Hidden on your own workouts.
-  const renderSafetyButton = post => {
+  // Press and hold a workout for reactions, Report and Block. This replaced a
+  // small ... on every card, which the founder found visually noisy and which
+  // is not how a feed usually offers this.
+  const holdActionsFor = post => {
     const userId = userIdForOwner(post.owner);
-    if (!userId || userId === currentUserId) return null;
-    return React.createElement('button',{
-      type:"button",
-      "aria-label":`Report or block ${post.owner}`,
-      onClick:e=>{ e.stopPropagation(); setSafetyTarget({ userId:String(userId), name:post.owner, contentType:"workout_log", contentId:String(post.id) }); },
-      style:{ border:0, background:"transparent", color:"var(--muted2)", fontSize:15, lineHeight:1, letterSpacing:1, padding:"2px 2px", cursor:"pointer" }
-    },"···");
+    if (!userId || userId === currentUserId) return [];
+    const target = step => ({ userId:String(userId), name:post.owner, contentType:"workout_log", contentId:String(post.id), step });
+    return [
+      { label:"Report", onPick:()=>setSafetyTarget(target("report")) },
+      { label:"Block", tone:"danger", onPick:()=>setSafetyTarget(target("block")) }
+    ];
   };
 
   const getCommentCount = useCallback(post => {
@@ -593,6 +595,7 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
                   React.createElement('span',{className:"mono",style:{fontSize:10,color:"#4ECDC4",letterSpacing:".08em",textTransform:"uppercase",whiteSpace:"nowrap",textAlign:"center"}},formatShortDate(displayDate)),
                   React.createElement('div',{style:{height:1,flex:1,background:"rgba(78,205,196,.18)"}})
                 ),
+                React.createElement(HoldTarget,{actions:holdActionsFor(post)},
                 React.createElement('div',{style:{
                   position:"relative",
                   border:`0.75px solid ${post.flagStatus==="flagged"?"rgba(232,69,69,.38)":"rgba(42,82,78,.64)"}`,
@@ -616,8 +619,7 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
                               ),
                             ),
                             React.createElement('div',{style:{display:"flex",alignItems:"center",gap:5,flexShrink:0,marginLeft:6}},
-                              post.verifiedVia==="strava" && React.createElement('span',{className:"mono",style:{fontSize:9,color:"var(--cyan)",letterSpacing:".05em",textTransform:"uppercase"}},"Strava"),
-                              renderSafetyButton(post)
+                              post.verifiedVia==="strava" && React.createElement('span',{className:"mono",style:{fontSize:9,color:"var(--cyan)",letterSpacing:".05em",textTransform:"uppercase"}},"Strava")
                             )
                           ),
                           post.note && React.createElement('div',{style:{fontSize:12,lineHeight:1.32,color:"var(--text-soft)",fontStyle:"italic",overflow:"hidden",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",whiteSpace:"normal"}},post.note)
@@ -647,8 +649,7 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
                       ),
                       React.createElement('div',{style:{display:"flex",alignItems:"center",gap:5,flexShrink:0,marginLeft:6}},
                         compactRelativeTime && React.createElement('span',{className:"mono",style:{fontSize:8,color:"var(--muted)",opacity:0.58}},compactRelativeTime),
-                        post.verifiedVia==="strava" && React.createElement('span',{className:"mono",style:{fontSize:9,color:"var(--cyan)",letterSpacing:".05em",textTransform:"uppercase",flexShrink:0}},"Strava"),
-                        renderSafetyButton(post)
+                        post.verifiedVia==="strava" && React.createElement('span',{className:"mono",style:{fontSize:9,color:"var(--cyan)",letterSpacing:".05em",textTransform:"uppercase",flexShrink:0}},"Strava")
                       )
                     ),
                     post.note && React.createElement('div',{style:{fontSize:11.5,lineHeight:1.35,color:"var(--text-soft)",fontStyle:"italic",whiteSpace:"pre-wrap",padding:"0 1px"}},post.note),
@@ -673,7 +674,7 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
                     )
                   ),
                   null
-                )
+                ))
               );
             })
           )

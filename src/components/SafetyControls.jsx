@@ -154,13 +154,16 @@ const ReportDialog = ({ name, contentType, busy, error, onSend, onCancel }) => {
 // The whole flow for one target. `target` is null when nothing is open.
 // `onBlocked` lets the surface hide that member's content straight away rather
 // than waiting for a refetch.
+// `target.step` lets a caller open straight on Report or Block. The hold menu
+// does that: it already asked which one, so repeating the question would be a
+// pointless extra tap. Without it the flow still starts on its own menu.
 const SafetyFlow = ({ target, groupId, onBlocked, onClose }) => {
   const [step, setStep] = useState("menu");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (target) { setStep("menu"); setBusy(false); setError(""); }
+    if (target) { setStep(target.step === "report" || target.step === "block" ? target.step : "menu"); setBusy(false); setError(""); }
   }, [target]);
 
   if (!target) return null;

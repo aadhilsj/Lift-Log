@@ -4,6 +4,8 @@ import { Avatar, AppIcon, WorkoutTypeIcon } from "../components/primitives.jsx";
 import { ReactionChip } from "../components/ReactionRoster.jsx";
 import { EmojiSheet, QuickReactionChoices } from "../components/EmojiReactionPicker.jsx";
 import { SafetyFlow, useBlockedUserIds } from "../components/SafetyControls.jsx";
+import { HoldMenu } from "../components/HoldMenu.jsx";
+import { tapMedium } from "../lib/haptics.js";
 import {
   createBlocStreamEventData,
   getBlocStreamUnreadCountData,
@@ -215,19 +217,31 @@ const ReactionChips = ({ msg, currentUserId, onReact, nameFor, photoFor, align, 
 // threshold replies. Tap detection is displacement+time based (not tied to the
 // scroll/swipe mode) so a plain double-tap registers reliably. user-select and
 // the iOS touch-callout are disabled so holding a message never selects text.
-const Reactable = ({ msg, currentUserId, onReact, onReply, nameFor, photoFor, align = "left", swipeEnabled = false, showAdd = false, children }) => {
+const Reactable = ({ msg, currentUserId, onReact, onReply, nameFor, photoFor, align = "left", swipeEnabled = false, showAdd = false, holdActions = [], children }) => {
   const [swipeX, setSwipeX] = useState(0);
   const [showBar, setShowBar] = useState(false);
+  // Measured at the moment of the press: the overlay lifts the bubble from
+  // exactly where it sits, so it reads as the same object rather than a copy.
+  const anchorRef = useRef(null);
+  const [anchorRect, setAnchorRect] = useState(null);
   const [showEmojiSheet, setShowEmojiSheet] = useState(false);
   const g = useRef({ sx: 0, sy: 0, st: 0, mode: null, lp: null, lastTap: 0, suppress: false, maxDist: 0, swipe: 0, lastTouch: 0 });
 
   const clearLP = () => { if (g.current.lp) { clearTimeout(g.current.lp); g.current.lp = null; } };
 
+  const openHold = () => {
+    const node = anchorRef.current;
+    if (!node) return;
+    const r = node.getBoundingClientRect();
+    setAnchorRect({ top: r.top, left: r.left, width: r.width, height: r.height });
+    setShowBar(true);
+  };
+
   const start = (x, y) => {
     const s = g.current;
     s.sx = x; s.sy = y; s.st = Date.now(); s.mode = null; s.suppress = false; s.maxDist = 0; s.swipe = 0; s.lastTouch = Date.now();
     clearLP();
-    s.lp = setTimeout(() => { s.mode = "long"; s.suppress = true; setShowBar(true); try { navigator.vibrate && navigator.vibrate(10); } catch (_) {} }, 500);
+    s.lp = setTimeout(() => { s.mode = "long"; s.suppress = true; openHold(); void tapMedium(); try { navigator.vibrate && navigator.vibrate(10); } catch (_) {} }, 500);
   };
   const move = (x, y) => {
     const s = g.current;
@@ -267,7 +281,7 @@ const Reactable = ({ msg, currentUserId, onReact, onReply, nameFor, photoFor, al
   const reactionPlacement = align === "center" ? "center" : align === "right" ? "bubble-left" : "bubble-right";
   const hasReactionBadge = showAdd || Object.values(msg.reactions || {}).some(users => (users || []).length > 0);
   const reactionNode = hasReactionBadge
-    ? React.createElement(ReactionChips, { msg, currentUserId, onReact, nameFor, photoFor, align, showAdd, onAdd: () => setShowBar(true), placement: reactionPlacement })
+    ? React.createElement(ReactionChips, { msg, currentUserId, onReact, nameFor, photoFor, align, showAdd, onAdd: openHold, placement: reactionPlacement })
     : null;
   const renderedChildren = typeof children === "function" ? children(reactionNode) : children;
   return React.createElement('div', { style: { position: "relative", paddingBottom: hasReactionBadge ? (align === "center" ? 18 : 13) : 0 } },
@@ -275,16 +289,24 @@ const Reactable = ({ msg, currentUserId, onReact, onReply, nameFor, photoFor, al
       style: { position: "absolute", top: 0, bottom: 0, left: 14, display: "flex", alignItems: "center", opacity: Math.min(1, swipeX / 56), pointerEvents: "none" }
     }, React.createElement(AppIcon, { name: "reply", size: 18, stroke: C.accent })),
     React.createElement('div', {
+      ref: anchorRef,
       onTouchStart: e => start(e.touches[0].clientX, e.touches[0].clientY),
       onTouchMove: e => move(e.touches[0].clientX, e.touches[0].clientY),
       onTouchEnd: end,
       // Mouse double-click is the desktop path; ignore the dblclick that a touch
       // double-tap synthesizes (touchend just ran) so the heart isn't toggled twice.
       onDoubleClick: () => { if (Date.now() - g.current.lastTouch > 800) onReact(msg.id, DOUBLE_TAP_EMOJI); },
-      onContextMenu: e => { e.preventDefault(); setShowBar(true); },
+      onContextMenu: e => { e.preventDefault(); openHold(); },
       style: { transform: swipeX ? `translateX(${swipeX}px)` : "none", transition: g.current.mode === "swipe" ? "none" : "transform .18s ease", touchAction: swipeEnabled ? "pan-y" : "auto", userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none" }
     }, renderedChildren),
-    showBar && React.createElement(ReactBar, { align, onClose: () => setShowBar(false), onPick: emoji => { onReact(msg.id, emoji); setShowBar(false); }, onMore: () => { setShowBar(false); setShowEmojiSheet(true); } }),
+    showBar && anchorRect && React.createElement(HoldMenu, {
+      anchorRect,
+      preview: renderedChildren,
+      actions: holdActions,
+      onClose: () => { setShowBar(false); setAnchorRect(null); },
+      onPick: emoji => { onReact(msg.id, emoji); setShowBar(false); setAnchorRect(null); },
+      onMore: () => { setShowBar(false); setAnchorRect(null); setShowEmojiSheet(true); }
+    }),
     showEmojiSheet && React.createElement(EmojiSheet, { onClose: () => setShowEmojiSheet(false), onPick: emoji => onReact(msg.id, emoji) }),
     typeof children !== "function" && reactionNode
   );
@@ -294,7 +316,7 @@ const Reactable = ({ msg, currentUserId, onReact, onReply, nameFor, photoFor, al
 // `showName` (received only) on the first of a run, `showAvatar` on the last,
 // and `showTime` only on the last message of a same-minute cluster. Own
 // messages never show a name. The tail corner is only on the first bubble.
-const TextBubble = ({ msg, isOwn, authorName, authorPhotoUrl, nameFor, members, replyToMsg, showName, showTime, showAvatar, firstInGroup, reactionNode, onSafetyMenu }) => {
+const TextBubble = ({ msg, isOwn, authorName, authorPhotoUrl, nameFor, members, replyToMsg, showName, showTime, showAvatar, firstInGroup, reactionNode }) => {
   const nameText = !isOwn && showName ? authorName : "";
   const timeText = showTime ? formatStamp(msg.created_at) : "";
   const radius = 18;
@@ -306,18 +328,8 @@ const TextBubble = ({ msg, isOwn, authorName, authorPhotoUrl, nameFor, members, 
       : React.createElement('div', { style: { width: 28, flexShrink: 0 } })),
     React.createElement('div', { style: { maxWidth: isOwn ? "76%" : "74%", width: "fit-content", display: "flex", flexDirection: "column", alignItems: isOwn ? "flex-end" : "flex-start" } },
       nameText && React.createElement('div', {
-        style: { display: "flex", alignItems: "center", gap: 4, margin: "0 0 3px 4px" }
-      },
-        React.createElement('span', {
-          style: { fontFamily: "'Outfit', sans-serif", fontSize: 11, fontWeight: 500, color: C.meta }
-        }, nameText),
-        !isOwn && onSafetyMenu && React.createElement('button', {
-          type: "button",
-          onClick: () => onSafetyMenu(msg),
-          "aria-label": `Report or block ${authorName}`,
-          style: { border: 0, background: "transparent", color: C.meta, padding: "0 2px", fontSize: 12, lineHeight: 1, letterSpacing: 1, cursor: "pointer" }
-        }, "···")
-      ),
+        style: { fontFamily: "'Outfit', sans-serif", fontSize: 11, fontWeight: 500, color: C.meta, margin: "0 0 3px 4px" }
+      }, nameText),
       React.createElement('div', {
         style: {
           position: "relative",
@@ -712,13 +724,28 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, 
   const canSwitchStreams = availableBlocs.length > 1;
 
   const nameFor = id => (activeMembers.find(m => m.id === id)?.name) || "Member";
-  const openSafetyMenu = message => {
+  // What the hold menu offers on a message. Reply is the swipe shortcut made
+  // visible; Report and Block are the same flow the ... used to open, and are
+  // never offered on your own message.
+  const holdActionsFor = message => {
+    const mine = !message?.author_id || message.author_id === currentUserId;
+    const list = [];
+    if (!mine) list.push({ label: "Reply", onPick: () => handleReply(message) });
+    if (!mine) {
+      list.push({ label: "Report", onPick: () => openSafetyMenu(message, "report") });
+      list.push({ label: "Block", tone: "danger", onPick: () => openSafetyMenu(message, "block") });
+    }
+    return list;
+  };
+
+  const openSafetyMenu = (message, step) => {
     if (!message?.author_id || message.author_id === currentUserId) return;
     setSafetyTarget({
       userId: String(message.author_id),
       name: nameFor(message.author_id),
       contentType: "stream_message",
-      contentId: String(message.id)
+      contentId: String(message.id),
+      step
     });
   };
   const photoFor = id => activeMembers.find(m => m.id === id)?.photoUrl || "";
@@ -1321,8 +1348,8 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, 
               const replyToMsg = msg.reply_to ? messages.find(x => x.id === msg.reply_to) : null;
               // Time shows on the last message of a five-minute run from this sender.
               const showTime = !(sameAuthorNext && sameFiveMinuteWindow(msg.created_at, next.created_at));
-              return wrap(React.createElement(Reactable, { msg, currentUserId, onReact: handleReact, onReply: handleReply, nameFor, photoFor, align: isOwn ? "right" : "left", swipeEnabled: true },
-                reactionNode => React.createElement(TextBubble, { msg, isOwn, authorName: nameFor(msg.author_id), authorPhotoUrl: photoFor(msg.author_id), nameFor, members: activeMembers, onSafetyMenu: openSafetyMenu, replyToMsg, showName: firstInGroup, showTime, showAvatar: !sameAuthorNext, firstInGroup, reactionNode })));
+              return wrap(React.createElement(Reactable, { msg, currentUserId, onReact: handleReact, onReply: handleReply, nameFor, photoFor, align: isOwn ? "right" : "left", swipeEnabled: true, holdActions: holdActionsFor(msg) },
+                reactionNode => React.createElement(TextBubble, { msg, isOwn, authorName: nameFor(msg.author_id), authorPhotoUrl: photoFor(msg.author_id), nameFor, members: activeMembers, replyToMsg, showName: firstInGroup, showTime, showAvatar: !sameAuthorNext, firstInGroup, reactionNode })));
             })
       ),
       // Input bar
