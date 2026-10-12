@@ -213,6 +213,67 @@ production. Both tables still hold zero rows. Proving it means blocking one
 real member with another real account, which was not something to do
 unasked — it belongs with Thursday's seeded review accounts.
 
+### 2.7 The Stream went blank for a few hours — my regression, fixed and live
+
+**Reported by the founder**: opening the Bloc Stream gave an empty screen.
+
+**Cause, and it was shipped by this session this morning.** In
+`src/pages/BlocStream.jsx`, `visibleMessages` was computed *above* the
+`useBlockedUserIds()` call that declares `blockedUserIds`. Reading a `const`
+before its declaration throws — but the `filter` callback only runs when the
+array has at least one element. So an **empty Stream worked and any Stream
+with one message took the whole app down** with
+`ReferenceError: Cannot access 'blockedUserIds' before initialization`.
+
+**Why it got through.** The previous session verified every new screen in the
+sandbox, and the sandbox Stream had no messages. The one case that does not
+crash is the case that was tested. Lint does not catch it: the
+correctness-only config has no `no-use-before-define`.
+
+**Reproduced before fixing**, per §3 of the agreement: sending one message in
+the sandbox collapsed `document.body.innerText` to empty with that exact error
+through `Array.filter` in the console. After the fix, the same action leaves
+the Stream and the app intact.
+
+The fix moves the line below the hook, with a comment saying why it must stay
+there. `ActivityFeed` and `LogCommentThread` use the same hook and **already
+order it correctly** — both were checked and neither was changed.
+
+**Known and deliberately not changed:** the empty state still tests
+`messages.length === 0` rather than `visibleMessages.length === 0`, so blocking
+every author would show an empty list instead of "No messages yet". Out of
+scope for a crash fix; worth a decision later.
+
+### 2.8 Vercel stopped deploying, and a stray project was created
+
+`58c713c` was pushed at 11:00 UTC with CI green. **Vercel's GitHub integration
+did not build it** — the last automatic build was 10:17 UTC for `b57ddfc`.
+After ~15 minutes an empty commit (`974037f`) was pushed to nudge it; that did
+not build either.
+
+**A mistake worth recording.** `vercel --prod` was then run from the worktree
+at `/Users/opera_user/Developer/FERO/blocking-2026-10-11`, which carries no
+`.vercel` link. Instead of deploying `lift-log`, the CLI **created a new
+Vercel project named after the folder**, `blocking-2026-10-11`, and deployed
+there. It never touched the live site. The worktree was relinked to
+`lift-log` by writing the correct `projectId`/`orgId` into
+`.vercel/project.json`, and the stray project was deleted with the founder's
+yes (`vercel project rm`). The remaining projects are unchanged and `lift-log`
+still serves `joinfero.app`.
+
+**Lesson for any future worktree:** a scratch worktree has no `.vercel`
+directory. Copy it in alongside `.env.local`, or never run `vercel` from one.
+
+**Live and verified.** Bundle `index-BeXozYvV.js` on
+`lift-log-nu.vercel.app`; the minified Stream component now reads
+`{blockedUserIds:_,...}=E0(),z=E.filter(...!_.includes(...))` — hook first,
+filter second. `joinfero.app` and `lift-log-nu.vercel.app` both answer 200 and
+the live site loads with no console errors.
+
+**Still unknown:** whether Vercel's automatic deploys have recovered, or
+whether the build that landed was the CLI one. **This matters before
+Wednesday**, when the TestFlight build happens on the other MacBook.
+
 ---
 
 ## 3. Still open
@@ -245,4 +306,7 @@ where noted:
 | `c20fba6` | **Blocking and reporting live** — the branch's 8 commits pushed to `main` |
 | `56350f6` | Put blocking back into the Privacy and Support pages |
 | `45d3fd2` | Let the Profile tab, Month and All Time delete your own workout |
+| `b57ddfc` | docs: what's live at 45d3fd2, and Monday's record |
+| `58c713c` | **Fix the blank Stream** — the regression this session shipped hours earlier |
+| `974037f` | chore: empty commit to retrigger a deploy Vercel had not picked up |
 | *(this one)* | Monday's record, and what's live |

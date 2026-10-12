@@ -5,7 +5,15 @@ Update it whenever something ships. Same filename forever — never date it, nev
 fork it. If it disagrees with a handover, this file wins.
 
 Last updated: **12 October 2026** — **blocking and reporting are live** on the
-website at `45d3fd2`. You can report a member or their content, and block a
+website, now at `974037f`.
+
+> **One regression, shipped and fixed the same day.** The blocking work blanked
+> the Bloc Stream for any Bloc that had messages (an empty Stream was fine,
+> which is why the sandbox check missed it). Fixed in `58c713c` and verified in
+> the live bundle. Vercel did not auto-deploy that commit and it is not yet
+> known whether automatic deploys have recovered — check before relying on a
+> push going live.
+ You can report a member or their content, and block a
 member, from the four places that show other people's content: the Activity
 Feed, the Bloc Stream, a comment thread and a member's profile. Every one of
 those pop-ups is centred, not a bottom sheet. Blocked people are listed under
