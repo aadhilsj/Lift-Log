@@ -56,7 +56,8 @@ The founder asked to change Nishara's gym log dated **11 October 2026** to
 
 | Commit | Description | Live |
 | --- | --- | --- |
-| This commit | The date correction, before-state, backup and verification | Data live; docs only |
+| `e7b1dcc` | The date correction, before-state, backup and verification | Data live; docs pushed to `main` |
+| This commit | Record the push | Docs only |
 
 ## Close-out
 
@@ -82,3 +83,8 @@ set state = jsonb_set(s.state, '{groups,legacy-group,logs,Nishara}',
 
 The backup table `ante_core.backup_nishara_log_date_2026_10_13` can be dropped
 once the founder is happy with the result.
+
+`e7b1dcc` is on `origin/main` (fast-forward from `8175b9a`, pushed with
+`--force-with-lease`). No Vercel deploy was waited on and none is needed: the
+correction is database data, not bundle code, so it is already live on the web
+app and on TestFlight build 10 alike.
