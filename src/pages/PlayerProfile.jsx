@@ -64,6 +64,9 @@ const profileMonthLabel = month => month ? `${FULL_MONTH_NAMES[month.month] || M
 const PROFILE_FULL_MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 // The header photo and the gap to its right. The column beside the photo is
 // padded by exactly these, so the name centres over the buttons.
+// MOCKUP ONLY - three header options for the founder to choose from.
+// Set localStorage.fero_header_variant to "a", "b" or "c".
+const HEADER_VARIANT = (() => { try { return localStorage.getItem("fero_header_variant") || "a"; } catch { return "a"; } })();
 const PROFILE_PHOTO_SIZE = 68;
 const PROFILE_PHOTO_GAP = 14;
 
@@ -324,10 +327,10 @@ const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevea
   const atEarliestMonth = (selMonthIdx??-1) >= visibleHistoryMonths.length-1;
   const atLatestMonth = selMonthIdx == null;
   const monthSelector = React.createElement('div',{style:{display:"flex",justifyContent:"center"}},
-    React.createElement('div',{style:{display:"inline-flex",alignItems:"center",height:28,borderRadius:999,background:"rgba(8,15,15,.48)",border:"0.5px solid rgba(78,205,196,.22)"}},
-      React.createElement('button',{type:"button","aria-label":"Earlier month",disabled:atEarliestMonth,onClick:()=>setSelMonthIdx(i=>i==null?0:Math.min(visibleHistoryMonths.length-1,i+1)),style:{background:"none",border:0,padding:"0 9px",height:28,color:atEarliestMonth?"#24403c":"#4ECDC4",fontSize:14,cursor:atEarliestMonth?"default":"pointer"}},"\u2039"),
+    React.createElement('div',{style:{display:"inline-flex",alignItems:"center",height:32,borderRadius:999,background:"rgba(8,15,15,.48)",border:"0.5px solid rgba(78,205,196,.22)"}},
+      React.createElement('button',{type:"button","aria-label":"Earlier month",disabled:atEarliestMonth,onClick:()=>setSelMonthIdx(i=>i==null?0:Math.min(visibleHistoryMonths.length-1,i+1)),style:{background:"none",border:0,padding:"0 14px",height:44,marginTop:-6,marginBottom:-6,display:"inline-flex",alignItems:"center",justifyContent:"center",lineHeight:1,color:atEarliestMonth?"#24403c":"#4ECDC4",fontSize:19,cursor:atEarliestMonth?"default":"pointer"}},"\u2039"),
       React.createElement('span',{style:{minWidth:88,textAlign:"center",fontFamily:"'Outfit',sans-serif",fontSize:11,fontWeight:700,color:"var(--text)",whiteSpace:"nowrap"}},String(selLabel).replace(/ (\d{2})(\d{2})$/," '$2")),
-      React.createElement('button',{type:"button","aria-label":"Later month",disabled:atLatestMonth,onClick:()=>setSelMonthIdx(i=>i==null||i===0?null:i-1),style:{background:"none",border:0,padding:"0 9px",height:28,color:atLatestMonth?"#24403c":"#4ECDC4",fontSize:14,cursor:atLatestMonth?"default":"pointer"}},"\u203a")
+      React.createElement('button',{type:"button","aria-label":"Later month",disabled:atLatestMonth,onClick:()=>setSelMonthIdx(i=>i==null||i===0?null:i-1),style:{background:"none",border:0,padding:"0 14px",height:44,marginTop:-6,marginBottom:-6,display:"inline-flex",alignItems:"center",justifyContent:"center",lineHeight:1,color:atLatestMonth?"#24403c":"#4ECDC4",fontSize:19,cursor:atLatestMonth?"default":"pointer"}},"\u203a")
     )
   );
 
@@ -621,42 +624,271 @@ const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevea
         style:{background:"transparent",border:"none",color:"var(--muted2)",padding:"2px 2px",fontSize:15,lineHeight:1.1,letterSpacing:1,cursor:"pointer"}
       },"···")
     ),
-    React.createElement('div',{className:"fu",style:{position:"relative",display:"flex",flexDirection:"column",alignItems:"stretch",gap:7,paddingTop:asTab?2:6,paddingLeft:PROFILE_PHOTO_SIZE+PROFILE_PHOTO_GAP,paddingBottom:22}},
-      React.createElement('div',{style:{maxWidth:"100%",fontFamily:"'Outfit',sans-serif",fontSize:18,fontWeight:800,lineHeight:1.15,textAlign:"center",overflowWrap:"anywhere"}},name),
-      React.createElement('div',{style:{position:"relative"}},
-        React.createElement('div',{style:{position:"absolute",right:`calc(100% + ${PROFILE_PHOTO_GAP}px)`,top:"50%",transform:"translateY(-50%)",lineHeight:0}},
-          canEditPhoto
-            ? React.createElement('button',{type:"button",onClick:()=>photoInputRef.current?.click(),"aria-label":ownPhoto?"Change your profile photo":"Add a profile photo",style:{position:"relative",flexShrink:0,width:PROFILE_PHOTO_SIZE,height:PROFILE_PHOTO_SIZE,borderRadius:999,padding:0,border:0,background:"none",cursor:"pointer"}},
-                ownPhoto
-                  ? React.createElement(Avatar,{name,size:PROFILE_PHOTO_SIZE,photoUrl:ownPhoto})
-                  : React.createElement('span',{style:{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",width:PROFILE_PHOTO_SIZE,height:PROFILE_PHOTO_SIZE,borderRadius:999,border:"1.5px dashed rgba(78,205,196,.55)",background:"rgba(78,205,196,.06)",color:"#4ECDC4"}},
-                      React.createElement('span',{style:{fontSize:20,lineHeight:1,fontWeight:500}},"+"),
-                      React.createElement('span',{style:{fontFamily:"'Outfit',sans-serif",fontSize:7.5,fontWeight:700,letterSpacing:".06em",textTransform:"uppercase",marginTop:1}},"Photo")
-                    ),
-                ownPhoto && React.createElement('span',{style:{position:"absolute",right:-2,bottom:-2,width:18,height:18,borderRadius:999,background:"#4ECDC4",color:"#041312",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800,border:"2px solid #070C0C"}},"+")
-              )
-            : React.createElement(Avatar,{name,size:PROFILE_PHOTO_SIZE,userId:memberUserId,photoUrl:profilePhotoUrl||""}),
-          canEditPhoto && React.createElement('input',{ref:photoInputRef,type:"file",accept:"image/*",style:{display:"none"},onChange:async e=>{const file=e.target.files?.[0]; e.target.value=""; if(!file) return; setCropSource(await readFileAsDataUrl(file));}})
+    (() => {
+      const photoNode = canEditPhoto
+        ? React.createElement('button',{type:"button",onClick:()=>photoInputRef.current?.click(),"aria-label":ownPhoto?"Change your profile photo":"Add a profile photo",style:{position:"relative",flexShrink:0,width:PROFILE_PHOTO_SIZE,height:PROFILE_PHOTO_SIZE,borderRadius:999,padding:0,border:0,background:"none",cursor:"pointer"}},
+            ownPhoto
+              ? React.createElement(Avatar,{name,size:PROFILE_PHOTO_SIZE,photoUrl:ownPhoto})
+              : React.createElement('span',{style:{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",width:PROFILE_PHOTO_SIZE,height:PROFILE_PHOTO_SIZE,borderRadius:999,border:"1.5px dashed rgba(78,205,196,.55)",background:"rgba(78,205,196,.06)",color:"#4ECDC4"}},
+                  React.createElement('span',{style:{fontSize:20,lineHeight:1,fontWeight:500}},"+"),
+                  React.createElement('span',{style:{fontFamily:"'Outfit',sans-serif",fontSize:7.5,fontWeight:700,letterSpacing:".06em",textTransform:"uppercase",marginTop:1}},"Photo")
+                ),
+            ownPhoto && React.createElement('span',{style:{position:"absolute",right:-2,bottom:-2,width:18,height:18,borderRadius:999,background:"#4ECDC4",color:"#041312",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800,border:"2px solid #070C0C"}},"+")
+          )
+        : React.createElement(Avatar,{name,size:PROFILE_PHOTO_SIZE,userId:memberUserId,photoUrl:profilePhotoUrl||""});
+      const photoInput = canEditPhoto && React.createElement('input',{ref:photoInputRef,type:"file",accept:"image/*",style:{display:"none"},onChange:async e=>{const file=e.target.files?.[0]; e.target.value=""; if(!file) return; setCropSource(await readFileAsDataUrl(file));}});
+      const toggleNode = React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:4,padding:2,borderRadius:10,width:"100%",background:"rgba(8,20,19,.76)",border:"0.5px solid rgba(22,61,54,.72)"}},
+        [["bloc","This Bloc"],["alltime","All Blocs"]].map(([value,label])=>React.createElement('button',{
+          key:value,type:"button",onClick:()=>{
+            if (value === "alltime" && profileTab !== "alltime") onTrackUsage?.(isOwnProfile ? "own_profile_all_blocs_opened" : "other_profile_all_blocs_opened");
+            setProfileTab(value);
+          },
+          style:{minHeight:24,borderRadius:8,border:"none",cursor:"pointer",background:profileTab===value?"rgba(78,205,196,.12)":"transparent",color:profileTab===value?"#4ECDC4":"var(--muted)",fontFamily:"'Outfit',sans-serif",fontSize:8.5,fontWeight:900,textTransform:"uppercase",letterSpacing:".055em"}
+        },label))
+      );
+      const nameStyle = extra => ({maxWidth:"100%",fontFamily:"'Outfit',sans-serif",fontSize:18,fontWeight:800,lineHeight:1.15,overflowWrap:"anywhere",...extra});
+
+      if (HEADER_VARIANT === "b") {
+        // B - photo left, name beside it, toggle full width underneath.
+        return React.createElement('div',{className:"fu",style:{display:"flex",flexDirection:"column",gap:10,paddingTop:4,paddingBottom:4}},
+          React.createElement('div',{style:{display:"flex",alignItems:"center",gap:PROFILE_PHOTO_GAP}},
+            photoNode, photoInput,
+            React.createElement('div',{style:nameStyle({textAlign:"left",flex:1,minWidth:0})},name)
+          ),
+          toggleNode
+        );
+      }
+      if (HEADER_VARIANT === "c") {
+        // C - closest to today: photo left, but the name centred on the screen
+        // and the photo no longer hanging below the toggle.
+        return React.createElement('div',{className:"fu",style:{display:"flex",flexDirection:"column",gap:10,paddingTop:4,paddingBottom:4}},
+          React.createElement('div',{style:nameStyle({textAlign:"center",width:"100%"})},name),
+          React.createElement('div',{style:{display:"flex",alignItems:"center",gap:PROFILE_PHOTO_GAP}},
+            photoNode, photoInput,
+            React.createElement('div',{style:{flex:1,minWidth:0}}, toggleNode)
+          )
+        );
+      }
+      const ringNode = (size=50) => React.createElement('div',{style:{position:"relative",width:size,height:size,flexShrink:0}},
+        React.createElement('svg',{width:size,height:size,viewBox:"0 0 44 44",style:{transform:"rotate(-90deg)"}},
+          React.createElement('circle',{cx:22,cy:22,r:18,fill:"none",stroke:"rgba(255,255,255,.07)",strokeWidth:4}),
+          React.createElement('circle',{cx:22,cy:22,r:18,fill:"none",stroke:needed===0?"#E2E8F0":"#58EBE1",strokeWidth:4,strokeLinecap:"round",strokeDasharray:113.1,strokeDashoffset:113.1*(1-Math.min(1,selectedTarget?selCount/selectedTarget:0))})
         ),
-	    // This Bloc / All Blocs tabs. The pair differs by scope, not by time:
-	    // the left tab is this Bloc's month, the right one the cross-Bloc stats
-	    // that used to be reachable only from the account profile outside a
-	    // Bloc. The value stays "alltime" so stored state keeps working.
-	    React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:4,padding:2,borderRadius:10,width:"100%",background:"rgba(8,20,19,.76)",border:"0.5px solid rgba(22,61,54,.72)"}},
-	      [["bloc","This Bloc"],["alltime","All Blocs"]].map(([value,label])=>React.createElement('button',{
-	        key:value,type:"button",onClick:()=>{
-	          // Own and other are separate counts: the founder wants to know
-	          // whether people check their own cross-Bloc record or other
-	          // people's. isOwnProfile comes from the caller, which already
-	          // knows -- memberUserId is not passed on every route.
-	          if (value === "alltime" && profileTab !== "alltime") onTrackUsage?.(isOwnProfile ? "own_profile_all_blocs_opened" : "other_profile_all_blocs_opened");
-	          setProfileTab(value);
-	        },
-	        style:{minHeight:24,borderRadius:8,border:"none",cursor:"pointer",background:profileTab===value?"rgba(78,205,196,.12)":"transparent",color:profileTab===value?"#4ECDC4":"var(--muted)",fontFamily:"'Outfit',sans-serif",fontSize:8.5,fontWeight:900,textTransform:"uppercase",letterSpacing:".055em"}
-	      },label))
-	    )
-      )
-    ),
+        React.createElement('div',{style:{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Outfit',sans-serif",fontSize:13,fontWeight:800,color:"var(--text)"}},selCount||0)
+      );
+      const progressTitle = (!isCurMonth || selCount>selectedTarget) ? `${selCount||0} workout${selCount===1?"":"s"}` : `${selCount||0} of ${selectedTarget} workouts`;
+      const progressSub = selCount>selectedTarget?`${selCount-selectedTarget} ahead of target`:needed===0?"Target hit":isCurMonth?`${needed} to target`:`Missed by ${needed}`;
+      const progressSubColor = selCount>selectedTarget?"#4ECDC4":needed===0?"#E2E8F0":isCurMonth?"#4ECDC4":"#E89A9A";
+
+      if (HEADER_VARIANT === "e") {
+        // E - the header does a job: identity AND this month's progress on one
+        // row, so there is nothing left to be empty. Replaces the ring card.
+        return React.createElement('div',{className:"fu",style:{display:"flex",flexDirection:"column",gap:10,paddingTop:4,paddingBottom:4}},
+          React.createElement('div',{style:{display:"flex",alignItems:"center",gap:12}},
+            photoNode, photoInput,
+            React.createElement('div',{style:{flex:1,minWidth:0,fontFamily:"'Outfit',sans-serif"}},
+              React.createElement('div',{style:nameStyle({textAlign:"left"})},name),
+              isJoinedThisMonth&&!isExcusedThisMonth&&React.createElement('div',{style:{fontSize:12.5,fontWeight:650,color:"var(--muted)",marginTop:2}},progressTitle),
+              isJoinedThisMonth&&!isExcusedThisMonth&&React.createElement('div',{style:{fontSize:12,fontWeight:600,marginTop:1,color:progressSubColor}},progressSub)
+            ),
+            isJoinedThisMonth&&!isExcusedThisMonth&&ringNode(54)
+          ),
+          toggleNode
+        );
+      }
+      const statCell = (label,val,color) => React.createElement('div',{key:label,style:{textAlign:"center",minWidth:0}},
+        React.createElement('div',{style:{fontFamily:"'Outfit',sans-serif",fontSize:16,fontWeight:800,color:color||"var(--text)",lineHeight:1.1}},val),
+        React.createElement('div',{style:{fontFamily:"'Outfit',sans-serif",fontSize:8,fontWeight:700,letterSpacing:".05em",textTransform:"uppercase",color:"var(--muted2)",marginTop:3}},label)
+      );
+      const statCells = () => [
+        statCell("Avg", closedStats.avg),
+        statCell("Perfect", perfectMonthStats.count||"\u2014"),
+        statCell("Won", hasHistory?(closedStats.wins||"\u2014"):"\u2014", hasHistory&&closedStats.wins>0?"var(--gold)":null)
+      ];
+
+      const statCellAligned = (align) => (label,val,color) => React.createElement('div',{key:label,style:{textAlign:align,minWidth:0}},
+        React.createElement('div',{style:{fontFamily:"'Outfit',sans-serif",fontSize:16,fontWeight:800,color:color||"var(--text)",lineHeight:1.1}},val),
+        React.createElement('div',{style:{fontFamily:"'Outfit',sans-serif",fontSize:8,fontWeight:700,letterSpacing:".05em",textTransform:"uppercase",color:"var(--muted2)",marginTop:3}},label)
+      );
+      const cellsWith = (align) => { const c = statCellAligned(align); return [
+        c("Avg", closedStats.avg),
+        c("Perfect", perfectMonthStats.count||"\u2014"),
+        c("Won", hasHistory?(closedStats.wins||"\u2014"):"\u2014", hasHistory&&closedStats.wins>0?"var(--gold)":null)
+      ]; };
+
+      const outerCell = (align) => (label,val,color) => React.createElement('div',{key:label,style:{textAlign:align,minWidth:0}},
+        React.createElement('div',{style:{fontFamily:"'Outfit',sans-serif",fontSize:16,fontWeight:800,color:color||"var(--text)",lineHeight:1.1}},val),
+        React.createElement('div',{style:{fontFamily:"'Outfit',sans-serif",fontSize:8,fontWeight:700,letterSpacing:".05em",textTransform:"uppercase",color:"var(--muted2)",marginTop:3}},label)
+      );
+      // Outer items align outward: the first sits on the left edge, the last on
+      // the right edge, so the row touches both sides with even spacing.
+      const outerAlignedCells = () => [
+        outerCell("left")("Avg", closedStats.avg),
+        outerCell("center")("Perfect", perfectMonthStats.count||"\u2014"),
+        outerCell("right")("Won", hasHistory?(closedStats.wins||"\u2014"):"\u2014", hasHistory&&closedStats.wins>0?"var(--gold)":null)
+      ];
+
+      if (HEADER_VARIANT === "k") {
+        // K - I, with the last number pushed onto the right edge.
+        return React.createElement('div',{className:"fu",style:{display:"flex",flexDirection:"column",gap:10,paddingTop:4,paddingBottom:4}},
+          React.createElement('div',{style:{display:"flex",alignItems:"center",gap:12}},
+            photoNode, photoInput,
+            React.createElement('div',{style:{flex:1,minWidth:0}},
+              React.createElement('div',{style:nameStyle({textAlign:"left"})},name),
+              React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",width:"100%",marginTop:7}}, outerAlignedCells())
+            )
+          ),
+          toggleNode
+        );
+      }
+      if (HEADER_VARIANT === "l") {
+        // L - one line: name on the left, the three numbers pushed to the right
+        // edge beside it. Nothing stacks, so there is no leftover row at all.
+        return React.createElement('div',{className:"fu",style:{display:"flex",flexDirection:"column",gap:10,paddingTop:4,paddingBottom:4}},
+          React.createElement('div',{style:{display:"flex",alignItems:"center",gap:12}},
+            photoNode, photoInput,
+            React.createElement('div',{style:{flex:1,minWidth:0,display:"flex",alignItems:"center",justifyContent:"space-between",gap:10}},
+              React.createElement('div',{style:nameStyle({textAlign:"left",minWidth:0})},name),
+              React.createElement('div',{style:{display:"flex",alignItems:"center",gap:16,flexShrink:0}},
+                outerCell("center")("Avg", closedStats.avg),
+                outerCell("center")("Perfect", perfectMonthStats.count||"\u2014"),
+                outerCell("right")("Won", hasHistory?(closedStats.wins||"\u2014"):"\u2014", hasHistory&&closedStats.wins>0?"var(--gold)":null)
+              )
+            )
+          ),
+          toggleNode
+        );
+      }
+      // A photo at any size, so the header can give it more room than the
+      // 68px every other surface uses.
+      const photoAt = size => canEditPhoto
+        ? React.createElement('button',{type:"button",onClick:()=>photoInputRef.current?.click(),"aria-label":ownPhoto?"Change your profile photo":"Add a profile photo",style:{position:"relative",flexShrink:0,width:size,height:size,borderRadius:999,padding:0,border:0,background:"none",cursor:"pointer"}},
+            ownPhoto
+              ? React.createElement(Avatar,{name,size,photoUrl:ownPhoto})
+              : React.createElement('span',{style:{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",width:size,height:size,borderRadius:999,border:"1.5px dashed rgba(78,205,196,.55)",background:"rgba(78,205,196,.06)",color:"#4ECDC4"}},
+                  React.createElement('span',{style:{fontSize:Math.round(size*0.29),lineHeight:1,fontWeight:500}},"+"),
+                  React.createElement('span',{style:{fontFamily:"'Outfit',sans-serif",fontSize:Math.max(7.5,Math.round(size*0.11)),fontWeight:700,letterSpacing:".06em",textTransform:"uppercase",marginTop:1}},"Photo")
+                ),
+            ownPhoto && React.createElement('span',{style:{position:"absolute",right:-2,bottom:-2,width:Math.round(size*0.26),height:Math.round(size*0.26),borderRadius:999,background:"#4ECDC4",color:"#041312",display:"flex",alignItems:"center",justifyContent:"center",fontSize:Math.round(size*0.16),fontWeight:800,border:"2px solid #070C0C"}},"+")
+          )
+        : React.createElement(Avatar,{name,size,userId:memberUserId,photoUrl:profilePhotoUrl||""});
+
+      // The one card style every other block on this page already uses, so the
+      // leftover width reads as padding rather than as a hole.
+      const headerCard = children => React.createElement('div',{className:"fu",style:{
+        borderRadius:12,
+        border:"0.75px solid rgba(42,82,78,.64)",
+        background:"radial-gradient(circle at 14% 0%, rgba(255,255,255,.019), transparent 34%), radial-gradient(circle at 92% 100%, rgba(78,205,196,.024), transparent 40%), linear-gradient(180deg, rgba(7,16,16,.99), rgba(5,12,12,.99))",
+        boxShadow:"inset 0 1px 0 rgba(255,255,255,.028), 0 3px 9px rgba(0,0,0,.09)",
+        padding:"12px 14px", display:"flex", flexDirection:"column", gap:10
+      }}, children);
+
+      const identityRow = size => React.createElement('div',{style:{display:"flex",alignItems:"center",gap:14}},
+        photoAt(size), photoInput,
+        React.createElement('div',{style:{flex:1,minWidth:0}},
+          React.createElement('div',{style:nameStyle({textAlign:"left"})},name),
+          React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",width:"100%",marginTop:7}}, cellsWith("left"))
+        )
+      );
+
+      if (HEADER_VARIANT === "m") {
+        // M - I, inside a card. Photo unchanged.
+        return headerCard([
+          React.createElement('div',{key:"id"}, identityRow(PROFILE_PHOTO_SIZE)),
+          React.createElement('div',{key:"toggle"}, toggleNode)
+        ]);
+      }
+      if (HEADER_VARIANT === "n") {
+        // N - I, inside a card, with the photo grown to carry the row.
+        return headerCard([
+          React.createElement('div',{key:"id"}, identityRow(80)),
+          React.createElement('div',{key:"toggle"}, toggleNode)
+        ]);
+      }
+      if (HEADER_VARIANT === "i") {
+        // I - G, but the numbers are left-aligned in their columns so the first
+        // one sits directly under the name. One left edge for the whole block.
+        return React.createElement('div',{className:"fu",style:{display:"flex",flexDirection:"column",gap:10,paddingTop:4,paddingBottom:4}},
+          React.createElement('div',{style:{display:"flex",alignItems:"center",gap:12}},
+            photoNode, photoInput,
+            React.createElement('div',{style:{flex:1,minWidth:0}},
+              React.createElement('div',{style:nameStyle({textAlign:"left"})},name),
+              React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",width:"100%",marginTop:7}}, cellsWith("left"))
+            )
+          ),
+          toggleNode
+        );
+      }
+      if (HEADER_VARIANT === "j") {
+        // J - G, but the name is centred over the three columns, so the name
+        // and the numbers share one centre line instead of fighting.
+        return React.createElement('div',{className:"fu",style:{display:"flex",flexDirection:"column",gap:10,paddingTop:4,paddingBottom:4}},
+          React.createElement('div',{style:{display:"flex",alignItems:"center",gap:12}},
+            photoNode, photoInput,
+            React.createElement('div',{style:{flex:1,minWidth:0}},
+              React.createElement('div',{style:nameStyle({textAlign:"center"})},name),
+              React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",width:"100%",marginTop:7}}, cellsWith("center"))
+            )
+          ),
+          toggleNode
+        );
+      }
+      if (HEADER_VARIANT === "g") {
+        // G - F, but the three numbers are an equal-column grid filling every
+        // pixel to the right edge instead of bunching up next to the name.
+        return React.createElement('div',{className:"fu",style:{display:"flex",flexDirection:"column",gap:10,paddingTop:4,paddingBottom:4}},
+          React.createElement('div',{style:{display:"flex",alignItems:"center",gap:12}},
+            photoNode, photoInput,
+            React.createElement('div',{style:{flex:1,minWidth:0}},
+              React.createElement('div',{style:nameStyle({textAlign:"left"})},name),
+              React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",width:"100%",marginTop:7}}, statCells())
+            )
+          ),
+          toggleNode
+        );
+      }
+      if (HEADER_VARIANT === "h") {
+        // H - the numbers get the full width, running under the photo as well,
+        // so the row reaches both edges and nothing is left over.
+        return React.createElement('div',{className:"fu",style:{display:"flex",flexDirection:"column",gap:9,paddingTop:4,paddingBottom:4}},
+          React.createElement('div',{style:{display:"flex",alignItems:"center",gap:12}},
+            photoNode, photoInput,
+            React.createElement('div',{style:nameStyle({textAlign:"left",flex:1,minWidth:0})},name)
+          ),
+          React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",width:"100%",padding:"9px 0",borderTop:"0.5px solid rgba(22,61,54,.72)",borderBottom:"0.5px solid rgba(22,61,54,.72)"}}, statCells()),
+          toggleNode
+        );
+      }
+      if (HEADER_VARIANT === "f") {
+        // F - identity on the left, this Bloc's all-time numbers on the right,
+        // so the width carries facts instead of air. Replaces the three cards.
+        const stat = (label,val,color) => React.createElement('div',{key:label,style:{textAlign:"center",minWidth:0}},
+          React.createElement('div',{style:{fontFamily:"'Outfit',sans-serif",fontSize:15,fontWeight:800,color:color||"var(--text)",lineHeight:1.1}},val),
+          React.createElement('div',{style:{fontFamily:"'Outfit',sans-serif",fontSize:8,fontWeight:700,letterSpacing:".05em",textTransform:"uppercase",color:"var(--muted2)",marginTop:3}},label)
+        );
+        return React.createElement('div',{className:"fu",style:{display:"flex",flexDirection:"column",gap:10,paddingTop:4,paddingBottom:4}},
+          React.createElement('div',{style:{display:"flex",alignItems:"center",gap:12}},
+            photoNode, photoInput,
+            React.createElement('div',{style:{flex:1,minWidth:0}},
+              React.createElement('div',{style:nameStyle({textAlign:"left"})},name),
+              React.createElement('div',{style:{display:"flex",alignItems:"center",gap:14,marginTop:7}},
+                stat("Avg", closedStats.avg),
+                stat("Perfect", perfectMonthStats.count||"\u2014"),
+                stat("Won", hasHistory?(closedStats.wins||"\u2014"):"\u2014", hasHistory&&closedStats.wins>0?"var(--gold)":null)
+              )
+            )
+          ),
+          toggleNode
+        );
+      }
+      // A - centred: photo, then name, then the toggle. The conventional
+      // profile shape, and identical whoever you are looking at.
+      return React.createElement('div',{className:"fu",style:{display:"flex",flexDirection:"column",alignItems:"center",gap:9,paddingTop:2,paddingBottom:4}},
+        photoNode, photoInput,
+        React.createElement('div',{style:nameStyle({textAlign:"center"})},name),
+        toggleNode
+      );
+    })(),
     cropSource && createPortal(React.createElement(ProfilePhotoCropModal,{imageSrc:cropSource,onCancel:()=>setCropSource(""),onConfirm:async dataUrl=>{setCropSource(""); setLocalPhoto(dataUrl); const saved=await onUpdateProfilePhoto(dataUrl); if(saved?.profilePhotoUrl) setLocalPhoto(saved.profilePhotoUrl);}}), document.body),
 	    profileTab==="alltime"
 	      ? allTimePanel
@@ -666,7 +898,7 @@ const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevea
 	    notJoinedBanner || sitOutBanner,
 	    // The month as a ring: where you are, and what is left. An ended month
 	    // you missed says by how much; any month over target says how far over.
-	    isJoinedThisMonth&&!isExcusedThisMonth&&React.createElement(Card,{className:"fu2",style:{padding:"10px 14px"}},
+	    HEADER_VARIANT!=="e"&&isJoinedThisMonth&&!isExcusedThisMonth&&React.createElement(Card,{className:"fu2",style:{padding:"10px 14px"}},
 	      React.createElement('div',{style:{display:"flex",alignItems:"center",gap:12}},
 	        React.createElement('div',{style:{position:"relative",width:50,height:50,flexShrink:0}},
 	          React.createElement('svg',{width:50,height:50,viewBox:"0 0 44 44",style:{transform:"rotate(-90deg)"}},
@@ -681,7 +913,7 @@ const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevea
 	        )
 	      )
 	    ),
-	    isJoinedThisMonth&&!isExcusedThisMonth&&React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:6}},
+	    !["f","g","h","i","j","k","l","m","n"].includes(HEADER_VARIANT)&&isJoinedThisMonth&&!isExcusedThisMonth&&React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:6}},
 	      [["Average",closedStats.avg,"var(--text)"],["Perfect months",perfectMonthStats.count||"\u2014","var(--text)"],["Months won",hasHistory?(closedStats.wins||"\u2014"):"\u2014",hasHistory&&closedStats.wins>0?"var(--gold)":"var(--text)"]].map(([label,val,color])=>
 	        React.createElement(Card,{key:label,style:{position:"relative",padding:"7px 7px 8px",display:"flex",flexDirection:"column",alignItems:"center",overflow:"hidden",boxShadow:"0 12px 24px rgba(0,0,0,.26), 0 2px 10px rgba(78,205,196,.07)"}},
 	          React.createElement('div',{style:{position:"absolute",left:9,right:9,top:0,height:1,background:"rgba(115,232,223,.42)"}}),
