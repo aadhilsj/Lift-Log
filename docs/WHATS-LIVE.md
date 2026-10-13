@@ -12,6 +12,11 @@ is the only way to react to a message; the feed does not, because every card
 already has a `+`. The `...` on a member profile and on a comment is unchanged.
 Haptics fire on TestFlight only, never on the PWA.
 
+> **Not live, and designed only:** the profile header redesign (the photo, the
+> name and the three numbers in a card) exists as a mockup on
+> `mockup/profile-header-2026-10-12`, variant `n`. So does a bigger tap target
+> for the month switcher's chevrons. Neither is on `main`.
+
 Before that, on 12 October, **blocking and reporting went live**.
 
 > **One regression, shipped and fixed the same day.** The blocking work blanked

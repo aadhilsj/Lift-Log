@@ -1,7 +1,8 @@
-# Handover — 11 October 2026 (session 2): the blocking migration, and the app-opens figure
+# Handover — 11–13 October 2026 (session 2): blocking shipped, a regression fixed, press-and-hold, and the profile header redesign
 
-**Status: open.** Claude, operating. This is a live handover, updated as the
-session goes.
+**Status: CLOSED.** Ran from the night of 11 October through to the morning of
+13 October. Closed because the session grew too large; the profile header work
+continues in a new one. Claude, operating.
 
 Second session of 11 October. The first one's two docs
 (`handover-2026-10-11-blocking-and-reporting.md` and
@@ -385,6 +386,64 @@ sandbox showed those screens calling through without error, but the two halves
 have still never been joined in one run. That needs the restored-copy route or
 a real block on production.
 
+### 2.11 Tuesday: press and hold, and the profile header redesign
+
+**Press and hold is live** — see §2.9. That was Tuesday's bonus, done Monday.
+
+**The profile header was redesigned by iteration, and is NOT built.** The
+founder's two complaints: the top area "isn't great", and your own profile
+looks different from someone else's.
+
+Fourteen variants were put in front of him. They live on
+**`mockup/profile-header-2026-10-12`** (`34c225f`, pushed), behind a
+`HEADER_VARIANT` switch read from `localStorage.fero_header_variant` — set it in
+the console and reload. The commit message on that branch lists every letter.
+
+**Where he landed: variant `n`, photo at 80.** The header sits in the same card
+style as every other block on the page, with the This Bloc / All Blocs toggle
+inside it, the photo grown from 68 to 80, the name left-aligned and the three
+all-time numbers (Avg / Perfect / Won) left-aligned beneath it.
+
+**The two ideas that got there, and why they are the ones that worked:**
+
+1. **The space read as dead because it was unbounded.** Every other block on
+   that page is a card; the header was the only naked thing, so its emptiness
+   had no edge. Giving it a card turned the gap into padding.
+2. **The photo was not pulling its weight** at 68px against a ~50px text block,
+   so width was left over. Growing it eats the gap directly, and a bigger
+   "+ PHOTO" circle is a louder nudge for exactly the members we want acting.
+
+**Rejected, with reasons, so nobody re-pitches them:**
+
+| | Why not |
+| --- | --- |
+| Centred; photo-left; name-centred (a/b/c) | all leave dead space on the sides |
+| Header absorbs the month ring (e) | the figures move when you switch months; he wants the header static |
+| Numbers as a full-width band (h) | fills one row by emptying the one above |
+| Name centred over the numbers (j) | name adrift with gaps either side |
+| Last number on the right edge (k) | no better than i to his eye |
+| Name and numbers on one line (l) | the gutter grows and shrinks with the length of the name |
+| A 12-month sparkline in the gap | **the important one.** Pitched as the creative answer. He rejected it because a brand-new member would see an empty strip — and his rule, which is a good one: *the empty-handed member should get the best version of the screen, not the worst.* Design to day one. |
+
+**Also on that branch, and this one is meant for main:** the month switcher's
+chevrons were ~25x28 of tappable area at 14px, which the founder found hard to
+hit. They are now 19px glyphs in a **33x44** target, done with negative vertical
+margins so the pill only grows 28 -> 32 and the control looks almost unchanged.
+
+**Confirmed for him, since it was blocking his read of the mockups:** the
+"Local Test Identity" bar is `LocalDevImpersonationBar` in
+`src/components/authShell.jsx`, gated to localhost. **It is not on the live
+app** and members have never seen it. It was hidden in the browser for the final
+screenshots; no code was changed for that.
+
+**Still unchecked on the chosen design:** a long name (e.g. "Kofi Mensah-Owus")
+against the numbers, and iPhone SE width.
+
+### 2.12 How this session ended
+
+The founder stopped it deliberately — the session had grown too large — and
+asked for a handover before continuing the header tweaks in a new one.
+
 ---
 
 ## 3. Still open
@@ -409,7 +468,20 @@ where noted:
 - Cleanup candidates: ~40 stale local branches, two August worktrees, the four
   August `.dmg` backups.
 
-## 4. Commits this session
+## 4. Picking this up next session
+
+1. Read §2.11 and the commit message on `mockup/profile-header-2026-10-12`
+   before touching the header — it records what was rejected and why, which is
+   most of the value of this session.
+2. `git worktree add` off that branch, symlink `node_modules`, copy
+   `.env.local`, `npm run build`, `node scripts/sandbox.mjs`, then set
+   `localStorage.fero_header_variant = "n"` and reload.
+3. Take his remaining tweaks on `n`, then build it properly: delete the variant
+   switch and every dead variant, keep one header, and check a long name and
+   iPhone SE width before it goes near main.
+4. The chevron change can go to main on its own at any time.
+
+## 5. Commits this session
 
 | Commit | What |
 | --- | --- |
@@ -422,4 +494,7 @@ where noted:
 | `974037f` | chore: empty commit to retrigger a deploy Vercel had not picked up |
 | `610fd94` | docs: the Stream regression and the Vercel trouble |
 | `94f1698` | **Press and hold** replaces the `...` on the Stream and the feed |
-| *(this one)* | Monday's record, and what's live |
+| `975ad38` | docs: what's live at 94f1698 |
+| `8175b9a` | docs: blocking and reporting proven to persist, on staging |
+| `34c225f` | mockup: fourteen profile header options + the bigger chevrons (**branch only**) |
+| *(this one)* | Close the session out |
