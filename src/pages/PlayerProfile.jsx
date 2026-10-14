@@ -612,7 +612,7 @@ const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevea
     // clear of what follows. "Back" takes its own line above, because the
     // photo now owns the top-left corner. The month switcher moved into This
     // Bloc as a one-tap pill.
-    !asTab && React.createElement('div',{className:"fu",style:{marginBottom:-4,display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}},
+    !asTab && HEADER_VARIANT!=="p" && React.createElement('div',{className:"fu",style:{marginBottom:-4,display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}},
       backButton,
       // Report / Block for someone else's profile. Shares the Back row so the
       // header block below it, and the photo spacing in particular, is
@@ -780,7 +780,8 @@ const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevea
         border:"0.75px solid rgba(42,82,78,.64)",
         background:"radial-gradient(circle at 14% 0%, rgba(255,255,255,.019), transparent 34%), radial-gradient(circle at 92% 100%, rgba(78,205,196,.024), transparent 40%), linear-gradient(180deg, rgba(7,16,16,.99), rgba(5,12,12,.99))",
         boxShadow:"inset 0 1px 0 rgba(255,255,255,.028), 0 3px 9px rgba(0,0,0,.09)",
-        padding:"12px 14px", display:"flex", flexDirection:"column", gap:10
+        padding:"12px 14px", display:"flex", flexDirection:"column", gap:10,
+        position:"relative"
       }}, children);
 
       const identityRow = size => React.createElement('div',{style:{display:"flex",alignItems:"center",gap:14}},
@@ -791,6 +792,41 @@ const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevea
         )
       );
 
+      // P - n, with the two controls that used to take a line of their own
+      // pulled into the card: the back chevron in front of the name, and the
+      // ... in the card's own top-right corner, which is empty space today.
+      const backChevronP = (!isSelf && !asTab) && React.createElement('button',{
+        type:"button", onClick:onBack, "aria-label":"Back",
+        style:{display:"inline-flex",alignItems:"center",justifyContent:"center",background:"transparent",
+               border:"none",cursor:"pointer",flexShrink:0,
+               padding:"13px 14px", margin:"-13px -14px"}
+      }, React.createElement(AppIcon,{name:"chevron-left",size:16,stroke:"var(--muted)"}));
+      const cornerDotsP = (!isSelf && memberUserId) && React.createElement('button',{
+        type:"button", "aria-label":`Report or block ${name}`,
+        onClick:()=>setSafetyTarget({ userId:String(memberUserId), name, contentType:"profile", contentId:String(memberUserId) }),
+        style:{position:"absolute",top:-3,right:-1,background:"transparent",border:"none",color:"var(--muted2)",
+               padding:"15px 15px",fontSize:15,lineHeight:1,letterSpacing:1,cursor:"pointer"}
+      },"\u00b7\u00b7\u00b7");
+      // The chevron sits outside the text column, so the name and the first
+      // number still share one left edge - the whole column simply starts
+      // further right on someone else's profile.
+      const identityRowP = size => React.createElement('div',{style:{display:"flex",alignItems:"center",gap:14}},
+        photoAt(size), photoInput,
+        React.createElement('div',{style:{flex:1,minWidth:0,display:"flex",alignItems:"flex-start",gap:0}},
+          backChevronP && React.createElement('div',{style:{paddingTop:3}}, backChevronP),
+          React.createElement('div',{style:{flex:1,minWidth:0}},
+            React.createElement('div',{style:nameStyle({textAlign:"left"})},name),
+            React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",width:"100%",marginTop:7}}, cellsWith("left"))
+          )
+        )
+      );
+      if (HEADER_VARIANT === "p") {
+        return headerCard([
+          cornerDotsP && React.createElement('div',{key:"dots"}, cornerDotsP),
+          React.createElement('div',{key:"id"}, identityRowP(80)),
+          React.createElement('div',{key:"toggle"}, toggleNode)
+        ]);
+      }
       if (HEADER_VARIANT === "m") {
         // M - I, inside a card. Photo unchanged.
         return headerCard([
@@ -910,10 +946,20 @@ const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevea
 	        React.createElement('div',{style:{minWidth:0,fontFamily:"'Outfit',sans-serif"}},
 	          React.createElement('div',{style:{fontSize:14,fontWeight:700,color:"var(--text)"}},(!isCurMonth || selCount>selectedTarget) ? `${selCount||0} workout${selCount===1?"":"s"}` : `${selCount||0} of ${selectedTarget} workouts`),
 	          React.createElement('div',{style:{fontSize:12,fontWeight:600,marginTop:2,color:selCount>selectedTarget?"#4ECDC4":needed===0?"#E2E8F0":isCurMonth?"#4ECDC4":"#E89A9A"}},selCount>selectedTarget?`${selCount-selectedTarget} ahead of target`:needed===0?"Target hit":isCurMonth?`${needed} to target`:`Missed by ${needed}`)
+	        ),
+	        // P - the net figure rides here instead of taking a line of its own.
+	        // It appears only when there is money to report, so a brand-new
+	        // member sees the card exactly as it is today, divider and all gone.
+	        HEADER_VARIANT==="p"&&hasHistory&&netPL!==0&&React.createElement('div',{style:{marginLeft:"auto",display:"flex",alignItems:"stretch",gap:11,flexShrink:0}},
+	          React.createElement('div',{style:{width:1,background:"rgba(255,255,255,.10)",margin:"3px 0"}}),
+	          React.createElement('div',{style:{fontFamily:"'Outfit',sans-serif",textAlign:"right"}},
+	            React.createElement('div',{style:{fontSize:8.5,fontWeight:500,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".06em"}},"Net"),
+	            React.createElement('div',{style:{fontSize:12.5,fontWeight:700,marginTop:3,color:netPL>0?"var(--green)":"var(--red)"}},`${netPL>0?"+":"-"}${fmtCurrency(Math.abs(netPL),currency)}`)
+	          )
 	        )
 	      )
 	    ),
-	    !["f","g","h","i","j","k","l","m","n"].includes(HEADER_VARIANT)&&isJoinedThisMonth&&!isExcusedThisMonth&&React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:6}},
+	    !["f","g","h","i","j","k","l","m","n","p"].includes(HEADER_VARIANT)&&isJoinedThisMonth&&!isExcusedThisMonth&&React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:6}},
 	      [["Average",closedStats.avg,"var(--text)"],["Perfect months",perfectMonthStats.count||"\u2014","var(--text)"],["Months won",hasHistory?(closedStats.wins||"\u2014"):"\u2014",hasHistory&&closedStats.wins>0?"var(--gold)":"var(--text)"]].map(([label,val,color])=>
 	        React.createElement(Card,{key:label,style:{position:"relative",padding:"7px 7px 8px",display:"flex",flexDirection:"column",alignItems:"center",overflow:"hidden",boxShadow:"0 12px 24px rgba(0,0,0,.26), 0 2px 10px rgba(78,205,196,.07)"}},
 	          React.createElement('div',{style:{position:"absolute",left:9,right:9,top:0,height:1,background:"rgba(115,232,223,.42)"}}),
@@ -923,7 +969,7 @@ const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevea
 	    ),
 	    // Money stays out of the foreground: one quiet line, and only when there
 	    // is something to say.
-	    isJoinedThisMonth&&!isExcusedThisMonth&&hasHistory&&netPL!==0&&React.createElement('div',{style:{textAlign:"center",fontFamily:"'Outfit',sans-serif",fontSize:11.5,color:"var(--muted)",marginTop:-2}},
+	    HEADER_VARIANT!=="p"&&isJoinedThisMonth&&!isExcusedThisMonth&&hasHistory&&netPL!==0&&React.createElement('div',{style:{textAlign:"center",fontFamily:"'Outfit',sans-serif",fontSize:11.5,color:"var(--muted)",marginTop:-2}},
 	      "Net in this Bloc: ",React.createElement('span',{style:{fontWeight:700,color:netPL>0?"var(--green)":"var(--red)"}},`${netPL>0?"+":"-"}${fmtCurrency(Math.abs(netPL),currency)}`)
 	    ),
 	    isJoinedThisMonth&&!isExcusedThisMonth&&React.createElement(Card,{className:"fu4",style:{padding:"13px 14px",background:"radial-gradient(circle at 12% 0%, rgba(255,255,255,.032), transparent 34%), radial-gradient(circle at 88% 100%, rgba(78,205,196,.052), transparent 42%), linear-gradient(180deg, rgba(10,19,19,.98), rgba(7,14,14,.98))",boxShadow:"inset 0 1px 0 rgba(255,255,255,.035), 0 7px 16px rgba(0,0,0,.12)"}},
