@@ -68,7 +68,7 @@ const MOBILE_PAGE_SLOTS = { today: 0, activity: 1, month: 3, profile: 4 };
 
 const SettingsDot = () => React.createElement('span',{style:{position:"absolute",top:2,right:2,width:7,height:7,borderRadius:999,background:"#4ECDC4",boxShadow:"0 0 0 1.5px #050909"}});
 
-const Nav = ({page,setPage,user,groupName,canEditGroup,onOpenSettings,settingsAlert=false,onOpenProfile,onOpenStream,onOpenNotifications,streamUnreadCount=0,onSwitchUser,onSwitchGroup,onOpenLog,syncing,lastSyncedAt,syncError,onRefresh,showJustSynced,activityAlertCount=0,hideMobileBottomNav=false,onlyMobileBottomNav=false,mobileBottomDragX=0,mobileBottomDragging=false,mobileBottomNavRef=null,mobileBottomSettle="transform .08s ease-out",mobileTabIndicatorRef=null,mobileTabSettle=null,mobileTabLiftSettle=null,currentUserId="",profilePhotoUrl=""}) => {
+const Nav = ({page,setPage,user,groupName,canEditGroup,onOpenSettings,settingsAlert=false,onOpenProfile,onOpenStream,onOpenNotifications,streamUnreadCount=0,onSwitchUser,onSwitchGroup,onOpenLog,syncing,lastSyncedAt,syncError,onRefresh,showJustSynced,activityAlertCount=0,hideMobileBottomNav=false,onlyMobileBottomNav=false,mobileBottomDragX=0,mobileBottomDragging=false,mobileBottomNavRef=null,mobileBottomSettle="transform .08s ease-out",mobileTabIndicatorRef=null,mobileTabSettle=null,mobileTabLiftSettle=null,currentUserId="",profilePhotoUrl="",profileBack=null}) => {
   const navItems = [["today","Today","today"],["activity","Activity","activity"],["month","Month","results"],["profile","Profile","profile"]];
   // The Profile tab wears your own photo when you have one: dimmed while you
   // are elsewhere, full brightness inside a cyan ring when you are on it. With
@@ -157,7 +157,16 @@ const Nav = ({page,setPage,user,groupName,canEditGroup,onOpenSettings,settingsAl
       // Bloc name needs. The name must never truncate, and FERO still fronts
       // the Bloc switcher, so the brand is not lost.
       React.createElement('div',{style:{display:"flex",alignItems:"center",height:52,marginTop:6,minWidth:0,flex:"1 1 auto"}},
-        React.createElement(BlocNameButton,{groupName,onSwitchGroup})
+        // Inside a member's profile this is the way back, in the place every
+        // other app puts it. The Bloc switcher is one tap further away while a
+        // profile is open, which is the trade: you are passing through that
+        // screen, not working in it.
+        profileBack
+          ? React.createElement('button',{type:"button",onClick:()=>profileBack(),"aria-label":"Back",
+              style:{display:"inline-flex",alignItems:"center",justifyContent:"center",background:"transparent",
+                     border:"none",cursor:"pointer",width:48,height:48,marginLeft:-12,padding:0}},
+              React.createElement(AppIcon,{name:"chevron-left",size:30,stroke:"#4ECDC4",strokeWidth:"2.4"}))
+          : React.createElement(BlocNameButton,{groupName,onSwitchGroup})
       ),
       React.createElement('div',{style:{display:"flex",alignItems:"center",height:42,marginTop:6,gap:10,flexShrink:0}},
         React.createElement(StreamIconButton,{onOpenStream,unreadCount:streamUnreadCount,size:42}),

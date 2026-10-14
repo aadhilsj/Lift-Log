@@ -54,6 +54,7 @@ import {
   releaseSwipeBack,
   releaseSwipeForward
 } from "../lib/swipeRelease.js";
+import { ProfileBackContext } from "../lib/profileBackContext.js";
 
 const PLAYER_PROFILE_PREMIUM_GATE = false; // Built now; flip to true when premium gating is wired.
 const FULL_MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
@@ -64,7 +65,19 @@ const profileMonthLabel = month => month ? `${FULL_MONTH_NAMES[month.month] || M
 const PROFILE_FULL_MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 // The header photo and the gap to its right. The column beside the photo is
 // padded by exactly these, so the name centres over the buttons.
-const PROFILE_PHOTO_SIZE = 68;
+const PROFILE_PHOTO_SIZE = 80;
+
+// The month switcher's chevrons were 14px glyphs in about 32x28 of tappable
+// area, which the founder found hard to hit. 19px glyphs in 44x44, bought with
+// negative margins so the pill itself stays 28 tall. translateY is not a nudge
+// by eye: the ink of these two glyphs sits 2.25px below the centre of their own
+// line box (measured on a canvas at this size), so box-centring reads low.
+const MONTH_CHEVRON_STYLE = {
+  background: "none", border: 0, padding: "0 14px",
+  height: 44, marginTop: -8, marginBottom: -8,
+  display: "inline-flex", alignItems: "center", justifyContent: "center",
+  lineHeight: 1, fontSize: 19, transform: "translateY(-2.25px)"
+};
 const PROFILE_PHOTO_GAP = 14;
 
 const formatWorkoutDetailDate = isoDate => {
@@ -325,9 +338,9 @@ const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevea
   const atLatestMonth = selMonthIdx == null;
   const monthSelector = React.createElement('div',{style:{display:"flex",justifyContent:"center"}},
     React.createElement('div',{style:{display:"inline-flex",alignItems:"center",height:28,borderRadius:999,background:"rgba(8,15,15,.48)",border:"0.5px solid rgba(78,205,196,.22)"}},
-      React.createElement('button',{type:"button","aria-label":"Earlier month",disabled:atEarliestMonth,onClick:()=>setSelMonthIdx(i=>i==null?0:Math.min(visibleHistoryMonths.length-1,i+1)),style:{background:"none",border:0,padding:"0 9px",height:28,color:atEarliestMonth?"#24403c":"#4ECDC4",fontSize:14,cursor:atEarliestMonth?"default":"pointer"}},"\u2039"),
+      React.createElement('button',{type:"button","aria-label":"Earlier month",disabled:atEarliestMonth,onClick:()=>setSelMonthIdx(i=>i==null?0:Math.min(visibleHistoryMonths.length-1,i+1)),style:{...MONTH_CHEVRON_STYLE,color:atEarliestMonth?"#24403c":"#4ECDC4",cursor:atEarliestMonth?"default":"pointer"}},"\u2039"),
       React.createElement('span',{style:{minWidth:88,textAlign:"center",fontFamily:"'Outfit',sans-serif",fontSize:11,fontWeight:700,color:"var(--text)",whiteSpace:"nowrap"}},String(selLabel).replace(/ (\d{2})(\d{2})$/," '$2")),
-      React.createElement('button',{type:"button","aria-label":"Later month",disabled:atLatestMonth,onClick:()=>setSelMonthIdx(i=>i==null||i===0?null:i-1),style:{background:"none",border:0,padding:"0 9px",height:28,color:atLatestMonth?"#24403c":"#4ECDC4",fontSize:14,cursor:atLatestMonth?"default":"pointer"}},"\u203a")
+      React.createElement('button',{type:"button","aria-label":"Later month",disabled:atLatestMonth,onClick:()=>setSelMonthIdx(i=>i==null||i===0?null:i-1),style:{...MONTH_CHEVRON_STYLE,color:atLatestMonth?"#24403c":"#4ECDC4",cursor:atLatestMonth?"default":"pointer"}},"\u203a")
     )
   );
 
@@ -513,10 +526,16 @@ const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevea
     }
   };
 
-  const backButton = React.createElement('button',{onClick:onBack,style:{display:"inline-flex",alignItems:"center",gap:3,background:"transparent",border:"none",color:"#1E4040",padding:"2px 0",borderRadius:0,fontSize:13,fontFamily:"'Outfit',sans-serif",fontWeight:700,lineHeight:1.1}},
-    React.createElement(AppIcon,{name:"chevron-left",size:13,stroke:"#1E4040"}),
-    "Back"
-  );
+  // While this profile is open the app header shows a back chevron where the
+  // Bloc name usually sits. Not as a tab: that is your own profile, reached by
+  // tapping it, with nothing behind it to go back to.
+  const setProfileBack = React.useContext(ProfileBackContext);
+  React.useEffect(() => {
+    if (!setProfileBack || asTab) return undefined;
+    setProfileBack(() => onBack);
+    return () => setProfileBack(null);
+  }, [setProfileBack, asTab, onBack]);
+
   // As a tab there is nothing to swipe back to, and these handlers call
   // stopPropagation on every touch, so the page swipe between tabs never saw
   // the gesture: swiping on the Profile tab did nothing at all.
@@ -602,61 +621,87 @@ const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevea
       )
     ),
     React.createElement('div',{style:{maxWidth:740,margin:"0 auto",padding:"16px",display:"flex",flexDirection:"column",gap:12}},
-    // Header: the photo on the left, level with the This Bloc / All Blocs
-    // buttons, and the name centred over those buttons. The photo centres on
-    // the buttons' own wrapper, so no offset is hard-coded, and the column's
-    // bottom padding keeps the part of the photo that hangs below the buttons
-    // clear of what follows. "Back" takes its own line above, because the
-    // photo now owns the top-left corner. The month switcher moved into This
-    // Bloc as a one-tap pill.
-    !asTab && React.createElement('div',{className:"fu",style:{marginBottom:-4,display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}},
-      backButton,
-      // Report / Block for someone else's profile. Shares the Back row so the
-      // header block below it, and the photo spacing in particular, is
-      // untouched.
-      !isSelf && memberUserId && React.createElement('button',{
-        type:"button",
-        "aria-label":`Report or block ${name}`,
-        onClick:()=>setSafetyTarget({ userId:String(memberUserId), name, contentType:"profile", contentId:String(memberUserId) }),
-        style:{background:"transparent",border:"none",color:"var(--muted2)",padding:"2px 2px",fontSize:15,lineHeight:1.1,letterSpacing:1,cursor:"pointer"}
-      },"···")
-    ),
-    React.createElement('div',{className:"fu",style:{position:"relative",display:"flex",flexDirection:"column",alignItems:"stretch",gap:7,paddingTop:asTab?2:6,paddingLeft:PROFILE_PHOTO_SIZE+PROFILE_PHOTO_GAP,paddingBottom:22}},
-      React.createElement('div',{style:{maxWidth:"100%",fontFamily:"'Outfit',sans-serif",fontSize:18,fontWeight:800,lineHeight:1.15,textAlign:"center",overflowWrap:"anywhere"}},name),
-      React.createElement('div',{style:{position:"relative"}},
-        React.createElement('div',{style:{position:"absolute",right:`calc(100% + ${PROFILE_PHOTO_GAP}px)`,top:"50%",transform:"translateY(-50%)",lineHeight:0}},
-          canEditPhoto
-            ? React.createElement('button',{type:"button",onClick:()=>photoInputRef.current?.click(),"aria-label":ownPhoto?"Change your profile photo":"Add a profile photo",style:{position:"relative",flexShrink:0,width:PROFILE_PHOTO_SIZE,height:PROFILE_PHOTO_SIZE,borderRadius:999,padding:0,border:0,background:"none",cursor:"pointer"}},
-                ownPhoto
-                  ? React.createElement(Avatar,{name,size:PROFILE_PHOTO_SIZE,photoUrl:ownPhoto})
-                  : React.createElement('span',{style:{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",width:PROFILE_PHOTO_SIZE,height:PROFILE_PHOTO_SIZE,borderRadius:999,border:"1.5px dashed rgba(78,205,196,.55)",background:"rgba(78,205,196,.06)",color:"#4ECDC4"}},
-                      React.createElement('span',{style:{fontSize:20,lineHeight:1,fontWeight:500}},"+"),
-                      React.createElement('span',{style:{fontFamily:"'Outfit',sans-serif",fontSize:7.5,fontWeight:700,letterSpacing:".06em",textTransform:"uppercase",marginTop:1}},"Photo")
-                    ),
-                ownPhoto && React.createElement('span',{style:{position:"absolute",right:-2,bottom:-2,width:18,height:18,borderRadius:999,background:"#4ECDC4",color:"#041312",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800,border:"2px solid #070C0C"}},"+")
-              )
-            : React.createElement(Avatar,{name,size:PROFILE_PHOTO_SIZE,userId:memberUserId,photoUrl:profilePhotoUrl||""}),
-          canEditPhoto && React.createElement('input',{ref:photoInputRef,type:"file",accept:"image/*",style:{display:"none"},onChange:async e=>{const file=e.target.files?.[0]; e.target.value=""; if(!file) return; setCropSource(await readFileAsDataUrl(file));}})
+    // The header is a card like every other block on the page: photo, name and
+    // the three all-time numbers sharing one left edge, with the This Bloc /
+    // All Blocs toggle inside it. It was the only unbounded thing on the page,
+    // which is why its empty space read as dead rather than as padding.
+    //
+    // Back is NOT here. On someone else's profile the Bloc name in the app
+    // header steps aside for a chevron (see profileBackContext), so this card
+    // is identical whether you are looking at yourself or at someone else.
+    (() => {
+      const photoNode = canEditPhoto
+        ? React.createElement('button',{type:"button",onClick:()=>photoInputRef.current?.click(),"aria-label":ownPhoto?"Change your profile photo":"Add a profile photo",style:{position:"relative",flexShrink:0,width:PROFILE_PHOTO_SIZE,height:PROFILE_PHOTO_SIZE,borderRadius:999,padding:0,border:0,background:"none",cursor:"pointer"}},
+            ownPhoto
+              ? React.createElement(Avatar,{name,size:PROFILE_PHOTO_SIZE,photoUrl:ownPhoto})
+              : React.createElement('span',{style:{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",width:PROFILE_PHOTO_SIZE,height:PROFILE_PHOTO_SIZE,borderRadius:999,border:"1.5px dashed rgba(78,205,196,.55)",background:"rgba(78,205,196,.06)",color:"#4ECDC4"}},
+                  React.createElement('span',{style:{fontSize:20,lineHeight:1,fontWeight:500}},"+"),
+                  React.createElement('span',{style:{fontFamily:"'Outfit',sans-serif",fontSize:7.5,fontWeight:700,letterSpacing:".06em",textTransform:"uppercase",marginTop:1}},"Photo")
+                ),
+            ownPhoto && React.createElement('span',{style:{position:"absolute",right:-2,bottom:-2,width:18,height:18,borderRadius:999,background:"#4ECDC4",color:"#041312",display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800,border:"2px solid #070C0C"}},"+")
+          )
+        : React.createElement(Avatar,{name,size:PROFILE_PHOTO_SIZE,userId:memberUserId,photoUrl:profilePhotoUrl||""});
+
+      const statCell = (label,val,color) => React.createElement('div',{key:label,style:{textAlign:"left",minWidth:0}},
+        React.createElement('div',{style:{fontFamily:"'Outfit',sans-serif",fontSize:16,fontWeight:800,color:color||"var(--text)",lineHeight:1.1}},val),
+        React.createElement('div',{style:{fontFamily:"'Outfit',sans-serif",fontSize:8,fontWeight:700,letterSpacing:".05em",textTransform:"uppercase",color:"var(--muted2)",marginTop:3}},label)
+      );
+
+      return React.createElement('div',{className:"fu",style:{
+        position:"relative",
+        borderRadius:12,
+        border:"0.75px solid rgba(42,82,78,.64)",
+        background:"radial-gradient(circle at 14% 0%, rgba(255,255,255,.019), transparent 34%), radial-gradient(circle at 92% 100%, rgba(78,205,196,.024), transparent 40%), linear-gradient(180deg, rgba(7,16,16,.99), rgba(5,12,12,.99))",
+        boxShadow:"inset 0 1px 0 rgba(255,255,255,.028), 0 3px 9px rgba(0,0,0,.09)",
+        padding:"12px 14px", display:"flex", flexDirection:"column", gap:10,
+        // 3px of clearance under the app header read as the card touching it.
+        // 13 more makes the gap 16, the same as the page's own side gutter.
+        marginTop:13
+      }},
+        // Report / Block. Three 4px dots across 20px, which is the size iOS and
+        // Instagram use; the old text glyph's ink measured 5.8px wide.
+        !isSelf && memberUserId && React.createElement('button',{
+          type:"button",
+          "aria-label":`Report or block ${name}`,
+          onClick:()=>setSafetyTarget({ userId:String(memberUserId), name, contentType:"profile", contentId:String(memberUserId) }),
+          style:{position:"absolute",top:-10,right:-1,background:"transparent",border:"none",color:"var(--muted2)",padding:"20px 13px",lineHeight:0,cursor:"pointer"}
+        }, React.createElement('span',{style:{display:"inline-flex",alignItems:"center",gap:4}},
+          [0,1,2].map(i=>React.createElement('span',{key:i,style:{width:4,height:4,borderRadius:999,background:"currentColor"}}))
+        )),
+        React.createElement('div',{style:{display:"flex",alignItems:"center",gap:PROFILE_PHOTO_GAP}},
+          photoNode,
+          canEditPhoto && React.createElement('input',{ref:photoInputRef,type:"file",accept:"image/*",style:{display:"none"},onChange:async e=>{const file=e.target.files?.[0]; e.target.value=""; if(!file) return; setCropSource(await readFileAsDataUrl(file));}}),
+          React.createElement('div',{style:{flex:1,minWidth:0}},
+            // On someone else's profile the ... sits in the corner above this
+            // line, so the name has to stop short of it: without the padding a
+            // long enough name wraps underneath the dots.
+            React.createElement('div',{style:{maxWidth:"100%",paddingRight:(!isSelf && memberUserId)?26:0,fontFamily:"'Outfit',sans-serif",fontSize:18,fontWeight:800,lineHeight:1.15,textAlign:"left",overflowWrap:"anywhere"}},name),
+            React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",width:"100%",marginTop:7}},
+              statCell("Avg", closedStats.avg),
+              statCell("Perfect", perfectMonthStats.count||"\u2014"),
+              statCell("Won", hasHistory?(closedStats.wins||"\u2014"):"\u2014", hasHistory&&closedStats.wins>0?"var(--gold)":null)
+            )
+          )
         ),
-	    // This Bloc / All Blocs tabs. The pair differs by scope, not by time:
-	    // the left tab is this Bloc's month, the right one the cross-Bloc stats
-	    // that used to be reachable only from the account profile outside a
-	    // Bloc. The value stays "alltime" so stored state keeps working.
-	    React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:4,padding:2,borderRadius:10,width:"100%",background:"rgba(8,20,19,.76)",border:"0.5px solid rgba(22,61,54,.72)"}},
-	      [["bloc","This Bloc"],["alltime","All Blocs"]].map(([value,label])=>React.createElement('button',{
-	        key:value,type:"button",onClick:()=>{
-	          // Own and other are separate counts: the founder wants to know
-	          // whether people check their own cross-Bloc record or other
-	          // people's. isOwnProfile comes from the caller, which already
-	          // knows -- memberUserId is not passed on every route.
-	          if (value === "alltime" && profileTab !== "alltime") onTrackUsage?.(isOwnProfile ? "own_profile_all_blocs_opened" : "other_profile_all_blocs_opened");
-	          setProfileTab(value);
-	        },
-	        style:{minHeight:24,borderRadius:8,border:"none",cursor:"pointer",background:profileTab===value?"rgba(78,205,196,.12)":"transparent",color:profileTab===value?"#4ECDC4":"var(--muted)",fontFamily:"'Outfit',sans-serif",fontSize:8.5,fontWeight:900,textTransform:"uppercase",letterSpacing:".055em"}
-	      },label))
-	    )
-      )
-    ),
+        // This Bloc / All Blocs tabs. The pair differs by scope, not by time:
+        // the left tab is this Bloc's month, the right one the cross-Bloc stats
+        // that used to be reachable only from the account profile outside a
+        // Bloc. The value stays "alltime" so stored state keeps working.
+        React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:4,padding:2,borderRadius:10,width:"100%",background:"rgba(8,20,19,.76)",border:"0.5px solid rgba(22,61,54,.72)"}},
+          [["bloc","This Bloc"],["alltime","All Blocs"]].map(([value,label])=>React.createElement('button',{
+            key:value,type:"button",onClick:()=>{
+              // Own and other are separate counts: the founder wants to know
+              // whether people check their own cross-Bloc record or other
+              // people's. isOwnProfile comes from the caller, which already
+              // knows -- memberUserId is not passed on every route.
+              if (value === "alltime" && profileTab !== "alltime") onTrackUsage?.(isOwnProfile ? "own_profile_all_blocs_opened" : "other_profile_all_blocs_opened");
+              setProfileTab(value);
+            },
+            style:{minHeight:24,borderRadius:8,border:"none",cursor:"pointer",background:profileTab===value?"rgba(78,205,196,.12)":"transparent",color:profileTab===value?"#4ECDC4":"var(--muted)",fontFamily:"'Outfit',sans-serif",fontSize:8.5,fontWeight:900,textTransform:"uppercase",letterSpacing:".055em"}
+          },label))
+        )
+      );
+    })(),
     cropSource && createPortal(React.createElement(ProfilePhotoCropModal,{imageSrc:cropSource,onCancel:()=>setCropSource(""),onConfirm:async dataUrl=>{setCropSource(""); setLocalPhoto(dataUrl); const saved=await onUpdateProfilePhoto(dataUrl); if(saved?.profilePhotoUrl) setLocalPhoto(saved.profilePhotoUrl);}}), document.body),
 	    profileTab==="alltime"
 	      ? allTimePanel
@@ -678,21 +723,19 @@ const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevea
 	        React.createElement('div',{style:{minWidth:0,fontFamily:"'Outfit',sans-serif"}},
 	          React.createElement('div',{style:{fontSize:14,fontWeight:700,color:"var(--text)"}},(!isCurMonth || selCount>selectedTarget) ? `${selCount||0} workout${selCount===1?"":"s"}` : `${selCount||0} of ${selectedTarget} workouts`),
 	          React.createElement('div',{style:{fontSize:12,fontWeight:600,marginTop:2,color:selCount>selectedTarget?"#4ECDC4":needed===0?"#E2E8F0":isCurMonth?"#4ECDC4":"#E89A9A"}},selCount>selectedTarget?`${selCount-selectedTarget} ahead of target`:needed===0?"Target hit":isCurMonth?`${needed} to target`:`Missed by ${needed}`)
+	        ),
+	        // Money stays out of the foreground: it rides the right-hand side of
+	        // this card rather than taking a line of its own, and only when there
+	        // is something to say. A member with no closed months sees this card
+	        // exactly as it was, divider included.
+	        hasHistory&&netPL!==0&&React.createElement('div',{style:{marginLeft:"auto",display:"flex",alignItems:"stretch",gap:18,flexShrink:0}},
+	          React.createElement('div',{style:{width:1,background:"rgba(255,255,255,.10)",margin:"3px 0"}}),
+	          React.createElement('div',{style:{fontFamily:"'Outfit',sans-serif",textAlign:"right"}},
+	            React.createElement('div',{style:{fontSize:8.5,fontWeight:500,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".06em"}},"Net"),
+	            React.createElement('div',{style:{fontSize:12.5,fontWeight:700,marginTop:3,color:netPL>0?"var(--green)":"var(--red)"}},`${netPL>0?"+":"-"}${fmtCurrency(Math.abs(netPL),currency)}`)
+	          )
 	        )
 	      )
-	    ),
-	    isJoinedThisMonth&&!isExcusedThisMonth&&React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:6}},
-	      [["Average",closedStats.avg,"var(--text)"],["Perfect months",perfectMonthStats.count||"\u2014","var(--text)"],["Months won",hasHistory?(closedStats.wins||"\u2014"):"\u2014",hasHistory&&closedStats.wins>0?"var(--gold)":"var(--text)"]].map(([label,val,color])=>
-	        React.createElement(Card,{key:label,style:{position:"relative",padding:"7px 7px 8px",display:"flex",flexDirection:"column",alignItems:"center",overflow:"hidden",boxShadow:"0 12px 24px rgba(0,0,0,.26), 0 2px 10px rgba(78,205,196,.07)"}},
-	          React.createElement('div',{style:{position:"absolute",left:9,right:9,top:0,height:1,background:"rgba(115,232,223,.42)"}}),
-	          React.createElement('span',{style:{display:"block",fontSize:8.5,fontWeight:500,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".06em",marginBottom:4,textAlign:"center"}},label),
-	          React.createElement('div',{style:{fontSize:15.5,fontWeight:500,lineHeight:1.02,color}},val)
-	        ))
-	    ),
-	    // Money stays out of the foreground: one quiet line, and only when there
-	    // is something to say.
-	    isJoinedThisMonth&&!isExcusedThisMonth&&hasHistory&&netPL!==0&&React.createElement('div',{style:{textAlign:"center",fontFamily:"'Outfit',sans-serif",fontSize:11.5,color:"var(--muted)",marginTop:-2}},
-	      "Net in this Bloc: ",React.createElement('span',{style:{fontWeight:700,color:netPL>0?"var(--green)":"var(--red)"}},`${netPL>0?"+":"-"}${fmtCurrency(Math.abs(netPL),currency)}`)
 	    ),
 	    isJoinedThisMonth&&!isExcusedThisMonth&&React.createElement(Card,{className:"fu4",style:{padding:"13px 14px",background:"radial-gradient(circle at 12% 0%, rgba(255,255,255,.032), transparent 34%), radial-gradient(circle at 88% 100%, rgba(78,205,196,.052), transparent 42%), linear-gradient(180deg, rgba(10,19,19,.98), rgba(7,14,14,.98))",boxShadow:"inset 0 1px 0 rgba(255,255,255,.035), 0 7px 16px rgba(0,0,0,.12)"}},
 	      React.createElement('div',{style:{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,marginBottom:12}},
