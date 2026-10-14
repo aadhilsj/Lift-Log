@@ -117,9 +117,62 @@ reads as three small gaps. Awaiting his direction.
 
 The sandbox is still running.
 
+### 2.3 Variant `p`: the Back row and the net line both reclaimed (14 October)
+
+The founder's two notes on `n`, in his words: the back button and the `...` on
+someone else's profile "look awkward" and take an extra line for no reason, and
+"Net in this Bloc" takes another line that could be folded into the workout
+counter, right-aligned and smaller with a divider.
+
+**Measured first, rather than eyeballed.** The Back/`...` row costs 29px (a
+21px row plus the gap); the net line costs 24px. Inside the header card the
+only free space is the band to the right of the name — "Sam" is 26px wide in a
+238px row — and the card's top-right corner.
+
+Built as **variant `p`** on `mockup/profile-header-2026-10-12` (`6204952`), so
+`n` stays selectable for comparison:
+
+- the `...` moved into the card's **top-right corner**;
+- Back became a **chevron in front of the name**, placed outside the text
+  column so the name and the first number still share one left edge (both at
+  x141) — the column simply starts further right on someone else's profile;
+- the net figure **rides the workout counter**, right-aligned, 12.5px, behind a
+  1px divider, and only when there is money to report.
+
+**Measured at 393x852, same member, same screen, both variants, scrolled to
+the top:**
+
+| | `n` | `p` | back |
+| --- | --- | --- | --- |
+| Someone else's profile, calendar top | 397 | **354** | 43px |
+| Your own profile, calendar top | 449 | **425** | 24px |
+
+No horizontal scroll (`scrollWidth` 393 = `clientWidth` 393).
+
+**Two things fixed during the build, both found by measuring:**
+
+1. The three Average / Perfect / Won cards reappeared under the card, because
+   the suppression list that hides them for `n` did not name `p`. The figures
+   were showing twice.
+2. Both new tap targets were too small — the chevron 22px wide, the `...`
+   25x31. They are now **44x42** and **39x45**, done with negative margins so
+   the layout does not move. The founder has already raised one hard-to-hit
+   chevron this month; shipping two more would have been the same bug again.
+
+**The day-one case was checked, not assumed.** `monthHistory` was temporarily
+emptied in the sandbox data: a member with no closed months shows **no net
+figure and no divider** — the counter card reads exactly as it does today.
+The practice data was restored straight afterwards.
+
+Lint and build clean. **Still unchecked on `p`:** a long name against the
+chevron, and iPhone SE width. Nothing is on `main`; this is the mockup branch
+only.
+
 ## 3. Commits this session
 
 | Commit | What | Live |
 | --- | --- | --- |
 | `98fcc00` | Open the 13 October catch-up handover | Docs only, on `main` |
-| *(this one)* | Variant `n` back on screen for review | Docs only |
+| `f4e414b` | Variant `n` back on screen for review | Docs only, on `main` |
+| `6204952` | Variant `p` — the back row and the net line reclaimed | **Mockup branch only, not live** |
+| *(this one)* | Record variant `p` and how it was measured | Docs only |
