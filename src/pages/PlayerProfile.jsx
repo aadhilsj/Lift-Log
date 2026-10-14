@@ -654,9 +654,16 @@ const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevea
         background:"radial-gradient(circle at 14% 0%, rgba(255,255,255,.019), transparent 34%), radial-gradient(circle at 92% 100%, rgba(78,205,196,.024), transparent 40%), linear-gradient(180deg, rgba(7,16,16,.99), rgba(5,12,12,.99))",
         boxShadow:"inset 0 1px 0 rgba(255,255,255,.028), 0 3px 9px rgba(0,0,0,.09)",
         padding:"12px 14px", display:"flex", flexDirection:"column", gap:10,
-        // 3px of clearance under the app header read as the card touching it.
-        // 13 more makes the gap 16, the same as the page's own side gutter.
-        marginTop:13
+        // 3px of clearance under the app header read as the card touching it;
+        // this makes the gap 16, the same as the page's own side gutter.
+        //
+        // The two routes do not start in the same place. A member's profile is
+        // a fixed layer whose container begins at y45, while the Profile tab is
+        // a page in the swipe track and begins at y59 - 14px lower, measured at
+        // 393x852. The same margin therefore reads 16 under the header on one
+        // screen and 30 on the other, which is visible. The tab gives that 14
+        // back so both land on 16.
+        marginTop: asTab ? -1 : 13
       }},
         // Report / Block. Three 4px dots across 20px, which is the size iOS and
         // Instagram use; the old text glyph's ink measured 5.8px wide.
