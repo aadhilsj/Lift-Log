@@ -85,8 +85,41 @@ deployments, the live bundle and the live site's console.
 Nothing was changed, built or deployed. No SQL was run. This handover and its
 line in `docs/HANDOVERS.md` are the only change.
 
+### 2.2 Variant `n` put back on screen (14 October)
+
+The founder said yes to building the header, and asked to see the latest
+mockup again first.
+
+Checked out `origin/mockup/profile-header-2026-10-12` (`34c225f`) **detached**
+in a throwaway worktree at `~/Developer/FERO/header-mockup-view`
+(`node_modules` symlinked from the shared folder, `.env.local` copied in),
+built it and ran the sandbox at `http://localhost:3000`. No branch was switched
+in the shared folder and no file in it was changed.
+
+`npm run sandbox:seed` stopped where it always does — "Rollover did not close
+August" — after creating the Bloc, Riley, Jo and Sam and their logs. That is
+the documented sandbox limitation, not a fault in the branch.
+
+**One change to the practice data, and why.** The three header numbers
+(Avg / Perfect / Won) are all derived from *closed* months, and this sandbox
+has none, so all three read as a dash. Five closed months (May–September 2026)
+were written into `.sandbox-data/blob.json` so the header could be seen
+carrying real figures. `blob.json` was copied to the scratchpad first. **No app
+code and no production data was touched**; this is local practice data only.
+
+Three screenshots at 393x852 sent to the founder: his own profile with figures
+(13.2 / 5 / 3), another member's profile, and a brand-new member's — the
+empty-handed case he asked the design to be judged on.
+
+Observed and **not** acted on, since this is a viewing step: on a brand-new
+member all three figures are em-dashes, which is the honest empty state but
+reads as three small gaps. Awaiting his direction.
+
+The sandbox is still running.
+
 ## 3. Commits this session
 
 | Commit | What | Live |
 | --- | --- | --- |
-| *(this one)* | Open the 13 October catch-up handover | Docs only |
+| `98fcc00` | Open the 13 October catch-up handover | Docs only, on `main` |
+| *(this one)* | Variant `n` back on screen for review | Docs only |
