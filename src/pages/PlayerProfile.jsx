@@ -54,6 +54,7 @@ import {
   releaseSwipeBack,
   releaseSwipeForward
 } from "../lib/swipeRelease.js";
+import { setHeaderBack } from "../lib/headerBack.js";
 
 const PLAYER_PROFILE_PREMIUM_GATE = false; // Built now; flip to true when premium gating is wired.
 const FULL_MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
@@ -327,10 +328,10 @@ const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevea
   const atEarliestMonth = (selMonthIdx??-1) >= visibleHistoryMonths.length-1;
   const atLatestMonth = selMonthIdx == null;
   const monthSelector = React.createElement('div',{style:{display:"flex",justifyContent:"center"}},
-    React.createElement('div',{style:{display:"inline-flex",alignItems:"center",height:32,borderRadius:999,background:"rgba(8,15,15,.48)",border:"0.5px solid rgba(78,205,196,.22)"}},
-      React.createElement('button',{type:"button","aria-label":"Earlier month",disabled:atEarliestMonth,onClick:()=>setSelMonthIdx(i=>i==null?0:Math.min(visibleHistoryMonths.length-1,i+1)),style:{background:"none",border:0,padding:"0 14px",height:44,marginTop:-6,marginBottom:-6,display:"inline-flex",alignItems:"center",justifyContent:"center",lineHeight:1,color:atEarliestMonth?"#24403c":"#4ECDC4",fontSize:19,cursor:atEarliestMonth?"default":"pointer"}},"\u2039"),
+    React.createElement('div',{style:{display:"inline-flex",alignItems:"center",height:28,borderRadius:999,background:"rgba(8,15,15,.48)",border:"0.5px solid rgba(78,205,196,.22)"}},
+      React.createElement('button',{type:"button","aria-label":"Earlier month",disabled:atEarliestMonth,onClick:()=>setSelMonthIdx(i=>i==null?0:Math.min(visibleHistoryMonths.length-1,i+1)),style:{background:"none",border:0,padding:"0 14px",height:44,marginTop:-8,marginBottom:-8,display:"inline-flex",alignItems:"center",justifyContent:"center",lineHeight:1,textIndent:0,color:atEarliestMonth?"#24403c":"#4ECDC4",fontSize:19,transform:"translateY(-2.25px)",cursor:atEarliestMonth?"default":"pointer"}},"\u2039"),
       React.createElement('span',{style:{minWidth:88,textAlign:"center",fontFamily:"'Outfit',sans-serif",fontSize:11,fontWeight:700,color:"var(--text)",whiteSpace:"nowrap"}},String(selLabel).replace(/ (\d{2})(\d{2})$/," '$2")),
-      React.createElement('button',{type:"button","aria-label":"Later month",disabled:atLatestMonth,onClick:()=>setSelMonthIdx(i=>i==null||i===0?null:i-1),style:{background:"none",border:0,padding:"0 14px",height:44,marginTop:-6,marginBottom:-6,display:"inline-flex",alignItems:"center",justifyContent:"center",lineHeight:1,color:atLatestMonth?"#24403c":"#4ECDC4",fontSize:19,cursor:atLatestMonth?"default":"pointer"}},"\u203a")
+      React.createElement('button',{type:"button","aria-label":"Later month",disabled:atLatestMonth,onClick:()=>setSelMonthIdx(i=>i==null||i===0?null:i-1),style:{background:"none",border:0,padding:"0 14px",height:44,marginTop:-8,marginBottom:-8,display:"inline-flex",alignItems:"center",justifyContent:"center",lineHeight:1,textIndent:0,color:atLatestMonth?"#24403c":"#4ECDC4",fontSize:19,transform:"translateY(-2.25px)",cursor:atLatestMonth?"default":"pointer"}},"\u203a")
     )
   );
 
@@ -516,6 +517,15 @@ const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevea
     }
   };
 
+  // MOCKUP (variant q): hand the header our back handler while this profile is
+  // open, and take it away again on the way out. Not the Profile tab, which has
+  // nothing to go back to, and not your own profile reached from elsewhere.
+  React.useEffect(() => {
+    if (HEADER_VARIANT !== "q" || asTab) return undefined;
+    setHeaderBack(onBack);
+    return () => setHeaderBack(null);
+  }, [asTab, onBack]);
+
   const backButton = React.createElement('button',{onClick:onBack,style:{display:"inline-flex",alignItems:"center",gap:3,background:"transparent",border:"none",color:"#1E4040",padding:"2px 0",borderRadius:0,fontSize:13,fontFamily:"'Outfit',sans-serif",fontWeight:700,lineHeight:1.1}},
     React.createElement(AppIcon,{name:"chevron-left",size:13,stroke:"#1E4040"}),
     "Back"
@@ -612,7 +622,7 @@ const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevea
     // clear of what follows. "Back" takes its own line above, because the
     // photo now owns the top-left corner. The month switcher moved into This
     // Bloc as a one-tap pill.
-    !asTab && HEADER_VARIANT!=="p" && React.createElement('div',{className:"fu",style:{marginBottom:-4,display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}},
+    !asTab && !["p","q","r"].includes(HEADER_VARIANT) && React.createElement('div',{className:"fu",style:{marginBottom:-4,display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}},
       backButton,
       // Report / Block for someone else's profile. Shares the Back row so the
       // header block below it, and the photo spacing in particular, is
@@ -781,7 +791,10 @@ const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevea
         background:"radial-gradient(circle at 14% 0%, rgba(255,255,255,.019), transparent 34%), radial-gradient(circle at 92% 100%, rgba(78,205,196,.024), transparent 40%), linear-gradient(180deg, rgba(7,16,16,.99), rgba(5,12,12,.99))",
         boxShadow:"inset 0 1px 0 rgba(255,255,255,.028), 0 3px 9px rgba(0,0,0,.09)",
         padding:"12px 14px", display:"flex", flexDirection:"column", gap:10,
-        position:"relative"
+        position:"relative",
+        // 3px of clearance under the app header read as the card touching it.
+        // 13 more makes the gap 16, the same as the page's own side gutter.
+        marginTop: ["p","q","r"].includes(HEADER_VARIANT) ? 13 : 0
       }}, children);
 
       const identityRow = size => React.createElement('div',{style:{display:"flex",alignItems:"center",gap:14}},
@@ -804,9 +817,11 @@ const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevea
       const cornerDotsP = (!isSelf && memberUserId) && React.createElement('button',{
         type:"button", "aria-label":`Report or block ${name}`,
         onClick:()=>setSafetyTarget({ userId:String(memberUserId), name, contentType:"profile", contentId:String(memberUserId) }),
-        style:{position:"absolute",top:-3,right:-1,background:"transparent",border:"none",color:"var(--muted2)",
-               padding:"15px 15px",fontSize:15,lineHeight:1,letterSpacing:1,cursor:"pointer"}
-      },"\u00b7\u00b7\u00b7");
+        style:{position:"absolute",top:-10,right:-1,background:"transparent",border:"none",color:"var(--muted2)",
+               padding:"20px 13px",lineHeight:0,cursor:"pointer"}
+      }, React.createElement('span',{style:{display:"inline-flex",alignItems:"center",gap:4}},
+        [0,1,2].map(i=>React.createElement('span',{key:i,style:{width:4,height:4,borderRadius:999,background:"currentColor"}}))
+      ));
       // The chevron sits outside the text column, so the name and the first
       // number still share one left edge - the whole column simply starts
       // further right on someone else's profile.
@@ -820,6 +835,36 @@ const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevea
           )
         )
       );
+      if (HEADER_VARIANT === "r") {
+        // R - the card is pulled in from the left on someone else's profile and
+        // a big chevron sits in the gutter it leaves, vertically centred on the
+        // card. Your own profile keeps the full-width card, so the two screens
+        // read as deliberately different rather than accidentally so.
+        const card = headerCard([
+          cornerDotsP && React.createElement('div',{key:"dots"}, cornerDotsP),
+          React.createElement('div',{key:"id"}, identityRow(80)),
+          React.createElement('div',{key:"toggle"}, toggleNode)
+        ]);
+        if (isSelf || asTab) return card;
+        return React.createElement('div',{style:{display:"flex",alignItems:"stretch",gap:4,marginTop:13}},
+          React.createElement('button',{type:"button",onClick:onBack,"aria-label":"Back",
+            style:{flexShrink:0,width:34,display:"inline-flex",alignItems:"center",justifyContent:"center",
+                   background:"transparent",border:"none",cursor:"pointer",padding:0,marginLeft:-8}},
+            React.createElement(AppIcon,{name:"chevron-left",size:28,stroke:"var(--muted)",strokeWidth:"2.2"})),
+          React.createElement('div',{style:{flex:1,minWidth:0,display:"flex",flexDirection:"column"}},
+            React.createElement('div',{style:{marginTop:-13}}, card))
+        );
+      }
+      if (HEADER_VARIANT === "q") {
+        // Q - p, but the back chevron is not in the card at all. The Bloc name
+        // in the header steps aside for it while a profile is open, so the
+        // card itself is identical to your own.
+        return headerCard([
+          cornerDotsP && React.createElement('div',{key:"dots"}, cornerDotsP),
+          React.createElement('div',{key:"id"}, identityRow(80)),
+          React.createElement('div',{key:"toggle"}, toggleNode)
+        ]);
+      }
       if (HEADER_VARIANT === "p") {
         return headerCard([
           cornerDotsP && React.createElement('div',{key:"dots"}, cornerDotsP),
@@ -950,7 +995,7 @@ const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevea
 	        // P - the net figure rides here instead of taking a line of its own.
 	        // It appears only when there is money to report, so a brand-new
 	        // member sees the card exactly as it is today, divider and all gone.
-	        HEADER_VARIANT==="p"&&hasHistory&&netPL!==0&&React.createElement('div',{style:{marginLeft:"auto",display:"flex",alignItems:"stretch",gap:11,flexShrink:0}},
+	        ["p","q","r"].includes(HEADER_VARIANT)&&hasHistory&&netPL!==0&&React.createElement('div',{style:{marginLeft:"auto",display:"flex",alignItems:"stretch",gap:18,flexShrink:0}},
 	          React.createElement('div',{style:{width:1,background:"rgba(255,255,255,.10)",margin:"3px 0"}}),
 	          React.createElement('div',{style:{fontFamily:"'Outfit',sans-serif",textAlign:"right"}},
 	            React.createElement('div',{style:{fontSize:8.5,fontWeight:500,color:"var(--muted)",textTransform:"uppercase",letterSpacing:".06em"}},"Net"),
@@ -959,7 +1004,7 @@ const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevea
 	        )
 	      )
 	    ),
-	    !["f","g","h","i","j","k","l","m","n","p"].includes(HEADER_VARIANT)&&isJoinedThisMonth&&!isExcusedThisMonth&&React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:6}},
+	    !["f","g","h","i","j","k","l","m","n","p","q","r"].includes(HEADER_VARIANT)&&isJoinedThisMonth&&!isExcusedThisMonth&&React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:6}},
 	      [["Average",closedStats.avg,"var(--text)"],["Perfect months",perfectMonthStats.count||"\u2014","var(--text)"],["Months won",hasHistory?(closedStats.wins||"\u2014"):"\u2014",hasHistory&&closedStats.wins>0?"var(--gold)":"var(--text)"]].map(([label,val,color])=>
 	        React.createElement(Card,{key:label,style:{position:"relative",padding:"7px 7px 8px",display:"flex",flexDirection:"column",alignItems:"center",overflow:"hidden",boxShadow:"0 12px 24px rgba(0,0,0,.26), 0 2px 10px rgba(78,205,196,.07)"}},
 	          React.createElement('div',{style:{position:"absolute",left:9,right:9,top:0,height:1,background:"rgba(115,232,223,.42)"}}),
@@ -969,7 +1014,7 @@ const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevea
 	    ),
 	    // Money stays out of the foreground: one quiet line, and only when there
 	    // is something to say.
-	    HEADER_VARIANT!=="p"&&isJoinedThisMonth&&!isExcusedThisMonth&&hasHistory&&netPL!==0&&React.createElement('div',{style:{textAlign:"center",fontFamily:"'Outfit',sans-serif",fontSize:11.5,color:"var(--muted)",marginTop:-2}},
+	    !["p","q","r"].includes(HEADER_VARIANT)&&isJoinedThisMonth&&!isExcusedThisMonth&&hasHistory&&netPL!==0&&React.createElement('div',{style:{textAlign:"center",fontFamily:"'Outfit',sans-serif",fontSize:11.5,color:"var(--muted)",marginTop:-2}},
 	      "Net in this Bloc: ",React.createElement('span',{style:{fontWeight:700,color:netPL>0?"var(--green)":"var(--red)"}},`${netPL>0?"+":"-"}${fmtCurrency(Math.abs(netPL),currency)}`)
 	    ),
 	    isJoinedThisMonth&&!isExcusedThisMonth&&React.createElement(Card,{className:"fu4",style:{padding:"13px 14px",background:"radial-gradient(circle at 12% 0%, rgba(255,255,255,.032), transparent 34%), radial-gradient(circle at 88% 100%, rgba(78,205,196,.052), transparent 42%), linear-gradient(180deg, rgba(10,19,19,.98), rgba(7,14,14,.98))",boxShadow:"inset 0 1px 0 rgba(255,255,255,.035), 0 7px 16px rgba(0,0,0,.12)"}},

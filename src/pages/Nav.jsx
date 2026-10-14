@@ -2,6 +2,7 @@ import React from "react";
 const { useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef } = React;
 import { AppIcon, AnteWordmark, Avatar } from "../components/primitives.jsx";
 import { resolveStorageImageUrl } from "../lib/appState.js";
+import { useHeaderBack } from "../lib/headerBack.js";
 
 // Follows Apple's badge convention: a red oval with white text, sitting at the
 // top-right. The centre is placed on the button circle's 45° diagonal so it
@@ -69,6 +70,7 @@ const MOBILE_PAGE_SLOTS = { today: 0, activity: 1, month: 3, profile: 4 };
 const SettingsDot = () => React.createElement('span',{style:{position:"absolute",top:2,right:2,width:7,height:7,borderRadius:999,background:"#4ECDC4",boxShadow:"0 0 0 1.5px #050909"}});
 
 const Nav = ({page,setPage,user,groupName,canEditGroup,onOpenSettings,settingsAlert=false,onOpenProfile,onOpenStream,onOpenNotifications,streamUnreadCount=0,onSwitchUser,onSwitchGroup,onOpenLog,syncing,lastSyncedAt,syncError,onRefresh,showJustSynced,activityAlertCount=0,hideMobileBottomNav=false,onlyMobileBottomNav=false,mobileBottomDragX=0,mobileBottomDragging=false,mobileBottomNavRef=null,mobileBottomSettle="transform .08s ease-out",mobileTabIndicatorRef=null,mobileTabSettle=null,mobileTabLiftSettle=null,currentUserId="",profilePhotoUrl=""}) => {
+  const headerBack = useHeaderBack();
   const navItems = [["today","Today","today"],["activity","Activity","activity"],["month","Month","results"],["profile","Profile","profile"]];
   // The Profile tab wears your own photo when you have one: dimmed while you
   // are elsewhere, full brightness inside a cyan ring when you are on it. With
@@ -157,7 +159,15 @@ const Nav = ({page,setPage,user,groupName,canEditGroup,onOpenSettings,settingsAl
       // Bloc name needs. The name must never truncate, and FERO still fronts
       // the Bloc switcher, so the brand is not lost.
       React.createElement('div',{style:{display:"flex",alignItems:"center",height:52,marginTop:6,minWidth:0,flex:"1 1 auto"}},
-        React.createElement(BlocNameButton,{groupName,onSwitchGroup})
+        // MOCKUP (variant q): inside a member's profile the Bloc name steps
+        // aside and this is the way back. The Bloc switcher is one tap further
+        // away while a profile is open, which is the trade.
+        headerBack
+          ? React.createElement('button',{type:"button",onClick:()=>headerBack(),"aria-label":"Back",
+              style:{display:"inline-flex",alignItems:"center",justifyContent:"center",background:"transparent",
+                     border:"none",cursor:"pointer",width:48,height:48,marginLeft:-12,padding:0}},
+              React.createElement(AppIcon,{name:"chevron-left",size:30,stroke:"#4ECDC4",strokeWidth:"2.4"}))
+          : React.createElement(BlocNameButton,{groupName,onSwitchGroup})
       ),
       React.createElement('div',{style:{display:"flex",alignItems:"center",height:42,marginTop:6,gap:10,flexShrink:0}},
         React.createElement(StreamIconButton,{onOpenStream,unreadCount:streamUnreadCount,size:42}),
