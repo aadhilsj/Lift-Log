@@ -168,6 +168,50 @@ Lint and build clean. **Still unchecked on `p`:** a long name against the
 chevron, and iPhone SE width. Nothing is on `main`; this is the mockup branch
 only.
 
+### 2.4 Variants `q` and `r`, and four measured corrections (14 October)
+
+The founder found the in-card chevron still wrong, and gave four other notes.
+All of it is on `mockup/profile-header-2026-10-12` (`7da7b03`); `n` and `p`
+stay selectable.
+
+**`q` — the header carries the back.** Inside a member's profile the Bloc name
+steps aside for a big chevron, so the card is identical to your own. The one
+piece of plumbing worth knowing: `viewPlayer` is state inside `TodayPage` and
+`HistoryPage`, so the header has no way to know a profile is open. The mockup
+bridges it with a module-level store (`src/lib/headerBack.js`); **a real build
+should lift that state into `App.jsx` and pass the handler down as a prop.**
+
+Checked before he asked me to stop: back works from both the Today and the All
+Time routes, the Bloc name returns on the way out, the own Profile tab keeps
+the Bloc name, and tapping another tab with a profile open restores the header.
+The trade, recorded: while a profile is open the Bloc switcher is one tap
+further away.
+
+**`r` — the card is compressed and the chevron sits outside it**, 28px, in the
+gutter, vertically centred on the card (measured: both centres at y151).
+
+**Four corrections, each measured rather than eyeballed:**
+
+| | Was | Now |
+| --- | --- | --- |
+| Clearance under the app header | **3px** | 16px, the page's own gutter |
+| The `...` ink | a 15px glyph measuring **5.8px wide** | three 4px dots over **20px**, the iOS/Instagram size, in a 46x45 target |
+| Month pill height | **32** — I had grown it, which was never asked for | back to **28**, 44px target kept through negative margins |
+| Month chevrons | box-centred but reading low | the glyph's ink measured on a canvas at **2.25px below the line-box centre**, corrected with `translateY(-2.25px)` |
+| Net divider to the figure | 11px | 18px |
+
+The pill is the lesson worth keeping: **the founder asked for a bigger chevron
+and got a bigger pill.** The target was widened by growing the box instead of
+by negative margins alone. He noticed.
+
+**One thing seen and not yet explained:** the Month page came up blank once,
+after tapping a member's month from the Month tab with variant `r` selected.
+It did not reproduce on a clean load and there was no console error. **Not
+established whether it is this branch's or pre-existing** — it must be pinned
+down before any of this goes near `main`.
+
+Lint and build clean. No horizontal scroll. Nothing is on `main`.
+
 ## 3. Commits this session
 
 | Commit | What | Live |
@@ -175,4 +219,6 @@ only.
 | `98fcc00` | Open the 13 October catch-up handover | Docs only, on `main` |
 | `f4e414b` | Variant `n` back on screen for review | Docs only, on `main` |
 | `6204952` | Variant `p` — the back row and the net line reclaimed | **Mockup branch only, not live** |
-| *(this one)* | Record variant `p` and how it was measured | Docs only |
+| `cf4f4af` | Record variant `p` and how it was measured | Docs only, on `main` |
+| `7da7b03` | Variants `q` and `r`, and four measured corrections | **Mockup branch only, not live** |
+| *(this one)* | Record `q`, `r` and the corrections | Docs only |
