@@ -1,6 +1,6 @@
-# Handover — 13 October 2026: catch-up, and what the session goes on to do
+# Handover — 13-15 October 2026: catch-up, then the profile header rebuilt
 
-**Status: open.** Claude, operating. **This is a live handover: it is updated as
+**Status: CLOSED.** Claude, operating. **This is a live handover: it is updated as
 the session goes, not written at the end.** The newest entry in §2 is the most
 recent thing that happened.
 
@@ -281,6 +281,60 @@ saying why.
 The tab now gives that 14px back. Measured after: card top y74 and a 16px gap
 on **both** routes.
 
+### 2.7 Live at `abc568f`
+
+The founder said `main`. Pre-flight: `git fetch`, the branch rebased onto
+`origin/main` (two docs commits had landed there while this was being built),
+`origin/main` confirmed an ancestor, lint and build clean. Pushed
+`86df079..abc568f` with `--force-with-lease`.
+
+**Verified three ways:** the commit is on `main`; the Vercel Production
+deployment for that exact commit reports success; the live bundle
+`index-Dnfseo20.js` contains `profileBack` and `translateY(-2.25px)` and no
+longer contains "Net in this Bloc", "Perfect months" or "Months won". CI green
+on `abc568f`. `joinfero.app` answers, and the live site loads with **no console
+errors**.
+
+**Website only.** TestFlight is still build 10, so none of this is on the phone
+app.
+
+**Not seen against live data or on a real iPhone.** It was driven end to end in
+the sandbox at two widths, but nobody has opened it on the live site yet.
+
+---
+
+## Close-out
+
+**What is live:** the profile header card, back as a chevron in the Bloc header
+while a member's profile is open, the `...` in the card's corner at the iOS
+size, the net figure on the workout counter, the bigger month-switcher chevrons
+in a pill that did not grow, and a 16px gap under the app header on both
+profile routes. All at `abc568f`, on the website only.
+
+**What is open:**
+
+- **The stuck Month ring.** Tapping a slice leaves the page track at `x = -149`
+  instead of settling. Reproduced identically on `main` with this branch
+  stashed, so it is pre-existing — and it is live today. Deliberately not fixed
+  here; it wants its own session, against the playbook's swipe contract.
+- **TestFlight build 11** — never built; `main` is far past it, and Xcode is not
+  installed on this laptop.
+- **1 November month close** — the first full one since `c9ce86a`.
+- **Waiting on Deveen:** scaling before launch (not started, the biggest
+  pre-launch item), the RLS production rollout, `push_devices` missing from his
+  migration, `fero-staging` still billing ~$9.68/month.
+- `test:auth-edge-flows` and `test:mobile-navigation` fail on `main` too.
+- Cleanup candidates: ~40 stale local branches, the two August worktrees in
+  `~/Documents`, the four August `.dmg` backups, and the mockup branch
+  `mockup/profile-header-2026-10-12` once the founder is happy.
+
+**State of this laptop at close:** the sandbox was stopped by PID (ports 3000
+and 54321 free), the two scratch worktrees removed — `node_modules` symlinks
+deleted first, so the shared folder's is untouched — and the browser viewport
+reset. The shared checkout at `~/Documents/Codex Space/Lift Log` is still many
+commits behind `origin/main`; nothing in this session was read from or written
+to it.
+
 ## 3. Commits this session
 
 | Commit | What | Live |
@@ -294,4 +348,7 @@ on **both** routes.
 | `1be6606` | **The real build** — header card, back in the Bloc header, net in the counter | On `claude/profile-header-2026-10-14`, **not pushed, not live** |
 | `3fcbc7e` | Record the real build and how it was verified | Docs only, on `main` |
 | `0aeac00` | The card sits 16px under the header on both profiles | On the branch, **not pushed** |
-| *(this one)* | Record the spacing fix | Docs only |
+| `86df079` | Record the spacing fix | Docs only, on `main` |
+| `0074418`, `abc568f` | **The profile header, live** | On `main`, deployed, verified |
+| `0e25aab` | docs: what's live at `abc568f` | Docs only, on `main` |
+| *(this one)* | Close the session out | Docs only |
