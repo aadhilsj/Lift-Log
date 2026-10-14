@@ -3586,7 +3586,26 @@ const App = () => {
   const pageIndex = Math.max(0, IN_BLOC_PAGES.indexOf(page));
   const screenWidth = typeof window !== "undefined" ? (window.innerWidth || 420) : 420;
   const inBlocViewportHeight = "calc(100dvh - 64px)";
+  // The track holds all four in-Bloc pages side by side, so it is four
+  // viewports wide with its overflow hidden. A hidden overflow is still
+  // programmatically scrollable, and focusing anything inside it - which a
+  // mouse click on a button does - lets the browser scroll it sideways to
+  // reveal what was focused. The page is then left sitting off to one side
+  // with no gesture able to bring it back, because the swipe machinery moves
+  // pages with transforms and never reads scrollLeft.
+  //
+  // Found on the Month ring: tapping a member's slice left the page 149px to
+  // the left, stuck. Nothing should ever scroll this element, so put it back.
+  // A plain function, not useCallback: this sits after an early return, where
+  // a hook cannot go.
+  const handlePageTrackScroll = e => {
+    const el = e.currentTarget;
+    if (el.scrollLeft !== 0) el.scrollLeft = 0;
+    if (el.scrollTop !== 0) el.scrollTop = 0;
+  };
+
   const activePageLayer = React.createElement('div',{
+    onScroll:handlePageTrackScroll,
     onTouchStart:startPageSwipe,
     onTouchMove:movePageSwipe,
     onTouchEnd:endPageSwipe,
