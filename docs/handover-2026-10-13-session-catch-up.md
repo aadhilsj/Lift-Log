@@ -265,6 +265,22 @@ sign-in fixtures ("Account already exists", "Your Blocs"), as they do on `main`.
 **Not pushed.** Waiting on the founder's call: preview branch or straight to
 `main`.
 
+### 2.6 The gap above the card was not the same on both profiles — `0aeac00`
+
+The founder saw the card hanging lower on his own profile than on someone
+else's. He was right, and it measured: **30px of clearance against 16px.**
+
+**The cause, worth writing down because it will catch the next person.** The
+two routes do not start in the same place. A member's profile is a **fixed
+layer** whose container begins at **y45**; the Profile tab is a **page in the
+swipe track** and begins at **y59** — 14px lower, measured at 393x852. The same
+`marginTop` therefore reads 16 under the header on one screen and 30 on the
+other. The old header had the same split (`paddingTop: asTab ? 2 : 6`) without
+saying why.
+
+The tab now gives that 14px back. Measured after: card top y74 and a 16px gap
+on **both** routes.
+
 ## 3. Commits this session
 
 | Commit | What | Live |
@@ -276,4 +292,6 @@ sign-in fixtures ("Account already exists", "Your Blocs"), as they do on `main`.
 | `7da7b03` | Variants `q` and `r`, and four measured corrections | **Mockup branch only, not live** |
 | `0f5b865` | Record `q`, `r` and the corrections | Docs only, on `main` |
 | `1be6606` | **The real build** — header card, back in the Bloc header, net in the counter | On `claude/profile-header-2026-10-14`, **not pushed, not live** |
-| *(this one)* | Record the real build and how it was verified | Docs only |
+| `3fcbc7e` | Record the real build and how it was verified | Docs only, on `main` |
+| `0aeac00` | The card sits 16px under the header on both profiles | On the branch, **not pushed** |
+| *(this one)* | Record the spacing fix | Docs only |
