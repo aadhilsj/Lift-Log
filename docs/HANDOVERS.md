@@ -36,7 +36,7 @@ Read every one of these. Each is a dated record of one session.
 
 | Date | Handover | About |
 | --- | --- | --- |
-| 13 Oct — **open** | [`handover-2026-10-13-session-catch-up.md`](handover-2026-10-13-session-catch-up.md) | Catch-up on the week's work; Vercel's automatic deploys confirmed recovered |
+| 13–15 Oct — **closed** | [`handover-2026-10-13-session-catch-up.md`](handover-2026-10-13-session-catch-up.md) | The profile header rebuilt as a card and shipped at `abc568f`: back moved into the Bloc header, the net figure onto the workout counter, the month chevrons made hittable; a pre-existing stuck Month ring found and left alone |
 | 13 Oct — closed | [`handover-2026-10-13-nishara-log-date-correction.md`](handover-2026-10-13-nishara-log-date-correction.md) | Nishara's gym log moved from 11 to 12 October in both the blob and canonical, with a backup and a two-statement rollback |
 | 11–13 Oct — **closed** | [`handover-2026-10-11-blocking-migration-session-2.md`](handover-2026-10-11-blocking-migration-session-2.md) | Blocking and reporting shipped; a blank-Stream regression shipped and fixed the same day; press-and-hold replaces the `...`; persistence proven on staging; the profile header redesigned to variant `n` but **not built** |
 | 11 Oct — **active** | [`handover-2026-10-11-blocking-pickup-verification.md`](handover-2026-10-11-blocking-pickup-verification.md) | The blocking branch picked up after the session before it ran out of credits: lint, build, tests and every new screen verified; the interaction-guard migration still not applied to production, which must happen first |
