@@ -4,18 +4,36 @@
 Update it whenever something ships. Same filename forever — never date it, never
 fork it. If it disagrees with a handover, this file wins.
 
-Last updated: **12 October 2026** — **press and hold** replaces the `...` on the
-Bloc Stream and the Activity feed, at `94f1698`. Hold a message or a workout for
-half a second: it lifts and stays sharp, everything behind blurs, and its
-actions sit under it. The Stream also gets a large reaction row, because holding
-is the only way to react to a message; the feed does not, because every card
-already has a `+`. The `...` on a member profile and on a comment is unchanged.
-Haptics fire on TestFlight only, never on the PWA.
+Last updated: **15 October 2026** — the **profile header is a card**, at
+`abc568f`. The top of a member's profile used to be the only unbounded block on
+the page, so its empty space read as dead rather than as padding. It is now a
+card like every other one: the photo at 80, the name, and the three all-time
+figures — Avg, Perfect, Won — sharing one left edge, with This Bloc / All Blocs
+inside it. The separate Average / Perfect months / Months won cards are gone;
+they were the same three figures shown twice.
 
-> **Not live, and designed only:** the profile header redesign (the photo, the
-> name and the three numbers in a card) exists as a mockup on
-> `mockup/profile-header-2026-10-12`, variant `n`. So does a bigger tap target
-> for the month switcher's chevrons. Neither is on `main`.
+**Back moved into the Bloc header.** While you are in someone's profile, the
+Bloc name steps aside for a chevron, and the `...` for reporting and blocking
+sits in the card's own top-right corner. Neither takes a line of its own any
+more, and someone else's profile now looks identical to your own — which was
+the point. The Bloc switcher is one tap further away while a profile is open.
+
+**"Net in this Bloc" no longer takes a line either.** It rides the right-hand
+side of the workout counter behind a divider, and only when there is money to
+report, so a member with no finished months sees that card exactly as before.
+
+Measured at 393x852, same member, same screen: the first card moved up **43px**
+on someone else's profile and **24px** on your own, and the gap under the app
+header is now 16px on both (it was 30 on your own profile and 16 on everyone
+else's). Also corrected: the `...` was a text glyph whose ink measured 5.8px
+wide and is now three 4px dots across 20px; the month switcher's chevrons are
+19px in a 44x44 target with the pill still 28 tall, and sit optically centred
+rather than 2.25px low.
+
+> **Found and deliberately not fixed:** tapping a slice on the Month ring
+> leaves the page track stuck at `x = -149` instead of settling. Reproduced
+> identically on `main` with this work stashed, so it is **pre-existing**, and
+> it is live today. It wants its own session.
 
 Before that, on 12 October, **blocking and reporting went live**.
 
@@ -102,7 +120,8 @@ yet**. Details: `docs/handover-2026-10-09-session-catch-up.md` and
 
 | | Website (PWA) | TestFlight (phone) |
 | --- | --- | --- |
-| **At commit** | **`94f1698`** | `77fe4d8` (build 10) |
+| **At commit** | **`abc568f`** | `77fe4d8` (build 10) |
+| Profile header is a card; back is a chevron in the Bloc header; the `...` in the card corner; the net figure on the workout counter | ✅ | ❌ |
 | Report and Block on the activity feed, Bloc Stream, comments and member profiles; Blocked list on the account screen; report queue on the founder dashboard | ✅ | ❌ |
 | Press and hold a workout or a Stream message for its menu, instead of a `...` | ✅ | ❌ |
 | Your own workout deletes from the Profile tab, Month and All Time calendars, not only from Today | ✅ | ❌ |
@@ -166,6 +185,30 @@ bundle — and the live site loaded with no console errors.
 393×812 — every state the practice data allowed — but nobody has opened the
 Profile tab on the live site or on a real iPhone yet. Swiping between tabs was
 not exercised either: the test browser sends mouse events, not touch.
+
+### Verified live, 15 October
+
+Checked the same three ways — the commit on `main`, a successful Vercel
+Production deployment for that exact commit, and the change in the live
+bundle — and the live site loaded with no console errors.
+
+- `abc568f` — the profile header card, back in the Bloc header, the net figure
+  on the workout counter, the bigger month chevrons. Production deployment
+  success for `abc568f`; CI green; live bundle `index-Dnfseo20.js` contains
+  `profileBack` and `translateY(-2.25px)`, and no longer contains "Net in this
+  Bloc", "Perfect months" or "Months won".
+
+**Driven end to end in the sandbox before it shipped**, at 393x852 and at
+375x667 (iPhone SE): the chevron appears and the Bloc name returns on the
+Today, Month and All Time routes and on the way back out; the Profile tab keeps
+the Bloc name; tapping another tab with a profile open restores the header; a
+24-character name wraps to two lines and clears the `...` by 24px; no
+horizontal scroll at either width. Lint, build and 24 of 26 suites clean — the
+two failures are `test:auth-edge-flows` and `test:mobile-navigation`, which
+fail on `main` too.
+
+**Not seen against live data, and not on a real iPhone.** Nobody has opened
+this on the live site or on a phone yet.
 
 ### Verified live, 10 October
 
