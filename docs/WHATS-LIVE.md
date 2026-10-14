@@ -4,36 +4,18 @@
 Update it whenever something ships. Same filename forever — never date it, never
 fork it. If it disagrees with a handover, this file wins.
 
-Last updated: **15 October 2026** — the **profile header is a card**, at
-`abc568f`. The top of a member's profile used to be the only unbounded block on
-the page, so its empty space read as dead rather than as padding. It is now a
-card like every other one: the photo at 80, the name, and the three all-time
-figures — Avg, Perfect, Won — sharing one left edge, with This Bloc / All Blocs
-inside it. The separate Average / Perfect months / Months won cards are gone;
-they were the same three figures shown twice.
+Last updated: **15 October 2026** — a page can no longer be **left sitting off
+to one side**, at `ebf9de5`. Tapping a member's slice on the Month ring used to
+push the whole page about 149px to the left and strand it there; it read as a
+blank screen. The four in-Bloc pages live side by side in one track four
+screens wide, and a hidden overflow is still scrollable, so focusing a button
+let the browser scroll the track — while the swipe code, which moves pages with
+transforms, never knew. The track now refuses to scroll. This was never only
+the Month ring: any focusable thing near the edge of any of the four pages
+could do it.
 
-**Back moved into the Bloc header.** While you are in someone's profile, the
-Bloc name steps aside for a chevron, and the `...` for reporting and blocking
-sits in the card's own top-right corner. Neither takes a line of its own any
-more, and someone else's profile now looks identical to your own — which was
-the point. The Bloc switcher is one tap further away while a profile is open.
-
-**"Net in this Bloc" no longer takes a line either.** It rides the right-hand
-side of the workout counter behind a divider, and only when there is money to
-report, so a member with no finished months sees that card exactly as before.
-
-Measured at 393x852, same member, same screen: the first card moved up **43px**
-on someone else's profile and **24px** on your own, and the gap under the app
-header is now 16px on both (it was 30 on your own profile and 16 on everyone
-else's). Also corrected: the `...` was a text glyph whose ink measured 5.8px
-wide and is now three 4px dots across 20px; the month switcher's chevrons are
-19px in a 44x44 target with the pill still 28 tall, and sit optically centred
-rather than 2.25px low.
-
-> **Found and deliberately not fixed:** tapping a slice on the Month ring
-> leaves the page track stuck at `x = -149` instead of settling. Reproduced
-> identically on `main` with this work stashed, so it is **pre-existing**, and
-> it is live today. It wants its own session.
+Before that, on 15 October, the **profile header became a card**, at
+`abc568f`. 
 
 Before that, on 12 October, **blocking and reporting went live**.
 
@@ -120,7 +102,8 @@ yet**. Details: `docs/handover-2026-10-09-session-catch-up.md` and
 
 | | Website (PWA) | TestFlight (phone) |
 | --- | --- | --- |
-| **At commit** | **`abc568f`** | `77fe4d8` (build 10) |
+| **At commit** | **`ebf9de5`** | `77fe4d8` (build 10) |
+| A page can no longer be scrolled off to one side (the stuck Month ring) | ✅ | ❌ |
 | Profile header is a card; back is a chevron in the Bloc header; the `...` in the card corner; the net figure on the workout counter | ✅ | ❌ |
 | Report and Block on the activity feed, Bloc Stream, comments and member profiles; Blocked list on the account screen; report queue on the founder dashboard | ✅ | ❌ |
 | Press and hold a workout or a Stream message for its menu, instead of a `...` | ✅ | ❌ |
@@ -185,6 +168,17 @@ bundle — and the live site loaded with no console errors.
 393×812 — every state the practice data allowed — but nobody has opened the
 Profile tab on the live site or on a real iPhone yet. Swiping between tabs was
 not exercised either: the test browser sends mouse events, not touch.
+
+### Verified live, 15 October — the displaced page
+
+- `ebf9de5` — the in-Bloc page track refuses to scroll. Production deployment
+  success for that commit; CI green; the live bundle `index-DIhYQ_rD.js`
+  contains the guard (`scrollLeft!==0&&(…scrollLeft=0)`); the live site loads
+  with no console errors.
+- Proven in the sandbox **with the fix in and stashed back out**, same build,
+  same screen: a direct scroll, `scrollIntoView` and `focus()` each left the
+  page displaced without it (−200px on the direct scroll) and each snaps back
+  to 0 with it. Tapping a slice still opens that member's month.
 
 ### Verified live, 15 October
 

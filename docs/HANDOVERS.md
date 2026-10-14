@@ -36,6 +36,7 @@ Read every one of these. Each is a dated record of one session.
 
 | Date | Handover | About |
 | --- | --- | --- |
+| 15 Oct — **closed** | [`handover-2026-10-15-month-ring-displaced-page.md`](handover-2026-10-15-month-ring-displaced-page.md) | The page left sitting 149px off to one side after tapping a Month-ring slice: a hidden overflow is still scrollable, and the transform-based swipe code never put it back |
 | 13–15 Oct — **closed** | [`handover-2026-10-13-session-catch-up.md`](handover-2026-10-13-session-catch-up.md) | The profile header rebuilt as a card and shipped at `abc568f`: back moved into the Bloc header, the net figure onto the workout counter, the month chevrons made hittable; a pre-existing stuck Month ring found and left alone |
 | 13 Oct — closed | [`handover-2026-10-13-nishara-log-date-correction.md`](handover-2026-10-13-nishara-log-date-correction.md) | Nishara's gym log moved from 11 to 12 October in both the blob and canonical, with a backup and a two-statement rollback |
 | 11–13 Oct — **closed** | [`handover-2026-10-11-blocking-migration-session-2.md`](handover-2026-10-11-blocking-migration-session-2.md) | Blocking and reporting shipped; a blank-Stream regression shipped and fixed the same day; press-and-hold replaces the `...`; persistence proven on staging; the profile header redesigned to variant `n` but **not built** |
