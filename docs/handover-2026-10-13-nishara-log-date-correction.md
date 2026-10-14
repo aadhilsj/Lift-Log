@@ -57,7 +57,8 @@ The founder asked to change Nishara's gym log dated **11 October 2026** to
 | Commit | Description | Live |
 | --- | --- | --- |
 | `e7b1dcc` | The date correction, before-state, backup and verification | Data live; docs pushed to `main` |
-| This commit | Record the push | Docs only |
+| `0c6e9b6` | Record the push | Docs only |
+| This commit | Close the session out | Docs only |
 
 ## Close-out
 
@@ -81,8 +82,21 @@ set state = jsonb_set(s.state, '{groups,legacy-group,logs,Nishara}',
             with ordinality as t(entry, ord)));
 ```
 
-The backup table `ante_core.backup_nishara_log_date_2026_10_13` can be dropped
-once the founder is happy with the result.
+The backup table `ante_core.backup_nishara_log_date_2026_10_13` was **kept, not
+dropped**. The founder confirmed the result, but the table costs nothing, it is
+unreachable by `anon` and `authenticated`, and the other `backup_*` tables from
+September and October are all still in place — so dropping it needed a decision
+nobody had asked for. Drop it whenever the October data is settled.
+
+Nothing was started that needs stopping: no sandbox was run (nothing was
+listening on port 3000 or 54321 at close), no worktree was created, and the
+only checkout is the shared folder, left on `main` and level with
+`origin/main`.
+
+**Session closed 14 October 2026.** The founder checked the result and
+confirmed it looks right, so this handover is closed with nothing open and
+nothing left to hand on. The one judgement call left for a future session is
+below: the backup table was deliberately kept, not dropped.
 
 `e7b1dcc` is on `origin/main` (fast-forward from `8175b9a`, pushed with
 `--force-with-lease`). No Vercel deploy was waited on and none is needed: the
