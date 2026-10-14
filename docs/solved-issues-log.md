@@ -194,3 +194,33 @@ Resolution:
 Notes:
 - A sweep with ESLint's `no-sequences` rule found no other instance in `src` or `api`. The project's lint config does not enable that rule; turning it on would catch this automatically if it ever recurs.
 
+---
+
+## 2026-10-14 — The Month page looked blank after tapping a member's slice
+
+Symptom:
+- Tapping a member's slice on the Month ring left the page shifted ~149px to
+  the left and stuck. Swiping did not recover it; switching tabs did.
+- Looked like a blank screen, with no console error.
+
+Scope:
+- Every in-Bloc page, not only Month: any focusable element near a page edge
+  could do it. Live on the website; nobody reported it.
+
+Cause:
+- The in-Bloc page track is four viewports wide with `overflow: hidden`, and a
+  hidden overflow is still programmatically scrollable. Focusing a button
+  inside it let the browser scroll the track sideways. The swipe code moves
+  pages with transforms and never reads `scrollLeft`, so nothing put it back.
+
+Resolution:
+- `ebf9de5`. The track resets `scrollLeft`/`scrollTop` to 0 on any scroll.
+- Verified with the fix in and stashed out: a direct scroll, `scrollIntoView`
+  and `focus()` all displaced the page without it and all snap back with it.
+
+Notes:
+- Not `overflow: clip`, which would prevent the scroll outright but needs
+  Safari 16.
+- Playbook: "A Page Left Sitting Off To One Side, With No Gesture To Bring It
+  Back".
+
