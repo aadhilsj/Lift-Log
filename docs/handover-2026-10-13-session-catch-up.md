@@ -212,6 +212,59 @@ down before any of this goes near `main`.
 
 Lint and build clean. No horizontal scroll. Nothing is on `main`.
 
+### 2.5 Built for real — `1be6606` on `claude/profile-header-2026-10-14`
+
+The founder chose the header chevron over the compressed card, with reasons
+worth keeping: it settles his original complaint (the two profiles now read as
+one screen), and the compressed card cost **37px of card width** on someone
+else's profile — 331 against 368 — exactly where a long name and the three
+numbers are tightest.
+
+Built on a **fresh branch off `origin/main`**, not from the mockup branch: the
+design was ported deliberately, so no variant scaffolding reaches `main`. Files
+changed, and nothing else: `src/pages/PlayerProfile.jsx`, `src/pages/Nav.jsx`,
+`src/App.jsx`, and a new `src/lib/profileBackContext.js`.
+
+**How the header learns a profile is open.** `PlayerProfile` is rendered from
+**four** places — `TodayPage`, `MonthPage`, `HistoryPage` (All Time) and the
+Profile tab in `App.jsx`. Rather than lift four copies of `viewPlayer`,
+`App.jsx` holds one handler and passes the setter down through a context;
+whichever profile is mounted publishes its own `onBack` and withdraws it on
+unmount. No page component needed changing. The Profile tab does not publish,
+because it is a tab.
+
+**Verified at 393x852 and at 375x667 (iPhone SE):**
+
+| Checked | Result |
+| --- | --- |
+| Today route | chevron in, Bloc name out; back returns to Today |
+| All Time route | same, and back returns to All Time, not Today |
+| Profile tab | keeps the Bloc name, no chevron, no `...` |
+| Another tab tapped with a profile open | header restores itself |
+| A 24-character name on iPhone SE | wraps to two lines, **clears the `...` by 24px** |
+| Horizontal scroll | none at either width |
+| Console | no errors |
+
+**One thing the long-name test caught.** The name's box ran **18px under the
+`...`**, so a long enough name would have wrapped beneath the dots. The name now
+carries 26px of right padding on someone else's profile. Found by measuring, not
+by looking — at 17 characters it still looked fine.
+
+**The blank Month page from §2.4 is not ours.** Tapping a slice on the Month
+ring leaves the page track stuck at **x = -149** instead of settling. Checked
+by stashing this branch's changes, rebuilding and repeating the same sequence:
+**`main` does exactly the same, -149 both ways.** It is a pre-existing
+stuck-mid-swipe bug — the playbook's swipe contract says a release must always
+snap to origin or destination — and it is **not fixed here**, because it is
+outside what was asked. It wants its own session.
+
+Lint and build clean. **24 of 26 test suites pass**; the two failures are
+`test:auth-edge-flows` and `test:mobile-navigation`, failing on the documented
+sign-in fixtures ("Account already exists", "Your Blocs"), as they do on `main`.
+
+**Not pushed.** Waiting on the founder's call: preview branch or straight to
+`main`.
+
 ## 3. Commits this session
 
 | Commit | What | Live |
@@ -221,4 +274,6 @@ Lint and build clean. No horizontal scroll. Nothing is on `main`.
 | `6204952` | Variant `p` — the back row and the net line reclaimed | **Mockup branch only, not live** |
 | `cf4f4af` | Record variant `p` and how it was measured | Docs only, on `main` |
 | `7da7b03` | Variants `q` and `r`, and four measured corrections | **Mockup branch only, not live** |
-| *(this one)* | Record `q`, `r` and the corrections | Docs only |
+| `0f5b865` | Record `q`, `r` and the corrections | Docs only, on `main` |
+| `1be6606` | **The real build** — header card, back in the Bloc header, net in the counter | On `claude/profile-header-2026-10-14`, **not pushed, not live** |
+| *(this one)* | Record the real build and how it was verified | Docs only |
