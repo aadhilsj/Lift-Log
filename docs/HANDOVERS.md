@@ -36,6 +36,7 @@ Read every one of these. Each is a dated record of one session.
 
 | Date | Handover | About |
 | --- | --- | --- |
+| 15 Oct — **open** | [`handover-2026-10-15-session-catch-up.md`](handover-2026-10-15-session-catch-up.md) | Catch-up session: where things stand at `4f05c7e`, what is live, and everything carried forward |
 | 15 Oct — **open** | [`handover-2026-10-15-notification-centre-pickup.md`](handover-2026-10-15-notification-centre-pickup.md) | The notification centre already exists on `feat/settlement-note` and runs; what it does, what it cannot do, why it should be ported rather than rebased, and the one decision that has to come first |
 | 15 Oct — **closed** | [`handover-2026-10-15-month-ring-displaced-page.md`](handover-2026-10-15-month-ring-displaced-page.md) | The page left sitting 149px off to one side after tapping a Month-ring slice: a hidden overflow is still scrollable, and the transform-based swipe code never put it back |
 | 13–15 Oct — **closed** | [`handover-2026-10-13-session-catch-up.md`](handover-2026-10-13-session-catch-up.md) | The profile header rebuilt as a card and shipped at `abc568f`: back moved into the Bloc header, the net figure onto the workout counter, the month chevrons made hittable; a pre-existing stuck Month ring found and left alone |
