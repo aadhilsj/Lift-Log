@@ -66,9 +66,12 @@ const BlocNameButton = ({ groupName, onSwitchGroup }) => {
 // moves the indicator imperatively at swipe release and needs the same map.
 const MOBILE_PAGE_SLOTS = { today: 0, activity: 1, month: 3, profile: 4 };
 
+// Same shape as the Stream's unread pill, so the two read as one family.
+const NotificationDot = ({count}) => React.createElement('span',{style:{position:"absolute",top:2,right:2,minWidth:14,height:14,padding:"0 3px",borderRadius:999,background:"#4ECDC4",color:"#04110e",fontFamily:"'Outfit', sans-serif",fontSize:8.5,fontWeight:700,lineHeight:1,display:"inline-flex",alignItems:"center",justifyContent:"center",boxShadow:"0 0 0 1.5px var(--s1)"}},count>9?"9+":count);
+
 const SettingsDot = () => React.createElement('span',{style:{position:"absolute",top:2,right:2,width:7,height:7,borderRadius:999,background:"#4ECDC4",boxShadow:"0 0 0 1.5px #050909"}});
 
-const Nav = ({page,setPage,user,groupName,canEditGroup,onOpenSettings,settingsAlert=false,onOpenProfile,onOpenStream,onOpenNotifications,streamUnreadCount=0,onSwitchUser,onSwitchGroup,onOpenLog,syncing,lastSyncedAt,syncError,onRefresh,showJustSynced,activityAlertCount=0,hideMobileBottomNav=false,onlyMobileBottomNav=false,mobileBottomDragX=0,mobileBottomDragging=false,mobileBottomNavRef=null,mobileBottomSettle="transform .08s ease-out",mobileTabIndicatorRef=null,mobileTabSettle=null,mobileTabLiftSettle=null,currentUserId="",profilePhotoUrl="",profileBack=null}) => {
+const Nav = ({page,setPage,user,groupName,canEditGroup,onOpenSettings,settingsAlert=false,onOpenProfile,onOpenStream,onOpenNotifications,notificationCount=0,streamUnreadCount=0,onSwitchUser,onSwitchGroup,onOpenLog,syncing,lastSyncedAt,syncError,onRefresh,showJustSynced,activityAlertCount=0,hideMobileBottomNav=false,onlyMobileBottomNav=false,mobileBottomDragX=0,mobileBottomDragging=false,mobileBottomNavRef=null,mobileBottomSettle="transform .08s ease-out",mobileTabIndicatorRef=null,mobileTabSettle=null,mobileTabLiftSettle=null,currentUserId="",profilePhotoUrl="",profileBack=null}) => {
   const navItems = [["today","Today","today"],["activity","Activity","activity"],["month","Month","results"],["profile","Profile","profile"]];
   // The Profile tab wears your own photo when you have one: dimmed while you
   // are elsewhere, full brightness inside a cyan ring when you are on it. With
@@ -170,13 +173,13 @@ const Nav = ({page,setPage,user,groupName,canEditGroup,onOpenSettings,settingsAl
       ),
       React.createElement('div',{style:{display:"flex",alignItems:"center",height:42,marginTop:6,gap:10,flexShrink:0}},
         React.createElement(StreamIconButton,{onOpenStream,unreadCount:streamUnreadCount,size:42}),
-        // Notification centre — not built yet, so this opens a placeholder that
-        // says so. It was a dead mock while only TestFlight had it; on the web
-        // every member can reach it, and a button that does nothing when tapped
-        // is worse than no button. The real thing is
-        // docs/concept-2026-09-24-notification-centre.md; none of it is built.
-        // Size, icon and position are locked — only the destination is new.
-        React.createElement('button',{type:"button",onClick:onOpenNotifications,className:"icon-btn nav-glass-btn",title:"Notifications","aria-label":"Notifications",style:{width:42,height:42,display:"inline-flex",alignItems:"center",justifyContent:"center",position:"relative"}},React.createElement(AppIcon,{name:"bell",size:26})),
+        // Notification centre — "For you". Size, icon and position are locked;
+        // the badge is absolutely positioned, so it claims no layout.
+        // docs/concept-2026-09-24-notification-centre.md is the spec.
+        React.createElement('button',{type:"button",onClick:onOpenNotifications,className:"icon-btn nav-glass-btn",title:"For you","aria-label":"For you",style:{width:42,height:42,display:"inline-flex",alignItems:"center",justifyContent:"center",position:"relative"}},
+          React.createElement(AppIcon,{name:"bell",size:26}),
+          notificationCount>0&&React.createElement(NotificationDot,{count:notificationCount})
+        ),
         React.createElement('button',{onClick:onOpenSettings,className:"icon-btn nav-glass-btn",title:"Bloc settings",style:{width:42,height:42,display:"inline-flex",alignItems:"center",justifyContent:"center",position:"relative"}},React.createElement(AppIcon,{name:"settings",size:26}),settingsAlert&&React.createElement(SettingsDot,null)),
         null
       )
