@@ -4,7 +4,15 @@
 Update it whenever something ships. Same filename forever — never date it, never
 fork it. If it disagrees with a handover, this file wins.
 
-Last updated: **16 October 2026** — the **bell does something**, at `a6d7bab`.
+Last updated: **16 October 2026** — the **bell does something**, at `5f86d45`.
+"For you" is a **full screen**, in the app's own background, and a bug it
+shipped with on its first deploy is fixed: after opening the centre and tapping
+a row, every tab — Today, Activity and Month — sat about **62px below its own
+top** and would not scroll back up, because `scrollIntoView` had scrolled the
+in-Bloc shell (`height:100dvh; overflow:hidden`, still programmatically
+scrollable) and nothing put it back. The same trap as the sideways displacement
+fixed in `ebf9de5`, one level further up the tree. The feed now scrolls its own
+page container by hand and touches nothing above it.
 It has opened a box saying "Notifications are coming soon" since it was wired
 up; it now opens **"For you"**: who reacted to your own workouts, how many
 comments they got, and money you owe or are owed. A count sits on the bell and
@@ -27,7 +35,12 @@ needs a real save first.
 state, so the count does not follow you between devices and resets if site data
 is cleared.
 
-**Verified live:** Production deployment `7108411190` for `a6d7bab` success;
+**Verified live at `5f86d45`:** Production deployment `7108771686` success;
+the live bundle `index-DD4tOGBK.js` carries the app's own background token and
+the page-container scroll, and **contains no `scrollIntoView` at all**; CI
+green; the live site loads with no console errors.
+
+**Verified live at `a6d7bab`, the first deploy:** Production deployment `7108411190` success;
 live bundle `index-CGGcHe4P.js` contains "For you", "Needs you" and
 `fero_notifications_seen_v1`, and no longer contains "Notifications are coming
 soon"; CI green; the live site loads with no console errors. **Not yet opened
@@ -132,8 +145,8 @@ yet**. Details: `docs/handover-2026-10-09-session-catch-up.md` and
 
 | | Website (PWA) | TestFlight (phone) |
 | --- | --- | --- |
-| **At commit** | **`a6d7bab`** | `77fe4d8` (build 10) |
-| The bell opens "For you" — reactions, comments and money, with a count | ✅ | ❌ |
+| **At commit** | **`5f86d45`** | `77fe4d8` (build 10) |
+| The bell opens "For you" — full screen: reactions, comments and money, with a count | ✅ | ❌ |
 | A page can no longer be scrolled off to one side (the stuck Month ring) | ✅ | ❌ |
 | Profile header is a card; back is a chevron in the Bloc header; the `...` in the card corner; the net figure on the workout counter | ✅ | ❌ |
 | Report and Block on the activity feed, Bloc Stream, comments and member profiles; Blocked list on the account screen; report queue on the founder dashboard | ✅ | ❌ |

@@ -1,6 +1,6 @@
-# Handover — 15 October 2026 (session 3): catch-up
+# Handover — 15–16 October 2026 (session 3): catch-up, then the notification centre
 
-**Status: OPEN.** Claude, operating. **This is a live handover: it is updated as
+**Status: CLOSED.** Claude, operating. **This is a live handover: it is updated as
 the session goes, not written at the end.** The newest entry in §2 is the most
 recent thing that happened.
 
@@ -299,6 +299,57 @@ transfer to a full screen. The gradient is positioned relative to the box it
 paints, and the box changed size. And a comment asserting something matches is
 not evidence that it does — this one was wrong for a whole commit.
 
+### 2.7 Live at `5f86d45` (16 October)
+
+Pushed `370a523..5f86d45` with `--force-with-lease` after `git fetch` confirmed
+`origin/main` an ancestor and had not moved. Lint and build clean.
+
+**Verified three ways:** the commit is on `main`; Production deployment
+`7108771686` for that exact commit reports **success**; the live bundle
+`index-DD4tOGBK.js` contains `bg-radial-hint` and the page-container scroll,
+and contains **no `scrollIntoView`** anywhere. CI green. The live site loads
+with **no console errors**.
+
+Website only — TestFlight is still build 10.
+
+---
+
+## Close-out
+
+**What is live**, all on the website at `5f86d45`:
+
+- The bell opens **"For you"** — a full screen listing reactions on your own
+  workouts, comments on them, and money you owe or are owed, with an unread
+  count on the bell. Tapping a row opens that workout in the Activity feed,
+  scrolled to it and briefly glowing.
+- The "Notifications are coming soon" placeholder is **gone**.
+- The panel paints the app's own background, identical to every other screen.
+- The stuck-scroll bug that shipped in `a6d7bab` is fixed.
+
+**What is open** — the three things the founder asked for, in his order:
+
+1. **A comment row should open the comment thread**, not just the workout.
+   A task has been proposed for it; `handleOpenLogComments` in `App.jsx`
+   already does the work.
+2. **Say who commented** — reachable via `log-comments-list`, but it must be
+   batched (§20 of Deveen's handover).
+3. **Tell him when he is tagged in the Bloc Stream** — mentions are already
+   stored id-keyed on the message and served by `stream-list`.
+
+Plus: the settlement-note prompt, once the note has a real save; and the
+**in-Bloc shell has no scroll guard** of its own (§2.5), which is true on
+`main` regardless of this feature and was deliberately left alone.
+
+**Not verified:** nobody has opened the bell on the live site or on a real
+iPhone. The "Needs you" heading was seen in the sandbox; comment rows have
+never been seen against a real backend, because the sandbox stubs canonical.
+
+**State of this laptop at close:** sandbox stopped by PID (ports 3000 and 54321
+free), browser viewport reset, the worktree at
+`~/Developer/FERO/catch-up-2026-10-15` clean on `claude/catch-up-2026-10-15`
+(level with `origin/main`). The shared checkout at `~/Documents/Codex Space/
+Lift Log` was never written to and is still behind `origin/main`.
+
 ## 3. What is open, carried forward
 
 - **The notification centre is live** at `a6d7bab` (§2.2, §2.3). Three things
@@ -350,4 +401,5 @@ not evidence that it does — this one was wrong for a whole commit.
 | `ba54e87` | **Full screen, and the stuck scroll fixed** | On the branch, **not pushed** |
 | `8d14881` | Record both | Docs only |
 | `3eeefbf` | **The app's own background**, not the Stream's | On the branch, **not pushed** |
-| *(this one)* | Record the background correction | Docs only |
+| `5f86d45` | Record the background correction | Docs only |
+| *(this one)* | What's live at `5f86d45`, and the close-out | Docs only |
