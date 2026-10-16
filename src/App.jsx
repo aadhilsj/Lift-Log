@@ -75,6 +75,8 @@ import {
   multiLogData,
   mutateLogData,
   getBlocStreamUnreadCountData,
+  getLogLatestCommentsData,
+  listBlocStreamMessagesData,
   readCachedData,
   writeCachedData,
   readPersistedAuthSession,
@@ -435,6 +437,12 @@ const App = () => {
   // There is no per-user read state in Fero yet; that is database work.
   const [notificationsSeenAt,setNotificationsSeenAt]=useState(()=>{ try { return localStorage.getItem("fero_notifications_seen_v1") || ""; } catch { return ""; } });
   const [activityHighlightLogId,setActivityHighlightLogId]=useState("");
+  // The centre's two extras — what the newest comment on each of your logs
+  // said, and Stream messages that mention you. Both are fetched when the
+  // centre is OPENED, never on a refresh: this screen must not add to the read
+  // volume that docs/scaling-before-launch-2026-09-15.md is about.
+  const [notificationLatestComments,setNotificationLatestComments]=useState({});
+  const [notificationStreamMessages,setNotificationStreamMessages]=useState([]);
   const [streamFocusBlocId,setStreamFocusBlocId]=useState(null);
   const [streamReturnScrollTop,setStreamReturnScrollTop]=useState(null);
   const [logCommentScreen,setLogCommentScreen]=useState(null);
@@ -2073,13 +2081,6 @@ const App = () => {
     setShowStream(true);
   },[]);
   const trackUsage = useCallback(eventName => { void trackUsageEvent(eventName); },[]);
-  const handleOpenNotifications = useCallback(() => {
-    trackUsage("notifications_opened");
-    const now = new Date().toISOString();
-    setNotificationsSeenAt(now);
-    try { localStorage.setItem("fero_notifications_seen_v1", now); } catch { /* per-browser convenience only */ }
-    setShowNotifications(true);
-  },[trackUsage]);
   const handleOpenLogComments = useCallback(({ groupId, log, source, returnScrollTop }) => {
     if (!groupId || !log?.id) return;
     if (source === "stream" && !showStream) {
@@ -2421,18 +2422,66 @@ const App = () => {
   const notificationItems = useMemo(() => buildNotifications({
     group: currentGroup,
     currentUser,
+    currentUserId: effectiveAuthSession?.userId || "",
     reminderCards: notificationReminderCards,
-    formatAmount: (amount, currency) => fmtCurrency(amount, currency)
-  }), [currentGroup, currentUser, notificationReminderCards]);
+    formatAmount: (amount, currency) => fmtCurrency(amount, currency),
+    latestComments: notificationLatestComments,
+    streamMessages: notificationStreamMessages
+  }), [currentGroup, currentUser, effectiveAuthSession?.userId, notificationReminderCards, notificationLatestComments, notificationStreamMessages]);
   const notificationCount = notificationUnreadCount(notificationItems, notificationsSeenAt);
+  const handleOpenNotifications = () => {
+    trackUsage("notifications_opened");
+    const now = new Date().toISOString();
+    setNotificationsSeenAt(now);
+    try { localStorage.setItem("fero_notifications_seen_v1", now); } catch { /* per-browser convenience only */ }
+    setShowNotifications(true);
+    // The panel opens immediately on what the client already knows; the comment
+    // text and the mentions fill in behind it. Two batched calls per opening,
+    // and none at all if the bell is never tapped.
+    const groupId = currentGroup?.id;
+    if (!groupId) return;
+    // Every one of your own logs, not only the ones the blob thinks have
+    // comments: that count comes from canonical and can lag behind it.
+    const ownLogIds = (currentGroup?.logs?.[currentUser] || [])
+      .map(log => String(log?.id || ""))
+      .filter(Boolean);
+    if (ownLogIds.length) {
+      getLogLatestCommentsData(groupId, ownLogIds).then(result => {
+        // An empty answer means nobody has commented. It is never a reason to
+        // blank what is already on screen.
+        if (result?.ok) setNotificationLatestComments(result.latest || {});
+      }).catch(() => { /* the rows fall back to the count they already have */ });
+    }
+    listBlocStreamMessagesData(groupId, 100).then(result => {
+      if (result?.ok) setNotificationStreamMessages(result.messages || []);
+    }).catch(() => { /* no mention rows, rather than a broken screen */ });
+  };
   // Every row lands somewhere real rather than being a dead end.
   const handleNotificationAct = item => {
     setShowNotifications(false);
+    if (item.opens === "comments") {
+      // A comment row opens the thread itself, not the workout it hangs off.
+      // The thread needs the whole log, and these are always the signed-in
+      // member's own workouts, so it is found in their own list.
+      const log = (currentGroup?.logs?.[currentUser] || []).find(entry => String(entry?.id) === String(item.logId));
+      if (log) {
+        handleOpenLogComments({ groupId: currentGroup.id, log, source: "activity" });
+        return;
+      }
+      // The log has gone (deleted, or the month rolled). Falling through to the
+      // feed is better than a tap that does nothing.
+    }
     if (item.opens === "activity" || item.opens === "comments") {
       // The feed puts this log on screen and glows it briefly, so it is obvious
       // which one you were sent to see.
       setActivityHighlightLogId(String(item.logId || ""));
       setPage("activity");
+      return;
+    }
+    if (item.opens === "stream") {
+      // A mention opens the Stream, scrolled to nothing in particular — the
+      // Stream opens at its newest message, which is where a mention usually is.
+      handleOpenStream();
       return;
     }
     if (item.opens === "settlement") { setMonthInitialIdx(null); setPage("month"); }

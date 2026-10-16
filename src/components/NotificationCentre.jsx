@@ -32,7 +32,9 @@ const Badge = ({ children }) => React.createElement('span', {
   style: {
     position: "absolute", right: -3, bottom: -3, width: 18, height: 18, borderRadius: 999,
     background: "#0C1716", display: "flex", alignItems: "center", justifyContent: "center",
-    fontSize: 10, lineHeight: 1, boxShadow: "0 0 0 1.5px #0C1716, 0 0 0 2.5px rgba(255,255,255,.05)"
+    fontSize: 10, lineHeight: 1, boxShadow: "0 0 0 1.5px #0C1716, 0 0 0 2.5px rgba(255,255,255,.05)",
+    // "@" is a letter rather than an emoji, so it needs the app's own face.
+    fontFamily: "'Outfit', sans-serif", fontWeight: 700, color: "#4ECDC4"
   }
 }, children);
 
@@ -97,6 +99,13 @@ const Row = ({ item, onAct }) => {
     React.createElement(Faces, { people: item.people, badge: item.badge }),
     React.createElement('span', { style: { minWidth: 0, flex: 1, display: "grid", gap: 2 } },
       React.createElement('span', { style: { fontSize: 12.5, fontWeight: 600, color: "var(--text)", lineHeight: 1.3 } }, item.title),
+      // What the comment actually said, or the message you were tagged in.
+      // Clamped to two lines so one chatty comment cannot make a row twice the
+      // height of the ones around it.
+      item.body && React.createElement('span', { style: {
+        fontSize: 11.5, color: "#89A39E", lineHeight: 1.35,
+        display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden"
+      } }, item.body),
       item.meta && React.createElement('span', { style: { fontSize: 9.5, color: "#6B9690" } }, item.meta)
     ),
     item.kind === "money"
@@ -104,7 +113,11 @@ const Row = ({ item, onAct }) => {
           flex: "none", fontSize: 8, fontWeight: 700, letterSpacing: ".12em", textTransform: "uppercase",
           color: tone.ink, opacity: item.direction === "pay" ? 1 : .85
         } }, item.direction === "pay" ? "Pay" : "Owed")
-      : React.createElement(Thumb, { photoUrl: item.thumbPhotoUrl, type: item.thumbType })
+      // A mention is a Stream message, not a workout, so there is nothing to
+      // put in the square and an empty one would just look broken.
+      : item.kind === "mention"
+        ? null
+        : React.createElement(Thumb, { photoUrl: item.thumbPhotoUrl, type: item.thumbType })
   );
 };
 

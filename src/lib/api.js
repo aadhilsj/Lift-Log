@@ -982,6 +982,17 @@ async function getLogCommentCountsData(groupId, logIds = []) {
   return { ok:true, counts };
 }
 
+// The newest comment on each log, batched. Empty is a normal answer: it means
+// nobody has commented, never that the call failed.
+async function getLogLatestCommentsData(groupId, logIds = []) {
+  const result = await postApi("log-latest-comments", { groupId, logIds });
+  if (!result.ok) return { ok:false, error: result.error || "Unable to load comments", latest: {} };
+  const latest = result.body?.latest && typeof result.body.latest === "object" && !Array.isArray(result.body.latest)
+    ? result.body.latest
+    : {};
+  return { ok:true, latest };
+}
+
 async function createLogCommentData(payload) {
   const result = await postApi("log-comment-create", payload);
   if (!result.ok) return { ok:false, error: result.error || "Unable to add comment" };
@@ -1098,6 +1109,7 @@ export {
   markBlocStreamReadData,
   listLogCommentsData,
   getLogCommentCountsData,
+  getLogLatestCommentsData,
   createLogCommentData,
   toggleLogCommentReactionData,
   readCachedData,

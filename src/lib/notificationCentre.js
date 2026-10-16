@@ -8,10 +8,14 @@
 // Everything here is derived from state the client already holds. Nothing is
 // fetched, and nothing is written.
 //
-// NOT covered yet, because the client does not hold the data:
-//   - who commented (logs carry commentCount, not the comments themselves)
-//   - @mentions in the Bloc Stream or in a comment thread
-// Both need the stream/comments API and are the real work in finishing this.
+// Two things here are NOT derived from state the client already holds, and are
+// fetched once when the centre is opened rather than on every refresh:
+//   - the newest comment on each of your logs (who wrote it and what it said)
+//   - @mentions of you in the Bloc Stream
+// Both arrive as arguments. Missing them is normal, not an error: the rows
+// simply fall back to what the client does know.
+//
+// Still not covered: @mentions inside a comment thread.
 //
 // Also not here, deliberately: the "say what the money's going toward" prompt
 // from docs/concept-2026-09-24-notification-centre.md. It is written, on
@@ -70,7 +74,7 @@ function nameList(names) {
 // ── Reactions and comments on your own logs ──────────────────────────────────
 // Each row carries who it was (for the avatars), one emoji (for the badge) and
 // the workout (for the square on the right).
-function ownLogItems(group, currentUser, userIdFor) {
+function ownLogItems(group, currentUser, userIdFor, latestComments) {
   const mine = group?.logs?.[currentUser] || [];
   const items = [];
   mine.forEach(log => {
@@ -117,18 +121,32 @@ function ownLogItems(group, currentUser, userIdFor) {
         logId: log.id
       });
     }
-    const comments = Number(log?.commentCount || 0);
+    // The newest comment, if it has been fetched. `total` is the server's own
+    // count and beats the blob's, which can lag.
+    const latest = latestComments?.[String(log.id)] || null;
+    const comments = Math.max(Number(log?.commentCount || 0), Number(latest?.total || 0));
     if (comments > 0) {
+      const author = String(latest?.commenterName || "").trim();
+      const said = commentSnippet(latest?.body);
+      const others = comments - 1;
       items.push({
         id: `comment:${log.id}`,
         kind: "comment",
-        // The client holds the count, not the authors, so there is nobody to
-        // put in the avatar — the row leads with the workout instead.
         badge: "",
-        people: [],
-        title: comments === 1 ? `A comment on ${describeWorkout(log)}` : `${comments} comments on ${describeWorkout(log)}`,
-        meta: shortWhen(when),
-        when,
+        // Without the fetch there is nobody to show, and inventing a face
+        // would be worse than leading with the comment mark.
+        people: author && author !== currentUser ? [{ name: author, userId: userIdFor(author) }] : [],
+        title: author
+          ? (others > 0
+              // "and 2 others" rather than a second line: the row stays one
+              // height whether a workout has one comment or nine.
+              ? `${author} and ${others} other${others === 1 ? "" : "s"} commented on ${describeWorkout(log)}`
+              : `${author} commented on ${describeWorkout(log)}`)
+          : (comments === 1 ? `A comment on ${describeWorkout(log)}` : `${comments} comments on ${describeWorkout(log)}`),
+        // What they actually said, under the sentence, the way Instagram does.
+        body: said,
+        meta: shortWhen(latest?.createdAt || when),
+        when: latest?.createdAt || when,
         thumbPhotoUrl,
         thumbType,
         opens: "comments",
@@ -137,6 +155,47 @@ function ownLogItems(group, currentUser, userIdFor) {
     }
   });
   return items;
+}
+
+// One line of what was said. Long comments are cut on a word where possible,
+// because a hard cut mid-word reads like a bug.
+const COMMENT_SNIPPET_MAX = 80;
+function commentSnippet(body) {
+  const text = String(body || "").replace(/\s+/g, " ").trim();
+  if (!text) return "";
+  if (text.length <= COMMENT_SNIPPET_MAX) return text;
+  const cut = text.slice(0, COMMENT_SNIPPET_MAX);
+  const lastSpace = cut.lastIndexOf(" ");
+  return `${(lastSpace > COMMENT_SNIPPET_MAX - 18 ? cut.slice(0, lastSpace) : cut).trimEnd()}…`;
+}
+
+// ── Being tagged in the Bloc Stream ──────────────────────────────────────────
+// The stream read already returns each message's mentions as auth user ids, so
+// this needs no new database work — only the messages, which are fetched when
+// the centre opens.
+function mentionItems(streamMessages, currentUserId, nameForUserId) {
+  if (!currentUserId) return [];
+  return (Array.isArray(streamMessages) ? streamMessages : [])
+    .filter(message => {
+      if (String(message?.author_id || "") === String(currentUserId)) return false;
+      const mentions = Array.isArray(message?.mentions) ? message.mentions : [];
+      return mentions.some(id => String(id) === String(currentUserId));
+    })
+    .map(message => {
+      const author = nameForUserId(String(message?.author_id || "")) || "Someone";
+      return {
+        id: `mention:${message.id}`,
+        kind: "mention",
+        badge: "@",
+        people: [{ name: author, userId: String(message?.author_id || "") }],
+        title: `${author} mentioned you in the Bloc Stream`,
+        body: commentSnippet(message?.body),
+        meta: shortWhen(message?.created_at),
+        when: message?.created_at || "",
+        opens: "stream",
+        messageId: String(message?.id || "")
+      };
+    });
 }
 
 // ── Money ────────────────────────────────────────────────────────────────────
@@ -216,18 +275,27 @@ export function groupNotifications(items, now = Date.now()) {
 
 // Pinned rows first, then newest. A row with no timestamp (money) sorts after
 // dated rows of the same group rather than jumping to the top on a blank.
-export function buildNotifications({ group, currentUser, reminderCards, formatAmount }) {
+export function buildNotifications({
+  group, currentUser, currentUserId, reminderCards, formatAmount,
+  // Fetched when the centre opens; absent on the first paint, which is fine.
+  latestComments, streamMessages
+}) {
   if (!group || !currentUser) return [];
-  // Name -> userId, so a row can show that member's profile photo.
-  const byName = new Map(
-    Object.values(group?.memberships || {})
-      .filter(membership => membership?.displayName)
-      .map(membership => [membership.displayName, membership.userId || ""])
-  );
+  // Name -> userId, so a row can show that member's profile photo, and back
+  // again for the stream, which identifies people by id rather than by name.
+  const byName = new Map();
+  const byUserId = new Map();
+  Object.values(group?.memberships || {}).forEach(membership => {
+    if (!membership?.displayName) return;
+    byName.set(membership.displayName, membership.userId || "");
+    if (membership.userId) byUserId.set(String(membership.userId), membership.displayName);
+  });
   const userIdFor = name => byName.get(name) || "";
+  const nameForUserId = id => byUserId.get(String(id)) || "";
   const items = [
     ...moneyItems(reminderCards, currentUser, formatAmount, userIdFor),
-    ...ownLogItems(group, currentUser, userIdFor)
+    ...ownLogItems(group, currentUser, userIdFor, latestComments),
+    ...mentionItems(streamMessages, currentUserId, nameForUserId)
   ];
   return items.sort((a, b) => {
     if (!!b.pinned !== !!a.pinned) return b.pinned ? 1 : -1;

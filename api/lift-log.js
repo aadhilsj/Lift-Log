@@ -3595,6 +3595,23 @@ async function readWorkoutLogCommentCountsFromCanonical(legacyGroupKey, authUser
   return await response.json();
 }
 
+// The newest comment on each of a set of logs, in ONE call. The notification
+// centre needs to say what a comment said, and a request per workout would
+// make the read volume problem in docs/scaling-before-launch-2026-09-15.md
+// worse rather than better.
+async function readWorkoutLogLatestCommentsFromCanonical(legacyGroupKey, authUserId, logIds) {
+  const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_workout_log_latest_comments", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({
+      p_legacy_group_key: legacyGroupKey,
+      p_auth_user_id: authUserId,
+      p_workout_log_ids: Array.isArray(logIds) ? logIds.map(id => String(id || "").trim()).filter(Boolean) : []
+    })
+  });
+  return await response.json();
+}
+
 async function insertWorkoutLogCommentInCanonical(legacyGroupKey, authUserId, logId, body) {
   const response = await supabaseFetch("/rest/v1/rpc/insert_ante_core_workout_log_comment", {
     method: "POST",
@@ -10000,6 +10017,19 @@ export default async function handler(req, res) {
         const authUser = await fetchAuthenticatedUser(readBearerToken(req, payload));
         const comments = await readWorkoutLogCommentsFromCanonical(payload.groupId, authUser.id, payload.logId);
         return res.status(200).json({ ok: true, comments: Array.isArray(comments) ? comments : [] });
+      }
+
+      if (payload?.action === "log-latest-comments") {
+        const authUser = await fetchAuthenticatedUser(readBearerToken(req, payload));
+        const latest = await readWorkoutLogLatestCommentsFromCanonical(
+          payload.groupId,
+          authUser.id,
+          Array.isArray(payload.logIds) ? payload.logIds : []
+        );
+        return res.status(200).json({
+          ok: true,
+          latest: latest && typeof latest === "object" && !Array.isArray(latest) ? latest : {}
+        });
       }
 
       if (payload?.action === "log-comment-counts") {

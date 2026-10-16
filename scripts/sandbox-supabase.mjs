@@ -176,6 +176,28 @@ const server = http.createServer(async (req, res) => {
     );
     return send(res, 200, rows);
   }
+  // Two canonical reads the notification centre needs, answered from a fixture
+  // beside the blob so the screen can be driven locally. Comments and Stream
+  // messages live only in canonical, so without this there is nothing to show
+  // and the centre cannot be checked before it ships.
+  //
+  // Test aid only: this does not mirror anything, and a missing file means the
+  // normal empty answer below.
+  if (route === "/rest/v1/rpc/read_ante_core_workout_log_latest_comments"
+      || route === "/rest/v1/rpc/read_ante_core_bloc_stream") {
+    await readBody(req);
+    const fixtureFile = path.join(path.dirname(dataFile), "canonical.json");
+    let fixture = null;
+    try {
+      fixture = JSON.parse(fs.readFileSync(fixtureFile, "utf8"));
+    } catch {
+      fixture = null;
+    }
+    if (route.endsWith("read_ante_core_workout_log_latest_comments")) {
+      return send(res, 200, fixture?.latestComments || {});
+    }
+    return send(res, 200, fixture?.streamMessages || []);
+  }
   if (route.startsWith("/rest/v1/rpc/")) {
     await readBody(req);
     return send(res, 200, []);
