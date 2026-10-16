@@ -202,6 +202,73 @@ Neither is a one-liner, and both were **left alone** rather than started
 unasked. The comment-row destination is the smallest of the three and the one
 he asked for first.
 
+### 2.5 Full screen, and a stuck scroll that was mine — `ba54e87`
+
+Two things the founder found on the live site within minutes of it shipping.
+
+#### It is a full screen now
+
+His words: it "should be a full screen thing", not a modal. It was a centred
+card capped at `min(80vh, 640px)` with the Bloc showing around it. It now fills
+the viewport: same background as the in-Bloc shell so the screen does not
+change colour under it, `env(safe-area-inset-top/bottom)` for the notch and the
+home indicator, a 19px title, and a **44px** close target with the glyph still
+at 18.
+
+Measured at **393x852** and at **375x667** (iPhone SE): the panel is exactly
+393x852 and 375x667 at x0 y0 — the playbook's "cover the exact viewport" check
+— still portalled to `document.body`, and no horizontal scroll at either width.
+
+#### The stuck scroll — the `ebf9de5` bug a second time
+
+**This one was mine, shipped in `a6d7bab`.** After opening the centre and
+tapping a row, **every** tab — Today, Activity and Month — opened about 62px
+below its own top and would not scroll back up. It read as "I can't scroll all
+the way to the top".
+
+`scrollIntoView` walks up the tree and scrolls **every** scrollable ancestor.
+The in-Bloc shell (`#root > div`, `height:100dvh; overflow:hidden`) is
+**still programmatically scrollable** — exactly the trap that
+`handover-2026-10-15-month-ring-displaced-page.md` recorded for the horizontal
+axis yesterday. It ended at `scrollTop` 62 and nothing put it back, so the Bloc
+header sat off the top of the screen until the app was reloaded. It persisted
+across tabs because that shell wraps all four in-Bloc pages.
+
+`ebf9de5`'s guard did not catch it: that guard is on the **page track**, and
+this is the track's **parent**.
+
+**The fix:** the feed scrolls its own `[data-page-scroll-container]` by hand —
+target computed from the two bounding boxes, clamped to
+`[0, scrollHeight - clientHeight]` — and touches nothing above it.
+
+**Reproduced and proven, same build, with and without the fix**, using a feed
+of 43 logs and a reaction on a workout at the far end of it:
+
+| | Before | After |
+| --- | --- | --- |
+| Page container `scrollTop` | 3413 | 3413 — unchanged, the workout is on screen |
+| **In-Bloc shell `scrollTop`** | **62** | **0** |
+| Hidden-overflow elements left scrolled | 1 | **0** |
+| Bloc header's top edge, all three tabs | off screen | **y0** |
+
+**Why the first pass missed it.** The check after the first build looked at
+`scrollLeft` on the track's ancestors — the horizontal axis the playbook had
+just been updated for — and at a sandbox whose feed held **one** log, so
+nothing needed scrolling in either axis. A one-log feed cannot show this bug.
+
+#### Worth deciding, not done
+
+The in-Bloc shell has **no guard of its own**. This fix removes the cause here,
+but any focus or programmatic scroll inside it can displace it the same way,
+and that is true on `main` today independently of this feature — the same
+reasoning that made `ebf9de5` fix the track rather than the Month ring. Adding
+a guard to the shell is a change to shared layout that was not asked for, so it
+is **flagged, not made**.
+
+Lint and build clean. **24 of 26 suites pass** — the same two that fail on
+`main`. No console errors from this build (the ones in the buffer cite the
+previous bundle, from the restart).
+
 ## 3. What is open, carried forward
 
 - **The notification centre is live** at `a6d7bab` (§2.2, §2.3). Three things
@@ -215,6 +282,10 @@ he asked for first.
      stored on the message and served by `stream-list`.
   Also still open: whether to put the settlement-note prompt back, once the
   note has a real save behind it.
+- **The in-Bloc shell has no scroll guard** (§2.5). `ebf9de5` guards the page
+  track; its parent is open to the same displacement, on `main` today and
+  regardless of the notification centre. Flagged deliberately rather than
+  fixed, because it is shared layout nobody asked to change.
 - **The bell is no longer a placeholder**, which removes the App Store risk the
   previous handover raised — provided `711e9fb` ships before submission. If it
   does not, the fallback stands: hide the bell in the native build behind
@@ -245,4 +316,6 @@ he asked for first.
 | `0a500a9` | Open the 15 October catch-up handover | Docs only |
 | `711e9fb` | **The notification centre** — the bell opens "For you" | On the branch, **not pushed, not live** |
 | `a6d7bab` | Record the port and how it was verified | Docs only |
-| *(this one)* | What's live at `a6d7bab`, and the three follow-ups | Docs only |
+| `370a523` | What's live at `a6d7bab`, and the three follow-ups | Docs only |
+| `ba54e87` | **Full screen, and the stuck scroll fixed** | On the branch, **not pushed** |
+| *(this one)* | Record both | Docs only |
