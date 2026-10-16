@@ -4,7 +4,40 @@
 Update it whenever something ships. Same filename forever — never date it, never
 fork it. If it disagrees with a handover, this file wins.
 
-Last updated: **16 October 2026** — the **bell does something**, at `5f86d45`.
+Last updated: **16 October 2026** — the **bell does something**, at `a6280a3`.
+"For you" is a full screen, and a row now reads **who, then what, then which
+workout**: the member's face badged with the emoji they used, what they said,
+and the workout's own photo on the right while it still exists — photos are
+deleted after 72 hours, so the activity icon is the normal case.
+
+It covers **reactions, comments and Stream mentions**. A comment row says who
+wrote the newest comment and quotes a line of it ("Sam and 2 others
+commented…"), and **opens the comment thread**. A mention quotes the message
+and opens the Stream. Rows are grouped **Today / This week / Earlier**.
+
+Money sits at the top in both directions, under a heading that depends on what
+is there: **"Needs you"** when all you have is something to pay, **"Settling
+up"** as soon as anything is owed to you. Only money you owe keeps the bell
+lit.
+
+> **One new database function, applied to production on 16 October:**
+> `read_ante_core_workout_log_latest_comments` — the newest comment for a set
+> of logs in one call. Read-only; `anon` and `authenticated` cannot execute it.
+> Rollback is a single `drop function`. The comment text and the mentions are
+> fetched **only when the centre is opened**, two batched calls, so this screen
+> adds nothing to the per-refresh read volume.
+
+**Still not built:** the badge is the emoji the most people chose, not the most
+recent — the timestamps are not returned to the client — and @mentions inside
+a comment thread.
+
+**Verified live at `a6280a3`:** Production deployment `7109250746` success; the
+live bundle `index-OVZJQPmf.js` contains "mentioned you in the Bloc Stream",
+`log-latest-comments` and the bundling copy; CI green; the live site loads with
+no console errors. **Not yet opened against live data or on a real iPhone**,
+and the new function's results have never been drawn from real comments.
+
+Before that, on 16 October at `5f86d45`.
 "For you" is a **full screen**, in the app's own background, and a bug it
 shipped with on its first deploy is fixed: after opening the centre and tapping
 a row, every tab — Today, Activity and Month — sat about **62px below its own
@@ -145,8 +178,8 @@ yet**. Details: `docs/handover-2026-10-09-session-catch-up.md` and
 
 | | Website (PWA) | TestFlight (phone) |
 | --- | --- | --- |
-| **At commit** | **`5f86d45`** | `77fe4d8` (build 10) |
-| The bell opens "For you" — full screen: reactions, comments and money, with a count | ✅ | ❌ |
+| **At commit** | **`a6280a3`** | `77fe4d8` (build 10) |
+| The bell opens "For you" — full screen: reactions, comments (with the text), Stream mentions and money | ✅ | ❌ |
 | A page can no longer be scrolled off to one side (the stuck Month ring) | ✅ | ❌ |
 | Profile header is a card; back is a chevron in the Bloc header; the `...` in the card corner; the net figure on the workout counter | ✅ | ❌ |
 | Report and Block on the activity feed, Bloc Stream, comments and member profiles; Blocked list on the account screen; report queue on the founder dashboard | ✅ | ❌ |

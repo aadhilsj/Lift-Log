@@ -1,6 +1,6 @@
 # Handover — 15–16 October 2026 (session 3): catch-up, then the notification centre
 
-**Status: OPEN again** — reopened on 16 October for the For you redesign. Claude, operating. **This is a live handover: it is updated as
+**Status: CLOSED.** Claude, operating. **This is a live handover: it is updated as
 the session goes, not written at the end.** The newest entry in §2 is the most
 recent thing that happened.
 
@@ -537,6 +537,55 @@ In the sandbox at 393x852, with a fixture standing in for canonical:
 canonical, so the new function has been proven safe on production but its
 results have never been drawn on screen from real comments.
 
+### 2.10 Live at `a6280a3` (16 October)
+
+Pushed `486d2cc..a6280a3` with `--force-with-lease` after `git fetch` confirmed
+`origin/main` an ancestor. Lint and build clean.
+
+**Verified three ways:** the commit is on `main`; Production deployment
+`7109250746` reports **success**; the live bundle `index-OVZJQPmf.js` contains
+"mentioned you in the Bloc Stream", `log-latest-comments`, "Settling up",
+"Needs you" and the `other${n===1?"":"s"} commented on` template. CI green, and
+the live site loads with **no console errors**.
+
+Website only — TestFlight is still build 10.
+
+---
+
+## Close-out (16 October)
+
+**What is live**, all on the website at `a6280a3`:
+
+- The bell opens **"For you"**, a full screen in the app's own background.
+- A row reads **who, then what, then which workout** — face, emoji badge,
+  sentence, and the photo or activity icon on the right.
+- **Comments say who wrote the newest one and quote it**, and open the
+  **comment thread**.
+- **Stream mentions** appear, quoted, and open the Stream.
+- Rows grouped **Today / This week / Earlier**.
+- Money at the top both ways, under **Needs you** or **Settling up** by the
+  founder's rule. Only money you owe keeps the bell lit.
+- One new production function, `read_ante_core_workout_log_latest_comments`
+  (§2.9), read-only and server-side only.
+
+**What is open:**
+
+- The badge is the **most-chosen** emoji, not the most recent (§2.8).
+- **@mentions inside a comment thread** — the last unbuilt piece of the
+  concept.
+- The new function's results have **never been drawn from real comments**.
+- Nobody has opened the bell **on the live site or a real iPhone**.
+- The **in-Bloc shell has no scroll guard** of its own (§2.5).
+- The settlement-note prompt, once the note has a real save (§2.2).
+- **TestFlight build 11** — never built; Xcode is not on this laptop.
+- **Waiting on Deveen:** scaling before launch, the RLS rollout,
+  `push_devices`, `fero-staging` billing.
+
+**State of this laptop at close:** sandbox stopped by PID (ports 3000 and 54321
+free), browser viewport reset, the worktree at
+`~/Developer/FERO/catch-up-2026-10-15` clean and level with `origin/main`. The
+shared checkout at `~/Documents/Codex Space/Lift Log` was never written to.
+
 ## 3. What is open, carried forward
 
 - **The notification centre is live** at `a6d7bab` (§2.2, §2.3). Three things
@@ -593,4 +642,5 @@ results have never been drawn on screen from real comments.
 | `cb7f4fb` | **For you redesigned** — faces, badges, thumbnails, sections, the money heading rule | On the branch, **not pushed** |
 | `c7b8cf4` | Record the redesign | Docs only |
 | `0c93d90` | **Thread opening, comment text, Stream mentions** + the new RPC | On the branch, **not pushed** |
-| *(this one)* | Record all three | Docs only |
+| `a6280a3` | Record all three | Docs only |
+| *(this one)* | What's live at `a6280a3`, and the close-out | Docs only |
