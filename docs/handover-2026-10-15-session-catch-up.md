@@ -1,6 +1,6 @@
 # Handover — 15–16 October 2026 (session 3): catch-up, then the notification centre
 
-**Status: CLOSED.** Claude, operating. **This is a live handover: it is updated as
+**Status: OPEN again** — reopened 16 October for a second round of review fixes. Claude, operating. **This is a live handover: it is updated as
 the session goes, not written at the end.** The newest entry in §2 is the most
 recent thing that happened.
 
@@ -586,6 +586,82 @@ free), browser viewport reset, the worktree at
 `~/Developer/FERO/catch-up-2026-10-15` clean and level with `origin/main`. The
 shared checkout at `~/Documents/Codex Space/Lift Log` was never written to.
 
+### 2.11 Four more from the founder's review — `25941cc`
+
+#### Rows name the activity, not the category
+
+Every racket and ball sport read **"your Sports Log"**. `Sports` is the broad
+*category*; the *activity* is Padel, Basketball and so on, and Sports has not
+been something anyone can log for a long time. `describeWorkout` used
+`log.type`; it now uses **`getLogDisplayActivity`**, the app's own answer,
+already used by the feed, the month calendar and the log modal. The square on
+the right uses the same call, so the icon and the words cannot disagree.
+
+#### Your own comments no longer count
+
+On the founder's own Bloc it read *"Aadhil and 1 other commented on your Gym
+Log"* — he **is** Aadhil. His reply to somebody else's comment was being
+counted, and being the newest, was also the line quoted back at him.
+
+The viewer is already identified inside
+`read_ante_core_workout_log_latest_comments`, so that is where they are
+dropped: `and c.commenter_profile_id is distinct from v_profile_id`. **`total`
+now means "comments by other people"**, and a log whose only comments are
+yours returns nothing at all.
+
+**Applied to production 16 October** (migration
+`20261016090000_latest_comments_exclude_your_own.sql`, a `create or replace`
+of the function added that morning). Verified: `anon` **false**,
+`authenticated` **false**, `service_role` true, the exclusion present in the
+installed definition, and bad input still returns `{}`.
+
+**The client had to stop second-guessing it.** It took
+`Math.max(blob count, server total)`; the blob's count includes your own
+comments, so it would have put the row straight back. Once the fetch has
+answered, **its number is the only one used — zero included**. That needed a
+`latestCommentsLoaded` flag, because an empty answer and "not asked yet" are
+otherwise the same thing.
+
+#### Rows expire after five weeks
+
+Anything dated older than **35 days** is dropped. Money is deliberately **not**
+on that clock: a debt is still a debt however old it is.
+
+#### A mention lands on the message, and it glimmers
+
+It used to open the Stream wherever the Stream happened to be. It now anchors
+on the message itself, through the same `pendingListAnchor` mechanism the
+unread marker uses — **not `scrollIntoView`**, which is what left every tab
+sitting low in §2.5.
+
+**Two things measuring caught, both in the glimmer:**
+
+| Seen | Why | Fix |
+| --- | --- | --- |
+| The message landed with its first line cut off | the ring was drawn with padding and negative margin, which moved the message **after** the list had already scrolled to it | an `outline`, drawn outside the box, changing no layout |
+| It still sat **52px** under the header | the shared anchor positions with `node.offsetTop`, measured from the offsetParent and not from the scroller | the focus path corrects itself from the two bounding rectangles over the following frames |
+
+Measured after: `clippedAtTop: false`, **16px** below the list top, fully
+visible, the outline present and gone again after two seconds.
+
+#### How it was verified
+
+Lint and build clean. **24 of 26 suites** — the same two that fail on `main`.
+A fixture check covers the Padel naming, a log whose only comments are the
+viewer's own (no row), a log with one of each (the other person named and
+quoted), 42 days (gone), 34 days (kept), and the pre-fetch fallback.
+
+In the sandbox at 393x852: the row read **"Jo and 1 other commented on your
+Padel Log"**, tapping the mention put the message on screen with its ring and
+`@Riley` highlighted, the ring faded on its own, the shell stayed at
+`scrollTop` 0 and nothing with hidden overflow was left scrolled.
+
+**A note on the console.** This session restarted the sandbox fifteen times,
+and the browser tab's console keeps every error across navigations, so it had
+filled with `ERR_CONNECTION_REFUSED` from the gaps between restarts. Checked
+properly in a **fresh tab**: no console errors, and every live request 200.
+Worth knowing before reading a stale console as a regression.
+
 ## 3. What is open, carried forward
 
 - **The notification centre is live** at `a6d7bab` (§2.2, §2.3). Three things
@@ -643,4 +719,6 @@ shared checkout at `~/Documents/Codex Space/Lift Log` was never written to.
 | `c7b8cf4` | Record the redesign | Docs only |
 | `0c93d90` | **Thread opening, comment text, Stream mentions** + the new RPC | On the branch, **not pushed** |
 | `a6280a3` | Record all three | Docs only |
-| *(this one)* | What's live at `a6280a3`, and the close-out | Docs only |
+| `d1e53fe` | What's live at `a6280a3`, and the close-out | Docs only |
+| `25941cc` | **Activity naming, own comments out, five-week expiry, mention glimmer** + the RPC change | On the branch, **not pushed** |
+| *(this one)* | Record all four | Docs only |
