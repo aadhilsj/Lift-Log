@@ -188,6 +188,11 @@ const server = http.createServer(async (req, res) => {
           photo_url: log.photoUrl || null,
           created_at: log.createdAt || null,
           verified_via: log.verifiedVia || null,
+          // Mirrored too, because the overlay below replaces the blob's logs
+          // outright rather than merging into them: without these a log would
+          // lose its activity name and its comment count on the way through.
+          activity: log.activity || null,
+          comment_count: Number(log.commentCount || 0),
           // The real function returns these two together, and a reaction-less
           // canonical row beside a blob that has reactions is not a state
           // production ever reaches while both stores are healthy. Returning
@@ -216,6 +221,26 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, fixture?.latestComments || {});
     }
     return send(res, 200, fixture?.streamMessages || []);
+  }
+  // The canonical log overlay in api/lift-log.js only runs for a Bloc that
+  // canonical says has an OPEN SEASON, so with the empty answer below it never
+  // runs here and nothing canonical-only -- `latest_reaction` among it -- can
+  // ever be seen locally. A fixture may declare one:
+  //
+  //   "openSeasons": { "<bloc id>": "2026-10" }
+  //
+  // Test aid only, and off unless the fixture says so: switching the overlay on
+  // makes the blob's logs arrive through the canonical path instead of being
+  // read directly, which is a different code path and not the sandbox default.
+  if (route === "/rest/v1/rpc/read_ante_core_current_excused_and_sitouts") {
+    await readBody(req);
+    const openSeasons = readCanonicalFixture()?.openSeasons || null;
+    if (!openSeasons) return send(res, 200, []);
+    return send(res, 200, {
+      excused: [], sit_out_requests: [], solo: [], solo_requests: [],
+      open_seasons: Object.entries(openSeasons)
+        .map(([legacy_group_key, month_key]) => ({ legacy_group_key, month_key }))
+    });
   }
   if (route.startsWith("/rest/v1/rpc/")) {
     await readBody(req);
