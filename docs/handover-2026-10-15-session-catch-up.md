@@ -269,6 +269,36 @@ Lint and build clean. **24 of 26 suites pass** — the same two that fail on
 `main`. No console errors from this build (the ones in the buffer cite the
 previous bundle, from the restart).
 
+### 2.6 The background was shading, and the comment on it was wrong — `3eeefbf`
+
+The founder looked at the full-screen panel and said the background shade
+changes, and should be even. **He was right.**
+
+The line said it matched the in-Bloc shell. **It did not.** It was the Bloc
+Stream sheet's background, lifted along with the rest of the panel:
+
+| | Glow centred at | Alpha | Reads as |
+| --- | --- | --- | --- |
+| Bloc Stream (what was used) | **50% 16%** — inside the screen | 0.13 | a bright band across the top, fading to `#05090a` |
+| The app's `--bg-radial-hint` | **60% -10%** — above the screen | 0.105 | only the soft lower edge, an even wash |
+
+On a 92dvh sheet the Stream's glow sits at the very top edge and works as a
+light source. On a **full** screen the same gradient puts its brightest point a
+sixth of the way down, inside the picture, which is exactly what he saw.
+
+Now `backgroundColor: var(--bg-primary)` with
+`backgroundImage: var(--bg-radial-hint), var(--bg-gradient)` — the app's own
+two layers.
+
+**Verified by reading both computed styles side by side**, not by eye: the
+panel and the in-Bloc shell report the same `background-color`
+(`rgb(7, 12, 12)`) and the same `background-image`, character for character.
+
+**The lesson worth keeping:** a background copied from a sheet does not
+transfer to a full screen. The gradient is positioned relative to the box it
+paints, and the box changed size. And a comment asserting something matches is
+not evidence that it does — this one was wrong for a whole commit.
+
 ## 3. What is open, carried forward
 
 - **The notification centre is live** at `a6d7bab` (§2.2, §2.3). Three things
@@ -318,4 +348,6 @@ previous bundle, from the restart).
 | `a6d7bab` | Record the port and how it was verified | Docs only |
 | `370a523` | What's live at `a6d7bab`, and the three follow-ups | Docs only |
 | `ba54e87` | **Full screen, and the stuck scroll fixed** | On the branch, **not pushed** |
-| *(this one)* | Record both | Docs only |
+| `8d14881` | Record both | Docs only |
+| `3eeefbf` | **The app's own background**, not the Stream's | On the branch, **not pushed** |
+| *(this one)* | Record the background correction | Docs only |
