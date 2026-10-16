@@ -73,44 +73,57 @@ export const NotificationCentre = ({ items = [], onClose, onAct }) => {
   const pinned = items.filter(item => item.pinned);
   const rest = items.filter(item => !item.pinned);
 
+  // A full screen, not a card in the middle. The list is the whole point of
+  // the screen, and a centred panel caps it at 80vh while leaving a strip of
+  // the Bloc showing behind, which reads as a pop-up over the page rather than
+  // a place you went to.
   const panel = React.createElement('div', {
-    className: "overlay center-mobile",
-    onClick: onClose,
-    style: { zIndex: 150 }
+    role: "dialog",
+    "aria-modal": "true",
+    "aria-label": "For you",
+    style: {
+      position: "fixed", inset: 0, zIndex: 150,
+      display: "flex", flexDirection: "column",
+      // Matches the in-Bloc shell, so opening this does not change the colour
+      // of the screen underneath it.
+      background: "radial-gradient(ellipse 95% 38% at 50% 16%, rgba(78,205,196,0.13), transparent 60%), linear-gradient(180deg, #080f0e 0%, #070f0e 38%, #05090a 100%)",
+      // The notch on an installed PWA, and the home indicator at the bottom.
+      paddingTop: "env(safe-area-inset-top)",
+      paddingBottom: "env(safe-area-inset-bottom)",
+      overscrollBehavior: "contain"
+    }
   },
-    React.createElement('div', {
-      onClick: event => event.stopPropagation(),
-      role: "dialog",
-      "aria-modal": "true",
-      "aria-label": "For you",
-      style: {
-        width: "100%", maxWidth: 360, maxHeight: "min(80vh, 640px)", display: "flex", flexDirection: "column",
-        background: "var(--s1)", border: "0.5px solid var(--border2)", borderRadius: 20, overflow: "hidden"
-      }
-    },
-      React.createElement('div', { style: {
-        padding: "14px 16px 11px", borderBottom: "1px solid var(--border)",
-        display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 10
-      } },
-        React.createElement('span', { style: { fontFamily: FONTS.display, fontSize: 15, fontWeight: 800, color: "var(--text)" } }, "For you"),
-        React.createElement('button', {
-          type: "button", onClick: onClose, "aria-label": "Close",
-          style: { background: "transparent", border: "none", color: "#6B9690", fontSize: 16, cursor: "pointer", padding: "0 2px", lineHeight: 1 }
-        }, "✕")
-      ),
-      React.createElement('div', { style: { padding: "12px 14px 16px", overflowY: "auto", display: "flex", flexDirection: "column", gap: 8 } },
-        items.length === 0 && React.createElement('div', { style: {
-          fontFamily: FONTS.body, fontSize: 12, color: "#6B9690", textAlign: "center", padding: "26px 8px", lineHeight: 1.5
-        } }, "Nothing for you right now.", React.createElement('br'), "Reactions, comments and anything you owe land here."),
-        pinned.length > 0 && React.createElement('span', { style: {
-          fontSize: 8.5, fontWeight: 700, letterSpacing: ".14em", textTransform: "uppercase", color: "#7DB8B1"
-        } }, "Needs you"),
-        pinned.map(item => React.createElement(Row, { key: item.id, item, onAct })),
-        rest.length > 0 && pinned.length > 0 && React.createElement('span', { style: {
-          fontSize: 8.5, fontWeight: 700, letterSpacing: ".14em", textTransform: "uppercase", color: "#6B9690", marginTop: 4
-        } }, "Earlier"),
-        rest.map(item => React.createElement(Row, { key: item.id, item, onAct }))
-      )
+    React.createElement('div', { style: {
+      padding: "15px 16px 13px", borderBottom: "1px solid var(--border)",
+      display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexShrink: 0
+    } },
+      React.createElement('span', { style: { fontFamily: FONTS.display, fontSize: 19, fontWeight: 800, color: "var(--text)" } }, "For you"),
+      // 44px of target, without the glyph growing to match.
+      React.createElement('button', {
+        type: "button", onClick: onClose, "aria-label": "Close",
+        style: {
+          background: "transparent", border: "none", color: "#6B9690", fontSize: 18, cursor: "pointer",
+          width: 44, height: 44, marginRight: -11, display: "inline-flex", alignItems: "center",
+          justifyContent: "center", lineHeight: 1, padding: 0
+        }
+      }, "✕")
+    ),
+    React.createElement('div', { style: {
+      flex: 1, minHeight: 0, padding: "14px 16px 24px", overflowY: "auto",
+      WebkitOverflowScrolling: "touch", display: "flex", flexDirection: "column", gap: 8
+    } },
+      items.length === 0 && React.createElement('div', { style: {
+        fontFamily: FONTS.body, fontSize: 13, color: "#6B9690", textAlign: "center",
+        margin: "auto", padding: "0 16px", lineHeight: 1.5
+      } }, "Nothing for you right now.", React.createElement('br'), "Reactions, comments and anything you owe land here."),
+      pinned.length > 0 && React.createElement('span', { style: {
+        fontSize: 8.5, fontWeight: 700, letterSpacing: ".14em", textTransform: "uppercase", color: "#7DB8B1"
+      } }, "Needs you"),
+      pinned.map(item => React.createElement(Row, { key: item.id, item, onAct })),
+      rest.length > 0 && pinned.length > 0 && React.createElement('span', { style: {
+        fontSize: 8.5, fontWeight: 700, letterSpacing: ".14em", textTransform: "uppercase", color: "#6B9690", marginTop: 4
+      } }, "Earlier"),
+      rest.map(item => React.createElement(Row, { key: item.id, item, onAct }))
     )
   );
 

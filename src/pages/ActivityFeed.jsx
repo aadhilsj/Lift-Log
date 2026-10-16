@@ -52,14 +52,26 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
   // Separate pass: the ref only exists after the render that set glowLogId, so
   // scrolling in the effect above would aim at nothing.
   //
-  // block:"center" and never scrollIntoView on the page track itself — the
-  // in-Bloc pages sit in a four-screen-wide track whose hidden overflow is
-  // still scrollable, and App.jsx resets its scrollLeft for exactly that
-  // reason. This scrolls the page's own vertical container.
+  // NOT scrollIntoView. It walks up and scrolls EVERY scrollable ancestor, and
+  // the in-Bloc shell is `height:100dvh; overflow:hidden` — which is still
+  // programmatically scrollable, the same trap as the sideways one fixed in
+  // ebf9de5. It ended up 62px down and stayed there, so every tab opened a
+  // little below its own top until the app was reloaded.
+  //
+  // So: scroll the page's own container, by hand, and touch nothing above it.
   useEffect(()=>{
     if(!glowLogId) return undefined;
     const raf = requestAnimationFrame(()=>{
-      highlightRef.current?.scrollIntoView({ behavior:"smooth", block:"center" });
+      const card = highlightRef.current;
+      const scroller = card?.closest("[data-page-scroll-container]");
+      if(!card || !scroller) return;
+      const cardBox = card.getBoundingClientRect();
+      const viewBox = scroller.getBoundingClientRect();
+      // Centred in the page, clamped so a card near either end does not ask
+      // for a scroll position that does not exist.
+      const centred = scroller.scrollTop + (cardBox.top - viewBox.top) - (viewBox.height - cardBox.height)/2;
+      const top = Math.max(0, Math.min(centred, scroller.scrollHeight - scroller.clientHeight));
+      scroller.scrollTo({ top, behavior:"smooth" });
     });
     return ()=>cancelAnimationFrame(raf);
   },[glowLogId]);
