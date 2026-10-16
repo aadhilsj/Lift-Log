@@ -109,20 +109,29 @@ function ownLogItems(group, currentUser, userIdFor, latestComments, latestCommen
     });
     if (reactors.length) {
       const unique = [...new Set(reactors.map(r => r.name))];
-      // One emoji, never a row of them.
+      // One emoji, never a row of them — and the one most recently used, which
+      // is what the founder asked for.
       //
-      // This is the emoji the most people chose, NOT the most recent one.
-      // ante_core.workout_reactions does carry created_at, but the shape the
-      // client receives is {emoji: [names]} with no timestamps, and jsonb
-      // sorts its keys, so recency does not survive the trip. Showing the
-      // newest needs that RPC to return a per-emoji latest created_at.
+      // `latestReaction` is a sibling of `reactions` on the log, added to
+      // read_ante_core_current_logs on 16 October 2026 because {emoji: [names]}
+      // carries no timestamps and jsonb sorts its keys, so recency could not
+      // survive the trip. When it is missing — an older server, canonical
+      // unavailable, a log the overlay did not reach — the badge falls back to
+      // the emoji the most people chose, which is what it was before.
+      const newestEmoji = String(log?.latestReaction?.emoji || "").trim();
       const tally = new Map();
       reactors.forEach(r => tally.set(r.emoji, (tally.get(r.emoji) || 0) + 1));
-      const topEmoji = [...tally.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || "";
+      const mostChosen = [...tally.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || "";
+      // Only your own reaction being the newest is not worth badging: every
+      // reactor shown here is somebody else, so the badge must be one of
+      // theirs. Falling back keeps the row about them.
+      const badgeEmoji = newestEmoji && reactors.some(r => r.emoji === newestEmoji)
+        ? newestEmoji
+        : mostChosen;
       items.push({
         id: `reaction:${log.id}`,
         kind: "reaction",
-        badge: topEmoji,
+        badge: badgeEmoji,
         people: unique.slice(0, 2).map(name => ({ name, userId: userIdFor(name) })),
         title: `${nameList(unique)} reacted to ${describeWorkout(log)}`,
         meta: shortWhen(when),

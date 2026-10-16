@@ -33,6 +33,7 @@
     "test:solo-standard-penalty": "node scripts/test-solo-standard-penalty.mjs",
     "test:yearly-allowance": "node scripts/test-yearly-allowance.mjs",
     "test:activities": "node scripts/test-activities.mjs",
+    "test:notification-badge": "node scripts/test-notification-badge.mjs",
     "test:training-wheels": "node scripts/test-training-wheels.mjs",
     "test:mobile-navigation": "node scripts/test-mobile-navigation.mjs",
     "test:founder-dashboard": "node scripts/test-founder-dashboard.mjs",

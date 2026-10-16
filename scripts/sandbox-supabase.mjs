@@ -143,6 +143,17 @@ const server = http.createServer(async (req, res) => {
   }
 
   // --- canonical ---------------------------------------------------------
+  // The fixture beside the blob, or null when there is no file. Test aid only:
+  // it mirrors nothing, and without the file every canonical read behaves
+  // exactly as it did before.
+  function readCanonicalFixture() {
+    try {
+      return JSON.parse(fs.readFileSync(path.join(path.dirname(dataFile), "canonical.json"), "utf8"));
+    } catch {
+      return null;
+    }
+  }
+
   // Every ante_core RPC answers "no rows". Reads then fall back to the blob;
   // writes are accepted and discarded. This is the sandbox's one real
   // limitation and it is deliberate: reimplementing the canonical SQL in
@@ -159,6 +170,12 @@ const server = http.createServer(async (req, res) => {
   if (route === "/rest/v1/rpc/read_ante_core_current_logs") {
     await readBody(req);
     const groups = readRow().state?.groups || {};
+    // Reaction timestamps are the one thing the blob cannot supply: it stores
+    // reactions as {emoji: [names]} and never records when each was added,
+    // which is exactly why `latest_reaction` had to be added to the real
+    // function. So it comes from the fixture, keyed by log id, the same way
+    // the comment and Stream reads below are answered.
+    const latestReactions = readCanonicalFixture()?.latestReactions || {};
     const rows = Object.entries(groups).flatMap(([groupId, group]) =>
       Object.entries(group?.logs || {}).flatMap(([owner, logs]) =>
         (Array.isArray(logs) ? logs : []).map(log => ({
@@ -170,7 +187,15 @@ const server = http.createServer(async (req, res) => {
           note: log.note || "",
           photo_url: log.photoUrl || null,
           created_at: log.createdAt || null,
-          verified_via: log.verifiedVia || null
+          verified_via: log.verifiedVia || null,
+          // The real function returns these two together, and a reaction-less
+          // canonical row beside a blob that has reactions is not a state
+          // production ever reaches while both stores are healthy. Returning
+          // the blob's reactions is what "mirroring the blob" meant all along;
+          // without them normalizeLogEntry drops `latest_reaction` as dangling
+          // and the newest-emoji badge can never be seen locally.
+          reactions: log.reactions || {},
+          latest_reaction: latestReactions[String(log.id)] || null
         }))
       )
     );
@@ -186,13 +211,7 @@ const server = http.createServer(async (req, res) => {
   if (route === "/rest/v1/rpc/read_ante_core_workout_log_latest_comments"
       || route === "/rest/v1/rpc/read_ante_core_bloc_stream") {
     await readBody(req);
-    const fixtureFile = path.join(path.dirname(dataFile), "canonical.json");
-    let fixture = null;
-    try {
-      fixture = JSON.parse(fs.readFileSync(fixtureFile, "utf8"));
-    } catch {
-      fixture = null;
-    }
+    const fixture = readCanonicalFixture();
     if (route.endsWith("read_ante_core_workout_log_latest_comments")) {
       return send(res, 200, fixture?.latestComments || {});
     }

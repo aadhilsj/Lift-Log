@@ -605,13 +605,21 @@ function preferExistingTimestamp(existingTimestamp, canonicalTimestamp) {
 
 function preserveBlobCompatibleLogFields(existingLog, canonicalLog) {
   if (!existingLog) return canonicalLog;
+  const reactions = normalizeReactions(existingLog.reactions);
   const preserved = {
     ...canonicalLog,
     createdAt: preferExistingTimestamp(existingLog.createdAt, canonicalLog.createdAt),
     decisionAt: preferExistingTimestamp(existingLog.decisionAt, canonicalLog.decisionAt),
     commentCount: Number.isFinite(Number(canonicalLog.commentCount)) ? Math.max(0, Number(canonicalLog.commentCount)) : Number(existingLog.commentCount || 0),
-    reactions: normalizeReactions(existingLog.reactions)
+    reactions
   };
+  // The blob's reactions win here, so the recency marker has to be checked
+  // against them rather than against canonical's. Keep canonical's answer
+  // while that emoji is still one the blob records, and drop it otherwise --
+  // a badge showing an emoji that is not in the list reads as a bug.
+  const latestReaction = normalizeLatestReaction(canonicalLog?.latestReaction, reactions);
+  if (latestReaction) preserved.latestReaction = latestReaction;
+  else delete preserved.latestReaction;
   if (!Object.prototype.hasOwnProperty.call(existingLog, "ownerDisplayName")) {
     delete preserved.ownerDisplayName;
   }
@@ -1655,6 +1663,8 @@ function normalizeLogEntry(log) {
   const note = typeof log?.note === "string" && log.note.trim()
     ? log.note
     : (typeof log?.caption === "string" ? log.caption : "");
+  const reactions = normalizeReactions(log?.reactions);
+  const latestReaction = normalizeLatestReaction(log?.latestReaction, reactions);
   const entry = {
     ...log,
     id: log?.id || `log-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
@@ -1664,7 +1674,7 @@ function normalizeLogEntry(log) {
     createdAt: resolveLogCreatedAt(log),
     verifiedVia: log?.verifiedVia === "strava" ? "strava" : "photo",
     commentCount: Number.isFinite(Number(log?.commentCount)) ? Math.max(0, Number(log.commentCount)) : 0,
-    reactions: normalizeReactions(log?.reactions),
+    reactions,
     flagStatus: normalizeFlagStatus(log?.flagStatus),
     flagReason: typeof log?.flagReason === "string" ? log.flagReason.slice(0, 280) : "",
     flagResponse: typeof log?.flagResponse === "string" ? log.flagResponse.slice(0, 280) : "",
@@ -1675,6 +1685,10 @@ function normalizeLogEntry(log) {
   // Only a known activity is kept; logs from before activities have none.
   if (activity) entry.activity = activity;
   else delete entry.activity;
+  // Same rule: absent rather than null, so a log with no reactions carries no
+  // field and the client falls back to the emoji the most people chose.
+  if (latestReaction) entry.latestReaction = latestReaction;
+  else delete entry.latestReaction;
   return entry;
 }
 
@@ -1746,6 +1760,20 @@ function normalizeReactions(reactions) {
       .map(([emoji, members]) => [String(emoji || "").trim(), uniqueNames(Array.isArray(members) ? members : [])])
       .filter(([emoji, members]) => emoji && members.length)
   );
+}
+
+// The emoji most recently used on a log, so "For you" can badge a reaction row
+// with the newest one instead of the one the most people chose. `reactions` is
+// {emoji: [names]} and jsonb sorts its keys, so recency cannot be recovered
+// from it -- read_ante_core_current_logs returns this alongside it.
+//
+// Dropped unless its emoji is still one of the log's reactions. A reaction that
+// was taken back must not leave the badge pointing at an emoji nobody chose.
+function normalizeLatestReaction(latest, reactions) {
+  const emoji = String(latest?.emoji || "").trim();
+  if (!emoji || !reactions?.[emoji]?.length) return null;
+  const at = Date.parse(latest?.at);
+  return { emoji, at: Number.isFinite(at) ? new Date(at).toISOString() : null };
 }
 
 function normalizeFlagStatus(status) {
@@ -4214,7 +4242,8 @@ async function fetchAnteCurrentLogs() {
         decisionBy:       row.decision_by   || null,
         decisionAt:       row.decision_at   || null,
         commentCount:     Number.isFinite(Number(row.comment_count)) ? Math.max(0, Number(row.comment_count)) : 0,
-        reactions:        row.reactions     || {}
+        reactions:        row.reactions     || {},
+        latestReaction:   row.latest_reaction || null
       });
       return acc;
     }, {});
@@ -4262,7 +4291,8 @@ async function fetchAnteLogsForMonth(monthKey) {
         decisionBy:       row.decision_by  || null,
         decisionAt:       row.decision_at  || null,
         commentCount:     Number.isFinite(Number(row.comment_count)) ? Math.max(0, Number(row.comment_count)) : 0,
-        reactions:        row.reactions    || {}
+        reactions:        row.reactions    || {},
+        latestReaction:   row.latest_reaction || null
       });
       return acc;
     }, {});
