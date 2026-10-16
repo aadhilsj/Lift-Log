@@ -24,7 +24,13 @@
 // nobody else in the Bloc would ever see it. It needs a real save before the
 // prompt can be shown to anyone.
 
+import { getLogDisplayActivity } from "./activities.js";
+
 const MS_DAY = 86400000;
+// How long a row stays. After five weeks a reaction, a comment or a mention is
+// history rather than news, and nobody is going to act on it. Money is not on
+// this clock: a debt is still a debt however old it is.
+const MAX_AGE_DAYS = 35;
 
 // How old a row is, in days. Both the words on the row and the section it is
 // filed under come from this one number — otherwise a row reads "today" while
@@ -54,12 +60,18 @@ function logWhen(log) {
   return log?.createdAt || (log?.date ? `${log.date}T12:00:00.000Z` : "");
 }
 
-// "your Gym Log", "your Volleyball Log". The activity name and "Log" both keep
+// "your Gym Log", "your Padel Log". The activity name and "Log" both keep
 // their capital: it reads as the name of the thing, not a description of it.
+//
+// getLogDisplayActivity is the app's own answer, used by the feed, the month
+// calendar and the log modal: the activity the member actually chose, falling
+// back to the broad category only when there is no activity on the log. Using
+// `type` alone said "your Sports Log" for every racket and ball sport, and
+// Sports has not been something anyone can log for a long time.
 function describeWorkout(log) {
-  const raw = String(log?.type || "").trim();
-  const type = raw ? raw[0].toUpperCase() + raw.slice(1) : "";
-  return type ? `your ${type} Log` : "your Log";
+  const raw = String(getLogDisplayActivity(log) || "").trim();
+  const name = raw ? raw[0].toUpperCase() + raw.slice(1) : "";
+  return name ? `your ${name} Log` : "your Log";
 }
 
 // A list of names as a sentence: "Jo", "Jo and Sam", "Jo, Sam and 2 others".
@@ -74,7 +86,7 @@ function nameList(names) {
 // ── Reactions and comments on your own logs ──────────────────────────────────
 // Each row carries who it was (for the avatars), one emoji (for the badge) and
 // the workout (for the square on the right).
-function ownLogItems(group, currentUser, userIdFor, latestComments) {
+function ownLogItems(group, currentUser, userIdFor, latestComments, latestCommentsLoaded) {
   const mine = group?.logs?.[currentUser] || [];
   const items = [];
   mine.forEach(log => {
@@ -84,7 +96,7 @@ function ownLogItems(group, currentUser, userIdFor, latestComments) {
     // hours (shouldKeepLogPhoto in appState.js), and past months are stripped
     // of them entirely, so most rows will show the icon.
     const thumbPhotoUrl = typeof log?.photoUrl === "string" ? log.photoUrl : "";
-    const thumbType = String(log?.activity || log?.type || "").trim();
+    const thumbType = String(getLogDisplayActivity(log) || "").trim();
 
     // One row per log, not one per reaction: five reactions on one workout is
     // one thing that happened, not five.
@@ -121,10 +133,17 @@ function ownLogItems(group, currentUser, userIdFor, latestComments) {
         logId: log.id
       });
     }
-    // The newest comment, if it has been fetched. `total` is the server's own
-    // count and beats the blob's, which can lag.
+    // The newest comment, if it has been fetched.
+    //
+    // Once the fetch has landed its number is the ONLY one worth having: it
+    // counts other people's comments and leaves out your own, which the blob's
+    // commentCount does not. Your reply to somebody else on your own log is
+    // not news to you, and a log whose only comments are yours gets no row at
+    // all. Until it lands, the blob's count is all there is.
     const latest = latestComments?.[String(log.id)] || null;
-    const comments = Math.max(Number(log?.commentCount || 0), Number(latest?.total || 0));
+    const comments = latestCommentsLoaded
+      ? Number(latest?.total || 0)
+      : Number(log?.commentCount || 0);
     if (comments > 0) {
       const author = String(latest?.commenterName || "").trim();
       const said = commentSnippet(latest?.body);
@@ -278,7 +297,9 @@ export function groupNotifications(items, now = Date.now()) {
 export function buildNotifications({
   group, currentUser, currentUserId, reminderCards, formatAmount,
   // Fetched when the centre opens; absent on the first paint, which is fine.
-  latestComments, streamMessages
+  // latestCommentsLoaded says the fetch has answered, so an empty answer can
+  // be believed rather than mistaken for "not asked yet".
+  latestComments, latestCommentsLoaded, streamMessages
 }) {
   if (!group || !currentUser) return [];
   // Name -> userId, so a row can show that member's profile photo, and back
@@ -294,10 +315,17 @@ export function buildNotifications({
   const nameForUserId = id => byUserId.get(String(id)) || "";
   const items = [
     ...moneyItems(reminderCards, currentUser, formatAmount, userIdFor),
-    ...ownLogItems(group, currentUser, userIdFor, latestComments),
+    ...ownLogItems(group, currentUser, userIdFor, latestComments, latestCommentsLoaded),
     ...mentionItems(streamMessages, currentUserId, nameForUserId)
   ];
-  return items.sort((a, b) => {
+  return items
+    .filter(item => {
+      // Money has no timestamp and never expires. Anything dated does.
+      if (item.kind === "money") return true;
+      const age = daysAgo(item.when, Date.now());
+      return age === null || age < MAX_AGE_DAYS;
+    })
+    .sort((a, b) => {
     if (!!b.pinned !== !!a.pinned) return b.pinned ? 1 : -1;
     // Within the money section, what you owe comes before what you are owed.
     if (a.pinned && b.pinned && a.direction !== b.direction) return a.direction === "pay" ? -1 : 1;

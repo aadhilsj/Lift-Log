@@ -442,8 +442,13 @@ const App = () => {
   // centre is OPENED, never on a refresh: this screen must not add to the read
   // volume that docs/scaling-before-launch-2026-09-15.md is about.
   const [notificationLatestComments,setNotificationLatestComments]=useState({});
+  // Whether that fetch has answered. An empty answer means "nobody else has
+  // commented", which is only believable once we know we asked.
+  const [notificationLatestCommentsLoaded,setNotificationLatestCommentsLoaded]=useState(false);
   const [notificationStreamMessages,setNotificationStreamMessages]=useState([]);
   const [streamFocusBlocId,setStreamFocusBlocId]=useState(null);
+  // The Stream message a mention row points at, so the Stream can land on it.
+  const [streamFocusMessageId,setStreamFocusMessageId]=useState("");
   const [streamReturnScrollTop,setStreamReturnScrollTop]=useState(null);
   const [logCommentScreen,setLogCommentScreen]=useState(null);
   const [logCommentCountOverrides,setLogCommentCountOverrides]=useState({});
@@ -2426,8 +2431,9 @@ const App = () => {
     reminderCards: notificationReminderCards,
     formatAmount: (amount, currency) => fmtCurrency(amount, currency),
     latestComments: notificationLatestComments,
+    latestCommentsLoaded: notificationLatestCommentsLoaded,
     streamMessages: notificationStreamMessages
-  }), [currentGroup, currentUser, effectiveAuthSession?.userId, notificationReminderCards, notificationLatestComments, notificationStreamMessages]);
+  }), [currentGroup, currentUser, effectiveAuthSession?.userId, notificationReminderCards, notificationLatestComments, notificationLatestCommentsLoaded, notificationStreamMessages]);
   const notificationCount = notificationUnreadCount(notificationItems, notificationsSeenAt);
   const handleOpenNotifications = () => {
     trackUsage("notifications_opened");
@@ -2449,7 +2455,10 @@ const App = () => {
       getLogLatestCommentsData(groupId, ownLogIds).then(result => {
         // An empty answer means nobody has commented. It is never a reason to
         // blank what is already on screen.
-        if (result?.ok) setNotificationLatestComments(result.latest || {});
+        if (result?.ok) {
+          setNotificationLatestComments(result.latest || {});
+          setNotificationLatestCommentsLoaded(true);
+        }
       }).catch(() => { /* the rows fall back to the count they already have */ });
     }
     listBlocStreamMessagesData(groupId, 100).then(result => {
@@ -2479,8 +2488,8 @@ const App = () => {
       return;
     }
     if (item.opens === "stream") {
-      // A mention opens the Stream, scrolled to nothing in particular — the
-      // Stream opens at its newest message, which is where a mention usually is.
+      // A mention opens the Stream on the message itself, which then glimmers.
+      setStreamFocusMessageId(String(item.messageId || ""));
       handleOpenStream();
       return;
     }
@@ -3822,7 +3831,7 @@ const App = () => {
   React.createElement(React.Fragment,null,
     showJoinModal && !authStep && React.createElement(JoinGroupModal,{inviteContext,joinCode,setJoinCode,onClose:handleJoinModalClose,onJoin:handleJoinGroup,joining:joiningGroup,error:inviteError,signedIn:true}),
     showProfileModal && React.createElement(ProfileModal,{email:authSession?.email,onSignOut:handleSwitchUser,onClose:()=>setShowProfileModal(false),showDisplayName:true,currentDisplayName:currentUser,onSaveDisplayName:handleSaveProfileFromModal,saving:profileSaving,saveError:profileError,onLeaveBloc:handleLeaveBloc,onDeleteAccount:handleDeleteAccount,currentPaymentMethods:effectiveProfile?.paymentMethods||[],onSavePayment:handleSavePaymentHandle,savingPayment:paymentSaving,paymentError:paymentError}),
-    React.createElement(BlocStream,{open:showStream,groupName:currentGroup.name,blocId:currentGroup.id,initialBlocId:streamFocusBlocId,initialScrollTop:streamReturnScrollTop,initialUnreadCount:streamUnreadCount,currentUserId:effectiveAuthSession?.userId,members:Object.values(currentGroup.memberships||{}).map(m=>({id:m.userId,name:m.displayName,photoUrl:appState.profiles?.[m.userId]?.profilePhotoUrl||""})),streamBlocs:visibleGroups.map(group=>({id:group.id,name:group.name,members:Object.values(group.memberships||{}).map(m=>({id:m.userId,name:m.displayName,photoUrl:appState.profiles?.[m.userId]?.profilePhotoUrl||""}))})),onSeasonClosedTap:handleStreamSeasonClosedTap,onUnreadCountChange:(groupId,count)=>{if(groupId===currentGroup.id)setStreamUnreadCount(Number(count)||0);},onOpenLogComments:handleOpenLogComments,onClose:()=>{setShowStream(false);setStreamFocusBlocId(null);setStreamReturnScrollTop(null);refreshStreamUnreadCount(currentGroup.id);}}),
+    React.createElement(BlocStream,{open:showStream,groupName:currentGroup.name,blocId:currentGroup.id,initialBlocId:streamFocusBlocId,initialScrollTop:streamReturnScrollTop,initialUnreadCount:streamUnreadCount,focusMessageId:streamFocusMessageId,onFocusMessageShown:()=>setStreamFocusMessageId(""),currentUserId:effectiveAuthSession?.userId,members:Object.values(currentGroup.memberships||{}).map(m=>({id:m.userId,name:m.displayName,photoUrl:appState.profiles?.[m.userId]?.profilePhotoUrl||""})),streamBlocs:visibleGroups.map(group=>({id:group.id,name:group.name,members:Object.values(group.memberships||{}).map(m=>({id:m.userId,name:m.displayName,photoUrl:appState.profiles?.[m.userId]?.profilePhotoUrl||""}))})),onSeasonClosedTap:handleStreamSeasonClosedTap,onUnreadCountChange:(groupId,count)=>{if(groupId===currentGroup.id)setStreamUnreadCount(Number(count)||0);},onOpenLogComments:handleOpenLogComments,onClose:()=>{setShowStream(false);setStreamFocusBlocId(null);setStreamReturnScrollTop(null);setStreamFocusMessageId("");refreshStreamUnreadCount(currentGroup.id);}}),
     showNotifications && React.createElement(NotificationCentre,{
       items:notificationItems,
       onClose:()=>setShowNotifications(false),

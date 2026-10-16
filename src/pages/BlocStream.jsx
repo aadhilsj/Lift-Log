@@ -674,7 +674,11 @@ const MentionList = ({ items, onPick }) =>
     ))
   );
 
-const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, initialUnreadCount = 0, currentUserId, members = [], streamBlocs = [], onSeasonClosedTap, onUnreadCountChange, onOpenLogComments, onClose }) => {
+// How far below the top of the list a message sits when you were sent to read
+// it: enough that it is clearly not cut off by the header above it.
+const FOCUSED_MESSAGE_TOP_GAP = 16;
+
+const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, initialUnreadCount = 0, focusMessageId, onFocusMessageShown, currentUserId, members = [], streamBlocs = [], onSeasonClosedTap, onUnreadCountChange, onOpenLogComments, onClose }) => {
   const [mounted, setMounted] = useState(false);
   const [messages, setMessages] = useState([]);
   const [messagesByBloc, setMessagesByBloc] = useState(readStreamMessageCache);
@@ -698,6 +702,9 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, 
   const listRef = useRef(null);
   const inputRef = useRef(null);
   const messageNodeRefs = useRef(new Map());
+  // Arriving from the notification centre: put that message on screen and give
+  // it a brief glimmer, so it is obvious which one you were sent to read.
+  const [glowMessageId, setGlowMessageId] = useState("");
   const previousOpenRef = useRef(false);
   const streamStateRef = useRef(new Map());
   const activeBlocIdRef = useRef(blocId);
@@ -1041,6 +1048,43 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, 
     return () => { cancelled = true; };
   }, [messages, pendingListAnchor, open, mounted]);
 
+  // Sent here to read one particular message: anchor the list on it through the
+  // same mechanism the unread marker uses, rather than scrollIntoView, which
+  // walks up and scrolls every scrollable ancestor (see the stuck-scroll entry
+  // in the recurring debugging playbook).
+  useEffect(() => {
+    const wanted = String(focusMessageId || "");
+    if (!open || !wanted || !messages.length) return undefined;
+    if (!messages.some(msg => String(msg?.id || "") === wanted)) return undefined;
+    setPendingListAnchor({ type: "message", messageId: wanted });
+    setListPositioned(false);
+    setGlowMessageId(wanted);
+
+    // Then correct it from the rectangles. The shared anchor positions with
+    // node.offsetTop, which is measured from the offsetParent and not from the
+    // scroller, so a message can land 50-odd pixels under the header with its
+    // first line cut off — measured, not guessed. Rectangles are relative to
+    // the viewport for both, so the difference between them is honest.
+    // Repeated for a few frames because the list is still settling.
+    let frames = 0;
+    let raf = requestAnimationFrame(function settle() {
+      const el = listRef.current;
+      const node = messageNodeRefs.current.get(wanted);
+      if (el && node) {
+        const delta = node.getBoundingClientRect().top - el.getBoundingClientRect().top - FOCUSED_MESSAGE_TOP_GAP;
+        if (Math.abs(delta) > 1) el.scrollTop = Math.max(0, el.scrollTop + delta);
+      }
+      frames += 1;
+      if (frames < 10) raf = requestAnimationFrame(settle);
+    });
+
+    const clear = setTimeout(() => {
+      setGlowMessageId("");
+      onFocusMessageShown?.();
+    }, 2000);
+    return () => { cancelAnimationFrame(raf); clearTimeout(clear); };
+  }, [open, focusMessageId, messages, onFocusMessageShown]);
+
   // Bulletproof background scroll lock: pin the body in place (iOS Safari
   // leaks touch-scroll through a plain `overflow:hidden`, so fix the body and
   // restore the scroll position on close).
@@ -1330,7 +1374,22 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, 
                     else messageNodeRefs.current.delete(key);
                   },
                   "data-stream-message-id": msg.id,
-                  style: { marginTop }
+                  style: {
+                    marginTop,
+                    // Very faint, and it fades out on its own.
+                    //
+                    // outline, not padding and a box-shadow ring: an outline is
+                    // drawn outside the box and changes no layout. Padding here
+                    // moved the message AFTER the list had already scrolled to
+                    // it, which left it clipped under the header.
+                    ...(glowMessageId && String(msg.id) === glowMessageId ? {
+                      borderRadius: 14,
+                      outline: "1px solid rgba(78,205,196,.34)",
+                      outlineOffset: 4,
+                      boxShadow: "0 0 18px rgba(78,205,196,.18)"
+                    } : null),
+                    transition: "box-shadow .45s ease, outline-color .45s ease"
+                  }
                 }, child)
               );
 
