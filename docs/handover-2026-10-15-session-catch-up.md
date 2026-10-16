@@ -451,6 +451,92 @@ In the sandbox at 393x852, against practice months built for each case:
 was a data URI, since the stub has no storage. The `onError` fallback to the
 icon covers a photo that fails to load.
 
+### 2.9 The three things the founder asked for next — `0c93d90`
+
+All three, before pushing anything, at his instruction.
+
+#### 1. A comment row opens the comment thread
+
+It used to land on the workout in the Activity feed, same as a reaction row.
+`handleOpenLogComments` in `App.jsx` already does the work and needs the whole
+log, which is always one of your own, so it is found in your own list. If the
+log has gone (deleted, or the month rolled) the row still falls back to the
+feed rather than doing nothing.
+
+#### 2. Rows say what the comment was
+
+Who wrote the newest comment, and a line of what they said — cut on a word at
+80 characters, with an ellipsis, clamped to two lines so one chatty comment
+cannot make a row twice the height of its neighbours. More than one and the
+row reads *"Sam and 2 others commented on your Run Log"*. The commenter now
+gives the row a face, which it did not have before.
+
+**This needed one new database function.** `read_ante_core_workout_log_latest_comments`
+returns the newest comment for a **set** of logs in one call, modelled line for
+line on `read_ante_core_workout_log_comment_counts` — same membership check,
+same `moderation_hidden_at` filter, same grants.
+
+**Applied to production on 16 October** and verified immediately:
+
+| Check | Result |
+| --- | --- |
+| Existed before | No — `0` rows in `pg_proc` |
+| `anon` can execute | **false** |
+| `authenticated` can execute | **false** |
+| `service_role` can execute | true |
+| `null`, empty and unknown-bloc input | returns `{}`, does not raise |
+
+No data was written and no existing object was touched. **Rollback is one
+statement:** `drop function public.read_ante_core_workout_log_latest_comments(text, text, text[]);`
+The migration file is `supabase/migrations/20261016060000_read_ante_core_workout_log_latest_comments.sql`.
+
+#### 3. Being tagged in the Bloc Stream
+
+A mention now shows up with the message quoted and an `@` badge, and tapping it
+opens the Stream. **This needed no database work at all** —
+`read_ante_core_bloc_stream`, read from production, already returns each
+message's `mentions` as auth user ids. Your own messages never mention you.
+
+#### The decision that keeps this off the scaling pile
+
+**Both fetches happen when the centre is opened, never on a refresh.** Fero's
+biggest pre-launch problem is that every poll reads too much (§20 of Deveen's
+handover); a notification screen firing a request per workout would have made
+exactly that worse. So: the panel opens instantly on what the client already
+holds, then **two batched calls** fill in the comment text and the mentions.
+None at all if the bell is never tapped. An empty answer means "nothing to
+show", never a failure — the rows fall back to the count they already had.
+
+#### The sandbox can now show this
+
+Comments and Stream messages live **only** in canonical, which the sandbox
+stubs with `[]`, so there was no way to see this screen before shipping it.
+`scripts/sandbox-supabase.mjs` now answers those two reads from
+`.sandbox-data/canonical.json` when that file exists. **Test aid only** — it
+mirrors nothing and changes no behaviour without the file.
+
+#### How it was verified
+
+Lint and build clean. **24 of 26 suites** — the same two that fail on `main`.
+A fixture check covers the naming, the bundling, the word-boundary cut, the
+un-fetched fallback, mentions of you, messages that mention nobody, and your
+own messages being ignored.
+
+In the sandbox at 393x852, with a fixture standing in for canonical:
+
+| Checked | Result |
+| --- | --- |
+| Comment row | *"Jo and 2 others commented on your Other Log"* with the text quoted |
+| Tapping it | the **comment thread** opens, headed "2 comments" |
+| Mention row | *"Jo mentioned you in the Bloc Stream"*, message quoted, `@` badge |
+| Tapping it | the **Bloc Stream** opens with `@Riley` highlighted |
+| Shell scroll afterwards | `scrollTop` **0**, nothing stuck, no horizontal scroll |
+| Network | every request 200 |
+
+**Not seen against a real backend.** The sandbox fixture stands in for
+canonical, so the new function has been proven safe on production but its
+results have never been drawn on screen from real comments.
+
 ## 3. What is open, carried forward
 
 - **The notification centre is live** at `a6d7bab` (§2.2, §2.3). Three things
@@ -505,4 +591,6 @@ icon covers a photo that fails to load.
 | `5f86d45` | Record the background correction | Docs only |
 | `486d2cc` | What's live at `5f86d45`, and the close-out | Docs only |
 | `cb7f4fb` | **For you redesigned** — faces, badges, thumbnails, sections, the money heading rule | On the branch, **not pushed** |
-| *(this one)* | Record the redesign | Docs only |
+| `c7b8cf4` | Record the redesign | Docs only |
+| `0c93d90` | **Thread opening, comment text, Stream mentions** + the new RPC | On the branch, **not pushed** |
+| *(this one)* | Record all three | Docs only |
