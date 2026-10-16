@@ -4,7 +4,37 @@
 Update it whenever something ships. Same filename forever — never date it, never
 fork it. If it disagrees with a handover, this file wins.
 
-Last updated: **15 October 2026** — a page can no longer be **left sitting off
+Last updated: **16 October 2026** — the **bell does something**, at `a6d7bab`.
+It has opened a box saying "Notifications are coming soon" since it was wired
+up; it now opens **"For you"**: who reacted to your own workouts, how many
+comments they got, and money you owe or are owed. A count sits on the bell and
+clears when you open the panel — except money you owe, which stays. Tapping a
+row takes you to that workout in the Activity feed, which scrolls to it and
+glows it for a moment.
+
+Three things it does **not** do, and all three have been asked for:
+a comment row lands on the workout rather than on the comment thread; it cannot
+say **who** commented (the API can tell it — `log-comments-list` — but it must
+be batched); and it does not know about **@mentions** in the Bloc Stream (the
+mentions are already stored on the message, so this is reachable too).
+
+**The settlement-note prompt is deliberately not in it.** The version on
+`feat/settlement-note` stores that note in `localStorage` only, so nobody else
+in the Bloc would ever see it, while the row says "Your Bloc will see it". It
+needs a real save first.
+
+"Seen" is **per browser**, not per person: Fero still has no server-side read
+state, so the count does not follow you between devices and resets if site data
+is cleared.
+
+**Verified live:** Production deployment `7108411190` for `a6d7bab` success;
+live bundle `index-CGGcHe4P.js` contains "For you", "Needs you" and
+`fero_notifications_seen_v1`, and no longer contains "Notifications are coming
+soon"; CI green; the live site loads with no console errors. **Not yet opened
+against live data or on a real iPhone.** Details:
+`docs/handover-2026-10-15-session-catch-up.md`.
+
+Before that, on 15 October 2026 — a page can no longer be **left sitting off
 to one side**, at `ebf9de5`. Tapping a member's slice on the Month ring used to
 push the whole page about 149px to the left and strand it there; it read as a
 blank screen. The four in-Bloc pages live side by side in one track four
@@ -102,7 +132,8 @@ yet**. Details: `docs/handover-2026-10-09-session-catch-up.md` and
 
 | | Website (PWA) | TestFlight (phone) |
 | --- | --- | --- |
-| **At commit** | **`ebf9de5`** | `77fe4d8` (build 10) |
+| **At commit** | **`a6d7bab`** | `77fe4d8` (build 10) |
+| The bell opens "For you" — reactions, comments and money, with a count | ✅ | ❌ |
 | A page can no longer be scrolled off to one side (the stuck Month ring) | ✅ | ❌ |
 | Profile header is a card; back is a chevron in the Bloc header; the `...` in the card corner; the net figure on the workout counter | ✅ | ❌ |
 | Report and Block on the activity feed, Bloc Stream, comments and member profiles; Blocked list on the account screen; report queue on the founder dashboard | ✅ | ❌ |
@@ -385,9 +416,10 @@ as-is would put a dead button in front of every member.
 
 It did not happen. `main` had already wired it to a "coming soon" destination,
 and the build-10 merge resolved that conflict in main's favour deliberately.
-Both the website and build 10 now open the placeholder. Nothing is built behind
-it — see `docs/concept-2026-09-24-notification-centre.md` — so do not infer any
-notification-centre scope from the button existing.
+
+**Superseded on 16 October:** the placeholder is gone from the website. The
+bell now opens the real notification centre (`a6d7bab`, top of this file).
+**Build 10 still shows the "coming soon" box**, because it predates all of it.
 
 ---
 

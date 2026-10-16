@@ -155,12 +155,66 @@ canonical (`api/lift-log.js`, the `comment_count` mapping), so this should work
 imported by nothing. It was left in place rather than deleted, since removing it
 was not asked for. One line to delete whenever.
 
+### 2.3 Live at `a6d7bab` (16 October)
+
+The founder said `main`. Pre-flight: `git fetch`, `origin/main` confirmed an
+ancestor (it had not moved), lint and build clean. Pushed
+`4f05c7e..a6d7bab` with `--force-with-lease`.
+
+**Verified three ways:** the commit is on `main`; the Vercel Production
+deployment `7108411190` for that exact commit reports **success**; the live
+bundle `index-CGGcHe4P.js` contains "For you", "Needs you", "Nothing for you
+right now", `fero_notifications_seen_v1` and `notifications_opened`, and **no
+longer contains "Notifications are coming soon"**. CI green on `a6d7bab`.
+`joinfero.app` answers, and the live site loads with **no console errors**.
+
+**Website only.** TestFlight is still build 10.
+
+**Not seen against live data or on a real iPhone.** It was driven end to end in
+the sandbox, but nobody has opened the bell on the live site yet.
+
+### 2.4 Three questions from the founder, answered against the code
+
+Asked straight after the push. Checked in `src/App.jsx` and `api/lift-log.js`
+rather than answered from memory.
+
+| His question | The answer |
+| --- | --- |
+| Tapping a **reaction** row — does it go to that workout on the feed, and shimmer? | **Yes.** Exactly that, and it was measured: the teal ring is in the card's computed `box-shadow`, and it fades after 1.8s. |
+| Tapping a **comment** row — does it open that comment? | **No.** It lands on the workout in the feed, same as a reaction row. `handleNotificationAct` treats `opens: "comments"` identically to `"activity"`. **This is a gap, not a decision**, and he has asked for it. |
+| Should it say **who** commented, and tell him about **@mentions**? | Yes, and both are **more reachable than the earlier note suggested** — see below. |
+
+**A correction to §2.2 and to what was said in chat.** Both were described as
+needing backend work that does not exist. That is wrong, and the branch
+author's own note ("the client does not hold the data") is true but was read
+too broadly — the client does not *hold* it, but it can *ask* for it:
+
+- `log-comments-list` already returns a log's comments for a Bloc member, so
+  **who commented** is reachable from the client today. The real cost is how
+  many calls it takes to cover your own logs, which runs straight into the
+  scaling work in §20 of Deveen's handover — every refresh already reads too
+  much. It wants batching, not a naive call per log.
+- Stream **@mentions are already stored id-keyed on the message**
+  (`src/pages/BlocStream.jsx`), and `stream-list` serves them, so "you were
+  tagged" is derivable without new schema.
+
+Neither is a one-liner, and both were **left alone** rather than started
+unasked. The comment-row destination is the smallest of the three and the one
+he asked for first.
+
 ## 3. What is open, carried forward
 
-- **The notification centre is built** (§2.2, `711e9fb`) and **not pushed**.
-  The founder answered the open question: v1 ships without "who commented".
-  Still open on top of it: whether to put the settlement-note prompt back once
-  the note has a real save, and whether mentions are ever wanted.
+- **The notification centre is live** at `a6d7bab` (§2.2, §2.3). Three things
+  the founder has now asked for on top of it, in his order of wanting them:
+  1. **A comment row should open the comment thread**, not just the workout.
+     The smallest of the three; `handleOpenLogComments` in `App.jsx` already
+     does the work, the row just does not call it.
+  2. **Say who commented** — reachable through `log-comments-list`, but it must
+     be batched, not one call per log (§20 of Deveen's handover).
+  3. **Tell him when he is tagged in the Bloc Stream** — mentions are already
+     stored on the message and served by `stream-list`.
+  Also still open: whether to put the settlement-note prompt back, once the
+  note has a real save behind it.
 - **The bell is no longer a placeholder**, which removes the App Store risk the
   previous handover raised — provided `711e9fb` ships before submission. If it
   does not, the fallback stands: hide the bell in the native build behind
@@ -190,4 +244,5 @@ was not asked for. One line to delete whenever.
 | --- | --- | --- |
 | `0a500a9` | Open the 15 October catch-up handover | Docs only |
 | `711e9fb` | **The notification centre** — the bell opens "For you" | On the branch, **not pushed, not live** |
-| *(this one)* | Record the port and how it was verified | Docs only |
+| `a6d7bab` | Record the port and how it was verified | Docs only |
+| *(this one)* | What's live at `a6d7bab`, and the three follow-ups | Docs only |
