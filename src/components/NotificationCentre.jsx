@@ -84,9 +84,17 @@ export const NotificationCentre = ({ items = [], onClose, onAct }) => {
     style: {
       position: "fixed", inset: 0, zIndex: 150,
       display: "flex", flexDirection: "column",
-      // Matches the in-Bloc shell, so opening this does not change the colour
-      // of the screen underneath it.
-      background: "radial-gradient(ellipse 95% 38% at 50% 16%, rgba(78,205,196,0.13), transparent 60%), linear-gradient(180deg, #080f0e 0%, #070f0e 38%, #05090a 100%)",
+      // The app's own background, by its own tokens — the same two layers every
+      // other screen paints, so this reads as part of the app rather than a
+      // surface laid over it.
+      //
+      // It is deliberately NOT the Bloc Stream's background. That one centres
+      // its teal glow at 16% down the screen, which on a full screen shows as
+      // a bright band at the top fading to near-black at the bottom. The app's
+      // own hint is centred at -10%, above the screen, so only its soft lower
+      // edge is ever visible and the wash stays even.
+      backgroundColor: "var(--bg-primary)",
+      backgroundImage: "var(--bg-radial-hint), var(--bg-gradient)",
       // The notch on an installed PWA, and the home indicator at the bottom.
       paddingTop: "env(safe-area-inset-top)",
       paddingBottom: "env(safe-area-inset-bottom)",
