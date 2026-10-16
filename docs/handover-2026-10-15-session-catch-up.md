@@ -1,6 +1,6 @@
 # Handover — 15–16 October 2026 (session 3): catch-up, then the notification centre
 
-**Status: CLOSED.** Claude, operating. **This is a live handover: it is updated as
+**Status: OPEN again** — reopened on 16 October for the For you redesign. Claude, operating. **This is a live handover: it is updated as
 the session goes, not written at the end.** The newest entry in §2 is the most
 recent thing that happened.
 
@@ -332,7 +332,10 @@ Website only — TestFlight is still build 10.
    A task has been proposed for it; `handleOpenLogComments` in `App.jsx`
    already does the work.
 2. **Say who commented** — reachable via `log-comments-list`, but it must be
-   batched (§20 of Deveen's handover).
+   batched (§20 of Deveen's handover). This would also give comment rows a
+   face, which they do not have today.
+   **2b. The badge as the most recent emoji** (§2.8) — needs
+   `read_ante_core_current_logs` to return a per-emoji latest `created_at`.
 3. **Tell him when he is tagged in the Bloc Stream** — mentions are already
    stored id-keyed on the message and served by `stream-list`.
 
@@ -349,6 +352,104 @@ free), browser viewport reset, the worktree at
 `~/Developer/FERO/catch-up-2026-10-15` clean on `claude/catch-up-2026-10-15`
 (level with `origin/main`). The shared checkout at `~/Documents/Codex Space/
 Lift Log` was never written to and is still behind `origin/main`.
+
+### 2.8 For you redesigned from the founder's review — `cb7f4fb`
+
+He looked at the live screen and said it reads as "just a list of emojis and
+text", which it did: nearly every row says *somebody reacted to your log*, so
+nothing separated one row from the next. He asked for Instagram's and Strava's
+notification screens to be looked at, for older and newer to be separated, and
+asked whether the thumbnail should be the workout photo with the emoji moved to
+the other side.
+
+**What the research actually settled.** Instagram's and Strava's own screens
+are behind logins and no teardown with real layouts could be found, so the
+pattern came from design-system sources rather than from their screens, and
+that is stated rather than dressed up. The useful parts: a leading avatar or
+icon should encode who or what before any text is read; bundling repeats into
+one row is the highest-impact fix for a noisy feed (Fero already bundles per
+log); and date sections — Today, Yesterday, This week — are the standard way to
+order a long list.
+
+**The finding that decided the thumbnail question.** Workout photos are
+**deleted after 72 hours** (`UNFLAGGED_IMAGE_RETENTION_MS`, `shouldKeepLogPhoto`
+in `appState.js`; 24 hours after a flag is resolved), and logs in past months
+are stripped of `photoUrl` entirely. A notification outlives its photo, so a
+photo-led row would be empty for most rows. The always-present thing is **who
+did it** — `Avatar` falls back to a coloured initial and never renders nothing.
+
+So, as the founder chose after seeing three variants:
+
+- the member's **face leads**, badged with the emoji they used;
+- two faces overlap when more than one person reacted — **and the badge stays**,
+  which was his correction to the first mockup;
+- the **right-hand square** is the photo while it exists, the activity icon
+  once it does not;
+- **comment rows have no face**, because the client holds the count and not the
+  authors; they lead with a comment mark rather than inventing someone;
+- **Today / This week / Earlier** sections.
+
+### The money heading, exactly as he specified it
+
+| What is in the section | Heading |
+| --- | --- |
+| Only money you owe | **Needs you** |
+| Only money owed to you | **Settling up** |
+| Both | **Settling up**, one section |
+
+What you owe sorts first either way and keeps the warmer colour with a **Pay**
+chip; being owed is quieter and green with an **Owed** chip.
+
+**One judgement call, stated because he did not ask for it.** Both directions
+are pinned to the top, but only money **you owe** keeps the bell lit. Being
+owed is not something you can act on, and a badge that can never be cleared is
+nagging. `unreadCount` now keys off `alwaysUnread` rather than `pinned`.
+
+### "The most recent emoji" — asked for, and not possible today
+
+He asked for the badge to be the most recently used emoji. It cannot be, yet,
+and this is the evidence rather than a guess:
+
+- `ante_core.workout_reactions` **does** carry `created_at` (`docs/SCHEMA.md`).
+- But `read_ante_core_current_logs` — read from production with
+  `pg_get_functiondef` — returns
+  `jsonb_object_agg(emoji, jsonb_agg(reactor_display_name order by created_at))`.
+  Names are ordered within an emoji; **the timestamps are not returned**, and
+  `jsonb` sorts object keys, so there is no way to tell which emoji came last.
+
+The badge is therefore the emoji **the most people chose**. Making it the
+newest means that function returning a per-emoji latest `created_at`, plus
+carrying it through `api/lift-log.js` and the blob. Small, but it is a schema
+read-path change and it belongs with the scaling work, not bolted on.
+
+### One bug found and fixed while building
+
+A row could read **"today"** while sitting under **"This week"**: `shortWhen`
+measured age as a rolling 24 hours while the new section used the calendar day.
+Both now come from one `daysAgo` helper, so the words and the section cannot
+disagree. Seen on screen before it was fixed.
+
+### How it was verified
+
+Lint and build clean. **24 of 26 suites pass** — the same two that fail on
+`main`. A fixture check covers the heading rule in all four states, the sort
+order, the badge surviving a multi-reactor row, the photo/icon fallback and the
+bell counting.
+
+In the sandbox at 393x852, against practice months built for each case:
+
+| Case | Result |
+| --- | --- |
+| Only you owe | heading reads **NEEDS YOU** |
+| Only you are owed | heading reads **SETTLING UP**, and the bell clears on opening |
+| Both | one **SETTLING UP** section, what you owe first |
+| Multi-reactor row | two overlapping faces, badge kept |
+| Photo vs icon | both seen on screen in the same list |
+| Tapping a row | centre closes, workout on screen, shell `scrollTop` still **0** |
+
+**Not seen:** the real photo path against Supabase storage — the sandbox photo
+was a data URI, since the stub has no storage. The `onError` fallback to the
+icon covers a photo that fails to load.
 
 ## 3. What is open, carried forward
 
@@ -402,4 +503,6 @@ Lift Log` was never written to and is still behind `origin/main`.
 | `8d14881` | Record both | Docs only |
 | `3eeefbf` | **The app's own background**, not the Stream's | On the branch, **not pushed** |
 | `5f86d45` | Record the background correction | Docs only |
-| *(this one)* | What's live at `5f86d45`, and the close-out | Docs only |
+| `486d2cc` | What's live at `5f86d45`, and the close-out | Docs only |
+| `cb7f4fb` | **For you redesigned** — faces, badges, thumbnails, sections, the money heading rule | On the branch, **not pushed** |
+| *(this one)* | Record the redesign | Docs only |
