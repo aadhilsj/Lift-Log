@@ -143,3 +143,65 @@ two reactors and 🔥 had one**:
 
 **Not seen against production data.** The sandbox fixture stands in for
 canonical, so the badge has never been drawn from a real reaction timestamp.
+
+### 2.8 Live at `2b54000` (16 October)
+
+The founder approved going straight to `main`. Pushed `1cea2e5..2b54000` with
+`--force-with-lease=refs/heads/main:1cea2e5…` after `git fetch` confirmed
+`origin/main` an ancestor of the branch. Lint and build clean immediately
+before the push.
+
+**Verified three ways:**
+
+| Check | Result |
+| --- | --- |
+| The commit is on `main` | `origin/main` = `2b54000` |
+| Production deployment for that exact sha | `7121675219` — **success** |
+| A string from the change in the live bundle | `index-DFG4EIT-.js` contains `latestReaction` |
+| The live site | loads in a fresh tab with **no console errors** |
+
+Website only — TestFlight is still build 10.
+
+---
+
+## Close-out
+
+**What is live**, on the website at `2b54000`:
+
+- A reaction row in **"For you"** is badged with the emoji used **most
+  recently**, not the one the most people chose. This was the one thing the
+  founder asked for on 15 October that could not be delivered.
+- It **falls back** to the emoji the most people chose whenever recency is not
+  available or names an emoji nobody in the row used — including the viewer's
+  own, since the row is about other people. A workout with no reactions still
+  produces no row.
+- In the database, `read_ante_core_current_logs` and
+  `read_ante_core_logs_for_month` return `latest_reaction` beside the
+  unchanged `reactions`. Applied by the first session; this session only
+  **verified** it, and ran no production writes at all.
+
+**What is open:**
+
+- **The badge has never been drawn from a real reaction timestamp.** The
+  sandbox fixture stands in for canonical, so this is live but unseen against
+  live data. One tap of an emoji on someone's workout would prove it.
+- `@mentions inside a comment thread` — still the only unbuilt item from the
+  notification-centre list.
+- Everything else carried forward in
+  `handover-2026-10-15-session-catch-up.md` §3 is unchanged by this session.
+
+**The laptop:** nothing is running — the sandbox was stopped by PID on ports
+3000 and 54321, and the browser viewport was reset. The worktree
+`~/Developer/FERO/latest-reaction-2026-10-16` and its branch are now fully
+merged into `main` and can be removed whenever convenient; its `node_modules`
+is a symlink into the shared checkout, so delete that symlink first.
+
+## 3. Commits this session
+
+| Commit | What | Live |
+| --- | --- | --- |
+| `0fb0526` | Open this handover | Docs only |
+| `0c2c1fc` | **`latest_reaction` carried through, and the badge uses it** | **Live at `2b54000`** |
+| `12270a1` | The sandbox fixture can switch the canonical overlay on | Test aid, live in the repo |
+| `2b54000` | Record the migration check, the rebase and the verification | Docs only |
+| *(this one)* | What's live at `2b54000`, and the close-out | Docs only |

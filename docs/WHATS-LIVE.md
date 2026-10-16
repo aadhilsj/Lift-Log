@@ -4,7 +4,27 @@
 Update it whenever something ships. Same filename forever — never date it, never
 fork it. If it disagrees with a handover, this file wins.
 
-Last updated: **16 October 2026** — the **bell does something**, at `5ebd5f5`.
+Last updated: **16 October 2026** — the **newest emoji badges the row**, at
+`2b54000`. A reaction row in "For you" is badged with the emoji used **most
+recently**, not the one the most people chose. Two people pressing 💪 no longer
+drown out the 🔥 that came after them. Where that cannot be worked out — an
+older server, or canonical out of reach — it falls back to the emoji the most
+people chose, exactly as before, and a workout with no reactions still produces
+no row.
+
+**Verified live at `2b54000`:** Production deployment `7121675219` success; the
+live bundle `index-DFG4EIT-.js` carries `latestReaction`; the live site loads
+with no console errors.
+
+> **Both canonical log readers changed in production on 16 October:**
+> `read_ante_core_current_logs` and `read_ante_core_logs_for_month` now also
+> return `latest_reaction` — one emoji and its timestamp, beside the existing
+> `reactions`, which is byte-for-byte unchanged. One extra subquery per log on
+> the primary key's leading column, on a 1,919-row table, so it is not a
+> read-volume concern. Read-only; `anon` and `authenticated` cannot execute
+> either. Rollback is the two `create or replace` statements without that key.
+
+Before that, at `5ebd5f5`:
 A row names the **activity** you logged ("your Padel Log"), not the category —
 every racket and ball sport used to read "your Sports Log", and Sports has not
 been loggable for a long time. **Your own comments are not counted**: a reply
@@ -43,9 +63,10 @@ errors.
 > fetched **only when the centre is opened**, two batched calls, so this screen
 > adds nothing to the per-refresh read volume.
 
-**Still not built:** the badge is the emoji the most people chose, not the most
-recent — the timestamps are not returned to the client — and @mentions inside
-a comment thread.
+**Still not built:** @mentions inside a comment thread.
+
+**Not verified:** the newest-emoji badge has only been seen against a sandbox
+fixture, never against a real reaction timestamp on live data.
 
 **Verified live at `a6280a3`:** Production deployment `7109250746` success; the
 live bundle `index-OVZJQPmf.js` contains "mentioned you in the Bloc Stream",
