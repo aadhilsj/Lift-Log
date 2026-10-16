@@ -4,7 +4,16 @@
 Update it whenever something ships. Same filename forever — never date it, never
 fork it. If it disagrees with a handover, this file wins.
 
-Last updated: **16 October 2026** — the **bell does something**, at `a6280a3`.
+Last updated: **16 October 2026** — the **bell does something**, at `5ebd5f5`.
+A row names the **activity** you logged ("your Padel Log"), not the category —
+every racket and ball sport used to read "your Sports Log", and Sports has not
+been loggable for a long time. **Your own comments are not counted**: a reply
+of your own on your own workout is not news to you, and a log whose only
+comments are yours shows no row at all. Rows **expire after five weeks**, money
+excepted — a debt is still a debt. Tapping a **mention** now lands on that
+message in the Stream and gives it a brief glimmer.
+
+Before that, at `a6280a3`:
 "For you" is a full screen, and a row now reads **who, then what, then which
 workout**: the member's face badged with the emoji they used, what they said,
 and the workout's own photo on the right while it still exists — photos are
@@ -20,9 +29,16 @@ is there: **"Needs you"** when all you have is something to pay, **"Settling
 up"** as soon as anything is owed to you. Only money you owe keeps the bell
 lit.
 
-> **One new database function, applied to production on 16 October:**
+**Verified live at `5ebd5f5`:** Production deployment `7109481996` success;
+the live bundle `index-DraxXqb-.js` carries the glimmer's outline, the
+`your ${activity} Log` template and the five-week threshold, and no longer
+contains "your Sports Log"; CI green; the live site loads with no console
+errors.
+
+> **Two database functions applied to production on 16 October:**
 > `read_ante_core_workout_log_latest_comments` — the newest comment for a set
-> of logs in one call. Read-only; `anon` and `authenticated` cannot execute it.
+> of logs in one call, then replaced the same day to **leave out the viewer's
+> own comments**. Read-only; `anon` and `authenticated` cannot execute it.
 > Rollback is a single `drop function`. The comment text and the mentions are
 > fetched **only when the centre is opened**, two batched calls, so this screen
 > adds nothing to the per-refresh read volume.
@@ -178,8 +194,8 @@ yet**. Details: `docs/handover-2026-10-09-session-catch-up.md` and
 
 | | Website (PWA) | TestFlight (phone) |
 | --- | --- | --- |
-| **At commit** | **`a6280a3`** | `77fe4d8` (build 10) |
-| The bell opens "For you" — full screen: reactions, comments (with the text), Stream mentions and money | ✅ | ❌ |
+| **At commit** | **`5ebd5f5`** | `77fe4d8` (build 10) |
+| The bell opens "For you" — full screen: reactions, comments (with the text), Stream mentions and money; rows expire at five weeks | ✅ | ❌ |
 | A page can no longer be scrolled off to one side (the stuck Month ring) | ✅ | ❌ |
 | Profile header is a card; back is a chevron in the Bloc header; the `...` in the card corner; the net figure on the workout counter | ✅ | ❌ |
 | Report and Block on the activity feed, Bloc Stream, comments and member profiles; Blocked list on the account screen; report queue on the founder dashboard | ✅ | ❌ |

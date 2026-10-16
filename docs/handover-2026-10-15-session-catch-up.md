@@ -1,6 +1,6 @@
 # Handover — 15–16 October 2026 (session 3): catch-up, then the notification centre
 
-**Status: OPEN again** — reopened 16 October for a second round of review fixes. Claude, operating. **This is a live handover: it is updated as
+**Status: CLOSED.** Claude, operating. **This is a live handover: it is updated as
 the session goes, not written at the end.** The newest entry in §2 is the most
 recent thing that happened.
 
@@ -662,6 +662,60 @@ filled with `ERR_CONNECTION_REFUSED` from the gaps between restarts. Checked
 properly in a **fresh tab**: no console errors, and every live request 200.
 Worth knowing before reading a stale console as a regression.
 
+### 2.12 Live at `5ebd5f5` (16 October)
+
+Pushed `d1e53fe..5ebd5f5` with `--force-with-lease`; `origin/main` confirmed an
+ancestor, lint and build clean.
+
+**Verified three ways:** on `main`; Production deployment `7109481996`
+**success**; the live bundle `index-DraxXqb-.js` contains the glimmer's
+`outlineOffset`, `latestCommentsLoaded`, the teal ring colour, the mention
+copy and the `your ${activity} Log` template, and **no longer contains "your
+Sports Log"**. CI green; the live site loads with **no console errors**.
+
+**A note for whoever picks this up:** a second session
+(`claude/...badge-the-newest-emoji`) was started on the most-recent-emoji
+problem while this work was in flight, and it edits the same file. It has been
+told that `main` moved and to rebase rather than merge. If its branch is still
+open, check that before trusting it.
+
+---
+
+## Close-out (16 October, final)
+
+**What is live** at `5ebd5f5`, website only — TestFlight is still build 10:
+
+- The bell opens **"For you"**, full screen, in the app's own background.
+- Rows read **who, then what, then which workout**, named by the **activity**
+  logged, with the photo while it lasts and the activity icon after.
+- **Comments** name the writer, quote a line, and **open the thread**; your own
+  comments are excluded in the database function itself.
+- **Stream mentions** appear, quoted, and land on the message with a glimmer.
+- **Today / This week / Earlier**, and rows **expire at five weeks**.
+- Money at the top both ways, under **Needs you** or **Settling up**.
+- Two production functions added, both read-only and server-side only.
+
+**What is open:**
+
+- The badge is the **most-chosen** emoji, not the most recent — a separate
+  session is on it (§2.8, §2.12).
+- **@mentions inside a comment thread** — the last unbuilt piece of the
+  concept.
+- Neither new function's results have been **drawn from real comments**; the
+  sandbox fixture stands in for canonical.
+- Nobody has opened the bell **on the live site or a real iPhone**.
+- The **in-Bloc shell has no scroll guard** of its own (§2.5).
+- The settlement-note prompt, once the note has a real save (§2.2).
+- **TestFlight build 11** — never built; Xcode is not on this laptop.
+- **Waiting on Deveen:** scaling before launch, the RLS rollout,
+  `push_devices`, `fero-staging` billing.
+
+**State of this laptop at close:** sandbox stopped by PID (ports 3000 and 54321
+free), the mockup server on 8899 stopped, browser viewport reset and the scratch
+tab closed, the worktree at `~/Developer/FERO/catch-up-2026-10-15` clean and
+level with `origin/main`. The shared checkout at `~/Documents/Codex Space/Lift
+Log` was never written to.
+
 ## 3. What is open, carried forward
 
 - **The notification centre is live** at `a6d7bab` (§2.2, §2.3). Three things
@@ -721,4 +775,5 @@ Worth knowing before reading a stale console as a regression.
 | `a6280a3` | Record all three | Docs only |
 | `d1e53fe` | What's live at `a6280a3`, and the close-out | Docs only |
 | `25941cc` | **Activity naming, own comments out, five-week expiry, mention glimmer** + the RPC change | On the branch, **not pushed** |
-| *(this one)* | Record all four | Docs only |
+| `5ebd5f5` | Record all four | Docs only |
+| *(this one)* | What's live at `5ebd5f5`, and the close-out | Docs only |
