@@ -2337,10 +2337,28 @@ function compareMonthKeys(a, b) {
   return am - bm;
 }
 
+// Gates the two canonical overlays in fetchReadableCurrentState. Both REPLACE
+// blob state wholesale -- group.logs, and group.excused plus lastMonth -- so
+// they are only valid when canonical's open season IS the blob's current
+// month.
+//
+// This used to accept canonical being AHEAD (>= 0). That is precisely the
+// state a Bloc is in when its month close was skipped: the canonical rollover
+// opened the new season, the blob side was reverted and kept the old month. In
+// that window the overlays replaced a real month's logs with the new month's
+// empty ones and reported lastMonth as the new month, so a member of a skipped
+// Bloc was shown a reset month while the blob still correctly held the old
+// one. That is the "looked like they had reset" symptom from the 2026-10-01
+// close, and it also hid the fault: the app looked like it had rolled over.
+//
+// Canonical cannot legitimately lead the blob. Every syncSeasonToCanonical
+// "open" call passes group.lastMonth, so canonical follows; the sole exception
+// is the rollover itself, where both move together and only a skip leaves
+// canonical ahead. So requiring equality costs nothing and closes the window.
 function canonicalOpenMonthIsCurrentForGroup(group, canonicalMonthKey) {
   if (!canonicalMonthKey) return false;
   const groupMonthKey = group?.lastMonth || getLeagueMonthKey(group?.settings?.timeZone);
-  return compareMonthKeys(canonicalMonthKey, groupMonthKey) >= 0;
+  return compareMonthKeys(canonicalMonthKey, groupMonthKey) === 0;
 }
 
 function hasParticipationBeforeMonth(group, displayName, monthKey) {
@@ -9757,6 +9775,8 @@ export {
   shouldSkipRolloverForMissingCanonicalBloc,
   // Exported for the month-close canonical test suite.
   rebuildClosedMonthSnapshotFromCanonicalLogs,
+  // Exported so the overlay guard is pinned against the skipped-Bloc window.
+  canonicalOpenMonthIsCurrentForGroup,
   buildWorkoutLogDerivedMoments,
   resolveMemberPaceSnapshotForMonth,
   // Identity guards — exported for the display-name identity test suite.
