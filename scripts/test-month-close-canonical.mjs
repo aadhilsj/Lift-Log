@@ -26,7 +26,8 @@ globalThis.Date = class extends RealDate {
 
 const {
   rolloverGroupIfNeeded,
-  rebuildClosedMonthSnapshotFromCanonicalLogs
+  rebuildClosedMonthSnapshotFromCanonicalLogs,
+  canonicalOpenMonthIsCurrentForGroup
 } = await import("../api/lift-log.js");
 
 let failures = 0;
@@ -234,6 +235,32 @@ const nRows = (owner, n, offset = 0) => Array.from({ length: n }, (_, i) => cano
   check("new month's (empty) logs: refuses to freeze", result.ok, false);
   check("...and says which month it could not verify",
     typeof result.reason === "string" && result.reason.includes(CLOSED_KEY), true);
+}
+
+// --- 10. The read overlays must not replace a skipped Bloc's month ----------
+//
+// Both canonical overlays in fetchReadableCurrentState replace blob state
+// wholesale and are gated by canonicalOpenMonthIsCurrentForGroup. When a month
+// close is skipped the canonical rollover has opened the new season while the
+// blob kept the old month, so canonical sits AHEAD. Replacing in that window
+// swaps a real month's logs for the new month's empty ones and reports the new
+// month as current -- the "looked like they had reset" symptom of 2026-10-01,
+// which also hid the fault by making the app look rolled over.
+//
+// Canonical cannot legitimately lead: every syncSeasonToCanonical "open" call
+// passes group.lastMonth, and only a reverted rollover leaves it ahead.
+{
+  const tz = { settings: { timeZone: "UTC" } };
+  check("overlay runs when canonical and blob agree",
+    canonicalOpenMonthIsCurrentForGroup({ ...tz, lastMonth: "2026-8" }, "2026-8"), true);
+  check("skipped Bloc (canonical ahead): overlay must NOT replace",
+    canonicalOpenMonthIsCurrentForGroup({ ...tz, lastMonth: "2026-8" }, "2026-9"), false);
+  check("canonical ahead across a year boundary: still no replace",
+    canonicalOpenMonthIsCurrentForGroup({ ...tz, lastMonth: "2026-11" }, "2027-0"), false);
+  check("canonical behind the blob: unchanged, still no replace",
+    canonicalOpenMonthIsCurrentForGroup({ ...tz, lastMonth: "2026-9" }, "2026-8"), false);
+  check("no canonical open season: no replace",
+    canonicalOpenMonthIsCurrentForGroup({ ...tz, lastMonth: "2026-8" }, null), false);
 }
 
 console.log(failures === 0 ? "\nAll month-close canonical checks passed." : `\n${failures} check(s) failed.`);
