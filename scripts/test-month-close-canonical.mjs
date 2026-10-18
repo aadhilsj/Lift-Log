@@ -200,5 +200,41 @@ const nRows = (owner, n, offset = 0) => Array.from({ length: n }, (_, i) => cano
   check("no snapshot for the month: reported as skip reason", result.ok, false);
 }
 
+// --- 9. The 1 October 2026 failure: closing a month after the season flipped -
+//
+// The canonical rollover closes September and opens October BEFORE the blob
+// rollover runs. The original code fetched logs with read_ante_core_current_logs
+// ("where status = 'open'"), so by the time month close asked, the only open
+// season was the new empty one. The guard saw zero canonical rows against a
+// blob that counted workouts, correctly refused to freeze the month, and the
+// Bloc was skipped and retried on every read — 862 rollover_skipped events
+// across nine Blocs before it was caught.
+//
+// The fix (c9ce86a) was read_ante_core_logs_for_month(p_month_key), fetching by
+// month rather than by open status. Nothing in CI closed a month after the
+// season had already flipped, which is why nothing caught it. These two pin
+// both halves: fed the closing month's logs it must freeze correctly, and fed
+// the NEW month's logs it must still refuse rather than freeze a wrong number.
+{
+  // What the fix feeds it: the closing month's own logs.
+  const result = closeMonth(
+    { Aadhil: nLogs(9), Sam: nLogs(12, 100) },
+    [...nRows("Aadhil", 9), ...nRows("Sam", 12, 100)]
+  );
+  check("closing month's logs freeze correctly after the season flipped", result.ok, true);
+  check("...with the closing month's counts, not the new month's",
+    result.group.monthHistory[0].counts, { Aadhil: 9, Sam: 12 });
+}
+{
+  // What the bug fed it: the NEW month's logs, which early in the month is
+  // empty. Freezing here would wipe a real month; skipping is the only safe
+  // answer, and the skip reason must name the month so the dashboard is
+  // diagnosable rather than just noisy.
+  const result = closeMonth({ Aadhil: nLogs(107), Sam: nLogs(12, 100) }, []);
+  check("new month's (empty) logs: refuses to freeze", result.ok, false);
+  check("...and says which month it could not verify",
+    typeof result.reason === "string" && result.reason.includes(CLOSED_KEY), true);
+}
+
 console.log(failures === 0 ? "\nAll month-close canonical checks passed." : `\n${failures} check(s) failed.`);
 process.exit(failures === 0 ? 0 : 1);
