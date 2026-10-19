@@ -60,8 +60,89 @@ Unchanged by this session, restated so it is not lost:
 - **Waiting on Deveen:** scaling before launch, the RLS production rollout,
   `push_devices` missing from his migration, `fero-staging` still billing.
 
+## 6. The notification centre, checked against the founder's question (19 Oct)
+
+He asked: does the bell light up, with an accurate number, when somebody
+reacts, comments on a log, or tags you in the Stream? **Checked against the
+code and proved with a probe script. The answer is no, in three separate
+ways.** Nothing is fixed yet.
+
+The badge itself is real — `NotificationDot` in `src/pages/Nav.jsx:70` renders
+the number and caps it at `9+`. What is wrong is what gets counted.
+
+`unreadCount` (`src/lib/notificationCentre.js:349`) counts a row when its
+`when` is later than `notificationsSeenAt`. The three failures are all about
+what `when` holds, and when the data arrives.
+
+### 6.1 A reaction is dated by the WORKOUT, not by the reaction
+
+`ownLogItems` sets the reaction row's `when` to `logWhen(log)` — the workout's
+own `createdAt` (`notificationCentre.js:140`). So reacting to a workout you
+logged last week produces a row dated last week, which is older than the last
+time you opened the centre.
+
+Proved: a reaction arriving today on a log from six days ago gives a badge of
+**0**. The same reaction on a log made today gives **1**.
+
+**Effect: react to anything but a brand-new workout and the bell stays dark.**
+
+`latestReaction` already carries a timestamp (added 16 October for the emoji
+badge) but it is read only for `emoji`, never for `at`.
+
+### 6.2 A comment is dated by the workout too, until the centre is opened
+
+`when` is `latest?.createdAt || when` (`notificationCentre.js:175`), and
+`latestComments` is only fetched inside `handleOpenNotifications`
+(`src/App.jsx:2455`). Before the first open, the row falls back to the blob's
+`commentCount` and the workout's date — so it is older than `seenAt` and is
+not counted. After an open, the real comment time is known and it counts.
+
+**Effect: the first comment is missed; later ones are counted.**
+
+### 6.3 A mention can never light the bell at all
+
+`notificationStreamMessages` starts as `[]` (`src/App.jsx:448`) and is only
+filled by `listBlocStreamMessagesData` inside `handleOpenNotifications`
+(`src/App.jsx:2464`). `mentionItems` therefore has nothing to work with until
+the centre has been opened.
+
+**Effect: being tagged never produces a badge. You have to open the centre to
+discover you should have opened the centre.** This is the worst of the three
+and it is unconditional.
+
+### 6.4 Also true, and smaller
+
+`notificationsSeenAt` lives in `localStorage` (`src/App.jsx:438`), so "seen"
+is per browser and per device. A new phone counts everything as unread.
+
+### 6.5 The mention glimmer outlines the whole row, not the bubble
+
+Reported by the founder with a screenshot. The glow is applied to the row
+wrapper `div` in `src/pages/BlocStream.jsx:1385` — the element that wraps the
+avatar, the name, the bubble, the reaction chip and the timestamp. So the
+outline is drawn around all of it.
+
+He wants it on the message bubble only: the inner `div` at
+`src/pages/BlocStream.jsx:334` (`borderRadius: radius`, radius 18).
+
+Note for whoever fixes it: the current code uses `outline` with
+`outlineOffset` deliberately, and says why in a comment — padding moved the
+message *after* the list had scrolled to it, leaving it clipped under the
+header. Keep `outline`; do not reach for padding or a border. Also note the
+glow currently sits on the shared wrapper used by every message type, so
+moving it into `TextBubble` covers text messages only.
+
+### 6.6 How this was checked
+
+A probe script built fixtures through `buildNotifications` and read
+`unreadCount` back, for each of the three cases, before and after the centre
+is opened. Read-only, in the scratchpad, not added to the repo. **No test in
+the repo covers `unreadCount` at all** — `scripts/test-notification-badge.mjs`
+only covers which emoji the badge shows.
+
 ## 5. Commits this session
 
 | Commit | What | Live |
 | --- | --- | --- |
-| *(this one)* | Open this handover, record the 18 October work in `WHATS-LIVE.md` and the index | Docs only |
+| `817836c` | Open this handover, record the 18 October work in `WHATS-LIVE.md` and the index | Docs only |
+| *(this one)* | Record the three notification-badge faults and the glimmer target. **Findings only — nothing fixed** | Docs only |
