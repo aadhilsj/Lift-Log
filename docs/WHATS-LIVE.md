@@ -4,8 +4,37 @@
 Update it whenever something ships. Same filename forever — never date it, never
 fork it. If it disagrees with a handover, this file wins.
 
-Last updated: **16 October 2026** — the **newest emoji badges the row**, at
-`2b54000`. A reaction row in "For you" is badged with the emoji used **most
+Last updated: **19 October 2026** — a **skipped Bloc is no longer shown an
+empty month**, at `1c23241` (merged `75400bd`). When a Bloc's month close is
+skipped, the canonical side opens the new season while the blob correctly keeps
+the old month. Until this fix, the read path saw canonical as ahead and
+replaced the Bloc's real logs with the new month's empty ones, and reported the
+new month as current — so members of a skipped Bloc were shown a wiped month.
+That is the "StavanGang looked like it had reset" symptom. The read path now
+overlays only when canonical and the blob are on the **same** month. The blob
+was never corrupted by this; only what members were shown.
+
+It also means a skipped Bloc **looks** skipped rather than looking rolled over,
+so the fault is visible instead of showing only on the founder dashboard.
+
+Also on 18 October: `npm run test:month-close-canonical` now pins the
+**1 October shape** — fed the closing month's logs it freezes with the closing
+month's counts; fed the new month's empty logs it refuses and names the month
+it could not verify. Five cases in total, including the skipped-Bloc window and
+a year boundary. Nothing in CI covered this before.
+
+**Verified live at `99de67f`:** Production deployment of 19 October 10:28 UTC
+state `success`; the live site returns HTTP 200 and loads with no console
+errors. Both changes are **API and test-script side**, not the client bundle,
+so there is no bundle string to grep for them.
+
+**Not verified:** the fix has never been exercised against a Bloc that really
+skipped its close. **1 November** is the first full month close since it
+landed, and the order for that morning is the founder dashboard first, then
+`scripts/month-close-check.mjs --after`, then `npm run parity:gate`.
+
+Before that, at `2b54000`: the **newest emoji badges the row**. A reaction row
+in "For you" is badged with the emoji used **most
 recently**, not the one the most people chose. Two people pressing 💪 no longer
 drown out the 🔥 that came after them. Where that cannot be worked out — an
 older server, or canonical out of reach — it falls back to the emoji the most
