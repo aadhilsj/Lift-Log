@@ -9,7 +9,7 @@
 // available, and it must never show an emoji nobody in the row actually used.
 import assert from "node:assert/strict";
 import { normalizeLogEntry } from "../api/lift-log.js";
-import { buildNotifications } from "../src/lib/notificationCentre.js";
+import { buildNotifications, unreadCount } from "../src/lib/notificationCentre.js";
 
 const ME = "Riley";
 const MY_ID = "user-riley";
@@ -143,6 +143,74 @@ const BASE = {
   });
   assert.deepEqual(entry.reactions, { "💪": ["Jo", "Sam"] },
     "reactions still de-duplicates, drops empty emojis and drops empty lists");
+}
+
+// ── What the BELL counts, not just what the badge shows ─────────────────────
+// Added 19 October 2026. The founder asked whether the bell lights up for a
+// reaction, and it did not: a reaction row was dated by the WORKOUT, so
+// reacting to anything but a brand-new log produced a row older than the last
+// time the centre was opened, and unreadCount skipped it. Nothing here was
+// covered by a test, which is how it shipped.
+{
+  const SEEN = "2026-10-15T00:00:00.000Z";   // the last time the bell was tapped
+  const LATER = "2026-10-16T09:00:00.000Z";  // everything below happens after it
+  // A workout from BEFORE the centre was last opened. This is the case that
+  // was broken: the reaction is new, the workout is not.
+  const OLD_LOG = {
+    id: "log-old", date: "2026-10-10", type: "Gym",
+    createdAt: "2026-10-10T06:00:00.000Z", verifiedVia: "photo"
+  };
+  const countFor = log => unreadCount(buildNotifications({
+    group: blocWith(log), currentUser: ME, currentUserId: MY_ID,
+    reminderCards: [], formatAmount: n => `$${n}`
+  }), SEEN);
+
+  assert.equal(countFor({
+    ...OLD_LOG,
+    reactions: { "🔥": ["Jo"] },
+    latestReaction: { emoji: "🔥", at: LATER }
+  }), 1, "a reaction arriving after the last open counts, even on an older workout");
+
+  // The row carries the reaction's time, so "today" is what the row reads and
+  // Today/This week/Earlier puts it in the right section.
+  const row = buildNotifications({
+    group: blocWith({ ...OLD_LOG, reactions: { "🔥": ["Jo"] }, latestReaction: { emoji: "🔥", at: LATER } }),
+    currentUser: ME, currentUserId: MY_ID, reminderCards: [], formatAmount: n => `$${n}`
+  }).find(item => item.kind === "reaction");
+  assert.equal(row.when, LATER, "the reaction row is dated by the reaction");
+
+  // Without a usable timestamp there is nothing better than the workout's own
+  // time. This is the documented limit, not an accident: an older server or a
+  // log canonical did not reach still produces a row, it just cannot date it.
+  assert.equal(countFor({
+    ...OLD_LOG,
+    reactions: { "🔥": ["Jo"] }
+  }), 0, "no latestReaction timestamp falls back to the workout's time");
+
+  assert.equal(countFor({
+    ...OLD_LOG,
+    reactions: { "🔥": ["Jo"] },
+    latestReaction: { emoji: "🔥", at: "not a date" }
+  }), 0, "an unparseable timestamp falls back rather than throwing");
+
+  // Your own reaction must not light your own bell. Only Jo's 🔥 belongs to
+  // somebody else, so a newest-emoji of 💪 — which only Riley used — is not
+  // trusted to date the row.
+  assert.equal(countFor({
+    ...OLD_LOG,
+    reactions: { "🔥": ["Jo"], "💪": [ME] },
+    latestReaction: { emoji: "💪", at: LATER }
+  }), 0, "your own reaction being the newest does not date the row");
+
+  // A reaction older than the last open is not news.
+  assert.equal(countFor({
+    ...OLD_LOG,
+    reactions: { "🔥": ["Jo"] },
+    latestReaction: { emoji: "🔥", at: "2026-10-12T08:00:00.000Z" }
+  }), 0, "a reaction from before the last open is not counted");
+
+  // A log nobody reacted to produces no row at all, so nothing to count.
+  assert.equal(countFor(OLD_LOG), 0, "a log with no reactions produces no row");
 }
 
 console.log("All notification badge checks passed.");

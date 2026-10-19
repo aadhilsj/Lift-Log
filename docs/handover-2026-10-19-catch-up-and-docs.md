@@ -140,9 +140,87 @@ is opened. Read-only, in the scratchpad, not added to the repo. **No test in
 the repo covers `unreadCount` at all** — `scripts/test-notification-badge.mjs`
 only covers which emoji the badge shows.
 
+## 7. Fault 6.1 fixed — a reaction is dated by the reaction (19 Oct)
+
+**The first of the three is fixed and tested. The other two are not, and the
+reason is in §8.**
+
+`ownLogItems` now dates a reaction row by `log.latestReaction.at` — the
+timestamp that already arrives beside the emoji — instead of by the workout's
+own `createdAt`. `unreadCount` compares that against `notificationsSeenAt`, so
+a reaction arriving today on a workout from last week now counts.
+
+Measured with a probe before and after, same fixture: **badge 0 before, badge
+1 after.**
+
+**The guard that matters.** The timestamp is only trusted when the newest
+emoji is one somebody *else* used — the same `usableNewest` condition the
+badge emoji already used, now shared. If the most recent reaction is your own,
+the row falls back to the workout's time, because dating it by your own
+reaction would light your own bell. A missing or unparseable timestamp falls
+back the same way, which is the older-server and canonical-out-of-reach case.
+
+**No new reads.** `latestReaction` has been on every log since 16 October;
+this only stops throwing its `at` away.
+
+**Tests.** `scripts/test-notification-badge.mjs` previously covered only which
+emoji the badge shows — `unreadCount` had no test at all, which is how this
+shipped. Seven cases added: the reaction on an older log counts; the row
+carries the reaction's time; no timestamp falls back; an unparseable timestamp
+falls back rather than throwing; your own newest reaction does not date the
+row; a reaction from before the last open is not counted; a log with no
+reactions produces no row.
+
+**Verified:** `npm run lint` clean, `npm run build` clean, **25 of 27 suites
+pass**. The two failures are `test:auth-edge-flows` and
+`test:mobile-navigation`, the known pair that needs the app served on port
+3000 and that fails on `main` too.
+
+**Files changed:** `src/lib/notificationCentre.js`,
+`scripts/test-notification-badge.mjs`. Nothing else was modified.
+
+## 8. Faults 6.2 and 6.3 need one database function — not yet written
+
+Both were traced to the same root cause: **the data is not on the device until
+the centre is opened.**
+
+- A log carries `commentCount` and nothing else — **there is no comment
+  timestamp in the blob at all** (`normalizeLogEntry`, `api/lift-log.js:1676`).
+  The real one only exists after `read_ante_core_workout_log_latest_comments`
+  runs, which happens on open.
+- Stream messages are fetched in exactly two places: the Stream screen, and
+  `handleOpenNotifications`. Neither runs before the bell is tapped, so
+  `mentionItems` has nothing to read.
+
+So neither can be fixed on the client with what is already there. The options
+were weighed against §20 of Deveen's handover, which is explicit that the
+per-refresh read path must get lighter, not heavier:
+
+| Option | Verdict |
+| --- | --- |
+| Fetch comments and stream messages on every refresh | **No.** Two extra calls per refresh per phone, against the one item that blocks launch |
+| localStorage count-delta on the blob's `commentCount` | **No.** It counts your own comments, which 16 October deliberately removed |
+| Extend the stream-unread call the app **already makes** on refresh | **Recommended** |
+
+`read_ante_core_bloc_stream_unread_count`
+(`supabase/migrations/20260719065836_add_bloc_stream_unread_count.sql`) is
+already called once per refresh and already resolves the bloc, the profile and
+the last-read time. `bloc_messages.mentions` is a `uuid[]` of profile ids, so
+a mention count is `v_profile_id = any(m.mentions)` on the rows it already
+scans. A comment count since a given time is the same shape against the
+comments table.
+
+That makes the bell correct for all three at **no extra round trip** — the one
+call returns three numbers instead of one.
+
+**Not done, and deliberately not started:** it is a new read-only function on
+production, and `CLAUDE.md` §4 says to say what is about to run before running
+it. Waiting on the founder.
+
 ## 5. Commits this session
 
 | Commit | What | Live |
 | --- | --- | --- |
 | `817836c` | Open this handover, record the 18 October work in `WHATS-LIVE.md` and the index | Docs only |
-| *(this one)* | Record the three notification-badge faults and the glimmer target. **Findings only — nothing fixed** | Docs only |
+| `03fd580` | Record the three notification-badge faults and the glimmer target. Findings only | Docs only |
+| *(this one)* | **Fault 6.1 fixed** — a reaction row is dated by the reaction, with seven tests | **On `main`, live** |

@@ -125,17 +125,35 @@ function ownLogItems(group, currentUser, userIdFor, latestComments, latestCommen
       // Only your own reaction being the newest is not worth badging: every
       // reactor shown here is somebody else, so the badge must be one of
       // theirs. Falling back keeps the row about them.
-      const badgeEmoji = newestEmoji && reactors.some(r => r.emoji === newestEmoji)
-        ? newestEmoji
-        : mostChosen;
+      const usableNewest = newestEmoji && reactors.some(r => r.emoji === newestEmoji);
+      const badgeEmoji = usableNewest ? newestEmoji : mostChosen;
+      // The row is dated by the REACTION, not by the workout.
+      //
+      // It used to be dated by the workout, which made the bell useless for
+      // this: unreadCount compares the row's `when` against the last time the
+      // centre was opened, so a reaction arriving today on a log from last
+      // week was filed as last week's news and never counted. Reacting to
+      // anything but a brand-new workout left the bell dark.
+      //
+      // `latestReaction.at` is the timestamp that already comes down beside
+      // the emoji (normalizeLatestReaction in api/lift-log.js). It is only
+      // trusted when `usableNewest` says the newest emoji is one somebody
+      // ELSE used: when the most recent reaction is your own, that timestamp
+      // is yours, and dating the row by it would light your own bell. In that
+      // case, and whenever the timestamp is missing or unparseable — an older
+      // server, canonical out of reach — it falls back to the workout's own
+      // time, exactly as before.
+      const reactedAt = usableNewest && Number.isFinite(Date.parse(log?.latestReaction?.at || ""))
+        ? log.latestReaction.at
+        : when;
       items.push({
         id: `reaction:${log.id}`,
         kind: "reaction",
         badge: badgeEmoji,
         people: unique.slice(0, 2).map(name => ({ name, userId: userIdFor(name) })),
         title: `${nameList(unique)} reacted to ${describeWorkout(log)}`,
-        meta: shortWhen(when),
-        when,
+        meta: shortWhen(reactedAt),
+        when: reactedAt,
         thumbPhotoUrl,
         thumbType,
         opens: "activity",
