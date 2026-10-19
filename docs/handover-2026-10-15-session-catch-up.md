@@ -1,6 +1,8 @@
 # Handover — 15–16 October 2026 (session 3): catch-up, then the notification centre
 
-**Status: CLOSED.** Claude, operating. **This is a live handover: it is updated as
+**Status: CLOSED.** Corrected 19 October: the one item this close-out left
+open — the most-recent-emoji badge — shipped on 16 October. Everything the
+founder raised about "For you" between 15 and 16 October is live. Claude, operating. **This is a live handover: it is updated as
 the session goes, not written at the end.** The newest entry in §2 is the most
 recent thing that happened.
 
@@ -570,7 +572,7 @@ Website only — TestFlight is still build 10.
 
 **What is open:**
 
-- The badge is the **most-chosen** emoji, not the most recent (§2.8).
+- ~~The badge is the **most-chosen** emoji, not the most recent~~ — shipped on 16 October at `2b54000`; see the close-out.
 - **@mentions inside a comment thread** — the last unbuilt piece of the
   concept.
 - The new function's results have **never been drawn from real comments**.
@@ -697,8 +699,11 @@ open, check that before trusting it.
 
 **What is open:**
 
-- The badge is the **most-chosen** emoji, not the most recent — a separate
-  session is on it (§2.8, §2.12).
+- ~~The badge is the **most-chosen** emoji, not the most recent~~ — **done and
+  live on 16 October at `2b54000`**, by the session this one started. The
+  emoji most recently used now badges the row, falling back to the most-chosen
+  one when there is no newer answer. See
+  [`handover-2026-10-16-latest-reaction-emoji.md`](handover-2026-10-16-latest-reaction-emoji.md).
 - **@mentions inside a comment thread** — the last unbuilt piece of the
   concept.
 - Neither new function's results have been **drawn from real comments**; the
