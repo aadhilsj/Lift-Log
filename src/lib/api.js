@@ -880,11 +880,27 @@ async function listBlocStreamMessagesData(groupId, limit = 100) {
   return { ok:true, messages: Array.isArray(result.body?.messages) ? result.body.messages : [] };
 }
 
-async function getBlocStreamUnreadCountData(groupId) {
-  const result = await postApi("stream-unread-count", { groupId });
-  if (!result.ok) return { ok:false, error: result.error || "Unable to load unread count", unreadCount: 0 };
-  const unreadCount = Number(result.body?.unreadCount || 0);
-  return { ok:true, unreadCount: Number.isFinite(unreadCount) ? Math.max(0, unreadCount) : 0 };
+// `since` is when the notification centre was last opened. It is what the
+// mention and comment counts are measured from; the Stream's own unread count
+// ignores it and uses the Stream's read marker, as it always has.
+//
+// An older server answers with unreadCount alone. The two new numbers are
+// then absent, not zero, and come back as null so the caller can tell "this
+// server cannot say" apart from "there is nothing".
+async function getBlocStreamUnreadCountData(groupId, since = "") {
+  const result = await postApi("stream-unread-count", { groupId, since });
+  if (!result.ok) return { ok:false, error: result.error || "Unable to load unread count", unreadCount: 0, mentionCount: null, logCommentCount: null };
+  const whole = value => {
+    const n = Number(value);
+    return Number.isFinite(n) ? Math.max(0, Math.trunc(n)) : 0;
+  };
+  const has = name => result.body?.[name] !== undefined && result.body?.[name] !== null;
+  return {
+    ok: true,
+    unreadCount: whole(result.body?.unreadCount || 0),
+    mentionCount: has("mentionCount") ? whole(result.body.mentionCount) : null,
+    logCommentCount: has("logCommentCount") ? whole(result.body.logCommentCount) : null
+  };
 }
 
 async function sendBlocStreamMessageData(payload) {

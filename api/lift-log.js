@@ -3414,6 +3414,43 @@ async function readBlocStreamUnreadCountFromCanonical(legacyGroupKey, authUserId
   return Number.isFinite(Number(value)) ? Number(value) : 0;
 }
 
+// The three numbers behind the bell, in the one call the app already makes
+// per refresh. Returns null when the function is not on this database yet, so
+// the caller can fall back to the unread count on its own - the badge then
+// behaves exactly as it did before, rather than the screen breaking.
+//
+// Null is "could not ask", never "nothing to report". Zero rows is a real
+// answer and comes back as zeroes.
+async function readNotificationCountsFromCanonical(legacyGroupKey, authUserId, sinceIso) {
+  let response;
+  try {
+    response = await supabaseFetch("/rest/v1/rpc/read_ante_core_notification_counts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({
+        p_legacy_group_key: legacyGroupKey,
+        p_auth_user_id: authUserId,
+        p_since: sinceIso || null
+      })
+    });
+  } catch {
+    return null;
+  }
+  if (!response?.ok) return null;
+  let value;
+  try { value = await response.json(); } catch { return null; }
+  if (!value || typeof value !== "object") return null;
+  const whole = name => {
+    const n = Number(value[name]);
+    return Number.isFinite(n) ? Math.max(0, Math.trunc(n)) : 0;
+  };
+  return {
+    streamUnread: whole("streamUnread"),
+    mentions: whole("mentions"),
+    logComments: whole("logComments")
+  };
+}
+
 async function sendBlocStreamMessageToCanonical(legacyGroupKey, authorAuthUserId, body, replyTo = null, mentions = []) {
   const response = await supabaseFetch("/rest/v1/rpc/send_ante_core_bloc_message", {
     method: "POST",
@@ -10003,6 +10040,21 @@ export default async function handler(req, res) {
 
       if (payload?.action === "stream-unread-count") {
         const authUser = await fetchAuthenticatedUser(readBearerToken(req, payload));
+        // One call, three numbers: the Stream icon's unread count as before,
+        // plus the two the bell could never work out for itself - how many of
+        // those messages tag you, and how many new comments are on your own
+        // logs. `since` is the client's last-opened-the-bell time.
+        const counts = await readNotificationCountsFromCanonical(payload.groupId, authUser.id, payload.since);
+        if (counts) {
+          return res.status(200).json({
+            ok: true,
+            unreadCount: counts.streamUnread,
+            mentionCount: counts.mentions,
+            logCommentCount: counts.logComments
+          });
+        }
+        // The function is not on this database yet. Answer the original
+        // question the original way; the badge is then what it was before.
         const unreadCount = await readBlocStreamUnreadCountFromCanonical(payload.groupId, authUser.id);
         return res.status(200).json({ ok: true, unreadCount });
       }

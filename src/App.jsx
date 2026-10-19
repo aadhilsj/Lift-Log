@@ -446,6 +446,22 @@ const App = () => {
   // commented", which is only believable once we know we asked.
   const [notificationLatestCommentsLoaded,setNotificationLatestCommentsLoaded]=useState(false);
   const [notificationStreamMessages,setNotificationStreamMessages]=useState([]);
+  // What the SERVER says is waiting for you: how many of the Stream's unread
+  // messages tag you, and how many new comments are on your own logs. The
+  // client cannot work either out before the centre is opened — the messages
+  // and the comment times are not on the device until then — so without these
+  // a tag never lit the bell at all, and the first comment on a log was
+  // missed. They ride along on the unread-count call the app already makes
+  // once per refresh, so they cost no extra round trip.
+  //
+  // null means "this server cannot say" (the function is not applied yet),
+  // which is not the same as zero and must not be added to the badge.
+  const [notificationServerCounts,setNotificationServerCounts]=useState({mentions:null,logComments:null});
+  // The last-opened time as a ref as well as state: the refresh callback reads
+  // it without taking it as a dependency, so opening the bell does not rebuild
+  // the callback and fire an extra request.
+  const notificationsSeenAtRef=useRef(notificationsSeenAt);
+  useEffect(()=>{ notificationsSeenAtRef.current=notificationsSeenAt; },[notificationsSeenAt]);
   const [streamFocusBlocId,setStreamFocusBlocId]=useState(null);
   // The Stream message a mention row points at, so the Stream can land on it.
   const [streamFocusMessageId,setStreamFocusMessageId]=useState("");
@@ -2075,10 +2091,16 @@ const App = () => {
   const refreshStreamUnreadCount = useCallback(async(groupId = selectedGroupId) => {
     if (!groupId || !effectiveAuthSession?.userId) {
       setStreamUnreadCount(0);
+      setNotificationServerCounts({mentions:null,logComments:null});
       return;
     }
-    const result = await getBlocStreamUnreadCountData(groupId);
-    if (result?.ok) setStreamUnreadCount(result.unreadCount);
+    const result = await getBlocStreamUnreadCountData(groupId, notificationsSeenAtRef.current);
+    if (result?.ok) {
+      setStreamUnreadCount(result.unreadCount);
+      // Absent, not zero, on a server without the function: keep null so the
+      // badge falls back to what the client can work out by itself.
+      setNotificationServerCounts({mentions:result.mentionCount, logComments:result.logCommentCount});
+    }
   },[effectiveAuthSession?.userId, selectedGroupId]);
   const handleOpenStream = useCallback(() => {
     setStreamFocusBlocId(null);
@@ -2434,12 +2456,33 @@ const App = () => {
     latestCommentsLoaded: notificationLatestCommentsLoaded,
     streamMessages: notificationStreamMessages
   }), [currentGroup, currentUser, effectiveAuthSession?.userId, notificationReminderCards, notificationLatestComments, notificationLatestCommentsLoaded, notificationStreamMessages]);
-  const notificationCount = notificationUnreadCount(notificationItems, notificationsSeenAt);
+  // What the client can see for itself: reactions (the log carries the
+  // reaction's own timestamp) and money.
+  //
+  // The server's two numbers are ADDED rather than merged, and that cannot
+  // double-count. Before the centre has been opened the client holds no
+  // comment times and no stream messages, so those rows contribute nothing.
+  // After it is opened, `notificationsSeenAt` is set to that moment and every
+  // row then fetched is older than it, so they contribute nothing either.
+  // Either way the client side of the sum is reactions and money only.
+  const notificationCount = notificationUnreadCount(notificationItems, notificationsSeenAt)
+    + Math.max(0, Number(notificationServerCounts.mentions) || 0)
+    + Math.max(0, Number(notificationServerCounts.logComments) || 0);
   const handleOpenNotifications = () => {
     trackUsage("notifications_opened");
     const now = new Date().toISOString();
     setNotificationsSeenAt(now);
+    notificationsSeenAtRef.current = now;
     try { localStorage.setItem("fero_notifications_seen_v1", now); } catch { /* per-browser convenience only */ }
+    // Clear the server's two numbers here rather than waiting for the next
+    // refresh to say zero: the badge goes out as the panel opens, and no
+    // extra request is made to prove it. The next refresh confirms it, now
+    // measuring from `now`.
+    setNotificationServerCounts(current => (
+      current.mentions === null && current.logComments === null
+        ? current
+        : { mentions: current.mentions === null ? null : 0, logComments: current.logComments === null ? null : 0 }
+    ));
     setShowNotifications(true);
     // The panel opens immediately on what the client already knows; the comment
     // text and the mentions fill in behind it. Two batched calls per opening,

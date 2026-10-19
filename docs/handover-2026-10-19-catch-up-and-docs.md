@@ -217,10 +217,111 @@ call returns three numbers instead of one.
 production, and `CLAUDE.md` §4 says to say what is about to run before running
 it. Waiting on the founder.
 
+## 9. The counts function — written, NOT applied, NOT run anywhere
+
+**Read this before anything else in this section: the SQL has never been
+executed. Not on production, not on staging, not locally.** This session has
+no way to reach a database.
+
+### 9.1 Why it could not be run
+
+| Route | State |
+| --- | --- |
+| Supabase MCP (`execute_sql` / `apply_migration`, what `CLAUDE.md` §12 names) | **Not connected to this session.** Checked the session's connectors: Claude Docs, Gmail, Figma, Notion, Google Calendar, Google Drive, scheduled-tasks. No Supabase |
+| `supabase` CLI | not installed |
+| `psql` | not installed |
+| Local Postgres on 54322 | nothing listening |
+| Docker | not installed |
+| A Postgres client in `node_modules` | none |
+| `.env.local` | has `SUPABASE_URL` and the service key, but **no database connection string** — and PostgREST cannot run DDL |
+
+So the migration is written and reviewed, and that is all. Whoever applies it
+should treat it as unexecuted code.
+
+### 9.2 What it is
+
+`supabase/migrations/20261019120000_add_notification_counts.sql` —
+`read_ante_core_notification_counts(text, text, text)`, returning
+`{ streamUnread, mentions, logComments }`.
+
+It exists because the app **already calls**
+`read_ante_core_bloc_stream_unread_count` once per refresh, and that call
+already resolves the bloc, the profile and the last-read marker. The two
+missing numbers come off rows it is already positioned to scan, so the bell
+becomes correct at **no extra round trip** — which is the only shape §20 of
+Deveen's handover permits.
+
+Written against the real schema, not from memory:
+
+- `bloc_messages.mentions` is `uuid[]` of **profile** ids
+  (`20260719023832_add_bloc_stream_backend.sql:15`) — the client only sees
+  auth user ids because the stream read converts them on the way out. So the
+  predicate is `v_profile_id = any(m.mentions)`.
+- Own comments are excluded with
+  `c.commenter_profile_id is distinct from v_profile_id`, copied from
+  `20261016090000_latest_comments_exclude_your_own.sql:67`.
+- A log is yours by `ante_core.workout_logs.profile_id`
+  (`20260606234412_create_ante_core_canonical_schema.sql:243`).
+- Both moderation filters match the sibling readers.
+- `streamUnread` repeats the existing rule exactly, so the Stream icon cannot
+  start disagreeing with itself.
+- A bad `p_since` is caught and treated as null rather than becoming
+  `-infinity`, which would light the bell with every message the Bloc has
+  ever sent.
+
+**The old function is left in place and unchanged.** It still drives the
+Stream icon, and leaving it is what makes the rollback a single
+`drop function`.
+
+**Grants** follow the house pattern: revoked from `public`, `anon` and
+`authenticated`, granted to `service_role` only. **Unverified against a live
+database**, like everything else here.
+
+### 9.3 The code around it — written, verified as far as it can be
+
+- `api/lift-log.js`: `readNotificationCountsFromCanonical` calls the new
+  function and **returns null when it is not there**, so the handler falls
+  back to the old unread count. Null is "could not ask"; zero rows is a real
+  answer and comes back as zeroes — the distinction `CLAUDE.md` §6 insists on.
+- `src/lib/api.js`: the two new numbers come back as **null, not 0**, from a
+  server that does not have the function.
+- `src/App.jsx`: the badge adds the server's two numbers to what the client
+  works out for itself. **This cannot double-count:** before the centre is
+  opened the client holds no comment times and no stream messages, so those
+  rows contribute nothing; after it is opened `notificationsSeenAt` is that
+  moment and every row then fetched is older than it, so they contribute
+  nothing either. The client side of the sum is always reactions and money.
+- The badge is cleared optimistically on open, so it goes out with the panel
+  and no extra request is made to prove it.
+- The last-opened time is also held in a ref, so the refresh callback reads it
+  without taking it as a dependency — opening the bell does not rebuild the
+  callback and fire an extra request.
+
+**Verified:** `npm run lint` clean, `npm run build` clean, the full suite at
+its known baseline — 25 of 27, the two failures being the port-3000 pair that
+fails on `main` too.
+
+**Not verified, and cannot be from here:** every line of the SQL, the grants,
+and the whole path from the button to the number. **Nothing in §9 has ever
+run.**
+
+### 9.4 Deliberately not pushed
+
+Committed locally and **left unpushed**. `CLAUDE.md` says schema changes go
+first, and this schema change has not been applied. The code is safe either
+way — without the function the badge behaves exactly as it does today — but
+shipping it would put a dormant feature on production and call it done.
+
+**To finish it:** apply the migration, then push. The moment the function
+exists the code starts using it with no further deploy. After applying, check
+the object exists, that `anon` and `authenticated` cannot execute it, and that
+row counts are unchanged.
+
 ## 5. Commits this session
 
 | Commit | What | Live |
 | --- | --- | --- |
 | `817836c` | Open this handover, record the 18 October work in `WHATS-LIVE.md` and the index | Docs only |
 | `03fd580` | Record the three notification-badge faults and the glimmer target. Findings only | Docs only |
-| *(this one)* | **Fault 6.1 fixed** — a reaction row is dated by the reaction, with seven tests | **On `main`, live** |
+| `e387b2c` | **Fault 6.1 fixed** — a reaction row is dated by the reaction, with seven tests | **On `main`, live** |
+| *(this one)* | The counts function and its wiring for faults 6.2 and 6.3 | **Local only — not pushed, SQL not applied** |
