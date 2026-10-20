@@ -531,6 +531,39 @@ The useful next move is Deveen seeing §12.2, not a green tick from staging.
 
 Staging `fero-staging` is `ACTIVE_HEALTHY` and still billing.
 
+### 12.5 A second migration written to close the gap — not applied
+
+`supabase/migrations/20261020150000_enable_rls_on_remaining_server_only_tables.sql`
+
+**A separate file, deliberately.** Deveen's September migration is his and he
+is mid-rollout with a captured baseline; editing it underneath him would
+invalidate his comparison and break `CLAUDE.md` §5. This one is additive and
+can be reviewed, reordered or dropped on its own.
+
+It does two things:
+
+1. **`push_devices`** — guarded by an existence check, the same shape his file
+   uses for the September backup table.
+2. **Sweeps `backup_*` in `ante_core`** rather than naming the five. Naming
+   them is what failed the first time: the list is right the day it is written
+   and wrong at the next data fix, because every production data change takes
+   a backup first (§4). The sweep is idempotent, and re-running it after the
+   next backup covers that one too — that is the intended maintenance, and it
+   is written in the file.
+
+**Verified read-only on production before committing:** the pattern selects
+exactly six tables — the five, plus
+`backup_bloc_message_solo_note_2026_09_18`, which his file also covers. That
+overlap is harmless: whichever runs first enables it, and the
+`relrowsecurity = false` filter makes the other skip it.
+
+**His 8 + `push_devices` + the sweep = all 14.** With both applied, his
+zero-rows check finally returns nothing.
+
+**NOT APPLIED — not to staging, not to production.** The RLS rollout stays
+Deveen's, and nothing here should move until his comparison comes back. The
+file exists so he receives a fix rather than a problem.
+
 ## 5. Commits this session
 
 | Commit | What | Live |
@@ -542,4 +575,5 @@ Staging `fero-staging` is `ACTIVE_HEALTHY` and still billing.
 | `2099e2c` | The migration applied to production and verified; the wrong comment corrected | **Live** |
 | `affd9c6` | Close out the badge work | Docs only |
 | `08b4793` | The mention glimmer moved onto the bubble | **Live** |
-| *(this one)* | Deveen's staging RLS task checked — not run; 6 production tables uncovered | Docs only |
+| `9d6681d` | Deveen's staging RLS task checked — not run; 6 production tables uncovered | Docs only |
+| *(this one)* | A second migration covering the six. **Not applied anywhere** | Not applied |
