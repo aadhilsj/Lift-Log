@@ -564,6 +564,75 @@ zero-rows check finally returns nothing.
 Deveen's, and nothing here should move until his comparison comes back. The
 file exists so he receives a fix rather than a problem.
 
+## 13. App Store screenshots — a clean demo Bloc staged (20 Oct)
+
+Founder's call: do the screenshot work now, leave the TestFlight build until
+last because Xcode is on his other laptop, which he has access to.
+
+### 13.1 The demo Bloc
+
+**Sunday Warriors**, five members — Tariq, Hana, Noah, Eli, Leo — reusing the
+cast already on the marketing site, so the website and the listing agree. **No
+real member names, faces or data anywhere**, which the runbook requires.
+
+Staged as sandbox data only (`.sandbox-data/blob.json`). **No application code
+was changed for any of this.**
+
+On his instruction: **no proration, no Solo, no Training Wheels.** A clean
+Bloc, established in January, target 12, on day 20 of 31:
+
+| | Logged | Status |
+| --- | --- | --- |
+| Tariq | 14 | CLEARED |
+| Hana | 11 | CRUISING |
+| Noah | 8 | ON TRACK |
+| Eli | 4 | BEHIND |
+| Leo | 2 | BEHIND |
+
+### 13.2 Four things that had to come off the screen first
+
+1. **A hardcoded demo settlement card** — "Isira says they paid you, $20".
+   From `buildSettlementPreviewCards` (`src/lib/appState.js:1134`), gated by
+   `settlementConfirmationsPreviewMode`, which the API sets from
+   `ENABLE_SETTLEMENT_CONFIRMATIONS_PREVIEW` — **`true` in `.env.local`**. Run
+   the sandbox with it `false`. `.env.local` was not edited.
+2. **"Finish setup — 3 things need review"** — `group.setupReview.pending`.
+3. **Training Wheels**, which also lives per-member in `group.training`,
+   `trainingDecisions` and `solo` — keyed by display name, so a rename has to
+   cover them or it silently persists.
+4. **"PRORATED" on every row.** Not `seasonOverrides` (empty) and not the
+   settings flag. It is `membership.joinedAt`: with no join date the app infers
+   the member joined this month and prorates. Fixed by giving every membership
+   a January `joinedAt` and a matching `joinedMonthByName`.
+
+### 13.3 The founder's status bug, narrowed — NOT fixed
+
+He flagged that a member on 3 of 12 with 12 days left showed **CRUISING**,
+and said it is a bug. Agreed, and this narrows it: **it only happened on the
+prorated path.** With proration off the same shape reads BEHIND correctly.
+
+So the suspect is the prorated branch in `src/pages/TodayPage.jsx:199-205` —
+`expected = Math.floor((activeTarget / proratedDays) * daysActive)` feeding
+`resolvePaceStatus`, rather than `getStatus` on the plain path.
+
+**Deliberately not fixed.** It is outside the screenshot task and he has not
+asked for it. Logged here so it is not lost.
+
+### 13.4 What still cannot be shot here
+
+- **The Bloc Stream** — `scripts/sandbox.mjs` has no Stream support at all, so
+  it renders "No messages yet".
+- **A finished month** — the sandbox cannot close one. The month-close safety
+  check refuses because the sandbox answers every canonical read with nothing:
+  `canonical logs empty for 2026-7 while blob counted 30`. That check is
+  correct; the sandbox is the limitation.
+- **The final capture itself.** The "Local test identity" bar shows on
+  localhost. It **cannot reach the native build** — `isLocalDevEnvironment()`
+  in `src/lib/api.js:77` returns false for `capacitor://`, the fix made after
+  it leaked into TestFlight build 1 — but it means today's frames are drafts.
+
+All three land on the Xcode laptop, with the build.
+
 ## 5. Commits this session
 
 | Commit | What | Live |
@@ -576,4 +645,5 @@ file exists so he receives a fix rather than a problem.
 | `affd9c6` | Close out the badge work | Docs only |
 | `08b4793` | The mention glimmer moved onto the bubble | **Live** |
 | `9d6681d` | Deveen's staging RLS task checked — not run; 6 production tables uncovered | Docs only |
-| *(this one)* | A second migration covering the six. **Not applied anywhere** | Not applied |
+| `409a8a2` | A second migration covering the six. **Not applied anywhere** | Not applied |
+| *(this one)* | The demo Bloc staged and four draft screenshots; the status bug narrowed | Docs only |
