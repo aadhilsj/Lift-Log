@@ -411,6 +411,64 @@ Not addressed; it is real per-user read state, which is database work.
 shows the outline around the whole message row rather than the bubble. The
 target and the reason the current code uses `outline` are recorded there.
 
+## 11. The mention glimmer now hugs the bubble — 20 October
+
+The founder's screenshot showed the shimmer boxing the whole message row.
+Cause: the outline sat on the row wrapper in `src/pages/BlocStream.jsx`, the
+element that holds the avatar, the name, the bubble, the reaction chip and the
+timestamp. It is the full width of the list, so it boxed all of it.
+
+**The fix.** The glow moves onto the bubble itself — the inner div in
+`TextBubble`, `borderRadius` 18. `wrap` takes a `glowInside` flag so a text
+message draws its own and the wrapper draws none.
+
+**The cards keep the row-level glow.** System, event and log-comment cards
+have no bubble to put it on, so they are untouched and look as they did.
+Mentions only ever land on text messages — `mentions` is set by
+`send_ante_core_bloc_message`, which is the text path — so in practice the
+bubble version is the one that runs.
+
+**Still an `outline`, deliberately.** The original comment explains why and it
+still applies: an outline is drawn outside the box and changes no layout, so
+it cannot move the message after the list has already scrolled to it. Padding
+was tried once and left the message clipped under the header. `outlineOffset`
+drops from 4 to 2 because it is now hugging a bubble rather than standing off
+a whole row.
+
+**Untouched:** `messageNodeRefs`, the scroll anchoring, the 2-second clear,
+and every size, padding and radius in the Stream.
+
+### 11.1 How it was checked, and what that does not cover
+
+**The sandbox cannot show this.** `scripts/sandbox.mjs` has no Stream support
+at all — zero references to `stream-list`, `stream-send` or `bloc_messages` —
+so the Bloc Stream cannot be driven there and the glimmer cannot be triggered.
+`npm run sandbox:seed` also stops early, at the August month close.
+
+So it was checked with a **faithful side-by-side of the two states at 375px**,
+built by copying the style values verbatim out of `BlocStream.jsx`. It
+reproduces the founder's screenshot in the "before" and shows the outline
+hugging the bubble in the "after". That proves the CSS, **not the live
+component**.
+
+**Not verified:** the real thing, on a real mention, in the real Stream. Same
+gap as §10 and it closes the same way — a second person tagging him.
+
+**One thing to look at when it is seen for real:** the reaction chip overhangs
+the bubble's bottom edge, so it now sits slightly outside the outline where
+before it was inside the box. It reads fine in the comparison; it is the one
+detail worth his eye.
+
+### 11.2 A correction to §10's note about the test suite
+
+§10 and earlier commits repeated the handovers' line that
+`test:auth-edge-flows` and `test:mobile-navigation` fail because they need the
+app served on port 3000. **That was tested today and is not the whole reason:
+both still fail with the sandbox running on 3000.** `test:mobile-navigation`
+times out waiting for "Your Blocs" to become visible, which points at the
+incomplete seed rather than at the port. Not investigated further — outside
+today's task — but the old explanation should not be repeated as fact.
+
 ## 5. Commits this session
 
 | Commit | What | Live |
@@ -419,4 +477,6 @@ target and the reason the current code uses `outline` are recorded there.
 | `03fd580` | Record the three notification-badge faults and the glimmer target. Findings only | Docs only |
 | `e387b2c` | **Fault 6.1 fixed** — a reaction row is dated by the reaction, with seven tests | **On `main`, live** |
 | `5bfd4f1` | The counts function and its wiring for faults 6.2 and 6.3 | **Live** |
-| *(this one)* | The migration applied to production and verified; the wrong comment corrected | **Live** |
+| `2099e2c` | The migration applied to production and verified; the wrong comment corrected | **Live** |
+| `affd9c6` | Close out the badge work | Docs only |
+| *(this one)* | The mention glimmer moved onto the bubble | **Live** |

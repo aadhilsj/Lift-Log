@@ -316,7 +316,7 @@ const Reactable = ({ msg, currentUserId, onReact, onReply, nameFor, photoFor, al
 // `showName` (received only) on the first of a run, `showAvatar` on the last,
 // and `showTime` only on the last message of a same-minute cluster. Own
 // messages never show a name. The tail corner is only on the first bubble.
-const TextBubble = ({ msg, isOwn, authorName, authorPhotoUrl, nameFor, members, replyToMsg, showName, showTime, showAvatar, firstInGroup, reactionNode }) => {
+const TextBubble = ({ msg, isOwn, authorName, authorPhotoUrl, nameFor, members, replyToMsg, showName, showTime, showAvatar, firstInGroup, reactionNode, glow = false }) => {
   const nameText = !isOwn && showName ? authorName : "";
   const timeText = showTime ? formatStamp(msg.created_at) : "";
   const radius = 18;
@@ -337,7 +337,20 @@ const TextBubble = ({ msg, isOwn, authorName, authorPhotoUrl, nameFor, members, 
           border: `1px solid ${isOwn ? C.ownBorder : C.rcvBorder}`,
           borderRadius: radius,
           width: "fit-content", maxWidth: "100%", boxSizing: "border-box",
-          padding: "7px 11px", color: "var(--text)", fontSize: 14, lineHeight: 1.34, wordBreak: "break-word"
+          padding: "7px 11px", color: "var(--text)", fontSize: 14, lineHeight: 1.34, wordBreak: "break-word",
+          // Arriving from a mention: a brief shimmer on the bubble itself.
+          //
+          // outline, not padding or a border: an outline is drawn outside the
+          // box and changes no layout, so it cannot move the message after
+          // the list has already scrolled to it — the reason the row-level
+          // version used one too. The offset is tighter here because it is
+          // hugging the bubble rather than standing off a whole row.
+          ...(glow ? {
+            outline: "1px solid rgba(78,205,196,.34)",
+            outlineOffset: 2,
+            boxShadow: "0 0 18px rgba(78,205,196,.18)"
+          } : null),
+          transition: "box-shadow .45s ease, outline-color .45s ease"
         }
       },
         replyToMsg && React.createElement('div', {
@@ -1364,7 +1377,16 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, 
               // A preceding day separator already provides the gap, so drop the top margin.
               const prevHasCenteredReactions = prev && (prev.message_type === "system" || prev.message_type === "event") && Object.values(prev.reactions || {}).some(users => (users || []).length > 0);
               const marginTop = i === 0 || showDaySep ? 0 : (prevHasCenteredReactions ? 18 : (firstInGroup || !isText ? 12 : 2));
-              const wrap = child => React.createElement(React.Fragment, { key: msg.id },
+              const glowing = !!glowMessageId && String(msg.id) === glowMessageId;
+              // `glowInside` says the child draws the glow itself. A text
+              // message does: the founder asked for the shimmer on the message
+              // bubble, not around the whole row. This wrapper is the full
+              // width of the list and holds the avatar, the name, the bubble
+              // and the timestamp, so outlining it boxed all of that.
+              //
+              // The cards — system, event, log comment — have no bubble to
+              // put it on, so they keep it here and look as they always did.
+              const wrap = (child, glowInside = false) => React.createElement(React.Fragment, { key: msg.id },
                 showDaySep && React.createElement(DaySeparator, { label: dayLabel(msg.created_at) }),
                 React.createElement('div', {
                   ref: node => {
@@ -1382,7 +1404,7 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, 
                     // drawn outside the box and changes no layout. Padding here
                     // moved the message AFTER the list had already scrolled to
                     // it, which left it clipped under the header.
-                    ...(glowMessageId && String(msg.id) === glowMessageId ? {
+                    ...(glowing && !glowInside ? {
                       borderRadius: 14,
                       outline: "1px solid rgba(78,205,196,.34)",
                       outlineOffset: 4,
@@ -1408,7 +1430,7 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, 
               // Time shows on the last message of a five-minute run from this sender.
               const showTime = !(sameAuthorNext && sameFiveMinuteWindow(msg.created_at, next.created_at));
               return wrap(React.createElement(Reactable, { msg, currentUserId, onReact: handleReact, onReply: handleReply, nameFor, photoFor, align: isOwn ? "right" : "left", swipeEnabled: true, holdActions: holdActionsFor(msg) },
-                reactionNode => React.createElement(TextBubble, { msg, isOwn, authorName: nameFor(msg.author_id), authorPhotoUrl: photoFor(msg.author_id), nameFor, members: activeMembers, replyToMsg, showName: firstInGroup, showTime, showAvatar: !sameAuthorNext, firstInGroup, reactionNode })));
+                reactionNode => React.createElement(TextBubble, { msg, isOwn, authorName: nameFor(msg.author_id), authorPhotoUrl: photoFor(msg.author_id), nameFor, members: activeMembers, replyToMsg, showName: firstInGroup, showTime, showAvatar: !sameAuthorNext, firstInGroup, reactionNode, glow: glowing })), true);
             })
       ),
       // Input bar
