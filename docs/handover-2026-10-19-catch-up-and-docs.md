@@ -1,4 +1,4 @@
-# 19 October — catch-up, the folder brought current, and the 18 October record
+# 19-20 October — catch-up, the folder brought current, and the notification badge
 
 ## Plain-English summary
 
@@ -381,6 +381,35 @@ corrected. The point of the exception handler is that the function must not
 to a lit bell on a phone. Nobody has been tagged since this went live, so the
 end-to-end journey has been proved at the database and in the code, but not
 with a thumb on a screen.
+
+## 10. Shipped and live — 20 October
+
+`2099e2c` deployed, Vercel state `success`, live bundle
+`index-B_0wG8Ws.js` (was `index-BTigpeJn.js`) and it carries both
+`mentionCount` and `logCommentCount`. Live site returns HTTP 200 and loads
+with no console errors.
+
+**Two of the founder's three badge faults are now fixed and live:**
+
+| Fault | State |
+| --- | --- |
+| 6.1 A reaction did not light the bell | **Fixed and live** at `e387b2c`, client-side, no new reads |
+| 6.2 The first comment on a log was missed | **Fixed and live** at `2099e2c`, via the counts function |
+| 6.3 A Stream tag never lit the bell at all | **Fixed and live** at `2099e2c`, via the counts function |
+
+**Still open, and nobody should call the bell done until it is closed:** no
+real tag or comment has arrived since this shipped, so the journey from
+someone typing `@Aadhil` to a number appearing on a phone has been proved at
+the database and in the code but **never with a thumb on a screen**. It needs
+a second person in a Bloc. That is the one test left.
+
+**Also still open from §6.4:** "seen" is per browser, in `localStorage`. A new
+phone counts everything as unread and the bell does not agree across devices.
+Not addressed; it is real per-user read state, which is database work.
+
+**Still not started:** the mention glimmer (§6.5) — the founder's screenshot
+shows the outline around the whole message row rather than the bubble. The
+target and the reason the current code uses `outline` are recorded there.
 
 ## 5. Commits this session
 
