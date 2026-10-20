@@ -633,6 +633,56 @@ asked for it. Logged here so it is not lost.
 
 All three land on the Xcode laptop, with the build.
 
+### 13.5 Faces and workout photos (20 Oct)
+
+The founder asked whether fake images are acceptable, and said the feed felt
+dead without them. Both added, sandbox data only.
+
+**Profile photos — reused, not sourced.** The four Unsplash portraits already
+public on the marketing site (`src/components/ColdOnboarding.jsx:119-122`) are
+used for Tariq, Hana, Noah and Eli. **No new image decision was made**, and
+the site and the listing now show the same faces. All four were curl-checked
+and return 200.
+
+He was told once, and it is recorded here: those are photographs of real
+people under the Unsplash licence, which permits commercial use but conveys
+**no model release**. That risk already exists on joinfero.app; a store
+listing is a more commercial setting. His call, and he kept them.
+
+**Eli and Leo render initials, not photos.** They are the two members invented
+for the demo, and the server rebuilds `profiles` from its own records, so a
+photo written into the blob for an account that does not exist is dropped.
+Left alone deliberately: a Bloc where two of five never uploaded a picture
+reads more true than one where everybody did.
+
+**Workout photos on the newest two days only.** Fero deletes workout photos
+after 72 hours, so a feed full of them would show an app that does not exist.
+19 and 20 October carry photos; everything older shows its activity icon,
+which is the honest and the common case.
+
+Every image was verified `200 image/jpeg` before being written. Photos are
+matched to the workout type, with a per-type counter so two runs on screen are
+never the same picture — the first pass had both runners using one photo.
+
+**One image was rejected on review:** the first pilates photo was a cropped
+body shot that could read badly in a store listing. Swapped for a stretching
+image. Worth repeating at the real capture: look at every photo as a reviewer
+would, not just as a designer.
+
+### 13.6 Where the screenshots stand
+
+| | |
+| --- | --- |
+| Month ring | **Hero shot**, agreed with the founder |
+| Activity feed | Faces and workout photos, done |
+| Leaderboard | Clean five-member spread, done |
+| Profile | Done |
+| Bloc Stream | **Blocked** — the sandbox has no Stream |
+| Finished month | **Blocked** — the sandbox cannot close one |
+| Final capture | **Blocked** — needs the build, to drop the test-identity bar |
+
+The three blocked items all land on the Xcode laptop with build 12.
+
 ## 5. Commits this session
 
 | Commit | What | Live |
@@ -646,4 +696,5 @@ All three land on the Xcode laptop, with the build.
 | `08b4793` | The mention glimmer moved onto the bubble | **Live** |
 | `9d6681d` | Deveen's staging RLS task checked — not run; 6 production tables uncovered | Docs only |
 | `409a8a2` | A second migration covering the six. **Not applied anywhere** | Not applied |
-| *(this one)* | The demo Bloc staged and four draft screenshots; the status bug narrowed | Docs only |
+| `bf9d4e3` | The demo Bloc staged and four draft screenshots; the status bug narrowed | Docs only |
+| *(this one)* | Faces and workout photos on the demo feed | Docs only |
