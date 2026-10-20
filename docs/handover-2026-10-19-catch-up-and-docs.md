@@ -469,6 +469,68 @@ times out waiting for "Your Blocs" to become visible, which points at the
 incomplete seed rather than at the port. Not investigated further — outside
 today's task — but the old explanation should not be repeated as fact.
 
+## 12. Deveen's staging RLS task — checked, NOT run, and it needs changing first
+
+The founder relayed a task from Deveen: apply
+`20260926120000_enable_rls_on_server_only_tables.sql` to **staging only**
+(`okwrrspdmoluxatyokzh`), then report two verification queries, both expected
+to return zero rows.
+
+**Nothing was run. All of the below is read-only.** Two findings stop it.
+
+### 12.1 Staging already has it
+
+Every one of the **33** `ante_core` tables on staging already has RLS enabled,
+and the projection-grant query already returns **0 rows**. This is Deveen's
+own 27 September rehearsal, recorded in §11 of
+`handover-2026-09-22-for-deveen-active.md`.
+
+So **both of his checks pass before anything is applied.** Re-running the
+migration is idempotent and harmless, but it would report "clean" from a
+database that was already clean, which is a misleading data point rather than
+a useful one.
+
+### 12.2 The check cannot pass on production — 6 tables are not covered
+
+This is the finding that matters, because staging is only a rehearsal for
+production.
+
+Production has **40** `ante_core` tables, **14 with RLS off**. The migration
+covers **8** of them. The other **6 are not in the file at all**:
+
+| Table | Why it is missing |
+| --- | --- |
+| `push_devices` | **Exactly what §1 of Deveen's own active handover flagged on 29 September** as "URGENT-ish… needs you before 2 Oct", re-verified 30 September. Still not in the migration, three weeks on |
+| `backup_blob_before_force_rollover_2026_10_01` | Created **after** the migration was written |
+| `backup_marlene_jul_aug_2026_10_01` | Same |
+| `backup_solo_tw_2026_10_01_blob` | Same |
+| `backup_solo_tw_2026_10_01_member_status` | Same |
+| `backup_nishara_log_date_2026_10_13` | Same — created by this project's own 13 October data correction |
+
+So on production, Deveen's first query returns **6 rows, not 0**, and his
+stop condition fires. The five backups are a new class he has not seen: the
+migration predates them, and **every production data fix since has created
+another one**. Whatever is agreed should cover tables made after the file was
+written, or the same gap reappears at the next backup.
+
+### 12.3 Nothing is exposed — this is a gap, not a hole
+
+Checked directly: of the 14 production tables with RLS off, **none grants
+anything to `anon`, `authenticated` or `public`** — all report no client
+grantees. That matches Deveen's own safety argument (`anon` has no `USAGE` on
+`ante_core`). RLS off here is a missing second lock on a door that has no
+handle on the outside, not an open door.
+
+**No urgency, and no reason to rush production.**
+
+### 12.4 Where it was left
+
+Not applied to staging, pending the founder's call: running it proves nothing
+(§12.1) while the migration still needs changing before production (§12.2).
+The useful next move is Deveen seeing §12.2, not a green tick from staging.
+
+Staging `fero-staging` is `ACTIVE_HEALTHY` and still billing.
+
 ## 5. Commits this session
 
 | Commit | What | Live |
@@ -479,4 +541,5 @@ today's task — but the old explanation should not be repeated as fact.
 | `5bfd4f1` | The counts function and its wiring for faults 6.2 and 6.3 | **Live** |
 | `2099e2c` | The migration applied to production and verified; the wrong comment corrected | **Live** |
 | `affd9c6` | Close out the badge work | Docs only |
-| *(this one)* | The mention glimmer moved onto the bubble | **Live** |
+| `08b4793` | The mention glimmer moved onto the bubble | **Live** |
+| *(this one)* | Deveen's staging RLS task checked — not run; 6 production tables uncovered | Docs only |
