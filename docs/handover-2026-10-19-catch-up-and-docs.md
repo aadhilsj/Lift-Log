@@ -217,13 +217,15 @@ call returns three numbers instead of one.
 production, and `CLAUDE.md` §4 says to say what is about to run before running
 it. Waiting on the founder.
 
-## 9. The counts function — written, NOT applied, NOT run anywhere
+## 9. The counts function — APPLIED TO PRODUCTION on 20 October, and verified
 
-**Read this before anything else in this section: the SQL has never been
-executed. Not on production, not on staging, not locally.** This session has
-no way to reach a database.
+**Superseded note:** this section was first written on 19 October saying the
+SQL had never run, because the session had no way to reach a database. The
+founder connected the Supabase connector on 20 October and it was applied and
+verified then. The original blocker is kept below as §9.1 because it explains
+why the migration sat unapplied for a day.
 
-### 9.1 Why it could not be run
+### 9.1 Why it could not be run at first (resolved 20 October)
 
 | Route | State |
 | --- | --- |
@@ -235,8 +237,8 @@ no way to reach a database.
 | A Postgres client in `node_modules` | none |
 | `.env.local` | has `SUPABASE_URL` and the service key, but **no database connection string** — and PostgREST cannot run DDL |
 
-So the migration is written and reviewed, and that is all. Whoever applies it
-should treat it as unexecuted code.
+That was the state for one day. **Resolved** when the founder connected the
+Supabase connector to the session on 20 October.
 
 ### 9.2 What it is
 
@@ -274,8 +276,8 @@ Stream icon, and leaving it is what makes the rollback a single
 `drop function`.
 
 **Grants** follow the house pattern: revoked from `public`, `anon` and
-`authenticated`, granted to `service_role` only. **Unverified against a live
-database**, like everything else here.
+`authenticated`, granted to `service_role` only. **Verified on production** —
+see §9.5.
 
 ### 9.3 The code around it — written, verified as far as it can be
 
@@ -301,21 +303,84 @@ database**, like everything else here.
 its known baseline — 25 of 27, the two failures being the port-3000 pair that
 fails on `main` too.
 
-**Not verified, and cannot be from here:** every line of the SQL, the grants,
-and the whole path from the button to the number. **Nothing in §9 has ever
-run.**
+### 9.4 Applied to production — 20 October
 
-### 9.4 Deliberately not pushed
+Applied with `apply_migration`, name `add_notification_counts`, project
+`bpvvvqjsfwmmfjvvijkd`.
 
-Committed locally and **left unpushed**. `CLAUDE.md` says schema changes go
-first, and this schema change has not been applied. The code is safe either
-way — without the function the badge behaves exactly as it does today — but
-shipping it would put a dormant feature on production and call it done.
+**Before-state recorded first**, so the after-check meant something:
 
-**To finish it:** apply the migration, then push. The moment the function
-exists the code starts using it with no further deploy. After applying, check
-the object exists, that `anon` and `authenticated` cannot execute it, and that
-row counts are unchanged.
+| | Before | After |
+| --- | --- | --- |
+| `read_ante_core_notification_counts` exists | **0** | 1 |
+| `read_ante_core_bloc_stream_unread_count` exists | 1 | 1 (untouched) |
+| `ante_core.bloc_messages` | 515 | **515** |
+| `ante_core.workout_log_comments` | 306 | **306** |
+| `ante_core.workout_logs` | 2312 | **2312** |
+| `ante_core.profiles` | 48 | **48** |
+| `ante_core.blocs` | 12 | **12** |
+
+**Column types were checked against the live database before applying**, not
+taken from the migration files: `bloc_messages.mentions` is an array,
+`workout_logs.profile_id` and `commenter_profile_id` are uuid, and both
+`workout_logs.id` and `workout_log_comments.workout_log_id` are **text**, so
+the join is text-to-text — the exact trap `CLAUDE.md` §6 names.
+
+**Rollback is one statement:**
+
+```sql
+drop function if exists public.read_ante_core_notification_counts(text, text, text);
+```
+
+The old unread function was not altered, so dropping this one returns the app
+to the fallback path and the badge to its 19 October behaviour.
+
+### 9.5 Verified on production
+
+**Grants — identical to the sibling function's, which is the house pattern:**
+
+| Function | acl | anon | authenticated | service_role |
+| --- | --- | --- | --- | --- |
+| `read_ante_core_bloc_stream_unread_count` | `postgres=X/postgres \| service_role=X/postgres` | false | false | true |
+| `read_ante_core_notification_counts` | `postgres=X/postgres \| service_role=X/postgres` | **false** | **false** | true |
+
+Both `security definer`, both owned by `postgres`.
+
+**The numbers, against real data.** A member mentioned 5 times, cross-checked
+against a separately computed expectation:
+
+| `p_since` | mentions | logComments | streamUnread |
+| --- | --- | --- | --- |
+| null (never opened) | **5** — matches the independent count | 5 | 100 |
+| `2026-10-19T00:00:00Z` | 0 | 0 | 100 |
+| `2099-01-01` (future) | 0 | 0 | 100 |
+| `'not a date'` | 5 | 5 | 100 |
+
+`streamUnread` is the same in every row, which is the point: it reads the
+Stream's own marker and ignores `p_since` entirely.
+
+**The claim that the Stream icon cannot start disagreeing with itself was
+tested, not asserted.** Both functions were run for **every one of the 57
+active memberships** on production:
+
+- members checked: **57**
+- `streamUnread` agrees with `read_ante_core_bloc_stream_unread_count`: **57**
+- disagrees: **0**
+
+Largest values seen anywhere: 5 mentions, 22 log comments.
+
+**One thing this found:** a comment in the migration file claimed a bad
+`p_since` was prevented from becoming `-infinity`. It is not — null becomes
+`-infinity` through the `coalesce`, so an unparseable value counts everything,
+exactly as the client's `unreadCount` does with a seen time it cannot parse.
+The behaviour is right and intended; the comment was wrong and has been
+corrected. The point of the exception handler is that the function must not
+**error** and take the Stream's unread count down with it.
+
+**Still not verified, and it needs a second person:** the path from a real tag
+to a lit bell on a phone. Nobody has been tagged since this went live, so the
+end-to-end journey has been proved at the database and in the code, but not
+with a thumb on a screen.
 
 ## 5. Commits this session
 
@@ -324,4 +389,5 @@ row counts are unchanged.
 | `817836c` | Open this handover, record the 18 October work in `WHATS-LIVE.md` and the index | Docs only |
 | `03fd580` | Record the three notification-badge faults and the glimmer target. Findings only | Docs only |
 | `e387b2c` | **Fault 6.1 fixed** — a reaction row is dated by the reaction, with seven tests | **On `main`, live** |
-| *(this one)* | The counts function and its wiring for faults 6.2 and 6.3 | **Local only — not pushed, SQL not applied** |
+| `5bfd4f1` | The counts function and its wiring for faults 6.2 and 6.3 | **Live** |
+| *(this one)* | The migration applied to production and verified; the wrong comment corrected | **Live** |

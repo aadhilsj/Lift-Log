@@ -19,7 +19,13 @@
 --
 -- p_since is the client's "last opened the notification centre" time. Null or
 -- unparseable means it has never been opened, and everything counts - which
--- is exactly what unreadCount does on the client when it has no seen time.
+-- is exactly what unreadCount does on the client when it has no seen time
+-- (`if (!Number.isFinite(seenAt)) return true`).
+--
+-- Verified on production against real data: a member mentioned 5 times gets
+-- mentions = 5 with p_since null, 0 with p_since in the future, and 5 again
+-- with p_since = 'not a date' - the unparseable case deliberately behaving as
+-- "never opened" rather than failing.
 --
 -- read_ante_core_bloc_stream_unread_count is deliberately left in place and
 -- unchanged: it still drives the Stream icon, and leaving it is what makes
@@ -74,8 +80,11 @@ begin
     raise exception 'not a bloc member' using errcode = '42501';
   end if;
 
-  -- A bad timestamp must not be read as "the beginning of time", which would
-  -- light the bell with every message the Bloc has ever sent.
+  -- A bad timestamp becomes null, and null then means "never opened", so
+  -- everything counts. That is deliberate and matches the client: it is what
+  -- unreadCount does with a seen time it cannot parse. The point of catching
+  -- it here is that the function must not ERROR on a malformed value and take
+  -- the Stream's unread count down with it.
   begin
     v_since := nullif(trim(coalesce(p_since, '')), '')::timestamptz;
   exception when others then
