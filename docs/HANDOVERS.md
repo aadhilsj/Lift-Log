@@ -22,6 +22,11 @@ the newer dated doc wins over the older.
 | [`recurring-debugging-playbook.md`](recurring-debugging-playbook.md) | Bugs that keep coming back (swipe, flicker, reactions, stale Blocs), with the fix rules. |
 | [`solved-issues-log.md`](solved-issues-log.md) | Every bug already solved, so nobody re-derives one. |
 
+**Before an App Store submission:**
+[`app-store-review-notes-2026-10-22.md`](app-store-review-notes-2026-10-22.md) —
+the drafted App Review notes, what each claim is based on, and the four things
+still missing.
+
 **Before writing SQL:** [`SCHEMA.md`](SCHEMA.md).
 **Before analysing numbers or writing a report:**
 [`READ-BEFORE-ANALYSING-FERO-NUMBERS.md`](READ-BEFORE-ANALYSING-FERO-NUMBERS.md).

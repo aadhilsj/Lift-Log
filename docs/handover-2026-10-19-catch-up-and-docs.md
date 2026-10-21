@@ -814,9 +814,28 @@ But it is a privacy-disclosure question before launch — the App Store privacy
 labels and the Privacy Policy should either cover financial handles, or the
 `bank` option should be reconsidered. Flagged, not changed.
 
-### 15.4 The one thing this audit could NOT settle
+### 15.4 RESOLVED 22 October — settlement confirmations ARE on
 
-**Whether settlement confirmations are switched ON in production.**
+The founder checked Vercel. **`ENABLE_SETTLEMENT_CONFIRMATIONS = true`** and
+**`ENABLE_SETTLEMENT_CONFIRMATIONS_PREVIEW = false`**, both scoped Production
+and Preview, both added 1 July, both stored as Config rather than Secret.
+
+**The good outcome on the risky one:** the hardcoded demo cards (§13.2) are
+**off**, so no member and no reviewer sees invented payment messages naming
+strangers.
+
+**But the real feature IS live**, so Claim paid / Confirm / Dispute are on
+screen for every member and will be for Apple's reviewer. The runbook requires
+them explained; they are, in
+`docs/app-store-review-notes-2026-10-22.md`.
+
+This also explains the apparent contradiction in §15.1: all 12 Blocs store
+`settlementConfirmationsEnabled: false` in the blob, yet 3 settlement
+confirmations exist. The environment variable overrides the stored flag at
+read time (`api/lift-log.js:4936-4941`), so the stored value is not what
+members see. **Do not read that blob field and conclude the feature is off.**
+
+The original question, kept for the record:
 
 All 12 production Blocs store `settlementConfirmationsEnabled: false`, but the
 stored value is not what the client sees: `api/lift-log.js:4936-4941` overrides
@@ -854,5 +873,6 @@ apps as established precedent. **No change recommended.**
 | `bf9d4e3` | The demo Bloc staged and four draft screenshots; the status bug narrowed | Docs only |
 | `e606c53` | Faces and workout photos on the demo feed | Docs only |
 | `f521de1` | Record the build-12 merge | Docs only |
-| *(this one)* | The money audit for App Review | Docs only |
+| `f7a8ba6` | The money audit for App Review | Docs only |
+| *(this one)* | Settlement flags resolved; App Review notes drafted | Docs only |
 | `b28e71d` | **The merge itself**, on `claude/testflight-build-12-2026-10-21` | **Not pushed, not built** |
