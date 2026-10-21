@@ -945,6 +945,102 @@ the exempt guard and the recents key, live site loads with no console errors.
 events, so the 420ms/500ms race was proved through the right-click path, which
 runs the same guard. The timing itself should be felt on a phone.
 
+## 17. The bell's real problem: it only ever sees ONE Bloc (22 Oct)
+
+The founder said reactions still were not reaching "For you". **The 19 October
+timestamp fix works.** The cause is different, bigger, and was found by
+measuring rather than by reading.
+
+### 17.1 What was ruled out, with evidence
+
+| Suspect | Ruled out by |
+| --- | --- |
+| Reaction timestamps missing | 2,009 reactions on production, **all** with `created_at` |
+| The RPC not returning them | `read_ante_core_current_logs()` returns 435 rows, **236 carry `latest_reaction` with an `at`** |
+| The overlay not running | All **12** Blocs have canonical open month = blob `lastMonth`, so the gate Deveen tightened on 18 Oct passes everywhere |
+| The badge not counting | Proved in the sandbox: two reactions arriving on the signed-in member's logs produced **a red 2** |
+
+Every link works. The chain is sound.
+
+### 17.2 The actual cause
+
+`App.jsx:2449` — `buildNotifications({ group: currentGroup, ... })`.
+
+**The notification centre is built from the Bloc you are looking at.** One
+Bloc. Not your Blocs.
+
+The founder is in **six** Blocs with reactions on his logs. On 21 October
+alone, four of them had reactions, within three hours of each other:
+
+| Bloc | Newest reaction | Last 7 days |
+| --- | --- | --- |
+| StavanGang | 21 Oct 21:36 | 4 |
+| Go To Da Gym | 21 Oct 20:49 | 1 |
+| OSI H3 | 21 Oct 19:06 | 3 |
+| Ctrl Alt De-feat | 21 Oct 18:57 | 4 |
+| Sarandawgs | 20 Oct 14:50 | 1 |
+| Sweat Equity | 16 Oct 07:00 | 2 |
+
+Whichever Bloc he had open, the bell could only ever show that Bloc's share,
+and switching Bloc changes the number. **With six Blocs the bell looks broken
+even though every part of it works.**
+
+It is not only reactions: `notificationReminderCards`, the comment counts and
+the mention counts are all scoped to `currentGroup` too. The whole centre is
+per-Bloc.
+
+### 17.3 Not fixed — it is a design decision, not a bug fix
+
+Making the bell span every Bloc is a real change, not a tweak:
+
+- **Reactions** are the cheap part: `groups` is already in client state, so it
+  is a map-and-concatenate plus a Bloc name on each row.
+- **Money, comments and mentions are not.** The comment and mention counts
+  come from the per-Bloc call added on 20 October, so spanning Blocs means
+  either one call per Bloc on every refresh — straight into §20's read-volume
+  problem — or a function that answers for all of a member's Blocs at once.
+- Every row then needs to say **which Bloc** it came from, and tapping it has
+  to switch Bloc before it lands.
+
+Left for the founder to decide. Recommended shape: one database function
+answering for all of a member's Blocs in the single call the app already
+makes per refresh — the same trick §9 used — rather than N calls.
+
+## 18. Two smaller fixes — live at `c4f1543`
+
+### 18.1 The bell and Stream badges now match
+
+They had drifted apart by accident, not by decision:
+
+| | Stream | Bell (before) |
+| --- | --- | --- |
+| Colour | red `#D44A4A` | cyan `#4ECDC4` |
+| Size | 18px | 14px |
+| Position | proud of the corner | tucked inside |
+| Text | 12.5px | 8.5px |
+
+The bell now **is** `UnreadBadge`, the Stream's own component, so they cannot
+drift again. **Red kept**, because the Stream already used it, it is the
+universal unread convention, and the bell carries money owed as well as
+reactions. One line to flip to cyan.
+
+Verified in the sandbox: a red **2** on the bell, matching the Stream's badge.
+
+### 18.2 The "···" on comments is gone
+
+Asked for, now that holding a comment offers Report and Block.
+`commentHoldActions` uses the **exact** guard the button used,
+`!isOwn && comment.commenterUserId`, and the same `setSafetyTarget` payload,
+so wherever the button appeared the menu actions appear.
+
+**Verified:** the "···" is absent when viewing another member's comment.
+
+**NOT photographed:** Report/Block inside a comment's hold menu. The sandbox
+drops a comment when the local identity switcher changes member, so a
+cross-member comment could not be held open. The identical guard is the basis
+for the claim. **Worth one look on a real phone**, since this is now the only
+route to reporting a comment and the App Store requires one.
+
 ## 5. Commits this session
 
 | Commit | What | Live |
@@ -964,5 +1060,7 @@ runs the same guard. The timing itself should be felt on a phone.
 | `f7a8ba6` | The money audit for App Review | Docs only |
 | `b2291af` | Settlement flags resolved; App Review notes drafted | Docs only |
 | `3c51172` | **The four reaction and emoji tweaks** | **Live** |
-| *(this one)* | Record them | Docs only |
+| `b989da2` | Record them | Docs only |
+| `c4f1543` | **Matching badges, and the comment "···" removed** | **Live** |
+| *(this one)* | The bell's per-Bloc finding | Docs only |
 | `b28e71d` | **The merge itself**, on `claude/testflight-build-12-2026-10-21` | **Not pushed, not built** |
