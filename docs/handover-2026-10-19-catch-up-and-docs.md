@@ -857,6 +857,94 @@ reasoning is sound: it names the penalty deliberately rather than avoiding
 money and then denying it, avoids "prize pool", and cites commitment-contract
 apps as established precedent. **No change recommended.**
 
+## 16. Four reaction and emoji tweaks — live (22 Oct)
+
+Founder's list, all four, straight to `main` as agreed.
+
+### 16.1 Holding a reaction chip no longer offers Report/Block
+
+**Two timers were racing on one touch.** The chip's own press shows who
+reacted at **420ms** (`startReactionPress`, `ActivityFeed.jsx`); the post's
+hold menu fired at **500ms** (`HoldTarget`, `HoldMenu.jsx`). So a press meant
+to read names showed them and then selected the whole post on top.
+
+The reaction row now carries **`data-hold-exempt`**, and `HoldTarget` ignores
+a press that begins inside such a control — a property of the control rather
+than a list of exceptions inside HoldTarget. The `+` picker button is inside
+that row, so it is covered too.
+
+**Holding the post anywhere else still opens Report/Block.** Verified both
+ways, not assumed.
+
+### 16.2 Holding a comment lifts it like a Stream message
+
+It is **the same `HoldMenu` component**, not a lookalike, so the reaction row,
+icon sizes, blur and motion match by construction. It replaces the small
+floating pill that used to appear near the finger.
+
+`HoldTarget` was deliberately **not** used here: the comment already runs its
+own gesture for double-tap and swipe, and the playbook's *Two Touch Handlers
+That Classify The Same Drag Differently* is exactly that mistake. The existing
+gesture now opens `HoldMenu` directly, as the Stream's `Reactable` does.
+
+The bubble's look moved into one `commentBubbleStyle(isOwn)` used by both the
+real bubble and the lifted copy, so the preview cannot drift from the thing it
+previews.
+
+**Left alone on purpose:** the "···" Report/Block button at the end of the
+comment row. Report and Block are now also in the hold menu, but removing the
+button was not asked for.
+
+**One thing this fixed on the way:** the old right-click path still set the
+pill's shape and would have silently done nothing.
+
+### 16.3 The emoji sheet opens on Recent
+
+Was Smileys, which meant scrolling past faces every time. Falls back to
+Smileys when there is no history, so a first-ever open is not an empty grid.
+
+### 16.4 The quick five are personal now — and there was no bug to fix
+
+The founder asked whether the "most used" calculation was correct.
+**There was no calculation.** `QUICK_REACTIONS` was five hardcoded emoji,
+identical for every member since the day it was written. Reported before
+building rather than quietly treating a missing feature as a fix.
+
+They now come from the recents the app **already records** —
+`fero_recent_reaction_emoji_v1`, newest-first, de-duplicated, capped at 24.
+That is the iOS rule he described: one use puts an emoji at the front, instead
+of waiting for it to out-count old favourites. The original five are the
+padding and the fallback, so nobody ever sees a short row.
+
+Every quick row subscribes to a module-level listener, so using an emoji in
+one place reorders the row in the other two without a reload.
+
+**Reaction CHIP ordering is untouched.** That is shared, and personalising it
+would make one comment look different to two people looking at it.
+
+### 16.5 Verified by driving it, not just building it
+
+In the sandbox, at 375×812, on the demo Bloc:
+
+| Check | Result |
+| --- | --- |
+| Hold a reaction chip | No menu. Correct |
+| Hold the post elsewhere | Lifts with Report/Block, unchanged |
+| Sheet with no history | Opens on Smileys |
+| Sheet after one reaction | Opens on **Recent** |
+| Quick row on a **different** post after reacting | New emoji leads; 🏃 drops off |
+| Hold a comment | Lifts, blurred page, personalised row |
+
+Lint and build clean; **25 of 27** suites pass, the two failures being the
+known port-3000 pair that fails on `main` too.
+
+**Live at `3c51172`:** deployment success, bundle `index-D8Jx0Xzq.js` carries
+the exempt guard and the recents key, live site loads with no console errors.
+
+**Not verified:** real finger-on-glass touch. The browser pane sends mouse
+events, so the 420ms/500ms race was proved through the right-click path, which
+runs the same guard. The timing itself should be felt on a phone.
+
 ## 5. Commits this session
 
 | Commit | What | Live |
@@ -874,5 +962,7 @@ apps as established precedent. **No change recommended.**
 | `e606c53` | Faces and workout photos on the demo feed | Docs only |
 | `f521de1` | Record the build-12 merge | Docs only |
 | `f7a8ba6` | The money audit for App Review | Docs only |
-| *(this one)* | Settlement flags resolved; App Review notes drafted | Docs only |
+| `b2291af` | Settlement flags resolved; App Review notes drafted | Docs only |
+| `3c51172` | **The four reaction and emoji tweaks** | **Live** |
+| *(this one)* | Record them | Docs only |
 | `b28e71d` | **The merge itself**, on `claude/testflight-build-12-2026-10-21` | **Not pushed, not built** |
