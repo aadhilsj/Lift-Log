@@ -4,6 +4,7 @@ import { Avatar, AppIcon, WorkoutTypeIcon } from "./primitives.jsx";
 import { getLogDisplayActivity } from "../lib/activities.js";
 import { ReactionChip } from "./ReactionRoster.jsx";
 import { EmojiSheet, QuickReactionChoices } from "./EmojiReactionPicker.jsx";
+import { HoldMenu } from "./HoldMenu.jsx";
 import {
   createLogCommentData,
   listLogCommentsData,
@@ -12,6 +13,20 @@ import {
 import { QUICK_REACTIONS, resolveStorageImageUrl } from "../lib/appState.js";
 import { SafetyFlow, useBlockedUserIds } from "./SafetyControls.jsx";
 import { formatShortDate } from "../lib/utils.js";
+
+// One definition of the comment bubble's look, used both by the bubble in the
+// thread and by the copy that lifts in the hold menu. Shared so the lifted
+// preview cannot drift away from the real thing.
+const commentBubbleStyle = isOwn => ({
+  position: "relative", color: "#fff", fontSize: 12, lineHeight: 1.32,
+  whiteSpace: "pre-wrap", wordBreak: "break-word",
+  background: isOwn ? "linear-gradient(135deg, #116B65, #0D4642)" : "#0D1F1E",
+  border: `1px solid ${isOwn ? "rgba(78,205,196,.28)" : "#163d36"}`,
+  borderRadius: isOwn ? "12px 4px 12px 12px" : "4px 12px 12px 12px",
+  padding: "7px 9px",
+  userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none",
+  touchAction: "manipulation"
+});
 
 // Skeleton bubbles while a thread loads. We already know how many comments
 // the log has, so the placeholder is that many (capped) rather than an
@@ -349,6 +364,21 @@ function LogCommentThread({ groupId, log, currentUserId, currentUserName, onClos
     if (gesture?.lp) window.clearTimeout(gesture.lp);
     if (gesture) gesture.lp = null;
   };
+  // Holding a comment lifts it exactly the way holding a Stream message does:
+  // the same HoldMenu component, so the reaction row, the icon sizes, the
+  // blur and the motion are the same by construction rather than by being
+  // copied and kept in step by hand.
+  const openCommentHold = (comment, isOwn, node) => {
+    if (!node?.getBoundingClientRect) return;
+    const r = node.getBoundingClientRect();
+    try { window.getSelection?.()?.removeAllRanges?.(); } catch { /* selection is cosmetic here */ }
+    setReactionTarget({
+      id: comment.id,
+      isOwn,
+      comment,
+      rect: { top: r.top, left: r.left, width: r.width, height: r.height }
+    });
+  };
   const startCommentGesture = (event, comment, isOwn) => {
     const touch = event.touches?.[0];
     if (!touch) return;
@@ -364,11 +394,15 @@ function LogCommentThread({ groupId, log, currentUserId, currentUserName, onClos
       lastTouch: Date.now(),
       lp: null
     };
+    // The bubble itself is what lifts, so the menu has to be measured from it
+    // rather than from the finger. Captured now and measured when the hold
+    // fires, so a thread that scrolled under the finger still anchors right.
+    const node = event.currentTarget;
     gesture.lp = window.setTimeout(() => {
       gesture.suppress = true;
       try { navigator.vibrate?.(10); } catch (_) {}
       onTrackUsage?.("reaction_picker_opened");
-      setReactionTarget({ id: comment.id, isOwn, y: touch.clientY || 180 });
+      openCommentHold(comment, isOwn, node);
     }, 500);
     commentGestureRef.current.set(comment.id, gesture);
   };
@@ -394,32 +428,44 @@ function LogCommentThread({ groupId, log, currentUserId, currentUserName, onClos
       }
     }
   };
-  const renderReactionPicker = () => reactionTarget && React.createElement('div', {
-    "data-comment-reaction-picker": "true",
-    style: {
-      position: "fixed",
-      top: Math.max(96, Math.min((window.innerHeight || 720) - 140, Number(reactionTarget.y || 180) - 48)),
-      // Own comments sit on the right of the thread, so their react bar does
-      // too -- this is fixed-position, so left/right pin to the screen edge,
-      // not to the bubble. BlocStream's ReactBar already aligns this way.
-      left: reactionTarget.isOwn ? "auto" : 16,
-      right: reactionTarget.isOwn ? 16 : "auto",
-      zIndex: 13000,
-      display: "flex",
-      gap: 5,
-      padding: "6px 8px",
-      borderRadius: 999,
-      background: "rgba(8,15,15,.98)",
-      border: "1px solid rgba(78,205,196,.18)",
-      boxShadow: "0 14px 32px rgba(0,0,0,.38)"
-    }
-  },
-    React.createElement(QuickReactionChoices, {
-      size: 25, fontSize: 13,
-      onPick: emoji => toggleReaction(reactionTarget.id, emoji),
-      onMore: () => { setEmojiSheetCommentId(reactionTarget.id); setReactionTarget(null); }
-    })
-  );
+  // The same HoldMenu the Bloc Stream uses. Replaces the small floating pill
+  // that used to appear near the finger: the founder asked for the comment
+  // itself to lift, at the Stream's size and with the Stream's reaction row,
+  // and the surest way to be identical is to be the same component.
+  //
+  // Report and Block are offered here, as the Stream offers them. The "···"
+  // button at the end of the row is deliberately LEFT IN PLACE - removing it
+  // was not asked for.
+  const commentHoldActions = (comment, isOwn) => {
+    if (isOwn || !comment?.commenterUserId) return [];
+    const target = step => ({
+      userId: String(comment.commenterUserId),
+      name: comment.commenterName,
+      contentType: "workout_comment",
+      contentId: String(comment.id),
+      step
+    });
+    return [
+      { label: "Report", onPick: () => setSafetyTarget(target("report")) },
+      { label: "Block", tone: "danger", onPick: () => setSafetyTarget(target("block")) }
+    ];
+  };
+  const renderCommentHold = () => {
+    if (!reactionTarget?.rect || !reactionTarget.comment) return null;
+    const { comment, isOwn, rect, id } = reactionTarget;
+    const close = () => setReactionTarget(null);
+    return React.createElement(HoldMenu, {
+      anchorRect: rect,
+      preview: React.createElement('div', { style: commentBubbleStyle(isOwn) },
+        comment.body,
+        renderCommentReactions(comment, isOwn)
+      ),
+      actions: commentHoldActions(comment, isOwn),
+      onClose: close,
+      onPick: emoji => { close(); toggleReaction(id, emoji); },
+      onMore: () => { close(); setEmojiSheetCommentId(id); }
+    });
+  };
   const renderCommentReactions = (comment, isOwnComment) => {
     const active = Object.entries(comment.reactions || {})
       .filter(([, users]) => Array.isArray(users) && users.length > 0)
@@ -485,9 +531,10 @@ function LogCommentThread({ groupId, log, currentUserId, currentUserName, onClos
     onClose: () => setSafetyTarget(null)
   }),
   React.createElement('div', {
-    onPointerDownCapture: event => {
-      if (reactionTarget && !event.target?.closest?.('[data-comment-reaction-picker="true"]')) setReactionTarget(null);
-    },
+    // The outside-click dismissal that used to live here belonged to the
+    // floating reaction pill, which the hold menu replaced. HoldMenu portals
+    // to document.body and owns its own backdrop and dismissal, so this would
+    // now be a handler watching for an element that no longer exists.
     onTouchStart: startSwipeBack,
     onTouchMove: moveSwipeBack,
     onTouchEnd: endSwipeBack,
@@ -580,13 +627,13 @@ function LogCommentThread({ groupId, log, currentUserId, currentUserName, onClos
                       onContextMenu: event => {
                         event.preventDefault();
                         onTrackUsage?.("reaction_picker_opened");
-                        setReactionTarget({ id: comment.id, isOwn, y: event.clientY || 180 });
+                        openCommentHold(comment, isOwn, event.currentTarget);
                       },
                       onTouchStart: event => startCommentGesture(event, comment, isOwn),
                       onTouchMove: event => moveCommentGesture(event, comment.id),
                       onTouchEnd: event => endCommentGesture(event, comment.id),
                       onTouchCancel: () => clearCommentLongPress(comment.id),
-                      style: { position: "relative", color: "#fff", fontSize: 12, lineHeight: 1.32, whiteSpace: "pre-wrap", wordBreak: "break-word", background: isOwn ? "linear-gradient(135deg, #116B65, #0D4642)" : "#0D1F1E", border: `1px solid ${isOwn ? "rgba(78,205,196,.28)" : "#163d36"}`, borderRadius: isOwn ? "12px 4px 12px 12px" : "4px 12px 12px 12px", padding: "7px 9px", userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none", touchAction: "manipulation" }
+                      style: commentBubbleStyle(isOwn)
                     }, comment.body, renderCommentReactions(comment, isOwn))
                   ),
                   // Report / Block for someone else's comment, in the space
@@ -634,7 +681,7 @@ function LogCommentThread({ groupId, log, currentUserId, currentUserName, onClos
           style: { width: 40, height: 40, borderRadius: 999, background: draft.trim() && !sending ? "#4ECDC4" : "#0D1F1E", border: `1px solid ${draft.trim() && !sending ? "#4ECDC4" : "#163d36"}`, color: draft.trim() && !sending ? "#04110e" : "#3d5e59", display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 0, flexShrink: 0 }
         }, React.createElement(AppIcon, { name: "chevron-right", size: 18, stroke: "currentColor" }))
       ),
-      renderReactionPicker(),
+      renderCommentHold(),
       emojiSheetCommentId && React.createElement(EmojiSheet, {
         onClose: () => setEmojiSheetCommentId(null),
         onPick: emoji => toggleReaction(emojiSheetCommentId, emoji)

@@ -24,15 +24,54 @@ function readRecentEmoji() {
   }
 }
 
+// Every quick row on screen listens, so using an emoji in one place reorders
+// the row everywhere without a reload. Module-level because the rows live in
+// three separate trees - the activity feed, the comment thread and the Stream.
+const recentEmojiListeners = new Set();
+
+function subscribeRecentEmoji(listener) {
+  recentEmojiListeners.add(listener);
+  return () => recentEmojiListeners.delete(listener);
+}
+
 function recordRecentEmoji(emoji) {
   try {
     localStorage.setItem(RECENT_EMOJI_KEY, JSON.stringify([emoji, ...readRecentEmoji().filter(item => item !== emoji)].slice(0, 24)));
   } catch {
     // Reactions still work when device storage is unavailable.
   }
+  recentEmojiListeners.forEach(listener => { try { listener(); } catch { /* one bad listener must not stop the rest */ } });
+}
+
+// The five quick slots, newest-used first.
+//
+// This is the iOS recents rule rather than a popularity count: using an emoji
+// once puts it at the front, because reaching for something new is exactly
+// when you want it to hand. readRecentEmoji already stores newest-first and
+// de-duplicates, so the order is simply taken from it.
+//
+// QUICK_REACTIONS stays the fallback and the padding, so a member who has
+// never reacted sees the same five Fero always showed, and nobody ever gets a
+// short row.
+const QUICK_SLOTS = QUICK_REACTIONS.length;
+
+function quickReactionsFrom(recent) {
+  const chosen = [];
+  const seen = new Set();
+  const take = emoji => {
+    if (chosen.length >= QUICK_SLOTS || !emoji || seen.has(emoji)) return;
+    seen.add(emoji);
+    chosen.push(emoji);
+  };
+  (Array.isArray(recent) ? recent : []).forEach(take);
+  QUICK_REACTIONS.forEach(take);
+  return chosen;
 }
 
 function QuickReactionChoices({ onPick, onMore, size = 25, fontSize = 16 }) {
+  const [recent, setRecent] = useState(readRecentEmoji);
+  useEffect(() => subscribeRecentEmoji(() => setRecent(readRecentEmoji())), []);
+  const quick = useMemo(() => quickReactionsFrom(recent), [recent]);
   const buttonStyle = {
     width: size, height: size, flex: "0 0 auto", padding: 0,
     display: "inline-flex", alignItems: "center", justifyContent: "center",
@@ -41,7 +80,7 @@ function QuickReactionChoices({ onPick, onMore, size = 25, fontSize = 16 }) {
     fontSize, lineHeight: 1, cursor: "pointer", touchAction: "manipulation"
   };
   return <>
-    {QUICK_REACTIONS.map(emoji => <button key={emoji} type="button" aria-label={`React with ${emoji}`}
+    {quick.map(emoji => <button key={emoji} type="button" aria-label={`React with ${emoji}`}
       onMouseDown={event => event.preventDefault()}
       onClick={() => { recordRecentEmoji(emoji); onPick(emoji); }} style={buttonStyle}>{emoji}</button>)}
     <button type="button" aria-label="More emoji" title="More emoji"
@@ -53,10 +92,14 @@ function QuickReactionChoices({ onPick, onMore, size = 25, fontSize = 16 }) {
 function EmojiSheet({ onPick, onClose }) {
   const [dataset, setDataset] = useState(null);
   const [loadError, setLoadError] = useState(false);
-  const [category, setCategory] = useState(0);
+  const [recent, setRecent] = useState(readRecentEmoji);
+  // Open on the emoji you actually use. Smileys was the old default and meant
+  // scrolling past faces every time to reach the ones you reach for. Falls
+  // back to Smileys only when there is no history to show, so the first-ever
+  // open is not an empty grid.
+  const [category, setCategory] = useState(() => (readRecentEmoji().length ? "recent" : 0));
   const [query, setQuery] = useState("");
   const [tone, setTone] = useState(0);
-  const [recent, setRecent] = useState(readRecentEmoji);
 
   useEffect(() => {
     let active = true;
