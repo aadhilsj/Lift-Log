@@ -763,6 +763,81 @@ What remains for the Xcode laptop, now a short list:
 
 The risky half is done and is sitting on a branch.
 
+## 15. The money audit — the claim holds, with two corrections (21 Oct)
+
+The runbook is explicit that the "Fero never handles money" statement must be
+**re-audited, not assumed**, because getting it wrong means a gambling or
+payments classification. Audited against the code and against production.
+
+### 15.1 Verdict: the core claim is TRUE
+
+**Fero does not hold funds, transfer money, operate a pot, or process a
+settlement.** Evidence, not assertion:
+
+| Check | Result |
+| --- | --- |
+| Payment-processor SDK anywhere (Stripe, PayPal SDK, Braintree, Adyen, StoreKit, RevenueCat) | **None.** No payment dependency in `package.json` |
+| In-app purchases or subscriptions | **None** |
+| `ante_core.settlement_transfers` rows on production | **0** — nothing has ever been recorded as a transfer |
+| `ante_core.payment_methods` rows on production | **0** |
+| `settlement_confirmations` rows | 3 — members confirming each other by hand, which is the design |
+
+`src/lib/paymentLinks.js` states it in its own header and the code matches:
+*Fero never processes, routes, holds, or verifies a payment… Settlement status
+stays member-confirmed and is never derived from a link being opened.*
+
+### 15.2 Correction 1 — "entirely outside Fero" overstates it
+
+The runbook's draft sentence says members handle settlement outside Fero and
+the app only records the obligation. **That is not the whole truth and a
+reviewer will see it.**
+
+Fero can store a member's own payment handle and render a **"Pay" button** that
+opens Revolut, PayPal or Vipps. Only three hosts ever become clickable —
+`revolut.me`, `paypal.me`, `qr.vipps.no` (`ALLOWED_LINK_HOSTS`,
+`paymentLinks.js:105`) — and anything else degrades to copy-only text, so a
+pasted phishing URL cannot borrow the Pay affordance. That is good security
+design, and it is still **facilitation by deep link**.
+
+**Say it plainly in the review notes.** "Fero does not process the payment; it
+can open the payer's own payment app at a handle the recipient supplied" is
+both true and stronger than a denial a reviewer can disprove by tapping Pay.
+
+### 15.3 Correction 2 — a `bank` payment type stored as free text
+
+`payment_methods.method_type` allows **`revolut, wise, paypal, bank, other`**,
+with `details` as plain `text`. So a member could paste bank account details,
+and they would be stored as ordinary text.
+
+**Zero rows today**, so nothing is stored and nothing is at risk right now.
+But it is a privacy-disclosure question before launch — the App Store privacy
+labels and the Privacy Policy should either cover financial handles, or the
+`bank` option should be reconsidered. Flagged, not changed.
+
+### 15.4 The one thing this audit could NOT settle
+
+**Whether settlement confirmations are switched ON in production.**
+
+All 12 production Blocs store `settlementConfirmationsEnabled: false`, but the
+stored value is not what the client sees: `api/lift-log.js:4936-4941` overrides
+it at read time from the **`ENABLE_SETTLEMENT_CONFIRMATIONS`** and
+**`ENABLE_SETTLEMENT_CONFIRMATIONS_PREVIEW`** environment variables. Those live
+in Vercel and cannot be read from here.
+
+**This matters for submission:** the runbook requires explaining what
+`Claim paid`, `Confirm` and `Dispute` do **if that feature is enabled in the
+submitted build**. Someone has to look at the Vercel production environment
+variables and confirm. If the preview flag is on, reviewers would also see the
+hardcoded demo settlement cards (§13.2) — which name people who are not in
+their Bloc.
+
+### 15.5 The listing copy needs no change
+
+`app-store-listing-final-copy-2026-09-27.md` already handles this well and its
+reasoning is sound: it names the penalty deliberately rather than avoiding
+money and then denying it, avoids "prize pool", and cites commitment-contract
+apps as established precedent. **No change recommended.**
+
 ## 5. Commits this session
 
 | Commit | What | Live |
@@ -778,5 +853,6 @@ The risky half is done and is sitting on a branch.
 | `409a8a2` | A second migration covering the six. **Not applied anywhere** | Not applied |
 | `bf9d4e3` | The demo Bloc staged and four draft screenshots; the status bug narrowed | Docs only |
 | `e606c53` | Faces and workout photos on the demo feed | Docs only |
-| *(this one)* | Record the build-12 merge | Docs only |
+| `f521de1` | Record the build-12 merge | Docs only |
+| *(this one)* | The money audit for App Review | Docs only |
 | `b28e71d` | **The merge itself**, on `claude/testflight-build-12-2026-10-21` | **Not pushed, not built** |
