@@ -19,10 +19,11 @@ import {
   getCountedLogs,
   getMonthPartsFromKey
 } from "../lib/appState.js";
-import { Avatar, TrophyIcon } from "../components/primitives.jsx";
+import { Avatar, TrophyIcon, TargetHitHexIcon, TrainingSproutIcon } from "../components/primitives.jsx";
 import { ShareSticker } from "../components/ShareSticker.jsx";
 import { MonthCalendarCard } from "../components/MonthCalendarCard.jsx";
 import { buildStickerData } from "../lib/shareSticker.js";
+import { getLogDisplayActivity } from "../lib/activities.js";
 import { buildPaymentTargets } from "../lib/paymentLinks.js";
 import { createPortal } from "react-dom";
 import { PaymentHandleSection } from "../components/PaymentHandleSection.jsx";
@@ -77,7 +78,6 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
   const userSatOut = !!(currentUser && month.excused?.[currentUser]);
   const userIsWinner = winners.some(w => w.name === currentUser);
   const userIsLoser = losers.some(l => l.name === currentUser);
-  const outcome = userIsWinner ? "winner" : userIsLoser ? "missed" : "hit_mas";
   const sortedActive = [...activeCounts].sort((a,b) => b.count - a.count || a.name.localeCompare(b.name));
   const userRank = sortedActive.findIndex(m => m.name === currentUser) + 1 || 1;
   const currency = month.settings?.currency || "USD";
@@ -170,7 +170,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
         tag: "Sat Out",
         stat: "Month off",
         line: `You sat ${selectedMonthName} out. Back in it next month.`,
-        tone: "neutral"
+        tone: "satout"
       };
     }
     // Exempt but present: they logged, they ranked, they simply could not be
@@ -185,7 +185,7 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
           ? "Target hit. No penalty either way \u2014 but you hit it."
           // Not "next month counts": this month counted too. They logged, they
           // ranked, they appear. The only thing absent was the penalty.
-          : `Target was ${target}. No penalty yet \u2014 penalties kick off from next month.`,
+          : `Target was ${target}. No penalty yet.\nPenalties kick off from next month.`,
         tone: "training"
       };
     }
@@ -244,12 +244,16 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
   // The rebuilt report card: a stamp, the work, one line, and the money when
   // money moved. Each result keeps a hint of its old colour rather than a full
   // coloured headline: the ring above already carries the month.
+  // Brightened 2026-10-02 at the founder's request: the old washes were ~10% and read as
+  // faint. Each result now has a corner glow and a stronger edge. Sitting out has its own
+  // periwinkle so it no longer looks identical to Target Hit.
   const REPORT_TONES = {
-    perfect:  { edge: "rgba(78,205,196,.30)", wash: "linear-gradient(150deg, rgba(78,205,196,.10), rgba(10,20,19,0) 62%)", stamp: "#7FD8D0", money: "#7FD49A" },
-    winner:   { edge: "rgba(127,212,154,.30)", wash: "linear-gradient(150deg, rgba(127,212,154,.11), rgba(10,20,19,0) 62%)", stamp: "#8FD9A8", money: "#7FD49A" },
-    neutral:  { edge: "rgba(190,205,203,.24)", wash: "linear-gradient(150deg, rgba(200,214,212,.08), rgba(10,20,19,0) 62%)", stamp: "#C2D2CF", money: "#C2D2CF" },
-    missed:   { edge: "rgba(232,110,110,.30)", wash: "linear-gradient(150deg, rgba(232,110,110,.10), rgba(10,20,19,0) 62%)", stamp: "#E89A9A", money: "#E86A6A" },
-    training: { edge: "rgba(245,200,66,.30)", wash: "linear-gradient(150deg, rgba(245,200,66,.10), rgba(10,20,19,0) 62%)", stamp: "#F0CB6B", money: "#F0CB6B" }
+    perfect:  { edge: "rgba(78,205,196,.55)", wash: "radial-gradient(circle at 0% 0%, rgba(78,205,196,.26), transparent 62%), linear-gradient(150deg, rgba(78,205,196,.16), rgba(10,20,19,0) 72%)", stamp: "#8FF0E6", money: "#8FEAAC" },
+    winner:   { edge: "rgba(127,212,154,.55)", wash: "radial-gradient(circle at 0% 0%, rgba(127,212,154,.26), transparent 62%), linear-gradient(150deg, rgba(127,212,154,.16), rgba(10,20,19,0) 72%)", stamp: "#A6F0BF", money: "#8FEAAC" },
+    neutral:  { edge: "rgba(214,226,224,.46)", wash: "radial-gradient(circle at 0% 0%, rgba(214,226,224,.18), transparent 62%), linear-gradient(150deg, rgba(214,226,224,.11), rgba(10,20,19,0) 72%)", stamp: "#E4EEEC", money: "#E4EEEC" },
+    missed:   { edge: "rgba(240,110,110,.55)", wash: "radial-gradient(circle at 0% 0%, rgba(240,110,110,.24), transparent 62%), linear-gradient(150deg, rgba(240,110,110,.15), rgba(10,20,19,0) 72%)", stamp: "#FFB0B0", money: "#FF7A7A" },
+    training: { edge: "rgba(245,200,66,.55)", wash: "radial-gradient(circle at 0% 0%, rgba(245,200,66,.24), transparent 62%), linear-gradient(150deg, rgba(245,200,66,.15), rgba(10,20,19,0) 72%)", stamp: "#FFD978", money: "#FFD978" },
+    satout:   { edge: "rgba(150,165,235,.55)", wash: "radial-gradient(circle at 0% 0%, rgba(150,165,235,.24), transparent 62%), linear-gradient(150deg, rgba(150,165,235,.15), rgba(10,20,19,0) 72%)", stamp: "#C3CCFA", money: "#C3CCFA" }
   };
   const heroStyle = hero.tone === "perfect"
     ? {background:"linear-gradient(135deg, rgba(78,205,196,.2), rgba(215,226,225,.12) 48%, rgba(58,168,90,.2))", border:"1px solid rgba(78,205,196,.3)"}
@@ -340,9 +344,15 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
   // to the same person.
   const mostDiverse = (() => {
     const scored = activeCounts.map(member => {
+      // Count the activity someone actually logged -- Basketball, Padel,
+      // Badminton -- not the five broad categories it rolls up into. Reading
+      // `type` made six different sports look like one "Sports", so whoever
+      // spread across categories won over whoever genuinely varied their
+      // training. getLogDisplayActivity falls back to the category for logs
+      // saved before activities existed.
       const types = new Set(
         getCountedLogs(month.logsByUser?.[member.name] || [])
-          .map(log => String(log?.type || "").trim())
+          .map(log => String(getLogDisplayActivity(log) || "").trim())
           .filter(Boolean)
       );
       return { name: member.name, variety: types.size, count: member.count };
@@ -433,12 +443,9 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
 
 
   const handleShare = () => {
-    // Preserved from the text-only share this replaced: a missed month sends you to the
-    // ledger instead, because what you need then is what you owe, not a trophy.
-    if (outcome === "missed") {
-      ledgerRef.current?.scrollIntoView({behavior:"smooth", block:"center"});
-      return;
-    }
+    // A missed month shares too (founder, 2026-10-02): the calendar shows the work that
+    // was done, and the debt is already on the result card. It used to scroll to the
+    // ledger instead, which behind a "Share your month" button read as broken.
     // Counted only when something is actually shared. This used to fire on the
     // ledger jump too, which inflated the figure with taps that shared nothing.
     onTrackUsage?.("share_month_clicked");
@@ -483,45 +490,61 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
   const recordParts = trackRecordParts({ months: myRecord, highlightLast: true, compact: true, firstMonth: myRecord.length <= 1 && !myBest });
   // Someone who wasn't in this month (joined later) has no report to show.
   const userInMonth = !!currentUser && Object.prototype.hasOwnProperty.call(month.counts || {}, currentUser);
+  // The right side of the card carries the money when money moved. When it did not, it
+  // carries the mark that already means that result elsewhere in the app, so the card
+  // never looks unfinished: the target-hit hexagon (teal and glowing for a perfect Bloc
+  // month), the Training Wheels sprout, a trophy for a win with nothing in the pot, and a
+  // pause for a month sat out. A missed month with no debt shows nothing.
+  const reportMark = (heroTone, tone) => {
+    const box = child => React.createElement('span',{style:{flex:"0 0 auto",marginRight:10,display:"inline-flex",alignItems:"center",justifyContent:"center",width:34,height:34}},child);
+    if (heroTone === "neutral") return box(React.createElement(TargetHitHexIcon,{size:32,color:tone.stamp}));
+    if (heroTone === "perfect") return box(React.createElement('span',{style:{display:"inline-flex",filter:"drop-shadow(0 0 6px rgba(78,205,196,.55))"}},React.createElement(TargetHitHexIcon,{size:32,color:tone.stamp})));
+    if (heroTone === "training") return box(React.createElement(TrainingSproutIcon,{size:30,color:tone.stamp}));
+    if (heroTone === "winner") return box(React.createElement(TrophyIcon,{size:30,color:tone.stamp}));
+    if (heroTone === "satout") return box(React.createElement('svg',{width:26,height:26,viewBox:"0 0 24 24",role:"img","aria-label":"Sat out"},
+      React.createElement('rect',{x:6,y:4.5,width:4,height:15,rx:2,fill:tone.stamp}),
+      React.createElement('rect',{x:14,y:4.5,width:4,height:15,rx:2,fill:tone.stamp})));
+    return null;
+  };
   const renderReport = () => {
     if (!userInMonth) return null;
-    const tone = REPORT_TONES[hero.tone] || REPORT_TONES.neutral;
     // Money is shown only when money actually moved. A perfect month settles nothing.
     const owed = receiverTotal(currentUser), owes = payerTotal(currentUser);
     const money = owed > 0 ? `+${fmtCurrency(owed, currency)}` : owes > 0 ? `\u2212${fmtCurrency(owes, currency)}` : "";
+    return renderReportCard(hero, userCount, userSatOut, money);
+  };
+  const renderReportCard = (hero, userCount, userSatOut, money) => {
+    const tone = REPORT_TONES[hero.tone] || REPORT_TONES.neutral;
     const cardLines = hero.tone === "winner" ? [[hero.topLine, hero.keepLine].filter(Boolean).join(" ")]
       : hero.tone === "perfect" ? [perfectCardLine]
-      : [String(hero.line || "")].filter(Boolean);
+      // A "\n" in a line starts a new line on the card.
+      : String(hero.line || "").split("\n").filter(Boolean);
     return React.createElement('div',{style:{border:`0.5px solid ${tone.edge}`,background:`${tone.wash}, #0A1412`,borderRadius:14,padding:12,display:"flex",flexDirection:"column"}},
       React.createElement('div',{style:{display:"flex",alignItems:"center",gap:12}},
         React.createElement('div',{style:{flex:"1 1 0",minWidth:0}},
           React.createElement('span',{style:{fontFamily:LOOP_FONTS.body,fontSize:8.5,fontWeight:700,letterSpacing:".14em",textTransform:"uppercase",color:tone.stamp}},hero.cardStamp || hero.tag),
           React.createElement('div',{style:{display:"flex",alignItems:"baseline",gap:7,marginTop:8}},
-            React.createElement('span',{style:{fontFamily:LOOP_FONTS.mono,fontSize:26,fontWeight:700,lineHeight:1,color:"var(--text)"}},userSatOut ? "\u2014" : String(userCount)),
-            React.createElement('span',{style:{fontFamily:LOOP_FONTS.body,fontSize:13,fontWeight:600,color:"var(--text)"}},userSatOut ? "Month off" : userCount === 1 ? "workout" : "workouts")
+            !userSatOut && React.createElement('span',{style:{fontFamily:LOOP_FONTS.mono,fontSize:26,fontWeight:700,lineHeight:1,color:"var(--text)"}},String(userCount)),
+            React.createElement('span',{style:{fontFamily:LOOP_FONTS.body,fontSize:13,fontWeight:600,color:"var(--text)"}},userSatOut ? "Month Off" : userCount === 1 ? "workout" : "workouts")
           ),
           cardLines.length > 0 && React.createElement('div',{style:{fontFamily:LOOP_FONTS.body,fontSize:12,lineHeight:1.45,color:"#B8C7C4",marginTop:5}},
             cardLines.map((line, index) => React.createElement('span',{key:index,style:{display:"block"}},line))
           )
         ),
-        money && React.createElement('span',{style:{flex:"0 0 auto",marginRight:10,fontFamily:LOOP_FONTS.mono,fontSize:26,fontWeight:700,lineHeight:1,letterSpacing:"-.01em",color:tone.money}},money)
+        money ? React.createElement('span',{style:{flex:"0 0 auto",marginRight:10,fontFamily:LOOP_FONTS.mono,fontSize:26,fontWeight:700,lineHeight:1,letterSpacing:"-.01em",color:tone.money}},money) : reportMark(hero.tone, tone)
       ),
-      // A rule with the month set into it, like a stamped slip.
-      React.createElement('div',{style:{display:"flex",alignItems:"center",gap:6,margin:"10px 0"}},
-        React.createElement('span',{style:{flex:"1 1 0",height:1,background:"#16302C"}}),
-        React.createElement('span',{style:{fontFamily:LOOP_FONTS.mono,fontSize:7.5,letterSpacing:".14em",color:"#3E5652"}},String(month.label || "").toUpperCase()),
-        React.createElement('span',{style:{flex:"1 1 0",height:1,background:"#16302C"}})
-      ),
-      React.createElement('div',{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}},
-        React.createElement(PanelCard,{label:"Personal best",big:pbBody.big,small:pbBody.small}),
-        React.createElement('div',{style:{border:"0.5px solid #0D1F1E",background:"#080F0F",borderRadius:10,padding:"10px 11px",display:"flex",flexDirection:"column",gap:6,minWidth:0}},
-          React.createElement('span',{style:recordParts.label},"Track record"),
-          recordParts.rings,
-          React.createElement('em',{style:{fontStyle:"normal",fontFamily:LOOP_FONTS.body,fontSize:11,fontWeight:500,color:"#B8C7C4"}},recordParts.summary)
-        )
-      )
     );
   };
+  // Personal best and Track record used to sit inside the report card, which made it the
+  // tallest thing on the screen. They now follow the Bloc's ring, lower down.
+  const renderRecordRow = () => userInMonth && React.createElement('div',{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}},
+    React.createElement(PanelCard,{label:"Personal best",big:pbBody.big,small:pbBody.small}),
+    React.createElement('div',{style:{border:"0.5px solid #0D1F1E",background:"#080F0F",borderRadius:10,padding:"10px 11px",display:"flex",flexDirection:"column",gap:6,minWidth:0}},
+      React.createElement('span',{style:recordParts.label},"Track record"),
+      recordParts.rings,
+      React.createElement('em',{style:{fontStyle:"normal",fontFamily:LOOP_FONTS.body,fontSize:11,fontWeight:500,color:"#B8C7C4"}},recordParts.summary)
+    )
+  );
 
   // ── Settlements: your own payments open, everyone else's folded ──────────
   const plateStyle = {border:"0.5px solid #163d36",background:"#0A1412",borderRadius:12,padding:"10px 12px",display:"flex",flexDirection:"column",gap:7};
@@ -622,25 +645,40 @@ const SettlementScreen = ({group, month, currentUser, currentUserId, monthHistor
 
   return React.createElement(React.Fragment,null,
     React.createElement('div',{style:{width:"100%",maxWidth:"100%",margin:"0 auto",padding:"0 0 48px",display:"flex",flexDirection:"column",gap:14,fontFamily:LOOP_FONTS.body}},
-      React.createElement(MonthDial,{ members: loopMembers, perfect: isBlocPerfect, focus, onToggle: name => setFocus(prev => prev === name ? null : name), readout: ringReadout, live: true }),
-      React.createElement(LoopCaption,{ lines: loopCaption(loopMembers, { ended: true }) }),
-      React.createElement('div',{style:{fontFamily:LOOP_FONTS.body,fontSize:7,fontWeight:500,color:"#6B9690",opacity:.8,textAlign:"center",marginTop:-8}},"Tap a slice to see that person"),
-      perfectRun > 0 && React.createElement(PerfectRunPill,{ run: perfectRun }),
-      renderFocusPlate(),
+      // The ended month, in the order agreed with the founder on 2026-10-02: how you did,
+      // your calendar and the button to share it, the awards, the Bloc's ring, your
+      // records, then money. The calendar is what we want people to share, so it sits
+      // on the first screen with one obvious button instead of a corner icon.
+      React.createElement('div',{style:{fontFamily:LOOP_FONTS.body,fontSize:12,fontWeight:700,color:"#B8C7C4",letterSpacing:".02em",textAlign:"center",marginBottom:-6}},`${selectedMonthName}'s Recap`),
       renderReport(),
+      // Someone who sat the month out has no month to show or share.
+      reportCalendar && !userSatOut ? React.createElement('div',{style:{display:"flex",flexDirection:"column",gap:8}},
+        React.createElement(MonthCalendarCard,{
+          title:stickerMonthLabel,
+          logsByDay:reportCalendar.logsByDay,
+          year:reportCalendar.year,
+          monthIndex:reportCalendar.monthIndex,
+          daysInMonth:reportCalendar.daysInMonth,
+          firstWeekdayOffset:reportCalendar.firstWeekdayOffset
+        }),
+        React.createElement('button',{type:"button",onClick:handleShare,style:{height:44,borderRadius:12,border:0,background:"#4ECDC4",color:"#041312",fontFamily:LOOP_FONTS.body,fontSize:14,fontWeight:800,cursor:"pointer"}},"Share your month")
+      ) : null,
       React.createElement('div',{style:{border:"0.5px solid #163d36",background:"#0A1412",borderRadius:14,padding:14,display:"flex",flexDirection:"column",gap:12}},
         plateHead(`${selectedMonthName}'s awards`),
         renderAwards()
       ),
-      reportCalendar ? React.createElement(MonthCalendarCard,{
-        title:stickerMonthLabel,
-        logsByDay:reportCalendar.logsByDay,
-        year:reportCalendar.year,
-        monthIndex:reportCalendar.monthIndex,
-        daysInMonth:reportCalendar.daysInMonth,
-        firstWeekdayOffset:reportCalendar.firstWeekdayOffset,
-        onShare:handleShare
-      }) : null,
+      React.createElement('div',{style:{border:"0.5px solid #163d36",background:"#0A1412",borderRadius:14,padding:"14px 14px 12px",display:"flex",flexDirection:"column",gap:10}},
+        plateHead(`The Bloc's ${selectedMonthName}`),
+        React.createElement('div',{style:{width:"84%",margin:"0 auto"}},
+          React.createElement(MonthDial,{ members: loopMembers, perfect: isBlocPerfect, focus, onToggle: name => setFocus(prev => prev === name ? null : name), readout: ringReadout, live: true })
+        ),
+        React.createElement(LoopCaption,{ lines: loopCaption(loopMembers, { ended: true }) }),
+        React.createElement('div',{style:{fontFamily:LOOP_FONTS.body,fontSize:7,fontWeight:500,color:"#6B9690",opacity:.8,textAlign:"center",marginTop:-6}},"Tap a slice to see that person"),
+        perfectRun > 0 && React.createElement(PerfectRunPill,{ run: perfectRun }),
+        // Stays with the dial: it is what a slice tap opens.
+        renderFocusPlate()
+      ),
+      renderRecordRow(),
       React.createElement('div',{ref:ledgerRef},renderSettlements())
     ),
     claimConfirmation,

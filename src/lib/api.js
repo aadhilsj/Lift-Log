@@ -887,11 +887,27 @@ async function listBlocStreamMessagesData(groupId, limit = 100) {
   return { ok:true, messages: Array.isArray(result.body?.messages) ? result.body.messages : [] };
 }
 
-async function getBlocStreamUnreadCountData(groupId) {
-  const result = await postApi("stream-unread-count", { groupId });
-  if (!result.ok) return { ok:false, error: result.error || "Unable to load unread count", unreadCount: 0 };
-  const unreadCount = Number(result.body?.unreadCount || 0);
-  return { ok:true, unreadCount: Number.isFinite(unreadCount) ? Math.max(0, unreadCount) : 0 };
+// `since` is when the notification centre was last opened. It is what the
+// mention and comment counts are measured from; the Stream's own unread count
+// ignores it and uses the Stream's read marker, as it always has.
+//
+// An older server answers with unreadCount alone. The two new numbers are
+// then absent, not zero, and come back as null so the caller can tell "this
+// server cannot say" apart from "there is nothing".
+async function getBlocStreamUnreadCountData(groupId, since = "") {
+  const result = await postApi("stream-unread-count", { groupId, since });
+  if (!result.ok) return { ok:false, error: result.error || "Unable to load unread count", unreadCount: 0, mentionCount: null, logCommentCount: null };
+  const whole = value => {
+    const n = Number(value);
+    return Number.isFinite(n) ? Math.max(0, Math.trunc(n)) : 0;
+  };
+  const has = name => result.body?.[name] !== undefined && result.body?.[name] !== null;
+  return {
+    ok: true,
+    unreadCount: whole(result.body?.unreadCount || 0),
+    mentionCount: has("mentionCount") ? whole(result.body.mentionCount) : null,
+    logCommentCount: has("logCommentCount") ? whole(result.body.logCommentCount) : null
+  };
 }
 
 async function sendBlocStreamMessageData(payload) {
@@ -924,6 +940,56 @@ async function markBlocStreamReadData(groupId) {
   return { ok:true };
 }
 
+// --- Blocking and reporting (App Store guideline 1.2) ----------------------
+// Blocking is one-way by design: these ids are the people *you* blocked, and
+// the surfaces below hide them. The server separately refuses to let someone
+// you blocked comment on or react to your workouts. Nothing here ever tells a
+// member who has blocked them.
+
+async function getSafetyStatusData() {
+  const result = await postApi("safety-status");
+  if (!result.ok) return { ok:false, error:result.error || "Unable to load safety settings", blockedUserIds:[] };
+  return { ok:true, blockedUserIds:Array.isArray(result.body?.blockedUserIds) ? result.body.blockedUserIds : [] };
+}
+
+async function setUserBlockData(blockedUserId, blocked = true) {
+  const result = await postApi("block-user", { blockedUserId, blocked });
+  if (!result.ok) return { ok:false, error:result.error || "Unable to update block", blocked:!blocked };
+  return { ok:true, blocked:!!result.body?.blocked };
+}
+
+// The Blocked screen needs names and photos, which the id list alone does not
+// carry. Scoped to the caller by the server.
+async function getBlockedMembersData() {
+  const result = await postApi("blocked-members");
+  if (!result.ok) return { ok:false, error:result.error || "Unable to load blocked members", members:[] };
+  return { ok:true, members:Array.isArray(result.body?.members) ? result.body.members : [] };
+}
+
+async function createContentReportData(payload) {
+  const result = await postApi("report-content", payload);
+  if (!result.ok) return { ok:false, error:result.error || "Unable to submit report" };
+  return { ok:true, report:result.body?.report || null };
+}
+
+async function listFounderModerationReportsData(limit = 100) {
+  const result = await postApi("founder-moderation-reports", { limit });
+  if (!result.ok) return { ok:false, status:result.status || 0, error:result.error || "Unable to load reports", reports:[] };
+  return { ok:true, reports:Array.isArray(result.body?.reports) ? result.body.reports : [] };
+}
+
+async function reviewFounderModerationReportData(reportId, status, reviewNote = "") {
+  const result = await postApi("founder-review-report", { reportId, status, reviewNote });
+  if (!result.ok) return { ok:false, error:result.error || "Unable to review report" };
+  return { ok:true, report:result.body?.report || null };
+}
+
+async function moderateFounderReportedContentData(reportId, action, reviewNote = "") {
+  const result = await postApi("founder-moderate-reported-content", { reportId, actionType:action, reviewNote });
+  if (!result.ok) return { ok:false, error:result.error || "Unable to change content visibility" };
+  return { ok:true, report:result.body?.report || null };
+}
+
 async function listLogCommentsData(groupId, logId) {
   const result = await postApi("log-comments-list", { groupId, logId });
   if (!result.ok) return { ok:false, error: result.error || "Unable to load comments", comments: [] };
@@ -937,6 +1003,17 @@ async function getLogCommentCountsData(groupId, logIds = []) {
     ? result.body.counts
     : {};
   return { ok:true, counts };
+}
+
+// The newest comment on each log, batched. Empty is a normal answer: it means
+// nobody has commented, never that the call failed.
+async function getLogLatestCommentsData(groupId, logIds = []) {
+  const result = await postApi("log-latest-comments", { groupId, logIds });
+  if (!result.ok) return { ok:false, error: result.error || "Unable to load comments", latest: {} };
+  const latest = result.body?.latest && typeof result.body.latest === "object" && !Array.isArray(result.body.latest)
+    ? result.body.latest
+    : {};
+  return { ok:true, latest };
 }
 
 async function createLogCommentData(payload) {
@@ -1044,10 +1121,18 @@ export {
   sendBlocStreamMessageData,
   createBlocStreamEventData,
   setBlocStreamRsvpData,
+  getSafetyStatusData,
+  setUserBlockData,
+  getBlockedMembersData,
+  createContentReportData,
+  listFounderModerationReportsData,
+  reviewFounderModerationReportData,
+  moderateFounderReportedContentData,
   toggleBlocStreamReactionData,
   markBlocStreamReadData,
   listLogCommentsData,
   getLogCommentCountsData,
+  getLogLatestCommentsData,
   createLogCommentData,
   toggleLogCommentReactionData,
   readCachedData,

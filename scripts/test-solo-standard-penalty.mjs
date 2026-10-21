@@ -191,8 +191,12 @@ const GROUP_ID = "solo-penalty-bloc";
 const ADMIN_ID = "11111111-1111-4111-8111-111111111111";
 const MEMBER_ID = "22222222-2222-4222-8222-222222222222";
 const liveMonthKey = (() => {
-  const parts = Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Oslo", year: "numeric", month: "numeric" }).formatToParts(new Date()).map(p => [p.type, p.value]));
-  return `${parts.year}-${Number(parts.month) - 1}`;
+  const parts = Object.fromEntries(new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Oslo", year: "numeric", month: "numeric", day: "numeric", hour: "numeric", hour12: false
+  }).formatToParts(new Date()).map(p => [p.type, p.value]));
+  const leagueDate = new Date(Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day)));
+  if (Number(parts.hour) < 3) leagueDate.setUTCDate(leagueDate.getUTCDate() - 1);
+  return `${leagueDate.getUTCFullYear()}-${leagueDate.getUTCMonth()}`;
 })();
 const liveState = (minTarget) => ({
   version: 2,

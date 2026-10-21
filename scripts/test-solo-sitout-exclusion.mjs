@@ -1,11 +1,22 @@
 import assert from "node:assert/strict";
-import {
+
+// Pin the clock to the 15th. Solo before day 10 is approved instantly, so on
+// days 1-10 there is no pending request to cancel and this suite failed on the
+// calendar, not the code. Same clock as scripts/test-yearly-allowance.mjs.
+const RealDate = Date;
+const FAKE_NOW = new RealDate("2026-09-15T12:00:00Z").getTime();
+globalThis.Date = class extends RealDate {
+  constructor(...args) { super(...(args.length ? args : [FAKE_NOW])); }
+  static now() { return FAKE_NOW; }
+};
+
+const {
   applyRequestCancel,
   applySitOutRequest,
   applySitOutReview,
   applySoloRequest,
   applySoloReview
-} from "../api/lift-log.js";
+} = await import("../api/lift-log.js");
 
 const ADMIN_ID = "11111111-1111-4111-8111-111111111111";
 const MEMBER_ID = "22222222-2222-4222-8222-222222222222";
@@ -15,10 +26,15 @@ function currentMonthKey() {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Europe/Oslo",
     year: "numeric",
-    month: "numeric"
+    month: "numeric",
+    day: "numeric",
+    hour: "numeric",
+    hour12: false
   }).formatToParts(new Date());
   const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
-  return `${values.year}-${Number(values.month) - 1}`;
+  const leagueDate = new Date(Date.UTC(Number(values.year), Number(values.month) - 1, Number(values.day)));
+  if (Number(values.hour) < 3) leagueDate.setUTCDate(leagueDate.getUTCDate() - 1);
+  return `${leagueDate.getUTCFullYear()}-${leagueDate.getUTCMonth()}`;
 }
 
 function state() {

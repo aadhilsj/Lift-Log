@@ -3,6 +3,8 @@ import { syncPushRegistration } from "./lib/pushNotifications.js";
 const { useState, useEffect, useMemo, useCallback, useRef } = React;
 import {
   MIN_TARGET,
+  buildSettlementReminderCards,
+  fmtCurrency,
   curKey,
   normalizeSitOutRequests,
   normalizeSoloRequests,
@@ -74,6 +76,8 @@ import {
   multiLogData,
   mutateLogData,
   getBlocStreamUnreadCountData,
+  getLogLatestCommentsData,
+  listBlocStreamMessagesData,
   readCachedData,
   writeCachedData,
   readPersistedAuthSession,
@@ -100,15 +104,19 @@ import { TodayPage } from "./pages/TodayPage.jsx";
 import { ActivityPage } from "./pages/ActivityPage.jsx";
 import { MonthPage } from "./pages/MonthPage.jsx";
 import { HistoryPage } from "./pages/HistoryPage.jsx";
+import { PlayerProfile } from "./pages/PlayerProfile.jsx";
+import { ProfileBackContext } from "./lib/profileBackContext.js";
 import { BlocStream } from "./pages/BlocStream.jsx";
 import { ProfilePage } from "./pages/ProfilePage.jsx";
 import { BlocSettingsScreen } from "./pages/BlocSettingsScreen.jsx";
 import { LogCommentThread } from "./components/LogCommentThread.jsx";
 import { ColdOnboarding } from "./components/ColdOnboarding.jsx";
 import { FounderDashboard } from "./pages/FounderDashboard.jsx";
-import { NotificationsPage } from "./pages/NotificationsPage.jsx";
+import { NotificationCentre } from "./components/NotificationCentre.jsx";
+import { buildNotifications, unreadCount as notificationUnreadCount } from "./lib/notificationCentre.js";
 import { Capacitor } from "@capacitor/core";
 import { tapLight } from "./lib/haptics.js";
+import { createOwnLogDeleter } from "./lib/ownLogDelete.js";
 
 const normalizeReactionMembers = (members) => Array.isArray(members)
   ? Array.from(new Set(members.filter(Boolean))).sort()
@@ -273,7 +281,9 @@ const SetupProgressScreen = ({stage="savingName"}) => {
   );
 };
 
-const IN_BLOC_PAGES = ["today", "activity", "month", "history"];
+// The fifth tab is your own in-Bloc profile. It replaced History, which now
+// lives inside Month as the All Time view.
+const IN_BLOC_PAGES = ["today", "activity", "month", "profile"];
 // One settle for every screen-to-screen move in the app. Tab swipes were 80ms,
 // tab taps 180ms and the Bloc back-swipe 260ms, which is why moving between
 // screens read as abrupt and inconsistent. Both the CSS duration and the commit
@@ -407,6 +417,10 @@ const App = () => {
   const [saving,setSaving]=useState(false);
   const [creatingGroup,setCreatingGroup]=useState(false);
   const [savingSettings,setSavingSettings]=useState(false);
+  // The back handler of whichever member profile is open, published by
+  // PlayerProfile through ProfileBackContext so the Bloc header can offer the
+  // way back. Null whenever no profile is open.
+  const [profileBack,setProfileBack]=useState(null);
   const [showSettings,setShowSettings]=useState(false);
   const [settingsInitialTab,setSettingsInitialTab]=useState("invite");
   const [createdInviteGroupId,setCreatedInviteGroupId]=useState(null);
@@ -414,11 +428,44 @@ const App = () => {
   const [paymentSaving,setPaymentSaving]=useState(false);
   const [paymentError,setPaymentError]=useState("");
   const [showProfile,setShowProfile]=useState(false);
+  // Month | All Time inside the Month tab. "alltime" is the old History page.
+  const [monthView,setMonthView]=useState("month");
   const [showFounderDashboard,setShowFounderDashboard]=useState(false);
   const [founderDashboardAvailable,setFounderDashboardAvailable]=useState(()=>readFounderDashboardAvailability(initialPersistedSession?.userId));
   const [showStream,setShowStream]=useState(false);
   const [showNotifications,setShowNotifications]=useState(false);
+  // "Seen" is just the last time the centre was opened, kept per browser.
+  // There is no per-user read state in Fero yet; that is database work.
+  const [notificationsSeenAt,setNotificationsSeenAt]=useState(()=>{ try { return localStorage.getItem("fero_notifications_seen_v1") || ""; } catch { return ""; } });
+  const [activityHighlightLogId,setActivityHighlightLogId]=useState("");
+  // The centre's two extras — what the newest comment on each of your logs
+  // said, and Stream messages that mention you. Both are fetched when the
+  // centre is OPENED, never on a refresh: this screen must not add to the read
+  // volume that docs/scaling-before-launch-2026-09-15.md is about.
+  const [notificationLatestComments,setNotificationLatestComments]=useState({});
+  // Whether that fetch has answered. An empty answer means "nobody else has
+  // commented", which is only believable once we know we asked.
+  const [notificationLatestCommentsLoaded,setNotificationLatestCommentsLoaded]=useState(false);
+  const [notificationStreamMessages,setNotificationStreamMessages]=useState([]);
+  // What the SERVER says is waiting for you: how many of the Stream's unread
+  // messages tag you, and how many new comments are on your own logs. The
+  // client cannot work either out before the centre is opened — the messages
+  // and the comment times are not on the device until then — so without these
+  // a tag never lit the bell at all, and the first comment on a log was
+  // missed. They ride along on the unread-count call the app already makes
+  // once per refresh, so they cost no extra round trip.
+  //
+  // null means "this server cannot say" (the function is not applied yet),
+  // which is not the same as zero and must not be added to the badge.
+  const [notificationServerCounts,setNotificationServerCounts]=useState({mentions:null,logComments:null});
+  // The last-opened time as a ref as well as state: the refresh callback reads
+  // it without taking it as a dependency, so opening the bell does not rebuild
+  // the callback and fire an extra request.
+  const notificationsSeenAtRef=useRef(notificationsSeenAt);
+  useEffect(()=>{ notificationsSeenAtRef.current=notificationsSeenAt; },[notificationsSeenAt]);
   const [streamFocusBlocId,setStreamFocusBlocId]=useState(null);
+  // The Stream message a mention row points at, so the Stream can land on it.
+  const [streamFocusMessageId,setStreamFocusMessageId]=useState("");
   const [streamReturnScrollTop,setStreamReturnScrollTop]=useState(null);
   const [logCommentScreen,setLogCommentScreen]=useState(null);
   const [logCommentCountOverrides,setLogCommentCountOverrides]=useState({});
@@ -2057,17 +2104,22 @@ const App = () => {
   const refreshStreamUnreadCount = useCallback(async(groupId = selectedGroupId) => {
     if (!groupId || !effectiveAuthSession?.userId) {
       setStreamUnreadCount(0);
+      setNotificationServerCounts({mentions:null,logComments:null});
       return;
     }
-    const result = await getBlocStreamUnreadCountData(groupId);
-    if (result?.ok) setStreamUnreadCount(result.unreadCount);
+    const result = await getBlocStreamUnreadCountData(groupId, notificationsSeenAtRef.current);
+    if (result?.ok) {
+      setStreamUnreadCount(result.unreadCount);
+      // Absent, not zero, on a server without the function: keep null so the
+      // badge falls back to what the client can work out by itself.
+      setNotificationServerCounts({mentions:result.mentionCount, logComments:result.logCommentCount});
+    }
   },[effectiveAuthSession?.userId, selectedGroupId]);
   const handleOpenStream = useCallback(() => {
     setStreamFocusBlocId(null);
     setStreamReturnScrollTop(null);
     setShowStream(true);
   },[]);
-  const handleOpenNotifications = useCallback(() => setShowNotifications(true),[]);
   const trackUsage = useCallback(eventName => { void trackUsageEvent(eventName); },[]);
   const handleOpenLogComments = useCallback(({ groupId, log, source, returnScrollTop }) => {
     if (!groupId || !log?.id) return;
@@ -2110,9 +2162,11 @@ const App = () => {
       setShowTodayLog(false);
       return;
     }
-    // Reselecting the tab you are already on is not a screen change, so it
-    // does not buzz.
-    if (nextPage !== page) void tapLight();
+    // Tapping the nav bar does not buzz, the way Instagram's does not. The
+    // buzz answers a finger lifting off a gesture; on a tap it arrives before
+    // the screen does and sets up an expectation the render cannot meet, which
+    // reads as lag. Swiping between tabs still buzzes -- see the page swipe
+    // release in endInBlocPageSwipe.
     setShowTodayLog(false);
     setShowSettings(false);
     pageDragXRef.current = 0;
@@ -2347,6 +2401,17 @@ const App = () => {
   const showIosHint = !standalone && !installDismissed && isIos() && isSafari() && !installPrompt;
   const showInstallBanner = !standalone && !installDismissed && (Boolean(installPrompt) || showIosHint);
   const groups = appState.groupOrder.map(groupId => appState.groups[groupId]).filter(Boolean);
+
+  // The same deleter TodayPage uses, so the Profile tab, Month and All Time
+  // can delete your own workout from their calendars too. Without it those
+  // screens fell through to the read-only workout detail popup.
+  const deleteOwnLogInCurrentBloc = createOwnLogDeleter({
+    onLogMutation: handleLogMutation,
+    groups,
+    groupId: selectedGroupId,
+    currentUserId: effectiveAuthSession?.userId,
+    user: currentUser
+  });
   const visibleGroups = groups.filter(group => {
     const displayName = String(effectiveProfile?.displayName || "").trim();
     if (hiddenLeftGroupIds[group.id]) return false;
@@ -2387,6 +2452,105 @@ const App = () => {
   },[appState.groups, authSession?.userId, firstVisibleGroupId, selectedGroupId]);
   const localPreviewMembers = uniqueNames(groups.flatMap(group => getCurrentGroupMemberNames(group)));
   const activityAlertCount = currentGroup && currentUser ? getActivityAlertCount(currentGroup, currentUser) : 0;
+  // ── The notification centre ────────────────────────────────────────────────
+  // Reuses the settlement reminder cards Today already builds, so the bell and
+  // Today can never disagree about who owes what.
+  const notificationReminderCards = useMemo(
+    () => (currentGroup && effectiveAuthSession?.userId ? buildSettlementReminderCards(currentGroup, effectiveAuthSession.userId, currentUser) : []),
+    [currentGroup, effectiveAuthSession?.userId, currentUser]
+  );
+  const notificationItems = useMemo(() => buildNotifications({
+    group: currentGroup,
+    currentUser,
+    currentUserId: effectiveAuthSession?.userId || "",
+    reminderCards: notificationReminderCards,
+    formatAmount: (amount, currency) => fmtCurrency(amount, currency),
+    latestComments: notificationLatestComments,
+    latestCommentsLoaded: notificationLatestCommentsLoaded,
+    streamMessages: notificationStreamMessages
+  }), [currentGroup, currentUser, effectiveAuthSession?.userId, notificationReminderCards, notificationLatestComments, notificationLatestCommentsLoaded, notificationStreamMessages]);
+  // What the client can see for itself: reactions (the log carries the
+  // reaction's own timestamp) and money.
+  //
+  // The server's two numbers are ADDED rather than merged, and that cannot
+  // double-count. Before the centre has been opened the client holds no
+  // comment times and no stream messages, so those rows contribute nothing.
+  // After it is opened, `notificationsSeenAt` is set to that moment and every
+  // row then fetched is older than it, so they contribute nothing either.
+  // Either way the client side of the sum is reactions and money only.
+  const notificationCount = notificationUnreadCount(notificationItems, notificationsSeenAt)
+    + Math.max(0, Number(notificationServerCounts.mentions) || 0)
+    + Math.max(0, Number(notificationServerCounts.logComments) || 0);
+  const handleOpenNotifications = () => {
+    trackUsage("notifications_opened");
+    const now = new Date().toISOString();
+    setNotificationsSeenAt(now);
+    notificationsSeenAtRef.current = now;
+    try { localStorage.setItem("fero_notifications_seen_v1", now); } catch { /* per-browser convenience only */ }
+    // Clear the server's two numbers here rather than waiting for the next
+    // refresh to say zero: the badge goes out as the panel opens, and no
+    // extra request is made to prove it. The next refresh confirms it, now
+    // measuring from `now`.
+    setNotificationServerCounts(current => (
+      current.mentions === null && current.logComments === null
+        ? current
+        : { mentions: current.mentions === null ? null : 0, logComments: current.logComments === null ? null : 0 }
+    ));
+    setShowNotifications(true);
+    // The panel opens immediately on what the client already knows; the comment
+    // text and the mentions fill in behind it. Two batched calls per opening,
+    // and none at all if the bell is never tapped.
+    const groupId = currentGroup?.id;
+    if (!groupId) return;
+    // Every one of your own logs, not only the ones the blob thinks have
+    // comments: that count comes from canonical and can lag behind it.
+    const ownLogIds = (currentGroup?.logs?.[currentUser] || [])
+      .map(log => String(log?.id || ""))
+      .filter(Boolean);
+    if (ownLogIds.length) {
+      getLogLatestCommentsData(groupId, ownLogIds).then(result => {
+        // An empty answer means nobody has commented. It is never a reason to
+        // blank what is already on screen.
+        if (result?.ok) {
+          setNotificationLatestComments(result.latest || {});
+          setNotificationLatestCommentsLoaded(true);
+        }
+      }).catch(() => { /* the rows fall back to the count they already have */ });
+    }
+    listBlocStreamMessagesData(groupId, 100).then(result => {
+      if (result?.ok) setNotificationStreamMessages(result.messages || []);
+    }).catch(() => { /* no mention rows, rather than a broken screen */ });
+  };
+  // Every row lands somewhere real rather than being a dead end.
+  const handleNotificationAct = item => {
+    setShowNotifications(false);
+    if (item.opens === "comments") {
+      // A comment row opens the thread itself, not the workout it hangs off.
+      // The thread needs the whole log, and these are always the signed-in
+      // member's own workouts, so it is found in their own list.
+      const log = (currentGroup?.logs?.[currentUser] || []).find(entry => String(entry?.id) === String(item.logId));
+      if (log) {
+        handleOpenLogComments({ groupId: currentGroup.id, log, source: "activity" });
+        return;
+      }
+      // The log has gone (deleted, or the month rolled). Falling through to the
+      // feed is better than a tap that does nothing.
+    }
+    if (item.opens === "activity" || item.opens === "comments") {
+      // The feed puts this log on screen and glows it briefly, so it is obvious
+      // which one you were sent to see.
+      setActivityHighlightLogId(String(item.logId || ""));
+      setPage("activity");
+      return;
+    }
+    if (item.opens === "stream") {
+      // A mention opens the Stream on the message itself, which then glimmers.
+      setStreamFocusMessageId(String(item.messageId || ""));
+      handleOpenStream();
+      return;
+    }
+    if (item.opens === "settlement") { setMonthInitialIdx(null); setPage("month"); }
+  };
   const renderGroupSwitcherSurface = ({ inert=false, suppressIntro=false } = {}) => React.createElement('div',{
     ref:el=>{
       if (!el) {
@@ -3531,20 +3695,70 @@ const App = () => {
       React.createElement(TodayPage,  {user:currentUser,currentUserId:effectiveAuthSession?.userId,currentGroupId:selectedGroupId,groups,profiles:appState?.profiles||{},accountCreatedAt:profile?.createdAt,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,saving,onSave:handleSave,onMultiLog:handleMultiLog,onLogMutation:handleLogMutation,clockTick,onViewLastMonth:()=>{setMonthInitialIdx(0);setPage("month");},onOpenMonth:()=>{setMonthInitialIdx(null);setPage("month");},onSettlementClaimPaid:handleSettlementClaimPaid,onSettlementConfirmPaid:handleSettlementConfirmPaid,onSettlementDisputePaid:handleSettlementDisputePaid,onOpenSetupReview:handleOpenSetupReview,onOpenAccount:()=>setShowProfile(true),navResetToken,showLog:showTodayLog,setShowLog:setShowTodayLog,onTrackUsage:trackUsage,currentPaymentMethods:effectiveProfile?.paymentMethods||[],onSavePayment:handleSavePaymentHandle,savingPayment:paymentSaving,paymentError:paymentError})
     ),
     pageName==="activity"&&React.createElement(InBlocPageErrorBoundary,{pageLabel:"Activity",resetKey:`${selectedGroupId}:${navResetToken}:${currentUser}`},
-      React.createElement(ActivityPage,{group:currentGroup,currentUser,currentUserId:effectiveAuthSession?.userId,onLogMutation:handleLogMutation,clockTick,reactionOverrides,setReactionOverrides,commentCountOverrides:logCommentCountOverrides,onCommentCountsLoaded:setLogCommentCountOverrides,onOpenLogComments:handleOpenLogComments,onTrackUsage:trackUsage})
+      React.createElement(ActivityPage,{group:currentGroup,currentUser,currentUserId:effectiveAuthSession?.userId,onLogMutation:handleLogMutation,clockTick,highlightLogId:activityHighlightLogId,onHighlightShown:()=>setActivityHighlightLogId(""),reactionOverrides,setReactionOverrides,commentCountOverrides:logCommentCountOverrides,onCommentCountsLoaded:setLogCommentCountOverrides,onOpenLogComments:handleOpenLogComments,onTrackUsage:trackUsage})
     ),
     pageName==="month"  &&React.createElement(InBlocPageErrorBoundary,{pageLabel:"Month",resetKey:`${selectedGroupId}:${navResetToken}:${currentUser}:${monthInitialIdx ?? "current"}`},
-      React.createElement(MonthPage,  {key:`${selectedGroupId}:${monthInitialIdx ?? "current"}`,group:currentGroup,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,groupSettings:currentGroup.settings,currentUser,currentUserId:effectiveAuthSession?.userId,initialSelIdx:monthInitialIdx,onStartNextMonth:()=>{setMonthInitialIdx(null);setPage("today");},onOpenToday:()=>setPage("today"),onSettlementClaimPaid:handleSettlementClaimPaid,onSettlementConfirmPaid:handleSettlementConfirmPaid,profiles:appState?.profiles||{},onOpenAccount:()=>setShowProfile(true),navResetToken,onTrackUsage:trackUsage,currentPaymentMethods:effectiveProfile?.paymentMethods||[],onSavePayment:handleSavePaymentHandle,savingPayment:paymentSaving,paymentError:paymentError})
+      React.createElement(React.Fragment,null,
+      React.createElement('div',{style:{display:"flex",justifyContent:"center",padding:"10px 14px 0"}},
+        React.createElement('div',{style:{display:"inline-flex",padding:3,borderRadius:999,background:"rgba(78,205,196,.06)",border:"0.5px solid rgba(78,205,196,.2)"}},
+          [["month","Month"],["alltime","All Time"]].map(([id,label])=>React.createElement('button',{
+            key:id,
+            type:"button",
+            onClick:()=>{
+              // The History tab is gone, so history_opened stops growing. This
+              // is what replaces it on the dashboard.
+              if (id === "alltime" && monthView !== "alltime") trackUsage("all_time_opened");
+              setMonthView(id);
+            },
+            style:{border:0,cursor:"pointer",padding:"6px 16px",borderRadius:999,fontFamily:"'Outfit', sans-serif",fontSize:12,fontWeight:700,background:monthView===id?"#4ECDC4":"transparent",color:monthView===id?"#041312":"#8FAEAA"}
+          },label))
+        )
+      ),
+      monthView==="alltime"
+        ? React.createElement(HistoryPage,{group:currentGroup,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,groupSettings:currentGroup.settings,navResetToken,currentUser,groups,onTrackUsage:trackUsage,currentUserId:effectiveAuthSession?.userId,accountCreatedAt:profile?.createdAt,onDeleteOwnLog:deleteOwnLogInCurrentBloc})
+        : React.createElement(MonthPage,  {key:`${selectedGroupId}:${monthInitialIdx ?? "current"}`,group:currentGroup,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,groupSettings:currentGroup.settings,currentUser,currentUserId:effectiveAuthSession?.userId,initialSelIdx:monthInitialIdx,onStartNextMonth:()=>{setMonthInitialIdx(null);setPage("today");},onOpenToday:()=>setPage("today"),onSettlementClaimPaid:handleSettlementClaimPaid,onSettlementConfirmPaid:handleSettlementConfirmPaid,profiles:appState?.profiles||{},onOpenAccount:()=>setShowProfile(true),navResetToken,onTrackUsage:trackUsage,currentPaymentMethods:effectiveProfile?.paymentMethods||[],onSavePayment:handleSavePaymentHandle,savingPayment:paymentSaving,paymentError:paymentError,groups,onDeleteOwnLog:deleteOwnLogInCurrentBloc}))
     ),
-    pageName==="history"&&React.createElement(InBlocPageErrorBoundary,{pageLabel:"History",resetKey:`${selectedGroupId}:${navResetToken}:${currentUser}`},
-      React.createElement(HistoryPage,{group:currentGroup,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,groupSettings:currentGroup.settings,navResetToken,currentUser,groups,onTrackUsage:trackUsage,currentUserId:effectiveAuthSession?.userId,accountCreatedAt:profile?.createdAt})
+    pageName==="profile"&&React.createElement(InBlocPageErrorBoundary,{pageLabel:"Profile",resetKey:`${selectedGroupId}:${navResetToken}:${currentUser}`},
+      React.createElement('div',{style:{display:"flex",flexDirection:"column"}},
+        React.createElement(PlayerProfile,{group:currentGroup,name:currentUser,logs:currentGroup.logs,excused:currentGroup.excused,monthHistory:currentGroup.monthHistory,onBack:()=>{},groupSettings:currentGroup.settings,memberUserId:effectiveAuthSession?.userId||"",currentUserId:effectiveAuthSession?.userId,visibleGroups:groups,accountCreatedAt:profile?.createdAt,profilePhotoUrl:effectiveProfile?.profilePhotoUrl||"",onTrackUsage:trackUsage,isOwnProfile:true,asTab:true,onUpdateProfilePhoto:handleUpdateProfilePhoto,onDeleteLog:deleteOwnLogInCurrentBloc}),
+        // Name, payments, email, sign out and delete account stay on the
+        // account screen, deliberately a few taps away. This is the way in.
+        React.createElement('div',{style:{maxWidth:740,width:"100%",margin:"0 auto",padding:"0 16px 16px"}},
+          // Not a card: the page already ends in cards, and one more would read
+          // as another block of stats. Plain cyan text, the same cue the rest
+          // of the app uses for "this opens something".
+          React.createElement('button',{type:"button",onClick:()=>{trackUsage("own_profile_opened");setShowProfile(true);},style:{display:"block",width:"100%",padding:"6px 0 2px",background:"none",border:0,cursor:"pointer",textAlign:"center",fontFamily:"'Outfit', sans-serif"}},
+            React.createElement('span',{style:{display:"block",fontSize:13.5,fontWeight:700,color:"#4ECDC4"}},"Account settings \u203a"),
+            React.createElement('span',{style:{display:"block",marginTop:3,fontSize:11,fontWeight:600,color:"var(--muted)"}},"Name, payments, sign out")
+          )
+        )
+      )
     )
   );
 
   const pageIndex = Math.max(0, IN_BLOC_PAGES.indexOf(page));
   const screenWidth = typeof window !== "undefined" ? (window.innerWidth || 420) : 420;
   const inBlocViewportHeight = "calc(100dvh - 64px)";
+  // The track holds all four in-Bloc pages side by side, so it is four
+  // viewports wide with its overflow hidden. A hidden overflow is still
+  // programmatically scrollable, and focusing anything inside it - which a
+  // mouse click on a button does - lets the browser scroll it sideways to
+  // reveal what was focused. The page is then left sitting off to one side
+  // with no gesture able to bring it back, because the swipe machinery moves
+  // pages with transforms and never reads scrollLeft.
+  //
+  // Found on the Month ring: tapping a member's slice left the page 149px to
+  // the left, stuck. Nothing should ever scroll this element, so put it back.
+  // A plain function, not useCallback: this sits after an early return, where
+  // a hook cannot go.
+  const handlePageTrackScroll = e => {
+    const el = e.currentTarget;
+    if (el.scrollLeft !== 0) el.scrollLeft = 0;
+    if (el.scrollTop !== 0) el.scrollTop = 0;
+  };
+
   const activePageLayer = React.createElement('div',{
+    onScroll:handlePageTrackScroll,
     onTouchStart:startPageSwipe,
     onTouchMove:movePageSwipe,
     onTouchEnd:endPageSwipe,
@@ -3621,7 +3835,7 @@ const App = () => {
           opacity:tapOpacity !== null ? tapOpacity : (active ? pageFadeFor(offsetX, screenWidth) : 1),
           transition:tapTransitionParticipant ? tapTransitionStyle : (pageDragging&&!pageReleasingRef.current)?"none":`${SCREEN_SETTLE_TRANSITION}, ${PAGE_FADE_TRANSITION}`,
           boxShadow:active&&pageDragXRef.current?"-18px 0 34px rgba(0,0,0,.24)":"none",
-          willChange:near?"transform":"auto"
+          willChange:near&&(pageDragging||pageReleasingRef.current||tapTransitionParticipant)?"transform":"auto"
         },
         "data-page-scroll-container": active ? "true" : undefined
       }, renderInBlocPage(pageName,{swipePreview:!active}));
@@ -3653,7 +3867,7 @@ const App = () => {
       touchAction:"pan-y"
     }
   },
-    React.createElement(Nav,{page,setPage:handleNavSelect,user:currentUser,currentUserId:effectiveAuthSession?.userId||"",profilePhotoUrl:effectiveProfile?.profilePhotoUrl||"",groupName:currentGroup.name,canEditGroup:isGroupAdmin,settingsAlert:pendingRequestCount>0,onOpenSettings:()=>{trackUsage("settings_opened");setSettingsInitialTab("invite");setShowSettings(true)},onOpenStream:handleOpenStream,onOpenNotifications:handleOpenNotifications,streamUnreadCount,onSwitchUser:handleSwitchUser,onSwitchGroup:handleSwitchBlocTracked,onOpenLog:()=>{setPage("today");setShowTodayLog(true);},syncing,lastSyncedAt,syncError,onRefresh:refreshNow,showJustSynced,activityAlertCount,hideMobileBottomNav:true}),
+    React.createElement(Nav,{page,setPage:handleNavSelect,user:currentUser,currentUserId:effectiveAuthSession?.userId||"",profilePhotoUrl:effectiveProfile?.profilePhotoUrl||"",groupName:currentGroup.name,canEditGroup:isGroupAdmin,settingsAlert:pendingRequestCount>0,onOpenSettings:()=>{trackUsage("settings_opened");setSettingsInitialTab("invite");setShowSettings(true)},onOpenStream:handleOpenStream,onOpenNotifications:handleOpenNotifications,notificationCount,streamUnreadCount,onSwitchUser:handleSwitchUser,onSwitchGroup:handleSwitchBlocTracked,onOpenLog:()=>{setPage("today");setShowTodayLog(true);},syncing,lastSyncedAt,syncError,onRefresh:refreshNow,showJustSynced,activityAlertCount,hideMobileBottomNav:true,profileBack}),
     localDevMode && React.createElement(LocalDevImpersonationBar,{options:devImpersonationOptions,value:effectiveAuthSession?.devImpersonationActive?effectiveAuthSession.userId:"",onChange:handleSelectDevImpersonation}),
     React.createElement('div',{style:{position:"relative",overflow:"hidden",height:inBlocViewportHeight,minHeight:0}},
       showSettings && React.createElement('div',{style:{position:"absolute",inset:"0 0 auto 0",zIndex:1,pointerEvents:"none"}},renderInBlocPage(page,{swipePreview:true})),
@@ -3669,11 +3883,16 @@ const App = () => {
     })
   );
 
-  return React.createElement(React.Fragment,null,
+  return React.createElement(ProfileBackContext.Provider,{value:setProfileBack},
+  React.createElement(React.Fragment,null,
     showJoinModal && !authStep && React.createElement(JoinGroupModal,{inviteContext,joinCode,setJoinCode,onClose:handleJoinModalClose,onJoin:handleJoinGroup,joining:joiningGroup,error:inviteError,signedIn:true}),
     showProfileModal && React.createElement(ProfileModal,{email:authSession?.email,onSignOut:handleSwitchUser,onClose:()=>setShowProfileModal(false),showDisplayName:true,currentDisplayName:currentUser,onSaveDisplayName:handleSaveProfileFromModal,saving:profileSaving,saveError:profileError,onLeaveBloc:handleLeaveBloc,onDeleteAccount:handleDeleteAccount,currentPaymentMethods:effectiveProfile?.paymentMethods||[],onSavePayment:handleSavePaymentHandle,savingPayment:paymentSaving,paymentError:paymentError}),
-    React.createElement(BlocStream,{open:showStream,groupName:currentGroup.name,blocId:currentGroup.id,initialBlocId:streamFocusBlocId,initialScrollTop:streamReturnScrollTop,initialUnreadCount:streamUnreadCount,currentUserId:effectiveAuthSession?.userId,members:Object.values(currentGroup.memberships||{}).map(m=>({id:m.userId,name:m.displayName,photoUrl:appState.profiles?.[m.userId]?.profilePhotoUrl||""})),streamBlocs:visibleGroups.map(group=>({id:group.id,name:group.name,members:Object.values(group.memberships||{}).map(m=>({id:m.userId,name:m.displayName,photoUrl:appState.profiles?.[m.userId]?.profilePhotoUrl||""}))})),onSeasonClosedTap:handleStreamSeasonClosedTap,onUnreadCountChange:(groupId,count)=>{if(groupId===currentGroup.id)setStreamUnreadCount(Number(count)||0);},onOpenLogComments:handleOpenLogComments,onClose:()=>{setShowStream(false);setStreamFocusBlocId(null);setStreamReturnScrollTop(null);refreshStreamUnreadCount(currentGroup.id);}}),
-    showNotifications && React.createElement(NotificationsPage,{onClose:()=>setShowNotifications(false)}),
+    React.createElement(BlocStream,{open:showStream,groupName:currentGroup.name,blocId:currentGroup.id,initialBlocId:streamFocusBlocId,initialScrollTop:streamReturnScrollTop,initialUnreadCount:streamUnreadCount,focusMessageId:streamFocusMessageId,onFocusMessageShown:()=>setStreamFocusMessageId(""),currentUserId:effectiveAuthSession?.userId,members:Object.values(currentGroup.memberships||{}).map(m=>({id:m.userId,name:m.displayName,photoUrl:appState.profiles?.[m.userId]?.profilePhotoUrl||""})),streamBlocs:visibleGroups.map(group=>({id:group.id,name:group.name,members:Object.values(group.memberships||{}).map(m=>({id:m.userId,name:m.displayName,photoUrl:appState.profiles?.[m.userId]?.profilePhotoUrl||""}))})),onSeasonClosedTap:handleStreamSeasonClosedTap,onUnreadCountChange:(groupId,count)=>{if(groupId===currentGroup.id)setStreamUnreadCount(Number(count)||0);},onOpenLogComments:handleOpenLogComments,onClose:()=>{setShowStream(false);setStreamFocusBlocId(null);setStreamReturnScrollTop(null);setStreamFocusMessageId("");refreshStreamUnreadCount(currentGroup.id);}}),
+    showNotifications && React.createElement(NotificationCentre,{
+      items:notificationItems,
+      onClose:()=>setShowNotifications(false),
+      onAct:handleNotificationAct
+    }),
     needsTrainingChoice && React.createElement(TrainingChoiceModal,{
       blocName: currentGroup.name,
       defaultTraining: currentGroup.settings?.trainingWheels !== false,
@@ -3701,7 +3920,7 @@ const App = () => {
     // white while the canvas was unpainted, a dark slab once it was painted.
     // The packaged iOS app composites it below the sheet and never showed it,
     // which is why TestFlight looked right with identical code.
-    !showSettings && !showStream && !logCommentScreen && React.createElement(Nav,{onlyMobileBottomNav:true,page,setPage:handleNavSelect,user:currentUser,currentUserId:effectiveAuthSession?.userId||"",profilePhotoUrl:effectiveProfile?.profilePhotoUrl||"",groupName:currentGroup.name,canEditGroup:isGroupAdmin,settingsAlert:pendingRequestCount>0,onOpenSettings:()=>{trackUsage("settings_opened");setSettingsInitialTab("invite");setShowSettings(true)},onOpenStream:handleOpenStream,onOpenNotifications:handleOpenNotifications,streamUnreadCount,onSwitchUser:handleSwitchUser,onSwitchGroup:handleSwitchBlocTracked,onOpenLog:()=>{setPage("today");setShowTodayLog(true);},syncing,lastSyncedAt,syncError,onRefresh:refreshNow,showJustSynced,activityAlertCount,mobileBottomDragX:blocDragXRef.current,mobileBottomNavRef:blocBottomNavRef,mobileBottomDragging:blocDragging&&!blocReleasingRef.current,mobileBottomSettle:`transform ${BLOC_SWIPE_SETTLE_MS}ms ${BLOC_SWIPE_EASING}`,mobileTabIndicatorRef:tabIndicatorRef,mobileTabSettle:SCREEN_SETTLE_TRANSITION,mobileTabLiftSettle:TAB_LIFT_TRANSITION}),
+    !showSettings && !showStream && !logCommentScreen && React.createElement(Nav,{onlyMobileBottomNav:true,page,setPage:handleNavSelect,user:currentUser,currentUserId:effectiveAuthSession?.userId||"",profilePhotoUrl:effectiveProfile?.profilePhotoUrl||"",groupName:currentGroup.name,canEditGroup:isGroupAdmin,settingsAlert:pendingRequestCount>0,onOpenSettings:()=>{trackUsage("settings_opened");setSettingsInitialTab("invite");setShowSettings(true)},onOpenStream:handleOpenStream,onOpenNotifications:handleOpenNotifications,notificationCount,streamUnreadCount,onSwitchUser:handleSwitchUser,onSwitchGroup:handleSwitchBlocTracked,onOpenLog:()=>{setPage("today");setShowTodayLog(true);},syncing,lastSyncedAt,syncError,onRefresh:refreshNow,showJustSynced,activityAlertCount,mobileBottomDragX:blocDragXRef.current,mobileBottomNavRef:blocBottomNavRef,mobileBottomDragging:blocDragging&&!blocReleasingRef.current,mobileBottomSettle:`transform ${BLOC_SWIPE_SETTLE_MS}ms ${BLOC_SWIPE_EASING}`,mobileTabIndicatorRef:tabIndicatorRef,mobileTabSettle:SCREEN_SETTLE_TRANSITION,mobileTabLiftSettle:TAB_LIFT_TRANSITION}),
     renderInviteJoinToast(),
     renderProfilePhotoToast(),
     renderInviteDownloadPrompt(),
@@ -3717,12 +3936,14 @@ const App = () => {
         onClose:handleCloseLogComments,
         onCommentCountChange:handleLogCommentCountChange,
         onTrackUsage:trackUsage
-      }),
+      })
+    ),
     // Also rendered inside a Bloc, so adding a payment method from a
-    // settlement reminder does not eject you back to the Bloc Switcher.
+    // settlement reminder, or opening it from the Profile tab, does not eject
+    // you back to the Bloc Switcher. It was nested inside the comment-thread
+    // layer, so in a Bloc it only appeared while a comment thread was open.
     accountOverlay()
-    )
-  );
+  ));
 };
 
 

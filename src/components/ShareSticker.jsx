@@ -1,4 +1,5 @@
 import React from "react";
+import { createPortal } from "react-dom";
 const { useState, useEffect, useRef, useCallback } = React;
 import { renderStickerAsync, canvasToBlob } from "../lib/shareSticker.js";
 
@@ -17,7 +18,23 @@ const STYLE_OPTIONS = [
 
 const ShareSticker = ({ data, monthLabel, onClose }) => {
   const canvasRef = useRef(null);
+  const panelRef = useRef(null);
   const [style, setStyle] = useState("grid");
+
+  // Nothing behind the sheet scrolls while it is open. A swipe inside the sheet is left
+  // alone (it may need to scroll on a short phone); anywhere else is cancelled.
+  useEffect(() => {
+    const block = event => {
+      if (panelRef.current && panelRef.current.contains(event.target)) return;
+      if (event.cancelable) event.preventDefault();
+    };
+    document.addEventListener("touchmove", block, { passive: false, capture: true });
+    document.addEventListener("wheel", block, { passive: false, capture: true });
+    return () => {
+      document.removeEventListener("touchmove", block, { capture: true });
+      document.removeEventListener("wheel", block, { capture: true });
+    };
+  }, []);
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -86,13 +103,23 @@ const ShareSticker = ({ data, monthLabel, onClose }) => {
     }
   }, opt.label);
 
-  return React.createElement('div', { className: "overlay center-mobile", onClick: onClose },
+  // Portalled to document.body so it centres in the visible screen wherever the page is
+  // scrolled, and so a swipe on the backdrop cannot reach the scrolling page behind it.
+  // About 10% narrower than before (founder, 2026-10-02); the sticker preview scales with it.
+  return createPortal(React.createElement('div', { className: "overlay center-mobile", onClick: onClose, style: { zIndex: 1100, padding: "calc(16px + env(safe-area-inset-top)) 12px calc(16px + env(safe-area-inset-bottom))" } },
     React.createElement('div', {
       className: "modal pi",
+      ref: panelRef,
       onClick: e => e.stopPropagation(),
-      style: { maxWidth: 424, padding: "16px 16px 14px" }
+      style: { width: "min(340px, calc(100vw - 52px))", maxWidth: 340, maxHeight: "calc(100dvh - 32px - env(safe-area-inset-top) - env(safe-area-inset-bottom))", overflowY: "auto", overscrollBehavior: "contain", padding: "14px 14px 12px", position: "relative" }
     },
-      React.createElement('div', { style: { fontWeight: 800, fontSize: 17, marginBottom: 3 } },
+      // Tapping the backdrop already closes this, but on a phone the sheet
+      // fills most of the screen and there is little backdrop left to hit.
+      React.createElement('button', {
+        type: "button", onClick: onClose, "aria-label": "Close",
+        style: { position: "absolute", top: 12, right: 12, width: 30, height: 30, borderRadius: 999, background: "var(--s2)", border: "0.5px solid var(--border2)", display: "inline-flex", alignItems: "center", justifyContent: "center", color: "var(--text-soft)", fontSize: 15, padding: 0, lineHeight: 1, zIndex: 2 }
+      }, "\u2715"),
+      React.createElement('div', { style: { fontWeight: 800, fontSize: 17, marginBottom: 3, paddingRight: 36 } },
         monthLabel ? `Share ${monthLabel}` : "Share your month"),
       React.createElement('div', {
         style: { fontSize: 12, color: "var(--muted)", marginBottom: 13, lineHeight: 1.45 }
@@ -144,7 +171,7 @@ const ShareSticker = ({ data, monthLabel, onClose }) => {
         }, "Share")
       )
     )
-  );
+  ), document.body);
 };
 
 export { ShareSticker };

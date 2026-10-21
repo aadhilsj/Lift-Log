@@ -143,6 +143,17 @@ const server = http.createServer(async (req, res) => {
   }
 
   // --- canonical ---------------------------------------------------------
+  // The fixture beside the blob, or null when there is no file. Test aid only:
+  // it mirrors nothing, and without the file every canonical read behaves
+  // exactly as it did before.
+  function readCanonicalFixture() {
+    try {
+      return JSON.parse(fs.readFileSync(path.join(path.dirname(dataFile), "canonical.json"), "utf8"));
+    } catch {
+      return null;
+    }
+  }
+
   // Every ante_core RPC answers "no rows". Reads then fall back to the blob;
   // writes are accepted and discarded. This is the sandbox's one real
   // limitation and it is deliberate: reimplementing the canonical SQL in
@@ -159,6 +170,12 @@ const server = http.createServer(async (req, res) => {
   if (route === "/rest/v1/rpc/read_ante_core_current_logs") {
     await readBody(req);
     const groups = readRow().state?.groups || {};
+    // Reaction timestamps are the one thing the blob cannot supply: it stores
+    // reactions as {emoji: [names]} and never records when each was added,
+    // which is exactly why `latest_reaction` had to be added to the real
+    // function. So it comes from the fixture, keyed by log id, the same way
+    // the comment and Stream reads below are answered.
+    const latestReactions = readCanonicalFixture()?.latestReactions || {};
     const rows = Object.entries(groups).flatMap(([groupId, group]) =>
       Object.entries(group?.logs || {}).flatMap(([owner, logs]) =>
         (Array.isArray(logs) ? logs : []).map(log => ({
@@ -170,11 +187,60 @@ const server = http.createServer(async (req, res) => {
           note: log.note || "",
           photo_url: log.photoUrl || null,
           created_at: log.createdAt || null,
-          verified_via: log.verifiedVia || null
+          verified_via: log.verifiedVia || null,
+          // Mirrored too, because the overlay below replaces the blob's logs
+          // outright rather than merging into them: without these a log would
+          // lose its activity name and its comment count on the way through.
+          activity: log.activity || null,
+          comment_count: Number(log.commentCount || 0),
+          // The real function returns these two together, and a reaction-less
+          // canonical row beside a blob that has reactions is not a state
+          // production ever reaches while both stores are healthy. Returning
+          // the blob's reactions is what "mirroring the blob" meant all along;
+          // without them normalizeLogEntry drops `latest_reaction` as dangling
+          // and the newest-emoji badge can never be seen locally.
+          reactions: log.reactions || {},
+          latest_reaction: latestReactions[String(log.id)] || null
         }))
       )
     );
     return send(res, 200, rows);
+  }
+  // Two canonical reads the notification centre needs, answered from a fixture
+  // beside the blob so the screen can be driven locally. Comments and Stream
+  // messages live only in canonical, so without this there is nothing to show
+  // and the centre cannot be checked before it ships.
+  //
+  // Test aid only: this does not mirror anything, and a missing file means the
+  // normal empty answer below.
+  if (route === "/rest/v1/rpc/read_ante_core_workout_log_latest_comments"
+      || route === "/rest/v1/rpc/read_ante_core_bloc_stream") {
+    await readBody(req);
+    const fixture = readCanonicalFixture();
+    if (route.endsWith("read_ante_core_workout_log_latest_comments")) {
+      return send(res, 200, fixture?.latestComments || {});
+    }
+    return send(res, 200, fixture?.streamMessages || []);
+  }
+  // The canonical log overlay in api/lift-log.js only runs for a Bloc that
+  // canonical says has an OPEN SEASON, so with the empty answer below it never
+  // runs here and nothing canonical-only -- `latest_reaction` among it -- can
+  // ever be seen locally. A fixture may declare one:
+  //
+  //   "openSeasons": { "<bloc id>": "2026-10" }
+  //
+  // Test aid only, and off unless the fixture says so: switching the overlay on
+  // makes the blob's logs arrive through the canonical path instead of being
+  // read directly, which is a different code path and not the sandbox default.
+  if (route === "/rest/v1/rpc/read_ante_core_current_excused_and_sitouts") {
+    await readBody(req);
+    const openSeasons = readCanonicalFixture()?.openSeasons || null;
+    if (!openSeasons) return send(res, 200, []);
+    return send(res, 200, {
+      excused: [], sit_out_requests: [], solo: [], solo_requests: [],
+      open_seasons: Object.entries(openSeasons)
+        .map(([legacy_group_key, month_key]) => ({ legacy_group_key, month_key }))
+    });
   }
   if (route.startsWith("/rest/v1/rpc/")) {
     await readBody(req);

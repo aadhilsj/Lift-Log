@@ -554,6 +554,50 @@ reading `getComputedStyle(document.documentElement).backgroundColor` on the live
 page and finding `rgba(0,0,0,0)` while a gradient image was set. **Measure the
 running page before theorising about CSS.**
 
+## A Page Left Sitting Off To One Side, With No Gesture To Bring It Back
+
+Symptoms:
+- Tapping something on an in-Bloc page leaves the whole page shifted sideways
+  and stuck there. Swiping does not recover it; changing tabs does.
+- Reported as a *blank* screen, because the page is pushed far enough off that
+  only empty background is left where it was.
+- First seen 2026-10-14 on the Month ring: tapping a member's slice left the
+  page 149px to the left.
+
+Root cause (fixed 2026-10-15, `ebf9de5`):
+- `activePageLayer` in `src/App.jsx` lays all four in-Bloc pages side by side so
+  adjacent pages can be visible mid-drag, so the track is **four viewports wide
+  with `overflow: hidden`**.
+- **A hidden overflow is still programmatically scrollable.** Focusing anything
+  inside it — which an ordinary mouse click on a `<button>` does — lets the
+  browser scroll the track sideways to bring the focused element into view.
+- Measured at 393x852: the track's `scrollWidth` is 786 against a 393
+  `clientWidth`, and after the tap its `scrollLeft` was 149.5.
+- Nothing put it back, because the swipe machinery moves pages with
+  **transforms** and never reads `scrollLeft`. The two never meet.
+
+Fix rules:
+- **Only transforms may move a page.** If a container holding pages can scroll
+  at all, something will eventually scroll it and the swipe code will not know.
+  The track now resets `scrollLeft` and `scrollTop` to 0 on any scroll.
+- `overflow: clip` is the tidier fix — it creates no scroll container at all —
+  but it needs Safari 16, so it is not safe for this codebase yet. Revisit when
+  the floor moves.
+- Do not "fix" this on the page that happened to show it. **Any focusable
+  element near the edge of any of the four pages can do it**; the Month ring was
+  only where it was easy to hit.
+
+Diagnosis note:
+- A page that is *displaced* rather than missing looks identical to a blank
+  screen, but the DOM is intact and there is **no console error**. Measure
+  `getBoundingClientRect().x` on `[data-page-scroll-container]` and walk its
+  ancestors reading `scrollLeft` and `transform`: that separates a scrolled
+  container from a stuck transform in one step.
+- Watch out when driving this from a test browser: once the track has scrolled,
+  elements are no longer where a cached coordinate says they are, so clicks
+  land on whatever moved underneath. An event log (`pointerdown`, `focusin`,
+  `click` with their targets) tells you what you actually hit.
+
 ## Two Touch Handlers That Classify The Same Drag Differently
 
 Symptoms:

@@ -3,6 +3,9 @@ const { useState, useEffect, useLayoutEffect, useRef } = React;
 import { Avatar, AppIcon, WorkoutTypeIcon } from "../components/primitives.jsx";
 import { ReactionChip } from "../components/ReactionRoster.jsx";
 import { EmojiSheet, QuickReactionChoices } from "../components/EmojiReactionPicker.jsx";
+import { SafetyFlow, useBlockedUserIds } from "../components/SafetyControls.jsx";
+import { HoldMenu } from "../components/HoldMenu.jsx";
+import { tapMedium } from "../lib/haptics.js";
 import {
   createBlocStreamEventData,
   getBlocStreamUnreadCountData,
@@ -214,19 +217,31 @@ const ReactionChips = ({ msg, currentUserId, onReact, nameFor, photoFor, align, 
 // threshold replies. Tap detection is displacement+time based (not tied to the
 // scroll/swipe mode) so a plain double-tap registers reliably. user-select and
 // the iOS touch-callout are disabled so holding a message never selects text.
-const Reactable = ({ msg, currentUserId, onReact, onReply, nameFor, photoFor, align = "left", swipeEnabled = false, showAdd = false, children }) => {
+const Reactable = ({ msg, currentUserId, onReact, onReply, nameFor, photoFor, align = "left", swipeEnabled = false, showAdd = false, holdActions = [], children }) => {
   const [swipeX, setSwipeX] = useState(0);
   const [showBar, setShowBar] = useState(false);
+  // Measured at the moment of the press: the overlay lifts the bubble from
+  // exactly where it sits, so it reads as the same object rather than a copy.
+  const anchorRef = useRef(null);
+  const [anchorRect, setAnchorRect] = useState(null);
   const [showEmojiSheet, setShowEmojiSheet] = useState(false);
   const g = useRef({ sx: 0, sy: 0, st: 0, mode: null, lp: null, lastTap: 0, suppress: false, maxDist: 0, swipe: 0, lastTouch: 0 });
 
   const clearLP = () => { if (g.current.lp) { clearTimeout(g.current.lp); g.current.lp = null; } };
 
+  const openHold = () => {
+    const node = anchorRef.current;
+    if (!node) return;
+    const r = node.getBoundingClientRect();
+    setAnchorRect({ top: r.top, left: r.left, width: r.width, height: r.height });
+    setShowBar(true);
+  };
+
   const start = (x, y) => {
     const s = g.current;
     s.sx = x; s.sy = y; s.st = Date.now(); s.mode = null; s.suppress = false; s.maxDist = 0; s.swipe = 0; s.lastTouch = Date.now();
     clearLP();
-    s.lp = setTimeout(() => { s.mode = "long"; s.suppress = true; setShowBar(true); try { navigator.vibrate && navigator.vibrate(10); } catch (_) {} }, 500);
+    s.lp = setTimeout(() => { s.mode = "long"; s.suppress = true; openHold(); void tapMedium(); try { navigator.vibrate && navigator.vibrate(10); } catch (_) {} }, 500);
   };
   const move = (x, y) => {
     const s = g.current;
@@ -266,7 +281,7 @@ const Reactable = ({ msg, currentUserId, onReact, onReply, nameFor, photoFor, al
   const reactionPlacement = align === "center" ? "center" : align === "right" ? "bubble-left" : "bubble-right";
   const hasReactionBadge = showAdd || Object.values(msg.reactions || {}).some(users => (users || []).length > 0);
   const reactionNode = hasReactionBadge
-    ? React.createElement(ReactionChips, { msg, currentUserId, onReact, nameFor, photoFor, align, showAdd, onAdd: () => setShowBar(true), placement: reactionPlacement })
+    ? React.createElement(ReactionChips, { msg, currentUserId, onReact, nameFor, photoFor, align, showAdd, onAdd: openHold, placement: reactionPlacement })
     : null;
   const renderedChildren = typeof children === "function" ? children(reactionNode) : children;
   return React.createElement('div', { style: { position: "relative", paddingBottom: hasReactionBadge ? (align === "center" ? 18 : 13) : 0 } },
@@ -274,16 +289,24 @@ const Reactable = ({ msg, currentUserId, onReact, onReply, nameFor, photoFor, al
       style: { position: "absolute", top: 0, bottom: 0, left: 14, display: "flex", alignItems: "center", opacity: Math.min(1, swipeX / 56), pointerEvents: "none" }
     }, React.createElement(AppIcon, { name: "reply", size: 18, stroke: C.accent })),
     React.createElement('div', {
+      ref: anchorRef,
       onTouchStart: e => start(e.touches[0].clientX, e.touches[0].clientY),
       onTouchMove: e => move(e.touches[0].clientX, e.touches[0].clientY),
       onTouchEnd: end,
       // Mouse double-click is the desktop path; ignore the dblclick that a touch
       // double-tap synthesizes (touchend just ran) so the heart isn't toggled twice.
       onDoubleClick: () => { if (Date.now() - g.current.lastTouch > 800) onReact(msg.id, DOUBLE_TAP_EMOJI); },
-      onContextMenu: e => { e.preventDefault(); setShowBar(true); },
+      onContextMenu: e => { e.preventDefault(); openHold(); },
       style: { transform: swipeX ? `translateX(${swipeX}px)` : "none", transition: g.current.mode === "swipe" ? "none" : "transform .18s ease", touchAction: swipeEnabled ? "pan-y" : "auto", userSelect: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none" }
     }, renderedChildren),
-    showBar && React.createElement(ReactBar, { align, onClose: () => setShowBar(false), onPick: emoji => { onReact(msg.id, emoji); setShowBar(false); }, onMore: () => { setShowBar(false); setShowEmojiSheet(true); } }),
+    showBar && anchorRect && React.createElement(HoldMenu, {
+      anchorRect,
+      preview: renderedChildren,
+      actions: holdActions,
+      onClose: () => { setShowBar(false); setAnchorRect(null); },
+      onPick: emoji => { onReact(msg.id, emoji); setShowBar(false); setAnchorRect(null); },
+      onMore: () => { setShowBar(false); setAnchorRect(null); setShowEmojiSheet(true); }
+    }),
     showEmojiSheet && React.createElement(EmojiSheet, { onClose: () => setShowEmojiSheet(false), onPick: emoji => onReact(msg.id, emoji) }),
     typeof children !== "function" && reactionNode
   );
@@ -293,7 +316,7 @@ const Reactable = ({ msg, currentUserId, onReact, onReply, nameFor, photoFor, al
 // `showName` (received only) on the first of a run, `showAvatar` on the last,
 // and `showTime` only on the last message of a same-minute cluster. Own
 // messages never show a name. The tail corner is only on the first bubble.
-const TextBubble = ({ msg, isOwn, authorName, authorPhotoUrl, nameFor, members, replyToMsg, showName, showTime, showAvatar, firstInGroup, reactionNode }) => {
+const TextBubble = ({ msg, isOwn, authorName, authorPhotoUrl, nameFor, members, replyToMsg, showName, showTime, showAvatar, firstInGroup, reactionNode, glow = false }) => {
   const nameText = !isOwn && showName ? authorName : "";
   const timeText = showTime ? formatStamp(msg.created_at) : "";
   const radius = 18;
@@ -314,7 +337,20 @@ const TextBubble = ({ msg, isOwn, authorName, authorPhotoUrl, nameFor, members, 
           border: `1px solid ${isOwn ? C.ownBorder : C.rcvBorder}`,
           borderRadius: radius,
           width: "fit-content", maxWidth: "100%", boxSizing: "border-box",
-          padding: "7px 11px", color: "var(--text)", fontSize: 14, lineHeight: 1.34, wordBreak: "break-word"
+          padding: "7px 11px", color: "var(--text)", fontSize: 14, lineHeight: 1.34, wordBreak: "break-word",
+          // Arriving from a mention: a brief shimmer on the bubble itself.
+          //
+          // outline, not padding or a border: an outline is drawn outside the
+          // box and changes no layout, so it cannot move the message after
+          // the list has already scrolled to it — the reason the row-level
+          // version used one too. The offset is tighter here because it is
+          // hugging the bubble rather than standing off a whole row.
+          ...(glow ? {
+            outline: "1px solid rgba(78,205,196,.34)",
+            outlineOffset: 2,
+            boxShadow: "0 0 18px rgba(78,205,196,.18)"
+          } : null),
+          transition: "box-shadow .45s ease, outline-color .45s ease"
         }
       },
         replyToMsg && React.createElement('div', {
@@ -651,11 +687,22 @@ const MentionList = ({ items, onPick }) =>
     ))
   );
 
-const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, initialUnreadCount = 0, currentUserId, members = [], streamBlocs = [], onSeasonClosedTap, onUnreadCountChange, onOpenLogComments, onClose }) => {
+// How far below the top of the list a message sits when you were sent to read
+// it: enough that it is clearly not cut off by the header above it.
+const FOCUSED_MESSAGE_TOP_GAP = 16;
+
+const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, initialUnreadCount = 0, focusMessageId, onFocusMessageShown, currentUserId, members = [], streamBlocs = [], onSeasonClosedTap, onUnreadCountChange, onOpenLogComments, onClose }) => {
   const [mounted, setMounted] = useState(false);
   const [messages, setMessages] = useState([]);
   const [messagesByBloc, setMessagesByBloc] = useState(readStreamMessageCache);
   const [viewedBlocId, setViewedBlocId] = useState(blocId);
+  const [safetyTarget, setSafetyTarget] = useState(null);
+  const { blockedUserIds, addBlockedUserId } = useBlockedUserIds();
+  // A blocked member's messages leave the Stream. Derived rather than stored,
+  // so a block applies the moment it lands without refetching the thread.
+  // Must stay below useBlockedUserIds: as a const, reading blockedUserIds
+  // above its declaration throws the moment the Stream holds one message.
+  const visibleMessages = messages.filter(message => !blockedUserIds.includes(String(message?.author_id || "")));
   const [draft, setDraft] = useState("");
   const [eventDraft, setEventDraft] = useState(emptyEventDraft);
   const [showEventSheet, setShowEventSheet] = useState(false);
@@ -668,6 +715,9 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, 
   const listRef = useRef(null);
   const inputRef = useRef(null);
   const messageNodeRefs = useRef(new Map());
+  // Arriving from the notification centre: put that message on screen and give
+  // it a brief glimmer, so it is obvious which one you were sent to read.
+  const [glowMessageId, setGlowMessageId] = useState("");
   const previousOpenRef = useRef(false);
   const streamStateRef = useRef(new Map());
   const activeBlocIdRef = useRef(blocId);
@@ -694,6 +744,30 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, 
   const canSwitchStreams = availableBlocs.length > 1;
 
   const nameFor = id => (activeMembers.find(m => m.id === id)?.name) || "Member";
+  // What the hold menu offers on a message. Reply is the swipe shortcut made
+  // visible; Report and Block are the same flow the ... used to open, and are
+  // never offered on your own message.
+  const holdActionsFor = message => {
+    const mine = !message?.author_id || message.author_id === currentUserId;
+    const list = [];
+    if (!mine) list.push({ label: "Reply", onPick: () => handleReply(message) });
+    if (!mine) {
+      list.push({ label: "Report", onPick: () => openSafetyMenu(message, "report") });
+      list.push({ label: "Block", tone: "danger", onPick: () => openSafetyMenu(message, "block") });
+    }
+    return list;
+  };
+
+  const openSafetyMenu = (message, step) => {
+    if (!message?.author_id || message.author_id === currentUserId) return;
+    setSafetyTarget({
+      userId: String(message.author_id),
+      name: nameFor(message.author_id),
+      contentType: "stream_message",
+      contentId: String(message.id),
+      step
+    });
+  };
   const photoFor = id => activeMembers.find(m => m.id === id)?.photoUrl || "";
 
   useEffect(() => {
@@ -987,6 +1061,43 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, 
     return () => { cancelled = true; };
   }, [messages, pendingListAnchor, open, mounted]);
 
+  // Sent here to read one particular message: anchor the list on it through the
+  // same mechanism the unread marker uses, rather than scrollIntoView, which
+  // walks up and scrolls every scrollable ancestor (see the stuck-scroll entry
+  // in the recurring debugging playbook).
+  useEffect(() => {
+    const wanted = String(focusMessageId || "");
+    if (!open || !wanted || !messages.length) return undefined;
+    if (!messages.some(msg => String(msg?.id || "") === wanted)) return undefined;
+    setPendingListAnchor({ type: "message", messageId: wanted });
+    setListPositioned(false);
+    setGlowMessageId(wanted);
+
+    // Then correct it from the rectangles. The shared anchor positions with
+    // node.offsetTop, which is measured from the offsetParent and not from the
+    // scroller, so a message can land 50-odd pixels under the header with its
+    // first line cut off — measured, not guessed. Rectangles are relative to
+    // the viewport for both, so the difference between them is honest.
+    // Repeated for a few frames because the list is still settling.
+    let frames = 0;
+    let raf = requestAnimationFrame(function settle() {
+      const el = listRef.current;
+      const node = messageNodeRefs.current.get(wanted);
+      if (el && node) {
+        const delta = node.getBoundingClientRect().top - el.getBoundingClientRect().top - FOCUSED_MESSAGE_TOP_GAP;
+        if (Math.abs(delta) > 1) el.scrollTop = Math.max(0, el.scrollTop + delta);
+      }
+      frames += 1;
+      if (frames < 10) raf = requestAnimationFrame(settle);
+    });
+
+    const clear = setTimeout(() => {
+      setGlowMessageId("");
+      onFocusMessageShown?.();
+    }, 2000);
+    return () => { cancelAnimationFrame(raf); clearTimeout(clear); };
+  }, [open, focusMessageId, messages, onFocusMessageShown]);
+
   // Bulletproof background scroll lock: pin the body in place (iOS Safari
   // leaks touch-scroll through a plain `overflow:hidden`, so fix the body and
   // restore the scroll position on close).
@@ -1178,7 +1289,14 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, 
     });
   };
 
-  return React.createElement('div', {
+  return React.createElement(React.Fragment, null,
+  React.createElement(SafetyFlow, {
+    target: safetyTarget,
+    groupId: activeBlocId,
+    onBlocked: addBlockedUserId,
+    onClose: () => setSafetyTarget(null)
+  }),
+  React.createElement('div', {
     onClick: closeStream,
     style: {
       position: "fixed", inset: 0, zIndex: 300, display: "flex", flexDirection: "column",
@@ -1246,9 +1364,9 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, 
       },
         messages.length === 0
           ? React.createElement('div', { style: { margin: "auto", color: "var(--muted2)", fontSize: 13 } }, "No messages yet")
-          : messages.map((msg, i) => {
-              const prev = messages[i - 1];
-              const next = messages[i + 1];
+          : visibleMessages.map((msg, i) => {
+              const prev = visibleMessages[i - 1];
+              const next = visibleMessages[i + 1];
               const isText = msg.message_type !== "system" && msg.message_type !== "event" && msg.message_type !== "log_comment";
               const sameAuthorPrev = isText && prev && prev.message_type !== "system" && prev.message_type !== "event" && prev.message_type !== "log_comment" && prev.author_id === msg.author_id;
               const sameAuthorNext = isText && next && next.message_type !== "system" && next.message_type !== "event" && next.message_type !== "log_comment" && next.author_id === msg.author_id;
@@ -1259,7 +1377,16 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, 
               // A preceding day separator already provides the gap, so drop the top margin.
               const prevHasCenteredReactions = prev && (prev.message_type === "system" || prev.message_type === "event") && Object.values(prev.reactions || {}).some(users => (users || []).length > 0);
               const marginTop = i === 0 || showDaySep ? 0 : (prevHasCenteredReactions ? 18 : (firstInGroup || !isText ? 12 : 2));
-              const wrap = child => React.createElement(React.Fragment, { key: msg.id },
+              const glowing = !!glowMessageId && String(msg.id) === glowMessageId;
+              // `glowInside` says the child draws the glow itself. A text
+              // message does: the founder asked for the shimmer on the message
+              // bubble, not around the whole row. This wrapper is the full
+              // width of the list and holds the avatar, the name, the bubble
+              // and the timestamp, so outlining it boxed all of that.
+              //
+              // The cards — system, event, log comment — have no bubble to
+              // put it on, so they keep it here and look as they always did.
+              const wrap = (child, glowInside = false) => React.createElement(React.Fragment, { key: msg.id },
                 showDaySep && React.createElement(DaySeparator, { label: dayLabel(msg.created_at) }),
                 React.createElement('div', {
                   ref: node => {
@@ -1269,7 +1396,22 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, 
                     else messageNodeRefs.current.delete(key);
                   },
                   "data-stream-message-id": msg.id,
-                  style: { marginTop }
+                  style: {
+                    marginTop,
+                    // Very faint, and it fades out on its own.
+                    //
+                    // outline, not padding and a box-shadow ring: an outline is
+                    // drawn outside the box and changes no layout. Padding here
+                    // moved the message AFTER the list had already scrolled to
+                    // it, which left it clipped under the header.
+                    ...(glowing && !glowInside ? {
+                      borderRadius: 14,
+                      outline: "1px solid rgba(78,205,196,.34)",
+                      outlineOffset: 4,
+                      boxShadow: "0 0 18px rgba(78,205,196,.18)"
+                    } : null),
+                    transition: "box-shadow .45s ease, outline-color .45s ease"
+                  }
                 }, child)
               );
 
@@ -1287,8 +1429,8 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, 
               const replyToMsg = msg.reply_to ? messages.find(x => x.id === msg.reply_to) : null;
               // Time shows on the last message of a five-minute run from this sender.
               const showTime = !(sameAuthorNext && sameFiveMinuteWindow(msg.created_at, next.created_at));
-              return wrap(React.createElement(Reactable, { msg, currentUserId, onReact: handleReact, onReply: handleReply, nameFor, photoFor, align: isOwn ? "right" : "left", swipeEnabled: true },
-                reactionNode => React.createElement(TextBubble, { msg, isOwn, authorName: nameFor(msg.author_id), authorPhotoUrl: photoFor(msg.author_id), nameFor, members: activeMembers, replyToMsg, showName: firstInGroup, showTime, showAvatar: !sameAuthorNext, firstInGroup, reactionNode })));
+              return wrap(React.createElement(Reactable, { msg, currentUserId, onReact: handleReact, onReply: handleReply, nameFor, photoFor, align: isOwn ? "right" : "left", swipeEnabled: true, holdActions: holdActionsFor(msg) },
+                reactionNode => React.createElement(TextBubble, { msg, isOwn, authorName: nameFor(msg.author_id), authorPhotoUrl: photoFor(msg.author_id), nameFor, members: activeMembers, replyToMsg, showName: firstInGroup, showTime, showAvatar: !sameAuthorNext, firstInGroup, reactionNode, glow: glowing })), true);
             })
       ),
       // Input bar
@@ -1351,6 +1493,7 @@ const BlocStream = ({ open, groupName, blocId, initialBlocId, initialScrollTop, 
       onClose: () => setShowEventSheet(false),
       onCreate: handleCreateEvent
     })
+  )
   );
 };
 

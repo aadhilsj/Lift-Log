@@ -20,7 +20,11 @@ import { fileURLToPath } from "node:url";
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const dataDir = path.join(rootDir, ".sandbox-data");
 const blobFile = path.join(dataDir, "blob.json");
-const supabasePort = 54321;
+// Both overridable, so a second sandbox can run while another session holds
+// the usual ports. Two agents share this repo (AGENTS.md section 5) and a
+// hardcoded 54321 meant the second stub died on EADDRINUSE while its seed went
+// quietly into the first one's blob.
+const supabasePort = Number(process.env.SANDBOX_SUPABASE_PORT || 54321);
 const appPort = Number(process.env.SANDBOX_APP_PORT || 3000);
 const PRODUCTION_REF = "bpvvvqjsfwmmfjvvijkd";
 

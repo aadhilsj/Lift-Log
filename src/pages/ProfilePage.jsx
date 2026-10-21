@@ -4,6 +4,7 @@ import {
 } from "../lib/appState.js";
 import { PaymentHandleSection } from "../components/PaymentHandleSection.jsx";
 import { ProfileStatsPanel } from "../components/ProfileStatsPanel.jsx";
+import { BlockedMembersPanel, useBlockedMembers } from "../components/BlockedMembers.jsx";
 import { Avatar, Card, AppIcon, WorkoutTypeIcon } from "../components/primitives.jsx";
 import {
   cancelSwipeFrame,
@@ -191,6 +192,8 @@ const ProfilePhotoCropModal = ({ imageSrc, onCancel, onConfirm }) => {
 
 const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, accountCreatedAt, profilePhotoUrl = "", onBack, onSwipeRevealChange, onEditName, onUpdateProfilePhoto, onSignOut, onDeleteAccount, currentPaymentMethods = [], onSavePayment, savingPayment = false, paymentError = "", showFounderDashboard = false, onOpenFounderDashboard }) => {
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [showBlocked, setShowBlocked] = useState(false);
+  const blocked = useBlockedMembers();
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
   const [photoBusy, setPhotoBusy] = useState(false);
@@ -323,6 +326,14 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
   };
 
   return React.createElement('div', { ref:surfaceRef, onTouchStart: startSwipeBack, onTouchMove: moveSwipeBack, onTouchEnd: endSwipeBack, onTouchCancel: () => { swipeRef.current = { sx: 0, sy: 0, active: false, mode: null }; onSwipeRevealChange?.(false); setDragging(false); resetSwipeTransform(); }, style: { position: "relative", isolation: "isolate", minHeight: "100dvh", width: "100%", maxWidth: 640, margin: "0 auto", padding: "calc(env(safe-area-inset-top) + 10px) 14px calc(40px + env(safe-area-inset-bottom))", display: "flex", flexDirection: "column", gap: 14, background: "var(--bg-gradient)", backgroundImage: "var(--bg-radial-hint), var(--bg-gradient)", transform: dragXRef.current ? `translateX(${dragXRef.current}px)` : "translateX(0)", transition: dragging ? "none" : "transform .12s ease", boxShadow: dragXRef.current ? "-18px 0 34px rgba(0,0,0,.28)" : "none", willChange: dragging||dragXRef.current ? "transform" : "auto", touchAction: "pan-y" } },
+    showBlocked
+      ? React.createElement(BlockedMembersPanel, {
+          members: blocked.members,
+          loaded: blocked.loaded,
+          onUnblocked: blocked.removeMember,
+          onBack: () => setShowBlocked(false)
+        })
+      : React.createElement(React.Fragment, null,
     cropSource ? React.createElement(ProfilePhotoCropModal, { imageSrc:cropSource, onCancel:()=>setCropSource(""), onConfirm:handleCroppedPhoto }) : null,
     React.createElement('div', { "aria-hidden": true, style: { position: "fixed", inset: 0, zIndex: -1, pointerEvents: "none", background: "var(--bg-gradient)", backgroundImage: "var(--bg-radial-hint), var(--bg-gradient)" } }),
     // Header
@@ -390,6 +401,27 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
             })
       )
     ),
+    // Safety sits between Account and Delete account because it belongs to
+    // the same "things about me" group, and because this screen - not the
+    // rename pop-up behind the pencil - is where people actually look.
+    React.createElement('div', { style: { marginTop: 18 } },
+      React.createElement('div', { style: { fontSize: 10, fontWeight: MED, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".1em", marginBottom: 8, paddingLeft: 2 } }, "Safety"),
+      React.createElement(Card, { style: { width: "100%", overflow: "hidden" } },
+        React.createElement('button', {
+          type: "button",
+          onClick: () => setShowBlocked(true),
+          style: { width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "13px 15px", background: "transparent", border: "none", cursor: "pointer", textAlign: "left", fontFamily: "inherit" }
+        },
+          React.createElement('span', { style: { fontSize: 13, fontWeight: MED, color: "var(--text)" } }, "Blocked"),
+          React.createElement('span', { style: { display: "flex", alignItems: "center", gap: 8, flexShrink: 0 } },
+            blocked.members.length > 0
+              ? React.createElement('span', { style: { fontSize: 10, fontWeight: 800, color: "#04110e", background: "var(--cyan)", borderRadius: 999, padding: "2px 7px" } }, String(blocked.members.length))
+              : React.createElement('span', { style: { fontSize: 11, fontWeight: REG, color: "var(--muted2)" } }, "None"),
+            React.createElement('span', { style: { fontSize: 11, color: "var(--muted2)" } }, "\u203A")
+          )
+        )
+      )
+    ),
     // Deleting is quiet by default. A loud red "Danger zone" block shouts at
     // everyone every visit to guard against something almost nobody does, and
     // it sat oddly next to Sign Out, which is harmless. The consequences are
@@ -418,7 +450,8 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
             )
           )
     )
+    )
   );
 };
 
-export { ProfilePage };
+export { ProfilePage, ProfilePhotoCropModal, readFileAsDataUrl };

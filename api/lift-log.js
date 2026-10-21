@@ -29,6 +29,15 @@ const DEFAULT_CURRENCY = "NOK";
 const DEFAULT_MIN_RUN_DISTANCE = 3;
 const DEFAULT_DISTANCE_UNIT = "km";
 const DEFAULT_STRAVA_ENABLED = true;
+// First-line UGC guardrail (App Store guideline 1.2). This deliberately
+// catches only clear, high-risk abuse; reports and human review handle the
+// context a word list cannot judge. Do not grow this into a general profanity
+// filter - members swear at their own workouts constantly.
+const OBJECTIONABLE_CONTENT_PATTERNS = [
+  /\b(?:kill\s+yourself|kys)\b/i,
+  /\b(?:rape|rapist)\b/i,
+  /\b(?:nigg(?:er|a)|fagg(?:ot)?|cunt)\b/i
+];
 // One Bloc is capped at 20 members, so this comfortably covers a full roster
 // while bounding the work a single request can ask for.
 const PROFILE_STATS_MAX_SUBJECTS = 40;
@@ -596,13 +605,21 @@ function preferExistingTimestamp(existingTimestamp, canonicalTimestamp) {
 
 function preserveBlobCompatibleLogFields(existingLog, canonicalLog) {
   if (!existingLog) return canonicalLog;
+  const reactions = normalizeReactions(existingLog.reactions);
   const preserved = {
     ...canonicalLog,
     createdAt: preferExistingTimestamp(existingLog.createdAt, canonicalLog.createdAt),
     decisionAt: preferExistingTimestamp(existingLog.decisionAt, canonicalLog.decisionAt),
     commentCount: Number.isFinite(Number(canonicalLog.commentCount)) ? Math.max(0, Number(canonicalLog.commentCount)) : Number(existingLog.commentCount || 0),
-    reactions: normalizeReactions(existingLog.reactions)
+    reactions
   };
+  // The blob's reactions win here, so the recency marker has to be checked
+  // against them rather than against canonical's. Keep canonical's answer
+  // while that emoji is still one the blob records, and drop it otherwise --
+  // a badge showing an emoji that is not in the list reads as a bug.
+  const latestReaction = normalizeLatestReaction(canonicalLog?.latestReaction, reactions);
+  if (latestReaction) preserved.latestReaction = latestReaction;
+  else delete preserved.latestReaction;
   if (!Object.prototype.hasOwnProperty.call(existingLog, "ownerDisplayName")) {
     delete preserved.ownerDisplayName;
   }
@@ -1646,6 +1663,8 @@ function normalizeLogEntry(log) {
   const note = typeof log?.note === "string" && log.note.trim()
     ? log.note
     : (typeof log?.caption === "string" ? log.caption : "");
+  const reactions = normalizeReactions(log?.reactions);
+  const latestReaction = normalizeLatestReaction(log?.latestReaction, reactions);
   const entry = {
     ...log,
     id: log?.id || `log-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
@@ -1655,7 +1674,7 @@ function normalizeLogEntry(log) {
     createdAt: resolveLogCreatedAt(log),
     verifiedVia: log?.verifiedVia === "strava" ? "strava" : "photo",
     commentCount: Number.isFinite(Number(log?.commentCount)) ? Math.max(0, Number(log.commentCount)) : 0,
-    reactions: normalizeReactions(log?.reactions),
+    reactions,
     flagStatus: normalizeFlagStatus(log?.flagStatus),
     flagReason: typeof log?.flagReason === "string" ? log.flagReason.slice(0, 280) : "",
     flagResponse: typeof log?.flagResponse === "string" ? log.flagResponse.slice(0, 280) : "",
@@ -1666,6 +1685,10 @@ function normalizeLogEntry(log) {
   // Only a known activity is kept; logs from before activities have none.
   if (activity) entry.activity = activity;
   else delete entry.activity;
+  // Same rule: absent rather than null, so a log with no reactions carries no
+  // field and the client falls back to the emoji the most people chose.
+  if (latestReaction) entry.latestReaction = latestReaction;
+  else delete entry.latestReaction;
   return entry;
 }
 
@@ -1737,6 +1760,20 @@ function normalizeReactions(reactions) {
       .map(([emoji, members]) => [String(emoji || "").trim(), uniqueNames(Array.isArray(members) ? members : [])])
       .filter(([emoji, members]) => emoji && members.length)
   );
+}
+
+// The emoji most recently used on a log, so "For you" can badge a reaction row
+// with the newest one instead of the one the most people chose. `reactions` is
+// {emoji: [names]} and jsonb sorts its keys, so recency cannot be recovered
+// from it -- read_ante_core_current_logs returns this alongside it.
+//
+// Dropped unless its emoji is still one of the log's reactions. A reaction that
+// was taken back must not leave the badge pointing at an emoji nobody chose.
+function normalizeLatestReaction(latest, reactions) {
+  const emoji = String(latest?.emoji || "").trim();
+  if (!emoji || !reactions?.[emoji]?.length) return null;
+  const at = Date.parse(latest?.at);
+  return { emoji, at: Number.isFinite(at) ? new Date(at).toISOString() : null };
 }
 
 function normalizeFlagStatus(status) {
@@ -2200,7 +2237,17 @@ function buildCanonicalMonthHistoryForGroup(group, canonicalSeasons) {
       excused[name] = m ? !!m.excused : false;
       const soloTarget = Number(m?.solo_target || 0);
       if (m?.solo && Number.isFinite(soloTarget) && soloTarget > 0) {
-        solo[name] = { [monthKey]: buildSoloSnapshotEntry(blobMonth?.solo?.[name]?.[monthKey], Math.round(soloTarget)) };
+        // Canonical has no column for the Solo rule, so the "standard penalty"
+        // marker is carried across from the blob. It was read only from the
+        // closed-month snapshot -- but a Bloc whose rollover has not been
+        // persisted yet has no snapshot for that month, and the marker lives
+        // in the live `group.solo` map instead. Reading only the snapshot
+        // silently reverted those Solos to the old rules, which dropped the
+        // penalty for a member who missed their Solo target and showed
+        // "Nothing to settle". The snapshot still wins when it has the month.
+        const soloMarkerSource = blobMonth?.solo?.[name]?.[monthKey]
+          || group?.solo?.[name]?.[monthKey];
+        solo[name] = { [monthKey]: buildSoloSnapshotEntry(soloMarkerSource, Math.round(soloTarget)) };
       }
       // A closed month is rebuilt from canonical here, replacing the blob's
       // copy wholesale. Anything not carried across is silently dropped, which
@@ -2290,10 +2337,28 @@ function compareMonthKeys(a, b) {
   return am - bm;
 }
 
+// Gates the two canonical overlays in fetchReadableCurrentState. Both REPLACE
+// blob state wholesale -- group.logs, and group.excused plus lastMonth -- so
+// they are only valid when canonical's open season IS the blob's current
+// month.
+//
+// This used to accept canonical being AHEAD (>= 0). That is precisely the
+// state a Bloc is in when its month close was skipped: the canonical rollover
+// opened the new season, the blob side was reverted and kept the old month. In
+// that window the overlays replaced a real month's logs with the new month's
+// empty ones and reported lastMonth as the new month, so a member of a skipped
+// Bloc was shown a reset month while the blob still correctly held the old
+// one. That is the "looked like they had reset" symptom from the 2026-10-01
+// close, and it also hid the fault: the app looked like it had rolled over.
+//
+// Canonical cannot legitimately lead the blob. Every syncSeasonToCanonical
+// "open" call passes group.lastMonth, so canonical follows; the sole exception
+// is the rollover itself, where both move together and only a skip leaves
+// canonical ahead. So requiring equality costs nothing and closes the window.
 function canonicalOpenMonthIsCurrentForGroup(group, canonicalMonthKey) {
   if (!canonicalMonthKey) return false;
   const groupMonthKey = group?.lastMonth || getLeagueMonthKey(group?.settings?.timeZone);
-  return compareMonthKeys(canonicalMonthKey, groupMonthKey) >= 0;
+  return compareMonthKeys(canonicalMonthKey, groupMonthKey) === 0;
 }
 
 function hasParticipationBeforeMonth(group, displayName, monthKey) {
@@ -3349,6 +3414,43 @@ async function readBlocStreamUnreadCountFromCanonical(legacyGroupKey, authUserId
   return Number.isFinite(Number(value)) ? Number(value) : 0;
 }
 
+// The three numbers behind the bell, in the one call the app already makes
+// per refresh. Returns null when the function is not on this database yet, so
+// the caller can fall back to the unread count on its own - the badge then
+// behaves exactly as it did before, rather than the screen breaking.
+//
+// Null is "could not ask", never "nothing to report". Zero rows is a real
+// answer and comes back as zeroes.
+async function readNotificationCountsFromCanonical(legacyGroupKey, authUserId, sinceIso) {
+  let response;
+  try {
+    response = await supabaseFetch("/rest/v1/rpc/read_ante_core_notification_counts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({
+        p_legacy_group_key: legacyGroupKey,
+        p_auth_user_id: authUserId,
+        p_since: sinceIso || null
+      })
+    });
+  } catch {
+    return null;
+  }
+  if (!response?.ok) return null;
+  let value;
+  try { value = await response.json(); } catch { return null; }
+  if (!value || typeof value !== "object") return null;
+  const whole = name => {
+    const n = Number(value[name]);
+    return Number.isFinite(n) ? Math.max(0, Math.trunc(n)) : 0;
+  };
+  return {
+    streamUnread: whole("streamUnread"),
+    mentions: whole("mentions"),
+    logComments: whole("logComments")
+  };
+}
+
 async function sendBlocStreamMessageToCanonical(legacyGroupKey, authorAuthUserId, body, replyTo = null, mentions = []) {
   const response = await supabaseFetch("/rest/v1/rpc/send_ante_core_bloc_message", {
     method: "POST",
@@ -3374,6 +3476,139 @@ async function createBlocStreamEventInCanonical(legacyGroupKey, authorAuthUserId
       p_activity: activity,
       p_when: when || "",
       p_location: location || ""
+    })
+  });
+  return await response.json();
+}
+
+// ---------------------------------------------------------------------------
+// Blocking and reporting (App Store guideline 1.2).
+//
+// The tables and RPCs below live in ante_core and are reachable only with the
+// service_role key, so a member can never read or write another member's
+// blocks by calling the database directly. Every identity check happens inside
+// the RPC rather than here, so an API caller cannot substitute someone else's
+// identifier.
+// ---------------------------------------------------------------------------
+
+async function readUserBlocksFromCanonical(authUserId) {
+  const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_user_blocks", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ p_auth_user_id: authUserId })
+  });
+  return await response.json();
+}
+
+// The reverse direction: everyone who has blocked this person. Used only to
+// refuse an interaction, never sent to a client - telling someone who blocked
+// them is exactly what the feature is meant to avoid.
+async function readBlockersOfFromCanonical(authUserId) {
+  const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_blockers_of", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ p_auth_user_id: authUserId })
+  });
+  const blockers = await response.json();
+  return Array.isArray(blockers) ? blockers.map(String) : [];
+}
+
+async function readWorkoutLogCommentAuthorFromCanonical(commentId) {
+  const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_workout_log_comment_author", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ p_comment_id: commentId })
+  });
+  const authorId = await response.json();
+  return typeof authorId === "string" ? authorId : "";
+}
+
+// Has `targetAuthUserId` blocked `actorAuthUserId`? Interacting with someone
+// who blocked you - commenting on their workout, reacting to it, reacting to
+// their comment - is refused. Without this, blocking would only blindfold the
+// blocker while the blocked member carried on in front of the whole Bloc.
+//
+// A lookup failure must never block an ordinary comment, so this answers
+// "not blocked" if the database cannot be reached. Failing open is the right
+// trade here: the cost is one unblocked comment, and failing closed would take
+// commenting down for everyone whenever the RPC had a bad minute.
+async function isInteractionBlockedByTarget(actorAuthUserId, targetAuthUserId) {
+  const actor = String(actorAuthUserId || "").trim();
+  const target = String(targetAuthUserId || "").trim();
+  if (!actor || !target || actor === target) return false;
+  try {
+    const blockers = await readBlockersOfFromCanonical(actor);
+    return blockers.includes(target);
+  } catch (err) {
+    console.error("Block guard lookup failed; allowing the interaction", err);
+    return false;
+  }
+}
+
+const BLOCKED_INTERACTION_MESSAGE = "You can't interact with this member.";
+
+async function setUserBlockInCanonical(authUserId, blockedAuthUserId, blocked) {
+  const response = await supabaseFetch("/rest/v1/rpc/set_ante_core_user_block", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({
+      p_auth_user_id: authUserId,
+      p_blocked_auth_user_id: blockedAuthUserId,
+      p_blocked: !!blocked
+    })
+  });
+  return await response.json();
+}
+
+async function createContentReportInCanonical(authUserId, payload) {
+  const response = await supabaseFetch("/rest/v1/rpc/create_ante_core_content_report", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({
+      p_auth_user_id: authUserId,
+      p_legacy_group_key: payload.groupId,
+      p_reported_auth_user_id: payload.reportedUserId,
+      p_content_type: payload.contentType,
+      p_content_id: payload.contentId,
+      p_reason: payload.reason,
+      p_details: payload.details || ""
+    })
+  });
+  return await response.json();
+}
+
+async function readContentReportsFromCanonical(limit = 100) {
+  const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_content_reports", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ p_limit: limit })
+  });
+  return await response.json();
+}
+
+async function reviewContentReportInCanonical(reportId, status, reviewerAuthUserId, reviewNote = "") {
+  const response = await supabaseFetch("/rest/v1/rpc/review_ante_core_content_report", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({
+      p_report_id: reportId,
+      p_status: status,
+      p_reviewer_auth_user_id: reviewerAuthUserId,
+      p_review_note: reviewNote
+    })
+  });
+  return await response.json();
+}
+
+async function moderateReportedContentInCanonical(reportId, action, reviewerAuthUserId, reviewNote = "") {
+  const response = await supabaseFetch("/rest/v1/rpc/moderate_ante_core_report_content", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({
+      p_report_id: reportId,
+      p_action: action,
+      p_reviewer_auth_user_id: reviewerAuthUserId,
+      p_review_note: reviewNote
     })
   });
   return await response.json();
@@ -3432,6 +3667,23 @@ async function readWorkoutLogCommentsFromCanonical(legacyGroupKey, authUserId, l
 
 async function readWorkoutLogCommentCountsFromCanonical(legacyGroupKey, authUserId, logIds) {
   const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_workout_log_comment_counts", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({
+      p_legacy_group_key: legacyGroupKey,
+      p_auth_user_id: authUserId,
+      p_workout_log_ids: Array.isArray(logIds) ? logIds.map(id => String(id || "").trim()).filter(Boolean) : []
+    })
+  });
+  return await response.json();
+}
+
+// The newest comment on each of a set of logs, in ONE call. The notification
+// centre needs to say what a comment said, and a request per workout would
+// make the read volume problem in docs/scaling-before-launch-2026-09-15.md
+// worse rather than better.
+async function readWorkoutLogLatestCommentsFromCanonical(legacyGroupKey, authUserId, logIds) {
+  const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_workout_log_latest_comments", {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     body: JSON.stringify({
@@ -4045,7 +4297,57 @@ async function fetchAnteCurrentLogs() {
         decisionBy:       row.decision_by   || null,
         decisionAt:       row.decision_at   || null,
         commentCount:     Number.isFinite(Number(row.comment_count)) ? Math.max(0, Number(row.comment_count)) : 0,
-        reactions:        row.reactions     || {}
+        reactions:        row.reactions     || {},
+        latestReaction:   row.latest_reaction || null
+      });
+      return acc;
+    }, {});
+  } catch {
+    return null;
+  }
+}
+
+// The same rows as fetchAnteCurrentLogs, but for one specific month instead of
+// whatever season happens to be open. Month close needs the month it is
+// closing: the canonical rollover opens the new season first, so by the time
+// the blob rollover runs, "current" is the new, empty month. Reading that made
+// the close see zero logs against a blob that counted workouts, refuse to
+// freeze the month, and skip the Bloc on every read -- 745 skips on 1 October
+// 2026. Returns null on failure, like its sibling, so the caller still skips
+// rather than freezing anything it could not verify.
+async function fetchAnteLogsForMonth(monthKey) {
+  if (!monthKey) return null;
+  try {
+    const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_logs_for_month", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ p_month_key: monthKey })
+    });
+    const rows = await response.json();
+    if (!Array.isArray(rows)) return null;
+    return rows.reduce((acc, row) => {
+      const key = typeof row?.legacy_group_key === "string" ? row.legacy_group_key : "";
+      if (!key) return acc;
+      if (!acc[key]) acc[key] = [];
+      acc[key].push({
+        ownerDisplayName: row.owner_display_name,
+        id:               row.id,
+        type:             row.workout_type,
+        ...(row.activity ? { activity: row.activity } : {}),
+        date:             row.workout_date,
+        note:             row.note         || "",
+        photoUrl:         row.photo_url    || "",
+        createdAt:        row.created_at   || null,
+        verifiedVia:      row.verified_via || "photo",
+        flagStatus:       row.flag_status  || null,
+        flagReason:       row.flag_reason  || "",
+        flagResponse:     row.flag_response|| "",
+        flaggedBy:        row.flagged_by   || null,
+        decisionBy:       row.decision_by  || null,
+        decisionAt:       row.decision_at  || null,
+        commentCount:     Number.isFinite(Number(row.comment_count)) ? Math.max(0, Number(row.comment_count)) : 0,
+        reactions:        row.reactions    || {},
+        latestReaction:   row.latest_reaction || null
       });
       return acc;
     }, {});
@@ -5191,7 +5493,13 @@ async function persistState(nextState, reason, options = {}) {
   // Canonical current logs for the closing seasons. Fetched before any season
   // is closed below — read_ante_core_current_logs filters to open seasons, so
   // fetching after the close would return nothing for the month being frozen.
-  const canonicalLogsForRollover = rollovers.length > 0 ? await fetchAnteCurrentLogs() : null;
+  // One fetch per distinct month being closed. Blocs roll at their own 3am, so
+  // two Blocs in different time zones can close different months in one pass.
+  const closedMonthKeysForRollover = [...new Set(rollovers.map(entry => entry?.closedMonthKey).filter(Boolean))];
+  const canonicalLogsByClosedMonth = {};
+  for (const closedKey of closedMonthKeysForRollover) {
+    canonicalLogsByClosedMonth[closedKey] = await fetchAnteLogsForMonth(closedKey);
+  }
   for (const { groupId, closedMonthKey, newMonthKey, closedAt, previousGroup } of rollovers) {
     let group = safeState.groups?.[groupId];
     if (!group) continue;
@@ -5224,14 +5532,14 @@ async function persistState(nextState, reason, options = {}) {
     // that no longer receives every write — a wrongly frozen settlement is
     // permanent, while a skipped Bloc is retried on the next read and
     // surfaces on the founder dashboard via rollover_skipped.
-    if (canonicalLogsForRollover === null) {
+    if (canonicalLogsByClosedMonth[closedMonthKey] == null) {
       revertGroup(new Error(`canonical current logs unavailable for month close of ${closedMonthKey}`));
       continue;
     }
     const rebuild = rebuildClosedMonthSnapshotFromCanonicalLogs(
       group,
       closedMonthKey,
-      canonicalLogsForRollover[groupId] || [],
+      canonicalLogsByClosedMonth[closedMonthKey][groupId] || [],
       { deletedCurrentLogIds: previousGroup?.deletedCurrentLogIds }
     );
     if (!rebuild.ok) {
@@ -5807,6 +6115,16 @@ async function getSupabaseAdminClient() {
 
 function normalizeEmailAddress(value) {
   return String(value || "").trim().toLowerCase();
+}
+
+function assertAllowedUserContent(value, fieldName = "content") {
+  const text = String(value || "").normalize("NFKC").replace(/\s+/g, " ").trim();
+  if (!text) return;
+  if (OBJECTIONABLE_CONTENT_PATTERNS.some(pattern => pattern.test(text))) {
+    const error = new Error(`That ${fieldName} cannot be posted. Please remove abusive language and try again.`);
+    error.status = 422;
+    throw error;
+  }
 }
 
 function isProbablyEmail(value) {
@@ -9494,6 +9812,8 @@ export {
   shouldSkipRolloverForMissingCanonicalBloc,
   // Exported for the month-close canonical test suite.
   rebuildClosedMonthSnapshotFromCanonicalLogs,
+  // Exported so the overlay guard is pinned against the skipped-Bloc window.
+  canonicalOpenMonthIsCurrentForGroup,
   buildWorkoutLogDerivedMoments,
   resolveMemberPaceSnapshotForMonth,
   // Identity guards — exported for the display-name identity test suite.
@@ -9533,6 +9853,7 @@ export {
   applyUpsertProfile,
   scopeReadableStateForUser,
   parseFeroStorageReference,
+  assertAllowedUserContent,
   isMissingStorageBucketResponse
 };
 
@@ -9672,6 +9993,44 @@ export default async function handler(req, res) {
         return res.status(200).json({ ok: true, messages: await signBlocStreamMessagePhotos(messages) });
       }
 
+      if (payload?.action === "safety-status") {
+        const authUser = await fetchAuthenticatedUser(readBearerToken(req, payload));
+        const blockedUserIds = await readUserBlocksFromCanonical(authUser.id);
+        return res.status(200).json({ ok: true, blockedUserIds: Array.isArray(blockedUserIds) ? blockedUserIds : [] });
+      }
+
+      if (payload?.action === "block-user") {
+        const authUser = await fetchAuthenticatedUser(readBearerToken(req, payload));
+        const result = await setUserBlockInCanonical(authUser.id, String(payload?.blockedUserId || ""), payload?.blocked !== false);
+        return res.status(200).json({ ok: true, blocked: !!result?.blocked });
+      }
+
+      // The list behind the Blocked screen. It carries display names and photos
+      // so the screen can be rendered without a second trip, and it is scoped to
+      // the caller by the RPC, never by anything the client sends.
+      if (payload?.action === "blocked-members") {
+        const authUser = await fetchAuthenticatedUser(readBearerToken(req, payload));
+        const blockedUserIds = await readUserBlocksFromCanonical(authUser.id);
+        const ids = Array.isArray(blockedUserIds) ? blockedUserIds.map(String) : [];
+        if (!ids.length) return res.status(200).json({ ok: true, members: [] });
+        const readable = await getReadableCurrent();
+        const members = ids.map(userId => {
+          const profile = readable?.profiles?.[userId] || null;
+          return {
+            userId,
+            displayName: profile?.displayName || "Former member",
+            profilePhotoUrl: profile?.profilePhotoUrl || ""
+          };
+        });
+        return res.status(200).json({ ok: true, members });
+      }
+
+      if (payload?.action === "report-content") {
+        const authUser = await fetchAuthenticatedUser(readBearerToken(req, payload));
+        const result = await createContentReportInCanonical(authUser.id, payload || {});
+        return res.status(201).json({ ok: true, report: result || null });
+      }
+
       if (payload?.action === "usage-event") {
         const authUser = await fetchAuthenticatedUser(readBearerToken(req, payload));
         await recordCanonicalUsageEvent(authUser, payload?.eventName);
@@ -9681,12 +10040,28 @@ export default async function handler(req, res) {
 
       if (payload?.action === "stream-unread-count") {
         const authUser = await fetchAuthenticatedUser(readBearerToken(req, payload));
+        // One call, three numbers: the Stream icon's unread count as before,
+        // plus the two the bell could never work out for itself - how many of
+        // those messages tag you, and how many new comments are on your own
+        // logs. `since` is the client's last-opened-the-bell time.
+        const counts = await readNotificationCountsFromCanonical(payload.groupId, authUser.id, payload.since);
+        if (counts) {
+          return res.status(200).json({
+            ok: true,
+            unreadCount: counts.streamUnread,
+            mentionCount: counts.mentions,
+            logCommentCount: counts.logComments
+          });
+        }
+        // The function is not on this database yet. Answer the original
+        // question the original way; the badge is then what it was before.
         const unreadCount = await readBlocStreamUnreadCountFromCanonical(payload.groupId, authUser.id);
         return res.status(200).json({ ok: true, unreadCount });
       }
 
       if (payload?.action === "stream-send") {
         const authUser = await fetchAuthenticatedUser(readBearerToken(req, payload));
+        assertAllowedUserContent(payload.body, "message");
         const result = await sendBlocStreamMessageToCanonical(
           payload.groupId,
           authUser.id,
@@ -9700,6 +10075,8 @@ export default async function handler(req, res) {
 
       if (payload?.action === "stream-create-event") {
         const authUser = await fetchAuthenticatedUser(readBearerToken(req, payload));
+        assertAllowedUserContent(payload.activity, "event title");
+        assertAllowedUserContent(payload.location, "event location");
         const result = await createBlocStreamEventInCanonical(
           payload.groupId,
           authUser.id,
@@ -9744,6 +10121,19 @@ export default async function handler(req, res) {
         return res.status(200).json({ ok: true, comments: Array.isArray(comments) ? comments : [] });
       }
 
+      if (payload?.action === "log-latest-comments") {
+        const authUser = await fetchAuthenticatedUser(readBearerToken(req, payload));
+        const latest = await readWorkoutLogLatestCommentsFromCanonical(
+          payload.groupId,
+          authUser.id,
+          Array.isArray(payload.logIds) ? payload.logIds : []
+        );
+        return res.status(200).json({
+          ok: true,
+          latest: latest && typeof latest === "object" && !Array.isArray(latest) ? latest : {}
+        });
+      }
+
       if (payload?.action === "log-comment-counts") {
         const authUser = await fetchAuthenticatedUser(readBearerToken(req, payload));
         const counts = await readWorkoutLogCommentCountsFromCanonical(
@@ -9756,6 +10146,7 @@ export default async function handler(req, res) {
 
       if (payload?.action === "log-comment-create") {
         const auth = await requireAuthenticatedContext(req, payload, await getReadableCurrent());
+        assertAllowedUserContent(payload.body, "comment");
         const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
         const canonicalActor = resolveDisplayNameForUser(canonicalState, payload.groupId, auth.user.id, auth.user.email);
         const group = canonicalState.groups?.[payload.groupId];
@@ -9778,6 +10169,12 @@ export default async function handler(req, res) {
         }
         if (!group || !logId) return res.status(404).json({ error: "Workout not found" });
         if (!isCurrentGroupMember(group, canonicalActor, auth.user.id)) return res.status(403).json({ error: "Only Bloc members can comment" });
+        // Someone who has been blocked cannot comment on the blocker's
+        // workout. Checked here rather than in the client, which the blocked
+        // member controls.
+        if (await isInteractionBlockedByTarget(auth.user.id, findAuthUserIdForDisplayName(group, owner))) {
+          return res.status(403).json({ error: BLOCKED_INTERACTION_MESSAGE });
+        }
         if (openLog && owner) {
           await syncOpenWorkoutLogSnapshotToCanonical(group, owner, openLog, { throwOnError: true });
         }
@@ -9797,6 +10194,16 @@ export default async function handler(req, res) {
         const commentId = String(payload?.commentId || "").trim();
         const emoji = String(payload?.emoji || "").trim();
         if (!commentId || !emoji) return res.status(400).json({ error: "commentId and emoji are required" });
+        // Reacting to a comment is an interaction with whoever wrote it. Only
+        // a definite add is refused. `isAdding` false removes, and an absent
+        // `isAdding` is a plain toggle that may well be a removal - guarding
+        // either would strand a reaction the member could never clear.
+        if (payload?.isAdding === true) {
+          const commentAuthorId = await readWorkoutLogCommentAuthorFromCanonical(commentId);
+          if (await isInteractionBlockedByTarget(authUser.id, commentAuthorId)) {
+            return res.status(403).json({ error: BLOCKED_INTERACTION_MESSAGE });
+          }
+        }
         await toggleWorkoutLogCommentReactionInCanonical(
           payload.groupId,
           authUser.id,
@@ -9814,6 +10221,27 @@ export default async function handler(req, res) {
         assertFounderDashboardUser(authUser);
         const dashboard = await readCanonicalFounderDashboard();
         return res.status(200).json({ ok:true, dashboard });
+      }
+
+      if (payload?.action === "founder-moderation-reports") {
+        const authUser = await fetchAuthenticatedUser(readBearerToken(req, payload));
+        assertFounderDashboardUser(authUser);
+        const reports = await readContentReportsFromCanonical(payload?.limit);
+        return res.status(200).json({ ok: true, reports: Array.isArray(reports) ? reports : [] });
+      }
+
+      if (payload?.action === "founder-review-report") {
+        const authUser = await fetchAuthenticatedUser(readBearerToken(req, payload));
+        assertFounderDashboardUser(authUser);
+        const result = await reviewContentReportInCanonical(payload?.reportId, payload?.status, authUser.id, payload?.reviewNote || "");
+        return res.status(200).json({ ok: true, report: result || null });
+      }
+
+      if (payload?.action === "founder-moderate-reported-content") {
+        const authUser = await fetchAuthenticatedUser(readBearerToken(req, payload));
+        assertFounderDashboardUser(authUser);
+        const result = await moderateReportedContentInCanonical(payload?.reportId, payload?.actionType, authUser.id, payload?.reviewNote || "");
+        return res.status(200).json({ ok: true, report: result || null });
       }
 
       if (payload?.action === "auth-sync") {
@@ -10086,6 +10514,7 @@ export default async function handler(req, res) {
 
       if (payload?.action === "create-group") {
         const auth = await requireAuthenticatedContext(req, payload, current);
+        assertAllowedUserContent(payload.groupName, "Bloc name");
         const creatorName = auth.profile?.displayName || capDisplayName(payload?.creatorName);
         const createPayload = {
           ...payload,
@@ -10120,6 +10549,7 @@ export default async function handler(req, res) {
       if (payload?.action === "upsert-profile") {
         const auth = await requireAuthenticatedContext(req, payload, current);
         const requestedDisplayName = String(payload?.displayName || "").trim();
+        assertAllowedUserContent(requestedDisplayName, "display name");
         const shellOldNames = collectProfileRenameOldNames(
           auth.state.groups || {},
           auth.user.id,
@@ -10381,6 +10811,7 @@ export default async function handler(req, res) {
 
       if (payload?.action === "multi-log") {
         const auth = await requireAuthenticatedContext(req, payload, current);
+        assertAllowedUserContent(payload.note, "workout note");
         await markCanonicalDailyAppActive(auth.user.id);
         const actor = resolveDisplayNameForUser(auth.state, payload.sourceGroupId, auth.user.id, auth.user.email);
         const allTargetIds = [...new Set([payload.sourceGroupId, ...(Array.isArray(payload.targetGroupIds) ? payload.targetGroupIds.filter(Boolean) : [])])];
@@ -10456,6 +10887,7 @@ export default async function handler(req, res) {
 
       if (payload?.action === "add-log") {
         const auth = await requireAuthenticatedContext(req, payload, current);
+        assertAllowedUserContent(payload.note, "workout note");
         await markCanonicalDailyAppActive(auth.user.id);
         const actor = resolveDisplayNameForUser(auth.state, payload.groupId, auth.user.id, auth.user.email);
         const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
@@ -10870,6 +11302,14 @@ export default async function handler(req, res) {
         const emoji = String(payload?.emoji || "").trim();
         const canonicalState = await buildCanonicalWritableStateForAuthenticatedMutation(auth, payload.groupId);
         const canonicalActor = assertGroupMembershipForUser(canonicalState, payload.groupId, auth.user.id);
+        // Same rule for reacting to a workout: only a definite add is
+        // refused, so a block can never strand a reaction.
+        if (payload?.isAdding === true) {
+          const reactionOwnerId = findAuthUserIdForDisplayName(canonicalState.groups?.[payload.groupId], payload.owner);
+          if (await isInteractionBlockedByTarget(auth.user.id, reactionOwnerId)) {
+            return res.status(403).json({ error: BLOCKED_INTERACTION_MESSAGE });
+          }
+        }
         const result = applyToggleReaction(canonicalState, { ...payload, actor: canonicalActor, actorUserId: auth.user.id });
         let shadowBlobResult = null;
         try {

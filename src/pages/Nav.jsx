@@ -1,6 +1,7 @@
 import React from "react";
 const { useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef } = React;
 import { AppIcon, AnteWordmark, Avatar } from "../components/primitives.jsx";
+import { resolveStorageImageUrl } from "../lib/appState.js";
 
 // Follows Apple's badge convention: a red oval with white text, sitting at the
 // top-right. The centre is placed on the button circle's 45° diagonal so it
@@ -61,14 +62,31 @@ const BlocNameButton = ({ groupName, onSwitchGroup }) => {
   );
 };
 
-// Slot 2 is the centre log button, so Month and History sit at 3 and 4. App.jsx
+// Slot 2 is the centre log button, so Month and Profile sit at 3 and 4. App.jsx
 // moves the indicator imperatively at swipe release and needs the same map.
-const MOBILE_PAGE_SLOTS = { today: 0, activity: 1, month: 3, history: 4 };
+const MOBILE_PAGE_SLOTS = { today: 0, activity: 1, month: 3, profile: 4 };
+
+// Same shape as the Stream's unread pill, so the two read as one family.
+const NotificationDot = ({count}) => React.createElement('span',{style:{position:"absolute",top:2,right:2,minWidth:14,height:14,padding:"0 3px",borderRadius:999,background:"#4ECDC4",color:"#04110e",fontFamily:"'Outfit', sans-serif",fontSize:8.5,fontWeight:700,lineHeight:1,display:"inline-flex",alignItems:"center",justifyContent:"center",boxShadow:"0 0 0 1.5px var(--s1)"}},count>9?"9+":count);
 
 const SettingsDot = () => React.createElement('span',{style:{position:"absolute",top:2,right:2,width:7,height:7,borderRadius:999,background:"#4ECDC4",boxShadow:"0 0 0 1.5px #050909"}});
 
-const Nav = ({page,setPage,user,groupName,canEditGroup,onOpenSettings,settingsAlert=false,onOpenProfile,onOpenStream,onOpenNotifications,streamUnreadCount=0,onSwitchUser,onSwitchGroup,onOpenLog,syncing,lastSyncedAt,syncError,onRefresh,showJustSynced,activityAlertCount=0,hideMobileBottomNav=false,onlyMobileBottomNav=false,mobileBottomDragX=0,mobileBottomDragging=false,mobileBottomNavRef=null,mobileBottomSettle="transform .08s ease-out",mobileTabIndicatorRef=null,mobileTabSettle=null,mobileTabLiftSettle=null,currentUserId="",profilePhotoUrl=""}) => {
-  const navItems = [["today","Today","today"],["activity","Activity","activity"],["month","Month","results"],["history","History","history"]];
+const Nav = ({page,setPage,user,groupName,canEditGroup,onOpenSettings,settingsAlert=false,onOpenProfile,onOpenStream,onOpenNotifications,notificationCount=0,streamUnreadCount=0,onSwitchUser,onSwitchGroup,onOpenLog,syncing,lastSyncedAt,syncError,onRefresh,showJustSynced,activityAlertCount=0,hideMobileBottomNav=false,onlyMobileBottomNav=false,mobileBottomDragX=0,mobileBottomDragging=false,mobileBottomNavRef=null,mobileBottomSettle="transform .08s ease-out",mobileTabIndicatorRef=null,mobileTabSettle=null,mobileTabLiftSettle=null,currentUserId="",profilePhotoUrl="",profileBack=null}) => {
+  const navItems = [["today","Today","today"],["activity","Activity","activity"],["month","Month","results"],["profile","Profile","profile"]];
+  // The Profile tab wears your own photo when you have one: dimmed while you
+  // are elsewhere, full brightness inside a cyan ring when you are on it. With
+  // no photo it is the same outline icon as the other tabs, so the row stays
+  // even. The bright coloured initial was tried and rejected as too loud.
+  const ownPhotoUrl = resolveStorageImageUrl(String(profilePhotoUrl || "").trim());
+  // 16px inside an 18px row, where the other icons are 18: the ring is drawn
+  // on the box's own border, so it cannot grow the row and spill out of the
+  // highlight behind it, and a filled photo circle reads heavier than a line
+  // icon of the same size, so it is given a little more room to breathe.
+  const renderMobileTabIcon = (id,icon) => (id === "profile" && ownPhotoUrl)
+    ? React.createElement('span',{style:{display:"inline-flex",alignItems:"center",justifyContent:"center",width:16,height:16,margin:1,borderRadius:999,boxSizing:"border-box",border:page===id?"1px solid #4ECDC4":"1px solid transparent"}},
+        React.createElement('img',{src:ownPhotoUrl,alt:"",style:{width:"100%",height:"100%",borderRadius:999,objectFit:"cover",display:"block",opacity:page===id?1:.6,filter:page===id?"none":"saturate(.55)"}})
+      )
+    : React.createElement(AppIcon,{name:icon,size:18});
   const mobileActiveSlot = MOBILE_PAGE_SLOTS[page] ?? 0;
   const mobileBottomNavBar = React.createElement('div',{ref:mobileBottomNavRef,className:"mobile-only mobile-bottom-nav",style:{transform:mobileBottomDragX?`translateX(${mobileBottomDragX}px)`:"none",transition:mobileBottomDragging?"none":mobileBottomSettle,willChange:mobileBottomDragging||mobileBottomDragX?"transform":"auto"}},
     React.createElement('div',{className:"mobile-bottom-nav-grid"},
@@ -78,7 +96,7 @@ const Nav = ({page,setPage,user,groupName,canEditGroup,onOpenSettings,settingsAl
         ["activity","Activity","activity"],
         ["log","","plus"],
         ["month","Month","results"],
-        ["history","History","history"]
+        ["profile","Profile","profile"]
       ].map(([id,label,icon])=>
         id === "log"
           ? React.createElement('div',{key:id,className:"mobile-plus-tab-wrap"},
@@ -89,7 +107,7 @@ const Nav = ({page,setPage,user,groupName,canEditGroup,onOpenSettings,settingsAl
           : React.createElement('button',{key:id,onClick:()=>setPage(id),className:`mobile-tab${page===id?" on":""}`,"data-page":id,"aria-current":page===id?"page":undefined},
           React.createElement('span',{className:"mobile-tab-inner",style:{transition:mobileTabLiftSettle||undefined}},
             React.createElement('div',{style:{position:"relative",display:"inline-flex",alignItems:"center",justifyContent:"center"}},
-              React.createElement('span',{style:{fontSize:18,lineHeight:1,display:"inline-flex"}},React.createElement(AppIcon,{name:icon,size:18})),
+              React.createElement('span',{style:{fontSize:18,lineHeight:1,display:"inline-flex"}},renderMobileTabIcon(id,icon)),
               id==="activity" && activityAlertCount>0 && React.createElement('span',{className:"mono",style:{position:"absolute",top:-6,right:-14,minWidth:18,height:18,padding:"0 5px",borderRadius:999,background:"rgba(232,69,69,.18)",border:"1px solid rgba(232,69,69,.28)",fontSize:9,color:"#ff9c9c",display:"inline-flex",alignItems:"center",justifyContent:"center"}},activityAlertCount)
             ),
             React.createElement('span',{style:{fontSize:11,fontWeight:700}},label)
@@ -142,17 +160,26 @@ const Nav = ({page,setPage,user,groupName,canEditGroup,onOpenSettings,settingsAl
       // Bloc name needs. The name must never truncate, and FERO still fronts
       // the Bloc switcher, so the brand is not lost.
       React.createElement('div',{style:{display:"flex",alignItems:"center",height:52,marginTop:6,minWidth:0,flex:"1 1 auto"}},
-        React.createElement(BlocNameButton,{groupName,onSwitchGroup})
+        // Inside a member's profile this is the way back, in the place every
+        // other app puts it. The Bloc switcher is one tap further away while a
+        // profile is open, which is the trade: you are passing through that
+        // screen, not working in it.
+        profileBack
+          ? React.createElement('button',{type:"button",onClick:()=>profileBack(),"aria-label":"Back",
+              style:{display:"inline-flex",alignItems:"center",justifyContent:"center",background:"transparent",
+                     border:"none",cursor:"pointer",width:48,height:48,marginLeft:-12,padding:0}},
+              React.createElement(AppIcon,{name:"chevron-left",size:30,stroke:"#4ECDC4",strokeWidth:"2.4"}))
+          : React.createElement(BlocNameButton,{groupName,onSwitchGroup})
       ),
       React.createElement('div',{style:{display:"flex",alignItems:"center",height:42,marginTop:6,gap:10,flexShrink:0}},
         React.createElement(StreamIconButton,{onOpenStream,unreadCount:streamUnreadCount,size:42}),
-        // Notification centre — not built yet, so this opens a placeholder that
-        // says so. It was a dead mock while only TestFlight had it; on the web
-        // every member can reach it, and a button that does nothing when tapped
-        // is worse than no button. The real thing is
-        // docs/concept-2026-09-24-notification-centre.md; none of it is built.
-        // Size, icon and position are locked — only the destination is new.
-        React.createElement('button',{type:"button",onClick:onOpenNotifications,className:"icon-btn nav-glass-btn",title:"Notifications","aria-label":"Notifications",style:{width:42,height:42,display:"inline-flex",alignItems:"center",justifyContent:"center",position:"relative"}},React.createElement(AppIcon,{name:"bell",size:26})),
+        // Notification centre — "For you". Size, icon and position are locked;
+        // the badge is absolutely positioned, so it claims no layout.
+        // docs/concept-2026-09-24-notification-centre.md is the spec.
+        React.createElement('button',{type:"button",onClick:onOpenNotifications,className:"icon-btn nav-glass-btn",title:"For you","aria-label":"For you",style:{width:42,height:42,display:"inline-flex",alignItems:"center",justifyContent:"center",position:"relative"}},
+          React.createElement(AppIcon,{name:"bell",size:26}),
+          notificationCount>0&&React.createElement(NotificationDot,{count:notificationCount})
+        ),
         React.createElement('button',{onClick:onOpenSettings,className:"icon-btn nav-glass-btn",title:"Bloc settings",style:{width:42,height:42,display:"inline-flex",alignItems:"center",justifyContent:"center",position:"relative"}},React.createElement(AppIcon,{name:"settings",size:26}),settingsAlert&&React.createElement(SettingsDot,null)),
         null
       )

@@ -36,7 +36,7 @@ import { tapLight } from "../lib/haptics.js";
 
 const FULL_MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
-const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,currentUserId,initialSelIdx,onStartNextMonth,onSettlementClaimPaid,onSettlementConfirmPaid,onOpenToday,profiles,onOpenAccount,navResetToken,onTrackUsage,currentPaymentMethods,onSavePayment,savingPayment,paymentError}) => {
+const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,currentUserId,initialSelIdx,onStartNextMonth,onSettlementClaimPaid,onSettlementConfirmPaid,onOpenToday,profiles,onOpenAccount,navResetToken,onTrackUsage,currentPaymentMethods,onSavePayment,savingPayment,paymentError,groups,onDeleteOwnLog}) => {
   const [selIdx,setSelIdx]=useState(initialSelIdx ?? null); // null = current month
   const [viewPlayer,setViewPlayer]=useState(null);
   const [focus,setFocus]=useState(null);
@@ -119,7 +119,7 @@ const MonthPage = ({group,logs,excused,monthHistory,groupSettings,currentUser,cu
     const profileMonthKey = typeof viewPlayer === "string" ? null : viewPlayer?.monthKey;
     return React.createElement('div',{style:{maxWidth:840,margin:"0 auto"}},
       React.createElement(PlayerProfileErrorBoundary,{profileName,onBack:()=>setViewPlayer(null)},
-        React.createElement(PlayerProfile,{group:group,name:profileName,logs,excused,monthHistory,onBack:()=>setViewPlayer(null),groupSettings,initialMonthKey:profileMonthKey,onTrackUsage,isOwnProfile:profileName===currentUser})
+        React.createElement(PlayerProfile,{group:group,name:profileName,logs,excused,monthHistory,onBack:()=>setViewPlayer(null),groupSettings,initialMonthKey:profileMonthKey,onTrackUsage,isOwnProfile:profileName===currentUser,currentUserId,visibleGroups:groups,onDeleteLog:profileName===currentUser?onDeleteOwnLog:undefined})
       )
     );
   }

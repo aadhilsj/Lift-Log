@@ -13,10 +13,22 @@
 //
 // Usage: node scripts/test-month-close-canonical.mjs  (offline, no credentials)
 
-import {
+// Pin the clock to the 15th. Between 00:00 and 03:00 UTC on the 1st the
+// previous month by UTC has not yet closed by the 3am Bloc-day cutoff, so this
+// suite failed on the calendar, not the code. Same clock as
+// scripts/test-yearly-allowance.mjs.
+const RealDate = Date;
+const FAKE_NOW = new RealDate("2026-09-15T12:00:00Z").getTime();
+globalThis.Date = class extends RealDate {
+  constructor(...args) { super(...(args.length ? args : [FAKE_NOW])); }
+  static now() { return FAKE_NOW; }
+};
+
+const {
   rolloverGroupIfNeeded,
-  rebuildClosedMonthSnapshotFromCanonicalLogs
-} from "../api/lift-log.js";
+  rebuildClosedMonthSnapshotFromCanonicalLogs,
+  canonicalOpenMonthIsCurrentForGroup
+} = await import("../api/lift-log.js");
 
 let failures = 0;
 const check = (label, actual, expected) => {
@@ -187,6 +199,68 @@ const nRows = (owner, n, offset = 0) => Array.from({ length: n }, (_, i) => cano
 {
   const result = rebuildClosedMonthSnapshotFromCanonicalLogs(mkGroup({ Aadhil: [] }), "1999-0", []);
   check("no snapshot for the month: reported as skip reason", result.ok, false);
+}
+
+// --- 9. The 1 October 2026 failure: closing a month after the season flipped -
+//
+// The canonical rollover closes September and opens October BEFORE the blob
+// rollover runs. The original code fetched logs with read_ante_core_current_logs
+// ("where status = 'open'"), so by the time month close asked, the only open
+// season was the new empty one. The guard saw zero canonical rows against a
+// blob that counted workouts, correctly refused to freeze the month, and the
+// Bloc was skipped and retried on every read — 862 rollover_skipped events
+// across nine Blocs before it was caught.
+//
+// The fix (c9ce86a) was read_ante_core_logs_for_month(p_month_key), fetching by
+// month rather than by open status. Nothing in CI closed a month after the
+// season had already flipped, which is why nothing caught it. These two pin
+// both halves: fed the closing month's logs it must freeze correctly, and fed
+// the NEW month's logs it must still refuse rather than freeze a wrong number.
+{
+  // What the fix feeds it: the closing month's own logs.
+  const result = closeMonth(
+    { Aadhil: nLogs(9), Sam: nLogs(12, 100) },
+    [...nRows("Aadhil", 9), ...nRows("Sam", 12, 100)]
+  );
+  check("closing month's logs freeze correctly after the season flipped", result.ok, true);
+  check("...with the closing month's counts, not the new month's",
+    result.group.monthHistory[0].counts, { Aadhil: 9, Sam: 12 });
+}
+{
+  // What the bug fed it: the NEW month's logs, which early in the month is
+  // empty. Freezing here would wipe a real month; skipping is the only safe
+  // answer, and the skip reason must name the month so the dashboard is
+  // diagnosable rather than just noisy.
+  const result = closeMonth({ Aadhil: nLogs(107), Sam: nLogs(12, 100) }, []);
+  check("new month's (empty) logs: refuses to freeze", result.ok, false);
+  check("...and says which month it could not verify",
+    typeof result.reason === "string" && result.reason.includes(CLOSED_KEY), true);
+}
+
+// --- 10. The read overlays must not replace a skipped Bloc's month ----------
+//
+// Both canonical overlays in fetchReadableCurrentState replace blob state
+// wholesale and are gated by canonicalOpenMonthIsCurrentForGroup. When a month
+// close is skipped the canonical rollover has opened the new season while the
+// blob kept the old month, so canonical sits AHEAD. Replacing in that window
+// swaps a real month's logs for the new month's empty ones and reports the new
+// month as current -- the "looked like they had reset" symptom of 2026-10-01,
+// which also hid the fault by making the app look rolled over.
+//
+// Canonical cannot legitimately lead: every syncSeasonToCanonical "open" call
+// passes group.lastMonth, and only a reverted rollover leaves it ahead.
+{
+  const tz = { settings: { timeZone: "UTC" } };
+  check("overlay runs when canonical and blob agree",
+    canonicalOpenMonthIsCurrentForGroup({ ...tz, lastMonth: "2026-8" }, "2026-8"), true);
+  check("skipped Bloc (canonical ahead): overlay must NOT replace",
+    canonicalOpenMonthIsCurrentForGroup({ ...tz, lastMonth: "2026-8" }, "2026-9"), false);
+  check("canonical ahead across a year boundary: still no replace",
+    canonicalOpenMonthIsCurrentForGroup({ ...tz, lastMonth: "2026-11" }, "2027-0"), false);
+  check("canonical behind the blob: unchanged, still no replace",
+    canonicalOpenMonthIsCurrentForGroup({ ...tz, lastMonth: "2026-9" }, "2026-8"), false);
+  check("no canonical open season: no replace",
+    canonicalOpenMonthIsCurrentForGroup({ ...tz, lastMonth: "2026-8" }, null), false);
 }
 
 console.log(failures === 0 ? "\nAll month-close canonical checks passed." : `\n${failures} check(s) failed.`);

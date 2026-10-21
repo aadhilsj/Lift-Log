@@ -9,6 +9,8 @@ import {
   resolveStorageImageUrl
 } from "../lib/appState.js";
 import { getLogCommentCountsData } from "../lib/api.js";
+import { SafetyFlow, useBlockedUserIds } from "../components/SafetyControls.jsx";
+import { HoldTarget } from "../components/HoldMenu.jsx";
 import {
   formatShortDate,
   formatCompactRelativeTime,
@@ -35,8 +37,44 @@ const reactionSortIndex = emoji => {
   return index === -1 ? QUICK_REACTIONS.length : index;
 };
 
-const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,onReview,clockTick,reactionOverrides,setReactionOverrides,commentCountOverrides = {},onCommentCountsLoaded,onOpenLogComments,onTrackUsage}) => {
+const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,onReview,clockTick,highlightLogId,onHighlightShown,reactionOverrides,setReactionOverrides,commentCountOverrides = {},onCommentCountsLoaded,onOpenLogComments,onTrackUsage}) => {
   const [flagTarget,setFlagTarget]=useState(null);
+  // Arriving from the notification centre: put the log on screen and glow it
+  // for a moment, so it is obvious which one you were sent to see.
+  const [glowLogId,setGlowLogId]=useState("");
+  const highlightRef = useRef(null);
+  useEffect(()=>{
+    if(!highlightLogId) return undefined;
+    setGlowLogId(String(highlightLogId));
+    const clear = setTimeout(()=>{ setGlowLogId(""); onHighlightShown?.(); }, 1800);
+    return ()=>clearTimeout(clear);
+  },[highlightLogId, onHighlightShown]);
+  // Separate pass: the ref only exists after the render that set glowLogId, so
+  // scrolling in the effect above would aim at nothing.
+  //
+  // NOT scrollIntoView. It walks up and scrolls EVERY scrollable ancestor, and
+  // the in-Bloc shell is `height:100dvh; overflow:hidden` — which is still
+  // programmatically scrollable, the same trap as the sideways one fixed in
+  // ebf9de5. It ended up 62px down and stayed there, so every tab opened a
+  // little below its own top until the app was reloaded.
+  //
+  // So: scroll the page's own container, by hand, and touch nothing above it.
+  useEffect(()=>{
+    if(!glowLogId) return undefined;
+    const raf = requestAnimationFrame(()=>{
+      const card = highlightRef.current;
+      const scroller = card?.closest("[data-page-scroll-container]");
+      if(!card || !scroller) return;
+      const cardBox = card.getBoundingClientRect();
+      const viewBox = scroller.getBoundingClientRect();
+      // Centred in the page, clamped so a card near either end does not ask
+      // for a scroll position that does not exist.
+      const centred = scroller.scrollTop + (cardBox.top - viewBox.top) - (viewBox.height - cardBox.height)/2;
+      const top = Math.max(0, Math.min(centred, scroller.scrollHeight - scroller.clientHeight));
+      scroller.scrollTo({ top, behavior:"smooth" });
+    });
+    return ()=>cancelAnimationFrame(raf);
+  },[glowLogId]);
   const [flagReason,setFlagReason]=useState("");
   const [responseTarget,setResponseTarget]=useState(null);
   const [responseText,setResponseText]=useState("");
@@ -52,6 +90,8 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
   const [photoZoomResetting,setPhotoZoomResetting]=useState(false);
   const [commentCounts,setCommentCounts]=useState({});
   const [notice,setNotice]=useState(null);
+  const [safetyTarget,setSafetyTarget]=useState(null);
+  const { blockedUserIds, addBlockedUserId } = useBlockedUserIds();
   const reactionPressTimer = useRef(null);
   const reactionLongPressKey = useRef("");
   const reactionSuppressClickKey = useRef("");
@@ -76,12 +116,29 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
       else delete reactions[override.emoji];
     });
     return { ...post, reactions };
-  }),[activeReactionOverrides, baseFeedPosts, group?.id]);
+  // A blocked member's workouts leave the feed entirely. Their totals still
+  // count towards the Bloc - blocking hides activity, it does not change the
+  // leaderboard.
+  }).filter(post => !blockedUserIds.includes(String(userIdForOwner(post.owner) || ""))),
+  [activeReactionOverrides, baseFeedPosts, blockedUserIds, group?.id, userIdForOwner]);
   const photoFeedPosts = useMemo(()=>feedPosts.filter(post=>post.photoUrl),[feedPosts]);
   const isAdmin = group?.adminName === currentUser;
   const approvedFlagCount = countApprovedFlagsForActor(group, currentUser);
   const cannotFlagMore = approvedFlagCount >= 3;
   const compactFeed = isMobile();
+  // Press and hold a workout for reactions, Report and Block. This replaced a
+  // small ... on every card, which the founder found visually noisy and which
+  // is not how a feed usually offers this.
+  const holdActionsFor = post => {
+    const userId = userIdForOwner(post.owner);
+    if (!userId || userId === currentUserId) return [];
+    const target = step => ({ userId:String(userId), name:post.owner, contentType:"workout_log", contentId:String(post.id), step });
+    return [
+      { label:"Report", onPick:()=>setSafetyTarget(target("report")) },
+      { label:"Block", tone:"danger", onPick:()=>setSafetyTarget(target("block")) }
+    ];
+  };
+
   const getCommentCount = useCallback(post => {
     const key = String(post?.id || "");
     const appOverride = commentCountOverrides[key];
@@ -513,6 +570,12 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
       onPick:emoji=>handleReact(emojiSheetPost,emoji)
     }),
     renderExpandedPhoto(),
+    React.createElement(SafetyFlow,{
+      target:safetyTarget,
+      groupId:group?.id,
+      onBlocked:addBlockedUserId,
+      onClose:()=>setSafetyTarget(null)
+    }),
     notice && React.createElement(NoticeModal,{title:notice.title,body:notice.body,onClose:()=>setNotice(null)}),
     flagTarget && React.createElement(TextEntryModal,{
       title:"Flag this workout?",
@@ -568,12 +631,19 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
                   React.createElement('span',{className:"mono",style:{fontSize:10,color:"#4ECDC4",letterSpacing:".08em",textTransform:"uppercase",whiteSpace:"nowrap",textAlign:"center"}},formatShortDate(displayDate)),
                   React.createElement('div',{style:{height:1,flex:1,background:"rgba(78,205,196,.18)"}})
                 ),
-                React.createElement('div',{style:{
+                React.createElement(HoldTarget,{actions:holdActionsFor(post)},
+                React.createElement('div',{
+                  ref: glowLogId && String(post.id)===glowLogId ? highlightRef : undefined,
+                  style:{
                   position:"relative",
+                  transition:"box-shadow .45s ease",
                   border:`0.75px solid ${post.flagStatus==="flagged"?"rgba(232,69,69,.38)":"rgba(42,82,78,.64)"}`,
                   borderRadius:10,
                   background:"radial-gradient(circle at 14% 0%, rgba(255,255,255,.019), transparent 34%), radial-gradient(circle at 92% 100%, rgba(78,205,196,.024), transparent 40%), linear-gradient(180deg, rgba(7,16,16,.99), rgba(5,12,12,.99))",
-                  boxShadow:"inset 0 1px 0 rgba(255,255,255,.028), 0 3px 9px rgba(0,0,0,.09)",
+                  // Very faint, and it fades out on its own.
+                  boxShadow: glowLogId && String(post.id)===glowLogId
+                    ? "inset 0 1px 0 rgba(255,255,255,.028), 0 3px 9px rgba(0,0,0,.09), 0 0 0 1px rgba(78,205,196,.34), 0 0 18px rgba(78,205,196,.18)"
+                    : "inset 0 1px 0 rgba(255,255,255,.028), 0 3px 9px rgba(0,0,0,.09)",
                   overflow:"visible"
                 }},
                 hasThumbnail
@@ -646,7 +716,7 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
                     )
                   ),
                   null
-                )
+                ))
               );
             })
           )
