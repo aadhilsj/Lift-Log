@@ -67,7 +67,16 @@ const BlocNameButton = ({ groupName, onSwitchGroup }) => {
 const MOBILE_PAGE_SLOTS = { today: 0, activity: 1, month: 3, profile: 4 };
 
 // Same shape as the Stream's unread pill, so the two read as one family.
-const NotificationDot = ({count}) => React.createElement('span',{style:{position:"absolute",top:2,right:2,minWidth:14,height:14,padding:"0 3px",borderRadius:999,background:"#4ECDC4",color:"#04110e",fontFamily:"'Outfit', sans-serif",fontSize:8.5,fontWeight:700,lineHeight:1,display:"inline-flex",alignItems:"center",justifyContent:"center",boxShadow:"0 0 0 1.5px var(--s1)"}},count>9?"9+":count);
+// The bell wears the SAME badge as the Stream, because they sit next to each
+// other and were drawn differently by accident rather than by decision: the
+// bell was cyan, 14px, tucked inside the icon with 8.5px text, while the
+// Stream was red, 18px, sitting proud of the corner at 12.5px.
+//
+// Red is the one kept. It is what the Stream already used, it is the
+// convention every phone uses for "unread", and the bell carries money owed
+// as well as reactions. Defined once, in UnreadBadge, so the two cannot drift
+// apart again.
+const NotificationDot = UnreadBadge;
 
 const SettingsDot = () => React.createElement('span',{style:{position:"absolute",top:2,right:2,width:7,height:7,borderRadius:999,background:"#4ECDC4",boxShadow:"0 0 0 1.5px #050909"}});
 

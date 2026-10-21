@@ -636,21 +636,10 @@ function LogCommentThread({ groupId, log, currentUserId, currentUserName, onClos
                       style: commentBubbleStyle(isOwn)
                     }, comment.body, renderCommentReactions(comment, isOwn))
                   ),
-                  // Report / Block for someone else's comment, in the space
-                  // the row already leaves at its end.
-                  !isOwn && comment.commenterUserId
-                    ? React.createElement('button', {
-                        type: "button",
-                        "aria-label": `Report or block ${comment.commenterName}`,
-                        onClick: () => setSafetyTarget({
-                          userId: String(comment.commenterUserId),
-                          name: comment.commenterName,
-                          contentType: "workout_comment",
-                          contentId: String(comment.id)
-                        }),
-                        style: { border: 0, background: "transparent", color: "var(--muted2)", fontSize: 14, lineHeight: 1, letterSpacing: 1, padding: "0 2px", alignSelf: "flex-end", cursor: "pointer" }
-                      }, "···")
-                    : null
+                  // The "···" that used to sit here is gone: holding the
+                  // comment now offers Report and Block, the way the Stream
+                  // does, so the row no longer carries a second way in.
+                  null
                 )
               })
             )
