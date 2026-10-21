@@ -683,6 +683,86 @@ would, not just as a designer.
 
 The three blocked items all land on the Xcode laptop with build 12.
 
+## 14. The TestFlight merge for build 12 — done, NOT pushed, NOT built (21 Oct)
+
+The step that killed the 13-19 October plan, done at last. It was scheduled
+for the same day as the Xcode build and assumed to need Xcode. **It does not.**
+
+Branch `claude/testflight-build-12-2026-10-21`, cut from
+`origin/testflight-build-11`, worktree at
+`~/Developer/FERO/build-12-2026-10-21` — `~/Developer`, never `~/Documents`.
+
+### 14.1 Zero conflicts, and why that is not suspicious
+
+Build 10's merge threw **22**. This threw **none**. The reason: build 11 was
+cut on 30 September from main's own lineage, and the native work lives in
+files main never touches — `ios/`, `capacitor.config.ts`, `server/push.js`,
+`pushNotifications.js`, `apiOrigin.js`, the push migrations. The two lineages
+had nothing to argue about. Build 10 was merging build 9's older lineage,
+which is where the 22 came from.
+
+### 14.2 Verified rather than assumed
+
+Merges have re-broken swipe and reactions twice, so the clean result was
+tested, not trusted. **Every file the recurring-debugging playbook names is
+byte-identical to `origin/main`:**
+
+`src/lib/swipeRelease.js`, `src/pages/Nav.jsx`, `src/pages/TodayPage.jsx`,
+`src/pages/BlocStream.jsx`, `src/pages/ActivityFeed.jsx`,
+`src/lib/appState.js`, `src/lib/notificationCentre.js`,
+`src/components/primitives.jsx`, `api/lift-log.js`.
+
+The only shared files that differ from main are the native additions
+themselves:
+
+| File | Difference |
+| --- | --- |
+| `src/App.jsx` | **+13 lines**: a push-registration effect. Nothing else |
+| `src/lib/api.js` | the native API origin, and revoking push on sign-out |
+| `package.json` | the three Capacitor/push dependencies and two scripts |
+
+**Nothing subtractive. No old UI came back.**
+
+`ios/` intact at 24 files; `capacitor.config.ts` unchanged by checksum. Build
+number **11 → 12**; `MARKETING_VERSION` left at 1.0, since that is the App
+Store version, not the build.
+
+### 14.3 One thing that caught me out
+
+`npm run build` failed at first: `Rollup failed to resolve
+"@capacitor/push-notifications"`. The cause is the house instruction to
+**symlink `node_modules` from the shared folder** (§12) — the shared folder is
+on `main`, whose `package.json` has no Capacitor. The symlink was removed
+(**the link, after confirming it was a link, so the shared folder was never at
+risk**) and the worktree given its own install.
+
+**Worth adding to §12: a worktree on the TestFlight lineage cannot share
+main's `node_modules`.** `package-lock.json` was unchanged by the install.
+
+### 14.4 Verified
+
+`npm run lint` clean. `npm run build` clean. **26 of 28 suites pass** — the
+extra one is `test:push-foundation`, which only exists on this branch. The two
+failures are `test:auth-edge-flows` and `test:mobile-navigation`, the known
+pair that fails on `main` too.
+
+`.env.local` is correctly ignored and was never staged.
+
+### 14.5 Where it stops
+
+**Committed at `b28e71d`, deliberately NOT pushed**, and **nothing has been
+built in Xcode** — this is the merge only, and the founder asked to see what
+changed before it goes anywhere near the app branch.
+
+What remains for the Xcode laptop, now a short list:
+
+1. Open, build, upload to TestFlight
+2. Capture the Stream and the finished month, which the sandbox cannot show
+3. Re-take the listing screenshots on the real build, without the test bar
+4. Record the review video, run the final test matrix, submit
+
+The risky half is done and is sitting on a branch.
+
 ## 5. Commits this session
 
 | Commit | What | Live |
@@ -697,4 +777,6 @@ The three blocked items all land on the Xcode laptop with build 12.
 | `9d6681d` | Deveen's staging RLS task checked — not run; 6 production tables uncovered | Docs only |
 | `409a8a2` | A second migration covering the six. **Not applied anywhere** | Not applied |
 | `bf9d4e3` | The demo Bloc staged and four draft screenshots; the status bug narrowed | Docs only |
-| *(this one)* | Faces and workout photos on the demo feed | Docs only |
+| `e606c53` | Faces and workout photos on the demo feed | Docs only |
+| *(this one)* | Record the build-12 merge | Docs only |
+| `b28e71d` | **The merge itself**, on `claude/testflight-build-12-2026-10-21` | **Not pushed, not built** |
