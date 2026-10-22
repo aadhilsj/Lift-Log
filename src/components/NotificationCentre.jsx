@@ -82,6 +82,43 @@ const Thumb = ({ photoUrl, type }) => {
   );
 };
 
+// Shown while the comment text and the Stream mentions are fetched, instead of
+// opening onto a list that then rearranges itself.
+//
+// Mention rows do not exist until that fetch returns, and rows are sorted by
+// time and split into Today / This week / Earlier - so a mention landing late
+// re-sorted and re-sectioned the list under the member's finger. Waiting costs
+// a moment; the list arriving finished is worth it.
+//
+// Built to the real Row's measurements - 0.5px edge, radius 12, 10/12 padding,
+// gap 11, a 38px face - so the swap from skeleton to list moves as little as
+// possible. Row heights genuinely vary (a quoted comment runs to two lines),
+// so this cannot be pixel-exact; it is one swap either way, not a shuffle.
+const NotificationSkeleton = ({ rows = 4 }) => React.createElement('div', {
+  style: { display: "flex", flexDirection: "column", gap: 8 },
+  "aria-hidden": "true"
+},
+  Array.from({ length: Math.max(1, Math.min(rows, 6)) }, (unused, index) =>
+    React.createElement('div', {
+      key: index,
+      style: {
+        border: `0.5px solid ${TONES.plain.edge}`, background: TONES.plain.wash,
+        borderRadius: 12, padding: "10px 12px", display: "flex", alignItems: "center", gap: 11
+      }
+    },
+      React.createElement('span', { className: "skel", style: { width: 38, height: 38, borderRadius: 999, flex: "none" } }),
+      React.createElement('span', { style: { minWidth: 0, flex: 1, display: "grid", gap: 6 } },
+        React.createElement('span', { className: "skel", style: { width: `${[82, 68, 90, 74][index % 4]}%`, height: 11, borderRadius: 5 } }),
+        React.createElement('span', { className: "skel", style: { width: `${[44, 56, 38, 50][index % 4]}%`, height: 9, borderRadius: 5 } })
+      ),
+      React.createElement('span', { className: "skel", style: { width: 38, height: 38, borderRadius: 9, flex: "none" } })
+    )
+  ),
+  React.createElement('span', {
+    style: { position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }
+  }, "Loading your notifications")
+);
+
 const Row = ({ item, onAct }) => {
   const tone = item.kind === "money" ? (TONES[item.direction] || TONES.plain) : TONES.plain;
   const tappable = !!item.opens;
@@ -121,7 +158,7 @@ const Row = ({ item, onAct }) => {
   );
 };
 
-export const NotificationCentre = ({ items = [], onClose, onAct }) => {
+export const NotificationCentre = ({ items = [], onClose, onAct, loading = false }) => {
   React.useEffect(() => {
     const body = document.body;
     const previous = body.style.overflow;
@@ -131,7 +168,7 @@ export const NotificationCentre = ({ items = [], onClose, onAct }) => {
     return () => { body.style.overflow = previous; document.removeEventListener("keydown", onKey); };
   }, [onClose]);
 
-  const sections = groupNotifications(items);
+  const sections = loading ? [] : groupNotifications(items);
 
   const panel = React.createElement('div', {
     role: "dialog",
@@ -169,7 +206,8 @@ export const NotificationCentre = ({ items = [], onClose, onAct }) => {
       flex: 1, minHeight: 0, padding: "14px 16px 24px", overflowY: "auto",
       WebkitOverflowScrolling: "touch", display: "flex", flexDirection: "column", gap: 8
     } },
-      items.length === 0 && React.createElement('div', { style: {
+      loading && React.createElement(NotificationSkeleton, null),
+      !loading && items.length === 0 && React.createElement('div', { style: {
         fontFamily: FONTS.body, fontSize: 13, color: "#6B9690", textAlign: "center",
         margin: "auto", padding: "0 16px", lineHeight: 1.5
       } }, "Nothing for you right now.", React.createElement('br'), "Reactions, comments and anything you owe land here."),

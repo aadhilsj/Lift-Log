@@ -190,6 +190,10 @@ const describeOtpSendFailure = (result, intentType) => {
 // which deploy the server is on; when it differs from this bundle's, reload once so
 // the phone picks up the new version. A reload loop would be far worse than stale
 // code, so every guard below errs towards not reloading.
+// How long the bell waits for its two fetches before showing whatever has
+// arrived. Long enough that a normal connection always arrives finished,
+// short enough that a dead one does not hold the member in a skeleton.
+const NOTIFICATION_FETCH_CAP_MS = 2500;
 const BUILD_RELOAD_SESSION_KEY = "fero-build-reload-attempted";
 const BUILD_RELOAD_IDLE_MS = 20000;
 
@@ -462,6 +466,12 @@ const App = () => {
   // the callback and fire an extra request.
   const notificationsSeenAtRef=useRef(notificationsSeenAt);
   useEffect(()=>{ notificationsSeenAtRef.current=notificationsSeenAt; },[notificationsSeenAt]);
+  // Which unread-count request is the newest, and which Bloc is actually on
+  // screen — both read by refreshStreamUnreadCount when its answer comes back.
+  const streamUnreadSeqRef=useRef(0);
+  // True while the bell's two fetches are in flight, so the panel can show a
+  // skeleton instead of a list that rearranges as they land.
+  const [notificationsLoading,setNotificationsLoading]=useState(false);
   const [streamFocusBlocId,setStreamFocusBlocId]=useState(null);
   // The Stream message a mention row points at, so the Stream can land on it.
   const [streamFocusMessageId,setStreamFocusMessageId]=useState("");
@@ -482,6 +492,11 @@ const App = () => {
   const [profileError,setProfileError]=useState("");
   const [appState,setAppState]=useState(()=>cached||buildEmptyAppState());
   const [selectedGroupId,setSelectedGroupId]=useState(()=>{try{return localStorage.getItem(LOCAL_GROUP_KEY)||null;}catch{return null;}});
+  // Declared here, not with the other notification refs above: selectedGroupId
+  // does not exist until this line, and reading it earlier is a dead-zone
+  // crash on first render.
+  const selectedGroupIdRef=useRef(selectedGroupId);
+  useEffect(()=>{ selectedGroupIdRef.current=selectedGroupId; },[selectedGroupId]);
   const [authSession,setAuthSession]=useState(()=>initialPersistedSession);
   const [pendingAuthSession,setPendingAuthSession]=useState(null);
   const [authStep,setAuthStep]=useState(null);
@@ -2094,7 +2109,26 @@ const App = () => {
       setNotificationServerCounts({mentions:null,logComments:null});
       return;
     }
-    const result = await getBlocStreamUnreadCountData(groupId, notificationsSeenAtRef.current);
+    // Three bugs came from this call having no idea whether its answer was
+    // still worth anything by the time it arrived. It fires on every revision
+    // change, so there are often two in the air at once.
+    //
+    //  - Opening the bell cleared the badge, then an in-flight answer carrying
+    //    the OLD seen time put it straight back.
+    //  - Switching Bloc left the previous Bloc's number on screen, because
+    //    whichever answer landed LAST won rather than whichever was NEWEST.
+    //  - Two overlapping refreshes could resolve out of order and leave a
+    //    stale number up.
+    //
+    // One sequence number and two equality checks close all three. An answer
+    // is used only when it is the newest request, for the Bloc still on
+    // screen, measured from the seen time still in force.
+    const seq = (streamUnreadSeqRef.current += 1);
+    const since = notificationsSeenAtRef.current;
+    const result = await getBlocStreamUnreadCountData(groupId, since);
+    if (seq !== streamUnreadSeqRef.current) return;
+    if (groupId !== selectedGroupIdRef.current) return;
+    if (since !== notificationsSeenAtRef.current) return;
     if (result?.ok) {
       setStreamUnreadCount(result.unreadCount);
       // Absent, not zero, on a server without the function: keep null so the
@@ -2126,6 +2160,16 @@ const App = () => {
     if (!key) return;
     setLogCommentCountOverrides(current => ({ ...current, [key]: Math.max(0, Number(count || 0)) }));
   },[]);
+  // Closing the Stream no longer asks the server for a fresh count. It used
+  // to, and it raced the Stream's own "mark these read" write - which is
+  // fired without being awaited - so on a slow connection the server still
+  // counted them unread and the badge came back after the member had just
+  // cleared it.
+  //
+  // The Stream already reports 0 through onUnreadCountChange once that write
+  // succeeds, which is the trustworthy signal, and this effect confirms it on
+  // the next revision change by which time the write has landed. If the write
+  // failed, the badge keeps its old number instead of wrongly showing zero.
   useEffect(() => {
     if (showStream) return;
     refreshStreamUnreadCount();
@@ -2484,29 +2528,49 @@ const App = () => {
         : { mentions: current.mentions === null ? null : 0, logComments: current.logComments === null ? null : 0 }
     ));
     setShowNotifications(true);
-    // The panel opens immediately on what the client already knows; the comment
-    // text and the mentions fill in behind it. Two batched calls per opening,
-    // and none at all if the bell is never tapped.
+
+    // The panel used to open instantly on what the client already knew, and
+    // the comment text and mentions filled in behind it. That is why the list
+    // moved: mention rows do not exist until the fetch returns, rows are
+    // sorted by time and split into Today / This week / Earlier, so a late
+    // mention re-sorted and re-sectioned the list under the member's finger.
+    // A comment row could also appear and then delete itself, because the
+    // first paint counted the member's own comments and the second did not.
+    //
+    // So it now waits, behind a skeleton, and arrives finished.
     const groupId = currentGroup?.id;
-    if (!groupId) return;
+    if (!groupId) { setNotificationsLoading(false); return; }
+    setNotificationsLoading(true);
+
     // Every one of your own logs, not only the ones the blob thinks have
     // comments: that count comes from canonical and can lag behind it.
     const ownLogIds = (currentGroup?.logs?.[currentUser] || [])
       .map(log => String(log?.id || ""))
       .filter(Boolean);
-    if (ownLogIds.length) {
-      getLogLatestCommentsData(groupId, ownLogIds).then(result => {
-        // An empty answer means nobody has commented. It is never a reason to
-        // blank what is already on screen.
-        if (result?.ok) {
-          setNotificationLatestComments(result.latest || {});
-          setNotificationLatestCommentsLoaded(true);
-        }
-      }).catch(() => { /* the rows fall back to the count they already have */ });
-    }
-    listBlocStreamMessagesData(groupId, 100).then(result => {
+
+    const comments = ownLogIds.length
+      ? getLogLatestCommentsData(groupId, ownLogIds).then(result => {
+          // An empty answer means nobody has commented. It is never a reason
+          // to blank what is already on screen.
+          if (result?.ok) {
+            setNotificationLatestComments(result.latest || {});
+            setNotificationLatestCommentsLoaded(true);
+          }
+        })
+      : Promise.resolve();
+
+    const mentions = listBlocStreamMessagesData(groupId, 100).then(result => {
       if (result?.ok) setNotificationStreamMessages(result.messages || []);
-    }).catch(() => { /* no mention rows, rather than a broken screen */ });
+    });
+
+    // A hung request must not trap the member in a skeleton for ever. After
+    // this the panel shows whatever has arrived, which is what it always did.
+    // A failed comment fetch leaves latestCommentsLoaded false, so those rows
+    // fall back to the blob's count exactly as before.
+    const cap = new Promise(resolve => setTimeout(resolve, NOTIFICATION_FETCH_CAP_MS));
+    Promise.race([Promise.allSettled([comments, mentions]), cap])
+      .then(() => setNotificationsLoading(false))
+      .catch(() => setNotificationsLoading(false));
   };
   // Every row lands somewhere real rather than being a dead end.
   const handleNotificationAct = item => {
@@ -3874,8 +3938,9 @@ const App = () => {
   React.createElement(React.Fragment,null,
     showJoinModal && !authStep && React.createElement(JoinGroupModal,{inviteContext,joinCode,setJoinCode,onClose:handleJoinModalClose,onJoin:handleJoinGroup,joining:joiningGroup,error:inviteError,signedIn:true}),
     showProfileModal && React.createElement(ProfileModal,{email:authSession?.email,onSignOut:handleSwitchUser,onClose:()=>setShowProfileModal(false),showDisplayName:true,currentDisplayName:currentUser,onSaveDisplayName:handleSaveProfileFromModal,saving:profileSaving,saveError:profileError,onLeaveBloc:handleLeaveBloc,onDeleteAccount:handleDeleteAccount,currentPaymentMethods:effectiveProfile?.paymentMethods||[],onSavePayment:handleSavePaymentHandle,savingPayment:paymentSaving,paymentError:paymentError}),
-    React.createElement(BlocStream,{open:showStream,groupName:currentGroup.name,blocId:currentGroup.id,initialBlocId:streamFocusBlocId,initialScrollTop:streamReturnScrollTop,initialUnreadCount:streamUnreadCount,focusMessageId:streamFocusMessageId,onFocusMessageShown:()=>setStreamFocusMessageId(""),currentUserId:effectiveAuthSession?.userId,members:Object.values(currentGroup.memberships||{}).map(m=>({id:m.userId,name:m.displayName,photoUrl:appState.profiles?.[m.userId]?.profilePhotoUrl||""})),streamBlocs:visibleGroups.map(group=>({id:group.id,name:group.name,members:Object.values(group.memberships||{}).map(m=>({id:m.userId,name:m.displayName,photoUrl:appState.profiles?.[m.userId]?.profilePhotoUrl||""}))})),onSeasonClosedTap:handleStreamSeasonClosedTap,onUnreadCountChange:(groupId,count)=>{if(groupId===currentGroup.id)setStreamUnreadCount(Number(count)||0);},onOpenLogComments:handleOpenLogComments,onClose:()=>{setShowStream(false);setStreamFocusBlocId(null);setStreamReturnScrollTop(null);setStreamFocusMessageId("");refreshStreamUnreadCount(currentGroup.id);}}),
+    React.createElement(BlocStream,{open:showStream,groupName:currentGroup.name,blocId:currentGroup.id,initialBlocId:streamFocusBlocId,initialScrollTop:streamReturnScrollTop,initialUnreadCount:streamUnreadCount,focusMessageId:streamFocusMessageId,onFocusMessageShown:()=>setStreamFocusMessageId(""),currentUserId:effectiveAuthSession?.userId,members:Object.values(currentGroup.memberships||{}).map(m=>({id:m.userId,name:m.displayName,photoUrl:appState.profiles?.[m.userId]?.profilePhotoUrl||""})),streamBlocs:visibleGroups.map(group=>({id:group.id,name:group.name,members:Object.values(group.memberships||{}).map(m=>({id:m.userId,name:m.displayName,photoUrl:appState.profiles?.[m.userId]?.profilePhotoUrl||""}))})),onSeasonClosedTap:handleStreamSeasonClosedTap,onUnreadCountChange:(groupId,count)=>{if(groupId===currentGroup.id)setStreamUnreadCount(Number(count)||0);},onOpenLogComments:handleOpenLogComments,onClose:()=>{setShowStream(false);setStreamFocusBlocId(null);setStreamReturnScrollTop(null);setStreamFocusMessageId("");}}),
     showNotifications && React.createElement(NotificationCentre,{
+      loading:notificationsLoading,
       items:notificationItems,
       onClose:()=>setShowNotifications(false),
       onAct:handleNotificationAct
