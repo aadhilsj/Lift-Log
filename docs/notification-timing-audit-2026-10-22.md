@@ -130,4 +130,47 @@ reads as a stuck badge.
 1, 3, 4 and 5 are straightforward corrections. **2 is a product decision**: the
 instant open was deliberate, and the cost of it is the list moving.
 
-**Nothing was changed. Read-only audit.**
+---
+
+## FIXED — all five, live at `a35d256` (22 October)
+
+The founder asked for all five, with a **skeleton** rather than a spinner.
+
+**The three races (3, 4, 5)** — one sequence number and two equality checks in
+`refreshStreamUnreadCount`: an answer is used only when it is the newest
+request, for the Bloc still on screen, measured from the seen time still in
+force. That last check is what stops the badge re-lighting.
+
+**The Stream badge (5)** also needed the close-time refresh removed: it raced
+the Stream's own un-awaited mark-as-read. The Stream already reports zero when
+that write succeeds, and the next revision refresh confirms it. If the write
+fails the badge keeps its old number rather than wrongly showing zero.
+
+**The pop-in and the vanishing card (1, 2)** — the panel now waits behind a
+skeleton built to the real Row's measurements, using the house `.skel` class.
+The vanishing card goes with it: the panel is no longer painted once with the
+member's own comments counted and again without them.
+
+A **2.5s cap** means a hung request shows whatever arrived rather than trapping
+the member, and a failed comment fetch still falls back to the blob's count.
+
+### Caught before it shipped
+
+The first draft seeded a ref from `selectedGroupId` **24 lines before that
+state is declared** — a temporal dead zone crash on first render, which is a
+blank screen. Found by checking declaration order before building, which is
+exactly the class of bug `AGENTS.md` §3 says has reached production twice.
+
+### Verified in the sandbox
+
+A red **3** on the bell; the skeleton on tap; the finished list with no
+rearranging; the badge still clear eight seconds and several refreshes later.
+Live bundle carries the skeleton and the cap; live site returns 200.
+
+### Not verified
+
+- **The Bloc-switch race (4)** — the demo Bloc is the only one in the sandbox,
+  so the guard is reasoned, not watched.
+- **The Stream read-marker race (5)** — the sandbox has no Stream support.
+- **The vanishing comment card (1)** — structurally impossible now, since the
+  panel is never painted before the fetch, but not watched disappearing.
