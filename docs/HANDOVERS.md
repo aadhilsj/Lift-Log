@@ -27,6 +27,10 @@ the newer dated doc wins over the older.
 the drafted App Review notes, what each claim is based on, and the four things
 still missing.
 
+**Before touching the notification centre:**
+[`notification-timing-audit-2026-10-22.md`](notification-timing-audit-2026-10-22.md) —
+five timing findings: two certain, three races.
+
 **Before writing SQL:** [`SCHEMA.md`](SCHEMA.md).
 **Before analysing numbers or writing a report:**
 [`READ-BEFORE-ANALYSING-FERO-NUMBERS.md`](READ-BEFORE-ANALYSING-FERO-NUMBERS.md).
