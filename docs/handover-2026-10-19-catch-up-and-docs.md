@@ -989,7 +989,26 @@ It is not only reactions: `notificationReminderCards`, the comment counts and
 the mention counts are all scoped to `currentGroup` too. The whole centre is
 per-Bloc.
 
-### 17.3 Not fixed — it is a design decision, not a bug fix
+### 17.3 DECIDED, 22 October: per-Bloc is intended. Do not "fix" it.
+
+**The founder's call:** *"the for you centre should only be for your specific
+bloc imo."*
+
+So `buildNotifications({ group: currentGroup })` is **correct**, and the
+behaviour in §17.2 is the design rather than a defect. A future session that
+finds the bell "missing" notifications from another Bloc should read this
+before changing anything — the investigation in §17.1 and §17.2 is kept
+precisely so nobody re-derives it and then breaks the intent.
+
+**The one consequence to live with:** the bell shows the Bloc you are in, so
+notifications from your other Blocs wait until you switch to them, and the
+number changes as you switch. That is expected, not a bug, and is the most
+likely thing to be re-reported as one.
+
+**Nothing was built.** What follows was the plan had he said yes, kept only so
+the cost is on record if the decision is ever revisited.
+
+### 17.4 What spanning Blocs would have cost (not built)
 
 Making the bell span every Bloc is a real change, not a tweak:
 
@@ -1041,6 +1060,60 @@ cross-member comment could not be held open. The identical guard is the basis
 for the claim. **Worth one look on a real phone**, since this is now the only
 route to reporting a comment and the App Store requires one.
 
+## 19. Session close-out — 19 to 22 October
+
+### What is live
+
+| | Commit |
+| --- | --- |
+| A reaction counts from when it was made | `e387b2c` |
+| Stream tags and the first comment reach the bell (the counts function) | `2099e2c` |
+| The mention shimmer hugs the bubble, not the row | `08b4793` |
+| Four reaction and emoji tweaks | `3c51172` |
+| Matching bell/Stream badges, comment "···" removed | `c4f1543` |
+
+**On production's database:** `read_ante_core_notification_counts`, applied
+and verified (§9).
+
+**On a branch, not built:** `claude/testflight-build-12-2026-10-21` — October
+merged into the TestFlight lineage, build number 12, pushed and waiting (§14).
+
+**Written, not applied:** the RLS migration covering the six tables Deveen's
+file misses (§12.5). The rollout is his.
+
+### What is open
+
+- **TestFlight build 12** — needs the founder's Xcode laptop. With it: the
+  Stream and finished-month screenshots, the real listing capture, the review
+  video, the final test matrix.
+- **Four things before submission** (§3 of the review notes): the review
+  account, the seeded Bloc, the video URL, and proof that
+  `support@joinfero.app` receives mail.
+- **1 November** — the first full month close since the 1 October fix. Founder
+  dashboard first, then `month-close-check --after`, then `parity:gate`.
+- **Deveen:** scaling before launch, the RLS rollout, `push_devices`,
+  `fero-staging` still billing.
+- **The prorated status bug** (§13.3) — narrowed to the prorated pace branch,
+  deliberately not fixed.
+- **`payment_methods` allows a `bank` type stored as free text** (§15.3) — a
+  privacy-label question, zero rows today.
+
+### Not verified, and worth one look on a phone
+
+- **Reporting a comment.** The "···" is gone, so holding is the only route.
+  The guard is identical to the removed button, but the sandbox would not hold
+  a cross-member comment open to photograph it, and the App Store requires
+  reporting to work. **Check this one.**
+- The 420ms/500ms hold timings, which only a thumb can judge.
+- The bell and the shimmer against a real tag from a second person.
+
+### Two things future sessions should not re-derive
+
+1. **The "For you" centre is per-Bloc on purpose** (§17.3).
+2. **A worktree on the TestFlight lineage cannot share main's `node_modules`**
+   (§14.3) — main's `package.json` has no Capacitor, so the build fails on an
+   unresolved import until the worktree gets its own install.
+
 ## 5. Commits this session
 
 | Commit | What | Live |
@@ -1062,5 +1135,6 @@ route to reporting a comment and the App Store requires one.
 | `3c51172` | **The four reaction and emoji tweaks** | **Live** |
 | `b989da2` | Record them | Docs only |
 | `c4f1543` | **Matching badges, and the comment "···" removed** | **Live** |
-| *(this one)* | The bell's per-Bloc finding | Docs only |
+| `b97bc43` | The bell's per-Bloc finding | Docs only |
+| *(this one)* | Per-Bloc confirmed as intended; session closed out | Docs only |
 | `b28e71d` | **The merge itself**, on `claude/testflight-build-12-2026-10-21` | **Not pushed, not built** |
