@@ -298,6 +298,59 @@ matters only because the Management API is the route the migrations would be
 applied through. Both files are idempotent and guarded, so a partial failure
 is safely re-runnable rather than damaging.
 
+### APPLIED TO PRODUCTION — 23 October, both files, verified
+
+The founder gave the go-ahead. Both migrations were applied to
+`bpvvvqjsfwmmfjvvijkd` through the Management API query endpoint, in Deveen's
+order, using the CLI's stored token. **`supabase db push` was deliberately not
+used** — see the warning above.
+
+**Before:**
+
+| | |
+| --- | --- |
+| `ante_core` tables with RLS off | 14 |
+| Projection grant rows to `anon`/`authenticated` | 240 |
+| `bloc_messages` / `workout_log_comments` / `solo_requests` / `push_devices` | 531 / 314 / 11 / 0 |
+
+**After `20260926120000` (Deveen's):** 14 → **6** tables left, and the
+projection grants 240 → **0**.
+
+**After `20261020150000` (ours):** 6 → **0**. The sweep took `push_devices`
+and the five later backups.
+
+**Both of Deveen's verification queries now return zero rows**, which is what
+his doc says success looks like:
+
+- any `ante_core` table still without RLS → **no rows**
+- any projection table a browser role can still touch → **no rows**
+
+**Independent checks on top of his:**
+
+| Check | Result |
+| --- | --- |
+| Row counts on the four live tables | **unchanged** — 531 / 314 / 11 / 0 |
+| `FORCE ROW LEVEL SECURITY` anywhere in `ante_core` | **none** — this is the setting that would have broken the functions |
+| `read_ante_core_workout_log_comments` over a now-locked table | returned its row |
+| `read_ante_core_workout_log_comment_counts` | returned its row |
+| `anon` / `authenticated` execute rights on those functions | **none** |
+| Live site load | no console errors |
+
+**Rollback**, if ever needed, is one statement per table and immediate:
+`alter table ante_core.<name> disable row level security;` — and for the
+projection grants, `grant all on public.lift_log_projection_<name> to anon, authenticated;`
+
+**Backup:** the dashboard reported the last backup at roughly 3 hours before
+this was applied. Nothing in either migration touches data, and row counts are
+unchanged.
+
+**Not done, and the founder's to do:** the on-phone pass from §3 of the
+rollout doc — Bloc Stream read/send/react/unread, workout comments and
+reactions, solo mode, sign in, log a workout.
+
+**Also still open:** `fero-staging` (`okwrrspdmoluxatyokzh`) can be deleted
+once the phone pass is clean — that was the condition Deveen set.
+
 ### Recommended timing
 
 Today is Friday 23 October. Applying this week leaves eight days of ordinary
