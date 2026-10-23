@@ -131,7 +131,7 @@ which genuinely share a category and so actually prove the point.
 The founder asked for a sweep of every screen after shipping. Driven in the
 sandbox with **four workouts logged on one day** (2 Gym + 2 Run).
 
-### 8.1 The bug: calendar day badges are clamped to "2"
+### 8.1 FIXED — calendar day badges were clamped to "2"
 
 Four places render the day badge as **`Math.min(dayLogs.length, 2)`**:
 
@@ -149,10 +149,21 @@ That clamp was correct when the cap was two a day. It is wrong now, and it
 contradicts the founder's own intent for the change — he said the extra
 workouts should still be visible in the calendar.
 
-**A design question comes with the fix:** the badge circle is ~12px with a
-`minWidth` of 12. "4" fits. "10" is two digits in a very small circle. The
-notification badge solves the same problem with `9+`, which is the obvious
-precedent.
+**Fixed.** The four inline clamps are replaced by one
+`formatDayWorkoutCount` in `src/lib/appState.js`, so they cannot drift apart
+again — four copies of the same expression is how this happened. Over nine it
+shows **`9+`**, because the circle is ~12px and two digits do not fit; the
+notification badge already solves it that way.
+
+Verified on screen: the same day that read "2" now reads **4**. Pinned by
+unit tests for 2, 3, 4, 9, 10, 37 and for junk input, so a day never renders
+`NaN` on a calendar.
+
+**One thing I broke and caught while fixing it:** the first attempt added the
+import with a regex that matched *every* `import {` in the file, inserting the
+symbol into fifteen import statements in one file and eighteen in another.
+Caught by counting occurrences before building rather than after. Reverted
+both files and redid it against the exact appState import block.
 
 ### 8.2 Everything else checked out
 

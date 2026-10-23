@@ -10,7 +10,8 @@ import {
 import {
   getDistinctWorkoutCountForDate as getFrontendWorkoutCount,
   countWorkoutsInDayMap,
-  findWorkoutCopiesInOtherBlocs
+  findWorkoutCopiesInOtherBlocs,
+  formatDayWorkoutCount
 } from "../src/lib/appState.js";
 
 // Week's MVP counts workouts, not merely occupied calendar dates. Its display
@@ -389,5 +390,24 @@ function addLog(current, groupId, workoutType = "Gym", activity = null) {
   );
   assert.deepEqual(findWorkoutCopiesInOtherBlocs(blocs, "a", "", run), [], "no user, no copies");
 }
+
+// ── The calendar day badge ──────────────────────────────────────────────────
+// This was Math.min(count, 2) written inline in four places. It was correct
+// while the cap was two a day, and on 23 October it silently became a lie: a
+// day holding four workouts still reported "2", which is exactly what the
+// founder said must stay visible. One definition now, and these pin it.
+assert.equal(formatDayWorkoutCount(2), "2");
+assert.equal(formatDayWorkoutCount(3), "3", "a third workout must not report as 2");
+assert.equal(formatDayWorkoutCount(4), "4");
+assert.equal(formatDayWorkoutCount(9), "9");
+// Two digits do not fit the ~12px circle, so it caps the way the bell does.
+assert.equal(formatDayWorkoutCount(10), "9+");
+assert.equal(formatDayWorkoutCount(37), "9+");
+// Junk in must not render "NaN" on a calendar.
+assert.equal(formatDayWorkoutCount(0), "0");
+assert.equal(formatDayWorkoutCount(-3), "0");
+assert.equal(formatDayWorkoutCount(null), "0");
+assert.equal(formatDayWorkoutCount(undefined), "0");
+assert.equal(formatDayWorkoutCount("not a number"), "0");
 
 console.log("Two-per-activity-per-day checks passed.");

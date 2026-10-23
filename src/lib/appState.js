@@ -1420,6 +1420,21 @@ function getWorkoutSessionKey(log) {
 // one, otherwise the broad type. Same expression as the API and the database
 // cap, so none of the three can disagree about what "the same activity" is.
 // Kitesurfing and Padel are both "Sports" underneath and must count apart.
+// What the little badge on a calendar day shows.
+//
+// This used to be written inline as Math.min(count, 2) in four separate
+// places, which was right while the cap was two workouts a day and silently
+// became a lie on 23 October when the cap moved to two per ACTIVITY: a day
+// holding four workouts still reported "2". Defined once so the four cannot
+// drift apart again.
+//
+// Capped at "9+" for the same reason the notification badge is: the circle is
+// about 12px and two digits do not fit in it.
+function formatDayWorkoutCount(count) {
+  const total = Math.max(0, Number(count) || 0);
+  return total > 9 ? "9+" : String(total);
+}
+
 function getWorkoutActivityKey(activity, workoutType) {
   const specific = String(activity || "").trim();
   const broad = String(workoutType || "").trim();
@@ -2240,6 +2255,7 @@ export {
   WORKOUT_TYPES,
   MAX_WORKOUTS_PER_ACTIVITY_PER_DAY,
   getWorkoutActivityKey,
+  formatDayWorkoutCount,
   DEFAULT_MIN_TARGET,
   DEFAULT_GROUP_TIME_ZONE,
   LEAGUE_CUTOFF_HOUR,
