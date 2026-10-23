@@ -618,6 +618,9 @@ const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevea
         React.createElement('div',{style:{fontWeight:800,fontSize:15,marginBottom:4}},getLogDisplayActivity(workoutDetail)),
         React.createElement('div',{className:"mono",style:{fontSize:11,color:"var(--muted)",marginBottom:workoutDetail.note?13:16}},formatWorkoutDetailDate(workoutDetail.date)),
         workoutDetail.note && React.createElement('div',{style:{fontSize:12,lineHeight:1.5,color:"var(--muted)",whiteSpace:"pre-wrap",margin:"0 auto 16px",maxWidth:270}},workoutDetail.note),
+        // onDeleteLog is only passed for your own profile, and a closed month
+        // cannot be edited, so this is the one case where delete belongs here.
+        isCurMonth && !!onDeleteLog && React.createElement('button',{type:"button",onClick:()=>{const log=workoutDetail;setWorkoutDetail(null);setDeleteTarget(log);},style:{width:"100%",marginBottom:7,background:"rgba(255,107,107,.08)",border:"1px solid rgba(255,107,107,.32)",color:"#FF6B6B",padding:"9px",borderRadius:8,fontSize:11,fontWeight:750}},"Delete workout"),
         React.createElement('button',{type:"button",onClick:()=>setWorkoutDetail(null),style:{width:"100%",background:"var(--s2)",border:"1px solid var(--border)",color:"var(--text)",padding:"9px",borderRadius:8,fontSize:11,fontWeight:750}},"Close")
       )
     ),
@@ -792,10 +795,10 @@ const PlayerProfile = ({group,name,logs,excused,monthHistory,onBack,onSwipeRevea
 	        calDays.map((day,i)=>{
 	          if(!day) return React.createElement('div',{key:`e${i}`});
 	          const isToday=isCurMonth&&day===DAY_OF_MON,dayLogs=logsByDay[day]||[],log=dayLogs[0]||null,isFuture=isCurMonth&&day>DAY_OF_MON;
-          const canDelete = dayLogs.length > 0 && isCurMonth && !!onDeleteLog;
           const canInspect = dayLogs.length > 0;
+          // Tapping a day shows the workout. Deleting is a deliberate second
+          // step from inside the detail sheet, never what a tap does by itself.
           const openDayLog = () => {
-            if (canDelete) { dayLogs.length === 1 ? setDeleteTarget(log) : setDeleteChoices(dayLogs); return; }
             dayLogs.length === 1 ? setWorkoutDetail(log) : setWorkoutChoices(dayLogs);
           };
           return React.createElement('div',{key:day, onClick: canInspect ? openDayLog : undefined, style:{aspectRatio:"1",display:"flex",alignItems:"center",justifyContent:"center",borderRadius:5,fontSize:log?11:9,fontFamily:log?"inherit":"'JetBrains Mono',monospace",fontWeight:log?700:400,background:log?"#1A2E4A":isToday?"var(--s2)":"transparent",color:log?"#4ECDC4":isFuture?"var(--muted2)":isToday?"var(--text)":"var(--muted)",border:isToday&&!log?"1px solid var(--border2)":"1px solid transparent",cursor:canInspect?"pointer":"default"}},log?React.createElement('span',{style:{position:"relative",width:19,height:19,display:"inline-flex",alignItems:"center",justifyContent:"center"}},React.createElement(WorkoutTypeIcon,{type:getLogDisplayActivity(log),size:15}),dayLogs.length>1&&React.createElement('span',{style:{position:"absolute",right:-5,top:-5,minWidth:12,height:12,padding:"0 2px",borderRadius:999,display:"inline-flex",alignItems:"center",justifyContent:"center",background:"#4ECDC4",border:"1px solid #1A2E4A",color:"#071010",fontFamily:"'Outfit',sans-serif",fontSize:7.5,fontWeight:900,lineHeight:1}},formatDayWorkoutCount(dayLogs.length))):day);
