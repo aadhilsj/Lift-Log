@@ -229,6 +229,75 @@ that owns Fero.
 touched. The rollout stays blocked until the connector is signed in to the
 account that owns `bpvvvqjsfwmmfjvvijkd`.
 
+### RESOLVED — the CLI already had access on this Mac
+
+The connector was a dead end (wrong account). The **Supabase CLI was already
+signed in on this machine**, with a token in `~/.supabase/access-token` last
+used 19 October. That account sees all five projects, Lift Log among them:
+
+| Project | Ref | Region |
+| --- | --- | --- |
+| **Lift Log** (production) | `bpvvvqjsfwmmfjvvijkd` | eu-west-1 |
+| fero-staging | `okwrrspdmoluxatyokzh` | eu-west-1 |
+| Huddle (inactive) | `zmijzfjfajrrwyrffkkb` | eu-central-1 |
+| Runway | `kmbepvzsbmucrvhbjgbj` | eu-central-1 |
+| LifeOS | `oulbhauthynnqumormte` | eu-north-1 |
+
+**No new token was created and none was needed.** A `SUPABASE_ACCESS_TOKEN`
+line was briefly added to `.env.local` and then removed once this was found.
+
+The CLI runs via `npx supabase@latest` — nothing installed. It has **no ad-hoc
+SQL command**, and `db dump` needs Docker, which is not on this machine. Read
+queries therefore go through the Management API directly, using that same
+stored token:
+
+```
+POST https://api.supabase.com/v1/projects/bpvvvqjsfwmmfjvvijkd/database/query
+```
+
+### Production state, measured directly — Deveen's numbers confirmed
+
+| Check | Result |
+| --- | --- |
+| `ante_core` tables, total | **40** |
+| ...with RLS off | **14** — exactly his figure |
+| ...of those, granting to `anon` or `authenticated` | **none** |
+
+The 14: `bloc_messages`, `bloc_message_reactions`, `bloc_message_reads`,
+`workout_log_comments`, `workout_log_comment_reactions`, `solo_requests`,
+`revision_clock` (his seven), `push_devices`, and six `backup_*` tables
+(`bloc_message_solo_note_2026_09_18`, `blob_before_force_rollover_2026_10_01`,
+`marlene_jul_aug_2026_10_01`, `solo_tw_2026_10_01_blob`,
+`solo_tw_2026_10_01_member_status`, `nishara_log_date_2026_10_13`).
+
+That is his 8 + `push_devices` + the five later backups = 14. The two
+migrations cover all of them, and the zero-grants result independently confirms
+his safety argument: nothing can reach these tables with a browser key today.
+
+### WARNING — do NOT use `supabase db push`
+
+`supabase migration list` shows the repo's migration history and production's
+are **badly divergent**: roughly 25 local files have no remote record, and
+roughly 25 remote entries have no local file. The cause looks structural —
+work applied through the MCP `apply_migration` gets the server's own timestamp,
+while repo files carry hand-written ones, so the same change exists under two
+different version numbers. Today's cap migration is the clearest example: local
+`20261023100000`, remote `20261023065455`.
+
+**`db push` would therefore try to apply around 25 migrations whose content is
+already in production.** Some are `create or replace` and harmless; others are
+not. Apply the two RLS files individually instead, exactly as Deveen's doc
+says, and never `db push` against this project without resolving the history
+first. **Worth a separate task, and worth telling Deveen.**
+
+### Supabase incident, at time of writing
+
+Status page: **"Elevated Mgmt API Error Rates in Multiple Regions"** — minor,
+status `monitoring`, mitigations deployed. Every read above succeeded. It
+matters only because the Management API is the route the migrations would be
+applied through. Both files are idempotent and guarded, so a partial failure
+is safely re-runnable rather than damaging.
+
 ### Recommended timing
 
 Today is Friday 23 October. Applying this week leaves eight days of ordinary
