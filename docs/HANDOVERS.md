@@ -45,6 +45,7 @@ Read every one of these. Each is a dated record of one session.
 
 | Date | Handover | About |
 | --- | --- | --- |
+| 23 Oct — **closed** | [`handover-2026-10-23-per-activity-cap.md`](handover-2026-10-23-per-activity-cap.md) | The daily cap becomes two per **activity** instead of two per day. Applied to production and live. **Open:** the monthly score still counts every workout, so a target can now be crammed into two days |
 | 19 Oct — **closed** | [`handover-2026-10-19-catch-up-and-docs.md`](handover-2026-10-19-catch-up-and-docs.md) | Catch-up after ten days away: the shared folder brought level with `origin/main` from 78 behind, and Deveen's 18 October work recorded in `WHATS-LIVE.md`. Docs only |
 | 18 Oct — **closed** | [`handover-2026-10-18-open-season-sweep.md`](handover-2026-10-18-open-season-sweep.md) | Deveen's sweep for the 1 October bug shape: found it once more, in the read path — a skipped Bloc was shown an empty new month instead of its real one. Fixed at `1c23241`, plus the two month-close CI cases that were missing |
 | 16 Oct — **closed** | [`handover-2026-10-16-latest-reaction-emoji.md`](handover-2026-10-16-latest-reaction-emoji.md) | The For you emoji badge becomes the emoji most recently used, not the one the most people chose: the canonical log reads now carry a `latest_reaction` |

@@ -5,7 +5,8 @@ import {
   DISPLAY_NAME_MAX_LENGTH,
   BLOC_NAME_MAX_LENGTH,
   WORKOUT_TYPES,
-  MAX_WORKOUTS_PER_DAY,
+  MAX_WORKOUTS_PER_ACTIVITY_PER_DAY,
+  getWorkoutActivityKey,
   DEFAULT_MIN_TARGET,
   DEFAULT_GROUP_TIME_ZONE,
   DEFAULT_FINE_AMOUNT,
@@ -655,12 +656,27 @@ const LogModal = ({user,currentUserId,currentGroupId,groups,onConfirm,onClose,on
   };
   const timeContext = currentGroup ? getTimeContextForGroup(currentGroup) : getTimeContextForGroup(null);
   const isCurrentMonthSelection = getMonthKeyFromISO(selDate) === timeContext.monthKey;
+  // Two counts, because they answer different questions now.
+  //
+  // The total is only used for the heading - "Log another workout" if you have
+  // already logged anything today, whatever it was.
   const workoutsLoggedForDate = useMemo(
     () => getDistinctWorkoutCountForDate(groups, currentUserId, user, selDate),
     [groups, currentUserId, user, selDate]
   );
-  const loggingAnotherWorkout = workoutsLoggedForDate === 1;
-  const alreadyLogged = workoutsLoggedForDate >= MAX_WORKOUTS_PER_DAY;
+  // The cap is per activity, so this has to follow what the member picks. It
+  // cannot be answered before they choose: two runs today blocks a third run
+  // and permits a gym session, and the screen only knows which when they say.
+  const workoutsLoggedForActivity = useMemo(
+    () => ((wActivity || wType)
+      ? getDistinctWorkoutCountForDate(groups, currentUserId, user, selDate, getWorkoutActivityKey(wActivity, wType))
+      : 0),
+    [groups, currentUserId, user, selDate, wActivity, wType]
+  );
+  const loggingAnotherWorkout = workoutsLoggedForDate >= 1;
+  const alreadyLogged = workoutsLoggedForActivity >= MAX_WORKOUTS_PER_ACTIVITY_PER_DAY;
+  // Named, so it is obvious something else can still be logged.
+  const alreadyLoggedActivityLabel = String(wActivity || wType || "").trim();
   const eligibleGroups = useMemo(() => {
     if (!wType || !isCurrentMonthSelection) return [];
     return groups
@@ -776,7 +792,7 @@ const LogModal = ({user,currentUserId,currentGroupId,groups,onConfirm,onClose,on
       React.createElement('span',{style:logFieldLabelStyle},"Date"),
       React.createElement('input',{type:"date",value:selDate,min:timeContext.earliestIso,max:timeContext.todayIso,onChange:handleDateChange,
         style:{width:"100%",maxWidth:"100%",minWidth:0,display:"block",height:34,background:"var(--s1)",border:`1px solid ${alreadyLogged?"var(--red)":"rgba(13,31,30,.8)"}`,borderRadius:10,padding:"7px 10px",color:"#9BA6B5",fontSize:13,lineHeight:"18px",marginBottom:alreadyLogged?4:(compactMobile?7:10),outline:"none",boxSizing:"border-box",appearance:"none",WebkitAppearance:"none",opacity:0.92,fontFamily:UI_FONT}}),
-      alreadyLogged&&React.createElement('div',{style:{color:"var(--red)",fontSize:compactMobile?11:12,fontFamily:UI_FONT,fontWeight:700,marginBottom:compactMobile?7:10}},"Already logged 2 workouts for this date"),
+      alreadyLogged&&React.createElement('div',{style:{color:"var(--red)",fontSize:compactMobile?11:12,fontFamily:UI_FONT,fontWeight:700,marginBottom:compactMobile?7:10}},alreadyLoggedActivityLabel?`Already logged 2 ${alreadyLoggedActivityLabel} workouts for this date`:"Already logged 2 workouts for this date"),
       React.createElement('span',{style:logFieldLabelStyle},"Workout type"),
       React.createElement('div',{style:{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:6,marginBottom:compactMobile?8:12}},
         topActivities.map(name=>{

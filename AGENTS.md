@@ -234,8 +234,19 @@ Local Studio: `http://127.0.0.1:54323`
 
 ## 8. Product rules that look like bugs
 
-- **Two workouts per day is a deliberate cap**, enforced atomically in the
-  database. It rewards consistency over intensity. Do not "fix" it.
+- **Two workouts per ACTIVITY per day is a deliberate cap**, enforced
+  atomically in the database. There is no cap on how many workouts a member
+  logs in a day: two runs, a gym session and a padel game is fine; three runs
+  is not. It keys on the specific activity, not the broad type — Padel and
+  Tennis are both "Sports" and count apart. Do not "fix" it.
+  - Changed 22 October 2026. It was two per day in total until then, and the
+    rule that replaced it is in
+    `docs/handover-2026-10-23-per-activity-cap.md`.
+  - **OPEN, and the founder knows:** the monthly score still counts every
+    workout, so a member who logs six in a day is six closer to target. He is
+    considering capping the SCORE at the first two of a day while still
+    showing the rest in stats, the calendar and the feed. Do not implement
+    that without him asking.
 - **Share stickers have a locked design.** The PNGs in
   `docs/share-sticker-reference/` are ground truth. Match them; do not redesign.
 - The app is **Fero**. A group is a **Bloc** (not "block"). In code it appears as

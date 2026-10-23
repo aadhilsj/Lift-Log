@@ -1,6 +1,8 @@
 const DEFAULT_MIN_TARGET = 12;
 const WORKOUT_TYPES = ["Gym", "Run", "Sports", "Pilates", "Other"];
-const MAX_WORKOUTS_PER_DAY = 2;
+// Two of the SAME ACTIVITY per day. There is no longer a cap on the number of
+// workouts in a day - see docs/handover-2026-10-23-per-activity-cap.md.
+const MAX_WORKOUTS_PER_ACTIVITY_PER_DAY = 2;
 // Display names are capped so they never overflow the leaderboard, Week's MVP
 // tile, Month leader card or the History table. Mirrors DISPLAY_NAME_MAX_LENGTH
 // in src/lib/appState.js.
@@ -1699,11 +1701,29 @@ function getWorkoutSessionKey(log) {
   return multiLogMatch ? multiLogMatch[1] : id;
 }
 
-function getDistinctWorkoutCountForDate(state, actor, actorUserId, date) {
+// Which bucket a workout counts against. The specific activity when there is
+// one, otherwise the broad type - the same fallback getLogDisplayActivity uses
+// in the app, and the same expression the database cap uses, so the three
+// cannot disagree about what "the same activity" means.
+//
+// Kitesurfing and Padel are both "Sports" underneath. They must count apart,
+// which is why this keys on the activity and not the type.
+function getWorkoutActivityKey(activity, workoutType) {
+  const specific = String(activity || "").trim();
+  const broad = String(workoutType || "").trim();
+  return (specific || broad).toLowerCase();
+}
+
+function getLogActivityKey(log) {
+  return getWorkoutActivityKey(log?.activity, log?.type);
+}
+
+function getDistinctWorkoutCountForDate(state, actor, actorUserId, date, activityKey = null) {
   const sessionKeys = new Set();
   const safeActor = String(actor || "").trim();
   const safeActorUserId = String(actorUserId || "").trim();
   const safeDate = String(date || "").trim();
+  const wantedActivity = activityKey === null ? null : String(activityKey || "").toLowerCase();
   if (!safeDate) return 0;
 
   Object.values(state?.groups || {}).forEach(group => {
@@ -1717,6 +1737,9 @@ function getDistinctWorkoutCountForDate(state, actor, actorUserId, date) {
     if (!ownerName) return;
     (group?.logs?.[ownerName] || []).forEach(log => {
       if (log?.date !== safeDate) return;
+      // null means "every activity", which is what the pre-23-October cap
+      // counted. Callers now pass a bucket.
+      if (wantedActivity !== null && getLogActivityKey(log) !== wantedActivity) return;
       const key = getWorkoutSessionKey(log);
       if (key) sessionKeys.add(key);
     });
@@ -1725,9 +1748,19 @@ function getDistinctWorkoutCountForDate(state, actor, actorUserId, date) {
   return sessionKeys.size;
 }
 
-function assertWorkoutSlotAvailable(state, actor, actorUserId, date) {
-  if (getDistinctWorkoutCountForDate(state, actor, actorUserId, date) < MAX_WORKOUTS_PER_DAY) return;
-  const error = new Error("Already logged 2 workouts for this date");
+// Two per ACTIVITY per day, not two per day. Founder's decision, 22 October
+// 2026: as many workouts a day as you like, but no more than two of the same
+// activity. Two runs and a gym session is fine; three runs is not.
+//
+// The message names the activity so it is obvious something else can still be
+// logged, and it matches what the database raises if a request gets past here.
+function assertWorkoutSlotAvailable(state, actor, actorUserId, date, activity = null, workoutType = null) {
+  const label = String(activity || "").trim() || String(workoutType || "").trim();
+  const activityKey = getWorkoutActivityKey(activity, workoutType);
+  if (getDistinctWorkoutCountForDate(state, actor, actorUserId, date, activityKey) < MAX_WORKOUTS_PER_ACTIVITY_PER_DAY) return;
+  const error = new Error(label
+    ? `Already logged 2 ${label} workouts for this date`
+    : "Already logged 2 workouts for this date");
   error.status = 409;
   throw error;
 }
@@ -6816,7 +6849,7 @@ function applyMultiLog(current, payload) {
     error.status = 403;
     throw error;
   }
-  assertWorkoutSlotAvailable(base, actor, actorUserId, date);
+  assertWorkoutSlotAvailable(base, actor, actorUserId, date, activity, workoutType);
   const logId = createWorkoutSessionId();
   const updatedGroups = { ...base.groups };
 
@@ -8242,7 +8275,7 @@ function applyAddLog(current, payload) {
     throw error;
   }
 
-  assertWorkoutSlotAvailable(base, actor, actorUserId, date);
+  assertWorkoutSlotAvailable(base, actor, actorUserId, date, activity, workoutType);
 
   const log = normalizeLogEntry({
     id: createWorkoutSessionId(),
