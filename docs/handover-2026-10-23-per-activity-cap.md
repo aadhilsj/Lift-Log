@@ -126,6 +126,68 @@ The first draft of the test claimed Padel and Kitesurfing were both "Sports".
 trusting the example, and the test now uses Padel, Tennis and Basketball,
 which genuinely share a category and so actually prove the point.
 
+## 8. Post-ship audit — one real bug found (23 October)
+
+The founder asked for a sweep of every screen after shipping. Driven in the
+sandbox with **four workouts logged on one day** (2 Gym + 2 Run).
+
+### 8.1 The bug: calendar day badges are clamped to "2"
+
+Four places render the day badge as **`Math.min(dayLogs.length, 2)`**:
+
+| File | Surface |
+| --- | --- |
+| `src/pages/PlayerProfile.jsx:800` | The Profile tab calendar, and a member's in-Bloc profile |
+| `src/pages/TodayPage.jsx:556` | `renderMonthLogCalendar` on Today |
+| `src/pages/TodayPage.jsx:1140` | `renderWeeklyStrip` on Today |
+| `src/components/MonthCalendarCard.jsx:73` | The settlement screen's calendar |
+
+With four workouts on one day, **every one of these says "2"**. Confirmed on
+screen on two of them; the other two are the same expression.
+
+That clamp was correct when the cap was two a day. It is wrong now, and it
+contradicts the founder's own intent for the change — he said the extra
+workouts should still be visible in the calendar.
+
+**A design question comes with the fix:** the badge circle is ~12px with a
+`minWidth` of 12. "4" fits. "10" is two digits in a very small circle. The
+notification badge solves the same problem with `9+`, which is the obvious
+precedent.
+
+### 8.2 Everything else checked out
+
+| Surface | Result |
+| --- | --- |
+| Bloc leaderboard count | **18** — all four counted |
+| Profile "18 workouts, 6 ahead of target" | Correct |
+| ALL BLOCS total | **18** |
+| Profile heatmap | Correct; `heatCell` already handles 4+ |
+| Workout Breakdown | Gym 9 + Run 7 + Pilates 2 = **18** |
+| Activity feed | All four rows shown separately |
+| Tapping a calendar day | Lists all four — 1. Gym, 2. Gym, 3. Run, 4. Run |
+| Month ring | **37 of 60, unchanged** — and correct: it caps each member at their target (12+11+8+4+2), because it measures everyone hitting target, not raw volume |
+
+### 8.3 Two risks ruled out, with evidence
+
+**The loosened database lock is safe.** The cap's advisory lock went from
+per profile+date to per profile+date+activity, which allows two different
+activities to be written concurrently where they used to serialise. Checked
+every function on production that takes an advisory lock: only
+`upsert_ante_core_workout_log` uses the `workout-day:` key, so nothing else
+depended on that serialisation.
+
+**No log path can skip the activity.** Only two functions create workouts,
+`applyAddLog` and `applyMultiLog`, both via `resolveWorkoutActivity`, and both
+now pass the activity to the guard. There is no Strava or import path writing
+logs behind them.
+
+### 8.4 Noted, pre-existing, not caused by this change
+
+Tapping a day in your own current-month calendar opens the **delete** chooser
+("Select the workout you want to delete"), not a view. That was true before
+this change, but members will tap days far more often now that a day can hold
+several workouts, so it is more exposed than it was.
+
 ## 7. Timing
 
 Shipped **ten days before the 1 November month close**, which is the first
