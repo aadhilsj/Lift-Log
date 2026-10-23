@@ -207,6 +207,28 @@ Checked directly:
 So the migrations cannot be applied, and the verification queries cannot be
 run, from here — regardless of approval. That has to be solved first.
 
+### Update — Supabase connector added, but to the wrong account
+
+The founder added the official Supabase connector to this app. It connects and
+its tools work. **It does not reach Fero.**
+
+The connected account holds **one** organisation ("aadhilsj's Org") and **two**
+projects:
+
+| Project | Ref | Region |
+| --- | --- | --- |
+| Runway | `kmbepvzsbmucrvhbjgbj` | eu-central-1 |
+| LifeOS | `oulbhauthynnqumormte` | eu-north-1 |
+
+Fero production is `bpvvvqjsfwmmfjvvijkd` (CLAUDE.md §12, and the second
+migration's own header). It is **not in the list**, and neither is
+`fero-staging`. So the Supabase login used is a different one from the account
+that owns Fero.
+
+**Nothing was queried.** Runway and LifeOS are unrelated projects and were not
+touched. The rollout stays blocked until the connector is signed in to the
+account that owns `bpvvvqjsfwmmfjvvijkd`.
+
 ### Recommended timing
 
 Today is Friday 23 October. Applying this week leaves eight days of ordinary
