@@ -138,3 +138,78 @@ Sandbox stopped by PID on ports 3000 and 54321. Browser viewport reset. The
 shared folder is on `main`, level with `origin/main`, clean apart from the four
 August `.dmg` backups that were there before. No worktrees added or removed.
 Nothing was run against the production database this session.
+
+---
+
+## 8. Addendum — Deveen's RLS approval, read and checked
+
+Added later the same session, after the founder relayed Deveen's message
+approving both migrations. **Nothing was applied. Nothing was changed.** This
+section records what was read and the one question it answered.
+
+### What Deveen sent
+
+Both migrations approved as-is. Apply to production, his
+(`20260926120000`) first, then ours (`20261020150000`), fresh backup before.
+Verification, rollback and the phone checks are in
+[`rls-rollout-2026-10-23.md`](rls-rollout-2026-10-23.md), already on `main` at
+`1e2daf3`. Timing: this week, or after 2 November — not beside the month close.
+
+### Checked against the repo
+
+- `docs/rls-rollout-2026-10-23.md` is present and matches what he described.
+- Both migration files are present and were read line by line. They enable RLS
+  with **no policies** and deliberately do **not** set
+  `FORCE ROW LEVEL SECURITY` — which is what keeps the `SECURITY DEFINER`
+  functions working, since a table's owner is exempt from its own RLS unless
+  FORCE is set. The second file sweeps `backup\_%` in `ante_core` with a
+  `relrowsecurity = false` filter, so it is idempotent and the one table both
+  files touch is skipped by whichever runs second.
+- Rollback is one statement per table.
+
+### ANSWERED: why `push_devices` is in production but not in the repo
+
+Deveen asked about this. **It is not orphaned — it is unmerged work.**
+
+`ante_core.push_devices` was created by
+`supabase/migrations/20260928213116_add_push_notification_foundation.sql`,
+added in commit `85109b1` ("Add local iOS push notification foundation",
+28 September). That commit **has never been merged to `main`.** It lives only
+on the TestFlight lineage:
+
+`testflight-build-10`, `testflight-build-11`,
+`claude/testflight-build-12-2026-10-21`, and
+`claude/rls-correction-2026-09-30`.
+
+It carries the whole feature, not just the table: `api/push-devices.js`,
+`server/push.js`, `src/lib/pushNotifications.js`, the iOS entitlements, and a
+second migration `20260928214145_fix_push_device_token_validation.sql`.
+
+So the migration was applied to production while the code that uses it stayed
+on a branch. That is why `main` references the table nowhere. The table is
+**empty** and no build in the field writes to it (no APNs key, no permission
+prompt, push signing overridden off) — recorded in
+`handover-2026-09-29-for-deveen-active.md` §1. Enabling RLS on it is safe, and
+it will be covered whether or not that branch ever merges.
+
+**Worth telling Deveen**, since his note assumed it was created out-of-band.
+
+### THE BLOCKER: this session cannot reach production
+
+Checked directly:
+
+| | |
+| --- | --- |
+| Supabase MCP tools in this session | **none available** |
+| `supabase` CLI on this machine | **not installed** |
+| `SUPABASE_URL` / `SERVICE_ROLE_KEY` in `.env.local` | **present but empty** |
+
+So the migrations cannot be applied, and the verification queries cannot be
+run, from here — regardless of approval. That has to be solved first.
+
+### Recommended timing
+
+Today is Friday 23 October. Applying this week leaves eight days of ordinary
+use before the 1 November close, which is the settling period Deveen wants.
+Waiting until 2 November gives up that settling time. **This week is the better
+half of his own window.**
