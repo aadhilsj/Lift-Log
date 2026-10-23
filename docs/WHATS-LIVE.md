@@ -4,7 +4,14 @@
 Update it whenever something ships. Same filename forever — never date it, never
 fork it. If it disagrees with a handover, this file wins.
 
-Last updated: **19 October 2026** — a **skipped Bloc is no longer shown an
+Last updated: **23 October 2026** — **tapping a day in your own current-month
+calendar shows the workout** instead of starting a delete, at `ca248a2`. Delete
+is now a second step inside the detail sheet, and only where it was allowed
+before: your own profile, current month. A closed month and another member's
+profile show the same sheet without it. The delete itself is unchanged, so a
+workout logged to several Blocs still deletes everywhere at once.
+
+Before that, **19 October 2026** — a **skipped Bloc is no longer shown an
 empty month**, at `1c23241` (merged `75400bd`). When a Bloc's month close is
 skipped, the canonical side opens the new season while the blob correctly keeps
 the old month. Until this fix, the read path saw canonical as ahead and
