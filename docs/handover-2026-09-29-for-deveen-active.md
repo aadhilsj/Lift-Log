@@ -695,3 +695,35 @@ piece of work, so launch traffic stops being hypothetical.
 - A load test at the agreed concurrency: no statement timeouts, no pool
   exhaustion, p95 reads under an agreed limit.
 - A slow or failed comment says so, and sending again does not store it twice.
+
+---
+
+## 21. Two production database changes from the app side, 22–23 October
+
+Neither is in your area to action — recorded so nothing surprises you.
+
+**`read_ante_core_notification_counts` — new, 22 October.** Returns
+`{ streamUnread, mentions, logComments }` in the one call the app already
+makes per refresh, so the notification bell became correct at **no extra round
+trip**. Deliberately shaped that way because of §20: the alternative was one
+call per Bloc per refresh. `read_ante_core_bloc_stream_unread_count` is left
+in place and unchanged, so rollback is a single `drop function`. Verified the
+new one agrees with it on `streamUnread` for **all 57 active memberships**.
+
+**`upsert_ante_core_workout_log` — replaced, 23 October.** The daily cap
+changed from two workouts per day to **two per activity per day**, on the
+founder's instruction. Everything outside the cap block is byte-identical, and
+the migration aborts unless the live function's md5 matches the revision it
+was written against.
+
+**One thing worth your eye:** the advisory lock key went from
+`workout-day:<profile>:<date>` to `workout-day:<profile>:<date>:<activity>`,
+so two different activities no longer serialise against each other. I checked
+every function on production that takes an advisory lock — only this one uses
+that key — but you know this area better than I do, so flagging it rather than
+assuming.
+
+Row counts unchanged across both; grants unchanged (`anon` and
+`authenticated` cannot execute either). Full detail in
+`handover-2026-10-19-catch-up-and-docs.md` §9 and
+`handover-2026-10-23-per-activity-cap.md`.
