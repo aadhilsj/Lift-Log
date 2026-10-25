@@ -68,6 +68,7 @@ jobs:
             test:profile-stats-cache
             test:remirror
             test:rollover-isolation
+            test:single-flight
             test:solo-sitout-exclusion
             test:solo-standard-penalty
             test:stream-moments

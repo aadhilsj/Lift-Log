@@ -4163,7 +4163,58 @@ function applyEffectiveRevision(state, revisionStamp) {
   });
 }
 
+// Single-flight: collapse concurrent identical canonical reads into one
+// database call.
+//
+// The problem it solves, measured on production 2026-10-25:
+// read_ante_core_month_history takes 1.4s and runs ~3,820 per-log subqueries
+// (reactions and comment counts over 1,910 closed logs) to rebuild history
+// that is frozen and cannot change. read_ante_core_current_logs is another
+// 0.6s. Both run on EVERY refresh.
+//
+// There is one global revision clock, so any action in any Bloc makes every
+// open phone refresh within its 6s poll. Four phones reacting to one comment
+// meant four simultaneous full reads -- 15,280 subqueries in a six-second
+// window on a 1 GB instance. That is the 2026-09-14 outage shape, and it grows
+// quadratically: actions scale with users and reloads scale with users.
+//
+// Here the second, third and fourth caller attach to the first caller's
+// in-flight promise instead of starting their own read. N concurrent reads
+// become 1.
+//
+// Deliberately NOT a TTL cache. A TTL would serve data from before a write,
+// and the one thing that changes closed months is the month rollover -- the
+// exact path that broke on 1 October. Single-flight adds no staleness a caller
+// would not already have seen: every participant gets the result of a read
+// that began no earlier than when the first concurrent caller asked.
+//
+// Serverless caveat: Vercel runs many function instances, so concurrent phones
+// may land on different ones and miss each other. This is a real win but not a
+// guaranteed Nx. The structural fix is scoping the reads per member so each
+// one is cheap; see the Phase B SQL.
+const inFlightCanonicalReads = new Map();
+
+function singleFlightRead(key, read) {
+  const existing = inFlightCanonicalReads.get(key);
+  if (existing) return existing;
+  const started = (async () => {
+    try {
+      return await read();
+    } finally {
+      // Cleared as soon as this read settles, so the next refresh gets fresh
+      // data rather than anything cached. Callers already hold the promise.
+      inFlightCanonicalReads.delete(key);
+    }
+  })();
+  inFlightCanonicalReads.set(key, started);
+  return started;
+}
+
 async function fetchAnteBlocs() {
+  return singleFlightRead("blocs", fetchAnteBlocsUncached);
+}
+
+async function fetchAnteBlocsUncached() {
   try {
     const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_blocs", {
       method: "POST",
@@ -4190,6 +4241,10 @@ async function fetchCanonicalBlocByInviteCode(inviteCode) {
 }
 
 async function fetchAnteSeasonOverrides() {
+  return singleFlightRead("season-overrides", fetchAnteSeasonOverridesUncached);
+}
+
+async function fetchAnteSeasonOverridesUncached() {
   try {
     const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_season_overrides", {
       method: "POST",
@@ -4218,6 +4273,10 @@ async function fetchAnteSeasonOverrides() {
 }
 
 async function fetchAnteProfiles() {
+  return singleFlightRead("profiles", fetchAnteProfilesUncached);
+}
+
+async function fetchAnteProfilesUncached() {
   try {
     const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_profiles", {
       method: "POST",
@@ -4244,6 +4303,10 @@ async function fetchAnteProfiles() {
 }
 
 async function fetchAnteBlocMembers() {
+  return singleFlightRead("bloc-members", fetchAnteBlocMembersUncached);
+}
+
+async function fetchAnteBlocMembersUncached() {
   try {
     const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_bloc_members", {
       method: "POST",
@@ -4266,6 +4329,10 @@ async function fetchAnteBlocMembers() {
 }
 
 async function fetchAnteCurrentLogs() {
+  return singleFlightRead("current-logs", fetchAnteCurrentLogsUncached);
+}
+
+async function fetchAnteCurrentLogsUncached() {
   try {
     const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_current_logs", {
       method: "POST",
@@ -4317,6 +4384,12 @@ async function fetchAnteCurrentLogs() {
 // rather than freezing anything it could not verify.
 async function fetchAnteLogsForMonth(monthKey) {
   if (!monthKey) return null;
+  // Keyed by month: the rollover fetches one month per distinct closed
+  // month, and two time zones can close different months in one pass.
+  return singleFlightRead(`logs-for-month:${monthKey}`, () => fetchAnteLogsForMonthUncached(monthKey));
+}
+
+async function fetchAnteLogsForMonthUncached(monthKey) {
   try {
     const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_logs_for_month", {
       method: "POST",
@@ -4357,6 +4430,10 @@ async function fetchAnteLogsForMonth(monthKey) {
 }
 
 async function fetchAnteMonthHistory() {
+  return singleFlightRead("month-history", fetchAnteMonthHistoryUncached);
+}
+
+async function fetchAnteMonthHistoryUncached() {
   try {
     const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_month_history", {
       method: "POST",
@@ -4397,6 +4474,10 @@ async function fetchAnteMonthHistory() {
 }
 
 async function fetchAnteSettlementConfirmations() {
+  return singleFlightRead("settlement-confirmations", fetchAnteSettlementConfirmationsUncached);
+}
+
+async function fetchAnteSettlementConfirmationsUncached() {
   if (!ENABLE_SETTLEMENT_CONFIRMATIONS) return null;
   try {
     const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_settlement_confirmations", {
@@ -4433,6 +4514,10 @@ async function fetchAnteSettlementConfirmations() {
 }
 
 async function fetchAnteCurrentExcusedAndSitouts() {
+  return singleFlightRead("current-excused-sitouts", fetchAnteCurrentExcusedAndSitoutsUncached);
+}
+
+async function fetchAnteCurrentExcusedAndSitoutsUncached() {
   try {
     const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_current_excused_and_sitouts", {
       method: "POST",
