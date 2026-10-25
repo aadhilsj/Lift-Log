@@ -9,10 +9,10 @@ taken from the older docs.** Where an older doc is now wrong, this one says so.
 
 | | Status |
 | --- | --- |
-| 1. **`push_devices` is missing from your RLS migration** | **Needs you before 2 Oct** — re-verified on production 30 Sep, still nine tables |
-| 2. RLS production rollout | Scheduled 2–3 Oct, after the close |
+| 1. **`push_devices` is missing from your RLS migration** | **DONE 23 Oct** — covered by the second file. See §21 |
+| 2. RLS production rollout | **DONE 23 Oct, both files applied and verified. See §21** |
 | 3. The staging app pass | **No longer yours** — Aadhil is taking it |
-| 4. `fero-staging` billing and teardown | Still running, ~$9.68/month |
+| 4. `fero-staging` billing and teardown | **Unblocked** — your condition is met. See §21 |
 | 5. Things you asked for that are now done | Nothing to do |
 | 6. Wave B | After the 1 Oct close, unchanged |
 | 7. A 14-minute total outage today | Your area — scaling/reliability |
@@ -727,3 +727,78 @@ Row counts unchanged across both; grants unchanged (`anon` and
 `authenticated` cannot execute either). Full detail in
 `handover-2026-10-19-catch-up-and-docs.md` §9 and
 `handover-2026-10-23-per-activity-cap.md`.
+
+
+---
+
+## 21. RLS: applied to production, verified, and three days in the field
+
+**23 October 2026.** You approved both files in
+[`rls-rollout-2026-10-23.md`](rls-rollout-2026-10-23.md); the founder gave the
+go-ahead and they were applied in your order. Full record in
+[`handover-2026-10-23-calendar-tap.md`](handover-2026-10-23-calendar-tap.md) §8.
+
+### Result
+
+| | Before | After |
+| --- | --- | --- |
+| `ante_core` tables with RLS off | 14 | **0** |
+| Projection grant rows to `anon`/`authenticated` | 240 | **0** |
+| `bloc_messages` / `workout_log_comments` / `solo_requests` / `push_devices` | 531 / 314 / 11 / 0 | **unchanged** |
+
+Both of your verification queries return **zero rows**. `FORCE ROW LEVEL
+SECURITY` is set on nothing, which is the setting that would have broken the
+`SECURITY DEFINER` functions. Two read functions over newly-locked tables were
+called directly and still return their rows, and `anon` / `authenticated` hold
+no execute rights on them.
+
+**Field evidence, which is better than the phone pass we planned.** The founder
+and other members have used the app normally for the **three days since**
+(23–26 October) with **no issues reported**. That is real traffic across the
+Stream, comments, reactions and logging, not a scripted probe.
+
+### ANSWERED: your `push_devices` question
+
+You noted the table exists in production but nothing in the repo references it,
+and wondered whether it was created out-of-band. **It was not — it is unmerged
+work.**
+
+`ante_core.push_devices` was created by
+`supabase/migrations/20260928213116_add_push_notification_foundation.sql` in
+commit `85109b1` (28 September), which **has never been merged to `main`.** It
+lives only on the TestFlight lineage — `testflight-build-10`,
+`testflight-build-11`, `claude/testflight-build-12-2026-10-21` and
+`claude/rls-correction-2026-09-30` — together with `api/push-devices.js`,
+`server/push.js`, `src/lib/pushNotifications.js`, the iOS entitlements and a
+second migration `20260928214145_fix_push_device_token_validation.sql`.
+
+So the migration reached production while the code stayed on a branch. The
+table is still empty and nothing in the field writes to it.
+
+### FOR YOUR EYE: `supabase db push` is unsafe on this project
+
+Found while preparing the rollout, and the reason the migrations were applied
+through the Management API instead.
+
+`supabase migration list` shows the repo's history and production's have
+diverged by roughly **25 entries in each direction**. The cause looks
+structural rather than accidental: anything applied through the MCP
+`apply_migration` is stamped with the server's own timestamp, while repo files
+carry hand-written ones, so the same change exists under two different version
+numbers. Clearest example — the 23 October cap migration is `20261023100000`
+locally and `20261023065455` remotely.
+
+**Consequence:** `db push` would attempt roughly 25 migrations whose content is
+already live. Some are `create or replace` and harmless; others are not.
+
+Nothing was done about it, deliberately — reconciling migration history is your
+area and it needs a decision about which side is authoritative. Flagging it
+rather than guessing.
+
+### `fero-staging` is now unblocked
+
+Your condition was "once this is applied and verified, staging can go". It is
+applied, verified, and has three days of clean field use behind it.
+`fero-staging` is `okwrrspdmoluxatyokzh`, eu-west-1, still `ACTIVE_HEALTHY` and
+still billing at roughly $9.68/month. **Not deleted — that is the founder's
+call, and he has not made it yet.**

@@ -344,9 +344,11 @@ projection grants, `grant all on public.lift_log_projection_<name> to anon, auth
 this was applied. Nothing in either migration touches data, and row counts are
 unchanged.
 
-**Not done, and the founder's to do:** the on-phone pass from §3 of the
-rollout doc — Bloc Stream read/send/react/unread, workout comments and
-reactions, solo mode, sign in, log a workout.
+**The field pass: PASSED.** 26 October — the founder reports he and other
+members have used the app normally for the three days since this was applied,
+with no issues. That covers the Stream, comments, reactions and logging under
+real traffic, which is stronger evidence than the scripted phone pass that was
+planned. Recorded in `handover-2026-09-29-for-deveen-active.md` §21.
 
 **Also still open:** `fero-staging` (`okwrrspdmoluxatyokzh`) can be deleted
 once the phone pass is clean — that was the condition Deveen set.
