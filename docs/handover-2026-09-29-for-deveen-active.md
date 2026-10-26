@@ -12,7 +12,7 @@ taken from the older docs.** Where an older doc is now wrong, this one says so.
 | 1. **`push_devices` is missing from your RLS migration** | **DONE 23 Oct** — covered by the second file. See §21 |
 | 2. RLS production rollout | **DONE 23 Oct, both files applied and verified. See §21** |
 | 3. The staging app pass | **No longer yours** — Aadhil is taking it |
-| 4. `fero-staging` billing and teardown | **DELETED 26 Oct.** Three Vercel steps remain. See §21 |
+| 4. `fero-staging` billing and teardown | **DONE 26 Oct**, bar the shareable link. See §21 |
 | 5. Things you asked for that are now done | Nothing to do |
 | 6. Wave B | After the 1 Oct close, unchanged |
 | 7. A 14-minute total outage today | Your area — scaling/reliability |
@@ -816,14 +816,46 @@ about fifteen minutes.
 is still `ACTIVE_HEALTHY`; production still reports **zero** `ante_core` tables
 without RLS; and the live site returns HTTP 200.
 
-**Steps 2–4 of the documented teardown are NOT done** — they are Vercel-side
-and the founder only asked for the project itself:
+### Teardown — three of four steps done, 26 October
 
-1. ~~Delete the Supabase project~~ — done.
-2. Revoke the Vercel shareable link (Deployment Protection → Shareable Links).
-   **Note: this is the link in your §3.** It now points at a deleted database,
-   so it cannot load data either way.
-3. Delete the four Preview-scoped Vercel variables (`SUPABASE_URL`,
-   `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `ADMIN_PIN`) and the
-   branch `staging/rls-rehearsal`.
-4. Leave the Production `ADMIN_PIN` alone.
+| Step | State |
+| --- | --- |
+| 1. Delete the Supabase project | **done** |
+| 2. Revoke the Vercel shareable link | **NOT done** — see below |
+| 3. Delete the four Preview-scoped Vercel variables, and `staging/rls-rehearsal` | **done** |
+| 4. Leave the Production `ADMIN_PIN` alone | **honoured** |
+
+**The four Preview-scoped variables are gone**, removed one at a time with the
+environment named explicitly (`vercel env rm <name> preview`), because four
+Production variables share their names. Verified afterwards — all four
+Production ones survive, with their original ages intact:
+
+| Variable | Production | Preview |
+| --- | --- | --- |
+| `SUPABASE_URL` | kept, 176d | removed |
+| `SUPABASE_ANON_KEY` | kept, 142d | removed |
+| `SUPABASE_SERVICE_ROLE_KEY` | kept, 176d | removed |
+| `ADMIN_PIN` | **kept, 182d** | removed |
+
+The variables scoped to *both* environments (`ENABLE_LOCAL_PREVIEW_AUTH`,
+`ENABLE_SETTLEMENT_CONFIRMATIONS`, `ENABLE_SETTLEMENT_CONFIRMATIONS_PREVIEW`,
+`ENABLE_CANONICAL_READ_COMPOSER`, `STORAGE_BACKEND`) were **not touched** —
+they are not part of the teardown.
+
+**Branch `staging/rls-rehearsal` deleted** from `origin`, at
+`d7daa2776136735234b21b9fa1b9fefe6e0cd0f7`. Confirmed harmless first: two
+commits not on `main`, and `git diff origin/main...` reports **no file
+changes** — the empty commits that existed only to give Vercel something to
+build. To restore it: `git branch staging/rls-rehearsal d7daa27 && git push origin staging/rls-rehearsal`.
+
+**Step 2 was deliberately left for the founder.** There is no Vercel CLI
+command for shareable links, and the only bypass entry the API exposes on this
+project is scoped `automation-bypass` with `isEnvVar: true` — created 13 July,
+not the shareable link, and plausibly depended on by something. Removing it on
+a guess was not worth the risk. **Revoke it in the dashboard:** Project →
+Settings → Deployment Protection → Shareable Links. It now resolves to a
+deleted database, so it cannot serve data regardless.
+
+**Verified after all of it:** `lift-log-nu.vercel.app` and `www.joinfero.app`
+both return HTTP 200, and the five most recent production deployments are all
+`READY`, the newest being this session's own commits.
