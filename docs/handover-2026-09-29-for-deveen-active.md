@@ -859,3 +859,32 @@ deleted database, so it cannot serve data regardless.
 **Verified after all of it:** `lift-log-nu.vercel.app` and `www.joinfero.app`
 both return HTTP 200, and the five most recent production deployments are all
 `READY`, the newest being this session's own commits.
+
+
+---
+
+## 22. Step 0 of the scaling plan — CHECKED, and it has NOT been done
+
+**26 October 2026.** §20 Step 0 says *"No record exists that this was ever
+done — please check the dashboard first."* Checked, via the Management API:
+
+```
+GET /v1/projects/bpvvvqjsfwmmfjvvijkd/billing/addons  ->  "selected_addons": []
+```
+
+No compute add-on is selected, so production runs on the **default Nano**
+instance. The founder's dashboard says the same: **COMPUTE SIZE: NANO**.
+
+**This corrects §20 and `scaling-before-launch-2026-09-15.md`,** which both
+describe production as being on **Micro (1 GB)**. It is not — it is a size
+*below* that. Micro is a paid add-on at roughly **$10/month** (2 shared cores,
+1 GB, 60 direct connections) and has never been bought.
+
+So the 14 September overload that two to four phones caused happened on an
+instance **smaller** than the one the analysis assumed. That makes the ceiling
+lower than written, not higher.
+
+**Step 0 is still the founder's, still unstarted, and is now a two-click job:**
+Supabase → Project Settings → Compute and Disk → Micro. Roughly two minutes of
+downtime. It is a stopgap, not a fix — Steps 1 and 2 in §20 are the real work
+and they are Deveen's.
