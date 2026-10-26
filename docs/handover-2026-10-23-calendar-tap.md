@@ -350,8 +350,17 @@ with no issues. That covers the Stream, comments, reactions and logging under
 real traffic, which is stronger evidence than the scripted phone pass that was
 planned. Recorded in `handover-2026-09-29-for-deveen-active.md` §21.
 
-**Also still open:** `fero-staging` (`okwrrspdmoluxatyokzh`) can be deleted
-once the phone pass is clean — that was the condition Deveen set.
+**`fero-staging` DELETED, 26 October** on the founder's go-ahead, once the
+field pass was clean. Billing stops. Only docs referenced it — no code, no CI,
+no environment variable in this repo — checked before deleting. Verified gone;
+production untouched and still at zero tables without RLS. Steps 2–4 of the
+documented teardown are Vercel-side and **not done**: the shareable link, the
+four Preview-scoped variables, and the branch `staging/rls-rehearsal`. Full
+record in `handover-2026-09-29-for-deveen-active.md` §21.
+
+**Incidental evidence the rollout is sound:** between 23 and 26 October,
+`bloc_messages` went 531 → 543 and `workout_log_comments` 314 → 315. Members
+have been writing to the newly-locked tables normally for three days.
 
 ### Recommended timing
 

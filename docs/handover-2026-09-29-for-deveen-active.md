@@ -12,7 +12,7 @@ taken from the older docs.** Where an older doc is now wrong, this one says so.
 | 1. **`push_devices` is missing from your RLS migration** | **DONE 23 Oct** — covered by the second file. See §21 |
 | 2. RLS production rollout | **DONE 23 Oct, both files applied and verified. See §21** |
 | 3. The staging app pass | **No longer yours** — Aadhil is taking it |
-| 4. `fero-staging` billing and teardown | **Unblocked** — your condition is met. See §21 |
+| 4. `fero-staging` billing and teardown | **DELETED 26 Oct.** Three Vercel steps remain. See §21 |
 | 5. Things you asked for that are now done | Nothing to do |
 | 6. Wave B | After the 1 Oct close, unchanged |
 | 7. A 14-minute total outage today | Your area — scaling/reliability |
@@ -795,10 +795,35 @@ Nothing was done about it, deliberately — reconciling migration history is you
 area and it needs a decision about which side is authoritative. Flagging it
 rather than guessing.
 
-### `fero-staging` is now unblocked
+### `fero-staging` — DELETED, 26 October
 
-Your condition was "once this is applied and verified, staging can go". It is
-applied, verified, and has three days of clean field use behind it.
-`fero-staging` is `okwrrspdmoluxatyokzh`, eu-west-1, still `ACTIVE_HEALTHY` and
-still billing at roughly $9.68/month. **Not deleted — that is the founder's
-call, and he has not made it yet.**
+Your condition was "once this is applied and verified, staging can go". It was
+applied, verified, and had three days of clean field use behind it. The founder
+gave the go-ahead and the project was deleted.
+
+`okwrrspdmoluxatyokzh`, eu-west-1, created 24 September, `ACTIVE_HEALTHY` at
+the moment of deletion. The billing stops with it — roughly **$9.68/month**.
+
+**No backup was taken, deliberately.** Staging was a restored copy of the 23
+September production backup with emails scrubbed; it held nothing that does not
+exist in production, the one test artefact made on it was already deleted
+(`handover-2026-10-11-blocking-migration-session-2.md` §2.10), and `db dump`
+needs Docker, which is not on this machine. The restore route for recreating it
+is documented in `handover-2026-09-27-staging-outage-and-header.md` and takes
+about fifteen minutes.
+
+**Verified after deletion:** the project is gone from the account; `Lift Log`
+is still `ACTIVE_HEALTHY`; production still reports **zero** `ante_core` tables
+without RLS; and the live site returns HTTP 200.
+
+**Steps 2–4 of the documented teardown are NOT done** — they are Vercel-side
+and the founder only asked for the project itself:
+
+1. ~~Delete the Supabase project~~ — done.
+2. Revoke the Vercel shareable link (Deployment Protection → Shareable Links).
+   **Note: this is the link in your §3.** It now points at a deleted database,
+   so it cannot load data either way.
+3. Delete the four Preview-scoped Vercel variables (`SUPABASE_URL`,
+   `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `ADMIN_PIN`) and the
+   branch `staging/rls-rehearsal`.
+4. Leave the Production `ADMIN_PIN` alone.
