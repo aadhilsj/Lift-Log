@@ -128,6 +128,66 @@ Non-obvious behaviour:
 3. **The review video URL.**
 4. **Confirmation that `support@joinfero.app` receives mail.** Still never
    tested, and it is the contact address in the notes and on the Support page.
+   **Partly answered, 29 October:** the domain *can* receive mail — `joinfero.app`
+   has Cloudflare Email Routing MX records (`route1/2/3.mx.cloudflare.net`) and
+   an SPF record (`v=spf1 include:_spf.mx.cloudflare.net ~all`). What is still
+   unknown is whether the **`support@` address specifically** is mapped to a
+   destination inbox. That is a Cloudflare Email Routing setting, or a
+   one-minute test: send it a mail and see if it lands.
+5. **TestFlight build 12 must be re-cut from `main`.** Found 29 October — see
+   below. This is the one that would change what a reviewer sees.
+
+### 5, in full: build 12 is 29 commits behind `main`
+
+`claude/testflight-build-12-2026-10-21` was cut on 21 October. `main` has moved
+29 commits since, **six of which change app code**:
+
+| Commit | What it changes |
+| --- | --- |
+| `21f8425` | **The daily cap became two per *activity*, not two per day** |
+| `57795b6` | Calendar day badges tell the truth |
+| `ca248a2` | **Tapping a calendar day shows the workout instead of starting a delete** |
+| `a35d256` | "For you": skeleton on open, and answers that know when they are stale |
+| `c4f1543` | Bell and Stream badges match; the comment "···" removed |
+| `3c51172` | Four reaction and emoji tweaks |
+
+Two of those matter for review specifically:
+
+- **The cap.** The production database was changed on 23 October to enforce two
+  per *activity*. Build 12 carries the **old** client rule, which still thinks
+  two per *day*. A reviewer logging a second gym session plus a run would meet
+  a client-side limit the server no longer applies. The three places that
+  enforce this are documented as needing to agree
+  (`handover-2026-10-23-per-activity-cap.md` §3); on build 12 they do not.
+- **The calendar tap.** On build 12, a reviewer tapping a day in their own
+  calendar gets a **delete confirmation** rather than the workout. That reads
+  as a bug.
+
+**So the build must be re-cut from `main` before submission**, not just built
+from the existing branch. It needs the Xcode laptop either way.
+
+### Verified already, 29 October — these need no further work
+
+| Check | Result |
+| --- | --- |
+| Privacy Policy URL public | `https://www.joinfero.app/privacy` → **200** |
+| Support URL public | `https://www.joinfero.app/support` → **200** |
+| Support page names the contact | `support@joinfero.app` |
+| Naming residue in the live bundle (`Firo`, `Anté`, `Ante`, `Lift Log`) | **zero occurrences** |
+| PWA manifest name / short name | `Fero` / `Fero` |
+| Page title | `Fero` |
+
+### One thing that is NOT a blocker, but is on the runbook
+
+The runbook asks for a **Terms/EULA URL**. There is **no Terms page** —
+`public/` holds only `privacy` and `support`, and `/terms`, `/eula` and
+`/legal` all return 404.
+
+**Nothing links to it**, in the app or on either legal page, so there is no
+broken link for a reviewer to find. Apple requires a Privacy Policy URL and
+applies its own standard EULA when a custom one is not supplied, so this does
+not block submission. Worth a decision rather than a scramble — Fero's penalty
+and settlement mechanic is the kind of thing a custom Terms page would cover.
 
 ---
 
