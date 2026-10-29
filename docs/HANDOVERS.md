@@ -18,7 +18,7 @@ the newer dated doc wins over the older.
 | [`../AGENTS.md`](../AGENTS.md) | The working agreement. `CLAUDE.md` is a symlink to it, so Codex and Claude read the same rules. |
 | [`WHATS-LIVE.md`](WHATS-LIVE.md) | What is on the website vs TestFlight right now. Beats every handover. |
 | The newest session handover in §2 | Where the last session stopped, and what it left open. |
-| [`handover-2026-09-29-for-deveen-active.md`](handover-2026-09-29-for-deveen-active.md) | Deveen's current list — backend, database, RLS, CI. |
+| [`handover-2026-10-29-for-deveen-active.md`](handover-2026-10-29-for-deveen-active.md) | Deveen's current list — scaling, migration history, the bugs still open. |
 | [`recurring-debugging-playbook.md`](recurring-debugging-playbook.md) | Bugs that keep coming back (swipe, flicker, reactions, stale Blocs), with the fix rules. |
 | [`solved-issues-log.md`](solved-issues-log.md) | Every bug already solved, so nobody re-derives one. |
 
@@ -108,7 +108,8 @@ Read every one of these. Each is a dated record of one session.
 
 | Week | Handover |
 | --- | --- |
-| 29 Sep — **active** | [`handover-2026-09-29-for-deveen-active.md`](handover-2026-09-29-for-deveen-active.md) |
+| 29 Oct — **active** | [`handover-2026-10-29-for-deveen-active.md`](handover-2026-10-29-for-deveen-active.md) |
+| 29 Sep — closed | [`handover-2026-09-29-for-deveen-active.md`](handover-2026-09-29-for-deveen-active.md) |
 | 22 Sep | [`handover-2026-09-22-for-deveen-active.md`](handover-2026-09-22-for-deveen-active.md) |
 
 ### June to August 2026 — the migration era

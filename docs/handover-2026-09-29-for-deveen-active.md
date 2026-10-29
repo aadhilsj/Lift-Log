@@ -1,24 +1,29 @@
-# Handover for Deveen: week of 29 September (active)
+# Handover for Deveen: week of 29 September (CLOSED)
 
-From Aadhil. This replaces `docs/handover-2026-09-22-for-deveen-active.md`,
+**Superseded by
+[`handover-2026-10-29-for-deveen-active.md`](handover-2026-10-29-for-deveen-active.md),
+which is the active one.** Read this only for history and for the detail behind
+the items carried forward there.
+
+From Aadhil. This replaced `docs/handover-2026-09-22-for-deveen-active.md`,
 which is answered and closed — your 27 September rehearsal is recorded in its
-§11. Read that one only for history.
+§11.
 
 **Everything here was verified against live production on 29 September, not
 taken from the older docs.** Where an older doc is now wrong, this one says so.
 
 | | Status |
 | --- | --- |
-| 1. **`push_devices` is missing from your RLS migration** | **DONE 23 Oct** — covered by the second file. See §21 |
-| 2. RLS production rollout | **DONE 23 Oct, both files applied and verified. See §21** |
+| 1. **`push_devices` is missing from your RLS migration** | **DONE 23 Oct** — see the 29 October handover §2 |
+| 2. RLS production rollout | **DONE 23 Oct** — see the 29 October handover §1 |
 | 3. The staging app pass | **No longer yours** — Aadhil is taking it |
-| 4. `fero-staging` billing and teardown | **DONE 26 Oct**, bar the shareable link. See §21 |
+| 4. `fero-staging` billing and teardown | **DONE 26 Oct** — see the 29 October handover §4 |
 | 5. Things you asked for that are now done | Nothing to do |
 | 6. Wave B | After the 1 Oct close, unchanged |
 | 7. A 14-minute total outage today | Your area — scaling/reliability |
 | 8. Still open from before | Region, outbox, download size |
 | **19. Since this was written** | The 1 Oct close held; your §10.3 ask is done |
-| **20. Scaling before launch** | **Not started. The biggest pre-launch item — read this** |
+| **20. Scaling before launch** | **Not started** — carried forward as §5 of the 29 October handover, whose §6 corrects the server size stated below |
 
 ---
 
@@ -727,164 +732,3 @@ Row counts unchanged across both; grants unchanged (`anon` and
 `authenticated` cannot execute either). Full detail in
 `handover-2026-10-19-catch-up-and-docs.md` §9 and
 `handover-2026-10-23-per-activity-cap.md`.
-
-
----
-
-## 21. RLS: applied to production, verified, and three days in the field
-
-**23 October 2026.** You approved both files in
-[`rls-rollout-2026-10-23.md`](rls-rollout-2026-10-23.md); the founder gave the
-go-ahead and they were applied in your order. Full record in
-[`handover-2026-10-23-calendar-tap.md`](handover-2026-10-23-calendar-tap.md) §8.
-
-### Result
-
-| | Before | After |
-| --- | --- | --- |
-| `ante_core` tables with RLS off | 14 | **0** |
-| Projection grant rows to `anon`/`authenticated` | 240 | **0** |
-| `bloc_messages` / `workout_log_comments` / `solo_requests` / `push_devices` | 531 / 314 / 11 / 0 | **unchanged** |
-
-Both of your verification queries return **zero rows**. `FORCE ROW LEVEL
-SECURITY` is set on nothing, which is the setting that would have broken the
-`SECURITY DEFINER` functions. Two read functions over newly-locked tables were
-called directly and still return their rows, and `anon` / `authenticated` hold
-no execute rights on them.
-
-**Field evidence, which is better than the phone pass we planned.** The founder
-and other members have used the app normally for the **three days since**
-(23–26 October) with **no issues reported**. That is real traffic across the
-Stream, comments, reactions and logging, not a scripted probe.
-
-### ANSWERED: your `push_devices` question
-
-You noted the table exists in production but nothing in the repo references it,
-and wondered whether it was created out-of-band. **It was not — it is unmerged
-work.**
-
-`ante_core.push_devices` was created by
-`supabase/migrations/20260928213116_add_push_notification_foundation.sql` in
-commit `85109b1` (28 September), which **has never been merged to `main`.** It
-lives only on the TestFlight lineage — `testflight-build-10`,
-`testflight-build-11`, `claude/testflight-build-12-2026-10-21` and
-`claude/rls-correction-2026-09-30` — together with `api/push-devices.js`,
-`server/push.js`, `src/lib/pushNotifications.js`, the iOS entitlements and a
-second migration `20260928214145_fix_push_device_token_validation.sql`.
-
-So the migration reached production while the code stayed on a branch. The
-table is still empty and nothing in the field writes to it.
-
-### FOR YOUR EYE: `supabase db push` is unsafe on this project
-
-Found while preparing the rollout, and the reason the migrations were applied
-through the Management API instead.
-
-`supabase migration list` shows the repo's history and production's have
-diverged by roughly **25 entries in each direction**. The cause looks
-structural rather than accidental: anything applied through the MCP
-`apply_migration` is stamped with the server's own timestamp, while repo files
-carry hand-written ones, so the same change exists under two different version
-numbers. Clearest example — the 23 October cap migration is `20261023100000`
-locally and `20261023065455` remotely.
-
-**Consequence:** `db push` would attempt roughly 25 migrations whose content is
-already live. Some are `create or replace` and harmless; others are not.
-
-Nothing was done about it, deliberately — reconciling migration history is your
-area and it needs a decision about which side is authoritative. Flagging it
-rather than guessing.
-
-### `fero-staging` — DELETED, 26 October
-
-Your condition was "once this is applied and verified, staging can go". It was
-applied, verified, and had three days of clean field use behind it. The founder
-gave the go-ahead and the project was deleted.
-
-`okwrrspdmoluxatyokzh`, eu-west-1, created 24 September, `ACTIVE_HEALTHY` at
-the moment of deletion. The billing stops with it — roughly **$9.68/month**.
-
-**No backup was taken, deliberately.** Staging was a restored copy of the 23
-September production backup with emails scrubbed; it held nothing that does not
-exist in production, the one test artefact made on it was already deleted
-(`handover-2026-10-11-blocking-migration-session-2.md` §2.10), and `db dump`
-needs Docker, which is not on this machine. The restore route for recreating it
-is documented in `handover-2026-09-27-staging-outage-and-header.md` and takes
-about fifteen minutes.
-
-**Verified after deletion:** the project is gone from the account; `Lift Log`
-is still `ACTIVE_HEALTHY`; production still reports **zero** `ante_core` tables
-without RLS; and the live site returns HTTP 200.
-
-### Teardown — three of four steps done, 26 October
-
-| Step | State |
-| --- | --- |
-| 1. Delete the Supabase project | **done** |
-| 2. Revoke the Vercel shareable link | **NOT done** — see below |
-| 3. Delete the four Preview-scoped Vercel variables, and `staging/rls-rehearsal` | **done** |
-| 4. Leave the Production `ADMIN_PIN` alone | **honoured** |
-
-**The four Preview-scoped variables are gone**, removed one at a time with the
-environment named explicitly (`vercel env rm <name> preview`), because four
-Production variables share their names. Verified afterwards — all four
-Production ones survive, with their original ages intact:
-
-| Variable | Production | Preview |
-| --- | --- | --- |
-| `SUPABASE_URL` | kept, 176d | removed |
-| `SUPABASE_ANON_KEY` | kept, 142d | removed |
-| `SUPABASE_SERVICE_ROLE_KEY` | kept, 176d | removed |
-| `ADMIN_PIN` | **kept, 182d** | removed |
-
-The variables scoped to *both* environments (`ENABLE_LOCAL_PREVIEW_AUTH`,
-`ENABLE_SETTLEMENT_CONFIRMATIONS`, `ENABLE_SETTLEMENT_CONFIRMATIONS_PREVIEW`,
-`ENABLE_CANONICAL_READ_COMPOSER`, `STORAGE_BACKEND`) were **not touched** —
-they are not part of the teardown.
-
-**Branch `staging/rls-rehearsal` deleted** from `origin`, at
-`d7daa2776136735234b21b9fa1b9fefe6e0cd0f7`. Confirmed harmless first: two
-commits not on `main`, and `git diff origin/main...` reports **no file
-changes** — the empty commits that existed only to give Vercel something to
-build. To restore it: `git branch staging/rls-rehearsal d7daa27 && git push origin staging/rls-rehearsal`.
-
-**Step 2 was deliberately left for the founder.** There is no Vercel CLI
-command for shareable links, and the only bypass entry the API exposes on this
-project is scoped `automation-bypass` with `isEnvVar: true` — created 13 July,
-not the shareable link, and plausibly depended on by something. Removing it on
-a guess was not worth the risk. **Revoke it in the dashboard:** Project →
-Settings → Deployment Protection → Shareable Links. It now resolves to a
-deleted database, so it cannot serve data regardless.
-
-**Verified after all of it:** `lift-log-nu.vercel.app` and `www.joinfero.app`
-both return HTTP 200, and the five most recent production deployments are all
-`READY`, the newest being this session's own commits.
-
-
----
-
-## 22. Step 0 of the scaling plan — CHECKED, and it has NOT been done
-
-**26 October 2026.** §20 Step 0 says *"No record exists that this was ever
-done — please check the dashboard first."* Checked, via the Management API:
-
-```
-GET /v1/projects/bpvvvqjsfwmmfjvvijkd/billing/addons  ->  "selected_addons": []
-```
-
-No compute add-on is selected, so production runs on the **default Nano**
-instance. The founder's dashboard says the same: **COMPUTE SIZE: NANO**.
-
-**This corrects §20 and `scaling-before-launch-2026-09-15.md`,** which both
-describe production as being on **Micro (1 GB)**. It is not — it is a size
-*below* that. Micro is a paid add-on at roughly **$10/month** (2 shared cores,
-1 GB, 60 direct connections) and has never been bought.
-
-So the 14 September overload that two to four phones caused happened on an
-instance **smaller** than the one the analysis assumed. That makes the ceiling
-lower than written, not higher.
-
-**Step 0 is still the founder's, still unstarted, and is now a two-click job:**
-Supabase → Project Settings → Compute and Disk → Micro. Roughly two minutes of
-downtime. It is a stopgap, not a fix — Steps 1 and 2 in §20 are the real work
-and they are Deveen's.
