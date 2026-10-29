@@ -3728,6 +3728,18 @@ async function readWorkoutLogLatestCommentsFromCanonical(legacyGroupKey, authUse
   return await response.json();
 }
 
+async function readWorkoutLogThreadsFromCanonical(legacyGroupKey, authUserId) {
+  const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_workout_log_threads", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({
+      p_legacy_group_key: legacyGroupKey,
+      p_auth_user_id: authUserId
+    })
+  });
+  return await response.json();
+}
+
 async function insertWorkoutLogCommentInCanonical(legacyGroupKey, authUserId, logId, body) {
   const response = await supabaseFetch("/rest/v1/rpc/insert_ante_core_workout_log_comment", {
     method: "POST",
@@ -10164,6 +10176,18 @@ export default async function handler(req, res) {
         return res.status(200).json({
           ok: true,
           latest: latest && typeof latest === "object" && !Array.isArray(latest) ? latest : {}
+        });
+      }
+
+      // Threads you are in but do not own. Your own logs come from
+      // log-latest-comments; this is the other half, so a reply to you on
+      // somebody else's workout reaches For you instead of only the Stream.
+      if (payload?.action === "log-threads") {
+        const authUser = await fetchAuthenticatedUser(readBearerToken(req, payload));
+        const threads = await readWorkoutLogThreadsFromCanonical(payload.groupId, authUser.id);
+        return res.status(200).json({
+          ok: true,
+          threads: threads && typeof threads === "object" && !Array.isArray(threads) ? threads : {}
         });
       }
 

@@ -1009,6 +1009,18 @@ async function getLogLatestCommentsData(groupId, logIds = []) {
   return { ok:true, latest };
 }
 
+// The threads you are in but do not own, keyed by log id. Carries the log's
+// own display fields so a row can render without the client holding that
+// workout. Empty is a normal answer, exactly as above.
+async function getLogThreadsData(groupId) {
+  const result = await postApi("log-threads", { groupId });
+  if (!result.ok) return { ok:false, error: result.error || "Unable to load threads", threads: {} };
+  const threads = result.body?.threads && typeof result.body.threads === "object" && !Array.isArray(result.body.threads)
+    ? result.body.threads
+    : {};
+  return { ok:true, threads };
+}
+
 async function createLogCommentData(payload) {
   const result = await postApi("log-comment-create", payload);
   if (!result.ok) return { ok:false, error: result.error || "Unable to add comment" };
@@ -1126,6 +1138,7 @@ export {
   listLogCommentsData,
   getLogCommentCountsData,
   getLogLatestCommentsData,
+  getLogThreadsData,
   createLogCommentData,
   toggleLogCommentReactionData,
   readCachedData,

@@ -319,6 +319,58 @@ export function groupNotifications(items, now = Date.now()) {
   ].filter(section => section.items.length > 0);
 }
 
+// Threads you are IN but do not own.
+//
+// ownLogItems covers your own workouts. This is the other half, and the reason
+// it exists is the founder's: "if I've commented on somebody's log and
+// somebody else or even the owner of that log responds, I should get a
+// notification... it's kind of like in Slack, when you're a part of a thread."
+//
+// Everything here is already filtered server side by
+// read_ante_core_workout_log_threads: your own comments are excluded, your own
+// workouts are excluded (they would duplicate ownLogItems), and `total` counts
+// only comments that are not yours. An empty answer means no conversation has
+// moved, never that the call failed.
+function threadItems(threads, currentUser, userIdFor) {
+  const entries = threads && typeof threads === "object" ? Object.entries(threads) : [];
+  const items = [];
+  entries.forEach(([logId, entry]) => {
+    if (!entry) return;
+    const total = Number(entry.total || 0);
+    if (!(total > 0)) return;
+    const author = String(entry.commenterName || "").trim();
+    const owner = String(entry.ownerName || "").trim();
+    if (!author) return;
+    // The server sends the log's own fields rather than the log, so a thread
+    // on a past month still renders after group.logs has rolled over.
+    const raw = String(getLogDisplayActivity({ activity: entry.activity, type: entry.workoutType }) || "").trim();
+    const activityName = raw ? raw[0].toUpperCase() + raw.slice(1) : "";
+    // "Kasper replied on his own Gym Log" needs no name twice, and we do not
+    // know anybody's pronouns, so the log is described as theirs.
+    const where = author && owner && author === owner
+      ? (activityName ? `their own ${activityName} Log` : "their own Log")
+      : (activityName ? `${owner}'s ${activityName} Log` : `${owner}'s Log`);
+    const others = total - 1;
+    items.push({
+      id: `thread:${logId}`,
+      kind: "comment",
+      badge: "",
+      people: [{ name: author, userId: entry.commenterUserId || userIdFor(author) }],
+      title: others > 0
+        ? `${author} and ${others} other${others === 1 ? "" : "s"} replied on ${where}`
+        : `${author} replied on ${where}`,
+      body: commentSnippet(entry.body),
+      meta: shortWhen(entry.createdAt),
+      when: entry.createdAt,
+      thumbPhotoUrl: typeof entry.photoUrl === "string" ? entry.photoUrl : "",
+      thumbType: raw,
+      opens: "comments",
+      logId: String(logId)
+    });
+  });
+  return items;
+}
+
 // Pinned rows first, then newest. A row with no timestamp (money) sorts after
 // dated rows of the same group rather than jumping to the top on a blank.
 export function buildNotifications({
@@ -326,7 +378,9 @@ export function buildNotifications({
   // Fetched when the centre opens; absent on the first paint, which is fine.
   // latestCommentsLoaded says the fetch has answered, so an empty answer can
   // be believed rather than mistaken for "not asked yet".
-  latestComments, latestCommentsLoaded, streamMessages
+  latestComments, latestCommentsLoaded, streamMessages,
+  // Threads you are in but do not own. Absent until the centre's fetch lands.
+  threads
 }) {
   if (!group || !currentUser) return [];
   // Name -> userId, so a row can show that member's profile photo, and back
@@ -343,6 +397,7 @@ export function buildNotifications({
   const items = [
     ...moneyItems(reminderCards, currentUser, formatAmount, userIdFor),
     ...ownLogItems(group, currentUser, userIdFor, latestComments, latestCommentsLoaded),
+    ...threadItems(threads, currentUser, userIdFor),
     ...mentionItems(streamMessages, currentUserId, nameForUserId)
   ];
   return items

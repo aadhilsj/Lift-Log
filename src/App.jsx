@@ -76,6 +76,7 @@ import {
   mutateLogData,
   getBlocStreamUnreadCountData,
   getLogLatestCommentsData,
+  getLogThreadsData,
   listBlocStreamMessagesData,
   readCachedData,
   writeCachedData,
@@ -450,6 +451,9 @@ const App = () => {
   // commented", which is only believable once we know we asked.
   const [notificationLatestCommentsLoaded,setNotificationLatestCommentsLoaded]=useState(false);
   const [notificationStreamMessages,setNotificationStreamMessages]=useState([]);
+  // Threads this member is in but does not own. Fetched when the centre opens,
+  // beside the comments on their own logs.
+  const [notificationThreads,setNotificationThreads]=useState({});
   // What the SERVER says is waiting for you: how many of the Stream's unread
   // messages tag you, and how many new comments are on your own logs. The
   // client cannot work either out before the centre is opened — the messages
@@ -2107,6 +2111,7 @@ const App = () => {
     if (!groupId || !effectiveAuthSession?.userId) {
       setStreamUnreadCount(0);
       setNotificationServerCounts({mentions:null,logComments:null});
+      setNotificationThreads({});
       return;
     }
     // Three bugs came from this call having no idea whether its answer was
@@ -2498,8 +2503,9 @@ const App = () => {
     formatAmount: (amount, currency) => fmtCurrency(amount, currency),
     latestComments: notificationLatestComments,
     latestCommentsLoaded: notificationLatestCommentsLoaded,
-    streamMessages: notificationStreamMessages
-  }), [currentGroup, currentUser, effectiveAuthSession?.userId, notificationReminderCards, notificationLatestComments, notificationLatestCommentsLoaded, notificationStreamMessages]);
+    streamMessages: notificationStreamMessages,
+    threads: notificationThreads
+  }), [currentGroup, currentUser, effectiveAuthSession?.userId, notificationReminderCards, notificationLatestComments, notificationLatestCommentsLoaded, notificationStreamMessages, notificationThreads]);
   // What the client can see for itself: reactions (the log carries the
   // reaction's own timestamp) and money.
   //
@@ -2563,12 +2569,19 @@ const App = () => {
       if (result?.ok) setNotificationStreamMessages(result.messages || []);
     });
 
+    // Conversations this member joined on somebody else's workout. Needs no
+    // log ids: the server already knows which threads they have spoken in.
+    // An empty answer means nothing has moved, never that the call failed.
+    const threads = getLogThreadsData(groupId).then(result => {
+      if (result?.ok) setNotificationThreads(result.threads || {});
+    });
+
     // A hung request must not trap the member in a skeleton for ever. After
     // this the panel shows whatever has arrived, which is what it always did.
     // A failed comment fetch leaves latestCommentsLoaded false, so those rows
     // fall back to the blob's count exactly as before.
     const cap = new Promise(resolve => setTimeout(resolve, NOTIFICATION_FETCH_CAP_MS));
-    Promise.race([Promise.allSettled([comments, mentions]), cap])
+    Promise.race([Promise.allSettled([comments, mentions, threads]), cap])
       .then(() => setNotificationsLoading(false))
       .catch(() => setNotificationsLoading(false));
   };
@@ -2579,7 +2592,14 @@ const App = () => {
       // A comment row opens the thread itself, not the workout it hangs off.
       // The thread needs the whole log, and these are always the signed-in
       // member's own workouts, so it is found in their own list.
-      const log = (currentGroup?.logs?.[currentUser] || []).find(entry => String(entry?.id) === String(item.logId));
+      // A thread row's workout belongs to somebody else, so look across every
+      // member's logs rather than only this member's. Own-log rows still match
+      // on the first list they appear in, so nothing changes for them.
+      let log = null;
+      for (const entries of Object.values(currentGroup?.logs || {})) {
+        const match = (Array.isArray(entries) ? entries : []).find(entry => String(entry?.id) === String(item.logId));
+        if (match) { log = match; break; }
+      }
       if (log) {
         handleOpenLogComments({ groupId: currentGroup.id, log, source: "activity" });
         return;
