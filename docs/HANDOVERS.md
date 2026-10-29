@@ -45,7 +45,8 @@ Read every one of these. Each is a dated record of one session.
 
 | Date | Handover | About |
 | --- | --- | --- |
-| 23 Oct — **closed** | [`handover-2026-10-23-calendar-tap.md`](handover-2026-10-23-calendar-tap.md) | **Start here.** Session 2: tapping a calendar day now shows the workout instead of starting a delete, live at `ca248a2`. Delete moved into the detail sheet |
+| 29 Oct — **closed** | [`handover-2026-10-29-comment-notifications.md`](handover-2026-10-29-comment-notifications.md) | **Start here.** Your own comment stops raising your own Stream badge, and a reply in any thread you are in now reaches For you. Both live at `46259d2` |
+| 23 Oct — **closed** | [`handover-2026-10-23-calendar-tap.md`](handover-2026-10-23-calendar-tap.md) | Session 2: tapping a calendar day now shows the workout instead of starting a delete, live at `ca248a2`. Delete moved into the detail sheet |
 | 23 Oct — **closed** | [`handover-2026-10-23-session-close.md`](handover-2026-10-23-session-close.md) | Closes 19–23 October, and carries the one task the founder parked for a fresh session: tapping a calendar day starts a delete instead of showing the workout |
 | 23 Oct — **closed** | [`handover-2026-10-23-per-activity-cap.md`](handover-2026-10-23-per-activity-cap.md) | The daily cap becomes two per **activity** instead of two per day. Applied to production and live. **Open:** the monthly score still counts every workout, so a target can now be crammed into two days |
 | 19 Oct — **closed** | [`handover-2026-10-19-catch-up-and-docs.md`](handover-2026-10-19-catch-up-and-docs.md) | Catch-up after ten days away: the shared folder brought level with `origin/main` from 78 behind, and Deveen's 18 October work recorded in `WHATS-LIVE.md`. Docs only |
