@@ -45,7 +45,8 @@ Read every one of these. Each is a dated record of one session.
 
 | Date | Handover | About |
 | --- | --- | --- |
-| 29 Oct — **closed** | [`handover-2026-10-29-comment-notifications.md`](handover-2026-10-29-comment-notifications.md) | **Start here.** Your own comment stops raising your own Stream badge, and a reply in any thread you are in now reaches For you. Both live at `46259d2` |
+| 29 Oct — **closed** | [`handover-2026-10-29-review-bloc.md`](handover-2026-10-29-review-bloc.md) | **Start here.** The App Store review Bloc built in production — Sunday Warriors, invite `FQ1GXF` — and the new, separate exclusion keeping its five accounts out of the numbers |
+| 29 Oct — **closed** | [`handover-2026-10-29-comment-notifications.md`](handover-2026-10-29-comment-notifications.md) | Your own comment stops raising your own Stream badge, and a reply in any thread you are in now reaches For you. Both live at `46259d2` |
 | 23 Oct — **closed** | [`handover-2026-10-23-calendar-tap.md`](handover-2026-10-23-calendar-tap.md) | Session 2: tapping a calendar day now shows the workout instead of starting a delete, live at `ca248a2`. Delete moved into the detail sheet |
 | 23 Oct — **closed** | [`handover-2026-10-23-session-close.md`](handover-2026-10-23-session-close.md) | Closes 19–23 October, and carries the one task the founder parked for a fresh session: tapping a calendar day starts a delete instead of showing the workout |
 | 23 Oct — **closed** | [`handover-2026-10-23-per-activity-cap.md`](handover-2026-10-23-per-activity-cap.md) | The daily cap becomes two per **activity** instead of two per day. Applied to production and live. **Open:** the monthly score still counts every workout, so a target can now be crammed into two days |
