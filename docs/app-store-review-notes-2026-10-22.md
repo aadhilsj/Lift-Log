@@ -123,6 +123,36 @@ Non-obvious behaviour:
    whole review window. Fero signs in by emailed code, so if that inbox is
    unreachable from Apple's network the review fails at step one. **Not**
    `@local.test`, **not** code `000000`, **not** the Banana Berry fixture.
+
+   **DECIDED 29 October — a dedicated mailbox, not a bypass.** Because Fero has
+   no passwords, the reviewer must be able to *read* the code themselves;
+   review runs at unpredictable hours over several days, so relaying codes by
+   hand is not possible. Two options were weighed:
+
+   | | |
+   | --- | --- |
+   | **A. A dedicated mailbox** whose address and password go in App Store Connect | **Chosen** |
+   | B. A fixed code accepted for that one address | Rejected |
+
+   B was rejected because it means shipping a permanent, deliberate way past
+   sign-in: a real hole if the address ever leaks, a thing to explain to
+   Apple, and a direct contradiction of this runbook's own line —
+   *"No development menu, local OTP bypass, debug identity... is present or
+   enabled."* A is no code change, no hole, and the runbook already assumes it:
+   *"Store reviewer credentials in App Store Connect and the team password
+   manager."* It also survives every future release, which a bypass only does
+   by staying in the binary.
+
+   **Open:** the founder creates the mailbox and supplies the address. The
+   account is then created and joined to Sunday Warriors with invite `FQ1GXF`.
+   **The password never comes through chat — it goes straight into App Store
+   Connect.**
+
+   **One thing to settle when the address is known:** the dashboard exclusion
+   added on 29 October matches `review.%@joinfero.app`. A mailbox on another
+   domain will not match it, so that address needs adding to
+   `ANALYTICS_EXCLUDED_EMAILS` *and* to the dashboard function, or it will
+   count as a real account.
 2. **The seeded Bloc** — name, invite route, and realistic non-personal
    members, with the review account already a member.
    **Blocked on a decision, 29 October — see §3.1.**
