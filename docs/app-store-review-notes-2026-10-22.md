@@ -125,6 +125,7 @@ Non-obvious behaviour:
    `@local.test`, **not** code `000000`, **not** the Banana Berry fixture.
 2. **The seeded Bloc** — name, invite route, and realistic non-personal
    members, with the review account already a member.
+   **Blocked on a decision, 29 October — see §3.1.**
 3. **The review video URL.**
 4. **Confirmation that `support@joinfero.app` receives mail.** Still never
    tested, and it is the contact address in the notes and on the Support page.
@@ -136,6 +137,45 @@ Non-obvious behaviour:
    one-minute test: send it a mail and see if it lands.
 5. **TestFlight build 12 must be re-cut from `main`.** Found 29 October — see
    below. This is the one that would change what a reviewer sees.
+
+### 3.1 The seeded Bloc needs a decision before it can be built
+
+Checked 29 October, before writing anything.
+
+**The demo Bloc does not help here.** "Sunday Warriors" with Tariq, Hana, Noah,
+Eli and Leo (`bf9d4e3`, 20 October) is **sandbox data only** — it exists in
+`.sandbox-data/blob.json` and nowhere else. It was staged for screenshots. A
+reviewer's device talks to **production**, so it cannot see it.
+
+**So the review Bloc has to be created in the production database.** That is
+where the decision is:
+
+1. **Every member needs a real sign-in account.** All **48** production
+   profiles have an `auth_user_id`; there is not one account-less profile. So
+   seeding five members means creating five real auth users in the live
+   project, plus profiles, memberships and a month of workout logs.
+2. **They will count in the numbers.** Production currently holds 48 profiles
+   and 12 Blocs. Five fake members and a Bloc is a visible fraction of that,
+   and `READ-BEFORE-ANALYSING-FERO-NUMBERS.md` already warns how easily these
+   counts mislead.
+3. **The existing exclusion cannot be reused.** Usage recording skips a member
+   via `isFounderDashboardUser` (`api/lift-log.js:6389`), which reads
+   `FOUNDER_DASHBOARD_USER_IDS` / `_EMAILS`. That same check **grants founder
+   dashboard access** (`:5965`). Adding review accounts to it would hand them
+   the founder dashboard. So excluding them needs a **separate** list.
+
+**Recommended shape**, for the founder to accept or change:
+
+- Create the Bloc and its members in production under addresses on a domain he
+  controls, so the review account can actually receive its sign-in code.
+- Add a new, separate env var for analytics exclusion — deliberately not the
+  founder one — and skip those ids in usage recording and the dashboard.
+- Keep the Bloc after review rather than deleting it: Apple re-reviews every
+  update, and rebuilding it each time is how it goes stale.
+
+**Still needed from the founder either way:** the review account's email
+address (item 1 above). The Bloc can be built before it exists and the account
+added after, but the runbook requires it to be a member at submission.
 
 ### 5, in full: build 12 is 29 commits behind `main`
 
