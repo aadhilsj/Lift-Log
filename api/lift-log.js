@@ -80,6 +80,23 @@ const FOUNDER_DASHBOARD_EMAILS = new Set(
 let supabaseAdminClientPromise = null;
 const ENABLE_SETTLEMENT_CONFIRMATIONS = String(process.env.ENABLE_SETTLEMENT_CONFIRMATIONS || "").trim().toLowerCase() === "true";
 const ENABLE_SETTLEMENT_CONFIRMATIONS_PREVIEW = String(process.env.ENABLE_SETTLEMENT_CONFIRMATIONS_PREVIEW || "").trim().toLowerCase() === "true";
+// Accounts that exist so App Review can evaluate Fero, and must never appear
+// in the product numbers. DELIBERATELY SEPARATE from FOUNDER_DASHBOARD_*: that
+// list grants founder dashboard access as well as excluding its members from
+// analytics, and a review account must have neither the access nor the reach.
+const ANALYTICS_EXCLUDED_EMAILS = new Set(
+  String(process.env.ANALYTICS_EXCLUDED_EMAILS || "")
+    .split(",")
+    .map(value => normalizeEmailAddress(value))
+    .filter(Boolean)
+);
+const ANALYTICS_EXCLUDED_USER_IDS = new Set(
+  String(process.env.ANALYTICS_EXCLUDED_USER_IDS || "")
+    .split(",")
+    .map(value => String(value || "").trim())
+    .filter(Boolean)
+);
+
 const ENABLE_LOCAL_PREVIEW_AUTH = String(process.env.ENABLE_LOCAL_PREVIEW_AUTH || "").trim().toLowerCase() === "true";
 const ENABLE_LOCAL_DEV_OTP = String(process.env.ENABLE_LOCAL_DEV_OTP || "").trim().toLowerCase() === "true";
 const LOCAL_DEV_OTP_CODE = String(process.env.LOCAL_DEV_OTP_CODE || "000000").trim() || "000000";
@@ -5962,6 +5979,10 @@ async function recordCanonicalDailyAppActivity(authUser, openedAt = new Date().t
   // number is honest either way -- only the per-open count is skipped.
   // (isFounderDashboardUser is a hoisted declaration, so calling it here,
   // above its definition, is fine.)
+  // A review account is dropped outright. The founder is still marked active
+  // because he is a real person using the app; a review account is not, and
+  // counting it would put Apple's reviewer in Active Users.
+  if (isAnalyticsExcludedUser(authUser)) return;
   if (isFounderDashboardUser(authUser)) {
     await markCanonicalDailyAppActive(authUserId, openedAt);
     return;
@@ -6020,6 +6041,7 @@ async function recordCanonicalUsageEvent(authUser, eventName, occurredAt = new D
   // Screen opens and taps from this account are not product signal, so they
   // are dropped at the door rather than filtered out when reading.
   if (isFounderDashboardUser(authUser)) return;
+  if (isAnalyticsExcludedUser(authUser)) return;
   try {
     await supabaseFetch("/rest/v1/rpc/record_ante_core_usage_event", {
       method: "POST",
@@ -6383,6 +6405,15 @@ function isFounderDashboardUser(userOrId) {
   const email = typeof userOrId === "object" && userOrId ? userOrId.email : "";
   return FOUNDER_DASHBOARD_USER_IDS.has(String(userId || "").trim())
     || FOUNDER_DASHBOARD_EMAILS.has(normalizeEmailAddress(email));
+}
+
+// A review account is not a member and not a tester: it is scenery. Nothing it
+// does is product signal, so unlike the founder it is not even marked active.
+function isAnalyticsExcludedUser(userOrId) {
+  const userId = typeof userOrId === "object" && userOrId ? userOrId.id : userOrId;
+  const email = typeof userOrId === "object" && userOrId ? userOrId.email : "";
+  return ANALYTICS_EXCLUDED_USER_IDS.has(String(userId || "").trim())
+    || ANALYTICS_EXCLUDED_EMAILS.has(normalizeEmailAddress(email));
 }
 
 function assertFounderDashboardUser(userId) {
