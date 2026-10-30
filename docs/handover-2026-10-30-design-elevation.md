@@ -124,6 +124,6 @@ merges. Do not touch that branch or its worktree
 
 | Commit | What |
 | --- | --- |
-| _this one_ | The audit, this handover, and their two index lines. Docs only — no app code, no SQL, no data change. |
+| `91b4c1c` | The audit, this handover, and their two index lines. Docs only — no app code, no SQL, no data change. Pushed to `main`; deployed, but nothing visual changed. |
 
 **Nothing else was modified.**
