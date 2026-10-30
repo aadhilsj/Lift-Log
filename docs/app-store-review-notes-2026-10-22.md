@@ -227,6 +227,28 @@ where the decision is:
 address (item 1 above). The Bloc can be built before it exists and the account
 added after, but the runbook requires it to be a member at submission.
 
+### 3.2 The 1 November close is scheduled to be checked
+
+A one-time scheduled task, **`fero-month-close-check-1-nov`**, runs on this Mac
+at **08:00 on 1 November** and verifies the close for **every** active Bloc,
+not just the review fixture.
+
+**The pre-close snapshot it needs is already captured**
+(`migration-output/month-close/before.json`, 30 October): 13 Blocs, 13 open
+seasons on `2026-9`, 687 current logs. Without it `--after` refuses to run.
+
+**Two traps were found while setting this up and are handled in the task:**
+
+- `scripts/month-close-check.mjs` **hardcodes `closingKey = "2026-8"`** — the
+  September close it was written for. Run bare on 1 November it would compare
+  against the wrong month and report confidently. The task passes
+  `--month-key 2026-9`.
+- Month keys are **zero-indexed**: `2026-9` is October. Checked against all 13
+  Blocs, which were all on `2026-9` before the close.
+
+The task also confirms the review Bloc produced **no fines**, and that the
+dashboard still reports 48 accounts with the fixture's 64 logs excluded.
+
 ### 5, in full: build 12 is 29 commits behind `main`
 
 `claude/testflight-build-12-2026-10-21` was cut on 21 October. `main` has moved
