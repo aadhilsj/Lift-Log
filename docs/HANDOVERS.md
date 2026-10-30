@@ -45,7 +45,8 @@ Read every one of these. Each is a dated record of one session.
 
 | Date | Handover | About |
 | --- | --- | --- |
-| 29 Oct — **closed** | [`handover-2026-10-29-review-bloc.md`](handover-2026-10-29-review-bloc.md) | **Start here.** The App Store review Bloc built in production — Sunday Warriors, invite `FQ1GXF` — and the new, separate exclusion keeping its five accounts out of the numbers |
+| 30 Oct — **open** | [`handover-2026-10-30-design-elevation.md`](handover-2026-10-30-design-elevation.md) | **Start here.** Fero is not getting a redesign — it is getting an elevation, in a fixed order. Docs only. Stopped because the `design-critique` skill needs a fresh session; next session runs it, then does step 1 on Today |
+| 29 Oct — **closed** | [`handover-2026-10-29-review-bloc.md`](handover-2026-10-29-review-bloc.md) | The App Store review Bloc built in production — Sunday Warriors, invite `FQ1GXF` — and the new, separate exclusion keeping its five accounts out of the numbers |
 | 29 Oct — **closed** | [`handover-2026-10-29-comment-notifications.md`](handover-2026-10-29-comment-notifications.md) | Your own comment stops raising your own Stream badge, and a reply in any thread you are in now reaches For you. Both live at `46259d2` |
 | 23 Oct — **closed** | [`handover-2026-10-23-calendar-tap.md`](handover-2026-10-23-calendar-tap.md) | Session 2: tapping a calendar day now shows the workout instead of starting a delete, live at `ca248a2`. Delete moved into the detail sheet |
 | 23 Oct — **closed** | [`handover-2026-10-23-session-close.md`](handover-2026-10-23-session-close.md) | Closes 19–23 October, and carries the one task the founder parked for a fresh session: tapping a calendar day starts a delete instead of showing the workout |
@@ -153,6 +154,7 @@ with a newer doc, the newer doc wins.
 Not session records — read the ones for the area you are about to touch.
 
 **Product rules and designs**
+- [`design-elevation-audit-2026-10-30.md`](design-elevation-audit-2026-10-30.md) — **before changing anything visual.** Why Fero reads as generated, with reproducible counts, and the fixed order the elevation happens in
 - [`solo-rules-decisions-2026-09-18.md`](solo-rules-decisions-2026-09-18.md) — Solo rules to carry forward
 - [`two-workouts-per-day-plan-2026-08-26.md`](two-workouts-per-day-plan-2026-08-26.md) — the deliberate two-a-day cap
 - [`share-sticker-implementation-plan-2026-08-01.md`](share-sticker-implementation-plan-2026-08-01.md) and `share-sticker-reference/` — locked sticker design
