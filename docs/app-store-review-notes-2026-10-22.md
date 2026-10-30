@@ -145,6 +145,26 @@ Non-obvious behaviour:
 
    **Open:** the founder creates the mailbox and supplies the address. The
    account is then created and joined to Sunday Warriors with invite `FQ1GXF`.
+
+   **TIMING — add it AFTER the 1 November close, not before.** Noticed 30
+   October, two days out. Three things collide:
+
+   - Four of the five seeded members miss the target of 12 (Hana 10, Noah 7,
+     Eli 4, Leo 2; only Tariq cleared on 14), so the close will produce real
+     fines and settlements in this Bloc. **That is a gain** — the runbook asks
+     for "a closed-month result/settlement example", and this provides one
+     without any further work.
+   - A reviewer account joining *now* would be given a small prorated target
+     for the two days left and would not meet it, so the close would leave
+     **Apple's reviewer owing a fine on their first screen**.
+   - After the close, November starts empty. A reviewer landing in November on
+     a Bloc seeded only with October activity would see every member on zero
+     and an empty leaderboard — an app that looks dead.
+
+   So: create the mailbox now, and on **1 November**, after the close has been
+   checked, add the reviewer account and seed a few days of November activity.
+   October then sits behind it as a finished month with a settlement example,
+   and the current month is alive.
    **The password never comes through chat — it goes straight into App Store
    Connect.**
 
