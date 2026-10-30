@@ -126,6 +126,55 @@ existed. Deleted, scoped to those five accounts only: the table went
 | API module loads with the new env var | yes — `normalizeEmailAddress` is a hoisted declaration, as the founder set beside it already proves |
 | Deployment of `9ea8448` | success; live site 200 |
 
+## 4a. The fixture is fully out of the dashboard (30 October)
+
+The founder: *"these are fake ones, and it's all going to be deleted as soon as
+the App Store review is done... just delete them from the dashboard."*
+
+The 29 October change only took the five accounts out of the two **account**
+counts. Their **workouts were still being counted** — the dashboard was
+reporting `workoutUploads.today = 37`, every one of them seeded.
+
+`20261030120000` guards all eleven reads: six over `workout_logs`, five over
+`app_daily_activity`. Workouts are excluded **by Bloc**, not by author, so a
+log the reviewer writes during review is left out too, whatever account it
+comes from.
+
+| Metric | Before | After |
+| --- | --- | --- |
+| `workoutUploads.today` | 37 | **10** |
+| `workoutUploads.week` | 151 | **87** |
+| `workoutUploads.month` | 522 | **458** |
+| `workoutUploads.allTime` | 2086 | **2022** |
+| `activeUsers.today` | 17 | **13** |
+| `activeUsers.week` | 38 | **34** |
+| `activeUsers.month` | 44 | **40** |
+| `accounts` | 48 / 0 new | unchanged, already correct |
+
+*(`allTime` 2022 against 2533 real rows is not a discrepancy: the dashboard
+counts distinct workouts, and one workout logged to several Blocs is one
+workout.)*
+
+### A correction: the env var was not working until today
+
+`ANALYTICS_EXCLUDED_EMAILS` was added on 29 October **minutes before** the
+deploy that was supposed to use it, and a Vercel build captures its environment
+at build time. So the running build never had it, and the top-up on 30 October
+recorded **four more** `app_daily_activity` rows for the review accounts.
+
+Found by noticing `activeUsers` fell by 4 when the Bloc was excluded — rows
+that should not have existed at all.
+
+Two things made it hard to see: Production variables are **sensitive** by
+default, so `vercel env pull` returns them empty and cannot be used to check a
+value; and the first `vercel env add` was piped on stdin, which the CLI did not
+take. It is now set with `--value`, and a forced redeploy (`44edd84`) put it in
+the running build.
+
+**Verified behaviourally, which is the only honest check here:** a review
+account called the live API after the redeploy, and **no activity row was
+created**. The four stray rows were deleted. Fixture activity rows: **0**.
+
 ## 5. STILL NEEDED before submission
 
 1. **The review account itself.** This Bloc has no reviewer in it yet. It needs
