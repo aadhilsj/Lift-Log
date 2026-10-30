@@ -14,18 +14,42 @@ database, and the five accounts behind it are kept out of the product numbers.
 | Time zone | Europe/Oslo |
 | Training Wheels | off |
 
-| Member | Email | Workouts this month |
-| --- | --- | --- |
-| **Tariq** (admin) | `review.tariq@joinfero.app` | 14 — cleared |
-| Hana | `review.hana@joinfero.app` | 10 |
-| Noah | `review.noah@joinfero.app` | 7 |
-| Eli | `review.eli@joinfero.app` | 4 |
-| Leo | `review.leo@joinfero.app` | 2 |
+| Member | Email | Workouts, October | At the close |
+| --- | --- | --- | --- |
+| **Tariq** (admin) | `review.tariq@joinfero.app` | 14 | clear |
+| Hana | `review.hana@joinfero.app` | 13 | clear |
+| Noah | `review.noah@joinfero.app` | 13 | clear |
+| Eli | `review.eli@joinfero.app` | 12 | clear |
+| Leo | `review.leo@joinfero.app` | 12 | clear |
 
-37 workout logs, each on a distinct day per member, across Gym, Run, Pilates
-and Padel. The standings match the marketing site's cast and the sandbox demo
-Bloc, so the website, the screenshots and the review environment all tell the
-same story.
+**64 workout logs**, each on a distinct day per member, across Gym, Run,
+Pilates and Padel. The cast matches the marketing site and the sandbox demo
+Bloc, so the website, the screenshots and the review environment tell the same
+story.
+
+### Everybody clears the target, deliberately (30 October)
+
+The Bloc was first seeded at 14/10/7/4/2, which would have fined four of the
+five at the 1 November close. **The founder's instruction:** *"I don't want the
+reviewer to open up to see any fines... push everybody's workout total to clear
+the target."*
+
+So 27 more logs were added — Hana +3, Noah +6, Eli +8, Leo +10 — on October
+days each member did not already have, so the two-per-activity-per-day cap was
+never in play. The spread above the target was kept (14/13/13/12/12) because
+identical totals would look staged.
+
+**Nothing else in this Bloc can produce money.** Checked: no settlement runs,
+no settlement confirmations, and no prior months — it was created on 29
+October. Missing the monthly target is the only route to a fine here, so
+clearing it for everyone is sufficient.
+
+### This needs topping up every month
+
+Once November closes on 1 December the same five are short again, and a
+reviewer would see exactly the fines this avoided. **Apple re-reviews every
+update**, so this is not a one-off. Either top the Bloc up before each
+submission or schedule it. Decide after the first submission is through.
 
 **Why these names:** they reuse the cast already staged for screenshots
 (`bf9d4e3`). No real person's name or data is involved.
@@ -93,7 +117,8 @@ existed. Deleted, scoped to those five accounts only: the table went
 
 | Check | Result |
 | --- | --- |
-| Bloc, members, logs | 1 Bloc, 5 members, **37** logs; standings 14/10/7/4/2 |
+| Bloc, members, logs | 1 Bloc, 5 members, **64** logs; standings 14/13/13/12/12 |
+| Members short of target at the close | **0** |
 | Founder dashboard `accounts` | **`{total: 48, newLast30Days: 0}`** — the real numbers |
 | Profiles in the database | 53 total, 5 review, **48 real** — so the dashboard is excluding correctly |
 | `app_daily_activity` review rows | **0** |
