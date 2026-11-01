@@ -41,6 +41,12 @@ five timing findings: two certain, three races.
 
 Read every one of these. Each is a dated record of one session.
 
+### November 2026
+
+| Date | Handover | About |
+| --- | --- | --- |
+| 1 Nov — **open** | [`handover-2026-11-01-month-close.md`](handover-2026-11-01-month-close.md) | The 1 November close worked: all 13 Blocs froze October and opened November, counts exact, **no fines in the review Bloc**. **Open:** October's five `outstanding` flags are in the blob but missing from canonical, so `parity:gate` fails. Read-only — nothing changed |
+
 ### October 2026
 
 | Date | Handover | About |
