@@ -655,3 +655,46 @@ fresh backup. Both are the founder's calls. The real fix is the code work in
 I could not read the current compute size or the live CPU/memory charts: the
 Supabase MCP has no access to project `bpvvvqjsfwmmfjvvijkd` (§1 of this
 handover), so "Micro" is the September record, not a reading from today.
+
+### Correction to §16 — it is an episode, not a cold-start rule
+
+§16 above reads the timings as "slow from cold: the first read of a quiet period
+comes off disk". **That framing is wrong and is corrected here.** The
+confirmation test was run after §16 was written, and it did not reproduce:
+
+| Time (UTC) | Test | Result |
+| --- | --- | --- |
+| 14:44:49 | trivial read after **8 minutes fully idle** | **1.63 s** |
+| 14:44:51 | same read immediately after | 0.28 s |
+| 14:45:10 | trivial read × 5 | 0.57 / 0.29 / 0.18 / 0.21 / 0.29 s |
+| 14:45:1x | full 1.06 MB blob read × 3 | 0.49 / 0.30 / 0.24 s |
+| 14:45:2x | the API POST that took **68 s** earlier | **400 in 2.11 s** |
+
+So the stalling was an **episode**, roughly 14:10–14:30 UTC on 2 November, not a
+standing property of an idle database. Everything measured after it is normal.
+An 8-minute idle produced 1.63 s, not the 13–70 s §16 predicts.
+
+What stands, and what does not:
+
+- **Stands.** The episode happened and was measured repeatedly: a 57014
+  statement timeout after 63 s, a 90 s no-response, a 68 s reply on a path that
+  touches no database, and 70 s / 29 s / 13.8 s on the cheapest query in the
+  system, with network time isolated throughout. That is the September
+  signature.
+- **Stands.** `lift_log_backups` at 3,484 rows (~440 MB) against September's
+  2,475 (315 MB of a 344 MB database), on 1 GB of RAM.
+- **Does not stand.** Any claim that this reproduces on demand after a quiet
+  spell. It did not.
+- **Not known.** What triggered it. One candidate is this check itself: the
+  measurements repeatedly pulled the full 1.06 MB blob and the 1.40 MB
+  `read_ante_core_month_history`, and §2.1 of the scaling doc is precisely that
+  a few clients doing full-app reads starve a Micro instance. If that is what
+  happened, this check **reproduced** the September incident from one laptop
+  rather than finding a new fault, which would make the case for §4 of that
+  document stronger, not weaker. But the Supabase logs and the CPU/memory charts
+  are the only things that would settle it, and the MCP has no access to project
+  `bpvvvqjsfwmmfjvvijkd`. Not guessed at further.
+
+Even healthy, a one-row one-column read sits at 0.18–0.57 s where it should be
+nearer 0.05 s, and a warm API round trip is 2.11 s. Slower than it ought to be,
+but not the thing a member would call broken.
