@@ -241,3 +241,44 @@ deployed.**
 2. **The review Bloc needs topping up again.** Per the 29 October handover, once
    November closes on 1 December the same five members fall short and a reviewer
    would see the fines this close avoided.
+
+## 10. Workspace state — and three branches that exist only on this Mac
+
+The `git fetch` that opens every session (`AGENTS.md` §0.1) **failed** here:
+`client_loop: send disconnect: Broken pipe`, then `Could not read from remote
+repository`. The workspace survey below was therefore done afterwards, against
+`git ls-remote` rather than fetched refs. The month-close findings do not depend
+on any of it — they come from production data — and the push in §8 was still
+safe, because `--force-with-lease` was pinned to the `origin/main` SHA that
+`ls-remote` had just confirmed.
+
+`origin/main` was `6203152` before the push and is `437ccba` after it. This
+checkout was level with it in both directions (0 ahead, 0 behind) before
+committing.
+
+**Three branches with work on them are not on GitHub at all.** `git ls-remote`
+returns nothing for any of them, so these commits exist on this laptop only:
+
+| Branch | Ahead of `origin/main` | Worktree | Last commit |
+| --- | --- | --- | --- |
+| `claude/design-step1-surfaces-2026-10-30` | **31** | `~/Developer/FERO/design-step1-2026-10-30` | 31 Oct — "Pull the lit canvas back, and keep the statuses warm" |
+| `codex/fero-promo-2026-10-31` | 2 | `~/Developer/FERO/marketing-promo-2026-10-31` | 31 Oct — "Record promo commit in session handover" |
+| `codex/fero-screen-palette-preview-2026-10-29` | 3 | `~/Developer/FERO/fero-screen-palette-preview-2026-10-29` | 29 Oct — "Record Fero matte blue screen preview" |
+
+The first one matters most, and it also **disagrees with the 30 October design
+handover**, which says that session was docs only and that the *next* session
+would run `design-critique` and then do step 1 on Today. Thirty-one commits
+dated 31 October say step 1 was in fact built. Which of the two is right was not
+investigated — it is not month-close work, and the design handover was left
+untouched.
+
+**Nothing was pushed and no branch was touched.** Whether that work should go to
+GitHub is the founder's call, and the founder works from more than one laptop,
+so while it sits here it is invisible from the other one.
+
+Eight worktrees are checked out in total; the five under `~/Developer/FERO` are
+in the right place, and two older ones (`Lift Log Extraction`, `Lift Log iOS
+Preview`) sit under `~/Documents`, which `AGENTS.md` warns against because it is
+iCloud-synced. Both pre-date this session and were left alone. This folder is
+itself under `~/Documents`, which is why every git and network call in this
+session was slow.
