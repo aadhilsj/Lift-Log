@@ -698,3 +698,86 @@ What stands, and what does not:
 Even healthy, a one-row one-column read sits at 0.18–0.57 s where it should be
 nearer 0.05 s, and a warm API round trip is 2.11 s. Slower than it ought to be,
 but not the thing a member would call broken.
+
+---
+
+## 17. enrico's report — October disappearing, 2 November
+
+A member of Ctrl Alt De-feat reported, over WhatsApp at 15:22–15:30 Oslo time
+(**14:22–14:30 UTC**): October gone, a "Your September Recap" banner, being
+signed out, a slow sign-in, and members who had been on Solo showing without
+their Solo marker while their workout counts still rendered.
+
+**14:22–14:30 UTC is inside the stall window measured in §16.** This is the same
+episode, seen from a member's phone.
+
+### No data was lost
+
+Checked after the episode, both stores agree and are correct:
+
+| Source | October (`2026-9`) in Ctrl Alt De-feat |
+| --- | --- |
+| Blob, revision 3398, last written **13:07 UTC** | present; `monthHistory` keys `2026-5 … 2026-9`; Cutie pie `excused: true`; Rodri, Varun, Bianković solo at target 6; counts intact |
+| Canonical `read_ante_core_month_history` | same eight members, same excused, same three Solos at target 6, same counts |
+
+The blob's last write was 13:07 UTC — **before** the episode began. Nothing was
+written during or after it. This was a read-side display failure only.
+
+### Why the screen looked like that
+
+The server side is not at fault. `fetchAnteMonthHistory` (`api/lift-log.js:4421`)
+returns `null` on both a throw and an empty array, and
+`buildCanonicalMonthHistoryForGroup` (`:2209`) returns the blob's own
+`monthHistory` when canonical is empty and `continue`s past any month where
+`canonicalCoverage < blobCoverage`. CLAUDE.md §6 is honoured.
+
+The failure is in the client, and it is three things in a row:
+
+1. **The app renders a cached copy first.** `src/App.jsx:1145` calls
+   `readCachedData()` and, if there is one, `applyData(cachedData)` and
+   `setLoading(false)` — before any network call. The cache is the whole app
+   state in `localStorage` (`src/lib/api.js:1041`).
+2. **A failed refresh leaves that cached copy on screen.** `fetchData`
+   (`src/lib/api.js:356`) returns `null` on any non-OK response, so the 500 the
+   stall produced became `setSyncError(true)` and nothing else. The stale state
+   stays.
+3. **Nothing tells the member the screen is out of date.** `syncError` is passed
+   into `Nav` (`src/pages/Nav.jsx:83`) and **never used** — it appears exactly
+   once in that file, in the parameter list. `syncing`, `lastSyncedAt`,
+   `showJustSynced` and `onRefresh` are the same. A grep of `src/pages` and
+   `src/components` for "out of date", "unable to sync", "offline", "stale" or
+   "last synced" returns nothing. **This is not a regression from the July file
+   split:** `git show a79d02d^:src/app.jsx` shows `syncError` was already
+   passed-and-unused before it.
+
+That accounts for every symptom, because the cache enrico was being shown
+predates the 1 November month close:
+
+| What he saw | Why |
+| --- | --- |
+| October gone from history | his cached `monthHistory` ends at September — in that cache October was the *open* month, not a closed one |
+| "Your September Recap" | the latest closed month in that cache is September |
+| November header, November counts | the current month comes from the device clock (`CUR_MONTH`), not from the data, so the open-month slot renders as November over cached October figures |
+| Solo members showing no Solo | October's Solo lived under key `2026-9`; with the open month now `2026-10`, `isSoloForMonth` is false for all three |
+| counts still visible | counts come from the cached logs, which are keyed by date, not by month status |
+| signed out | `fetchData` calls `signOutAuthSession()` on a 401 after one failed refresh (`src/lib/api.js:379, 386`). Every API call validates the token against Supabase Auth on each request (scaling doc §2.4), and Auth was measured at 4.8 s during the episode — so an infrastructure stall can present as "your token is invalid" and log a real member out |
+| still wrong after reopening | reopening re-reads the same stale cache; it only heals when one refresh succeeds |
+
+### Two defects worth naming
+
+Neither was touched. Both are read-path, both are in Deveen's area, and both are
+squarely the subject of `scaling-before-launch-2026-09-15.md` §2.5 ("Failures are
+silent, so members retry"), which is unstarted.
+
+1. **A stale screen is indistinguishable from a fresh one.** The state for the
+   indicator is computed and thrown away. This is the one that made a transient
+   database stall look to a member like his month had been deleted.
+2. **A server-side failure can sign a member out.** A 401 produced by a starved
+   Auth service is treated as an invalid session.
+
+### What to tell enrico
+
+The data is fine and was never damaged. The database recovered by about 14:30
+UTC. He should force-quit and reopen once more; it will be correct, because a
+successful refresh overwrites the cache. If it is not, that is new information
+and worth a fresh look.
