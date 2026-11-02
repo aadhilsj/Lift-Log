@@ -467,3 +467,83 @@ Both were hit while doing this work and both would mislead the next person.
 A third, smaller one: `scripts/blob-parity-gate.mjs` is classified as binary by
 `file` and `grep`, so plain `grep` silently finds nothing in it — `grep -a` is
 needed. The script itself runs fine.
+
+---
+
+## 14. History page and All Time leaderboard — verified after the fact
+
+The founder asked, after the writes had landed, whether the History screens and
+the All Time leaderboard had adjusted too. They had, and here is the evidence
+rather than an assurance.
+
+`src/pages/HistoryPage.jsx` and `src/pages/PlayerProfile.jsx` both **recompute**
+the money from `monthHistory` on every render — they do not read the stored
+`settlements` map. So the figures follow `excused` and `solo` directly. Both
+files use the same helpers in the same order (`isExemptFromStakes`,
+`isStandardPenaltySoloForMonth`, `getStandardSoloMisses`, `calcPenalties`,
+`addStandardSoloPenalties`, `getLoserAmount`), which is why the profile and the
+leaderboard agree.
+
+The check re-ran HistoryPage's exact `allTime` loop against the live blob
+(revision 3398) for all three Blocs, with `syncActiveGroupGlobals(group)` giving
+each Bloc its own `NAMES` / `MIN_TARGET`:
+
+| Bloc | October winners | October losers | Settlement pairs |
+| --- | --- | --- | --- |
+| Sweat Equity | imadh, perWinner 0 | none | `[]` |
+| Ctrl Alt De-feat | Giang, perWinner 0 | none | `[]` |
+| StavanGang | Isira + Aadhil, perWinner 0 | none | `[]` |
+
+Per subject, on the All Time rows:
+
+- **Manz** — `excused["Manz"] = true`, so `isActualParticipant` is false for
+  October: the month drops out of his total (6) and his month count (2), and
+  the money loop `return`s before any fee. Correct; an excused month has never
+  counted as participation.
+- **Cutie pie** — same, total 5 over 2 months, out of the money loop.
+- **Marlène** — `solo["Marlène"]["2026-9"] = {standard_penalty, 5}`. She is
+  *not* skipped, because a new-rules Solo miss still costs money, but her count
+  of 6 clears the Solo goal of 5, so `getStandardSoloMisses` returns nothing for
+  her and she is neither winner nor loser. October still counts toward her total
+  (29) and average (7.0), which is how Solo already works for Juju B and
+  Bananaaaa in the same Bloc — Solo excludes a member from the pot, not from the
+  stats.
+
+The three "Bloc Legacy" awards were recomputed too. Nothing on them names a
+subject wrongly, but one pre-existing oddity surfaced and was **left alone**:
+in a Bloc where no current member has ever lost money, "Biggest loser" still
+names whoever sorts first at 0. In Ctrl Alt De-feat every historical loss
+(200 NOK × 3) belongs to `akijain2000`, who has left the Bloc and so is not in
+`allTimeVisibleNames`; the Bloc shows 600 NOK won and 0 lost. That is the
+existing left-member rule, not a consequence of this session's writes. Not
+touched, not in scope.
+
+`FounderDashboard.jsx` also matches `allTime`, but only as a usage-analytics
+window name — it has no leaderboard. Nothing to check there.
+
+Verification script:
+`/private/tmp/.../scratchpad/history-check.mjs` (scratch, not committed).
+
+## 15. Why the repo's docs are in the founder's work Google Drive
+
+Not something any agent did. Google Drive for Desktop is running as
+`aadhilj@opera.com` and **mirrors the whole `~/Documents` folder** — the mirror
+roots in `~/Library/Application Support/Google/DriveFS/<account>/mirror_sqlite.db`
+are exactly `Downloads`, `Desktop` and `Documents`. The repo lives at
+`~/Documents/Codex Space/Lift Log`, so every file in it is uploaded. Counted
+from that database: **16,533 files from this repo are in the work Drive, 584 of
+them `.md`.** Google Docs lists `.md` files under "Recent documents", which is
+why `HANDOVERS.md` and the handover docs appear there. The 1:33 PM timestamps
+are simply when this session wrote and committed those files.
+
+Two things in that upload matter more than the noise:
+
+- **`.env.local` is in the work Drive, uploaded.** It holds the production
+  Supabase service role key. Rotating it is the founder's call.
+- The four `Fero-*-2026-08-31.dmg` backups in the working directory are up
+  there too, including the 594 MB private-recovery image.
+
+Nothing was changed. Turning the mirror off is a setting in the Drive app
+(Preferences → Folders from your computer) and belongs to the founder, as does
+any decision to rotate the key. The longer-term fix is the one CLAUDE.md §12
+already prescribes: work from `~/Developer`, which is synced by nothing.
