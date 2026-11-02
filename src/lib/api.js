@@ -1,6 +1,7 @@
 import {
   LOCAL_CACHE_KEY,
   LOCAL_PREVIEW_AUTH_KEY,
+  curKey,
   resolveStateRevision,
   normalizeAppState
 } from "./appState.js";
@@ -1042,7 +1043,24 @@ function readCachedData() {
   try {
     const raw = localStorage.getItem(LOCAL_CACHE_KEY);
     if (!raw) return null;
-    return normalizeAppState(JSON.parse(raw));
+    const cached = normalizeAppState(JSON.parse(raw));
+    // A cache written before a month close renders the old month's data inside
+    // the new month's frame: last month's counts on this month's calendar, a
+    // history that stops one month short, and last month's Solos unmarked
+    // because their entries are keyed to the month that just ended. enrico saw
+    // exactly that on 2 November, when a database stall kept every refresh from
+    // landing and the app went on serving a 31 October cache for two days.
+    //
+    // `lastMonth` is the month a Bloc's live state belongs to, so a cache whose
+    // Blocs sit behind the calendar cannot be shown as if it were current.
+    // Returning null here falls through to the normal first-load path, which
+    // also resets the revision floor in App.jsx, so the next good response is
+    // always accepted. Waiting for a real load is the lesser evil, and this is
+    // the only thing that clears that cache: nothing ever deletes it, not even
+    // signing out.
+    const groups = Object.values(cached?.groups || {});
+    if (groups.some(group => group?.lastMonth && group.lastMonth !== curKey)) return null;
+    return cached;
   } catch {
     return null;
   }
