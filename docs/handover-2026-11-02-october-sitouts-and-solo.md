@@ -1,6 +1,8 @@
 # 2 November 2026 — three retroactive October corrections
 
-**Status: OPEN — plan agreed? not yet. Nothing has been changed in production.**
+**Status: DONE and verified in production, 2 November 2026 12:28 UTC.** All
+three corrections are live in both stores. No code changed, nothing deployed.
+Blob revision **3395 → 3397**. Backups `3484` and `3485`. See §8 onward.
 
 The founder asked for three corrections to **October 2026** (`2026-9`), the
 month that closed on 1 November:
@@ -254,14 +256,14 @@ approval as a supported case.
 
 ---
 
-## 5. The one open question
+## 5. The one open question — answered
 
-**Marlène's Solo personal target for October.** Recommended: **5** — the same
-target the other two StavanGang Solos got for the same month (Juju B and
-Bananaaaa). At 5 she clears it with her 6 workouts and owes nothing, which
-matches the intent of backdating a Solo she was meant to have.
+**Marlène's Solo personal target for October: 5**, confirmed by the founder.
 
-Nothing will be written until this is answered.
+That turned out to be the only value the app itself would ever have assigned.
+`npm run test:solo-standard-penalty` pins the rule as *"the Solo goal is half the
+Bloc target rounded up, whatever the client sends"* — StavanGang's target is 10,
+so half is 5. It also matches Juju B and Bananaaaa in the same month.
 
 ---
 
@@ -288,5 +290,180 @@ it should be said out loud before the write, not after.
 | `docs/handover-2026-11-02-october-sitouts-and-solo.md` | this file, new |
 | `docs/HANDOVERS.md` | one line added at the top of the November section |
 
-**Nothing else was modified. No production data has been changed, and nothing
-has been deployed.**
+**No application code was modified, and nothing was deployed.** The only
+production change is the data described in §8.
+
+---
+
+## 8. What was actually written
+
+### The blob — two PATCHes, both backed up first
+
+| # | Backup | Revision | What |
+| --- | --- | --- | --- |
+| 1 | `3484` (`...:before`) | 3395 → 3396 | the three corrections |
+| 2 | `3485` (`...:fix-solo-nesting`) | 3396 → 3397 | the fix in §9 |
+
+Both PATCHes were sent with `revision=eq.<the revision just read>` so a
+concurrent write from the live app would have made them a no-op rather than
+clobbering it. Each matched exactly one row.
+
+Seven paths changed in total, and a full recursive diff of the whole blob
+confirmed **nothing else moved** — no workout count, no log, no other Bloc:
+
+```
+groups.sweat-equity-saucff.monthHistory[2026-9].excused.Manz          false -> true
+groups.sweat-equity-saucff.sitOutRequests.2026-9.Manz                 new, approved
+groups.ctrl-alt-de-feat-ocdti8.monthHistory[2026-9].excused.Cutie pie false -> true
+groups.ctrl-alt-de-feat-ocdti8.monthHistory[2026-9].settlements.Cutie pie  removed
+groups.ctrl-alt-de-feat-ocdti8.sitOutRequests.2026-9.Cutie pie        new, approved, exceptional
+groups.stavanger-4ever-7162hj.monthHistory[2026-9].solo.Marlène       new, {2026-9:{standard_penalty,5}}
+groups.stavanger-4ever-7162hj.soloRequests.2026-9.Marlène             new, approved, target 5
+```
+
+### Canonical — six RPC calls, all 204
+
+`upsert_ante_core_season_member_excused` and `upsert_ante_core_sit_out_request`
+for Manz and Cutie pie; `upsert_ante_core_season_member_solo` and
+`upsert_ante_core_solo_request` for Marlène. A full diff of
+`read_ante_core_month_history` across all **44 bloc-months** shows exactly four
+fields changed and nothing else:
+
+```
+stavanger-4ever-7162hj 2026-9  Marlène    solo        false -> true
+stavanger-4ever-7162hj 2026-9  Marlène    solo_target null  -> 5
+sweat-equity-saucff    2026-9  Manz       excused     false -> true
+ctrl-alt-de-feat-ocdti8 2026-9 Cutie pie  excused     false -> true
+```
+
+No `workout_count` moved. `update_ante_core_season_member_settlement` was not
+needed — every October `settlement_status` was already `null`.
+
+---
+
+## 9. A mistake I made, and the check that caught it
+
+The first write put Marlène's Solo entry in at the **wrong depth**:
+`solo["Marlène"] = {rule, target}` instead of
+`solo["Marlène"]["2026-9"] = {rule, target}`. The month snapshot's `solo` map is
+keyed by month inside the member key, as the existing Juju B and Bananaaaa
+entries show.
+
+The effect was that `isSoloForMonth` returned false, so Marlène was **still
+counted as an ordinary member and still owed 10 EUR** — the change looked
+applied and did nothing. Nothing else was wrong, and no other member was
+affected.
+
+It was caught by the verification step that re-runs the app's own
+`buildDefaultSettlements` against what was actually written, rather than
+assuming the write was correct. Fixed in the second PATCH (backup `3485`).
+
+**This is the argument for that step existing.** Writing the data and asserting
+the data are not the same check; only recomputing the money with the app's own
+code caught it.
+
+---
+
+## 10. Verification — what was run, and what passed
+
+| Check | Result |
+| --- | --- |
+| Full recursive blob diff, before vs after | **pass** — 7 paths, all planned |
+| Workout counts unchanged in all three Blocs | **pass** |
+| Full canonical diff across 44 bloc-months | **pass** — 4 fields, all planned |
+| Canonical agrees with the blob on all three members | **pass** |
+| `buildDefaultSettlements` (the app's own code) on the written state | **pass** — nobody owes in any of the three |
+| `buildCanonicalMonthHistoryForGroup` — the canonical→blob overlay | **pass** — October survives it in all three, corrections intact |
+| `scopeReadableStateForUser` for each subject **and** an affected other member (imadh, Giang, Isira) | **pass** — all six payloads show October, nobody owing |
+| `npm run parity:gate` | `historical-settlement-parity` **3 → 2** (§11) |
+| `npm run test:solo-standard-penalty` | **pass** |
+| `npm run test:solo-sitout-exclusion` | **pass** |
+| `npm run lint` | **clean** |
+| `https://lift-log-nu.vercel.app` | HTTP 200 |
+
+The overlay check is the one that matters most: `AGENTS.md` §6 warns that
+canonical must never replace valid blob data, and a retroactive edit to a closed
+month is exactly where that could bite. It does not — the real overlay function
+was run against production data for all three Blocs and October came through
+unchanged.
+
+### Not verified
+
+- **No screen was loaded.** Signing in as a member needs a one-time code sent to
+  that member's email, which is not something to do on their behalf, and a
+  Vercel preview cannot reach the live database. Everything above is the data
+  and the server read path, up to but not including the React render. The render
+  logic for an excused or Solo month is pre-existing and was not touched.
+- `npm run build` and the other `test:*` scripts were not run; no application
+  code changed, so they had nothing to say about this.
+
+---
+
+## 11. Two things I told the founder that were wrong
+
+Corrected here rather than left standing.
+
+1. **"The parity gate should fall 5 → 3."** It went **3 → 2**. The gate reads the
+   *stored* `settlements` map, it does not recompute, and before this session
+   only three members had a stored `outstanding` with a null canonical status:
+   Emma, Cutie pie and Ashanee. Manz and Rishane were in the 1 November
+   handover's list of five but their Blocs' stored `settlements` maps were
+   already `{}` by the time this session read them, so the gate was not counting
+   them. This session cleared exactly one: **Cutie pie**. Emma
+   (`active-divas-p19b0j`) and Ashanee (`two-a-half-men-n18fcv`) are untouched
+   and still open.
+
+   Worth noting for whoever picks up that item: Manz's stored `settlements` was
+   `{}` while the computed result had him owing 20 USD, so the stored map and the
+   computation had already drifted apart before this session. That is
+   pre-existing and is now moot for him.
+
+2. **"Marlène has used no Solo months in 2026."** She had used **two**
+   (2026-7 and 2026-8). October is her third, so she now has **0 of 3 Solo
+   months left** this year, not 2. I had read only the Bloc-level `solo` map,
+   which holds the open month; the closed months are in `monthHistory`, which is
+   what `getYearlyAllowanceUsage` reads.
+
+### Allowance, as it now stands
+
+| Member | Bloc | Sit-outs used 2026 | Left | Solo used 2026 | Left |
+| --- | --- | --- | --- | --- | --- |
+| Manz | Sweat Equity | 2026-9 | **1 of 2** | — | 3 |
+| Cutie pie | Ctrl Alt De-feat | 2026-6, -7, -8, -9 | **0 of 2** | — | 3 |
+| Marlène | StavanGang | 2026-6 | 1 of 2 | 2026-7, -8, -9 | **0 of 3** |
+
+---
+
+## 12. Rollback
+
+Both backups hold the complete pre-change blob, so the blob is one restore away
+at either point. For canonical:
+
+| What | How | Available |
+| --- | --- | --- |
+| Blob | restore backup `3484` over `lift_log_state` | yes |
+| Manz / Cutie pie `excused` | `upsert_ante_core_season_member_status` with `p_excused: false`, `p_workout_count` 0 and 2, `p_joined_for_month: true` | yes, one call each |
+| Marlène `solo` | no RPC clears it — needs one `update` on `ante_core.season_member_status` | **no, needs SQL** |
+
+As written in §6: the app has no un-Solo path either, so this is forward-only by
+design. If it ever has to be undone, it needs SQL access, which this session did
+not have.
+
+---
+
+## 13. Two documentation errors found in `SCHEMA.md`
+
+Both were hit while doing this work and both would mislead the next person.
+**Not edited** — flagged for the founder to decide.
+
+1. A `monthHistory` entry's month field is **`key`**, not `monthKey`.
+   `SCHEMA.md` Part 1 says `month.monthKey`, which matches nothing in production.
+2. **`state.meta` is not stored in the blob at all.** The stored document has
+   only `version`, `groups`, `groupOrder`, `profiles` — `serializeStateForBlob`
+   strips the rest, and the revision lives in the `lift_log_state.revision`
+   **column**. `SCHEMA.md` lists `state.meta.revision` and `state.meta.updatedAt`
+   as top-level keys of `state`.
+
+A third, smaller one: `scripts/blob-parity-gate.mjs` is classified as binary by
+`file` and `grep`, so plain `grep` silently finds nothing in it — `grep -a` is
+needed. The script itself runs fine.

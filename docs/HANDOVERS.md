@@ -45,7 +45,7 @@ Read every one of these. Each is a dated record of one session.
 
 | Date | Handover | About |
 | --- | --- | --- |
-| 2 Nov — **open** | [`handover-2026-11-02-october-sitouts-and-solo.md`](handover-2026-11-02-october-sitouts-and-solo.md) | Three retroactive October corrections asked for by the founder: Manz and Cutie pie to sit out, Marlène to Solo. Plan, before-state and the money arithmetic written down. **Nothing changed in production yet** — waiting on Marlène's Solo target |
+| 2 Nov — **closed** | [`handover-2026-11-02-october-sitouts-and-solo.md`](handover-2026-11-02-october-sitouts-and-solo.md) | Three retroactive October corrections, live and verified: **Manz** (Sweat Equity) and **Cutie pie** (Ctrl Alt De-feat, granted beyond her allowance) now sit out, **Marlène** (StavanGang) is Solo at 5. Nobody owes anything for October in any of the three. Blob 3395 → 3397, backups 3484/3485. No code, no deploy. **Open:** Emma and Ashanee still fail `parity:gate`; two `SCHEMA.md` errors found and left for the founder |
 | 1 Nov — **open** | [`handover-2026-11-01-month-close.md`](handover-2026-11-01-month-close.md) | The 1 November close worked: all 13 Blocs froze October and opened November, counts exact, **no fines in the review Bloc**. **Open:** October's five `outstanding` flags are in the blob but missing from canonical, so `parity:gate` fails. Read-only — nothing changed |
 
 ### October 2026
