@@ -547,3 +547,111 @@ Nothing was changed. Turning the mirror off is a setting in the Drive app
 (Preferences → Folders from your computer) and belongs to the founder, as does
 any decision to rotate the key. The longer-term fix is the one CLAUDE.md §12
 already prescribes: work from `~/Developer`, which is synced by nothing.
+
+---
+
+## 16. Live app health check, 2 November
+
+The founder asked for a full check of the live app — Vercel, speed, breakages.
+One real problem found, and it is one this repo already documented.
+
+### Healthy
+
+| Checked | Result |
+| --- | --- |
+| Vercel production deployment | `7484583514`, commit `8555514`, **success**, built in 12s |
+| Build log | clean; only the known >500 kB chunk advisory |
+| `https://lift-log-nu.vercel.app` | HTTP 200, TTFB 52–85 ms over three calls |
+| `index.js` / `index.css` / manifest / icon | all HTTP 200, 62–209 ms |
+| Signed-out app in the browser pane | renders; DOMContentLoaded **208 ms**, load 209 ms |
+| Console | no errors; one known warning (below) |
+| Network tab | 4 requests, all 200 |
+| `GET /api/lift-log` unauthenticated | 401 in 175 ms — correct |
+| `npm run lint` | clean |
+| `npm run build` | clean, 1.39s |
+| 23 `test:*` suites | all pass |
+
+`origin/main` is `8555514` and that is what is live. The only local commits are
+this session's docs, so **the live code is current**.
+
+The one console warning — "Multiple GoTrueClient instances detected" — is
+pre-existing and already recorded in `extraction-record-2026-07-09.md` §62: two
+`window.supabase?.createClient` call sites (`src/App.jsx:1210`,
+`src/lib/api.js:198`) build two auth clients over one storage key. Not new, not
+touched.
+
+`test:profile-stats-cache` prints `profile-stats failed: Request failed` twice
+and then `all cache checks passed`. That is the test exercising its deliberately
+offline paths; the script's own header says the request paths are verified
+against a deployed preview instead. Not a failure.
+
+Not run: `test:month-close-canonical`, `test:remirror`,
+`test:profile-photo-storage`, `test:account-deletion` — they need the sandbox or
+production write access, and no application code changed.
+
+### The real problem: the database is slow from cold
+
+A single-row, single-column read of `lift_log_state` — the cheapest query in the
+system — measured from this laptop, with network time isolated (connect 15–21 ms,
+TLS 33–41 ms throughout, so none of this is the network):
+
+| Call | TTFB |
+| --- | --- |
+| first, after idle | **70.0 s** |
+| second | 6.1 s |
+| first of a later series | **29.2 s** |
+| second | 4.2 s |
+| third | 0.25 s |
+| first of a third series | **13.8 s** |
+| then decaying | 6.2 → 1.3 → 0.17 → 0.14 s |
+| later in the same series | drifts back to 0.5–1.7 s |
+
+Through the app's own API the same pattern appears as outright failure:
+
+- `POST /api/lift-log {"action":"load"}` → **500 after 63 s**, with
+  `{"code":"57014","message":"canceling statement due to statement timeout"}`.
+- A second attempt → no response at all within 90 s.
+- `POST /api/lift-log {"action":"zzz-not-a-real-action"}` → the correct
+  `400 Unsupported POST action`, but **after 68 s**. That path touches no
+  database at all (the state getters at `api/lift-log.js:10106` are lazy), so
+  the function itself was waiting on a starved connection, not on a query.
+
+Once warm, everything is fine: `read_ante_core_month_history` returns 1.40 MB in
+0.44–1.19 s and the full blob returns 1.06 MB in 0.16–0.33 s.
+
+### This is the September incident, unfixed
+
+`scaling-before-launch-2026-09-15.md` is the same thing, and its status line
+still reads **"must be done before launch. Nothing below has been started."**
+`state-of-play-2026-09-26.md:54` confirms: "Scaling — the five-simultaneous-user
+traffic incident. Not started."
+
+That document's evidence was the matching one: `57014` statement timeouts on
+`read_ante_core_month_history`, CPU "~95%, almost all IOwait", "Memory — Free
+near zero throughout", on **Micro** compute (2-core shared ARM, 1 GB RAM). Its
+reading was "the CPU was not busy computing; it was waiting on disk."
+
+September saw it as a burst problem — 2–4 phones at once. Today's measurement
+shows the same starvation with **nobody using the app**, which fits the same
+cause: with 1 GB of RAM and no free memory, nothing stays cached, so the first
+read of a quiet period comes off disk.
+
+One number has moved the wrong way. §2.6 of that doc recorded
+`public.lift_log_backups` at **315 MB of the 344 MB database, 2,475 full blob
+copies**. Counted today over PostgREST: **3,484 rows**. At ~1.06 MB per copy
+that is roughly **440 MB** of backups — around 1,000 more copies than in
+September, and still the overwhelming majority of the disk and cache footprint
+on a 1 GB instance. Two of those 1,000 are this session's (3484, 3485).
+
+### Not done, deliberately
+
+Nothing was changed. The compute size is a dashboard setting and a ~2 minute
+outage (that doc §4 Step 0 recommends **Small**, 2 GB, ~$15/month, and the Pro
+plan's $10 credit comes off it); trimming `lift_log_backups` is a destructive
+production change and §2.6 says explicitly not to delete anything without a
+fresh backup. Both are the founder's calls. The real fix is the code work in
+§4 of that document, which is Deveen's area and still unstarted.
+
+I could not read the current compute size or the live CPU/memory charts: the
+Supabase MCP has no access to project `bpvvvqjsfwmmfjvvijkd` (§1 of this
+handover), so "Micro" is the September record, not a reading from today.
