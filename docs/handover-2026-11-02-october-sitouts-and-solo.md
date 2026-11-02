@@ -960,3 +960,36 @@ wrong too, it is not, and that is new information.
 `d2c3870` is committed and **not pushed**. Pushing to `main` deploys to
 production, and the founder has not been asked preview-or-main for this change
 (CLAUDE.md §4). Nine commits now sit ahead of `origin/main`, eight of them docs.
+
+---
+
+## 20. Pushed to main and live
+
+The founder's answer to the deployment question, 2 November: straight to `main`.
+
+- `git fetch`, confirmed `origin/main` (`8555514`) was an ancestor of `HEAD`;
+  11 commits ahead, 0 behind.
+- Re-ran `npm run lint` (exit 0) and `npm run build` (exit 0) immediately
+  before pushing.
+- Reviewed the full diff against `origin/main`: `src/lib/api.js` (+20/-1) and
+  three docs — `docs/HANDOVERS.md`, this handover, and
+  `docs/handover-2026-10-29-for-deveen-active.md`. Nothing else.
+- Pushed with `--force-with-lease=refs/heads/main:8555514`.
+  `8555514..3e89c28  main -> main`.
+
+Verified live:
+
+- Vercel deployment `7498884356` for `3e89c28` reports **success**.
+- The live bundle is `assets/index-EORwBvN-.js` (Vercel builds its own, so the
+  hash differs from the local `index-CcxnpRO-.js`; the code is what matters).
+  The guard is in it, minified:
+  `Object.values(t?.groups||{}).some(r=>r?.lastMonth&&r.lastMonth!==Le)?null:t`
+  inside the cache read — `Le` is `curKey`.
+- Loaded `https://lift-log-nu.vercel.app` in the browser pane: the signed-out
+  page renders and there are **zero console errors**.
+
+**It is live in production.** What it does not do is unchanged from §19: it
+stops a closed month being shown, it does not make a failed refresh say
+anything, and it may leave a member in Enrico's position looking at a loading
+screen instead. Enrico has been asked to open the site in Safari, which has no
+saved copy of its own; his answer is the test of the §17/§19 diagnosis.
