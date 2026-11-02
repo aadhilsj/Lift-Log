@@ -21,6 +21,7 @@ taken from the older docs. Where an older doc is now wrong, this one says so.
 | 9. Two open bugs | Prorated target, lazy month close — both still open |
 | 10. App-side database changes | 22–23 Oct, recorded so nothing surprises you |
 | **11. enrico's October, 2 Nov** | **NEW. A database stall read as data loss. Three client bugs — §11** |
+| **12. BEFORE THE APP STORE** | **NEW. The four things that must land before launch, and why — §12** |
 
 ---
 
@@ -419,3 +420,60 @@ fails.
 No code, no settings, no data. **Step 0 is still Aadhil's** and is now overdue:
 §6 of this handover established production runs on **Nano**, below the Micro the
 September analysis assumed.
+
+---
+
+## 12. BEFORE THE APP STORE — Aadhil's words, and why this is now the top of the list
+
+Aadhil, 2 November, after enrico's report:
+
+> "If these problems continue to happen once we're in the App Store and once we
+> publicly launch and we have a lot more users, this is going to be bad."
+
+He is right, and the arithmetic is on his side. **On 14 September, two to four
+phones took the database down.** The App Store means hundreds. The load grows
+with *people online × actions × total data*, not with member count, so it rises
+far faster than the roster does. **Nobody knows the real ceiling, because the
+load test in `scaling-before-launch-2026-09-15.md` §6 has never been run.**
+
+And this is now at least the **fourth** time members have seen a stall as data
+loss: 14 September (two phones, 15–44 s requests, a comment stored twice),
+22 September, 29 September (`recurring-debugging-playbook.md:650`, *"second
+occurrence after 22 September"*), and 2 November. The playbook's own rule has
+been written down since 29 September and the code still does not follow it:
+
+> "'I couldn't check' is never 'it is gone', just as it is never 'you are not
+> signed in'."
+
+### The four things, in the order they should land
+
+| # | What | Whose | Why it cannot wait for launch |
+| --- | --- | --- | --- |
+| 1 | **Compute: Nano → Micro** (§6) | **Aadhil** | Two clicks, ~$10/month, ~2 min downtime. Buys headroom while 3 and 4 are built. Fixes nothing on its own |
+| 2 | **Surface a failed refresh** (§11.2) | **You** | The cheapest launch-blocker by a distance. The state already exists and is thrown away — `syncError` reaches `Nav` and is never rendered. This is the single thing that turns a 20-second hiccup into "the app deleted my month" |
+| 3 | **Stop signing members out on a server failure** (§11.3) | **You** | A starved Auth service currently reads as "your session is invalid". Members get logged out of a working account |
+| 4 | **Scope reads to the member's own Blocs, and a revision per Bloc** (§5 Steps 1–2) | **You** | The only item that stops the stalls happening. 1–3 stop them *looking* like data loss; this stops them |
+
+Shipped on 2 November, ahead of all of the above because a member was affected:
+**`d2c3870`** — `readCachedData` no longer serves a cache whose Bloc sits behind
+the calendar. That removes the *wrong month*. It does **not** remove the silence,
+which is why item 2 stays at the top of your list.
+
+### One thing that is not yet understood, and matters for item 2
+
+enrico was still wrong after a force-quit, with the database healthy and the
+revision moving. §11.1 explains why a restart cannot clear the cache, but not why
+a *successful* refresh had not overwritten it. If his refreshes are genuinely
+still not landing, then item 2 is not cosmetic — it is the only thing that would
+have told anyone, him included, what was actually wrong. **Not guessed at
+further.** The evidence that would settle it is named in §11.
+
+### A second cause of the same symptom, found while verifying the fix
+
+The sandbox reproduces enrico's screen exactly — "NOVEMBER · DAY 2/30" above
+"Your September Recap" — for a different reason: its Bloc has
+`lastMonth: 2026-9` **on the server**. That is your §9 lazy month close. So the
+same symptom has two causes, and the 2 November fix only addresses the client
+one. A Bloc left half-closed on production would show every one of its members
+the September-recap screen, and no cache fix can help that. Worth folding into
+§9 when you shape it.
