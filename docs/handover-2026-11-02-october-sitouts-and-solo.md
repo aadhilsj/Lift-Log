@@ -993,3 +993,62 @@ stops a closed month being shown, it does not make a failed refresh say
 anything, and it may leave a member in Enrico's position looking at a loading
 screen instead. Enrico has been asked to open the site in Safari, which has no
 saved copy of its own; his answer is the test of the §17/§19 diagnosis.
+
+---
+
+## 21. How far does the stale-month bug reach?
+
+The founder asked, 2 November: *"I also don't know whether this problem is
+affecting other people, you know... What if it is affecting other people?"*
+
+Two separate questions, because §19 established there are two causes of the
+same symptom.
+
+### Cause A — the server leaves a Bloc in a closed month. Nobody is affected.
+
+Checked every live Bloc's `lastMonth` against `curKey` (`2026-10`, November):
+
+```
+ 0 of 13 Blocs stale.  All 13 read lastMonth=2026-10.
+```
+
+So Deveen's §9 lazy month close has not bitten anyone in production today.
+The sandbox reproduces it because its seed Bloc is left on `2026-9`.
+
+### Cause B — a phone showing its own stale cache. 12 members cleared, 37 unprovable.
+
+A member whose app cannot reach the server also cannot write to it, so a
+November write is proof that the member's app is syncing. Across the 50 active
+members of all 13 Blocs, taking the most recent `createdAt` in
+`groups.*.logs.<name>`:
+
+- **12 proven fine** — Masha, Mathias, Janodhe_W, Aysha, Shaq, Henrik,
+  Margareta, Tri, Rahul, Aadhil, Marlène, imadh. Each wrote between
+  1 November 02:09 and 2 November 13:07 UTC.
+- **38 with no November write.** One of them, enrico, is known broken. The
+  other 37 cannot be cleared or condemned from the server: the overwhelmingly
+  likely explanation is that they simply have not trained yet in November.
+
+**The server cannot tell us who is affected.** Nothing records a client's cache
+state or a failed read. That is itself a finding, and it is the argument for
+item 2 of Deveen's §12 (surface a failed refresh): today a member in Enrico's
+position is invisible to us until they complain.
+
+### Why it now self-heals, and the limit on that
+
+`reloadIfNewBuild` (playbook, "The Code Is Right But A Phone Is Running An Old
+Version", shipped 2026-09-17, PR #22) rides the revision poll: the server
+returns the deployed commit and the app reloads once when it differs. So any
+phone that can reach the server will pick up `3e89c28` on its own, discard a
+stale cache, and load correctly — without the member doing anything.
+
+The limit is the obvious one: a phone that cannot reach the server gets neither
+the new bundle nor fresh data. For that phone the only lever is the member
+opening the site in a browser, which has no cache of its own.
+
+### What was not done
+
+Not checked: Vercel request logs for the 31 October – 2 November window, which
+might show how many clients were getting failures rather than how many wrote
+successfully. That is the one remaining source that could turn "37 unprovable"
+into a number, and it is worth doing before the App Store.
