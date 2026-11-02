@@ -781,3 +781,94 @@ The data is fine and was never damaged. The database recovered by about 14:30
 UTC. He should force-quit and reopen once more; it will be correct, because a
 successful refresh overwrites the cache. If it is not, that is new information
 and worth a fresh look.
+
+---
+
+## 18. It did not clear, it has happened before, and two corrections I owe
+
+### enrico force-quit and reopened. Still wrong.
+
+So §17's "reopen and it will be fine" was not enough. Checked again, and the
+server is provably not at fault — this now includes the one test §17 did not do,
+the scoped payload for **his own user id**:
+
+| Step in the read path | October (`2026-9`) |
+| --- | --- |
+| Raw blob, revision 3398 | `2026-5 … 2026-9` — present |
+| `buildCanonicalMonthHistoryForGroup` over live canonical rows | `2026-5 … 2026-9` — present |
+| `scopeReadableStateForUser(…, 4f2561d9-…)` — **enrico** | `2026-5 … 2026-9` — present, Cutie pie excused, three Solos at target 6, counts right |
+| Vercel runtime logs 15:06:57–15:07:32 | 35×200, 15×204, zero non-2xx |
+
+**The server sends him correct data. His device is not applying it.**
+
+### Why a restart cannot fix it
+
+`LOCAL_CACHE_KEY` is `ll_cached_data_v2` (`src/lib/appState.js:163`). It is
+written (`src/lib/api.js:1053`) and read (`:1041`). **There is no `removeItem`
+for it anywhere in `src/`** — the only `removeItem` calls are for the selected
+Bloc, the install prompt, dev impersonation, the preview auth key and the auth
+session hint. `signOutAuthSession` (`:226`) signs out of Supabase Auth and leaves
+it alone.
+
+So that cached copy can only ever be **overwritten by a successful apply**. It
+cannot be cleared by quitting, by reopening, or by signing out and in. That is a
+real bug on its own, independent of the stall.
+
+### What is still not explained
+
+Why a *successful* refresh has not overwritten it. The canonical revision is
+moving — 6467 at 15:08 UTC, `last_reason` a reaction on another Bloc — so his
+poll should be seeing new revisions and refetching. Either his requests are still
+failing for a reason not visible from here, or something holds the apply off.
+**Not guessed at.** What would settle it, from his phone: the browser console on
+`lift-log-nu.vercel.app`, or `localStorage.ll_cached_data_v2`'s `meta.revision`.
+
+Given the above, the thing that will definitely clear it is clearing the app's
+stored site data, or deleting and reinstalling the app.
+
+### Has this happened before? Yes — this is at least the fourth time
+
+| When | Record |
+| --- | --- |
+| 14 Sep | `scaling-before-launch-2026-09-15.md` — 2–4 phones overloaded the database; 15–44 s requests; a comment stored twice |
+| 22 Sep | first occurrence of "An Outage That Looks Like Data Loss" |
+| 29 Sep | `recurring-debugging-playbook.md:650` — **"second occurrence after 22 September"**. Reactions looked deleted, comments never loaded, both recovered with no deploy. A Supabase outage, 346×504 and 56×500 in one hour. **"The writes succeeded and the reads failed."** |
+| 2 Nov | this |
+
+The playbook already carries the rule, and the code still does not follow it:
+
+> "This is the third entry in this family. 'I couldn't check' is never 'it is
+> gone', just as it is never 'you are not signed in'."
+
+Its own fix rule — *"Confirm in the database whether the data is actually gone
+before touching any code. Twice now it was not."* — held again today. Three times
+now it was not.
+
+### Correction 1 — the server is Nano, not Micro
+
+§16 said **Micro**, taken from `scaling-before-launch-2026-09-15.md`. That is
+wrong and was already corrected in
+[`handover-2026-10-29-for-deveen-active.md`](handover-2026-10-29-for-deveen-active.md)
+§6: checked on 26 October via the Management API,
+`"selected_addons": []`, so production runs on the **default Nano** — a size
+*below* Micro. Micro is a ~$10/month add-on and has never been bought. **The
+real ceiling is lower than the September analysis assumed, not higher.** I should
+have read Deveen's active handover before quoting the older doc.
+
+### Correction 2 — the test results in §16 were counted the wrong way
+
+§16 said "23 `test:*` suites, all pass". That was produced by grepping output for
+failure strings — the exact method
+`recurring-debugging-playbook.md` warns about under "Counting Test Passes By
+Grepping Output": *"The recipe in earlier handovers is wrong and reported false
+greens."* Re-run by **exit code**, as that entry prescribes:
+
+- **25 of 27 pass.**
+- `test:auth-edge-flows` and `test:mobile-navigation` **fail**, because both open
+  `http://127.0.0.1:3000` and nothing was serving it. The playbook says these are
+  environment-dependent and must be reported as **not run**, never as passing.
+- §16 also listed `test:month-close-canonical`, `test:remirror`,
+  `test:profile-photo-storage` and `test:account-deletion` as "not run". They all
+  **pass**.
+
+So: 25 pass, 2 not run. No suite genuinely fails.
