@@ -3525,6 +3525,108 @@ const App = () => {
     );
   };
 
+
+  // A refresh that fails has always been silent: the last good screen stays up
+  // with nothing to say it is stale. enrico spent 2 November looking at 31
+  // October's data believing his October had been deleted, because the app had
+  // no way to tell him it could not reach the server. The playbook calls this
+  // family out twice -- "A Failed Mutation That Says Nothing" and "A Failed
+  // Load That Never Stops Looking Like Loading" -- and the rule is the same
+  // both times: a real failure must reach a terminal state, say so, and offer
+  // a way to retry.
+  //
+  // `syncError` has been maintained correctly at every call site since long
+  // before this and passed to Nav, which never drew it. This is the drawing.
+  //
+  // It is a fixed overlay on purpose. It must not move the layout: no card
+  // changes size, nothing shifts down. It sits above the bottom bar, steps up
+  // when the install prompt already occupies that slot, and is gated off while
+  // a full-screen sheet is open so it cannot float over one.
+  const renderSyncErrorNotice = () => {
+    if (!syncError || loading || !authSession?.userId) return null;
+    if (showSettings || showStream || logCommentScreen) return null;
+    const bottomOffset = inviteDownloadPrompt
+      ? "calc(228px + env(safe-area-inset-bottom))"
+      : "calc(106px + env(safe-area-inset-bottom))";
+    return React.createElement('div',{
+      style:{
+        position:"fixed",
+        left:16,
+        right:16,
+        bottom:bottomOffset,
+        zIndex:400,
+        display:"flex",
+        justifyContent:"center",
+        pointerEvents:"none"
+      }
+    },
+      React.createElement('div',{
+        style:{
+          display:"flex",
+          alignItems:"center",
+          gap:10,
+          maxWidth:360,
+          width:"fit-content",
+          border:"0.5px solid rgba(255,91,91,.24)",
+          borderRadius:16,
+          padding:"10px 10px 10px 14px",
+          background:"rgba(8,15,15,.95)",
+          boxShadow:"0 18px 46px rgba(0,0,0,.36)",
+          pointerEvents:"auto"
+        }
+      },
+        React.createElement('span',{
+          style:{
+            width:6,
+            height:6,
+            borderRadius:999,
+            background:"#FF5B5B",
+            flexShrink:0
+          }
+        }),
+        React.createElement('div',{style:{display:"grid",gap:1,minWidth:0}},
+          React.createElement('span',{
+            style:{
+              fontFamily:"'Outfit', sans-serif",
+              fontSize:12.5,
+              fontWeight:900,
+              color:"var(--text)",
+              lineHeight:1.25,
+              whiteSpace:"nowrap"
+            }
+          },"Can't reach Fero"),
+          React.createElement('span',{
+            style:{
+              fontFamily:"'Outfit', sans-serif",
+              fontSize:11,
+              fontWeight:700,
+              color:"var(--text-soft)",
+              lineHeight:1.25,
+              whiteSpace:"nowrap"
+            }
+          },"This may be out of date")
+        ),
+        React.createElement('button',{
+          type:"button",
+          onClick:refreshNow,
+          disabled:syncing,
+          style:{
+            minHeight:28,
+            padding:"0 12px",
+            borderRadius:999,
+            background:"rgba(255,91,91,.12)",
+            border:"0.5px solid rgba(255,91,91,.28)",
+            color:"#FF5B5B",
+            fontFamily:"'Outfit', sans-serif",
+            fontSize:12,
+            fontWeight:900,
+            flexShrink:0,
+            opacity:syncing?.6:1
+          }
+        },syncing?"Retrying":"Retry")
+      )
+    );
+  };
   const resumeColdOnboardingAtActionScreen = useCallback(() => {
     setColdOnboardingInitialIndex(3);
     setReplayColdOnboarding(true);
@@ -3996,6 +4098,7 @@ const App = () => {
     renderInviteJoinToast(),
     renderProfilePhotoToast(),
     renderInviteDownloadPrompt(),
+    renderSyncErrorNotice(),
     showFounderDashboard && React.createElement(FounderDashboard,{onClose:()=>setShowFounderDashboard(false)}),
     logCommentScreen && React.createElement('div',{
       style:{position:"fixed",inset:0,zIndex:520,overflow:"hidden",pointerEvents:"auto",background:"transparent"}

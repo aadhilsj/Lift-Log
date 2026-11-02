@@ -1052,3 +1052,62 @@ Not checked: Vercel request logs for the 31 October – 2 November window, which
 might show how many clients were getting failures rather than how many wrote
 successfully. That is the one remaining source that could turn "37 unprovable"
 into a number, and it is worth doing before the App Store.
+
+---
+
+## 22. The offline notice — built, verified, not pushed
+
+Item 2 of Deveen's §12, approved by the founder on 2 November with one
+condition: *"show me how it looks like, how that error screen would look like"*
+before it goes live.
+
+**One file, `src/App.jsx`, +103 lines.** `renderSyncErrorNotice`, mounted next
+to the existing toasts. Nothing else changed.
+
+`syncError` has been set correctly at every call site in `App.jsx` for months
+and passed to `Nav`, which never drew it. This only draws it.
+
+### What it looks like
+
+A compact card above the bottom bar: a red dot, "Can't reach Fero" with "This
+may be out of date" beneath it, and a Retry button. Pill geometry was tried
+first and rejected — the copy wrapped onto two lines and the pill bloated. The
+screenshot shown to the founder was taken at 375x812 against the sandbox with
+"Finish setup" and "Local test identity" hidden, per his standing preference
+for previews.
+
+### Verified, in the browser, not by eye
+
+| Behaviour | Result |
+|---|---|
+| Appears when a refresh fails | yes, within one 6s poll |
+| Stays up when a retry also fails | yes — it does not lie |
+| Clears when Retry succeeds | yes |
+| Clears on its own when the poll recovers | yes |
+| Layout shift | **none** — `scrollHeight/clientHeight/scrollWidth/clientWidth` byte-identical with the notice visible and hidden |
+| Horizontal overflow | none (`scrollWidth === clientWidth === 375`) |
+
+Notice rect: 343x51 at x=16, y=655. It is a fixed overlay, so no card resizes
+and nothing shifts down.
+
+Gated off while Settings, the Bloc Stream or a comment thread is open, so it
+cannot float over a full-screen sheet. Steps up to clear the install prompt
+when that already occupies the same slot.
+
+**Not observed:** the "Retrying" label while a retry is in flight. It is a
+one-line conditional on the same `syncing` flag `refreshNow` already sets, but
+every attempt to sample it raced the request. Stated rather than claimed.
+
+### Checks
+
+- `npm run lint` exit 0, `npm run build` exit 0.
+- All 27 `test:*` suites by exit code: **25 pass, 2 fail** —
+  `test:auth-edge-flows` and `test:mobile-navigation`, both Playwright
+  timeouts waiting for seeded text. Identical to the baseline before this
+  change. Today's sandbox seed could not complete its September rollover (the
+  seed script assumes it runs one month after the month it closes, and the
+  sandbox answers canonical RPCs with `[]`), so the text those two wait for is
+  genuinely absent from the sandbox.
+
+**Committed locally, not pushed.** Waiting on the founder's look at the
+screenshot.
