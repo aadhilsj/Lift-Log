@@ -20,6 +20,7 @@ taken from the older docs. Where an older doc is now wrong, this one says so.
 | 8. Carried forward | Region, offline outbox, download size, CI not blocking |
 | 9. Two open bugs | Prorated target, lazy month close — both still open |
 | 10. App-side database changes | 22–23 Oct, recorded so nothing surprises you |
+| **11. enrico's October, 2 Nov** | **NEW. A database stall read as data loss. Three client bugs — §11** |
 
 ---
 
@@ -297,3 +298,124 @@ key — but you know this area better, so it is flagged rather than assumed.
 **Still open and Aadhil knows:** the monthly score still counts every workout,
 so a twelve-workout month can now be done in two days. He is weighing capping
 the score at the first two of a day while still showing the rest. **Not built.**
+
+---
+
+## 11. ADDED 2 November — a member saw October disappear, and it did not come back
+
+From Aadhil's session of 2 November. Full working in
+[`handover-2026-11-02-october-sitouts-and-solo.md`](handover-2026-11-02-october-sitouts-and-solo.md)
+§16–§18. This is §5 of this handover arriving in the field, plus three client
+bugs that turn a database stall into something a member reads as data loss.
+
+### What happened
+
+A database stall, roughly **14:10–14:30 UTC on 2 November**, measured from a
+laptop with network time isolated (connect 15–21 ms, TLS 33–41 ms throughout):
+
+- `POST /api/lift-log` → **500 after 63 s**, `57014 canceling statement due to
+  statement timeout`.
+- The same request again → **no response inside 90 s**.
+- `POST` with an unsupported action — a path that touches **no database at all**,
+  the state getters at `api/lift-log.js:10106` being lazy — → the correct `400`,
+  **after 68 s**. The function was waiting on a connection, not a query.
+- A one-row one-column read of `lift_log_state`: **70.0 s**, then 6.1 s; later
+  **29.2 s** → 4.2 → 0.25; later **13.8 s** → 6.2 → 1.3 → 0.17.
+- `/auth/v1/health`: **4.8 s**.
+
+**enrico (Ctrl Alt De-feat) reported at 15:22–15:30 Oslo = 14:22–14:30 UTC** —
+inside that window: October gone from history, a "Your September Recap" banner,
+signed out, a slow sign-in, and the Bloc's three Solo members showing without
+their Solo marker while their counts still rendered.
+
+### No data was lost, and the server is not at fault
+
+| Check | Result |
+| --- | --- |
+| Blob, revision **3398**, last written **13:07 UTC** — *before* the stall | October present, Cutie pie excused, Rodri/Varun/Bianković solo at target 6 |
+| Canonical `read_ante_core_month_history` | identical — same eight members, same flags, same counts |
+| `buildCanonicalMonthHistoryForGroup` over the live rows | `2026-5 … 2026-9`, October intact |
+| `scopeReadableStateForUser` **for enrico's own user id** | `2026-5 … 2026-9`, October intact, flags intact |
+| Vercel runtime logs, 15:06:57–15:07:32 | 35×200, 15×204, **zero** non-2xx |
+
+Nothing was written during or after the stall. The guards hold: both
+`fetchAnteMonthHistory` (`:4421`) and `buildCanonicalMonthHistoryForGroup`
+(`:2209`) return the blob on empty, and the overlay `continue`s past any month
+where `canonicalCoverage < blobCoverage`. CLAUDE.md §6 is honoured end to end.
+
+### Three client bugs — these are the ones to fix
+
+**11.1 — The state cache is never deleted.** `LOCAL_CACHE_KEY`
+(`ll_cached_data_v2`, `src/lib/appState.js:163`) is written at
+`src/lib/api.js:1053` and read at `:1041`. **There is no `removeItem` for it
+anywhere in `src/`.** `signOutAuthSession` (`:226`) signs out of Supabase Auth
+and leaves it untouched. So signing out, signing back in, and force-quitting all
+re-render the same stale copy — it can only ever be *overwritten* by a
+successful apply. **This is why enrico's force-quit did not clear it.**
+
+**11.2 — A stale screen is indistinguishable from a fresh one.** `App.jsx:1145`
+renders `readCachedData()` and calls `setLoading(false)` before any network
+call. `fetchData` (`src/lib/api.js:356`) returns `null` on any non-OK response,
+so the 500 became `setSyncError(true)` and nothing more. **`syncError` is passed
+into `Nav` (`src/pages/Nav.jsx:83`) and never used** — it appears exactly once in
+that file, in the parameter list, as do `syncing`, `lastSyncedAt`,
+`showJustSynced` and `onRefresh`. A grep of `src/pages` and `src/components` for
+"out of date", "unable to sync", "offline", "stale" or "last synced" returns
+nothing. Not a regression from the July split: `git show a79d02d^:src/app.jsx`
+shows it already passed-and-unused.
+
+Worse, `refreshNow` (`App.jsx:1060`) treats a *rejected* apply as success:
+`if (!applied) setSyncError(false)`.
+
+**11.3 — A server failure can sign a member out.** `fetchData` calls
+`signOutAuthSession()` on a 401 after one failed refresh (`:379`, `:386`). Every
+API call validates the token against Supabase Auth on each request (§2.4 of the
+scaling doc), and Auth measured 4.8 s during the stall. An infrastructure stall
+therefore presents to a member as "your session is invalid". The playbook already
+states the rule — *"'I couldn't check' is never 'it is gone', just as it is never
+'you are not signed in'"* — and the code does not follow it.
+
+### Why the symptoms matched a pre-close cache exactly
+
+enrico's cached copy predates the 1 November close:
+
+| Symptom | Mechanism |
+| --- | --- |
+| October gone from history | his cached `monthHistory` ends at September; October was the *open* month in that copy |
+| "Your September Recap" | September is the latest closed month in that copy |
+| November header, November-looking counts | the current month comes from the device clock (`CUR_MONTH`), not the data |
+| three Solo members unmarked | October's Solo is keyed `2026-9`; with the open month now `2026-10`, `isSoloForMonth` is false for all three |
+| counts still rendering | counts come from the cached logs, keyed by date, not by month status |
+
+### Not reproduced, and still open
+
+**enrico reports it is still wrong after a force-quit, with the database
+healthy.** 11.1 explains why a restart cannot clear it, but not why a *successful*
+refresh has not overwritten it — the canonical revision is moving (6467 at
+15:08 UTC, `last_reason` a reaction), so his poll should be seeing new revisions.
+Either his fetches are still failing for a reason not visible from here, or
+something else holds the apply off. **Not guessed at further.** What would settle
+it, from his phone: the browser console on `lift-log-nu.vercel.app`, or the value
+of `localStorage.ll_cached_data_v2`'s `meta.revision`.
+
+The one thing that will definitely clear it, given 11.1: clearing the app's
+stored site data, or deleting and reinstalling the app.
+
+### Also for you
+
+`fetchRevisionStamp` (`:4191`) uses `Promise.allSettled` and maps a **failed**
+revision read to `0` (`:4200–4203`). The client's poll then reads
+`revision <= latestRevisionRef.current` (`App.jsx:1153`) as "nothing changed" and
+**returns without refetching**. A failed read is being reported to the client as
+a successful "no change". Same family as everything above.
+
+Also noted, not actioned: `fetchReadableCurrentState` performs a **write** on a
+read when a rollover is pending (`:4618–4620`, `persistState(..., {rolloverOnly:
+true})`) — the lazy month close in §9. Under a stall that write is exactly what
+fails.
+
+### Nothing was changed
+
+No code, no settings, no data. **Step 0 is still Aadhil's** and is now overdue:
+§6 of this handover established production runs on **Nano**, below the Micro the
+September analysis assumed.
