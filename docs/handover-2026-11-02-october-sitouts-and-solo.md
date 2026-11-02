@@ -872,3 +872,91 @@ greens."* Re-run by **exit code**, as that entry prescribes:
   **pass**.
 
 So: 25 pass, 2 not run. No suite genuinely fails.
+
+---
+
+## 19. The fix — `d2c3870`, and a workaround that needs no reinstall
+
+The founder asked for a fix rather than telling enrico to delete the app.
+
+### Proof it is the cache, not the data
+
+enrico's leaderboard numbers, read off his screenshot, against production:
+
+| Member | His screen | October final | November so far |
+| --- | --- | --- | --- |
+| Giang | 20 | **20** | 0 |
+| Aadhil | 18 | 19 | 1 |
+| enrico | 16 | **16** | 0 |
+| Monika | 12 | **12** | 0 |
+| Bianković | 7 | 8 | 0 |
+| Varun | 7 | 9 | 0 |
+| Rodri | 6 | **6** | 0 |
+| Cutie pie | 2 | **2** | 0 |
+
+Five exact, three one or two short — the workouts logged in the last days of
+October. **His "November" screen is late-October data**, so his last successful
+sync was about 30–31 October and he has been running on that copy for two days.
+
+### The change
+
+`d2c3870`, one file, `src/lib/api.js`, 19 lines of which 11 are comment.
+`readCachedData` returns `null` when any Bloc in the cached copy has a
+`lastMonth` behind the calendar. That falls through to the normal first-load
+path and, because `App.jsx:626` seeds `latestRevisionRef` from the cache, also
+resets the revision floor to 0 so the next good response is always accepted.
+A current-month cache is still served, so instant open is unchanged.
+
+Also found while reading: `checkRollover` (`src/lib/appState.js:2151`) is
+exported and **called from nowhere** in `src/` or `api/`. Dead code. Left alone.
+
+### Verified
+
+- Eight focused checks against an enrico-shaped cache (stale discarded, current
+  served with its history and revision intact, missing cache, corrupt JSON, a
+  group with no `lastMonth`, and a write/read round trip) — all pass.
+- `npm run lint` clean, `npm run build` clean.
+- Every `test:*` suite **by exit code** (the playbook's method, not grep):
+  25 pass, `test:auth-edge-flows` and `test:mobile-navigation` fail — **the same
+  two, identically, before the change**. Both were then re-run against a live
+  server on port 3000 and still fail, at the sign-in step, waiting for auth UI
+  the sandbox stack does not serve. Environment-dependent, unrelated.
+- The built bundle (`index-CcxnpRO-.js`) loaded in the browser pane at 375×812
+  against the sandbox: the Bloc picker, the Bloc, the Today screen and the
+  leaderboard all render, **zero console errors**, no blank screen.
+
+### What this fix does not do, stated plainly
+
+It removes the **wrong month**. It does not remove the **silence** — a failed
+refresh still shows nothing. And **it may not unstick enrico.** If his refreshes
+are still not landing, discarding the cache gives him a loading screen rather
+than correct data. A loading screen is at least honest, but it is not a fix for
+him. Surfacing the sync failure (§11.2 of Deveen's handover) is the change that
+would actually tell him what is wrong, and it alters the UI, so it was not made
+without asking.
+
+**Trade-off:** a member whose Bloc the *server* reports as behind the calendar
+loses the instant-open cache and gets a loading screen every launch. All 13
+production Blocs are on `2026-10` today, so nobody is affected now.
+
+### The second cause, found while verifying
+
+The sandbox reproduces enrico's screen exactly — "NOVEMBER · DAY 2/30" over
+"Your September Recap" — because its Bloc has `lastMonth: 2026-9` **on the
+server**. That is the lazy month close (Deveen §9), not a cache at all. The same
+symptom has two causes and this fix covers only the client one.
+
+### The workaround, no deletion required
+
+On iOS a home-screen web app and Safari **do not share storage**. So opening
+`https://lift-log-nu.vercel.app` in Safari directly gives enrico an empty cache
+and, if the diagnosis is right, a correct screen immediately — with nothing
+deleted and nothing reinstalled. It is also a clean test of the diagnosis: if
+Safari is correct and the installed app is not, it is the cache; if Safari is
+wrong too, it is not, and that is new information.
+
+### Not deployed
+
+`d2c3870` is committed and **not pushed**. Pushing to `main` deploys to
+production, and the founder has not been asked preview-or-main for this change
+(CLAUDE.md §4). Nine commits now sit ahead of `origin/main`, eight of them docs.
