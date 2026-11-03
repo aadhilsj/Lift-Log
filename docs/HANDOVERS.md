@@ -18,7 +18,7 @@ the newer dated doc wins over the older.
 | [`../AGENTS.md`](../AGENTS.md) | The working agreement. `CLAUDE.md` is a symlink to it, so Codex and Claude read the same rules. |
 | [`WHATS-LIVE.md`](WHATS-LIVE.md) | What is on the website vs TestFlight right now. Beats every handover. |
 | The newest session handover in §2 | Where the last session stopped, and what it left open. |
-| [`handover-2026-10-29-for-deveen-active.md`](handover-2026-10-29-for-deveen-active.md) | Deveen's current list — scaling, migration history, the bugs still open. |
+| [`handover-2026-10-29-for-deveen-active.md`](handover-2026-10-29-for-deveen-active.md) | Deveen's current list — scaling, migration history, the bugs still open. **§12 is the App Store blocker list and §13 (3 Nov) is what changed under it: item 2 is live, items 3 and 4 are still open.** |
 | [`recurring-debugging-playbook.md`](recurring-debugging-playbook.md) | Bugs that keep coming back (swipe, flicker, reactions, stale Blocs), with the fix rules. |
 | [`solved-issues-log.md`](solved-issues-log.md) | Every bug already solved, so nobody re-derives one. |
 
@@ -45,7 +45,7 @@ Read every one of these. Each is a dated record of one session.
 
 | Date | Handover | About |
 | --- | --- | --- |
-| 2 Nov — **closed** | [`handover-2026-11-02-october-sitouts-and-solo.md`](handover-2026-11-02-october-sitouts-and-solo.md) | Three retroactive October corrections, live and verified: **Manz** (Sweat Equity) and **Cutie pie** (Ctrl Alt De-feat, granted beyond her allowance) now sit out, **Marlène** (StavanGang) is Solo at 5. Nobody owes anything for October in any of the three. Blob 3395 → 3397, backups 3484/3485. No code, no deploy. **Open:** Emma and Ashanee still fail `parity:gate`; two `SCHEMA.md` errors found and left for the founder |
+| 2–3 Nov — **open** | [`handover-2026-11-02-october-sitouts-and-solo.md`](handover-2026-11-02-october-sitouts-and-solo.md) | Started as three retroactive October corrections — **Manz** (Sweat Equity) and **Cutie pie** (Ctrl Alt De-feat, granted beyond her allowance) sit out, **Marlène** (StavanGang) Solo at 5, nobody owing anything for October. Then **enrico reported October had vanished**: a two-day-old cache shown inside a November frame, diagnosed from his own screenshot numbers. **Two client fixes now live** — `d2c3870` stops a closed month being served from cache, `40d1190` tells the member when the app cannot reach the server, with a retry that shows its own outcome. Three silent-failure bugs in the existing sync code found and fixed on the way, including a thrown request that left the app saying nothing. **Deveen: §25 is addressed to you.** **Open:** Supabase still on Nano; Emma and Ashanee fail `parity:gate`; two `SCHEMA.md` errors; `.env.local` and four `.dmg` backups sit in the work Google Drive |
 | 1 Nov — **open** | [`handover-2026-11-01-month-close.md`](handover-2026-11-01-month-close.md) | The 1 November close worked: all 13 Blocs froze October and opened November, counts exact, **no fines in the review Bloc**. **Open:** October's five `outstanding` flags are in the blob but missing from canonical, so `parity:gate` fails. Read-only — nothing changed |
 
 ### October 2026

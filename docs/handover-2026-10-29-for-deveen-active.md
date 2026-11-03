@@ -22,6 +22,7 @@ taken from the older docs. Where an older doc is now wrong, this one says so.
 | 10. App-side database changes | 22–23 Oct, recorded so nothing surprises you |
 | **11. enrico's October, 2 Nov** | **NEW. A database stall read as data loss. Three client bugs — §11** |
 | **12. BEFORE THE APP STORE** | **NEW. The four things that must land before launch, and why — §12** |
+| **13. Item 2 is LIVE, 3 Nov** | **NEW. The offline notice shipped. Items 3 and 4 are still yours — §13** |
 
 ---
 
@@ -450,7 +451,7 @@ been written down since 29 September and the code still does not follow it:
 | # | What | Whose | Why it cannot wait for launch |
 | --- | --- | --- | --- |
 | 1 | **Compute: Nano → Micro** (§6) | **Aadhil** | Two clicks, ~$10/month, ~2 min downtime. Buys headroom while 3 and 4 are built. Fixes nothing on its own |
-| 2 | **Surface a failed refresh** (§11.2) | **You** | The cheapest launch-blocker by a distance. The state already exists and is thrown away — `syncError` reaches `Nav` and is never rendered. This is the single thing that turns a 20-second hiccup into "the app deleted my month" |
+| 2 | ~~**Surface a failed refresh** (§11.2)~~ **DONE 3 Nov, live** | ~~You~~ Aadhil | Shipped at `40d1190` rather than waiting — see §13. `syncError` is now drawn, with a retry that shows its own outcome |
 | 3 | **Stop signing members out on a server failure** (§11.3) | **You** | A starved Auth service currently reads as "your session is invalid". Members get logged out of a working account |
 | 4 | **Scope reads to the member's own Blocs, and a revision per Bloc** (§5 Steps 1–2) | **You** | The only item that stops the stalls happening. 1–3 stop them *looking* like data loss; this stops them |
 
@@ -477,3 +478,82 @@ same symptom has two causes, and the 2 November fix only addresses the client
 one. A Bloc left half-closed on production would show every one of its members
 the September-recap screen, and no cache fix can help that. Worth folding into
 §9 when you shape it.
+
+---
+
+## 13. ADDED 3 November — item 2 is live, and items 3 and 4 are still yours
+
+**Read the full write-up:
+[`handover-2026-11-02-october-sitouts-and-solo.md`](handover-2026-11-02-october-sitouts-and-solo.md),
+§22–26.** That is where the detail, the measurements and the verification live.
+This section is the summary and what is left for you.
+
+### Item 2 shipped, so take it off your list
+
+`40d1190`, live on production 3 November, verified in the live bundle. Aadhil
+asked for it directly and watched it on screen before it went out, so it did not
+wait for you.
+
+What it does: when a refresh fails, the app now says **"Can't reach Fero"** above
+the bottom bar, with a Retry. Pressing Retry shows **"Reconnecting"** and a
+spinner held for at least 650ms, then either the notice disappears (it worked) or
+it reads **"Still can't reach Fero"** and stays there until a sync genuinely
+succeeds. A hung request gives up after 15s. Measured at 375x812: no layout
+shift in any of the three states.
+
+### Three bugs in the existing sync code that this exposed
+
+These were all in `src/App.jsx` before today, and two of them are squarely in
+your area of concern:
+
+1. **`refreshNow` swallowed a thrown request.** `fetchData` returns `null` for a
+   bad response but *throws* when the request cannot complete at all — offline,
+   DNS, dropped connection. The throw escaped past the `else`, so `syncError` was
+   never set and the app stayed silent in the one case a member most needs to be
+   told about. It also left an unhandled rejection in every caller that does not
+   await, which includes the focus and visibility handlers. **This is a large
+   part of why enrico got silence rather than an error**, and it would have
+   masked item 3 as well. Now caught; `refreshNow` returns a boolean.
+2. The render gate dropped the notice the instant Retry cleared `syncError`.
+3. Resetting the failed state on `syncError` going false was wrong, because the
+   focus handler calls `refreshNow`, which clears `syncError` on its way in — so
+   tabbing back into the app wiped the failure. It now keys on `lastSyncedAt`.
+
+### Still yours, neither started
+
+- **Item 3 — stop signing members out on a server failure.** Bug 1 above is
+  adjacent but not the same thing: `fetchData` still calls
+  `signOutAuthSession()` on a 401, so a starved Auth service reads as "your
+  session is invalid". Untouched.
+- **Item 4 — scope reads to the member's own Blocs, and a revision per Bloc.**
+  Untouched, and still the only item that stops the stalls rather than making
+  them legible.
+
+### Your own single-flight branch is still unmerged, and it argues for item 4
+
+`origin/perf/revision-keyed-reader-cache`, `915a2db`, 25 October. **1 ahead of
+`main`, 51 behind.** Aadhil asked on 3 November whether you had done scaling work
+in the last couple of days; nothing is visible from 1–3 November in commits,
+branches, PRs or your public GitHub events, and the migrations folder has nothing
+newer than 30 October. If you did database work straight through the Supabase
+dashboard or the Management API, that cannot be seen from here — say so and it
+gets recorded.
+
+The branch itself is real work and the numbers in its commit message are the
+clearest statement of the problem anyone has written: 1.4s and ~3,820 per-log
+subqueries to rebuild frozen history, four phones meaning 15,280 subqueries in a
+six-second window, quadratic growth, ~625x at a 100-concurrent spike. It
+collapses the eight canonical readers into one shared in-flight read, with 13
+checks in CI.
+
+Your own closing line on that branch is item 4, written a week before Aadhil and
+I reached the same place from the client side:
+
+> the server currently reads 17 Blocs and discards 16, because
+> `scopeReadableStateForUser` filters afterwards. That SQL is next, and needs
+> applying by Aadhil.
+
+**It has not been touched or rebased.** It is 51 commits behind and
+`api/lift-log.js` has moved underneath it, so it needs a rebase and a re-run of
+its 13 checks before it is worth merging. That is your call, not mine, and
+Aadhil has not asked for it to be merged.

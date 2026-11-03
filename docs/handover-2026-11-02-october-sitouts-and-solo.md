@@ -1198,3 +1198,108 @@ the notice visible and hidden in every state.
 the same two environment failures as the baseline.
 
 **Committed locally, not pushed.**
+
+---
+
+## 24. The offline notice is live
+
+Pushed to `main` on the founder's go-ahead, 3 November.
+
+- `git fetch`, `origin/main` (`44c3cd1`) confirmed an ancestor of `HEAD`,
+  3 ahead / 0 behind. Diff reviewed: `src/App.jsx` and this handover, nothing
+  else — checked explicitly with
+  `git diff --name-only | grep -v src/App.jsx | grep -v docs/`, which returned
+  nothing.
+- `npm run lint` exit 0, `npm run build` exit 0 immediately before pushing.
+- Pushed with `--force-with-lease=refs/heads/main:44c3cd1`.
+  `44c3cd1..40d1190  main -> main`.
+
+Verified live:
+
+- Vercel deployment `7518349946` for `40d1190` reports **success**.
+- Live bundle `assets/index-nvwtZVhY.js` contains all three strings:
+  `Can't reach Fero`, `Still can't reach Fero`, `Reconnecting`.
+- `https://lift-log-nu.vercel.app` loads with **zero console errors**.
+
+**Both client fixes are now live:** the stale-month cache guard (`d2c3870`,
+live since 2 November) and the offline notice with its retry states
+(`40d1190`).
+
+---
+
+## 25. For Deveen — read this before picking anything up
+
+**→ Your list is [`handover-2026-10-29-for-deveen-active.md`](handover-2026-10-29-for-deveen-active.md), §11 and §12.**
+§12 is "BEFORE THE APP STORE" and is the priority order. **Item 2 of that list
+shipped today and is live** — see §22–24 above for exactly what it does, how it
+was verified, and the three bugs in the existing sync code it exposed on the
+way. Item 1 is the founder's (Nano → Micro) and he wants to talk it through
+with you before doing it. **Items 3 and 4 are yours and neither has started.**
+
+Item 4 is the one that matters, and you already wrote the argument for it
+yourself — see §26.
+
+---
+
+## 26. What Deveen has done on scaling — asked and answered
+
+The founder asked on 3 November whether Deveen had done scaling work "yesterday
+or the day before" (1–2 November).
+
+**Nothing on 1, 2 or 3 November that is visible anywhere I can check.** Not
+guessing at a reason — recording what was looked at:
+
+| Source | Result |
+|---|---|
+| `git log --all --author=Deveen --since="14 days ago"` | last commit **25 October** |
+| Remote branches by commit date | his newest is 25 October |
+| Pull requests, all states | last was **#36, merged 23 October** |
+| `users/Deveen-Harischandra/events/public` | last event **25 October** |
+| `supabase/migrations/` | nothing newer than 30 October, and that one is not his |
+
+**Not checkable from here:** whether he changed anything directly in the
+Supabase dashboard or through the Management API. The Supabase MCP still has no
+access to project `bpvvvqjsfwmmfjvvijkd` (it lists only LifeOS and Runway), and
+asking for a Management API token is not something to do in chat. If he says he
+did database work, that is where it would be, and he can confirm it himself in
+one line.
+
+### What does exist, and it is substantial
+
+`origin/perf/revision-keyed-reader-cache`, one commit, **25 October**,
+`915a2db` — *"Collapse concurrent canonical reads into one (single-flight)"*.
+**Never merged. 1 ahead of `main`, 51 behind.**
+
+His own measurements, from the commit message:
+
+- `read_ante_core_month_history` takes **1.4s** and runs **~3,820 per-log
+  subqueries** to rebuild history that is frozen and cannot change. 45% of a
+  ~2.25 MB refresh and 70% of its time.
+- One global revision clock means any action in any Bloc makes **every** open
+  phone refresh within 6s. Four phones reacting to one comment = **15,280
+  subqueries in a six-second window** on a 1 GB instance.
+- It grows **quadratically**: a 100-concurrent launch spike is **~625x** the
+  refresh volume that already fell over at four.
+- The branch collapses the eight canonical readers into one shared in-flight
+  read: four concurrent refreshes go from 4 reads to 1, 15,280 subqueries to
+  3,820, 1.2s to 0.4s. 13 checks, wired into CI.
+- He flags the serverless caveat himself: Vercel runs many function instances,
+  so concurrent phones may miss each other. A real win, not a guaranteed Nx.
+
+And, in his own words, the structural fix that is still not done:
+
+> the server currently reads 17 Blocs and discards 16, because
+> `scopeReadableStateForUser` filters afterwards. That SQL is next, and needs
+> applying by Aadhil.
+
+That is item 4 of §12 in his handover, written independently a week later from
+the client side of the same problem. **Two people have now arrived at the same
+conclusion from opposite ends.**
+
+### What to decide
+
+The branch is 51 commits behind `main` and touches `api/lift-log.js`, which has
+moved since. It needs a rebase and a re-run of its 13 checks before it is worth
+merging — not a thing to merge blind. **Not actioned, and deliberately not
+touched:** it is Deveen's branch and the founder has not asked for it to be
+merged.
