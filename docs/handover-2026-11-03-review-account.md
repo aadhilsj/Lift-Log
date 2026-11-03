@@ -130,25 +130,74 @@ Every dashboard number now matches the pre-session snapshot exactly:
 
 Accounts 48 total, 0 new in 30 days — unchanged from before the account existed.
 
-## 6. Found, not fixed: November is empty
+## 6. November seeded (4 November)
 
-Sunday Warriors has **zero logs in November**, for all six members. October's
-history is intact and reads well, but the current month a reviewer opens into is
-blank. Left alone deliberately — it is a change the founder has not asked for.
+§6 originally recorded November as empty and left it that way. The founder
+asked for it to be filled: *"see it a few days of no activity"* — seed a few
+days of November activity.
+
+13 logs written through the app's API, all 200, spread across the first four
+days rather than dropped in a block:
+
+| Member | November | Days |
+| --- | --- | --- |
+| Tariq | 4 | 1 Gym, 2 Run, 3 Gym, 4 Padel |
+| Hana | 3 | 1 Pilates, 2 Gym, 4 Run |
+| Noah | 2 | 1 Run, 3 Gym |
+| Eli | 2 | 2 Gym, 3 Padel |
+| Leo | 2 | 3 Run, 4 Gym |
+| Fero Review | 0 | — |
+
+The reviewer stays on zero deliberately: they joined on the 3rd, and the runbook
+asks them to log a workout during review, so zero is the honest starting point
+and the first log is the demo.
+
+No two of the same activity on one day for one person, so the per-activity cap
+is never brushed. Nobody can be fined four days in — fines are computed at the
+close — so this adds life without adding risk.
+
+Read back as the reviewer: standings correct, October history still intact
+(Tariq 14, Hana 13, Noah 13, Eli 12, Leo 12).
+
+**The dashboard did not move.** 13 workouts written, `workoutUploads.allTime`
+still **2081**, week still 23, month still 33 — the Bloc-level exclusion
+holding, which is exactly what it is for. `today` reads 0 for both uploads and
+activeUsers because it is now 4 November, a new day, not because of this work;
+the daily averages shifted 19.9 → 19.6 and 13.7 → 13.6 as the new day entered
+the window.
 
 ## 7. Commits
 
 | Commit | What | Live? |
 | --- | --- | --- |
 | `ef41588` | excluded profiles resolved from Bloc membership, plus this handover | live |
-| _(pending)_ | the two account counts use the excluded set | — |
+| `ac6ed55` | the two account counts use the excluded set | live |
+| _(this one)_ | handover only — November seeded, mailbox confirmed | — |
 
 Both migrations were applied to production directly; the commits record them.
 
-## 8. Open
+## 8. Closed out
 
-- **November is empty** (§6) — the founder's call.
-- Whether the review mailbox receives the sign-in code. A code was sent to it
-  from the live project; the founder confirms the inbox.
-- TestFlight build 12 is still behind `main`.
+**Live and verified:**
+
+- `feroappreview@gmail.com` is a Fero account, **Fero Review**, in Sunday
+  Warriors — six members, October clean, November seeded.
+- **The mailbox receives the sign-in code.** Confirmed by the founder on
+  4 November, from a code sent through the live project. This was the item most
+  likely to cause an outright rejection: if Fero's mail had landed in that
+  inbox's spam, Apple could not have signed in at all.
+- The fixture is invisible to the founder dashboard on every axis — accounts,
+  active users, workout uploads — proven by the numbers holding across an
+  account creation and 13 workout writes.
+
+**Still open, none of it mine:**
+
+- **TestFlight build 12 is 45 commits behind `main`** and is the one real
+  blocker. It still carries the pre-22-October two-per-*day* cap and the
+  calendar-tap delete bug fixed in `ca248a2`. Reviewing it would mean reviewing
+  a Fero that no longer exists.
+- `support@joinfero.app` has not been tested end to end.
 - The review video.
+
+**When review is done**, deleting the fixture needs no undo here: both excluded
+arrays resolve empty and every count returns to the whole table.
