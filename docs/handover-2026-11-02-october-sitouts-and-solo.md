@@ -1303,3 +1303,41 @@ moved since. It needs a rebase and a re-run of its 13 checks before it is worth
 merging — not a thing to merge blind. **Not actioned, and deliberately not
 touched:** it is Deveen's branch and the founder has not asked for it to be
 merged.
+
+---
+
+## 27. Every question for Deveen collected into one section
+
+Aadhil asked for a single place he could send Deveen on WhatsApp — "all the
+questions, everything that needs to be answered, there in the handover" — rather
+than Deveen having to assemble the list from six sections of his own doc.
+
+Added **§14 of [`handover-2026-10-29-for-deveen-active.md`](handover-2026-10-29-for-deveen-active.md)**:
+eight numbered questions with a summary table, each pointing at the section that
+holds the detail. Three are marked **BLOCKING AADHIL** because he is explicitly
+waiting on them:
+
+1. The single-flight branch — rebase and land, or superseded? **Blocking.**
+2. Supabase Nano → Micro, ~£8–10/month — worth it yet? **Blocking.**
+3. Did he change anything on the database directly on 1–3 November? **Blocking.**
+4. Item 3 — stop signing members out on a server failure. When?
+5. Item 4 — scope reads per Bloc. When?
+6. Migration history diverged ~25 each way — which side is authoritative? (open
+   since 29 October)
+7. Prorated target can exceed the full target — recompute and clamp?
+8. The lazy month close — should it write itself when the month turns?
+
+Also recorded in §14, under "not for you", the three things that are nobody's
+yet: the load test has still never been run, the Vercel request logs for
+31 Oct – 2 Nov are unchecked, and `docs/SCHEMA.md` still carries two known errors.
+
+A pointer block was added at the top of Deveen's doc under the summary table, and
+the index row in `docs/HANDOVERS.md` now says "start at §14". Nothing in §1–§13
+of his doc was reworded.
+
+**Recommended to Aadhil, and he agreed:** do not rebase Deveen's branch for him.
+It is his code, he wrote 13 CI checks for it because the naive version fails
+subtly, and nothing is blocked by it while both client fixes are live.
+
+Commit: `docs: collect every open question for Deveen into one section`. Docs
+only — no code, no SQL, no deploy.

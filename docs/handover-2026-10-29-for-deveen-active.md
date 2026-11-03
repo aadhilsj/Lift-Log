@@ -23,6 +23,13 @@ taken from the older docs. Where an older doc is now wrong, this one says so.
 | **11. enrico's October, 2 Nov** | **NEW. A database stall read as data loss. Three client bugs — §11** |
 | **12. BEFORE THE APP STORE** | **NEW. The four things that must land before launch, and why — §12** |
 | **13. Item 2 is LIVE, 3 Nov** | **NEW. The offline notice shipped. Items 3 and 4 are still yours — §13** |
+| **14. START HERE, 3 Nov** | **Every open question for you, in one place. Eight of them; three are blocking Aadhil — §14** |
+
+> **Deveen — if you read one thing, read [§14](#14-every-open-question-for-you-in-one-place--added-3-november).**
+> It is the complete list of what is waiting on you, with no background needed.
+> Three of the eight are blocking Aadhil right now: your single-flight branch,
+> whether to pay for the Supabase upgrade, and whether you changed anything on
+> the database directly in the last few days.
 
 ---
 
@@ -557,3 +564,124 @@ I reached the same place from the client side:
 `api/lift-log.js` has moved underneath it, so it needs a rebase and a re-run of
 its 13 checks before it is worth merging. That is your call, not mine, and
 Aadhil has not asked for it to be merged.
+
+---
+
+## 14. EVERY OPEN QUESTION FOR YOU, IN ONE PLACE — added 3 November
+
+Deveen: this is the whole list. Nothing here needs you to read the rest of the
+doc first; each one says where the detail is if you want it. Answer them in this
+section, or reply to Aadhil — either is fine, but **answer all eight**, even if
+the answer is "not mine" or "no longer relevant".
+
+Aadhil is deliberately holding off on three decisions until he hears from you, so
+each of those is marked **BLOCKING AADHIL**.
+
+| # | Question | Where | Status |
+| --- | --- | --- | --- |
+| 1 | Your single-flight branch — rebase and land it, or has your thinking moved on? | §13 | **BLOCKING AADHIL** |
+| 2 | Compute Nano → Micro, ~£8–10/month — worth it now, or pointless until item 4 lands? | §12 item 1, §6 | **BLOCKING AADHIL** |
+| 3 | Did you do scaling work on 1–3 November that isn't visible in git? | §13 | Open |
+| 4 | Item 3 — stop signing members out on a server failure. When? | §12 item 3 | Open |
+| 5 | Item 4 — scope reads per Bloc, plus a revision per Bloc. When? | §12 item 4, §5 | Open |
+| 6 | Migration history has diverged ~25 entries each way. Which side is authoritative? | §3 | Open since 29 Oct |
+| 7 | Prorated target can exceed the full target — recompute and clamp, or leave it? | §9 | Needs your shape |
+| 8 | The lazy month close — should the close write itself when the month turns? | §9 | Needs your shape |
+
+### 1. Your single-flight branch — land it or drop it? **BLOCKING AADHIL**
+
+`origin/perf/revision-keyed-reader-cache`, `915a2db`, 25 October. **1 commit
+ahead of `main`, 51 behind.** `api/lift-log.js` has moved underneath it, so it
+needs a rebase and a re-run of its 13 CI checks before it could merge.
+
+Aadhil asked on 3 November whether I should rebase it for you. I told him not to
+— it is your code, you wrote 13 tests for it because the naive version goes wrong
+in subtle ways, and nothing is blocked by it today. So it is sitting untouched,
+waiting on you.
+
+**What he needs from you:** rebase it and land it yourself, hand it over with the
+gotchas written down, or say it is superseded and he will stop thinking about it.
+
+### 2. Compute Nano → Micro — is it worth the money yet? **BLOCKING AADHIL**
+
+Production is on **Nano**, the smallest instance Supabase offers — smaller than
+the older docs claimed (§6 corrected this). Micro is roughly £8–10/month, two
+clicks, ~2 minutes of downtime.
+
+Aadhil's own words on 3 November: *"I will do the Supabase thing later. I want to
+talk to Deveen about it first."* He has not bought it.
+
+**What he needs from you:** one line — buy it now for headroom while 3 and 4 are
+built, or don't bother because it fixes nothing on its own and the real win is
+item 4.
+
+### 3. Did you do scaling work that isn't in git?
+
+Aadhil said you mentioned doing scaling work on 1 or 2 November. I looked and
+found nothing from 1–3 November in commits, branches, PRs, your public GitHub
+events, or `supabase/migrations/` — your last commit and last event are both
+25 October.
+
+That is not an accusation, it is a gap in what I can see. **Work done straight
+through the Supabase dashboard or the Management API is invisible from here**,
+because the Supabase MCP in this session has no access to project
+`bpvvvqjsfwmmfjvvijkd`.
+
+**What he needs from you:** if you changed anything on the database directly —
+indexes, settings, a function, pooler config — say what, and it gets written down
+so the next session isn't guessing.
+
+### 4 and 5. Items 3 and 4 — still yours, neither started
+
+Both unchanged and untouched. Item 2 shipped on 3 November without waiting for
+you (§13) because a member was affected; these two did not.
+
+- **Item 3:** `fetchData` still calls `signOutAuthSession()` on a 401, so a
+  starved Auth service reads to the member as "your session is invalid" and logs
+  them out of a working account.
+- **Item 4:** scope reads to the member's own Blocs, and a revision per Bloc.
+  **This is the only item on the whole list that stops the stalls rather than
+  making them legible.** Your own closing line on the single-flight branch is the
+  same conclusion: the server reads 17 Blocs and discards 16.
+
+**What he needs from you:** a rough when. Not a date — just whether these are
+this week, after launch prep, or waiting on something.
+
+### 6. Migration history — which side is authoritative?
+
+Open since 29 October (§3) and still unanswered. Repo and production have
+diverged by roughly **25 entries in each direction**, because `apply_migration`
+stamps the server's own timestamp while repo files carry hand-written ones. The
+23 October cap migration is `20261023100000` locally and `20261023065455`
+remotely.
+
+`supabase db push` would attempt ~25 migrations whose content is already live.
+Some are `create or replace` and harmless; others are not. **Nobody should run
+`db push` on this project until this is decided.**
+
+### 7 and 8. The two open bugs that need your shape, not your code
+
+Both from §9, both unchanged. Neither is urgent; both need a decision before
+anyone writes the fix, and the decision is yours because it changes behaviour.
+
+- **Prorated target can exceed the full target.** Proration is computed once when
+  the admin chooses it and nothing recomputes it when the Bloc target later
+  changes. Active divas sat on a prorated 12 against a target of 11. Suggested
+  fix: recompute on target change, and clamp so it can never exceed the full
+  target.
+- **The lazy month close.** The blob rollover is computed in memory on every read
+  but only persisted on a write, so a Bloc nobody touches can sit half-closed
+  indefinitely. On 1 October that lasted hours and hid real settlements. Aadhil
+  considers it a bug and would like the close to write itself as soon as the month
+  turns.
+
+### Not for you, recorded so nothing falls down a gap
+
+- The load test in [`scaling-before-launch-2026-09-15.md`](scaling-before-launch-2026-09-15.md)
+  §6 has still never been run, so **nobody knows the real ceiling**.
+- Vercel request logs for 31 October – 2 November have not been checked; they are
+  the one remaining source that could say how many members hit the stale-month
+  bug beyond the one known case.
+- `docs/SCHEMA.md` has two errors still unedited: a `monthHistory` entry's month
+  field is `key`, not `monthKey`, and `state.meta` is not stored in the blob at
+  all.
