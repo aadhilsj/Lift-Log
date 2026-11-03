@@ -1069,10 +1069,16 @@ and passed to `Nav`, which never drew it. This only draws it.
 
 ### What it looks like
 
-A compact card above the bottom bar: a red dot, "Can't reach Fero" with "This
-may be out of date" beneath it, and a Retry button. Pill geometry was tried
-first and rejected — the copy wrapped onto two lines and the pill bloated. The
-screenshot shown to the founder was taken at 375x812 against the sandbox with
+A compact card above the bottom bar: a red dot, "Can't reach Fero", and a
+Retry button. 205x49 at x=85, y=657, centred.
+
+Two earlier versions were shown and rejected. A slim pill came first: the copy
+wrapped and the pill bloated. Then a two-line card, "Can't reach Fero" over
+"This may be out of date". The founder cut the second line on 3 November —
+*"Just simply saying can't reach Vero is fine."* The card geometry and radius
+were left exactly as they were; only the line was removed.
+
+Screenshots for the founder were taken at 375x812 against the sandbox with
 "Finish setup" and "Local test identity" hidden, per his standing preference
 for previews.
 
@@ -1087,8 +1093,10 @@ for previews.
 | Layout shift | **none** — `scrollHeight/clientHeight/scrollWidth/clientWidth` byte-identical with the notice visible and hidden |
 | Horizontal overflow | none (`scrollWidth === clientWidth === 375`) |
 
-Notice rect: 343x51 at x=16, y=655. It is a fixed overlay, so no card resizes
-and nothing shifts down.
+It is a fixed overlay, so no card resizes and nothing shifts down. Re-measured
+after the second line came out: 205x49, layout string `812,812,375,375`
+identical visible and hidden, no horizontal overflow. The three behaviours were
+re-tested on the one-line build and all still hold.
 
 Gated off while Settings, the Bloc Stream or a comment thread is open, so it
 cannot float over a full-screen sheet. Steps up to clear the install prompt
@@ -1109,5 +1117,12 @@ every attempt to sample it raced the request. Stated rather than claimed.
   sandbox answers canonical RPCs with `[]`), so the text those two wait for is
   genuinely absent from the sandbox.
 
-**Committed locally, not pushed.** Waiting on the founder's look at the
-screenshot.
+### What Retry does, since the founder asked
+
+`refreshNow` — the same request the background poll makes every 6 seconds. It
+sets `syncing`, clears the error, and re-reads the full state. On success the
+screen updates and the notice goes; on failure the notice stays. It does not
+reload the app, does not sign anyone out, sends nothing, and cannot lose a
+logged workout.
+
+**Committed locally, not pushed.** Waiting on the founder.

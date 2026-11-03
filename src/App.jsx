@@ -3584,28 +3584,16 @@ const App = () => {
             flexShrink:0
           }
         }),
-        React.createElement('div',{style:{display:"grid",gap:1,minWidth:0}},
-          React.createElement('span',{
-            style:{
-              fontFamily:"'Outfit', sans-serif",
-              fontSize:12.5,
-              fontWeight:900,
-              color:"var(--text)",
-              lineHeight:1.25,
-              whiteSpace:"nowrap"
-            }
-          },"Can't reach Fero"),
-          React.createElement('span',{
-            style:{
-              fontFamily:"'Outfit', sans-serif",
-              fontSize:11,
-              fontWeight:700,
-              color:"var(--text-soft)",
-              lineHeight:1.25,
-              whiteSpace:"nowrap"
-            }
-          },"This may be out of date")
-        ),
+        React.createElement('span',{
+          style:{
+            fontFamily:"'Outfit', sans-serif",
+            fontSize:12.5,
+            fontWeight:900,
+            color:"var(--text)",
+            lineHeight:1.25,
+            whiteSpace:"nowrap"
+          }
+        },"Can't reach Fero"),
         React.createElement('button',{
           type:"button",
           onClick:refreshNow,
