@@ -1,8 +1,17 @@
 # 2 November 2026 — three retroactive October corrections
 
-**Status: DONE and verified in production, 2 November 2026 12:28 UTC.** All
-three corrections are live in both stores. No code changed, nothing deployed.
-Blob revision **3395 → 3397**. Backups `3484` and `3485`. See §8 onward.
+**Status: CLOSED, 3 November 2026 13:30 UTC. See §28 for the close-out and the
+commits table.**
+
+The three October corrections are **DONE and verified in production, 2 November
+12:28 UTC**, live in both stores, no code changed for them. Blob revision
+**3395 → 3397**. Backups `3484` and `3485`. See §8 onward.
+
+The session then ran on into 3 November and became something larger: a member's
+October appeared to vanish, which turned out to be a stale client cache plus a
+silent failure, and **two client fixes shipped to production** as a result
+(`d2c3870` and `40d1190`). §28 says what is live, what is still open, and what
+was deliberately left alone.
 
 The founder asked for three corrections to **October 2026** (`2026-9`), the
 month that closed on 1 November:
@@ -1341,3 +1350,107 @@ subtly, and nothing is blocked by it while both client fixes are live.
 
 Commit: `docs: collect every open question for Deveen into one section`. Docs
 only — no code, no SQL, no deploy.
+
+---
+
+## 28. CLOSE-OUT — 3 November 2026, 13:30 UTC
+
+The session opened on 2 November for three retroactive October corrections and
+closed on 3 November having also shipped two client fixes to production. Nothing
+is half-finished; everything below is either live or explicitly someone's to pick
+up.
+
+### What is live on production
+
+| What | Commit | Verified |
+| --- | --- | --- |
+| Three October corrections — Manz sit-out, Cutie pie granted sit-out, Marlène Solo | no code; blob `3395 → 3397` | Read back in both stores, 2 Nov 12:28 UTC. §8–§13 |
+| **Never serve a cached month that has already closed** | `d2c3870` | Guard present in the live bundle as `…some(r=>r?.lastMonth&&r.lastMonth!==Be)?null:t`. §20 |
+| **"Can't reach Fero", with a Retry that shows its own outcome** | `40d1190` | All three strings in the live bundle; three states driven on screen at 375x812. §22–24 |
+
+Current live deployment `7519917598`, sha `04ac77b`, state **success**. The site
+returns 200 and serves `assets/index-H8ccMkuA.js`; both fixes re-confirmed in
+that exact bundle at close-out, not just in the one they shipped in.
+
+Because `reloadIfNewBuild` rides the revision poll, **any phone that can reach
+the server picks both fixes up on its own** — no reinstall, no cache clear. A
+phone that cannot reach the server is precisely the case the notice now covers.
+
+### What is open, and whose it is
+
+| # | Open item | Whose |
+| --- | --- | --- |
+| 1 | Supabase compute **Nano → Micro**, ~£8–10/month | **Aadhil** — waiting to speak to Deveen first |
+| 2 | Deveen's eight questions, three of them blocking Aadhil | **Deveen** — [his §14](handover-2026-10-29-for-deveen-active.md#14-every-open-question-for-you-in-one-place--added-3-november) |
+| 3 | Stop signing members out on a server failure (`fetchData` still calls `signOutAuthSession()` on a 401) | **Deveen** |
+| 4 | Scope reads to the member's own Blocs, plus a revision per Bloc — the only item that stops the stalls rather than making them legible | **Deveen** |
+| 5 | `origin/perf/revision-keyed-reader-cache` — 1 ahead of `main`, 51 behind, unrebased | **Deveen** |
+| 6 | Hear back from enrico on the Safari test | **Aadhil** |
+| 7 | Rotate `SUPABASE_SERVICE_ROLE_KEY`, and decide on the Google Drive mirror of `.env.local` | **Aadhil** — see §16 |
+| 8 | The load test in [`scaling-before-launch-2026-09-15.md`](scaling-before-launch-2026-09-15.md) §6 has still never been run | Unassigned |
+| 9 | Vercel request logs for 31 Oct – 2 Nov unchecked — the one source that could turn "37 unprovable" into a number | Unassigned |
+| 10 | `docs/SCHEMA.md`: a `monthHistory` entry's month field is `key`, not `monthKey`; `state.meta` is not in the blob at all | Unassigned |
+
+### Deliberately left alone
+
+- **Deveen's branch was not rebased.** Recommended against it and Aadhil agreed:
+  it is Deveen's code, he wrote 13 CI checks because the naive version fails
+  subtly, and nothing is blocked by it while both client fixes are live.
+- **`src/pages/Nav.jsx`** still takes `syncError`, `syncing`, `lastSyncedAt`,
+  `showJustSynced` and `onRefresh` at `:83` and renders none of them. Checked —
+  not a regression, pre-existing. Not touched, because nobody asked.
+- **The eight worktrees and four untracked `.dmg` backups** in the folder are all
+  pre-existing and another agent may be in them. Untouched.
+- **The score cap** (§8 of CLAUDE.md) — the founder is still thinking about
+  capping the monthly score at the first two workouts of a day. Not implemented.
+
+### What was not verified
+
+- **The 37 members with no November write cannot be cleared or condemned.** 12
+  were proven fine by their own writes; enrico is the one known failure; the
+  server keeps no record of a client that failed to load, which is itself the
+  argument for the notice. §21.
+- **Canonical behaviour was not exercised**, because the sandbox answers every
+  canonical RPC with `[]`. The notice work did not need it.
+- **Arbitrary production SQL was unavailable all session** — the Supabase MCP has
+  no access to `bpvvvqjsfwmmfjvvijkd` and lists only `LifeOS` and `Runway`.
+  Everything read from production went through `SUPABASE_SERVICE_ROLE_KEY` from
+  `.env.local` instead. Any direct dashboard work Deveen may have done is
+  therefore invisible from here — that is question 3 on his list.
+
+### Commits — 18, all pushed, `origin/main` at `04ac77b`
+
+| Commit | What | Live? |
+| --- | --- | --- |
+| `7f08aed` | Open the handover before touching anything | docs |
+| `0c35ac3` | Close out the three October corrections, applied and verified | docs |
+| `bcf2462` | Verify History and All Time; trace the Drive uploads | docs |
+| `7169fdd` | Live app health check; the September scaling incident is back | docs |
+| `c0e2830` | Correct the health check — an episode, not cold-start | docs |
+| `6a458f3` | Diagnose enrico's disappearing October | docs |
+| `1b2e52c` | Report the stall and the three client bugs to Deveen | docs |
+| `2f3ed56` | It did not clear, it has happened before, and two corrections | docs |
+| **`d2c3870`** | **Never show a cached month that has already closed** | **LIVE** |
+| `b4a2cbf` | The four things that must land before the App Store | docs |
+| `3e89c28` | Record the fix, its limits, and the Safari workaround | docs |
+| `0d50468` | The cache fix is live, verified in the live bundle | docs |
+| `44c3cd1` | How far the stale-month bug reaches — 0 Blocs, 12 members cleared | docs |
+| `51a797a` | Tell the member when the app cannot reach the server | superseded by `40d1190` |
+| `d29a37d` | Drop the second line from the offline notice | superseded by `40d1190` |
+| **`40d1190`** | **Give Retry a visible outcome, and fix three silent failures** | **LIVE** |
+| `7f77615` | The notice is live; Deveen's list linked from both ends | docs |
+| `04ac77b` | Collect every open question for Deveen into one section | docs |
+
+### Housekeeping
+
+Ports 3000, 5173, 54321 and 54322 all clear — no sandbox left running, stopped by
+PID, never `pkill -f`. Browser viewport reset. No worktree was created this
+session, so none to remove. Working tree clean apart from the four pre-existing
+`.dmg` files.
+
+### If you are the next session
+
+Read [Deveen's §14](handover-2026-10-29-for-deveen-active.md#14-every-open-question-for-you-in-one-place--added-3-november)
+first — it is the shortest complete picture of what is outstanding. The two
+client fixes above removed the *wrong month* and the *silence*. **They did not
+remove the stall.** Only open item 4 does that.
