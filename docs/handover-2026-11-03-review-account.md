@@ -78,16 +78,77 @@ Accounts 48 total, 0 new in 30 days, before and after.
 
 **Rollback** is one statement: re-run `20261030120000`.
 
-## 4. Commits
+## 4. The account
+
+Created 3 November 22:54 UTC, through the app's own API rather than by writing
+rows — the app dual-writes blob and canonical, and a hand-written account is a
+member the app cannot properly see.
+
+| Step | Result |
+| --- | --- |
+| admin create user, email confirmed | 200 |
+| `auth-sync` | 200 |
+| `upsert-profile` displayName `Fero Review` | 200 |
+| `join-group` inviteCode `FQ1GXF` | 200 |
+
+Sunday Warriors now has six members: Tariq, Hana, Noah, Eli, Leo, Fero Review.
+
+The reviewer's readable state was diffed against Tariq's and is **identical**
+for October: counts Tariq 14, Hana 13, Noah 13, Eli 12, Leo 12, nobody excused,
+target 12 — everyone clear, no fines, which was the requirement.
+
+## 5. The exclusion, verified behaviourally
+
+The account hit the live API four times before anything was checked. Afterwards:
+
+```
+email                      display_name  activity_rows  blocs
+feroappreview@gmail.com    Fero Review   0              1
+```
+
+**Zero activity rows.** That is the proof the 29 October failure did not repeat;
+reading the variable back is not possible, so this is the only honest check.
+
+### One thing the first migration missed
+
+`activeUsers` and `workoutUploads` held steady, but `accounts` moved **48 → 49**
+and `newLast30Days` **0 → 1**. The two account counts were written by
+`20261029140000`, before `v_excluded_profile_ids` existed, and still carried
+their own inline `email not like 'review.%@joinfero.app'` — so widening the
+variable did not reach them.
+
+Fixed by `20261103234500_account_counts_use_the_excluded_set.sql`, applied to
+production immediately. Both counts now use `v_excluded_profile_ids` like the
+other nine reads, and the prefix is no longer spelled out in two places.
+
+Every dashboard number now matches the pre-session snapshot exactly:
+
+| | today | week | month | allTime |
+| --- | --- | --- | --- | --- |
+| activeUsers | 18 | 21 | 28 | — |
+| workoutUploads | 11 | 23 | 33 | 2081 |
+
+Accounts 48 total, 0 new in 30 days — unchanged from before the account existed.
+
+## 6. Found, not fixed: November is empty
+
+Sunday Warriors has **zero logs in November**, for all six members. October's
+history is intact and reads well, but the current month a reviewer opens into is
+blank. Left alone deliberately — it is a change the founder has not asked for.
+
+## 7. Commits
 
 | Commit | What | Live? |
 | --- | --- | --- |
-| _(this one)_ | the migration above, plus this handover | pushed to `main`, redeploys production |
+| `ef41588` | excluded profiles resolved from Bloc membership, plus this handover | live |
+| _(pending)_ | the two account counts use the excluded set | — |
 
-## 5. Open at the time of writing
+Both migrations were applied to production directly; the commits record them.
 
-- The Fero account for `feroappreview@gmail.com` is **not created yet** — §1's
-  exclusions had to land first.
-- Behavioural verification of the exclusion still to do: sign the account in,
-  then confirm no `app_daily_activity` row was written for it.
+## 8. Open
+
+- **November is empty** (§6) — the founder's call.
+- Whether the review mailbox receives the sign-in code. A code was sent to it
+  from the live project; the founder confirms the inbox.
 - TestFlight build 12 is still behind `main`.
+- The review video.
