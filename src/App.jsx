@@ -590,6 +590,17 @@ const App = () => {
   }, [standalone]);
   const [syncing,setSyncing]=useState(false);
   const [syncError,setSyncError]=useState(false);
+  // The offline notice's Retry needs to look like it did something. A refresh
+  // against a reachable server can finish in under 100ms, which reads as a
+  // dead button, and a refresh that fails changes nothing on screen at all --
+  // the member taps, nothing moves, and they are back where enrico was. So the
+  // button holds a spinner for a minimum beat, then either the notice goes
+  // (success) or it says "Still offline" for a moment (failure) before
+  // offering Retry again.
+  const [retryState,setRetryState]=useState("idle"); // idle | retrying | failed
+  const syncErrorRef=useRef(false);
+  const retryStateRef=useRef("idle");
+  const retryTimersRef=useRef([]);
   const [lastSyncedAt,setLastSyncedAt]=useState(null);
   const [showJustSynced,setShowJustSynced]=useState(false);
   const [reactionOverrides,setReactionOverrides]=useState({});
@@ -1060,6 +1071,7 @@ const App = () => {
   const refreshNow = useCallback(async () => {
     setSyncing(true);
     setSyncError(false);
+    let ok = false;
     try {
       const data = await fetchData();
       if(data){
@@ -1067,14 +1079,75 @@ const App = () => {
         setLastSyncedAt(new Date());
         flashJustSynced();
         if (!applied) setSyncError(false);
+        ok = true;
       } else {
         setSyncError(true);
       }
+    } catch {
+      // fetchData returns null for a bad response but throws when the request
+      // itself cannot complete -- offline, DNS, a dropped connection. That
+      // throw used to escape past the `else` and leave syncError false, so the
+      // one case the member most needs to be told about was the one case the
+      // app stayed silent on, and the rejection went unhandled in every caller
+      // that does not await it. Found while making Retry show its outcome.
+      setSyncError(true);
     } finally {
       setLoading(false);
       setSyncing(false);
     }
+    return ok;
   },[applyData, flashJustSynced]);
+
+  useEffect(()=>{ syncErrorRef.current = syncError; },[syncError]);
+  useEffect(()=>{ retryStateRef.current = retryState; },[retryState]);
+  useEffect(()=>() => { retryTimersRef.current.forEach(clearTimeout); },[]);
+
+  const RETRY_MIN_SPIN_MS = 650;
+  const RETRY_TIMEOUT_MS = 15000;
+  const handleSyncRetry = useCallback(() => {
+    if (retryStateRef.current === "retrying") return;
+    retryTimersRef.current.forEach(clearTimeout);
+    retryTimersRef.current = [];
+    retryStateRef.current = "retrying";
+    setRetryState("retrying");
+    const startedAt = Date.now();
+    const settle = ok => {
+      // refreshNow's own return value, not syncErrorRef: the ref lags a render
+      // behind, so reading it here reported success on a refresh that had just
+      // failed and the "Failed" state never appeared.
+      const failed = !ok || syncErrorRef.current;
+      // A failed retry stays failed. It used to revert to the plain notice
+      // after a beat, which read as the failure quietly going away -- the exact
+      // thing this whole notice exists to stop. It clears only when a sync
+      // actually succeeds, which is what the effect below watches for.
+      setRetryState(failed ? "failed" : "idle");
+    };
+    // A request that hangs rather than failing would leave the spinner turning
+    // for as long as the phone's own network stack takes to give up, which is
+    // the "failed load that never stops looking like loading" the playbook
+    // calls out. Whichever comes first wins, and `settled` keeps the loser from
+    // overwriting the result.
+    let settled = false;
+    const finish = ok => {
+      if (settled) return;
+      settled = true;
+      const wait = Math.max(0, RETRY_MIN_SPIN_MS - (Date.now() - startedAt));
+      retryTimersRef.current.push(setTimeout(() => settle(ok), wait));
+    };
+    retryTimersRef.current.push(setTimeout(() => finish(false), RETRY_TIMEOUT_MS));
+    Promise.resolve(refreshNow()).catch(() => false).then(finish);
+  },[refreshNow]);
+
+  // The only thing that clears a stuck "Still can't reach Fero" is a sync that
+  // actually succeeded, and lastSyncedAt is the one signal that means exactly
+  // that. Keying this on syncError going false did not work: every refresh,
+  // including the one the app fires when the window regains focus, clears
+  // syncError on its way in, so tabbing back to the app reset the failure to
+  // the plain notice before failing again. Caught on screen, not in review.
+  useEffect(()=>{
+    if (!lastSyncedAt) return;
+    if (retryStateRef.current === "failed") setRetryState("idle");
+  },[lastSyncedAt]);
 
   useEffect(()=>{
     const syncStandalone = () => setStandalone(isStandalone());
@@ -3543,7 +3616,12 @@ const App = () => {
   // when the install prompt already occupies that slot, and is gated off while
   // a full-screen sheet is open so it cannot float over one.
   const renderSyncErrorNotice = () => {
-    if (!syncError || loading || !authSession?.userId) return null;
+    // refreshNow clears syncError the moment it starts, so gating on syncError
+    // alone would unmount the notice as soon as Retry was pressed and the
+    // spinner would never be seen. The notice stays while a retry is resolving.
+    // Not gated on syncError alone: every refresh clears it on the way in, so
+    // the notice would blink out and back on each poll. retryState holds it.
+    if ((!syncError && retryState === "idle") || loading || !authSession?.userId) return null;
     if (showSettings || showStream || logCommentScreen) return null;
     const bottomOffset = inviteDownloadPrompt
       ? "calc(228px + env(safe-area-inset-bottom))"
@@ -3593,13 +3671,18 @@ const App = () => {
             lineHeight:1.25,
             whiteSpace:"nowrap"
           }
-        },"Can't reach Fero"),
+        },retryState==="retrying"?"Reconnecting":retryState==="failed"?"Still can't reach Fero":"Can't reach Fero"),
         React.createElement('button',{
           type:"button",
-          onClick:refreshNow,
-          disabled:syncing,
+          onClick:handleSyncRetry,
+          disabled:retryState==="retrying",
           style:{
+            display:"flex",
+            alignItems:"center",
+            justifyContent:"center",
+            gap:6,
             minHeight:28,
+            minWidth:62,
             padding:"0 12px",
             borderRadius:999,
             background:"rgba(255,91,91,.12)",
@@ -3609,9 +3692,23 @@ const App = () => {
             fontSize:12,
             fontWeight:900,
             flexShrink:0,
-            opacity:syncing?.6:1
+            opacity:retryState==="retrying"?.7:1
           }
-        },syncing?"Retrying":"Retry")
+        },
+          retryState==="retrying"
+            ? React.createElement('span',{
+                style:{
+                  width:12,
+                  height:12,
+                  borderRadius:"50%",
+                  border:"2px solid rgba(255,91,91,.28)",
+                  borderTopColor:"#FF5B5B",
+                  animation:"spin .7s linear infinite",
+                  display:"inline-block"
+                }
+              })
+            : "Retry"
+        )
       )
     );
   };

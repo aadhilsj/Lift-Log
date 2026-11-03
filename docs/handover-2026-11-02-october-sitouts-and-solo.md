@@ -1126,3 +1126,75 @@ reload the app, does not sign anyone out, sends nothing, and cannot lose a
 logged workout.
 
 **Committed locally, not pushed.** Waiting on the founder.
+
+---
+
+## 23. Retry had to look like it did something
+
+The founder, 3 November: *"When you press retry, like, what visually happens to
+the screen? ... there should be like a loading state, you know, like a spinner
+or something"* — and then, after seeing the first attempt: *"if you press retry
+and then the spinner or whatever happens, and if it still fails, the fail sign
+should come back. It shouldn't just disappear."*
+
+Both are now in. The notice has three states, all in `src/App.jsx`:
+
+| State | Reads | Button |
+|---|---|---|
+| idle | "Can't reach Fero" | Retry |
+| retrying | "Reconnecting" | spinner, disabled |
+| failed | "Still can't reach Fero" | Retry, pressable again |
+
+The spinner is held for a minimum of 650ms. A refresh against a healthy server
+can finish in under 100ms, which reads as a dead button.
+
+**A failed retry stays failed.** The first version reverted to the plain notice
+after 1.7s, which is the failure quietly going away — the founder caught it and
+it was wrong. It now clears only when a sync genuinely succeeds.
+
+### Three bugs found while building this, all on screen rather than in review
+
+1. **`refreshNow` swallowed a thrown request.** `fetchData` returns `null` for a
+   bad response but *throws* when the request cannot complete at all — offline,
+   DNS, dropped connection. That throw escaped past the `else`, so `syncError`
+   stayed false and the one case a member most needs to be told about was the
+   one case the app said nothing. It also left an unhandled rejection in every
+   caller that does not await. Now caught, and `refreshNow` returns a boolean.
+2. **The notice unmounted the instant Retry was pressed,** because `refreshNow`
+   clears `syncError` on its way in. The spinner was never visible. The render
+   gate now holds the notice while a retry is resolving.
+3. **Tabbing back to the app wiped the failed state.** Resetting on `syncError`
+   going false looked right and was not: the focus handler calls `refreshNow`,
+   which clears `syncError` first thing. "Still can't reach Fero" reverted to
+   the plain notice before failing again. It now keys on `lastSyncedAt`, which
+   changes only on a real success.
+
+Also added: a 15s cap, because a request that *hangs* instead of failing would
+spin forever — "A Failed Load That Never Stops Looking Like Loading" in the
+playbook. Whichever settles first wins.
+
+### Measured, all three states, 375x812
+
+| State | Rect | Layout shift | Overflow |
+|---|---|---|---|
+| idle | 211x49 at x=82, y=657 | none | none |
+| retrying | 193x49 at x=91, y=657 | none | none |
+| failed | 234x49 at x=70, y=657 | none | none |
+
+Same height, same baseline, centred, inside the viewport. The card grows from
+the middle as the copy changes. Layout string `812,812,375,375` identical with
+the notice visible and hidden in every state.
+
+### Observed end to end
+
+- poll fails → notice appears
+- Retry → spinner ≥650ms → "Still can't reach Fero", and it stays through a
+  focus event and two further failed polls
+- Retry again → spins again, returns to failed
+- request hangs → spinner gives up at 15s, lands on failed
+- Retry with the server reachable → spinner, then the notice is gone
+
+`npm run lint` exit 0, `npm run build` exit 0, 25 of 27 suites by exit code with
+the same two environment failures as the baseline.
+
+**Committed locally, not pushed.**
