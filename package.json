@@ -34,6 +34,7 @@
     "test:solo-sitout-exclusion": "node scripts/test-solo-sitout-exclusion.mjs",
     "test:solo-standard-penalty": "node scripts/test-solo-standard-penalty.mjs",
     "test:yearly-allowance": "node scripts/test-yearly-allowance.mjs",
+    "test:prorated-clamp": "node scripts/test-prorated-target-clamp.mjs",
     "test:activities": "node scripts/test-activities.mjs",
     "test:notification-badge": "node scripts/test-notification-badge.mjs",
     "test:training-wheels": "node scripts/test-training-wheels.mjs",

@@ -2169,8 +2169,24 @@ function getJoinedTargetInfo(baseTarget, joinedSummary, prorationSummary = null)
 function getEffectiveTargetForMonth(group, monthKey, settingsOverride = null) {
   const baseTarget = Number(settingsOverride?.minTarget || group?.settings?.minTarget || DEFAULT_MIN_TARGET);
   const override = getSeasonOverrideForMonth(group, monthKey);
+  // Clamped to the full target, because proration means "you joined part-way
+  // through, so you owe less" -- a prorated target above the full one is not a
+  // smaller share of anything, it is arithmetic that has come adrift.
+  //
+  // It comes adrift because proration is computed once, when the admin chooses
+  // it, and nothing recomputes it if the Bloc target later changes: the
+  // settings-update path never touches season_overrides. Active divas sat on a
+  // prorated 12 against a target of 11 (handover-2026-10-29 §9).
+  //
+  // Clamping on read rather than recomputing on write is deliberate. It needs
+  // no migration, it repairs rows that are already wrong, and it cannot
+  // surprise a member mid-month by moving a target they have been working to.
+  // If the full target is LOWERED, everyone converges on the lower number,
+  // which is the generous reading and the one nobody can be hurt by. If it is
+  // RAISED, the prorated share stays where it was, which is correct -- joining
+  // late should not retroactively cost more.
   return override?.prorated && Number.isFinite(Number(override?.proratedMas))
-    ? Math.max(1, Math.round(Number(override.proratedMas)))
+    ? Math.min(baseTarget, Math.max(1, Math.round(Number(override.proratedMas))))
     : baseTarget;
 }
 
@@ -9973,6 +9989,8 @@ export {
   shouldSkipRolloverForMissingCanonicalBloc,
   // Exported for the month-close canonical test suite.
   rebuildClosedMonthSnapshotFromCanonicalLogs,
+  // Exported so the prorated-target clamp is testable.
+  getEffectiveTargetForMonth,
   // Exported so the overlay guard is pinned against the skipped-Bloc window.
   canonicalOpenMonthIsCurrentForGroup,
   buildWorkoutLogDerivedMoments,

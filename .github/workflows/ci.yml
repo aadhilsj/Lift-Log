@@ -66,6 +66,7 @@ jobs:
             test:month-sit-out-card
             test:otp-errors
             test:profile-photo-storage
+            test:prorated-clamp
             test:profile-stats-cache
             test:remirror
             test:rollover-isolation
