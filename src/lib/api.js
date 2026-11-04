@@ -283,13 +283,54 @@ async function syncAuthSessionData(sessionOverride, options = {}) {
   return last;
 }
 
+// Did Auth actually look at this token and reject it, or did we just fail to
+// ask? Only the first means the member must sign in again.
+//
+// An allowlist, not a blocklist: the blocklist version (AuthRetryableFetchError
+// or status >= 500) missed 429, and Supabase Auth rate-limits. This project has
+// already drawn real 429s in production (2026-09-04). Since every API call
+// validates its token against Auth, a rate-limited Auth during a launch spike
+// would have signed members out of working accounts en masse.
+//
+// The same line is drawn server-side in requireAuthenticatedContext
+// (api/lift-log.js): 400/401/403 becomes a 401, everything else a retryable
+// 503. The two must agree, or client and server disagree about what "signed
+// out" means -- which is how 429 slipped through the first time.
+//
+// Errors with no status at all (AuthRetryableFetchError, bare network
+// failures) are not rejections: we never reached Auth.
+function isDefinitiveAuthRejection(error) {
+  const status = Number(error?.status);
+  return status === 400 || status === 401 || status === 403;
+}
+
 async function refreshAuthSession() {
   const client = await getSupabaseAuthClient();
   const { data, error } = await client.auth.refreshSession();
   // A refresh that could not reach Supabase says nothing about the session, so
   // it throws rather than returning null: every caller signs out on null.
   // Callers already catch, and a thrown refresh becomes a sync error instead.
-  if (error?.name === "AuthRetryableFetchError" || Number(error?.status) >= 500) throw error;
+  //
+  // The test is which statuses mean "Auth looked and said no", not which mean
+  // trouble -- an allowlist, because the blocklist version missed 429.
+  // requireAuthenticatedContext in api/lift-log.js draws the same line:
+  // 400/401/403 is a rejected token and becomes a 401; everything else,
+  // including 429 and 5xx and unreachable, becomes a retryable 503.
+  //
+  // 429 is the one that matters here. Supabase Auth rate-limits, this project
+  // has already drawn real 429s in production (2026-09-04, copied into the
+  // sandbox), and the server-side fix of 2026-09-22 mapped them to 503 while
+  // this path kept reading them as "your session is invalid". Every API call
+  // validates its token against Auth, so a rate-limited or starved Auth during
+  // a launch spike would sign members out of working accounts en masse -- a
+  // fifth repeat of the failure the playbook already names: "'I couldn't
+  // check' is never 'it is gone', just as it is never 'you are not signed in'."
+  //
+  // AuthRetryableFetchError and bare network errors carry no status, so they
+  // fall outside the allowlist and throw, as before.
+  if (error && !isDefinitiveAuthRejection(error)) throw error;
+  // Past here Auth answered definitively: a rejected token, or no session to
+  // refresh. Both mean the member really does need to sign in again.
   if (error || !data?.session) return null;
   return mapSupabaseSession(data.session);
 }
@@ -1104,6 +1145,8 @@ export {
   signOutAuthSession,
   syncAuthSessionData,
   refreshAuthSession,
+  // Exported so the rejected-vs-unreachable rule is testable on its own.
+  isDefinitiveAuthRejection,
   postApi,
   fetchFounderDashboardData,
   trackUsageEvent,
