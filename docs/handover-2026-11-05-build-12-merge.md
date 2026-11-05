@@ -177,3 +177,47 @@ failed.
 Verified before pushing: `npm run lint` clean, `npm run build` clean (the page
 is copied into `dist/terms/`), and the page rendered at 375x812 in the browser
 pane against the built output.
+
+## 8. Build 12 on TestFlight, and what the founder checked on his phone
+
+Uploaded by Codex from the personal laptop at 19:13 on 5 November, **Ready to
+Submit**, internal *Fero Team* group. Its own handover is
+`docs/handover-2026-11-05-testflight-build-12-upload.md`, which lives **only on
+the build branch** — `main` cannot see it, and that is deliberate until after
+submission. Codex touched nothing outside `docs/`: confirmed by diffing
+`bdee799..` over the branch.
+
+### Verified on the founder's phone, 5 November
+
+| Check | Result |
+| --- | --- |
+| Running build 12 | **Yes** — the Today screen shows the "N to go" / "Week's MVP" pills, which replaced the four stat cards and were never in build 10 |
+| Bloc screen and nav | **Good**, founder's words |
+| Calendar tap on your own current-month day | **Fixed** — opens a sheet with the date, the caption and *Delete workout* / *Close* as separate buttons. The tap no longer starts a delete |
+| Two-per-activity cap | **Not checked on device.** It needs two real workouts logged into a live Bloc and the founder had logged nothing that day; he declined, which is the right call |
+
+### Why the unchecked one is low risk
+
+The cap is **not** a client rule. `assertWorkoutSlotAvailable` runs in
+`api/lift-log.js` (two call sites, 6996 and 8422) and the database enforces it
+atomically via `20261023100000_cap_two_per_activity_per_day.sql`. Both builds
+talk to the same backend, so the rule has been in force for build 10 users as
+well since 23 October.
+
+What build 12 adds is only what the member *sees*: the in-app pre-check and the
+message that names the activity (`Already logged 2 Run workouts for this date`)
+instead of the bare `Already logged 2 workouts for this date`. So the untested
+part is the wording, not the behaviour.
+
+Keyed on the **specific activity**, confirmed in `getWorkoutActivityKey`, which
+reads `log.activity` and only falls back to the broad `type`. Padel and Tennis
+are both Sports and count apart. Note that the comment at the top of
+`src/lib/activities.js` still says the daily cap reads the category — that
+sentence predates 22 October and is wrong; the code is right.
+
+### If it ever needs checking on a device
+
+Sign the TestFlight app in as the review account,
+`feroappreview@gmail.com` — it sits in Sunday Warriors with seeded November
+activity, and it is excluded from every founder-dashboard number, so logging
+throwaway workouts there costs nothing.
