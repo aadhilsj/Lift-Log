@@ -685,3 +685,57 @@ anyone writes the fix, and the decision is yours because it changes behaviour.
 - `docs/SCHEMA.md` has two errors still unedited: a `monthHistory` entry's month
   field is `key`, not `monthKey`, and `state.meta` is not stored in the blob at
   all.
+
+---
+
+## 15. ADDED 5 November — your scoped-reads migration is APPLIED
+
+Deveen: `20261103120000_scope_readers_to_member_blocs.sql` is **live on
+production**. Aadhil approved it on 5 November. Full detail in
+[`handover-2026-11-05-scoped-reads-applied.md`](handover-2026-11-05-scoped-reads-applied.md).
+
+**The check you asked for passed.** Both bodies were diffed against
+`pg_get_functiondef` on production before applying. The only differences were
+the signature line and your one filter line, in each function. No column added,
+dropped or reordered. The repo matched production exactly — no drift.
+
+**Equivalence proved, not assumed.** Passing every Bloc key returns
+byte-identical `jsonb` to passing nothing, for both readers: month_history
+44 rows = 44 rows, current_logs 93 rows = 93 rows, compared with `=` in SQL.
+
+**The saving, measured on production** — unscoped vs scoped to one Bloc:
+
+| Reader | Unscoped | One Bloc | |
+| --- | --- | --- | --- |
+| `read_ante_core_month_history` | 126.5 ms / 1389.7 KB | 8.6 ms / 25.3 KB | ~15x faster, ~55x smaller |
+| `read_ante_core_current_logs` | 9.4 ms / 52.5 KB | 5.6 ms / 6.0 KB | |
+
+Most members are in one or two Blocs of 17; the largest is Aadhil at six.
+
+**It is now yours again: the API half.** Nothing behaves differently yet,
+because `api/lift-log.js` still passes no argument. You said you wanted it
+applied so you could land that and measure against the real RPC instead of
+predicting. It is applied.
+
+**One trap, found the hard way.** `read_ante_core_member_bloc_keys` keys on
+`profiles.auth_user_id`, not `profiles.id`. Passing the profile id returns `[]`
+silently rather than erroring, which in production would read as "this member
+is in no Blocs" and serve them an empty app. Worth an assertion on the calling
+side.
+
+Rollback, if ever needed:
+[`docs/rollback/20261103120000-scoped-reads-PROD-BEFORE.sql`](rollback/20261103120000-scoped-reads-PROD-BEFORE.sql) —
+the definitions captured from production immediately before, plus
+`drop function if exists public.read_ante_core_member_bloc_keys(uuid);`.
+
+### Two of the eight are still unanswered, and one is blocking Aadhil
+
+You answered Q1, Q4, Q5, Q6, Q7 and Q8. Two were not touched:
+
+- **Q2 — Supabase Nano → Micro, ~£8–10/month. Still BLOCKING AADHIL.** He has
+  not bought it, because he said he wanted your view first. One line is enough:
+  worth it now for headroom, or pointless until the API half and Step 2 land.
+- **Q3 — did you change anything directly on the database on 1–3 November?**
+  Dashboard and Management API work is invisible from the repo. If you did
+  anything — an index, a setting, a function, pooler config — it is still
+  undocumented. "Nothing" is a perfectly good answer; silence is not.
