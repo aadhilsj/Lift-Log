@@ -62,6 +62,8 @@ and show its diff without committing it.
 
 - Session handover was created before build or sync work.
 - No valid signed archive has been produced and no upload has been sent.
+- The progress handover and index were committed and pushed to the build
+  branch as `bb7a433`; no application code or `ios/` files were committed.
 - Next: sign in to Apple Developer for team `SMR55A2M96`, then refresh or
   recreate the existing App Store distribution profile so it includes the
   app's existing Push Notifications capability. Re-run the Release archive
