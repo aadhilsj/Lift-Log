@@ -221,3 +221,51 @@ Sign the TestFlight app in as the review account,
 `feroappreview@gmail.com` — it sits in Sunday Warriors with seeded November
 activity, and it is excluded from every founder-dashboard number, so logging
 throwaway workouts there costs nothing.
+
+## 9. The review video, and the one real bug in it
+
+Founder recorded it on build 12 on the night of 5–6 November: **2:11, portrait,
+1170×2532, one continuous take.** Reviewed here by extracting frames (this
+laptop has no video tooling; `imageio-ffmpeg` was installed into the session
+scratchpad, not onto the machine).
+
+What it covers, in order: email sign-in → the code in Gmail → onboarding →
+the account screen → Sunday Warriors → logging a workout with a photo →
+the leaderboard updating → Activity feed → Bloc Stream → October recap →
+Profile. **More thorough than the shot list asked for**, and no real member's
+name, photo or data appears anywhere — only the seeded Tariq, Hana, Noah, Eli,
+Leo and Fero Review.
+
+### The bug: every sign-in email still says "Anté"
+
+Visible in the video at ~0:25, and confirmed read-only against the production
+auth config:
+
+| Key | Value |
+| --- | --- |
+| `mailer_subjects_magic_link` | `Your Anté sign-in code` |
+| `mailer_templates_magic_link_content` | `<h2>Your Anté sign-in code</h2>…` |
+| `smtp_sender_name` | `Fero` ✅ |
+
+The sender is right; the subject and the body carry the old product name. The
+sign-in code is **the only email Fero ever sends**, so every member who has
+ever signed in has seen it — this is not a review-only problem. Apple's
+reviewer will see an app called Fero asking them to open an email titled
+"Your Anté sign-in code".
+
+Not applied. It is a production auth-config change affecting every sign-in, and
+the founder had not asked for it; raised with him instead.
+
+### Measured, from frames sampled every 2 seconds
+
+Code entered at ~0:33, the Bloc on screen at ~0:74 — **about 40 seconds**, of
+which `Saving…` on the "Your first month" sheet alone holds ~0:62 to ~0:72,
+**10 to 12 seconds**. Nothing is broken; it is the slowest stretch in the video
+and a reviewer could read it as a hang. Not investigated — out of scope for a
+video review, and worth its own look before launch rather than before
+submission.
+
+### Not in the video
+
+Account deletion. Apple requires it to exist, not to be filmed, and it is on
+the Support page, so this is not a gap for submission.
