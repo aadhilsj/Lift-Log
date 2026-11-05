@@ -14,7 +14,7 @@ or hand-editing anything under `ios/`.
 | Build number / version | 12 / 1.0 |
 | Bundle ID | `com.aadhilsj.fero` |
 | Xcode | 27.0 |
-| TestFlight upload | Blocked: no signed archive yet |
+| TestFlight upload | Uploaded; App Store Connect processing |
 | Working tree before this handover | Clean |
 
 `git fetch` was run first. This clone's default fetch refspec tracks only the
@@ -56,23 +56,30 @@ and show its diff without committing it.
   it cannot add entitlements without signing. That archive is not suitable
   for TestFlight.
 - Apple Developer is signed in as Aadhil Shah Jahan on team `SMR55A2M96`.
-  The active profile `Fero App Store Distribution` (profile ID
-  `3GFJUL2U9V`, expires 2027-09-28) is for `Fero (com.aadhilsj.fero)` and
-  lists only In-App Purchase under enabled capabilities. Push Notifications
-  is not enabled, matching Xcode's signing error.
+  Before the approved change, profile `Fero App Store Distribution` (ID
+  `3GFJUL2U9V`, expires 2027-09-28) for `Fero (com.aadhilsj.fero)` listed only
+  In-App Purchase. Push Notifications was off, matching Xcode's signing error.
+- After the founder approved the capability change, Push Notifications was
+  enabled on the existing App ID. Apple invalidated the old profile; the
+  `Fero App Store Distribution` profile was regenerated with In-App Purchase
+  and Push Notifications enabled.
+- Xcode refreshed the profile during archive signing and used profile UUID
+  `5d8ff2ff-7825-4532-8135-103afd59cba5` plus the existing Apple Distribution
+  certificate. The resulting archive is version 1.0, build 12, and contains
+  `aps-environment=production`.
+- Xcode Organizer uploaded the archive to Apple. App Store Connect's TestFlight
+  page lists build 12 with status **Processing** (created 5 Nov 2026, 19:13).
+  It has not yet appeared as an available-to-test build.
 
 ## Progress
 
 - Session handover was created before build or sync work.
-- No valid signed archive has been produced and no upload has been sent.
-- The progress handover and index were committed and pushed to the build
-  branch as `bb7a433`; no application code or `ios/` files were committed.
-- Next: enable Push Notifications for the existing App ID and regenerate the
-  App Store distribution profile. This portal change grants the app push
-  notification capability and needs the founder's confirmation before it is
-  made. After confirmation, re-run the Release archive with the project's
-  configured manual signing, verify build 12 and its entitlements, then upload
-  to TestFlight and check Apple's result.
+- The archive upload is complete at Xcode's end. App Store Connect processing
+  remains open; check until the build is accepted or Apple reports an error.
+- The four required in-app checks remain unverified because the simulator's
+  device window rejected taps. It launched to the onboarding screen.
+- No application code or `ios/` files were committed. The only repository
+  changes are this session handover and the `docs/HANDOVERS.md` index.
 - Do not alter the project, entitlements, or any file under `ios/`; do not
   remove Push Notifications to work around the profile mismatch. Do not merge
   `main` or push anything to `main`.
