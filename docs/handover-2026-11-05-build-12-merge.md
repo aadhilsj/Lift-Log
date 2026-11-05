@@ -103,11 +103,68 @@ a local run against real data was not attempted).
 
 1. **Cut build 12 in Xcode and upload it.**
 2. **The review video.**
-3. **No Terms/EULA page** — `/terms`, `/eula` and `/legal` all return 404 on
-   the live site, checked today. The runbook had this as "not a blocker", and
-   that is probably right for Apple's form, but Fero moves money between
-   members and has nothing written down about who is responsible when someone
-   does not pay.
+3. ~~**No Terms/EULA page**~~ — **done, live.** See §7.
 4. **`payment_methods.method_type` allows `bank` as free text.** Zero rows
    today. If it is reachable in the app, the privacy labels must declare
    financial data; removing the option is the smaller change.
+
+
+## 7. Terms of Use — live at `/terms/`
+
+Commit `0970ed1`, pushed to `main` and live on
+`https://lift-log-nu.vercel.app/terms/` (HTTP 200 confirmed, page contains the
+age line). One new file, `public/terms/index.html`, 75 lines. **Nothing else
+was modified** — no app code, no styles, no other page.
+
+It reuses the same shell as `/privacy/` and `/support/`: `/legal.css`, the
+Outfit font, the `Fero` wordmark, and the same footer pattern. Effective date
+5 November 2026.
+
+### The section that matters for App Store review
+
+**"Fero does not handle money."** It states that Fero does not process, hold,
+transfer, collect or refund any payment, and has no payment processing of any
+kind. A Bloc's forfeit is an agreement between its members; what Fero shows is
+a record of what they told it they agreed. Marking an amount paid is a note in
+a shared ledger — not proof, not a settlement, and not something Fero can
+verify. Fero is not a bank, payment service, escrow, money transmitter, or a
+party to any agreement between members.
+
+This was verified against the code before it was written: settlements carry
+`payerDisplayName` and `receiverDisplayName` (missers pay achievers directly,
+not a pot Fero holds), and a grep for Stripe, PaymentIntent and StoreKit
+returns nothing anywhere in the repo.
+
+### Minimum age: 18
+
+The founder asked whether 13+ would be better, since Instagram is 13+. It
+would not, and the reasoning is recorded here so it is not re-litigated:
+
+- Instagram moves no money. Fero's settlements have a payer and a receiver, so
+  a Bloc with a forfeit is a **staked contest**, not a social feed.
+- The closest comparables are both 18+: DietBet's terms restrict the service to
+  18 and over; HealthyWage's App Store listing is rated 18+.
+- In most jurisdictions a minor cannot be bound to the forfeit they agreed to,
+  so the ledger would show a debt that is not enforceable.
+- Apple guideline 5.3.1 requires contests to be **sponsored by the developer**.
+  Fero's contests are run by the members. What keeps Fero clear of 5.3 is
+  precisely the "Fero does not handle money" section; 18+ sits more comfortably
+  beside it than 13+.
+- It is asymmetric pre-launch: lowering the age later is easy, raising it after
+  under-18s have joined is not.
+
+Context for the App Store Connect form: Apple replaced the old tiers in July
+2025. They are now **4+, 9+, 13+, 16+, 18+** — 12+ and 17+ no longer exist. The
+answer given in the questionnaire must be consistent with this 18 in the Terms,
+or Apple flags the mismatch (guideline 2.3.6).
+
+### Deliberately NOT done
+
+The `/privacy/` and `/support/` footers do **not** yet link to `/terms/`. That
+is one line in each file and was left for the founder to approve, since it
+changes two pages that are already live and already linked from App Store
+Connect.
+
+Verified before pushing: `npm run lint` clean, `npm run build` clean (the page
+is copied into `dist/terms/`), and the page rendered at 375x812 in the browser
+pane against the built output.
