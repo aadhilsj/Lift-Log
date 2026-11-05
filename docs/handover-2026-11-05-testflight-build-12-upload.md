@@ -55,8 +55,11 @@ and show its diff without committing it.
   profile and identity produced an unsigned archive; Xcode explicitly warned
   it cannot add entitlements without signing. That archive is not suitable
   for TestFlight.
-- The Apple Developer profile page is open at its sign-in screen. Passkey
-  sign-in remains in its verifying state and has not authenticated.
+- Apple Developer is signed in as Aadhil Shah Jahan on team `SMR55A2M96`.
+  The active profile `Fero App Store Distribution` (profile ID
+  `3GFJUL2U9V`, expires 2027-09-28) is for `Fero (com.aadhilsj.fero)` and
+  lists only In-App Purchase under enabled capabilities. Push Notifications
+  is not enabled, matching Xcode's signing error.
 
 ## Progress
 
@@ -64,11 +67,12 @@ and show its diff without committing it.
 - No valid signed archive has been produced and no upload has been sent.
 - The progress handover and index were committed and pushed to the build
   branch as `bb7a433`; no application code or `ios/` files were committed.
-- Next: sign in to Apple Developer for team `SMR55A2M96`, then refresh or
-  recreate the existing App Store distribution profile so it includes the
-  app's existing Push Notifications capability. Re-run the Release archive
-  with the project's configured manual signing, verify build 12 and its
-  entitlements, then upload to TestFlight and check Apple's result.
+- Next: enable Push Notifications for the existing App ID and regenerate the
+  App Store distribution profile. This portal change grants the app push
+  notification capability and needs the founder's confirmation before it is
+  made. After confirmation, re-run the Release archive with the project's
+  configured manual signing, verify build 12 and its entitlements, then upload
+  to TestFlight and check Apple's result.
 - Do not alter the project, entitlements, or any file under `ios/`; do not
   remove Push Notifications to work around the profile mismatch. Do not merge
   `main` or push anything to `main`.
