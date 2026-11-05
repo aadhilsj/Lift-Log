@@ -123,8 +123,22 @@ Xcode built a stale archive.
 
 ## 6. What not to touch
 
-- Do not change anything under `ios/`. The project, `Info.plist`,
+- Do not **hand-edit** anything under `ios/`. The project, `Info.plist`,
   entitlements and `PrivacyInfo.xcprivacy` are all set and were verified.
+
+  **`npx cap sync ios` is expected to write there and is allowed** — that is
+  the whole point of running it. Everything it generates is already ignored by
+  `ios/.gitignore`: `App/App/public` (the copied `dist/`),
+  `App/App/capacitor.config.json`, `App/Pods`, `App/build`, `DerivedData` and
+  `xcuserdata`. So `git status` should still be clean after a sync.
+
+  The one tracked file the Capacitor CLI owns is
+  `ios/App/CapApp-SPM/Package.swift`, which says `DO NOT MODIFY THIS FILE -
+  managed by Capacitor CLI commands` at the top. Its dependency list already
+  matches `package.json` (core 8.5.0, haptics 8.0.2, push-notifications 8.1.2),
+  so a sync should regenerate it byte-identically. **If `git status` shows it
+  changed, stop and report the diff rather than committing it** — a change
+  there means the plugin set moved, which is not part of this job.
 - Do not bump the build number by hand unless the upload is rejected as a
   duplicate; it is already 12.
 - Do not push to `main` from this job.
