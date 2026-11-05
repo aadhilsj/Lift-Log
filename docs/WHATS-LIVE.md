@@ -4,7 +4,28 @@
 Update it whenever something ships. Same filename forever — never date it, never
 fork it. If it disagrees with a handover, this file wins.
 
-Last updated: **23 October 2026** — **tapping a day in your own current-month
+Last updated: **5 November 2026** — **TestFlight is on build 12**, uploaded
+19:13 and showing as *Ready to Submit*, attached to the internal **Fero Team**
+group. It was cut from `claude/testflight-build-12-2026-10-21` at `bdee799`,
+which is `main` merged into the iOS branch, so the phone app has finally caught
+up with the website: the per-activity cap, the calendar-tap fix, Deveen's three
+fixes and the rest. **Every "❌" in the TestFlight column of the table below
+predates this and is no longer reliable** — the table was written against build
+10 and has not been re-checked row by row against build 12.
+
+Two things that happened to get it signed, both outside this repo: **Push
+Notifications was enabled on the Apple App ID** (`com.aadhilsj.fero`) with the
+founder's approval, and Apple regenerated the `Fero App Store Distribution`
+profile. The app has declared `aps-environment` since the wrapper was built;
+the App ID had not. **No notification will be sent and no permission prompt
+will appear** — `syncPushRegistration` is documented in the source as "checks
+existing permission, NEVER requests it", and the one function that would ask,
+`requestPushPermissionFromUserAction`, has no caller anywhere in `src/`.
+
+Also 5 November: **Terms of Use is live at `/terms/`**, and `/privacy/` and
+`/support/` now link to it. Web only — the app links to none of the three.
+
+Before that, **23 October 2026** — **tapping a day in your own current-month
 calendar shows the workout** instead of starting a delete, at `ca248a2`. Delete
 is now a second step inside the detail sheet, and only where it was allowed
 before: your own profile, current month. A closed month and another member's

@@ -92,7 +92,7 @@ npm ci
 npm run lint
 npm run build
 npx cap sync ios
-open ios/App/App.xcworkspace
+open ios/App/App.xcodeproj
 ```
 
 `npx cap sync ios` is not optional — it copies `dist/` into the iOS project and
@@ -101,6 +101,10 @@ fresh checkout has no web assets in it until this runs.
 
 In Xcode: select **Any iOS Device (arm64)**, then **Product → Archive**, then
 **Distribute App → TestFlight & App Store**.
+
+There is **no `App.xcworkspace`** on this branch — Capacitor 8 uses Swift
+Package Manager, not CocoaPods, so `App.xcodeproj` is the thing to open. An
+earlier version of this file said otherwise and was wrong.
 
 First build takes roughly 9 minutes. **A black or white screen for several
 seconds after launch is the app still loading, not a failure** — a previous
