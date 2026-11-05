@@ -158,12 +158,21 @@ Context for the App Store Connect form: Apple replaced the old tiers in July
 answer given in the questionnaire must be consistent with this 18 in the Terms,
 or Apple flags the mismatch (guideline 2.3.6).
 
-### Deliberately NOT done
+### Footer cross-links — done, live
 
-The `/privacy/` and `/support/` footers do **not** yet link to `/terms/`. That
-is one line in each file and was left for the founder to approve, since it
-changes two pages that are already live and already linked from App Store
-Connect.
+Commit `03a783a`. One line in each of `public/privacy/index.html` and
+`public/support/index.html`, adding `Terms of Use` to the footer. All three
+legal pages now cross-link to each other, so a reviewer landing on any one of
+them can reach the other two.
+
+Measured, not eyeballed: at 375px the footer is still a single line on both
+pages (`scrollWidth` 343 = `clientWidth` 343), so no row height changed.
+
+**Vercel's edge cache serves the old HTML for roughly a minute after a deploy.**
+A plain `curl` of `/privacy/` returned the pre-change footer while a
+cache-busted request on the same second returned the new one. Verified both
+ways afterwards. Worth remembering before concluding a static-page deploy
+failed.
 
 Verified before pushing: `npm run lint` clean, `npm run build` clean (the page
 is copied into `dist/terms/`), and the page rendered at 375x812 in the browser
