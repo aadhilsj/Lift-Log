@@ -72,6 +72,12 @@ and show its diff without committing it.
   5 Nov 2026 at 19:14, and attached to the existing **Fero Team** internal
   group (2 testers). The build's Test Information page shows one group and no
   individual testers.
+- The founder asked what push notifications are designed for the app. Review
+  confirmed there are no user-facing notification events designed yet. The
+  repository contains only the opt-in registration foundation: checking
+  permission, registering a device after explicit opt-in, and revoking that
+  registration. No current app call requests permission or sends those
+  notifications; prompt timing is undecided.
 
 ## Close-out
 
@@ -85,6 +91,8 @@ and show its diff without committing it.
   events, no current app call that requests permission, and the opt-in prompt
   timing remains undecided. Enabling the Apple App ID capability and signing
   entitlement does not send notifications or show a permission prompt.
+- This handover was updated after the upload to record the notification review
+  and the final TestFlight state for pickup from the other laptop.
 - No application source or `ios/` files were committed. The working tree is
   clean; only this session handover and its index entry were changed.
 
@@ -94,6 +102,7 @@ and show its diff without committing it.
 | `06d5c13` | Recorded the Apple Developer profile state. |
 | `0c4eb4c` | Recorded Push Notifications capability approval and profile regeneration. |
 | `4db98d3` | Recorded the signed archive and upload while App Store Connect processed it. |
+| `eb98a34` | Recorded the final App Store Connect status and closed out the build session. |
 - Do not alter the project, entitlements, or any file under `ios/`; do not
   remove Push Notifications to work around the profile mismatch. Do not merge
   `main` or push anything to `main`.
