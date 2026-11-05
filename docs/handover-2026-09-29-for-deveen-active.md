@@ -1,24 +1,29 @@
-# Handover for Deveen: week of 29 September (active)
+# Handover for Deveen: week of 29 September (CLOSED)
 
-From Aadhil. This replaces `docs/handover-2026-09-22-for-deveen-active.md`,
+**Superseded by
+[`handover-2026-10-29-for-deveen-active.md`](handover-2026-10-29-for-deveen-active.md),
+which is the active one.** Read this only for history and for the detail behind
+the items carried forward there.
+
+From Aadhil. This replaced `docs/handover-2026-09-22-for-deveen-active.md`,
 which is answered and closed — your 27 September rehearsal is recorded in its
-§11. Read that one only for history.
+§11.
 
 **Everything here was verified against live production on 29 September, not
 taken from the older docs.** Where an older doc is now wrong, this one says so.
 
 | | Status |
 | --- | --- |
-| 1. **`push_devices` is missing from your RLS migration** | **Needs you before 2 Oct** — re-verified on production 30 Sep, still nine tables |
-| 2. RLS production rollout | Scheduled 2–3 Oct, after the close |
+| 1. **`push_devices` is missing from your RLS migration** | **DONE 23 Oct** — see the 29 October handover §2 |
+| 2. RLS production rollout | **DONE 23 Oct** — see the 29 October handover §1 |
 | 3. The staging app pass | **No longer yours** — Aadhil is taking it |
-| 4. `fero-staging` billing and teardown | Still running, ~$9.68/month |
+| 4. `fero-staging` billing and teardown | **DONE 26 Oct** — see the 29 October handover §4 |
 | 5. Things you asked for that are now done | Nothing to do |
 | 6. Wave B | After the 1 Oct close, unchanged |
 | 7. A 14-minute total outage today | Your area — scaling/reliability |
 | 8. Still open from before | Region, outbox, download size |
 | **19. Since this was written** | The 1 Oct close held; your §10.3 ask is done |
-| **20. Scaling before launch** | **Not started. The biggest pre-launch item — read this** |
+| **20. Scaling before launch** | **Not started** — carried forward as §5 of the 29 October handover, whose §6 corrects the server size stated below |
 
 ---
 
@@ -695,3 +700,35 @@ piece of work, so launch traffic stops being hypothetical.
 - A load test at the agreed concurrency: no statement timeouts, no pool
   exhaustion, p95 reads under an agreed limit.
 - A slow or failed comment says so, and sending again does not store it twice.
+
+---
+
+## 21. Two production database changes from the app side, 22–23 October
+
+Neither is in your area to action — recorded so nothing surprises you.
+
+**`read_ante_core_notification_counts` — new, 22 October.** Returns
+`{ streamUnread, mentions, logComments }` in the one call the app already
+makes per refresh, so the notification bell became correct at **no extra round
+trip**. Deliberately shaped that way because of §20: the alternative was one
+call per Bloc per refresh. `read_ante_core_bloc_stream_unread_count` is left
+in place and unchanged, so rollback is a single `drop function`. Verified the
+new one agrees with it on `streamUnread` for **all 57 active memberships**.
+
+**`upsert_ante_core_workout_log` — replaced, 23 October.** The daily cap
+changed from two workouts per day to **two per activity per day**, on the
+founder's instruction. Everything outside the cap block is byte-identical, and
+the migration aborts unless the live function's md5 matches the revision it
+was written against.
+
+**One thing worth your eye:** the advisory lock key went from
+`workout-day:<profile>:<date>` to `workout-day:<profile>:<date>:<activity>`,
+so two different activities no longer serialise against each other. I checked
+every function on production that takes an advisory lock — only this one uses
+that key — but you know this area better than I do, so flagging it rather than
+assuming.
+
+Row counts unchanged across both; grants unchanged (`anon` and
+`authenticated` cannot execute either). Full detail in
+`handover-2026-10-19-catch-up-and-docs.md` §9 and
+`handover-2026-10-23-per-activity-cap.md`.

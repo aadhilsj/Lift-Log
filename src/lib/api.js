@@ -1,6 +1,7 @@
 import {
   LOCAL_CACHE_KEY,
   LOCAL_PREVIEW_AUTH_KEY,
+  curKey,
   resolveStateRevision,
   normalizeAppState
 } from "./appState.js";
@@ -289,13 +290,54 @@ async function syncAuthSessionData(sessionOverride, options = {}) {
   return last;
 }
 
+// Did Auth actually look at this token and reject it, or did we just fail to
+// ask? Only the first means the member must sign in again.
+//
+// An allowlist, not a blocklist: the blocklist version (AuthRetryableFetchError
+// or status >= 500) missed 429, and Supabase Auth rate-limits. This project has
+// already drawn real 429s in production (2026-09-04). Since every API call
+// validates its token against Auth, a rate-limited Auth during a launch spike
+// would have signed members out of working accounts en masse.
+//
+// The same line is drawn server-side in requireAuthenticatedContext
+// (api/lift-log.js): 400/401/403 becomes a 401, everything else a retryable
+// 503. The two must agree, or client and server disagree about what "signed
+// out" means -- which is how 429 slipped through the first time.
+//
+// Errors with no status at all (AuthRetryableFetchError, bare network
+// failures) are not rejections: we never reached Auth.
+function isDefinitiveAuthRejection(error) {
+  const status = Number(error?.status);
+  return status === 400 || status === 401 || status === 403;
+}
+
 async function refreshAuthSession() {
   const client = await getSupabaseAuthClient();
   const { data, error } = await client.auth.refreshSession();
   // A refresh that could not reach Supabase says nothing about the session, so
   // it throws rather than returning null: every caller signs out on null.
   // Callers already catch, and a thrown refresh becomes a sync error instead.
-  if (error?.name === "AuthRetryableFetchError" || Number(error?.status) >= 500) throw error;
+  //
+  // The test is which statuses mean "Auth looked and said no", not which mean
+  // trouble -- an allowlist, because the blocklist version missed 429.
+  // requireAuthenticatedContext in api/lift-log.js draws the same line:
+  // 400/401/403 is a rejected token and becomes a 401; everything else,
+  // including 429 and 5xx and unreachable, becomes a retryable 503.
+  //
+  // 429 is the one that matters here. Supabase Auth rate-limits, this project
+  // has already drawn real 429s in production (2026-09-04, copied into the
+  // sandbox), and the server-side fix of 2026-09-22 mapped them to 503 while
+  // this path kept reading them as "your session is invalid". Every API call
+  // validates its token against Auth, so a rate-limited or starved Auth during
+  // a launch spike would sign members out of working accounts en masse -- a
+  // fifth repeat of the failure the playbook already names: "'I couldn't
+  // check' is never 'it is gone', just as it is never 'you are not signed in'."
+  //
+  // AuthRetryableFetchError and bare network errors carry no status, so they
+  // fall outside the allowlist and throw, as before.
+  if (error && !isDefinitiveAuthRejection(error)) throw error;
+  // Past here Auth answered definitively: a rejected token, or no session to
+  // refresh. Both mean the member really does need to sign in again.
   if (error || !data?.session) return null;
   return mapSupabaseSession(data.session);
 }
@@ -1016,6 +1058,18 @@ async function getLogLatestCommentsData(groupId, logIds = []) {
   return { ok:true, latest };
 }
 
+// The threads you are in but do not own, keyed by log id. Carries the log's
+// own display fields so a row can render without the client holding that
+// workout. Empty is a normal answer, exactly as above.
+async function getLogThreadsData(groupId) {
+  const result = await postApi("log-threads", { groupId });
+  if (!result.ok) return { ok:false, error: result.error || "Unable to load threads", threads: {} };
+  const threads = result.body?.threads && typeof result.body.threads === "object" && !Array.isArray(result.body.threads)
+    ? result.body.threads
+    : {};
+  return { ok:true, threads };
+}
+
 async function createLogCommentData(payload) {
   const result = await postApi("log-comment-create", payload);
   if (!result.ok) return { ok:false, error: result.error || "Unable to add comment" };
@@ -1037,7 +1091,24 @@ function readCachedData() {
   try {
     const raw = localStorage.getItem(LOCAL_CACHE_KEY);
     if (!raw) return null;
-    return normalizeAppState(JSON.parse(raw));
+    const cached = normalizeAppState(JSON.parse(raw));
+    // A cache written before a month close renders the old month's data inside
+    // the new month's frame: last month's counts on this month's calendar, a
+    // history that stops one month short, and last month's Solos unmarked
+    // because their entries are keyed to the month that just ended. enrico saw
+    // exactly that on 2 November, when a database stall kept every refresh from
+    // landing and the app went on serving a 31 October cache for two days.
+    //
+    // `lastMonth` is the month a Bloc's live state belongs to, so a cache whose
+    // Blocs sit behind the calendar cannot be shown as if it were current.
+    // Returning null here falls through to the normal first-load path, which
+    // also resets the revision floor in App.jsx, so the next good response is
+    // always accepted. Waiting for a real load is the lesser evil, and this is
+    // the only thing that clears that cache: nothing ever deletes it, not even
+    // signing out.
+    const groups = Object.values(cached?.groups || {});
+    if (groups.some(group => group?.lastMonth && group.lastMonth !== curKey)) return null;
+    return cached;
   } catch {
     return null;
   }
@@ -1081,6 +1152,8 @@ export {
   signOutAuthSession,
   syncAuthSessionData,
   refreshAuthSession,
+  // Exported so the rejected-vs-unreachable rule is testable on its own.
+  isDefinitiveAuthRejection,
   postApi,
   fetchFounderDashboardData,
   trackUsageEvent,
@@ -1133,6 +1206,7 @@ export {
   listLogCommentsData,
   getLogCommentCountsData,
   getLogLatestCommentsData,
+  getLogThreadsData,
   createLogCommentData,
   toggleLogCommentReactionData,
   readCachedData,

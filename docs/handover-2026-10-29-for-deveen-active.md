@@ -1,0 +1,741 @@
+# Handover for Deveen: 29 October (active)
+
+From Aadhil. This replaces
+[`handover-2026-09-29-for-deveen-active.md`](handover-2026-09-29-for-deveen-active.md),
+which is now closed. Most of it is answered; read it only for history, and for
+the detail behind the items carried forward below.
+
+**Everything in §1 was verified against live production on 29 October**, not
+taken from the older docs. Where an older doc is now wrong, this one says so.
+
+| | Status |
+| --- | --- |
+| **1. RLS rollout** | **DONE 23 Oct.** Both files applied and verified; six days in the field |
+| **2. `push_devices`** | **ANSWERED.** Not out-of-band — unmerged TestFlight work |
+| **3. `supabase db push`** | **FOR YOU.** Unsafe on this project. Migration history has diverged |
+| **4. `fero-staging`** | **DELETED 26 Oct.** Billing stopped. One dashboard click left |
+| **5. Scaling before launch** | **NOT STARTED. The biggest thing left — §5** |
+| 6. Step 0, server size | **Aadhil's.** Checked 26 Oct: production is on **Nano**, not Micro |
+| 7. Wave B | Unchanged, still waiting |
+| 8. Carried forward | Region, offline outbox, download size, CI not blocking |
+| 9. Two open bugs | Prorated target, lazy month close — both still open |
+| 10. App-side database changes | 22–23 Oct, recorded so nothing surprises you |
+| **11. enrico's October, 2 Nov** | **NEW. A database stall read as data loss. Three client bugs — §11** |
+| **12. BEFORE THE APP STORE** | **NEW. The four things that must land before launch, and why — §12** |
+| **13. Item 2 is LIVE, 3 Nov** | **NEW. The offline notice shipped. Items 3 and 4 are still yours — §13** |
+| **14. START HERE, 3 Nov** | **Every open question for you, in one place. Eight of them; three are blocking Aadhil — §14** |
+
+> **Deveen — if you read one thing, read [§14](#14-every-open-question-for-you-in-one-place--added-3-november).**
+> It is the complete list of what is waiting on you, with no background needed.
+> Three of the eight are blocking Aadhil right now: your single-flight branch,
+> whether to pay for the Supabase upgrade, and whether you changed anything on
+> the database directly in the last few days.
+
+---
+
+## 1. RLS: applied, verified, and six days in the field
+
+You approved both files in [`rls-rollout-2026-10-23.md`](rls-rollout-2026-10-23.md).
+They were applied to production on **23 October**, yours first then ours.
+
+### Result
+
+| | Before | After |
+| --- | --- | --- |
+| `ante_core` tables with RLS off | 14 | **0** |
+| Projection grant rows to `anon`/`authenticated` | 240 | **0** |
+| `bloc_messages` / `workout_log_comments` / `solo_requests` / `push_devices` | 531 / 314 / 11 / 0 | unchanged at the time of applying |
+
+**Both of your verification queries return zero rows.**
+
+Checks beyond yours, all at the time of applying:
+
+- `FORCE ROW LEVEL SECURITY` is set on **nothing** — the one setting that would
+  have broken the `SECURITY DEFINER` functions.
+- `read_ante_core_workout_log_comments` and
+  `read_ante_core_workout_log_comment_counts` were called directly over
+  newly-locked tables and still returned their rows.
+- `anon` and `authenticated` hold **no execute rights** on those functions.
+- Row counts unchanged; the live site returned 200 with no console errors.
+
+### The field evidence, which beats the phone pass we planned
+
+Aadhil and other members have used the app normally for the **six days since**
+(23–29 October) with **no issues**. Measured on 29 October:
+
+| | 23 Oct | 29 Oct |
+| --- | --- | --- |
+| `ante_core` tables with RLS off | 0 | **0** |
+| `bloc_messages` | 531 | **551** |
+| `workout_log_comments` | 314 | **326** |
+
+Members have been writing to the newly-locked tables every day since. That is
+real traffic across the Stream, comments, reactions and logging — not a
+scripted probe.
+
+**Rollback**, if ever needed, remains one statement per table:
+`alter table ante_core.<name> disable row level security;`
+
+---
+
+## 2. ANSWERED: your `push_devices` question
+
+You noted the table exists in production but nothing in the repo references it,
+and wondered whether it was created out-of-band. **It was not — it is unmerged
+work.**
+
+`ante_core.push_devices` was created by
+`supabase/migrations/20260928213116_add_push_notification_foundation.sql` in
+commit `85109b1` (28 September), which **has never been merged to `main`.** It
+lives only on the TestFlight lineage — `testflight-build-10`,
+`testflight-build-11`, `claude/testflight-build-12-2026-10-21` and
+`claude/rls-correction-2026-09-30` — together with `api/push-devices.js`,
+`server/push.js`, `src/lib/pushNotifications.js`, the iOS entitlements and a
+second migration `20260928214145_fix_push_device_token_validation.sql`.
+
+So the migration reached production while the code stayed on a branch. The
+table is still **empty** and nothing in the field writes to it.
+
+---
+
+## 3. FOR YOU: `supabase db push` is unsafe on this project
+
+Found while preparing the rollout, and the reason the migrations were applied
+through the Management API instead.
+
+`supabase migration list` shows the repo's history and production's have
+diverged by roughly **25 entries in each direction**. The cause looks
+structural rather than accidental: anything applied through the MCP
+`apply_migration` is stamped with the server's own timestamp, while repo files
+carry hand-written ones, so the same change exists under two different version
+numbers.
+
+Clearest example — the 23 October cap migration is `20261023100000` locally and
+`20261023065455` remotely.
+
+**Consequence:** `db push` would attempt roughly 25 migrations whose content is
+already live. Some are `create or replace` and harmless; others are not.
+
+Nothing was done about it, deliberately — reconciling migration history is your
+area and it needs a decision about which side is authoritative.
+
+---
+
+## 4. `fero-staging` — deleted 26 October
+
+Your condition was "once this is applied and verified, staging can go". It was
+met, Aadhil gave the go-ahead, and the project was deleted.
+
+`okwrrspdmoluxatyokzh`, eu-west-1, created 24 September, `ACTIVE_HEALTHY` at
+the moment of deletion. **Billing stops — roughly $9.68/month.**
+
+**No backup was taken, deliberately.** Staging was a restored copy of the 23
+September production backup with emails scrubbed; it held nothing that does not
+exist in production, and the one test artefact made on it was already deleted
+(`handover-2026-10-11-blocking-migration-session-2.md` §2.10). The restore
+route is in `handover-2026-09-27-staging-outage-and-header.md` and takes about
+fifteen minutes.
+
+### Teardown — three of four steps done
+
+| Step | State |
+| --- | --- |
+| 1. Delete the Supabase project | **done** |
+| 2. Revoke the Vercel shareable link | **NOT done** — see below |
+| 3. Delete the four Preview-scoped Vercel variables, and `staging/rls-rehearsal` | **done** |
+| 4. Leave the Production `ADMIN_PIN` alone | **honoured** |
+
+The four Preview-scoped variables were removed one at a time with the
+environment named explicitly (`vercel env rm <name> preview`), because four
+Production variables share their names. Verified afterwards — all four
+Production ones survive with their original ages:
+
+| Variable | Production | Preview |
+| --- | --- | --- |
+| `SUPABASE_URL` | kept, 176d | removed |
+| `SUPABASE_ANON_KEY` | kept, 142d | removed |
+| `SUPABASE_SERVICE_ROLE_KEY` | kept, 176d | removed |
+| `ADMIN_PIN` | **kept, 182d** | removed |
+
+Variables scoped to *both* environments (`ENABLE_LOCAL_PREVIEW_AUTH`,
+`ENABLE_SETTLEMENT_CONFIRMATIONS`, `ENABLE_SETTLEMENT_CONFIRMATIONS_PREVIEW`,
+`ENABLE_CANONICAL_READ_COMPOSER`, `STORAGE_BACKEND`) were **not touched**.
+
+Branch `staging/rls-rehearsal` deleted from `origin` at
+`d7daa2776136735234b21b9fa1b9fefe6e0cd0f7`, after confirming it carried two
+commits with **no file changes** — the empty commits that existed only to give
+Vercel something to build. Restore with
+`git branch staging/rls-rehearsal d7daa27 && git push origin staging/rls-rehearsal`.
+
+**Step 2 is left for Aadhil.** There is no Vercel CLI command for shareable
+links, and the only bypass entry the API exposes on this project is scoped
+`automation-bypass` with `isEnvVar: true` — created 13 July, not the shareable
+link, and plausibly depended on by something. It was left rather than guessed
+at. **This is the link in your §3 of the old handover.** It now resolves to a
+deleted database, so it cannot serve data regardless.
+
+---
+
+## 5. Scaling before launch — still not started, and now the only big one
+
+**Unchanged from §20 of the previous handover, which has the full write-up**,
+along with [`scaling-before-launch-2026-09-15.md`](scaling-before-launch-2026-09-15.md).
+Open since 15 September. **With RLS and staging cleared, this is the one item
+left that blocks launch rather than tidying up after it.**
+
+The short version: on 14 September the database was overloaded by **two to four
+phones**. Normal sub-second requests took 15–44 seconds, and one comment was
+stored twice after a retry. Three things multiply:
+
+1. Every refresh reads the whole app — all members, all Blocs, ~1.4 MB — and
+   only then cuts it down to the one member asking.
+2. One global "something changed" counter means any action in any Bloc makes
+   **every open phone** reload everything.
+3. The database is on the smallest instance available (see §6 — it is smaller
+   than the old doc states).
+
+Load grows with *people online × actions × total data*, not with member count,
+and **nobody knows the real ceiling** because no load test has been run.
+
+| Step | What | Whose |
+| --- | --- | --- |
+| 0 | Server size. **See §6 — this is not where the docs said it was.** | Aadhil |
+| 1 | **Scope reads to the member's own Blocs.** The biggest single win. Keep `scopeReadableStateForUser` as the final filter, and scope the blob fallback the same way | **You** |
+| 2 | **A revision per Bloc** instead of one global `revision_clock`, and make the poll read-only (no `insert … on conflict` on every call) | **You** |
+
+---
+
+## 6. Step 0 — CHECKED, and it corrects the older docs
+
+§20 of the previous handover said *"No record exists that this was ever done —
+please check the dashboard first."* Checked on 26 October, via the Management
+API:
+
+```
+GET /v1/projects/bpvvvqjsfwmmfjvvijkd/billing/addons  ->  "selected_addons": []
+```
+
+No compute add-on is selected, so production runs on the **default Nano**
+instance. Aadhil's dashboard says the same: **COMPUTE SIZE: NANO**.
+
+**This corrects §20 and `scaling-before-launch-2026-09-15.md`**, which both
+describe production as being on **Micro (1 GB)**. It is not — it is a size
+*below* that. Micro is a paid add-on at roughly **$10/month** (2 shared cores,
+1 GB, 60 direct connections) and has never been bought.
+
+So the 14 September overload that two to four phones caused happened on an
+instance **smaller** than the analysis assumed. **The real ceiling is lower
+than written, not higher.**
+
+Step 0 is Aadhil's and is a two-click job: Supabase → Project Settings →
+Compute and Disk → Micro, roughly two minutes of downtime. A stopgap, not a
+fix — §5 Steps 1 and 2 are the real work.
+
+---
+
+## 7. Wave B — unchanged
+
+1 October closed → your four post-rollover checks → if clean, Wave B that week
+→ soak 48–72h with the gate daily.
+
+Reasoning unchanged: `add-log` and `multi-log` still mirroring to the blob is
+the parallel record that made the first canonical close safe. Wave B removes
+exactly that. The 1 October close held. **Note the next close, 1 November, is
+three days away** — the first since the workout rules changed on 22 October.
+
+---
+
+## 8. Carried forward from the old handover, still open
+
+1. **The server region** (old §6.4). Untouched.
+2. **The offline outbox** (old §6.5) — keep a failed workout save on the phone
+   and retry it. It touches month close: a 30 September log retried on
+   1 October must still count for September.
+3. **The app download size check.** Still open.
+4. **CI does not block anything.** Your workflow runs on push to `main` and on
+   PRs, but `main` has no required status checks, and pushes to `main` deploy
+   to Vercel before CI finishes. Flagged, not changed — Aadhil's process call.
+5. **The 14-minute outage of 29 September** — reliability, your area, folded
+   into §5.
+
+---
+
+## 9. Two bugs still open, neither fixed
+
+**Prorated target can exceed the full target** (old §15). Proration is computed
+once when the admin chooses it (`src/App.jsx:3453`) and nothing recomputes it
+when the Bloc target later changes — the settings-update path never touches
+`season_overrides`. Active divas sat on a prorated 12 against a target of 11.
+Nobody was harmed, but any Bloc that lowers its target mid-month leaves members
+on a higher one. Suggested fix: recompute on target change, and clamp so it can
+never exceed the full target. **A behaviour change, so it needs a decision.**
+
+**The lazy month close** (old §13). The blob rollover is computed in memory on
+every read but only persisted on a **write**, so a Bloc nobody touches can sit
+half-closed indefinitely — canonical says closed, the blob still says the month
+is current. On 1 October that state lasted hours and hid real settlements.
+Aadhil considers it a bug, not a design, and would like the close to write
+itself as soon as the month turns. **Shape is your call.**
+
+---
+
+## 10. App-side database changes, 22–23 October
+
+Neither is in your area to action — recorded so nothing surprises you. Full
+detail in old §21 and `handover-2026-10-23-per-activity-cap.md`.
+
+**`read_ante_core_notification_counts` — new, 22 October.** Returns
+`{ streamUnread, mentions, logComments }` in the one call the app already makes
+per refresh, so the notification bell became correct at **no extra round trip**
+— deliberately shaped that way because of §5.
+`read_ante_core_bloc_stream_unread_count` is left in place and unchanged, so
+rollback is a single `drop function`. Verified to agree with it on
+`streamUnread` for all 57 active memberships.
+
+**`upsert_ante_core_workout_log` — replaced, 23 October.** The daily cap changed
+from two workouts per day to **two per activity per day**, on Aadhil's
+instruction. Everything outside the cap block is byte-identical, and the
+migration aborts unless the live function's md5 matches the revision it was
+written against.
+
+**Worth your eye:** the advisory lock key went from
+`workout-day:<profile>:<date>` to `workout-day:<profile>:<date>:<activity>`, so
+two different activities no longer serialise against each other. Every function
+on production that takes an advisory lock was checked — only this one uses that
+key — but you know this area better, so it is flagged rather than assumed.
+
+**Still open and Aadhil knows:** the monthly score still counts every workout,
+so a twelve-workout month can now be done in two days. He is weighing capping
+the score at the first two of a day while still showing the rest. **Not built.**
+
+---
+
+## 11. ADDED 2 November — a member saw October disappear, and it did not come back
+
+From Aadhil's session of 2 November. Full working in
+[`handover-2026-11-02-october-sitouts-and-solo.md`](handover-2026-11-02-october-sitouts-and-solo.md)
+§16–§18. This is §5 of this handover arriving in the field, plus three client
+bugs that turn a database stall into something a member reads as data loss.
+
+### What happened
+
+A database stall, roughly **14:10–14:30 UTC on 2 November**, measured from a
+laptop with network time isolated (connect 15–21 ms, TLS 33–41 ms throughout):
+
+- `POST /api/lift-log` → **500 after 63 s**, `57014 canceling statement due to
+  statement timeout`.
+- The same request again → **no response inside 90 s**.
+- `POST` with an unsupported action — a path that touches **no database at all**,
+  the state getters at `api/lift-log.js:10106` being lazy — → the correct `400`,
+  **after 68 s**. The function was waiting on a connection, not a query.
+- A one-row one-column read of `lift_log_state`: **70.0 s**, then 6.1 s; later
+  **29.2 s** → 4.2 → 0.25; later **13.8 s** → 6.2 → 1.3 → 0.17.
+- `/auth/v1/health`: **4.8 s**.
+
+**enrico (Ctrl Alt De-feat) reported at 15:22–15:30 Oslo = 14:22–14:30 UTC** —
+inside that window: October gone from history, a "Your September Recap" banner,
+signed out, a slow sign-in, and the Bloc's three Solo members showing without
+their Solo marker while their counts still rendered.
+
+### No data was lost, and the server is not at fault
+
+| Check | Result |
+| --- | --- |
+| Blob, revision **3398**, last written **13:07 UTC** — *before* the stall | October present, Cutie pie excused, Rodri/Varun/Bianković solo at target 6 |
+| Canonical `read_ante_core_month_history` | identical — same eight members, same flags, same counts |
+| `buildCanonicalMonthHistoryForGroup` over the live rows | `2026-5 … 2026-9`, October intact |
+| `scopeReadableStateForUser` **for enrico's own user id** | `2026-5 … 2026-9`, October intact, flags intact |
+| Vercel runtime logs, 15:06:57–15:07:32 | 35×200, 15×204, **zero** non-2xx |
+
+Nothing was written during or after the stall. The guards hold: both
+`fetchAnteMonthHistory` (`:4421`) and `buildCanonicalMonthHistoryForGroup`
+(`:2209`) return the blob on empty, and the overlay `continue`s past any month
+where `canonicalCoverage < blobCoverage`. CLAUDE.md §6 is honoured end to end.
+
+### Three client bugs — these are the ones to fix
+
+**11.1 — The state cache is never deleted.** `LOCAL_CACHE_KEY`
+(`ll_cached_data_v2`, `src/lib/appState.js:163`) is written at
+`src/lib/api.js:1053` and read at `:1041`. **There is no `removeItem` for it
+anywhere in `src/`.** `signOutAuthSession` (`:226`) signs out of Supabase Auth
+and leaves it untouched. So signing out, signing back in, and force-quitting all
+re-render the same stale copy — it can only ever be *overwritten* by a
+successful apply. **This is why enrico's force-quit did not clear it.**
+
+**11.2 — A stale screen is indistinguishable from a fresh one.** `App.jsx:1145`
+renders `readCachedData()` and calls `setLoading(false)` before any network
+call. `fetchData` (`src/lib/api.js:356`) returns `null` on any non-OK response,
+so the 500 became `setSyncError(true)` and nothing more. **`syncError` is passed
+into `Nav` (`src/pages/Nav.jsx:83`) and never used** — it appears exactly once in
+that file, in the parameter list, as do `syncing`, `lastSyncedAt`,
+`showJustSynced` and `onRefresh`. A grep of `src/pages` and `src/components` for
+"out of date", "unable to sync", "offline", "stale" or "last synced" returns
+nothing. Not a regression from the July split: `git show a79d02d^:src/app.jsx`
+shows it already passed-and-unused.
+
+Worse, `refreshNow` (`App.jsx:1060`) treats a *rejected* apply as success:
+`if (!applied) setSyncError(false)`.
+
+**11.3 — A server failure can sign a member out.** `fetchData` calls
+`signOutAuthSession()` on a 401 after one failed refresh (`:379`, `:386`). Every
+API call validates the token against Supabase Auth on each request (§2.4 of the
+scaling doc), and Auth measured 4.8 s during the stall. An infrastructure stall
+therefore presents to a member as "your session is invalid". The playbook already
+states the rule — *"'I couldn't check' is never 'it is gone', just as it is never
+'you are not signed in'"* — and the code does not follow it.
+
+### Why the symptoms matched a pre-close cache exactly
+
+enrico's cached copy predates the 1 November close:
+
+| Symptom | Mechanism |
+| --- | --- |
+| October gone from history | his cached `monthHistory` ends at September; October was the *open* month in that copy |
+| "Your September Recap" | September is the latest closed month in that copy |
+| November header, November-looking counts | the current month comes from the device clock (`CUR_MONTH`), not the data |
+| three Solo members unmarked | October's Solo is keyed `2026-9`; with the open month now `2026-10`, `isSoloForMonth` is false for all three |
+| counts still rendering | counts come from the cached logs, keyed by date, not by month status |
+
+### Not reproduced, and still open
+
+**enrico reports it is still wrong after a force-quit, with the database
+healthy.** 11.1 explains why a restart cannot clear it, but not why a *successful*
+refresh has not overwritten it — the canonical revision is moving (6467 at
+15:08 UTC, `last_reason` a reaction), so his poll should be seeing new revisions.
+Either his fetches are still failing for a reason not visible from here, or
+something else holds the apply off. **Not guessed at further.** What would settle
+it, from his phone: the browser console on `lift-log-nu.vercel.app`, or the value
+of `localStorage.ll_cached_data_v2`'s `meta.revision`.
+
+The one thing that will definitely clear it, given 11.1: clearing the app's
+stored site data, or deleting and reinstalling the app.
+
+### Also for you
+
+`fetchRevisionStamp` (`:4191`) uses `Promise.allSettled` and maps a **failed**
+revision read to `0` (`:4200–4203`). The client's poll then reads
+`revision <= latestRevisionRef.current` (`App.jsx:1153`) as "nothing changed" and
+**returns without refetching**. A failed read is being reported to the client as
+a successful "no change". Same family as everything above.
+
+Also noted, not actioned: `fetchReadableCurrentState` performs a **write** on a
+read when a rollover is pending (`:4618–4620`, `persistState(..., {rolloverOnly:
+true})`) — the lazy month close in §9. Under a stall that write is exactly what
+fails.
+
+### Nothing was changed
+
+No code, no settings, no data. **Step 0 is still Aadhil's** and is now overdue:
+§6 of this handover established production runs on **Nano**, below the Micro the
+September analysis assumed.
+
+---
+
+## 12. BEFORE THE APP STORE — Aadhil's words, and why this is now the top of the list
+
+Aadhil, 2 November, after enrico's report:
+
+> "If these problems continue to happen once we're in the App Store and once we
+> publicly launch and we have a lot more users, this is going to be bad."
+
+He is right, and the arithmetic is on his side. **On 14 September, two to four
+phones took the database down.** The App Store means hundreds. The load grows
+with *people online × actions × total data*, not with member count, so it rises
+far faster than the roster does. **Nobody knows the real ceiling, because the
+load test in `scaling-before-launch-2026-09-15.md` §6 has never been run.**
+
+And this is now at least the **fourth** time members have seen a stall as data
+loss: 14 September (two phones, 15–44 s requests, a comment stored twice),
+22 September, 29 September (`recurring-debugging-playbook.md:650`, *"second
+occurrence after 22 September"*), and 2 November. The playbook's own rule has
+been written down since 29 September and the code still does not follow it:
+
+> "'I couldn't check' is never 'it is gone', just as it is never 'you are not
+> signed in'."
+
+### The four things, in the order they should land
+
+| # | What | Whose | Why it cannot wait for launch |
+| --- | --- | --- | --- |
+| 1 | **Compute: Nano → Micro** (§6) | **Aadhil** | Two clicks, ~$10/month, ~2 min downtime. Buys headroom while 3 and 4 are built. Fixes nothing on its own |
+| 2 | ~~**Surface a failed refresh** (§11.2)~~ **DONE 3 Nov, live** | ~~You~~ Aadhil | Shipped at `40d1190` rather than waiting — see §13. `syncError` is now drawn, with a retry that shows its own outcome |
+| 3 | **Stop signing members out on a server failure** (§11.3) | **You** | A starved Auth service currently reads as "your session is invalid". Members get logged out of a working account |
+| 4 | **Scope reads to the member's own Blocs, and a revision per Bloc** (§5 Steps 1–2) | **You** | The only item that stops the stalls happening. 1–3 stop them *looking* like data loss; this stops them |
+
+Shipped on 2 November, ahead of all of the above because a member was affected:
+**`d2c3870`** — `readCachedData` no longer serves a cache whose Bloc sits behind
+the calendar. That removes the *wrong month*. It does **not** remove the silence,
+which is why item 2 stays at the top of your list.
+
+### One thing that is not yet understood, and matters for item 2
+
+enrico was still wrong after a force-quit, with the database healthy and the
+revision moving. §11.1 explains why a restart cannot clear the cache, but not why
+a *successful* refresh had not overwritten it. If his refreshes are genuinely
+still not landing, then item 2 is not cosmetic — it is the only thing that would
+have told anyone, him included, what was actually wrong. **Not guessed at
+further.** The evidence that would settle it is named in §11.
+
+### A second cause of the same symptom, found while verifying the fix
+
+The sandbox reproduces enrico's screen exactly — "NOVEMBER · DAY 2/30" above
+"Your September Recap" — for a different reason: its Bloc has
+`lastMonth: 2026-9` **on the server**. That is your §9 lazy month close. So the
+same symptom has two causes, and the 2 November fix only addresses the client
+one. A Bloc left half-closed on production would show every one of its members
+the September-recap screen, and no cache fix can help that. Worth folding into
+§9 when you shape it.
+
+---
+
+## 13. ADDED 3 November — item 2 is live, and items 3 and 4 are still yours
+
+**Read the full write-up:
+[`handover-2026-11-02-october-sitouts-and-solo.md`](handover-2026-11-02-october-sitouts-and-solo.md),
+§22–26.** That is where the detail, the measurements and the verification live.
+This section is the summary and what is left for you.
+
+### Item 2 shipped, so take it off your list
+
+`40d1190`, live on production 3 November, verified in the live bundle. Aadhil
+asked for it directly and watched it on screen before it went out, so it did not
+wait for you.
+
+What it does: when a refresh fails, the app now says **"Can't reach Fero"** above
+the bottom bar, with a Retry. Pressing Retry shows **"Reconnecting"** and a
+spinner held for at least 650ms, then either the notice disappears (it worked) or
+it reads **"Still can't reach Fero"** and stays there until a sync genuinely
+succeeds. A hung request gives up after 15s. Measured at 375x812: no layout
+shift in any of the three states.
+
+### Three bugs in the existing sync code that this exposed
+
+These were all in `src/App.jsx` before today, and two of them are squarely in
+your area of concern:
+
+1. **`refreshNow` swallowed a thrown request.** `fetchData` returns `null` for a
+   bad response but *throws* when the request cannot complete at all — offline,
+   DNS, dropped connection. The throw escaped past the `else`, so `syncError` was
+   never set and the app stayed silent in the one case a member most needs to be
+   told about. It also left an unhandled rejection in every caller that does not
+   await, which includes the focus and visibility handlers. **This is a large
+   part of why enrico got silence rather than an error**, and it would have
+   masked item 3 as well. Now caught; `refreshNow` returns a boolean.
+2. The render gate dropped the notice the instant Retry cleared `syncError`.
+3. Resetting the failed state on `syncError` going false was wrong, because the
+   focus handler calls `refreshNow`, which clears `syncError` on its way in — so
+   tabbing back into the app wiped the failure. It now keys on `lastSyncedAt`.
+
+### Still yours, neither started
+
+- **Item 3 — stop signing members out on a server failure.** Bug 1 above is
+  adjacent but not the same thing: `fetchData` still calls
+  `signOutAuthSession()` on a 401, so a starved Auth service reads as "your
+  session is invalid". Untouched.
+- **Item 4 — scope reads to the member's own Blocs, and a revision per Bloc.**
+  Untouched, and still the only item that stops the stalls rather than making
+  them legible.
+
+### Your own single-flight branch is still unmerged, and it argues for item 4
+
+`origin/perf/revision-keyed-reader-cache`, `915a2db`, 25 October. **1 ahead of
+`main`, 51 behind.** Aadhil asked on 3 November whether you had done scaling work
+in the last couple of days; nothing is visible from 1–3 November in commits,
+branches, PRs or your public GitHub events, and the migrations folder has nothing
+newer than 30 October. If you did database work straight through the Supabase
+dashboard or the Management API, that cannot be seen from here — say so and it
+gets recorded.
+
+The branch itself is real work and the numbers in its commit message are the
+clearest statement of the problem anyone has written: 1.4s and ~3,820 per-log
+subqueries to rebuild frozen history, four phones meaning 15,280 subqueries in a
+six-second window, quadratic growth, ~625x at a 100-concurrent spike. It
+collapses the eight canonical readers into one shared in-flight read, with 13
+checks in CI.
+
+Your own closing line on that branch is item 4, written a week before Aadhil and
+I reached the same place from the client side:
+
+> the server currently reads 17 Blocs and discards 16, because
+> `scopeReadableStateForUser` filters afterwards. That SQL is next, and needs
+> applying by Aadhil.
+
+**It has not been touched or rebased.** It is 51 commits behind and
+`api/lift-log.js` has moved underneath it, so it needs a rebase and a re-run of
+its 13 checks before it is worth merging. That is your call, not mine, and
+Aadhil has not asked for it to be merged.
+
+---
+
+## 14. EVERY OPEN QUESTION FOR YOU, IN ONE PLACE — added 3 November
+
+Deveen: this is the whole list. Nothing here needs you to read the rest of the
+doc first; each one says where the detail is if you want it. Answer them in this
+section, or reply to Aadhil — either is fine, but **answer all eight**, even if
+the answer is "not mine" or "no longer relevant".
+
+Aadhil is deliberately holding off on three decisions until he hears from you, so
+each of those is marked **BLOCKING AADHIL**.
+
+| # | Question | Where | Status |
+| --- | --- | --- | --- |
+| 1 | Your single-flight branch — rebase and land it, or has your thinking moved on? | §13 | **BLOCKING AADHIL** |
+| 2 | Compute Nano → Micro, ~£8–10/month — worth it now, or pointless until item 4 lands? | §12 item 1, §6 | **BLOCKING AADHIL** |
+| 3 | Did you do scaling work on 1–3 November that isn't visible in git? | §13 | Open |
+| 4 | Item 3 — stop signing members out on a server failure. When? | §12 item 3 | Open |
+| 5 | Item 4 — scope reads per Bloc, plus a revision per Bloc. When? | §12 item 4, §5 | Open |
+| 6 | Migration history has diverged ~25 entries each way. Which side is authoritative? | §3 | Open since 29 Oct |
+| 7 | Prorated target can exceed the full target — recompute and clamp, or leave it? | §9 | Needs your shape |
+| 8 | The lazy month close — should the close write itself when the month turns? | §9 | Needs your shape |
+
+### 1. Your single-flight branch — land it or drop it? **BLOCKING AADHIL**
+
+`origin/perf/revision-keyed-reader-cache`, `915a2db`, 25 October. **1 commit
+ahead of `main`, 51 behind.** `api/lift-log.js` has moved underneath it, so it
+needs a rebase and a re-run of its 13 CI checks before it could merge.
+
+Aadhil asked on 3 November whether I should rebase it for you. I told him not to
+— it is your code, you wrote 13 tests for it because the naive version goes wrong
+in subtle ways, and nothing is blocked by it today. So it is sitting untouched,
+waiting on you.
+
+**What he needs from you:** rebase it and land it yourself, hand it over with the
+gotchas written down, or say it is superseded and he will stop thinking about it.
+
+### 2. Compute Nano → Micro — is it worth the money yet? **BLOCKING AADHIL**
+
+Production is on **Nano**, the smallest instance Supabase offers — smaller than
+the older docs claimed (§6 corrected this). Micro is roughly £8–10/month, two
+clicks, ~2 minutes of downtime.
+
+Aadhil's own words on 3 November: *"I will do the Supabase thing later. I want to
+talk to Deveen about it first."* He has not bought it.
+
+**What he needs from you:** one line — buy it now for headroom while 3 and 4 are
+built, or don't bother because it fixes nothing on its own and the real win is
+item 4.
+
+### 3. Did you do scaling work that isn't in git?
+
+Aadhil said you mentioned doing scaling work on 1 or 2 November. I looked and
+found nothing from 1–3 November in commits, branches, PRs, your public GitHub
+events, or `supabase/migrations/` — your last commit and last event are both
+25 October.
+
+That is not an accusation, it is a gap in what I can see. **Work done straight
+through the Supabase dashboard or the Management API is invisible from here**,
+because the Supabase MCP in this session has no access to project
+`bpvvvqjsfwmmfjvvijkd`.
+
+**What he needs from you:** if you changed anything on the database directly —
+indexes, settings, a function, pooler config — say what, and it gets written down
+so the next session isn't guessing.
+
+### 4 and 5. Items 3 and 4 — still yours, neither started
+
+Both unchanged and untouched. Item 2 shipped on 3 November without waiting for
+you (§13) because a member was affected; these two did not.
+
+- **Item 3:** `fetchData` still calls `signOutAuthSession()` on a 401, so a
+  starved Auth service reads to the member as "your session is invalid" and logs
+  them out of a working account.
+- **Item 4:** scope reads to the member's own Blocs, and a revision per Bloc.
+  **This is the only item on the whole list that stops the stalls rather than
+  making them legible.** Your own closing line on the single-flight branch is the
+  same conclusion: the server reads 17 Blocs and discards 16.
+
+**What he needs from you:** a rough when. Not a date — just whether these are
+this week, after launch prep, or waiting on something.
+
+### 6. Migration history — which side is authoritative?
+
+Open since 29 October (§3) and still unanswered. Repo and production have
+diverged by roughly **25 entries in each direction**, because `apply_migration`
+stamps the server's own timestamp while repo files carry hand-written ones. The
+23 October cap migration is `20261023100000` locally and `20261023065455`
+remotely.
+
+`supabase db push` would attempt ~25 migrations whose content is already live.
+Some are `create or replace` and harmless; others are not. **Nobody should run
+`db push` on this project until this is decided.**
+
+### 7 and 8. The two open bugs that need your shape, not your code
+
+Both from §9, both unchanged. Neither is urgent; both need a decision before
+anyone writes the fix, and the decision is yours because it changes behaviour.
+
+- **Prorated target can exceed the full target.** Proration is computed once when
+  the admin chooses it and nothing recomputes it when the Bloc target later
+  changes. Active divas sat on a prorated 12 against a target of 11. Suggested
+  fix: recompute on target change, and clamp so it can never exceed the full
+  target.
+- **The lazy month close.** The blob rollover is computed in memory on every read
+  but only persisted on a write, so a Bloc nobody touches can sit half-closed
+  indefinitely. On 1 October that lasted hours and hid real settlements. Aadhil
+  considers it a bug and would like the close to write itself as soon as the month
+  turns.
+
+### Not for you, recorded so nothing falls down a gap
+
+- The load test in [`scaling-before-launch-2026-09-15.md`](scaling-before-launch-2026-09-15.md)
+  §6 has still never been run, so **nobody knows the real ceiling**.
+- Vercel request logs for 31 October – 2 November have not been checked; they are
+  the one remaining source that could say how many members hit the stale-month
+  bug beyond the one known case.
+- `docs/SCHEMA.md` has two errors still unedited: a `monthHistory` entry's month
+  field is `key`, not `monthKey`, and `state.meta` is not stored in the blob at
+  all.
+
+---
+
+## 15. ADDED 5 November — your scoped-reads migration is APPLIED
+
+Deveen: `20261103120000_scope_readers_to_member_blocs.sql` is **live on
+production**. Aadhil approved it on 5 November. Full detail in
+[`handover-2026-11-05-scoped-reads-applied.md`](handover-2026-11-05-scoped-reads-applied.md).
+
+**The check you asked for passed.** Both bodies were diffed against
+`pg_get_functiondef` on production before applying. The only differences were
+the signature line and your one filter line, in each function. No column added,
+dropped or reordered. The repo matched production exactly — no drift.
+
+**Equivalence proved, not assumed.** Passing every Bloc key returns
+byte-identical `jsonb` to passing nothing, for both readers: month_history
+44 rows = 44 rows, current_logs 93 rows = 93 rows, compared with `=` in SQL.
+
+**The saving, measured on production** — unscoped vs scoped to one Bloc:
+
+| Reader | Unscoped | One Bloc | |
+| --- | --- | --- | --- |
+| `read_ante_core_month_history` | 126.5 ms / 1389.7 KB | 8.6 ms / 25.3 KB | ~15x faster, ~55x smaller |
+| `read_ante_core_current_logs` | 9.4 ms / 52.5 KB | 5.6 ms / 6.0 KB | |
+
+Most members are in one or two Blocs of 17; the largest is Aadhil at six.
+
+**It is now yours again: the API half.** Nothing behaves differently yet,
+because `api/lift-log.js` still passes no argument. You said you wanted it
+applied so you could land that and measure against the real RPC instead of
+predicting. It is applied.
+
+**One trap, found the hard way.** `read_ante_core_member_bloc_keys` keys on
+`profiles.auth_user_id`, not `profiles.id`. Passing the profile id returns `[]`
+silently rather than erroring, which in production would read as "this member
+is in no Blocs" and serve them an empty app. Worth an assertion on the calling
+side.
+
+Rollback, if ever needed:
+[`docs/rollback/20261103120000-scoped-reads-PROD-BEFORE.sql`](rollback/20261103120000-scoped-reads-PROD-BEFORE.sql) —
+the definitions captured from production immediately before, plus
+`drop function if exists public.read_ante_core_member_bloc_keys(uuid);`.
+
+### Two of the eight are still unanswered, and one is blocking Aadhil
+
+You answered Q1, Q4, Q5, Q6, Q7 and Q8. Two were not touched:
+
+- **Q2 — Supabase Nano → Micro, ~£8–10/month. Still BLOCKING AADHIL.** He has
+  not bought it, because he said he wanted your view first. One line is enough:
+  worth it now for headroom, or pointless until the API half and Step 2 land.
+- **Q3 — did you change anything directly on the database on 1–3 November?**
+  Dashboard and Management API work is invisible from the repo. If you did
+  anything — an index, a setting, a function, pooler config — it is still
+  undocumented. "Nothing" is a perfectly good answer; silence is not.

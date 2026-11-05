@@ -4,7 +4,14 @@
 Update it whenever something ships. Same filename forever — never date it, never
 fork it. If it disagrees with a handover, this file wins.
 
-Last updated: **19 October 2026** — a **skipped Bloc is no longer shown an
+Last updated: **23 October 2026** — **tapping a day in your own current-month
+calendar shows the workout** instead of starting a delete, at `ca248a2`. Delete
+is now a second step inside the detail sheet, and only where it was allowed
+before: your own profile, current month. A closed month and another member's
+profile show the same sheet without it. The delete itself is unchanged, so a
+workout logged to several Blocs still deletes everywhere at once.
+
+Before that, **19 October 2026** — a **skipped Bloc is no longer shown an
 empty month**, at `1c23241` (merged `75400bd`). When a Bloc's month close is
 skipped, the canonical side opens the new season while the blob correctly keeps
 the old month. Until this fix, the read path saw canonical as ahead and
@@ -207,9 +214,13 @@ the app allows, and the pages asked for a typeface the app never loads. These
 are static pages; the app is untouched, so there is nothing here for TestFlight
 to catch up on. Details: `docs/handover-2026-10-10-legal-pages-publish.md`.
 
-> **`support@joinfero.app` is unconfirmed.** Both pages name it as the only
-> support channel, and nobody has verified that mail sent there arrives in a
-> mailbox someone reads. No test email was sent.
+> **`support@joinfero.app` works — confirmed 5 November 2026.** Both pages name
+> it as the only support channel, and a real message has now travelled the whole
+> way. The address is a configured Cloudflare Email Routing route, not a
+> catch-all: the mail server accepts `support@joinfero.app` and rejects an
+> invented address on the same domain. It forwards to `fero.support@gmail.com`,
+> which Cloudflare lists as **Verified**, and the founder confirmed a test email
+> arrived in that inbox — not in its spam folder.
 
 Before that, on 10 October, the website's **All Time** leaderboard and
 member-name awards now show only people who currently belong to that Bloc.

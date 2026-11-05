@@ -57,6 +57,7 @@ jobs:
           suites=(
             test:activities
             test:auth-outage
+            test:auth-refresh-outage
             test:fero-profile-stats
             test:founder-dashboard
             test:identity
@@ -65,9 +66,11 @@ jobs:
             test:month-sit-out-card
             test:otp-errors
             test:profile-photo-storage
+            test:prorated-clamp
             test:profile-stats-cache
             test:remirror
             test:rollover-isolation
+            test:single-flight
             test:solo-sitout-exclusion
             test:solo-standard-penalty
             test:stream-moments

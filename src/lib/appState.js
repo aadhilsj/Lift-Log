@@ -3,7 +3,9 @@ const LEGACY_GROUP_ID = "legacy-group";
 const DEFAULT_GROUP_NAME = "Fero OG";
 const DEFAULT_NAMES = ["Aadhil","Isira","Rahul","Kisal","Rishane","Deyhan","Aysha","Nishara","Abhishek"];
 const WORKOUT_TYPES = ["Gym","Run","Sports","Pilates","Other"];
-const MAX_WORKOUTS_PER_DAY = 2;
+// Two of the SAME ACTIVITY per day. There is no longer a cap on how many
+// workouts a member logs in a day - founder's decision, 22 October 2026.
+const MAX_WORKOUTS_PER_ACTIVITY_PER_DAY = 2;
 const DEFAULT_MIN_TARGET = 12;
 const DEFAULT_GROUP_TIME_ZONE = "Europe/Oslo";
 const LEAGUE_CUTOFF_HOUR = 3;
@@ -1414,11 +1416,38 @@ function getWorkoutSessionKey(log) {
   return multiLogMatch ? multiLogMatch[1] : id;
 }
 
-function getDistinctWorkoutCountForDate(groups, userId, fallbackDisplayName, isoDate) {
+// Which bucket a workout counts against: the specific activity when there is
+// one, otherwise the broad type. Same expression as the API and the database
+// cap, so none of the three can disagree about what "the same activity" is.
+// Kitesurfing and Padel are both "Sports" underneath and must count apart.
+// What the little badge on a calendar day shows.
+//
+// This used to be written inline as Math.min(count, 2) in four separate
+// places, which was right while the cap was two workouts a day and silently
+// became a lie on 23 October when the cap moved to two per ACTIVITY: a day
+// holding four workouts still reported "2". Defined once so the four cannot
+// drift apart again.
+//
+// Capped at "9+" for the same reason the notification badge is: the circle is
+// about 12px and two digits do not fit in it.
+function formatDayWorkoutCount(count) {
+  const total = Math.max(0, Number(count) || 0);
+  return total > 9 ? "9+" : String(total);
+}
+
+function getWorkoutActivityKey(activity, workoutType) {
+  const specific = String(activity || "").trim();
+  const broad = String(workoutType || "").trim();
+  return (specific || broad).toLowerCase();
+}
+
+function getDistinctWorkoutCountForDate(groups, userId, fallbackDisplayName, isoDate, activityKey = null) {
   const sessionKeys = new Set();
   const safeUserId = String(userId || "").trim();
   const safeFallbackName = String(fallbackDisplayName || "").trim();
   const safeDate = String(isoDate || "").trim();
+  // null means every activity, which is what this counted before 23 October.
+  const wantedActivity = activityKey === null ? null : String(activityKey || "").toLowerCase();
   if (!safeDate) return 0;
 
   (Array.isArray(groups) ? groups : Object.values(groups || {})).forEach(group => {
@@ -1430,6 +1459,7 @@ function getDistinctWorkoutCountForDate(groups, userId, fallbackDisplayName, iso
     if (!ownerName) return;
     (group?.logs?.[ownerName] || []).forEach(log => {
       if (log?.date !== safeDate) return;
+      if (wantedActivity !== null && getWorkoutActivityKey(log?.activity, log?.type) !== wantedActivity) return;
       const key = getWorkoutSessionKey(log);
       if (key) sessionKeys.add(key);
     });
@@ -2223,7 +2253,9 @@ export {
   DEFAULT_GROUP_NAME,
   DEFAULT_NAMES,
   WORKOUT_TYPES,
-  MAX_WORKOUTS_PER_DAY,
+  MAX_WORKOUTS_PER_ACTIVITY_PER_DAY,
+  getWorkoutActivityKey,
+  formatDayWorkoutCount,
   DEFAULT_MIN_TARGET,
   DEFAULT_GROUP_TIME_ZONE,
   LEAGUE_CUTOFF_HOUR,

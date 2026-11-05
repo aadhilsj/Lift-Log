@@ -366,7 +366,11 @@ const ActivityFeed = ({group,currentUser,currentUserId,onReact,onFlag,onRespond,
     const reactionEntries = Object.entries(post.reactions || {})
       .filter(([, members]) => Array.isArray(members) && members.length > 0)
       .sort((a,b)=>(b[1].length-a[1].length) || (reactionSortIndex(a[0])-reactionSortIndex(b[0])));
-    return React.createElement('div',{style:{position:centered?"relative":"static",display:"flex",alignItems:"center",justifyContent:centered?"center":"flex-start",gap:6,flexWrap:"wrap",paddingTop:compact?0:6,marginLeft:centered?0:(compact?-2:0)}},
+    // data-hold-exempt: a press that starts on a reaction chip, or on the +
+    // that opens the picker, belongs to that control. Holding a chip shows who
+    // reacted; it must not also select the whole post for Report or Block.
+    // Holding the post anywhere else still does.
+    return React.createElement('div',{"data-hold-exempt":"true",style:{position:centered?"relative":"static",display:"flex",alignItems:"center",justifyContent:centered?"center":"flex-start",gap:6,flexWrap:"wrap",paddingTop:compact?0:6,marginLeft:centered?0:(compact?-2:0)}},
       reactionEntries.map(([emoji, members])=>{
         const active = members.includes(currentUser);
         const reactionKey = `${post.id}:${emoji}`;

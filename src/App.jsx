@@ -77,6 +77,7 @@ import {
   mutateLogData,
   getBlocStreamUnreadCountData,
   getLogLatestCommentsData,
+  getLogThreadsData,
   listBlocStreamMessagesData,
   readCachedData,
   writeCachedData,
@@ -191,6 +192,10 @@ const describeOtpSendFailure = (result, intentType) => {
 // which deploy the server is on; when it differs from this bundle's, reload once so
 // the phone picks up the new version. A reload loop would be far worse than stale
 // code, so every guard below errs towards not reloading.
+// How long the bell waits for its two fetches before showing whatever has
+// arrived. Long enough that a normal connection always arrives finished,
+// short enough that a dead one does not hold the member in a skeleton.
+const NOTIFICATION_FETCH_CAP_MS = 2500;
 const BUILD_RELOAD_SESSION_KEY = "fero-build-reload-attempted";
 const BUILD_RELOAD_IDLE_MS = 20000;
 
@@ -447,6 +452,9 @@ const App = () => {
   // commented", which is only believable once we know we asked.
   const [notificationLatestCommentsLoaded,setNotificationLatestCommentsLoaded]=useState(false);
   const [notificationStreamMessages,setNotificationStreamMessages]=useState([]);
+  // Threads this member is in but does not own. Fetched when the centre opens,
+  // beside the comments on their own logs.
+  const [notificationThreads,setNotificationThreads]=useState({});
   // What the SERVER says is waiting for you: how many of the Stream's unread
   // messages tag you, and how many new comments are on your own logs. The
   // client cannot work either out before the centre is opened — the messages
@@ -463,6 +471,12 @@ const App = () => {
   // the callback and fire an extra request.
   const notificationsSeenAtRef=useRef(notificationsSeenAt);
   useEffect(()=>{ notificationsSeenAtRef.current=notificationsSeenAt; },[notificationsSeenAt]);
+  // Which unread-count request is the newest, and which Bloc is actually on
+  // screen — both read by refreshStreamUnreadCount when its answer comes back.
+  const streamUnreadSeqRef=useRef(0);
+  // True while the bell's two fetches are in flight, so the panel can show a
+  // skeleton instead of a list that rearranges as they land.
+  const [notificationsLoading,setNotificationsLoading]=useState(false);
   const [streamFocusBlocId,setStreamFocusBlocId]=useState(null);
   // The Stream message a mention row points at, so the Stream can land on it.
   const [streamFocusMessageId,setStreamFocusMessageId]=useState("");
@@ -483,6 +497,11 @@ const App = () => {
   const [profileError,setProfileError]=useState("");
   const [appState,setAppState]=useState(()=>cached||buildEmptyAppState());
   const [selectedGroupId,setSelectedGroupId]=useState(()=>{try{return localStorage.getItem(LOCAL_GROUP_KEY)||null;}catch{return null;}});
+  // Declared here, not with the other notification refs above: selectedGroupId
+  // does not exist until this line, and reading it earlier is a dead-zone
+  // crash on first render.
+  const selectedGroupIdRef=useRef(selectedGroupId);
+  useEffect(()=>{ selectedGroupIdRef.current=selectedGroupId; },[selectedGroupId]);
   const [authSession,setAuthSession]=useState(()=>initialPersistedSession);
   const [pendingAuthSession,setPendingAuthSession]=useState(null);
   const [authStep,setAuthStep]=useState(null);
@@ -572,6 +591,17 @@ const App = () => {
   }, [standalone]);
   const [syncing,setSyncing]=useState(false);
   const [syncError,setSyncError]=useState(false);
+  // The offline notice's Retry needs to look like it did something. A refresh
+  // against a reachable server can finish in under 100ms, which reads as a
+  // dead button, and a refresh that fails changes nothing on screen at all --
+  // the member taps, nothing moves, and they are back where enrico was. So the
+  // button holds a spinner for a minimum beat, then either the notice goes
+  // (success) or it says "Still offline" for a moment (failure) before
+  // offering Retry again.
+  const [retryState,setRetryState]=useState("idle"); // idle | retrying | failed
+  const syncErrorRef=useRef(false);
+  const retryStateRef=useRef("idle");
+  const retryTimersRef=useRef([]);
   const [lastSyncedAt,setLastSyncedAt]=useState(null);
   const [showJustSynced,setShowJustSynced]=useState(false);
   const [reactionOverrides,setReactionOverrides]=useState({});
@@ -1054,6 +1084,7 @@ const App = () => {
   const refreshNow = useCallback(async () => {
     setSyncing(true);
     setSyncError(false);
+    let ok = false;
     try {
       const data = await fetchData();
       if(data){
@@ -1061,14 +1092,75 @@ const App = () => {
         setLastSyncedAt(new Date());
         flashJustSynced();
         if (!applied) setSyncError(false);
+        ok = true;
       } else {
         setSyncError(true);
       }
+    } catch {
+      // fetchData returns null for a bad response but throws when the request
+      // itself cannot complete -- offline, DNS, a dropped connection. That
+      // throw used to escape past the `else` and leave syncError false, so the
+      // one case the member most needs to be told about was the one case the
+      // app stayed silent on, and the rejection went unhandled in every caller
+      // that does not await it. Found while making Retry show its outcome.
+      setSyncError(true);
     } finally {
       setLoading(false);
       setSyncing(false);
     }
+    return ok;
   },[applyData, flashJustSynced]);
+
+  useEffect(()=>{ syncErrorRef.current = syncError; },[syncError]);
+  useEffect(()=>{ retryStateRef.current = retryState; },[retryState]);
+  useEffect(()=>() => { retryTimersRef.current.forEach(clearTimeout); },[]);
+
+  const RETRY_MIN_SPIN_MS = 650;
+  const RETRY_TIMEOUT_MS = 15000;
+  const handleSyncRetry = useCallback(() => {
+    if (retryStateRef.current === "retrying") return;
+    retryTimersRef.current.forEach(clearTimeout);
+    retryTimersRef.current = [];
+    retryStateRef.current = "retrying";
+    setRetryState("retrying");
+    const startedAt = Date.now();
+    const settle = ok => {
+      // refreshNow's own return value, not syncErrorRef: the ref lags a render
+      // behind, so reading it here reported success on a refresh that had just
+      // failed and the "Failed" state never appeared.
+      const failed = !ok || syncErrorRef.current;
+      // A failed retry stays failed. It used to revert to the plain notice
+      // after a beat, which read as the failure quietly going away -- the exact
+      // thing this whole notice exists to stop. It clears only when a sync
+      // actually succeeds, which is what the effect below watches for.
+      setRetryState(failed ? "failed" : "idle");
+    };
+    // A request that hangs rather than failing would leave the spinner turning
+    // for as long as the phone's own network stack takes to give up, which is
+    // the "failed load that never stops looking like loading" the playbook
+    // calls out. Whichever comes first wins, and `settled` keeps the loser from
+    // overwriting the result.
+    let settled = false;
+    const finish = ok => {
+      if (settled) return;
+      settled = true;
+      const wait = Math.max(0, RETRY_MIN_SPIN_MS - (Date.now() - startedAt));
+      retryTimersRef.current.push(setTimeout(() => settle(ok), wait));
+    };
+    retryTimersRef.current.push(setTimeout(() => finish(false), RETRY_TIMEOUT_MS));
+    Promise.resolve(refreshNow()).catch(() => false).then(finish);
+  },[refreshNow]);
+
+  // The only thing that clears a stuck "Still can't reach Fero" is a sync that
+  // actually succeeded, and lastSyncedAt is the one signal that means exactly
+  // that. Keying this on syncError going false did not work: every refresh,
+  // including the one the app fires when the window regains focus, clears
+  // syncError on its way in, so tabbing back to the app reset the failure to
+  // the plain notice before failing again. Caught on screen, not in review.
+  useEffect(()=>{
+    if (!lastSyncedAt) return;
+    if (retryStateRef.current === "failed") setRetryState("idle");
+  },[lastSyncedAt]);
 
   useEffect(()=>{
     const syncStandalone = () => setStandalone(isStandalone());
@@ -2105,9 +2197,29 @@ const App = () => {
     if (!groupId || !effectiveAuthSession?.userId) {
       setStreamUnreadCount(0);
       setNotificationServerCounts({mentions:null,logComments:null});
+      setNotificationThreads({});
       return;
     }
-    const result = await getBlocStreamUnreadCountData(groupId, notificationsSeenAtRef.current);
+    // Three bugs came from this call having no idea whether its answer was
+    // still worth anything by the time it arrived. It fires on every revision
+    // change, so there are often two in the air at once.
+    //
+    //  - Opening the bell cleared the badge, then an in-flight answer carrying
+    //    the OLD seen time put it straight back.
+    //  - Switching Bloc left the previous Bloc's number on screen, because
+    //    whichever answer landed LAST won rather than whichever was NEWEST.
+    //  - Two overlapping refreshes could resolve out of order and leave a
+    //    stale number up.
+    //
+    // One sequence number and two equality checks close all three. An answer
+    // is used only when it is the newest request, for the Bloc still on
+    // screen, measured from the seen time still in force.
+    const seq = (streamUnreadSeqRef.current += 1);
+    const since = notificationsSeenAtRef.current;
+    const result = await getBlocStreamUnreadCountData(groupId, since);
+    if (seq !== streamUnreadSeqRef.current) return;
+    if (groupId !== selectedGroupIdRef.current) return;
+    if (since !== notificationsSeenAtRef.current) return;
     if (result?.ok) {
       setStreamUnreadCount(result.unreadCount);
       // Absent, not zero, on a server without the function: keep null so the
@@ -2139,6 +2251,16 @@ const App = () => {
     if (!key) return;
     setLogCommentCountOverrides(current => ({ ...current, [key]: Math.max(0, Number(count || 0)) }));
   },[]);
+  // Closing the Stream no longer asks the server for a fresh count. It used
+  // to, and it raced the Stream's own "mark these read" write - which is
+  // fired without being awaited - so on a slow connection the server still
+  // counted them unread and the badge came back after the member had just
+  // cleared it.
+  //
+  // The Stream already reports 0 through onUnreadCountChange once that write
+  // succeeds, which is the trustworthy signal, and this effect confirms it on
+  // the next revision change by which time the write has landed. If the write
+  // failed, the badge keeps its old number instead of wrongly showing zero.
   useEffect(() => {
     if (showStream) return;
     refreshStreamUnreadCount();
@@ -2467,8 +2589,9 @@ const App = () => {
     formatAmount: (amount, currency) => fmtCurrency(amount, currency),
     latestComments: notificationLatestComments,
     latestCommentsLoaded: notificationLatestCommentsLoaded,
-    streamMessages: notificationStreamMessages
-  }), [currentGroup, currentUser, effectiveAuthSession?.userId, notificationReminderCards, notificationLatestComments, notificationLatestCommentsLoaded, notificationStreamMessages]);
+    streamMessages: notificationStreamMessages,
+    threads: notificationThreads
+  }), [currentGroup, currentUser, effectiveAuthSession?.userId, notificationReminderCards, notificationLatestComments, notificationLatestCommentsLoaded, notificationStreamMessages, notificationThreads]);
   // What the client can see for itself: reactions (the log carries the
   // reaction's own timestamp) and money.
   //
@@ -2497,29 +2620,56 @@ const App = () => {
         : { mentions: current.mentions === null ? null : 0, logComments: current.logComments === null ? null : 0 }
     ));
     setShowNotifications(true);
-    // The panel opens immediately on what the client already knows; the comment
-    // text and the mentions fill in behind it. Two batched calls per opening,
-    // and none at all if the bell is never tapped.
+
+    // The panel used to open instantly on what the client already knew, and
+    // the comment text and mentions filled in behind it. That is why the list
+    // moved: mention rows do not exist until the fetch returns, rows are
+    // sorted by time and split into Today / This week / Earlier, so a late
+    // mention re-sorted and re-sectioned the list under the member's finger.
+    // A comment row could also appear and then delete itself, because the
+    // first paint counted the member's own comments and the second did not.
+    //
+    // So it now waits, behind a skeleton, and arrives finished.
     const groupId = currentGroup?.id;
-    if (!groupId) return;
+    if (!groupId) { setNotificationsLoading(false); return; }
+    setNotificationsLoading(true);
+
     // Every one of your own logs, not only the ones the blob thinks have
     // comments: that count comes from canonical and can lag behind it.
     const ownLogIds = (currentGroup?.logs?.[currentUser] || [])
       .map(log => String(log?.id || ""))
       .filter(Boolean);
-    if (ownLogIds.length) {
-      getLogLatestCommentsData(groupId, ownLogIds).then(result => {
-        // An empty answer means nobody has commented. It is never a reason to
-        // blank what is already on screen.
-        if (result?.ok) {
-          setNotificationLatestComments(result.latest || {});
-          setNotificationLatestCommentsLoaded(true);
-        }
-      }).catch(() => { /* the rows fall back to the count they already have */ });
-    }
-    listBlocStreamMessagesData(groupId, 100).then(result => {
+
+    const comments = ownLogIds.length
+      ? getLogLatestCommentsData(groupId, ownLogIds).then(result => {
+          // An empty answer means nobody has commented. It is never a reason
+          // to blank what is already on screen.
+          if (result?.ok) {
+            setNotificationLatestComments(result.latest || {});
+            setNotificationLatestCommentsLoaded(true);
+          }
+        })
+      : Promise.resolve();
+
+    const mentions = listBlocStreamMessagesData(groupId, 100).then(result => {
       if (result?.ok) setNotificationStreamMessages(result.messages || []);
-    }).catch(() => { /* no mention rows, rather than a broken screen */ });
+    });
+
+    // Conversations this member joined on somebody else's workout. Needs no
+    // log ids: the server already knows which threads they have spoken in.
+    // An empty answer means nothing has moved, never that the call failed.
+    const threads = getLogThreadsData(groupId).then(result => {
+      if (result?.ok) setNotificationThreads(result.threads || {});
+    });
+
+    // A hung request must not trap the member in a skeleton for ever. After
+    // this the panel shows whatever has arrived, which is what it always did.
+    // A failed comment fetch leaves latestCommentsLoaded false, so those rows
+    // fall back to the blob's count exactly as before.
+    const cap = new Promise(resolve => setTimeout(resolve, NOTIFICATION_FETCH_CAP_MS));
+    Promise.race([Promise.allSettled([comments, mentions, threads]), cap])
+      .then(() => setNotificationsLoading(false))
+      .catch(() => setNotificationsLoading(false));
   };
   // Every row lands somewhere real rather than being a dead end.
   const handleNotificationAct = item => {
@@ -2528,7 +2678,14 @@ const App = () => {
       // A comment row opens the thread itself, not the workout it hangs off.
       // The thread needs the whole log, and these are always the signed-in
       // member's own workouts, so it is found in their own list.
-      const log = (currentGroup?.logs?.[currentUser] || []).find(entry => String(entry?.id) === String(item.logId));
+      // A thread row's workout belongs to somebody else, so look across every
+      // member's logs rather than only this member's. Own-log rows still match
+      // on the first list they appear in, so nothing changes for them.
+      let log = null;
+      for (const entries of Object.values(currentGroup?.logs || {})) {
+        const match = (Array.isArray(entries) ? entries : []).find(entry => String(entry?.id) === String(item.logId));
+        if (match) { log = match; break; }
+      }
       if (log) {
         handleOpenLogComments({ groupId: currentGroup.id, log, source: "activity" });
         return;
@@ -3454,6 +3611,120 @@ const App = () => {
     );
   };
 
+
+  // A refresh that fails has always been silent: the last good screen stays up
+  // with nothing to say it is stale. enrico spent 2 November looking at 31
+  // October's data believing his October had been deleted, because the app had
+  // no way to tell him it could not reach the server. The playbook calls this
+  // family out twice -- "A Failed Mutation That Says Nothing" and "A Failed
+  // Load That Never Stops Looking Like Loading" -- and the rule is the same
+  // both times: a real failure must reach a terminal state, say so, and offer
+  // a way to retry.
+  //
+  // `syncError` has been maintained correctly at every call site since long
+  // before this and passed to Nav, which never drew it. This is the drawing.
+  //
+  // It is a fixed overlay on purpose. It must not move the layout: no card
+  // changes size, nothing shifts down. It sits above the bottom bar, steps up
+  // when the install prompt already occupies that slot, and is gated off while
+  // a full-screen sheet is open so it cannot float over one.
+  const renderSyncErrorNotice = () => {
+    // refreshNow clears syncError the moment it starts, so gating on syncError
+    // alone would unmount the notice as soon as Retry was pressed and the
+    // spinner would never be seen. The notice stays while a retry is resolving.
+    // Not gated on syncError alone: every refresh clears it on the way in, so
+    // the notice would blink out and back on each poll. retryState holds it.
+    if ((!syncError && retryState === "idle") || loading || !authSession?.userId) return null;
+    if (showSettings || showStream || logCommentScreen) return null;
+    const bottomOffset = inviteDownloadPrompt
+      ? "calc(228px + env(safe-area-inset-bottom))"
+      : "calc(106px + env(safe-area-inset-bottom))";
+    return React.createElement('div',{
+      style:{
+        position:"fixed",
+        left:16,
+        right:16,
+        bottom:bottomOffset,
+        zIndex:400,
+        display:"flex",
+        justifyContent:"center",
+        pointerEvents:"none"
+      }
+    },
+      React.createElement('div',{
+        style:{
+          display:"flex",
+          alignItems:"center",
+          gap:10,
+          maxWidth:360,
+          width:"fit-content",
+          border:"0.5px solid rgba(255,91,91,.24)",
+          borderRadius:16,
+          padding:"10px 10px 10px 14px",
+          background:"rgba(8,15,15,.95)",
+          boxShadow:"0 18px 46px rgba(0,0,0,.36)",
+          pointerEvents:"auto"
+        }
+      },
+        React.createElement('span',{
+          style:{
+            width:6,
+            height:6,
+            borderRadius:999,
+            background:"#FF5B5B",
+            flexShrink:0
+          }
+        }),
+        React.createElement('span',{
+          style:{
+            fontFamily:"'Outfit', sans-serif",
+            fontSize:12.5,
+            fontWeight:900,
+            color:"var(--text)",
+            lineHeight:1.25,
+            whiteSpace:"nowrap"
+          }
+        },retryState==="retrying"?"Reconnecting":retryState==="failed"?"Still can't reach Fero":"Can't reach Fero"),
+        React.createElement('button',{
+          type:"button",
+          onClick:handleSyncRetry,
+          disabled:retryState==="retrying",
+          style:{
+            display:"flex",
+            alignItems:"center",
+            justifyContent:"center",
+            gap:6,
+            minHeight:28,
+            minWidth:62,
+            padding:"0 12px",
+            borderRadius:999,
+            background:"rgba(255,91,91,.12)",
+            border:"0.5px solid rgba(255,91,91,.28)",
+            color:"#FF5B5B",
+            fontFamily:"'Outfit', sans-serif",
+            fontSize:12,
+            fontWeight:900,
+            flexShrink:0,
+            opacity:retryState==="retrying"?.7:1
+          }
+        },
+          retryState==="retrying"
+            ? React.createElement('span',{
+                style:{
+                  width:12,
+                  height:12,
+                  borderRadius:"50%",
+                  border:"2px solid rgba(255,91,91,.28)",
+                  borderTopColor:"#FF5B5B",
+                  animation:"spin .7s linear infinite",
+                  display:"inline-block"
+                }
+              })
+            : "Retry"
+        )
+      )
+    );
+  };
   const resumeColdOnboardingAtActionScreen = useCallback(() => {
     setColdOnboardingInitialIndex(3);
     setReplayColdOnboarding(true);
@@ -3887,8 +4158,9 @@ const App = () => {
   React.createElement(React.Fragment,null,
     showJoinModal && !authStep && React.createElement(JoinGroupModal,{inviteContext,joinCode,setJoinCode,onClose:handleJoinModalClose,onJoin:handleJoinGroup,joining:joiningGroup,error:inviteError,signedIn:true}),
     showProfileModal && React.createElement(ProfileModal,{email:authSession?.email,onSignOut:handleSwitchUser,onClose:()=>setShowProfileModal(false),showDisplayName:true,currentDisplayName:currentUser,onSaveDisplayName:handleSaveProfileFromModal,saving:profileSaving,saveError:profileError,onLeaveBloc:handleLeaveBloc,onDeleteAccount:handleDeleteAccount,currentPaymentMethods:effectiveProfile?.paymentMethods||[],onSavePayment:handleSavePaymentHandle,savingPayment:paymentSaving,paymentError:paymentError}),
-    React.createElement(BlocStream,{open:showStream,groupName:currentGroup.name,blocId:currentGroup.id,initialBlocId:streamFocusBlocId,initialScrollTop:streamReturnScrollTop,initialUnreadCount:streamUnreadCount,focusMessageId:streamFocusMessageId,onFocusMessageShown:()=>setStreamFocusMessageId(""),currentUserId:effectiveAuthSession?.userId,members:Object.values(currentGroup.memberships||{}).map(m=>({id:m.userId,name:m.displayName,photoUrl:appState.profiles?.[m.userId]?.profilePhotoUrl||""})),streamBlocs:visibleGroups.map(group=>({id:group.id,name:group.name,members:Object.values(group.memberships||{}).map(m=>({id:m.userId,name:m.displayName,photoUrl:appState.profiles?.[m.userId]?.profilePhotoUrl||""}))})),onSeasonClosedTap:handleStreamSeasonClosedTap,onUnreadCountChange:(groupId,count)=>{if(groupId===currentGroup.id)setStreamUnreadCount(Number(count)||0);},onOpenLogComments:handleOpenLogComments,onClose:()=>{setShowStream(false);setStreamFocusBlocId(null);setStreamReturnScrollTop(null);setStreamFocusMessageId("");refreshStreamUnreadCount(currentGroup.id);}}),
+    React.createElement(BlocStream,{open:showStream,groupName:currentGroup.name,blocId:currentGroup.id,initialBlocId:streamFocusBlocId,initialScrollTop:streamReturnScrollTop,initialUnreadCount:streamUnreadCount,focusMessageId:streamFocusMessageId,onFocusMessageShown:()=>setStreamFocusMessageId(""),currentUserId:effectiveAuthSession?.userId,members:Object.values(currentGroup.memberships||{}).map(m=>({id:m.userId,name:m.displayName,photoUrl:appState.profiles?.[m.userId]?.profilePhotoUrl||""})),streamBlocs:visibleGroups.map(group=>({id:group.id,name:group.name,members:Object.values(group.memberships||{}).map(m=>({id:m.userId,name:m.displayName,photoUrl:appState.profiles?.[m.userId]?.profilePhotoUrl||""}))})),onSeasonClosedTap:handleStreamSeasonClosedTap,onUnreadCountChange:(groupId,count)=>{if(groupId===currentGroup.id)setStreamUnreadCount(Number(count)||0);},onOpenLogComments:handleOpenLogComments,onClose:()=>{setShowStream(false);setStreamFocusBlocId(null);setStreamReturnScrollTop(null);setStreamFocusMessageId("");}}),
     showNotifications && React.createElement(NotificationCentre,{
+      loading:notificationsLoading,
       items:notificationItems,
       onClose:()=>setShowNotifications(false),
       onAct:handleNotificationAct
@@ -3924,6 +4196,7 @@ const App = () => {
     renderInviteJoinToast(),
     renderProfilePhotoToast(),
     renderInviteDownloadPrompt(),
+    renderSyncErrorNotice(),
     showFounderDashboard && React.createElement(FounderDashboard,{onClose:()=>setShowFounderDashboard(false)}),
     logCommentScreen && React.createElement('div',{
       style:{position:"fixed",inset:0,zIndex:520,overflow:"hidden",pointerEvents:"auto",background:"transparent"}

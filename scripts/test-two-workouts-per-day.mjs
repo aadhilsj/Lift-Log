@@ -10,7 +10,8 @@ import {
 import {
   getDistinctWorkoutCountForDate as getFrontendWorkoutCount,
   countWorkoutsInDayMap,
-  findWorkoutCopiesInOtherBlocs
+  findWorkoutCopiesInOtherBlocs,
+  formatDayWorkoutCount
 } from "../src/lib/appState.js";
 
 // Week's MVP counts workouts, not merely occupied calendar dates. Its display
@@ -113,12 +114,13 @@ function state() {
   };
 }
 
-function addLog(current, groupId, workoutType = "Gym") {
+function addLog(current, groupId, workoutType = "Gym", activity = null) {
   return applyAddLog(current, {
     groupId,
     actor: USER,
     actorUserId: USER_ID,
     workoutType,
+    ...(activity ? { activity } : {}),
     date: TODAY,
     note: "Two-workout test",
     photoUrl: "https://example.com/workout.jpg"
@@ -151,7 +153,9 @@ function addLog(current, groupId, workoutType = "Gym") {
     "logging must leave the other same-named person's workouts unchanged");
 }
 
-// Two genuine workouts on the same date count separately, including the same type.
+// ── The cap is TWO PER ACTIVITY, not two per day ────────────────────────────
+// Founder's decision, 22 October 2026: log as many workouts a day as you like,
+// but no more than two of the same activity. These cases are his own examples.
 {
   let current = state();
   current = addLog(current, "bloc-a", "Gym");
@@ -159,20 +163,79 @@ function addLog(current, groupId, workoutType = "Gym") {
   current = addLog(current, "bloc-a", "Gym");
   assert.equal(getDistinctWorkoutCountForDate(current, USER, USER_ID, TODAY), 2);
   assert.equal(getFrontendWorkoutCount(current.groups, USER_ID, USER, TODAY), 2);
-  assert.equal(current.groups["bloc-a"].logs[USER].length, 2);
+
+  // A third GYM is refused, and the message names the activity so it is clear
+  // something else may still be logged.
   assert.throws(
-    () => addLog(current, "bloc-a", "Run"),
-    error => error.status === 409 && error.message === "Already logged 2 workouts for this date"
+    () => addLog(current, "bloc-a", "Gym"),
+    error => error.status === 409 && /Already logged 2 Gym workouts for this date/.test(error.message),
+    "a third session of the same activity must be refused, by name"
   );
+
+  // A Run on the same day is fine - this is the whole point of the change.
+  current = addLog(current, "bloc-a", "Run");
+  assert.equal(getDistinctWorkoutCountForDate(current, USER, USER_ID, TODAY), 3,
+    "a different activity is not capped by the first one");
+  current = addLog(current, "bloc-a", "Run");
+  assert.equal(getDistinctWorkoutCountForDate(current, USER, USER_ID, TODAY), 4,
+    "two of each activity, so four workouts in a day is allowed");
+  assert.throws(() => addLog(current, "bloc-a", "Run"), error => error.status === 409,
+    "but a third Run is still refused");
 }
 
-// The cap is global across Blocs, not two workouts per Bloc.
+// Two activities that share a CATEGORY still count apart. This is the case the
+// whole change turns on: Padel, Tennis and Basketball are all "Sports", so a
+// cap keyed on the type would have treated three different sports as three of
+// the same thing. It keys on the activity instead.
 {
   let current = state();
-  current = addLog(current, "bloc-a", "Run");
+  current = addLog(current, "bloc-a", "Sports", "Padel");
+  current = addLog(current, "bloc-a", "Sports", "Padel");
+  assert.throws(
+    () => addLog(current, "bloc-a", "Sports", "Padel"),
+    error => error.status === 409 && /Already logged 2 Padel workouts/.test(error.message),
+    "a third Padel is refused, by name"
+  );
+  current = addLog(current, "bloc-a", "Sports", "Tennis");
+  current = addLog(current, "bloc-a", "Sports", "Tennis");
+  assert.equal(getDistinctWorkoutCountForDate(current, USER, USER_ID, TODAY), 4,
+    "Tennis is not capped by Padel even though both are Sports");
+  current = addLog(current, "bloc-a", "Sports", "Basketball");
+  assert.equal(getDistinctWorkoutCountForDate(current, USER, USER_ID, TODAY), 5,
+    "and Basketball is a third distinct Sport on the same day");
+  assert.throws(() => addLog(current, "bloc-a", "Sports", "Tennis"), error => error.status === 409,
+    "but a third Tennis is refused");
+}
+
+// The per-activity cap is still GLOBAL across Blocs: it is your day, not the
+// Bloc's. Two gym sessions anywhere means no third gym session anywhere.
+{
+  let current = state();
+  current = addLog(current, "bloc-a", "Gym");
   current = addLog(current, "bloc-b", "Gym");
   assert.equal(getDistinctWorkoutCountForDate(current, USER, USER_ID, TODAY), 2);
-  assert.throws(() => addLog(current, "bloc-a", "Gym"), error => error.status === 409);
+  assert.throws(() => addLog(current, "bloc-a", "Gym"), error => error.status === 409,
+    "the second Bloc does not grant a fresh pair of gym slots");
+  // ...but a Run is still fine. (bloc-b only accepts Gym in this fixture, so
+  // the Run goes to bloc-a - the point is that the activity, not the Bloc,
+  // decides.)
+  current = addLog(current, "bloc-a", "Run");
+  assert.equal(getDistinctWorkoutCountForDate(current, USER, USER_ID, TODAY), 3);
+}
+
+// Counting by activity must not count a different activity. The per-activity
+// counter is what the log screen uses to decide whether to block.
+{
+  let current = state();
+  current = addLog(current, "bloc-a", "Gym");
+  current = addLog(current, "bloc-a", "Run");
+  assert.equal(getDistinctWorkoutCountForDate(current, USER, USER_ID, TODAY, "gym"), 1);
+  assert.equal(getDistinctWorkoutCountForDate(current, USER, USER_ID, TODAY, "run"), 1);
+  assert.equal(getDistinctWorkoutCountForDate(current, USER, USER_ID, TODAY, "padel"), 0);
+  assert.equal(getDistinctWorkoutCountForDate(current, USER, USER_ID, TODAY), 2,
+    "no activity means every activity, as it did before");
+  assert.equal(getFrontendWorkoutCount(current.groups, USER_ID, USER, TODAY, "gym"), 1,
+    "the modal counter agrees with the backend counter");
 }
 
 // One workout copied into two Blocs consumes one slot; a second copied workout
@@ -328,4 +391,23 @@ function addLog(current, groupId, workoutType = "Gym") {
   assert.deepEqual(findWorkoutCopiesInOtherBlocs(blocs, "a", "", run), [], "no user, no copies");
 }
 
-console.log("Two-workouts-per-day checks passed.");
+// ── The calendar day badge ──────────────────────────────────────────────────
+// This was Math.min(count, 2) written inline in four places. It was correct
+// while the cap was two a day, and on 23 October it silently became a lie: a
+// day holding four workouts still reported "2", which is exactly what the
+// founder said must stay visible. One definition now, and these pin it.
+assert.equal(formatDayWorkoutCount(2), "2");
+assert.equal(formatDayWorkoutCount(3), "3", "a third workout must not report as 2");
+assert.equal(formatDayWorkoutCount(4), "4");
+assert.equal(formatDayWorkoutCount(9), "9");
+// Two digits do not fit the ~12px circle, so it caps the way the bell does.
+assert.equal(formatDayWorkoutCount(10), "9+");
+assert.equal(formatDayWorkoutCount(37), "9+");
+// Junk in must not render "NaN" on a calendar.
+assert.equal(formatDayWorkoutCount(0), "0");
+assert.equal(formatDayWorkoutCount(-3), "0");
+assert.equal(formatDayWorkoutCount(null), "0");
+assert.equal(formatDayWorkoutCount(undefined), "0");
+assert.equal(formatDayWorkoutCount("not a number"), "0");
+
+console.log("Two-per-activity-per-day checks passed.");

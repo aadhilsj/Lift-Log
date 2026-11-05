@@ -18,9 +18,18 @@ the newer dated doc wins over the older.
 | [`../AGENTS.md`](../AGENTS.md) | The working agreement. `CLAUDE.md` is a symlink to it, so Codex and Claude read the same rules. |
 | [`WHATS-LIVE.md`](WHATS-LIVE.md) | What is on the website vs TestFlight right now. Beats every handover. |
 | The newest session handover in §2 | Where the last session stopped, and what it left open. |
-| [`handover-2026-09-29-for-deveen-active.md`](handover-2026-09-29-for-deveen-active.md) | Deveen's current list — backend, database, RLS, CI. |
+| [`handover-2026-10-29-for-deveen-active.md`](handover-2026-10-29-for-deveen-active.md) | Deveen's current list — scaling, migration history, the bugs still open. **Deveen: start at §14 (3 Nov) — every open question for you in one place, eight of them, three blocking Aadhil.** §12 is the App Store blocker list and §13 (3 Nov) is what changed under it: item 2 is live, items 3 and 4 are still open. |
 | [`recurring-debugging-playbook.md`](recurring-debugging-playbook.md) | Bugs that keep coming back (swipe, flicker, reactions, stale Blocs), with the fix rules. |
 | [`solved-issues-log.md`](solved-issues-log.md) | Every bug already solved, so nobody re-derives one. |
+
+**Before an App Store submission:**
+[`app-store-review-notes-2026-10-22.md`](app-store-review-notes-2026-10-22.md) —
+the drafted App Review notes, what each claim is based on, and the four things
+still missing.
+
+**Before touching the notification centre:**
+[`notification-timing-audit-2026-10-22.md`](notification-timing-audit-2026-10-22.md) —
+five timing findings: two certain, three races.
 
 **Before writing SQL:** [`SCHEMA.md`](SCHEMA.md).
 **Before analysing numbers or writing a report:**
@@ -32,10 +41,25 @@ the newer dated doc wins over the older.
 
 Read every one of these. Each is a dated record of one session.
 
+### November 2026
+
+| Date | Handover | About |
+| --- | --- | --- |
+| 5 Nov — **open** | [`handover-2026-11-05-scoped-reads-applied.md`](handover-2026-11-05-scoped-reads-applied.md) | **Deveen's scoped-reads migration `20261103120000` is applied to production.** The pre-apply diff he asked for passed — signature plus one filter line per function, no column touched, no drift from the repo. Equivalence proved in SQL: passing every Bloc key returns byte-identical jsonb to passing nothing (44=44, 93=93). Measured saving, unscoped vs one Bloc: `month_history` **126.5 ms / 1.39 MB → 8.6 ms / 25.3 KB**. Nothing behaves differently yet — the API still passes no argument, and that half is Deveen's. Rollback tracked at `docs/rollback/`, because the capture had landed in gitignored `migration-output/`. **Open:** §14 Q2 (Nano → Micro, still blocking Aadhil) and Q3 (undocumented database work) are still unanswered by Deveen |
+| 3 Nov — **open** | [`handover-2026-11-03-review-account.md`](handover-2026-11-03-review-account.md) | Wiring Apple's reviewer mailbox `feroappreview@gmail.com` into Fero. Both dashboard exclusions widened **before** the account exists, so the reviewer is never counted as a real user: `ANALYTICS_EXCLUDED_EMAILS` now carries it, and `read_ante_core_founder_dashboard` resolves excluded profiles from **Bloc membership** rather than the `review.%@joinfero.app` prefix the Gmail could never match. Migration `20261103230000` applied to production and verified a no-op today — identical numbers before and after, which is the correct result. **Closed out.** The account exists as **Fero Review**, is in Sunday Warriors, and the mailbox receives the sign-in code — confirmed 4 Nov, the item most likely to cause an outright rejection. November seeded with 13 logs across four days; `allTime` uploads held at 2081 through it, so the fixture is invisible on every axis. A second migration `20261103234500` was needed: the two account counts still carried their own inline prefix test and moved 48 → 49 until they were pointed at the shared excluded set. **Open, none of it code:** TestFlight build 12 is 45 commits behind `main` and still carries the old two-per-day cap and the calendar-tap delete bug; the review video. **`support@joinfero.app` is confirmed working** (5 Nov) — a configured Cloudflare route, not a catch-all, forwarding to the Verified `fero.support@gmail.com`, live test arrived and not in spam. It is not a mailbox and has no password; the inbox to open is the Gmail |
+| 2–3 Nov — closed | [`handover-2026-11-02-october-sitouts-and-solo.md`](handover-2026-11-02-october-sitouts-and-solo.md) | Started as three retroactive October corrections — **Manz** (Sweat Equity) and **Cutie pie** (Ctrl Alt De-feat, granted beyond her allowance) sit out, **Marlène** (StavanGang) Solo at 5, nobody owing anything for October. Then **enrico reported October had vanished**: a two-day-old cache shown inside a November frame, diagnosed from his own screenshot numbers. **Two client fixes now live** — `d2c3870` stops a closed month being served from cache, `40d1190` tells the member when the app cannot reach the server, with a retry that shows its own outcome. Three silent-failure bugs in the existing sync code found and fixed on the way, including a thrown request that left the app saying nothing. **Deveen: §25 is addressed to you, and his own §14 now collects every question waiting on him.** Closed out in §28 — what is live, what is open, the commits table. **Open:** Supabase still on Nano; Emma and Ashanee fail `parity:gate`; two `SCHEMA.md` errors; `.env.local` and four `.dmg` backups sit in the work Google Drive |
+| 1 Nov — **open** | [`handover-2026-11-01-month-close.md`](handover-2026-11-01-month-close.md) | The 1 November close worked: all 13 Blocs froze October and opened November, counts exact, **no fines in the review Bloc**. **Open:** October's five `outstanding` flags are in the blob but missing from canonical, so `parity:gate` fails. Read-only — nothing changed |
+
 ### October 2026
 
 | Date | Handover | About |
 | --- | --- | --- |
+| 30 Oct — **open** | [`handover-2026-10-30-design-elevation.md`](handover-2026-10-30-design-elevation.md) | **Start here.** Fero is not getting a redesign — it is getting an elevation, in a fixed order. Docs only. Stopped because the `design-critique` skill needs a fresh session; next session runs it, then does step 1 on Today |
+| 29 Oct — **closed** | [`handover-2026-10-29-review-bloc.md`](handover-2026-10-29-review-bloc.md) | The App Store review Bloc built in production — Sunday Warriors, invite `FQ1GXF` — and the new, separate exclusion keeping its five accounts out of the numbers |
+| 29 Oct — **closed** | [`handover-2026-10-29-comment-notifications.md`](handover-2026-10-29-comment-notifications.md) | Your own comment stops raising your own Stream badge, and a reply in any thread you are in now reaches For you. Both live at `46259d2` |
+| 23 Oct — **closed** | [`handover-2026-10-23-calendar-tap.md`](handover-2026-10-23-calendar-tap.md) | Session 2: tapping a calendar day now shows the workout instead of starting a delete, live at `ca248a2`. Delete moved into the detail sheet |
+| 23 Oct — **closed** | [`handover-2026-10-23-session-close.md`](handover-2026-10-23-session-close.md) | Closes 19–23 October, and carries the one task the founder parked for a fresh session: tapping a calendar day starts a delete instead of showing the workout |
+| 23 Oct — **closed** | [`handover-2026-10-23-per-activity-cap.md`](handover-2026-10-23-per-activity-cap.md) | The daily cap becomes two per **activity** instead of two per day. Applied to production and live. **Open:** the monthly score still counts every workout, so a target can now be crammed into two days |
 | 19 Oct — **closed** | [`handover-2026-10-19-catch-up-and-docs.md`](handover-2026-10-19-catch-up-and-docs.md) | Catch-up after ten days away: the shared folder brought level with `origin/main` from 78 behind, and Deveen's 18 October work recorded in `WHATS-LIVE.md`. Docs only |
 | 18 Oct — **closed** | [`handover-2026-10-18-open-season-sweep.md`](handover-2026-10-18-open-season-sweep.md) | Deveen's sweep for the 1 October bug shape: found it once more, in the read path — a skipped Bloc was shown an empty new month instead of its real one. Fixed at `1c23241`, plus the two month-close CI cases that were missing |
 | 16 Oct — **closed** | [`handover-2026-10-16-latest-reaction-emoji.md`](handover-2026-10-16-latest-reaction-emoji.md) | The For you emoji badge becomes the emoji most recently used, not the one the most people chose: the canonical log reads now carry a `latest_reaction` |
@@ -96,7 +120,8 @@ Read every one of these. Each is a dated record of one session.
 
 | Week | Handover |
 | --- | --- |
-| 29 Sep — **active** | [`handover-2026-09-29-for-deveen-active.md`](handover-2026-09-29-for-deveen-active.md) |
+| 29 Oct — **active** | [`handover-2026-10-29-for-deveen-active.md`](handover-2026-10-29-for-deveen-active.md) |
+| 29 Sep — closed | [`handover-2026-09-29-for-deveen-active.md`](handover-2026-09-29-for-deveen-active.md) |
 | 22 Sep | [`handover-2026-09-22-for-deveen-active.md`](handover-2026-09-22-for-deveen-active.md) |
 
 ### June to August 2026 — the migration era
@@ -138,6 +163,7 @@ with a newer doc, the newer doc wins.
 Not session records — read the ones for the area you are about to touch.
 
 **Product rules and designs**
+- [`design-elevation-audit-2026-10-30.md`](design-elevation-audit-2026-10-30.md) — **before changing anything visual.** Why Fero reads as generated, with reproducible counts, and the fixed order the elevation happens in
 - [`solo-rules-decisions-2026-09-18.md`](solo-rules-decisions-2026-09-18.md) — Solo rules to carry forward
 - [`two-workouts-per-day-plan-2026-08-26.md`](two-workouts-per-day-plan-2026-08-26.md) — the deliberate two-a-day cap
 - [`share-sticker-implementation-plan-2026-08-01.md`](share-sticker-implementation-plan-2026-08-01.md) and `share-sticker-reference/` — locked sticker design

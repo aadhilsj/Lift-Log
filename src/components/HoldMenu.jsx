@@ -179,11 +179,24 @@ const HoldTarget = ({ actions = [], onPick, onMore, disabled = false, children }
     setAnchorRect({ top: r.top, left: r.left, width: r.width, height: r.height });
   };
 
+  // Some controls inside a hold target run their own press gesture and must
+  // keep it to themselves. The reaction chips are the case this was written
+  // for: holding one shows who reacted at 420ms, and the hold menu then
+  // opened on top of it at 500ms, so a press meant to read names also
+  // selected the whole post for Report or Block.
+  //
+  // Marked with data-hold-exempt on the control, so this stays a property of
+  // the control rather than a list of exceptions kept here.
+  const startedOnExemptControl = event => {
+    try { return !!event?.target?.closest?.("[data-hold-exempt]"); } catch { return false; }
+  };
+
   // 500ms matches the Stream and the iOS guidance: long enough to be deliberate,
   // short enough not to feel stuck. Moving first means a scroll, not a hold.
-  const start = () => {
+  const start = event => {
     // Nothing to show on your own post once reactions are not part of it.
     if (disabled || (!actions.length && !onPick)) return;
+    if (startedOnExemptControl(event)) return;
     moved.current = false;
     clear();
     timer.current = setTimeout(() => { if (!moved.current) { open(); void tapMedium(); try { navigator.vibrate && navigator.vibrate(10); } catch (_) {} } }, 500);
@@ -198,7 +211,7 @@ const HoldTarget = ({ actions = [], onPick, onMore, disabled = false, children }
       onTouchMove: () => { moved.current = true; clear(); },
       onTouchEnd: clear,
       onTouchCancel: clear,
-      onContextMenu: e => { if (disabled || (!actions.length && !onPick)) return; e.preventDefault(); open(); },
+      onContextMenu: e => { if (disabled || (!actions.length && !onPick)) return; if (startedOnExemptControl(e)) return; e.preventDefault(); open(); },
       style: { WebkitTouchCallout: "none" }
     }, children),
     anchorRect && React.createElement(HoldMenu, {

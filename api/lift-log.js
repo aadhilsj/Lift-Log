@@ -1,6 +1,8 @@
 const DEFAULT_MIN_TARGET = 12;
 const WORKOUT_TYPES = ["Gym", "Run", "Sports", "Pilates", "Other"];
-const MAX_WORKOUTS_PER_DAY = 2;
+// Two of the SAME ACTIVITY per day. There is no longer a cap on the number of
+// workouts in a day - see docs/handover-2026-10-23-per-activity-cap.md.
+const MAX_WORKOUTS_PER_ACTIVITY_PER_DAY = 2;
 // Display names are capped so they never overflow the leaderboard, Week's MVP
 // tile, Month leader card or the History table. Mirrors DISPLAY_NAME_MAX_LENGTH
 // in src/lib/appState.js.
@@ -78,6 +80,23 @@ const FOUNDER_DASHBOARD_EMAILS = new Set(
 let supabaseAdminClientPromise = null;
 const ENABLE_SETTLEMENT_CONFIRMATIONS = String(process.env.ENABLE_SETTLEMENT_CONFIRMATIONS || "").trim().toLowerCase() === "true";
 const ENABLE_SETTLEMENT_CONFIRMATIONS_PREVIEW = String(process.env.ENABLE_SETTLEMENT_CONFIRMATIONS_PREVIEW || "").trim().toLowerCase() === "true";
+// Accounts that exist so App Review can evaluate Fero, and must never appear
+// in the product numbers. DELIBERATELY SEPARATE from FOUNDER_DASHBOARD_*: that
+// list grants founder dashboard access as well as excluding its members from
+// analytics, and a review account must have neither the access nor the reach.
+const ANALYTICS_EXCLUDED_EMAILS = new Set(
+  String(process.env.ANALYTICS_EXCLUDED_EMAILS || "")
+    .split(",")
+    .map(value => normalizeEmailAddress(value))
+    .filter(Boolean)
+);
+const ANALYTICS_EXCLUDED_USER_IDS = new Set(
+  String(process.env.ANALYTICS_EXCLUDED_USER_IDS || "")
+    .split(",")
+    .map(value => String(value || "").trim())
+    .filter(Boolean)
+);
+
 const ENABLE_LOCAL_PREVIEW_AUTH = String(process.env.ENABLE_LOCAL_PREVIEW_AUTH || "").trim().toLowerCase() === "true";
 const ENABLE_LOCAL_DEV_OTP = String(process.env.ENABLE_LOCAL_DEV_OTP || "").trim().toLowerCase() === "true";
 const LOCAL_DEV_OTP_CODE = String(process.env.LOCAL_DEV_OTP_CODE || "000000").trim() || "000000";
@@ -1699,11 +1718,29 @@ function getWorkoutSessionKey(log) {
   return multiLogMatch ? multiLogMatch[1] : id;
 }
 
-function getDistinctWorkoutCountForDate(state, actor, actorUserId, date) {
+// Which bucket a workout counts against. The specific activity when there is
+// one, otherwise the broad type - the same fallback getLogDisplayActivity uses
+// in the app, and the same expression the database cap uses, so the three
+// cannot disagree about what "the same activity" means.
+//
+// Kitesurfing and Padel are both "Sports" underneath. They must count apart,
+// which is why this keys on the activity and not the type.
+function getWorkoutActivityKey(activity, workoutType) {
+  const specific = String(activity || "").trim();
+  const broad = String(workoutType || "").trim();
+  return (specific || broad).toLowerCase();
+}
+
+function getLogActivityKey(log) {
+  return getWorkoutActivityKey(log?.activity, log?.type);
+}
+
+function getDistinctWorkoutCountForDate(state, actor, actorUserId, date, activityKey = null) {
   const sessionKeys = new Set();
   const safeActor = String(actor || "").trim();
   const safeActorUserId = String(actorUserId || "").trim();
   const safeDate = String(date || "").trim();
+  const wantedActivity = activityKey === null ? null : String(activityKey || "").toLowerCase();
   if (!safeDate) return 0;
 
   Object.values(state?.groups || {}).forEach(group => {
@@ -1717,6 +1754,9 @@ function getDistinctWorkoutCountForDate(state, actor, actorUserId, date) {
     if (!ownerName) return;
     (group?.logs?.[ownerName] || []).forEach(log => {
       if (log?.date !== safeDate) return;
+      // null means "every activity", which is what the pre-23-October cap
+      // counted. Callers now pass a bucket.
+      if (wantedActivity !== null && getLogActivityKey(log) !== wantedActivity) return;
       const key = getWorkoutSessionKey(log);
       if (key) sessionKeys.add(key);
     });
@@ -1725,9 +1765,19 @@ function getDistinctWorkoutCountForDate(state, actor, actorUserId, date) {
   return sessionKeys.size;
 }
 
-function assertWorkoutSlotAvailable(state, actor, actorUserId, date) {
-  if (getDistinctWorkoutCountForDate(state, actor, actorUserId, date) < MAX_WORKOUTS_PER_DAY) return;
-  const error = new Error("Already logged 2 workouts for this date");
+// Two per ACTIVITY per day, not two per day. Founder's decision, 22 October
+// 2026: as many workouts a day as you like, but no more than two of the same
+// activity. Two runs and a gym session is fine; three runs is not.
+//
+// The message names the activity so it is obvious something else can still be
+// logged, and it matches what the database raises if a request gets past here.
+function assertWorkoutSlotAvailable(state, actor, actorUserId, date, activity = null, workoutType = null) {
+  const label = String(activity || "").trim() || String(workoutType || "").trim();
+  const activityKey = getWorkoutActivityKey(activity, workoutType);
+  if (getDistinctWorkoutCountForDate(state, actor, actorUserId, date, activityKey) < MAX_WORKOUTS_PER_ACTIVITY_PER_DAY) return;
+  const error = new Error(label
+    ? `Already logged 2 ${label} workouts for this date`
+    : "Already logged 2 workouts for this date");
   error.status = 409;
   throw error;
 }
@@ -2119,8 +2169,24 @@ function getJoinedTargetInfo(baseTarget, joinedSummary, prorationSummary = null)
 function getEffectiveTargetForMonth(group, monthKey, settingsOverride = null) {
   const baseTarget = Number(settingsOverride?.minTarget || group?.settings?.minTarget || DEFAULT_MIN_TARGET);
   const override = getSeasonOverrideForMonth(group, monthKey);
+  // Clamped to the full target, because proration means "you joined part-way
+  // through, so you owe less" -- a prorated target above the full one is not a
+  // smaller share of anything, it is arithmetic that has come adrift.
+  //
+  // It comes adrift because proration is computed once, when the admin chooses
+  // it, and nothing recomputes it if the Bloc target later changes: the
+  // settings-update path never touches season_overrides. Active divas sat on a
+  // prorated 12 against a target of 11 (handover-2026-10-29 §9).
+  //
+  // Clamping on read rather than recomputing on write is deliberate. It needs
+  // no migration, it repairs rows that are already wrong, and it cannot
+  // surprise a member mid-month by moving a target they have been working to.
+  // If the full target is LOWERED, everyone converges on the lower number,
+  // which is the generous reading and the one nobody can be hurt by. If it is
+  // RAISED, the prorated share stays where it was, which is correct -- joining
+  // late should not retroactively cost more.
   return override?.prorated && Number.isFinite(Number(override?.proratedMas))
-    ? Math.max(1, Math.round(Number(override.proratedMas)))
+    ? Math.min(baseTarget, Math.max(1, Math.round(Number(override.proratedMas))))
     : baseTarget;
 }
 
@@ -3695,6 +3761,18 @@ async function readWorkoutLogLatestCommentsFromCanonical(legacyGroupKey, authUse
   return await response.json();
 }
 
+async function readWorkoutLogThreadsFromCanonical(legacyGroupKey, authUserId) {
+  const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_workout_log_threads", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({
+      p_legacy_group_key: legacyGroupKey,
+      p_auth_user_id: authUserId
+    })
+  });
+  return await response.json();
+}
+
 async function insertWorkoutLogCommentInCanonical(legacyGroupKey, authUserId, logId, body) {
   const response = await supabaseFetch("/rest/v1/rpc/insert_ante_core_workout_log_comment", {
     method: "POST",
@@ -4163,7 +4241,58 @@ function applyEffectiveRevision(state, revisionStamp) {
   });
 }
 
+// Single-flight: collapse concurrent identical canonical reads into one
+// database call.
+//
+// The problem it solves, measured on production 2026-10-25:
+// read_ante_core_month_history takes 1.4s and runs ~3,820 per-log subqueries
+// (reactions and comment counts over 1,910 closed logs) to rebuild history
+// that is frozen and cannot change. read_ante_core_current_logs is another
+// 0.6s. Both run on EVERY refresh.
+//
+// There is one global revision clock, so any action in any Bloc makes every
+// open phone refresh within its 6s poll. Four phones reacting to one comment
+// meant four simultaneous full reads -- 15,280 subqueries in a six-second
+// window on a 1 GB instance. That is the 2026-09-14 outage shape, and it grows
+// quadratically: actions scale with users and reloads scale with users.
+//
+// Here the second, third and fourth caller attach to the first caller's
+// in-flight promise instead of starting their own read. N concurrent reads
+// become 1.
+//
+// Deliberately NOT a TTL cache. A TTL would serve data from before a write,
+// and the one thing that changes closed months is the month rollover -- the
+// exact path that broke on 1 October. Single-flight adds no staleness a caller
+// would not already have seen: every participant gets the result of a read
+// that began no earlier than when the first concurrent caller asked.
+//
+// Serverless caveat: Vercel runs many function instances, so concurrent phones
+// may land on different ones and miss each other. This is a real win but not a
+// guaranteed Nx. The structural fix is scoping the reads per member so each
+// one is cheap; see the Phase B SQL.
+const inFlightCanonicalReads = new Map();
+
+function singleFlightRead(key, read) {
+  const existing = inFlightCanonicalReads.get(key);
+  if (existing) return existing;
+  const started = (async () => {
+    try {
+      return await read();
+    } finally {
+      // Cleared as soon as this read settles, so the next refresh gets fresh
+      // data rather than anything cached. Callers already hold the promise.
+      inFlightCanonicalReads.delete(key);
+    }
+  })();
+  inFlightCanonicalReads.set(key, started);
+  return started;
+}
+
 async function fetchAnteBlocs() {
+  return singleFlightRead("blocs", fetchAnteBlocsUncached);
+}
+
+async function fetchAnteBlocsUncached() {
   try {
     const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_blocs", {
       method: "POST",
@@ -4190,6 +4319,10 @@ async function fetchCanonicalBlocByInviteCode(inviteCode) {
 }
 
 async function fetchAnteSeasonOverrides() {
+  return singleFlightRead("season-overrides", fetchAnteSeasonOverridesUncached);
+}
+
+async function fetchAnteSeasonOverridesUncached() {
   try {
     const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_season_overrides", {
       method: "POST",
@@ -4218,6 +4351,10 @@ async function fetchAnteSeasonOverrides() {
 }
 
 async function fetchAnteProfiles() {
+  return singleFlightRead("profiles", fetchAnteProfilesUncached);
+}
+
+async function fetchAnteProfilesUncached() {
   try {
     const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_profiles", {
       method: "POST",
@@ -4244,6 +4381,10 @@ async function fetchAnteProfiles() {
 }
 
 async function fetchAnteBlocMembers() {
+  return singleFlightRead("bloc-members", fetchAnteBlocMembersUncached);
+}
+
+async function fetchAnteBlocMembersUncached() {
   try {
     const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_bloc_members", {
       method: "POST",
@@ -4266,6 +4407,10 @@ async function fetchAnteBlocMembers() {
 }
 
 async function fetchAnteCurrentLogs() {
+  return singleFlightRead("current-logs", fetchAnteCurrentLogsUncached);
+}
+
+async function fetchAnteCurrentLogsUncached() {
   try {
     const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_current_logs", {
       method: "POST",
@@ -4317,6 +4462,12 @@ async function fetchAnteCurrentLogs() {
 // rather than freezing anything it could not verify.
 async function fetchAnteLogsForMonth(monthKey) {
   if (!monthKey) return null;
+  // Keyed by month: the rollover fetches one month per distinct closed
+  // month, and two time zones can close different months in one pass.
+  return singleFlightRead(`logs-for-month:${monthKey}`, () => fetchAnteLogsForMonthUncached(monthKey));
+}
+
+async function fetchAnteLogsForMonthUncached(monthKey) {
   try {
     const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_logs_for_month", {
       method: "POST",
@@ -4357,6 +4508,10 @@ async function fetchAnteLogsForMonth(monthKey) {
 }
 
 async function fetchAnteMonthHistory() {
+  return singleFlightRead("month-history", fetchAnteMonthHistoryUncached);
+}
+
+async function fetchAnteMonthHistoryUncached() {
   try {
     const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_month_history", {
       method: "POST",
@@ -4397,6 +4552,10 @@ async function fetchAnteMonthHistory() {
 }
 
 async function fetchAnteSettlementConfirmations() {
+  return singleFlightRead("settlement-confirmations", fetchAnteSettlementConfirmationsUncached);
+}
+
+async function fetchAnteSettlementConfirmationsUncached() {
   if (!ENABLE_SETTLEMENT_CONFIRMATIONS) return null;
   try {
     const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_settlement_confirmations", {
@@ -4433,6 +4592,10 @@ async function fetchAnteSettlementConfirmations() {
 }
 
 async function fetchAnteCurrentExcusedAndSitouts() {
+  return singleFlightRead("current-excused-sitouts", fetchAnteCurrentExcusedAndSitoutsUncached);
+}
+
+async function fetchAnteCurrentExcusedAndSitoutsUncached() {
   try {
     const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_current_excused_and_sitouts", {
       method: "POST",
@@ -5917,6 +6080,10 @@ async function recordCanonicalDailyAppActivity(authUser, openedAt = new Date().t
   // number is honest either way -- only the per-open count is skipped.
   // (isFounderDashboardUser is a hoisted declaration, so calling it here,
   // above its definition, is fine.)
+  // A review account is dropped outright. The founder is still marked active
+  // because he is a real person using the app; a review account is not, and
+  // counting it would put Apple's reviewer in Active Users.
+  if (isAnalyticsExcludedUser(authUser)) return;
   if (isFounderDashboardUser(authUser)) {
     await markCanonicalDailyAppActive(authUserId, openedAt);
     return;
@@ -5975,6 +6142,7 @@ async function recordCanonicalUsageEvent(authUser, eventName, occurredAt = new D
   // Screen opens and taps from this account are not product signal, so they
   // are dropped at the door rather than filtered out when reading.
   if (isFounderDashboardUser(authUser)) return;
+  if (isAnalyticsExcludedUser(authUser)) return;
   try {
     await supabaseFetch("/rest/v1/rpc/record_ante_core_usage_event", {
       method: "POST",
@@ -6338,6 +6506,15 @@ function isFounderDashboardUser(userOrId) {
   const email = typeof userOrId === "object" && userOrId ? userOrId.email : "";
   return FOUNDER_DASHBOARD_USER_IDS.has(String(userId || "").trim())
     || FOUNDER_DASHBOARD_EMAILS.has(normalizeEmailAddress(email));
+}
+
+// A review account is not a member and not a tester: it is scenery. Nothing it
+// does is product signal, so unlike the founder it is not even marked active.
+function isAnalyticsExcludedUser(userOrId) {
+  const userId = typeof userOrId === "object" && userOrId ? userOrId.id : userOrId;
+  const email = typeof userOrId === "object" && userOrId ? userOrId.email : "";
+  return ANALYTICS_EXCLUDED_USER_IDS.has(String(userId || "").trim())
+    || ANALYTICS_EXCLUDED_EMAILS.has(normalizeEmailAddress(email));
 }
 
 function assertFounderDashboardUser(userId) {
@@ -6816,7 +6993,7 @@ function applyMultiLog(current, payload) {
     error.status = 403;
     throw error;
   }
-  assertWorkoutSlotAvailable(base, actor, actorUserId, date);
+  assertWorkoutSlotAvailable(base, actor, actorUserId, date, activity, workoutType);
   const logId = createWorkoutSessionId();
   const updatedGroups = { ...base.groups };
 
@@ -8242,7 +8419,7 @@ function applyAddLog(current, payload) {
     throw error;
   }
 
-  assertWorkoutSlotAvailable(base, actor, actorUserId, date);
+  assertWorkoutSlotAvailable(base, actor, actorUserId, date, activity, workoutType);
 
   const log = normalizeLogEntry({
     id: createWorkoutSessionId(),
@@ -9812,6 +9989,8 @@ export {
   shouldSkipRolloverForMissingCanonicalBloc,
   // Exported for the month-close canonical test suite.
   rebuildClosedMonthSnapshotFromCanonicalLogs,
+  // Exported so the prorated-target clamp is testable.
+  getEffectiveTargetForMonth,
   // Exported so the overlay guard is pinned against the skipped-Bloc window.
   canonicalOpenMonthIsCurrentForGroup,
   buildWorkoutLogDerivedMoments,
@@ -10131,6 +10310,18 @@ export default async function handler(req, res) {
         return res.status(200).json({
           ok: true,
           latest: latest && typeof latest === "object" && !Array.isArray(latest) ? latest : {}
+        });
+      }
+
+      // Threads you are in but do not own. Your own logs come from
+      // log-latest-comments; this is the other half, so a reply to you on
+      // somebody else's workout reaches For you instead of only the Stream.
+      if (payload?.action === "log-threads") {
+        const authUser = await fetchAuthenticatedUser(readBearerToken(req, payload));
+        const threads = await readWorkoutLogThreadsFromCanonical(payload.groupId, authUser.id);
+        return res.status(200).json({
+          ok: true,
+          threads: threads && typeof threads === "object" && !Array.isArray(threads) ? threads : {}
         });
       }
 

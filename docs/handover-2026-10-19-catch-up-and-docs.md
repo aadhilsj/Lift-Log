@@ -683,6 +683,437 @@ would, not just as a designer.
 
 The three blocked items all land on the Xcode laptop with build 12.
 
+## 14. The TestFlight merge for build 12 — done, NOT pushed, NOT built (21 Oct)
+
+The step that killed the 13-19 October plan, done at last. It was scheduled
+for the same day as the Xcode build and assumed to need Xcode. **It does not.**
+
+Branch `claude/testflight-build-12-2026-10-21`, cut from
+`origin/testflight-build-11`, worktree at
+`~/Developer/FERO/build-12-2026-10-21` — `~/Developer`, never `~/Documents`.
+
+### 14.1 Zero conflicts, and why that is not suspicious
+
+Build 10's merge threw **22**. This threw **none**. The reason: build 11 was
+cut on 30 September from main's own lineage, and the native work lives in
+files main never touches — `ios/`, `capacitor.config.ts`, `server/push.js`,
+`pushNotifications.js`, `apiOrigin.js`, the push migrations. The two lineages
+had nothing to argue about. Build 10 was merging build 9's older lineage,
+which is where the 22 came from.
+
+### 14.2 Verified rather than assumed
+
+Merges have re-broken swipe and reactions twice, so the clean result was
+tested, not trusted. **Every file the recurring-debugging playbook names is
+byte-identical to `origin/main`:**
+
+`src/lib/swipeRelease.js`, `src/pages/Nav.jsx`, `src/pages/TodayPage.jsx`,
+`src/pages/BlocStream.jsx`, `src/pages/ActivityFeed.jsx`,
+`src/lib/appState.js`, `src/lib/notificationCentre.js`,
+`src/components/primitives.jsx`, `api/lift-log.js`.
+
+The only shared files that differ from main are the native additions
+themselves:
+
+| File | Difference |
+| --- | --- |
+| `src/App.jsx` | **+13 lines**: a push-registration effect. Nothing else |
+| `src/lib/api.js` | the native API origin, and revoking push on sign-out |
+| `package.json` | the three Capacitor/push dependencies and two scripts |
+
+**Nothing subtractive. No old UI came back.**
+
+`ios/` intact at 24 files; `capacitor.config.ts` unchanged by checksum. Build
+number **11 → 12**; `MARKETING_VERSION` left at 1.0, since that is the App
+Store version, not the build.
+
+### 14.3 One thing that caught me out
+
+`npm run build` failed at first: `Rollup failed to resolve
+"@capacitor/push-notifications"`. The cause is the house instruction to
+**symlink `node_modules` from the shared folder** (§12) — the shared folder is
+on `main`, whose `package.json` has no Capacitor. The symlink was removed
+(**the link, after confirming it was a link, so the shared folder was never at
+risk**) and the worktree given its own install.
+
+**Worth adding to §12: a worktree on the TestFlight lineage cannot share
+main's `node_modules`.** `package-lock.json` was unchanged by the install.
+
+### 14.4 Verified
+
+`npm run lint` clean. `npm run build` clean. **26 of 28 suites pass** — the
+extra one is `test:push-foundation`, which only exists on this branch. The two
+failures are `test:auth-edge-flows` and `test:mobile-navigation`, the known
+pair that fails on `main` too.
+
+`.env.local` is correctly ignored and was never staged.
+
+### 14.5 Where it stops
+
+**Committed at `b28e71d`, deliberately NOT pushed**, and **nothing has been
+built in Xcode** — this is the merge only, and the founder asked to see what
+changed before it goes anywhere near the app branch.
+
+What remains for the Xcode laptop, now a short list:
+
+1. Open, build, upload to TestFlight
+2. Capture the Stream and the finished month, which the sandbox cannot show
+3. Re-take the listing screenshots on the real build, without the test bar
+4. Record the review video, run the final test matrix, submit
+
+The risky half is done and is sitting on a branch.
+
+## 15. The money audit — the claim holds, with two corrections (21 Oct)
+
+The runbook is explicit that the "Fero never handles money" statement must be
+**re-audited, not assumed**, because getting it wrong means a gambling or
+payments classification. Audited against the code and against production.
+
+### 15.1 Verdict: the core claim is TRUE
+
+**Fero does not hold funds, transfer money, operate a pot, or process a
+settlement.** Evidence, not assertion:
+
+| Check | Result |
+| --- | --- |
+| Payment-processor SDK anywhere (Stripe, PayPal SDK, Braintree, Adyen, StoreKit, RevenueCat) | **None.** No payment dependency in `package.json` |
+| In-app purchases or subscriptions | **None** |
+| `ante_core.settlement_transfers` rows on production | **0** — nothing has ever been recorded as a transfer |
+| `ante_core.payment_methods` rows on production | **0** |
+| `settlement_confirmations` rows | 3 — members confirming each other by hand, which is the design |
+
+`src/lib/paymentLinks.js` states it in its own header and the code matches:
+*Fero never processes, routes, holds, or verifies a payment… Settlement status
+stays member-confirmed and is never derived from a link being opened.*
+
+### 15.2 Correction 1 — "entirely outside Fero" overstates it
+
+The runbook's draft sentence says members handle settlement outside Fero and
+the app only records the obligation. **That is not the whole truth and a
+reviewer will see it.**
+
+Fero can store a member's own payment handle and render a **"Pay" button** that
+opens Revolut, PayPal or Vipps. Only three hosts ever become clickable —
+`revolut.me`, `paypal.me`, `qr.vipps.no` (`ALLOWED_LINK_HOSTS`,
+`paymentLinks.js:105`) — and anything else degrades to copy-only text, so a
+pasted phishing URL cannot borrow the Pay affordance. That is good security
+design, and it is still **facilitation by deep link**.
+
+**Say it plainly in the review notes.** "Fero does not process the payment; it
+can open the payer's own payment app at a handle the recipient supplied" is
+both true and stronger than a denial a reviewer can disprove by tapping Pay.
+
+### 15.3 Correction 2 — a `bank` payment type stored as free text
+
+`payment_methods.method_type` allows **`revolut, wise, paypal, bank, other`**,
+with `details` as plain `text`. So a member could paste bank account details,
+and they would be stored as ordinary text.
+
+**Zero rows today**, so nothing is stored and nothing is at risk right now.
+But it is a privacy-disclosure question before launch — the App Store privacy
+labels and the Privacy Policy should either cover financial handles, or the
+`bank` option should be reconsidered. Flagged, not changed.
+
+### 15.4 RESOLVED 22 October — settlement confirmations ARE on
+
+The founder checked Vercel. **`ENABLE_SETTLEMENT_CONFIRMATIONS = true`** and
+**`ENABLE_SETTLEMENT_CONFIRMATIONS_PREVIEW = false`**, both scoped Production
+and Preview, both added 1 July, both stored as Config rather than Secret.
+
+**The good outcome on the risky one:** the hardcoded demo cards (§13.2) are
+**off**, so no member and no reviewer sees invented payment messages naming
+strangers.
+
+**But the real feature IS live**, so Claim paid / Confirm / Dispute are on
+screen for every member and will be for Apple's reviewer. The runbook requires
+them explained; they are, in
+`docs/app-store-review-notes-2026-10-22.md`.
+
+This also explains the apparent contradiction in §15.1: all 12 Blocs store
+`settlementConfirmationsEnabled: false` in the blob, yet 3 settlement
+confirmations exist. The environment variable overrides the stored flag at
+read time (`api/lift-log.js:4936-4941`), so the stored value is not what
+members see. **Do not read that blob field and conclude the feature is off.**
+
+The original question, kept for the record:
+
+All 12 production Blocs store `settlementConfirmationsEnabled: false`, but the
+stored value is not what the client sees: `api/lift-log.js:4936-4941` overrides
+it at read time from the **`ENABLE_SETTLEMENT_CONFIRMATIONS`** and
+**`ENABLE_SETTLEMENT_CONFIRMATIONS_PREVIEW`** environment variables. Those live
+in Vercel and cannot be read from here.
+
+**This matters for submission:** the runbook requires explaining what
+`Claim paid`, `Confirm` and `Dispute` do **if that feature is enabled in the
+submitted build**. Someone has to look at the Vercel production environment
+variables and confirm. If the preview flag is on, reviewers would also see the
+hardcoded demo settlement cards (§13.2) — which name people who are not in
+their Bloc.
+
+### 15.5 The listing copy needs no change
+
+`app-store-listing-final-copy-2026-09-27.md` already handles this well and its
+reasoning is sound: it names the penalty deliberately rather than avoiding
+money and then denying it, avoids "prize pool", and cites commitment-contract
+apps as established precedent. **No change recommended.**
+
+## 16. Four reaction and emoji tweaks — live (22 Oct)
+
+Founder's list, all four, straight to `main` as agreed.
+
+### 16.1 Holding a reaction chip no longer offers Report/Block
+
+**Two timers were racing on one touch.** The chip's own press shows who
+reacted at **420ms** (`startReactionPress`, `ActivityFeed.jsx`); the post's
+hold menu fired at **500ms** (`HoldTarget`, `HoldMenu.jsx`). So a press meant
+to read names showed them and then selected the whole post on top.
+
+The reaction row now carries **`data-hold-exempt`**, and `HoldTarget` ignores
+a press that begins inside such a control — a property of the control rather
+than a list of exceptions inside HoldTarget. The `+` picker button is inside
+that row, so it is covered too.
+
+**Holding the post anywhere else still opens Report/Block.** Verified both
+ways, not assumed.
+
+### 16.2 Holding a comment lifts it like a Stream message
+
+It is **the same `HoldMenu` component**, not a lookalike, so the reaction row,
+icon sizes, blur and motion match by construction. It replaces the small
+floating pill that used to appear near the finger.
+
+`HoldTarget` was deliberately **not** used here: the comment already runs its
+own gesture for double-tap and swipe, and the playbook's *Two Touch Handlers
+That Classify The Same Drag Differently* is exactly that mistake. The existing
+gesture now opens `HoldMenu` directly, as the Stream's `Reactable` does.
+
+The bubble's look moved into one `commentBubbleStyle(isOwn)` used by both the
+real bubble and the lifted copy, so the preview cannot drift from the thing it
+previews.
+
+**Left alone on purpose:** the "···" Report/Block button at the end of the
+comment row. Report and Block are now also in the hold menu, but removing the
+button was not asked for.
+
+**One thing this fixed on the way:** the old right-click path still set the
+pill's shape and would have silently done nothing.
+
+### 16.3 The emoji sheet opens on Recent
+
+Was Smileys, which meant scrolling past faces every time. Falls back to
+Smileys when there is no history, so a first-ever open is not an empty grid.
+
+### 16.4 The quick five are personal now — and there was no bug to fix
+
+The founder asked whether the "most used" calculation was correct.
+**There was no calculation.** `QUICK_REACTIONS` was five hardcoded emoji,
+identical for every member since the day it was written. Reported before
+building rather than quietly treating a missing feature as a fix.
+
+They now come from the recents the app **already records** —
+`fero_recent_reaction_emoji_v1`, newest-first, de-duplicated, capped at 24.
+That is the iOS rule he described: one use puts an emoji at the front, instead
+of waiting for it to out-count old favourites. The original five are the
+padding and the fallback, so nobody ever sees a short row.
+
+Every quick row subscribes to a module-level listener, so using an emoji in
+one place reorders the row in the other two without a reload.
+
+**Reaction CHIP ordering is untouched.** That is shared, and personalising it
+would make one comment look different to two people looking at it.
+
+### 16.5 Verified by driving it, not just building it
+
+In the sandbox, at 375×812, on the demo Bloc:
+
+| Check | Result |
+| --- | --- |
+| Hold a reaction chip | No menu. Correct |
+| Hold the post elsewhere | Lifts with Report/Block, unchanged |
+| Sheet with no history | Opens on Smileys |
+| Sheet after one reaction | Opens on **Recent** |
+| Quick row on a **different** post after reacting | New emoji leads; 🏃 drops off |
+| Hold a comment | Lifts, blurred page, personalised row |
+
+Lint and build clean; **25 of 27** suites pass, the two failures being the
+known port-3000 pair that fails on `main` too.
+
+**Live at `3c51172`:** deployment success, bundle `index-D8Jx0Xzq.js` carries
+the exempt guard and the recents key, live site loads with no console errors.
+
+**Not verified:** real finger-on-glass touch. The browser pane sends mouse
+events, so the 420ms/500ms race was proved through the right-click path, which
+runs the same guard. The timing itself should be felt on a phone.
+
+## 17. The bell's real problem: it only ever sees ONE Bloc (22 Oct)
+
+The founder said reactions still were not reaching "For you". **The 19 October
+timestamp fix works.** The cause is different, bigger, and was found by
+measuring rather than by reading.
+
+### 17.1 What was ruled out, with evidence
+
+| Suspect | Ruled out by |
+| --- | --- |
+| Reaction timestamps missing | 2,009 reactions on production, **all** with `created_at` |
+| The RPC not returning them | `read_ante_core_current_logs()` returns 435 rows, **236 carry `latest_reaction` with an `at`** |
+| The overlay not running | All **12** Blocs have canonical open month = blob `lastMonth`, so the gate Deveen tightened on 18 Oct passes everywhere |
+| The badge not counting | Proved in the sandbox: two reactions arriving on the signed-in member's logs produced **a red 2** |
+
+Every link works. The chain is sound.
+
+### 17.2 The actual cause
+
+`App.jsx:2449` — `buildNotifications({ group: currentGroup, ... })`.
+
+**The notification centre is built from the Bloc you are looking at.** One
+Bloc. Not your Blocs.
+
+The founder is in **six** Blocs with reactions on his logs. On 21 October
+alone, four of them had reactions, within three hours of each other:
+
+| Bloc | Newest reaction | Last 7 days |
+| --- | --- | --- |
+| StavanGang | 21 Oct 21:36 | 4 |
+| Go To Da Gym | 21 Oct 20:49 | 1 |
+| OSI H3 | 21 Oct 19:06 | 3 |
+| Ctrl Alt De-feat | 21 Oct 18:57 | 4 |
+| Sarandawgs | 20 Oct 14:50 | 1 |
+| Sweat Equity | 16 Oct 07:00 | 2 |
+
+Whichever Bloc he had open, the bell could only ever show that Bloc's share,
+and switching Bloc changes the number. **With six Blocs the bell looks broken
+even though every part of it works.**
+
+It is not only reactions: `notificationReminderCards`, the comment counts and
+the mention counts are all scoped to `currentGroup` too. The whole centre is
+per-Bloc.
+
+### 17.3 DECIDED, 22 October: per-Bloc is intended. Do not "fix" it.
+
+**The founder's call:** *"the for you centre should only be for your specific
+bloc imo."*
+
+So `buildNotifications({ group: currentGroup })` is **correct**, and the
+behaviour in §17.2 is the design rather than a defect. A future session that
+finds the bell "missing" notifications from another Bloc should read this
+before changing anything — the investigation in §17.1 and §17.2 is kept
+precisely so nobody re-derives it and then breaks the intent.
+
+**The one consequence to live with:** the bell shows the Bloc you are in, so
+notifications from your other Blocs wait until you switch to them, and the
+number changes as you switch. That is expected, not a bug, and is the most
+likely thing to be re-reported as one.
+
+**Nothing was built.** What follows was the plan had he said yes, kept only so
+the cost is on record if the decision is ever revisited.
+
+### 17.4 What spanning Blocs would have cost (not built)
+
+Making the bell span every Bloc is a real change, not a tweak:
+
+- **Reactions** are the cheap part: `groups` is already in client state, so it
+  is a map-and-concatenate plus a Bloc name on each row.
+- **Money, comments and mentions are not.** The comment and mention counts
+  come from the per-Bloc call added on 20 October, so spanning Blocs means
+  either one call per Bloc on every refresh — straight into §20's read-volume
+  problem — or a function that answers for all of a member's Blocs at once.
+- Every row then needs to say **which Bloc** it came from, and tapping it has
+  to switch Bloc before it lands.
+
+Left for the founder to decide. Recommended shape: one database function
+answering for all of a member's Blocs in the single call the app already
+makes per refresh — the same trick §9 used — rather than N calls.
+
+## 18. Two smaller fixes — live at `c4f1543`
+
+### 18.1 The bell and Stream badges now match
+
+They had drifted apart by accident, not by decision:
+
+| | Stream | Bell (before) |
+| --- | --- | --- |
+| Colour | red `#D44A4A` | cyan `#4ECDC4` |
+| Size | 18px | 14px |
+| Position | proud of the corner | tucked inside |
+| Text | 12.5px | 8.5px |
+
+The bell now **is** `UnreadBadge`, the Stream's own component, so they cannot
+drift again. **Red kept**, because the Stream already used it, it is the
+universal unread convention, and the bell carries money owed as well as
+reactions. One line to flip to cyan.
+
+Verified in the sandbox: a red **2** on the bell, matching the Stream's badge.
+
+### 18.2 The "···" on comments is gone
+
+Asked for, now that holding a comment offers Report and Block.
+`commentHoldActions` uses the **exact** guard the button used,
+`!isOwn && comment.commenterUserId`, and the same `setSafetyTarget` payload,
+so wherever the button appeared the menu actions appear.
+
+**Verified:** the "···" is absent when viewing another member's comment.
+
+**NOT photographed:** Report/Block inside a comment's hold menu. The sandbox
+drops a comment when the local identity switcher changes member, so a
+cross-member comment could not be held open. The identical guard is the basis
+for the claim. **Worth one look on a real phone**, since this is now the only
+route to reporting a comment and the App Store requires one.
+
+## 19. Session close-out — 19 to 22 October
+
+### What is live
+
+| | Commit |
+| --- | --- |
+| A reaction counts from when it was made | `e387b2c` |
+| Stream tags and the first comment reach the bell (the counts function) | `2099e2c` |
+| The mention shimmer hugs the bubble, not the row | `08b4793` |
+| Four reaction and emoji tweaks | `3c51172` |
+| Matching bell/Stream badges, comment "···" removed | `c4f1543` |
+
+**On production's database:** `read_ante_core_notification_counts`, applied
+and verified (§9).
+
+**On a branch, not built:** `claude/testflight-build-12-2026-10-21` — October
+merged into the TestFlight lineage, build number 12, pushed and waiting (§14).
+
+**Written, not applied:** the RLS migration covering the six tables Deveen's
+file misses (§12.5). The rollout is his.
+
+### What is open
+
+- **TestFlight build 12** — needs the founder's Xcode laptop. With it: the
+  Stream and finished-month screenshots, the real listing capture, the review
+  video, the final test matrix.
+- **Four things before submission** (§3 of the review notes): the review
+  account, the seeded Bloc, the video URL, and proof that
+  `support@joinfero.app` receives mail.
+- **1 November** — the first full month close since the 1 October fix. Founder
+  dashboard first, then `month-close-check --after`, then `parity:gate`.
+- **Deveen:** scaling before launch, the RLS rollout, `push_devices`,
+  `fero-staging` still billing.
+- **The prorated status bug** (§13.3) — narrowed to the prorated pace branch,
+  deliberately not fixed.
+- **`payment_methods` allows a `bank` type stored as free text** (§15.3) — a
+  privacy-label question, zero rows today.
+
+### Not verified, and worth one look on a phone
+
+- **Reporting a comment.** The "···" is gone, so holding is the only route.
+  The guard is identical to the removed button, but the sandbox would not hold
+  a cross-member comment open to photograph it, and the App Store requires
+  reporting to work. **Check this one.**
+- The 420ms/500ms hold timings, which only a thumb can judge.
+- The bell and the shimmer against a real tag from a second person.
+
+### Two things future sessions should not re-derive
+
+1. **The "For you" centre is per-Bloc on purpose** (§17.3).
+2. **A worktree on the TestFlight lineage cannot share main's `node_modules`**
+   (§14.3) — main's `package.json` has no Capacitor, so the build fails on an
+   unresolved import until the worktree gets its own install.
+
 ## 5. Commits this session
 
 | Commit | What | Live |
@@ -697,4 +1128,13 @@ The three blocked items all land on the Xcode laptop with build 12.
 | `9d6681d` | Deveen's staging RLS task checked — not run; 6 production tables uncovered | Docs only |
 | `409a8a2` | A second migration covering the six. **Not applied anywhere** | Not applied |
 | `bf9d4e3` | The demo Bloc staged and four draft screenshots; the status bug narrowed | Docs only |
-| *(this one)* | Faces and workout photos on the demo feed | Docs only |
+| `e606c53` | Faces and workout photos on the demo feed | Docs only |
+| `f521de1` | Record the build-12 merge | Docs only |
+| `f7a8ba6` | The money audit for App Review | Docs only |
+| `b2291af` | Settlement flags resolved; App Review notes drafted | Docs only |
+| `3c51172` | **The four reaction and emoji tweaks** | **Live** |
+| `b989da2` | Record them | Docs only |
+| `c4f1543` | **Matching badges, and the comment "···" removed** | **Live** |
+| `b97bc43` | The bell's per-Bloc finding | Docs only |
+| *(this one)* | Per-Bloc confirmed as intended; session closed out | Docs only |
+| `b28e71d` | **The merge itself**, on `claude/testflight-build-12-2026-10-21` | **Not pushed, not built** |

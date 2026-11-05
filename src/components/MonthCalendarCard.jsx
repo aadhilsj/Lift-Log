@@ -1,6 +1,7 @@
 import React from "react";
 import { WorkoutTypeIcon, Card, AppIcon } from "./primitives.jsx";
 import { getLogDisplayActivity } from "../lib/activities.js";
+import { formatDayWorkoutCount } from "../lib/appState.js";
 
 // A month's workouts as a calendar grid, with an optional share affordance.
 //
@@ -70,7 +71,7 @@ const MonthCalendarCard = ({ title, logsByDay = {}, year, monthIndex, daysInMont
                   React.createElement(WorkoutTypeIcon, { type: getLogDisplayActivity(log), size: iconSize }),
                   dayLogs.length > 1 ? React.createElement('span', {
                     style: { position: "absolute", right: -4, top: -4, minWidth: 11, height: 11, padding: "0 2px", borderRadius: 999, display: "inline-flex", alignItems: "center", justifyContent: "center", background: "#4ECDC4", border: "1px solid #1A2E4A", color: "#071010", fontFamily: "'Outfit',sans-serif", fontSize: 7, fontWeight: 900, lineHeight: 1 }
-                  }, Math.min(dayLogs.length, 2)) : null
+                  }, formatDayWorkoutCount(dayLogs.length)) : null
                 )
               : day
           );
