@@ -14,7 +14,7 @@ or hand-editing anything under `ios/`.
 | Build number / version | 12 / 1.0 |
 | Bundle ID | `com.aadhilsj.fero` |
 | Xcode | 27.0 |
-| TestFlight upload | Uploaded; App Store Connect processing |
+| TestFlight upload | Uploaded; App Store Connect shows build 12 as Ready to Submit |
 | Working tree before this handover | Clean |
 
 `git fetch` was run first. This clone's default fetch refspec tracks only the
@@ -67,19 +67,33 @@ and show its diff without committing it.
   `5d8ff2ff-7825-4532-8135-103afd59cba5` plus the existing Apple Distribution
   certificate. The resulting archive is version 1.0, build 12, and contains
   `aps-environment=production`.
-- Xcode Organizer uploaded the archive to Apple. App Store Connect's TestFlight
-  page lists build 12 with status **Processing** (created 5 Nov 2026, 19:13).
-  It has not yet appeared as an available-to-test build.
+- Xcode Organizer uploaded the archive to Apple at 19:13. App Store Connect's
+  TestFlight page now lists build 12 with status **Ready to Submit**, uploaded
+  5 Nov 2026 at 19:14, and attached to the existing **Fero Team** internal
+  group (2 testers). The build's Test Information page shows one group and no
+  individual testers.
 
-## Progress
+## Close-out
 
 - Session handover was created before build or sync work.
-- The archive upload is complete at Xcode's end. App Store Connect processing
-  remains open; check until the build is accepted or Apple reports an error.
+- Build 12 was uploaded successfully and is listed in TestFlight as **Ready to
+  Submit**, attached to the existing internal Fero Team group. No production
+  App Store release was made.
 - The four required in-app checks remain unverified because the simulator's
   device window rejected taps. It launched to the onboarding screen.
-- No application code or `ios/` files were committed. The only repository
-  changes are this session handover and the `docs/HANDOVERS.md` index.
+- Push is only a technical foundation. There are no designed notification
+  events, no current app call that requests permission, and the opt-in prompt
+  timing remains undecided. Enabling the Apple App ID capability and signing
+  entitlement does not send notifications or show a permission prompt.
+- No application source or `ios/` files were committed. The working tree is
+  clean; only this session handover and its index entry were changed.
+
+| Commit | Change |
+| --- | --- |
+| `bb7a433` | Created the session handover before build work; recorded the initial signing blocker. |
+| `06d5c13` | Recorded the Apple Developer profile state. |
+| `0c4eb4c` | Recorded Push Notifications capability approval and profile regeneration. |
+| `4db98d3` | Recorded the signed archive and upload while App Store Connect processed it. |
 - Do not alter the project, entitlements, or any file under `ios/`; do not
   remove Push Notifications to work around the profile mismatch. Do not merge
   `main` or push anything to `main`.
