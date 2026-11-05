@@ -177,14 +177,23 @@ Non-obvious behaviour:
    members, with the review account already a member.
    **Blocked on a decision, 29 October — see §3.1.**
 3. **The review video URL.**
-4. **Confirmation that `support@joinfero.app` receives mail.** Still never
-   tested, and it is the contact address in the notes and on the Support page.
-   **Partly answered, 29 October:** the domain *can* receive mail — `joinfero.app`
-   has Cloudflare Email Routing MX records (`route1/2/3.mx.cloudflare.net`) and
-   an SPF record (`v=spf1 include:_spf.mx.cloudflare.net ~all`). What is still
-   unknown is whether the **`support@` address specifically** is mapped to a
-   destination inbox. That is a Cloudflare Email Routing setting, or a
-   one-minute test: send it a mail and see if it lands.
+4. ~~**Confirmation that `support@joinfero.app` receives mail.**~~
+   **DONE, 5 November 2026.** Closed end to end, in three parts:
+   - The address is a **configured route, not a catch-all**. An SMTP probe of
+     `route3.mx.cloudflare.net` returned `250 Ok` for `support@joinfero.app`
+     and `550 Address does not exist` for an invented address on the same
+     domain. The control case is what makes the first answer meaningful.
+   - It forwards to **`fero.support@gmail.com`**, which Cloudflare lists as
+     **Verified**. An unverified destination is the silent failure here —
+     Cloudflare accepts the mail and then drops it.
+   - The founder sent a live test on 5 November and **it arrived in that
+     inbox, not in spam.** Forwarded mail is filed as spam more often than
+     direct mail, because it reaches Gmail from Cloudflare rather than from
+     the original sender, so the folder mattered as much as the arrival.
+
+   Reading the Cloudflare analytics for 4 November: `2 received, 1 delivered,
+   1 error` is the SMTP probe above, not a delivery problem — one accepted
+   address and one deliberately invalid one.
 5. **TestFlight build 12 must be re-cut from `main`.** Found 29 October — see
    below. This is the one that would change what a reviewer sees.
 
@@ -285,6 +294,7 @@ from the existing branch. It needs the Xcode laptop either way.
 | Privacy Policy URL public | `https://www.joinfero.app/privacy` → **200** |
 | Support URL public | `https://www.joinfero.app/support` → **200** |
 | Support page names the contact | `support@joinfero.app` |
+| That contact actually receives mail | **yes** — routes to `fero.support@gmail.com` (Verified), live test arrived 5 Nov, not in spam |
 | Naming residue in the live bundle (`Firo`, `Anté`, `Ante`, `Lift Log`) | **zero occurrences** |
 | PWA manifest name / short name | `Fero` / `Fero` |
 | Page title | `Fero` |

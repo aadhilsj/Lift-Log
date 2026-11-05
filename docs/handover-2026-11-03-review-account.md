@@ -189,6 +189,18 @@ Both migrations were applied to production directly; the commits record them.
 - The fixture is invisible to the founder dashboard on every axis — accounts,
   active users, workout uploads — proven by the numbers holding across an
   account creation and 13 workout writes.
+- **`support@joinfero.app` receives mail — confirmed 5 November.** A
+  configured Cloudflare route rather than a catch-all (`250` for `support@`,
+  `550` for an invented address on the same domain), forwarding to
+  `fero.support@gmail.com`, which Cloudflare lists as Verified. The founder's
+  live test arrived in that inbox and not in its spam folder. The Cloudflare
+  analytics spike on 4 November — 2 received, 1 delivered, 1 error — is the
+  probe above, not a fault.
+
+  Worth carrying forward: `support@joinfero.app` is **not a mailbox and has no
+  password**. Trying to sign into Gmail with it fails, correctly. The inbox to
+  open is `fero.support@gmail.com`, and whoever handles review correspondence
+  needs to be able to get into it before submission day.
 
 **Still open, none of it mine:**
 
@@ -196,7 +208,6 @@ Both migrations were applied to production directly; the commits record them.
   blocker. It still carries the pre-22-October two-per-*day* cap and the
   calendar-tap delete bug fixed in `ca248a2`. Reviewing it would mean reviewing
   a Fero that no longer exists.
-- `support@joinfero.app` has not been tested end to end.
 - The review video.
 
 **When review is done**, deleting the fixture needs no undo here: both excluded

@@ -214,9 +214,13 @@ the app allows, and the pages asked for a typeface the app never loads. These
 are static pages; the app is untouched, so there is nothing here for TestFlight
 to catch up on. Details: `docs/handover-2026-10-10-legal-pages-publish.md`.
 
-> **`support@joinfero.app` is unconfirmed.** Both pages name it as the only
-> support channel, and nobody has verified that mail sent there arrives in a
-> mailbox someone reads. No test email was sent.
+> **`support@joinfero.app` works — confirmed 5 November 2026.** Both pages name
+> it as the only support channel, and a real message has now travelled the whole
+> way. The address is a configured Cloudflare Email Routing route, not a
+> catch-all: the mail server accepts `support@joinfero.app` and rejects an
+> invented address on the same domain. It forwards to `fero.support@gmail.com`,
+> which Cloudflare lists as **Verified**, and the founder confirmed a test email
+> arrived in that inbox — not in its spam folder.
 
 Before that, on 10 October, the website's **All Time** leaderboard and
 member-name awards now show only people who currently belong to that Bloc.
