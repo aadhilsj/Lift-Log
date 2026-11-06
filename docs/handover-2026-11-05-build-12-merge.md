@@ -933,3 +933,28 @@ Both added to the build order as steps 0a and 0b.
 ### Not changed
 
 No code, schema, environment variable or production data.
+
+---
+
+## 19. Correction — the notification centre is not cross-Bloc
+
+In §18 I recorded that merged notifications would open the notification centre
+"which already splits into one row per Bloc". **That is false, and the founder
+caught it.**
+
+`buildNotifications` is fed `group: currentGroup` (`src/App.jsx:2613`), and the
+money rows come from `buildSettlementReminderCards(currentGroup, …)`
+(`src/App.jsx:2609`). The centre shows **only the Bloc already open**. Nothing
+in Fero spans Blocs except the Bloc switcher.
+
+Consequence: **merging requires a cross-Bloc notification centre**, which does
+not exist. Five of the twelve types merge (1, 2, 6, 7, 9) and all five need the
+same destination, so it is one build covering all of them — but it is now the
+largest item on the push list.
+
+The alternative is not merging at all, which sends six notifications when six
+Blocs close. That is what he objected to in the first place, so the two options
+are genuinely in tension and the decision is his.
+
+§2E of the design doc has been corrected in the same commit. Nothing else
+changed; still no code, schema, env var or production data touched.

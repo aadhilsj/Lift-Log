@@ -372,10 +372,20 @@ run before the screen change. Then:
 | Mention | the Bloc Stream, on the message |
 | Money | that Bloc's settlement screen |
 | Streak / Bloc moving | that Bloc's Today screen |
-| **Merged across Blocs** | **the notification centre** |
+| **Merged across Blocs** | **nothing exists to open** |
 
-The bell is the answer for anything merged: it already splits into one row per
-Bloc and each row already knows its own destination.
+**Correction, 7 November.** I first wrote that a merged notification could open
+the notification centre because it "already splits into one row per Bloc". It
+does not. `buildNotifications` is fed `group: currentGroup` (`App.jsx:2613`)
+and `buildSettlementReminderCards(currentGroup, …)` (`App.jsx:2609`), so the
+centre shows **one Bloc — the one already open** — money included. No screen in
+Fero spans Blocs except the Bloc switcher. The founder caught this.
+
+**So merging needs a cross-Bloc notification centre built first.** Five of the
+twelve types merge (1, 2, 6, 7, 9) and all five need the same destination, so
+it is built once. The alternative is not merging — six Blocs closing sends six
+notifications — which is what the founder objected to. Recommended, but it is
+the largest item on the list and he decides whether push waits for it.
 
 ### Merging types 6 and 7
 
