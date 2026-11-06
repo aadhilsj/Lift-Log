@@ -372,7 +372,7 @@ run before the screen change. Then:
 | Mention | the Bloc Stream, on the message |
 | Money | that Bloc's settlement screen |
 | Streak / Bloc moving | that Bloc's Today screen |
-| **Merged across Blocs** | **nothing exists to open** |
+| **Merged across Blocs** | **nothing merges — see §2G** |
 
 **Correction, 7 November.** I first wrote that a merged notification could open
 the notification centre because it "already splits into one row per Bloc". It
@@ -465,6 +465,48 @@ or more, but only one person is in more than two Blocs.
 
 ---
 
+## 2G. Nothing merges across Blocs. The bell stays per-Bloc.
+
+**Decided 7 November, and it removes the largest item from the build list.**
+
+I had proposed making the "For you" panel cross-Bloc so merged notifications
+had somewhere to land. The founder stopped it with two questions: *"now the
+bell is going to be cross bloc? not per bloc?"* and *"isn't that confusing?"*
+
+Both land. It is confusing, and it was scope I invented:
+
+- The nav shows the Bloc you are in. A bell beside it carrying five other
+  Blocs' news contradicts the frame the whole screen sets.
+- Tapping a row would throw you out of the Bloc you were reading, losing your
+  place, as the price of glancing at a badge.
+- The badge itself becomes unreadable: 7 while you sit in Sarandawgs, 5 of
+  them from elsewhere.
+- Nobody asked for the panel to change. It works.
+
+**And the problem it solved was mostly not real.** iOS groups notifications
+from the same app that arrive together, so six month-close pushes on the 1st
+appear as one expandable stack on the lock screen, not six interruptions.
+Setting `thread-id` per member makes that explicit rather than relying on the
+default.
+
+### What this settles
+
+| | |
+| --- | --- |
+| The "For you" panel | **unchanged** — per Bloc, as it ships today |
+| Type 7 in six Blocs | **six notifications**, iOS-stacked, each naming its Bloc |
+| Type 6 | already solved in §2F, needs nothing |
+| Types 1, 2, 9 "merging" | they merge into **one push**, which still belongs to one Bloc or names a count — no screen needed |
+| The cross-Bloc screen | **not built** |
+
+Still required, and unaffected: switching Bloc when a push is tapped
+(`handleNotificationAct`, §2E step 0b). That is a fix to a path that is
+already wrong, not a new screen.
+
+The mockup board `AllBlocs.dc.html` is kept, marked rejected, as the record.
+
+---
+
 ## 3. Bundling — five rules
 
 1. **One notification per workout, not per reaction.** Keyed on the workout, via
@@ -522,7 +564,7 @@ the App ID and the distribution profile was regenerated on 5 November.
 | | | Whose |
 | --- | --- | --- |
 | 0a | **`profiles.time_zone`**, filled from the device — blocks every scheduled type (§2E) | code + schema |
-| 0b | **Switch Bloc on notification tap** in `handleNotificationAct` — wrong Bloc opens today (§2E) | code |
+| 0b | **Switch Bloc on notification tap** in `handleNotificationAct` — wrong Bloc opens today (§2E). This is the whole of the tap work; no cross-Bloc screen (§2G) | code |
 | 1 | **Deferred at the founder's request:** the APNs key, and `APNS_PRIVATE_KEY` / `APNS_KEY_ID` / `APNS_TEAM_ID` in Vercel (team `SMR55A2M96`). The `.p8` downloads **once**, never into the repo or a chat | his personal laptop |
 | 2 | Give `buildApnsRequest` a message argument — it hardcodes `title: "Fero test"` today | code |
 | 3 | The permission card above, wired to `requestPushPermissionFromUserAction({ userInitiated: true })`, which has no caller | code |

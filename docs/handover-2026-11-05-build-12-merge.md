@@ -1054,3 +1054,52 @@ anything about a shipped screen.
 ### Not changed
 
 No code, schema, environment variable or production data.
+
+---
+
+## 22. The cross-Bloc bell is cancelled — the biggest item is off the list
+
+He asked *"now the bell is going to be cross bloc? not per bloc?"* and then
+*"isn't that confusing?"* Both were right, and the second one killed it.
+
+It was confusing, and it was scope I introduced on my own: the nav names the
+Bloc you are in, so a bell beside it carrying other Blocs' news fights the
+frame; tapping a row would throw you out of the Bloc you were reading; and the
+badge becomes unreadable — 7 while you sit in Sarandawgs, 5 of them from
+elsewhere. Nobody asked for that panel to change, and it works.
+
+**The problem it solved was also mostly not real.** iOS groups same-app
+notifications arriving together, so six month-close pushes on the 1st are one
+expandable stack, not six interruptions. Setting `thread-id` per member makes
+that explicit.
+
+### Settled
+
+- **The "For you" panel is unchanged.** Per Bloc, as it ships.
+- **Type 7 sends six in six Blocs**, iOS-stacked, each naming its Bloc.
+- **No cross-Bloc screen is built.** Written up as §2G.
+- Still required: switching Bloc when a push is tapped (§2E step 0b). That is
+  a fix to an already-wrong path, not a new screen.
+
+The `AllBlocs.dc.html` board is kept and marked rejected, as the record of why.
+
+### Where the build list now stands
+
+| | |
+| --- | --- |
+| 0a | `profiles.time_zone` from the device — blocks every scheduled type |
+| 0b | switch Bloc on notification tap |
+| 1 | the APNs key (his personal laptop) |
+| 2 | a message argument on `buildApnsRequest` |
+| 3 | the permission card, wired to the function that has no caller |
+| 4 | the per-type switches and a `notification_prefs` store |
+| 5 | the event senders, keyed on the workout session |
+| 6 | one scheduled job for types 1, 6, 7 and 9 |
+| 7 | `PUSH_REGISTRATION_ENABLED`, build 13+, one real push to his own phone |
+
+Plus, from his approvals: mentions inside comments, and detecting the workout
+that completes a perfect Bloc month.
+
+### Not changed
+
+No code, schema, environment variable or production data. Nothing is built.
