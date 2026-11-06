@@ -328,3 +328,62 @@ server, by the rollover.
 next build is cut, or the phone app will not have this. That reverses the
 earlier "do not merge main" instruction, which was written when the only thing
 on `main` was the static Terms pages.
+
+## 11. Sync outages are now recorded
+
+Founder asked for the "can't reach Fero" failures to be tracked so they can be
+investigated rather than guessed at. Shipped `4017a6d`, live on the website.
+
+### How it works, and the one constraint that shapes it
+
+**An app that cannot reach Fero cannot tell Fero that it cannot reach Fero.**
+So the client opens an *episode* in `localStorage` the moment a sync fails,
+holds it open while it keeps failing, closes it when a sync finally succeeds,
+and sends it then. One row per outage, not per failed request.
+
+Each row carries: when it started and ended, how long it lasted, how many
+times Retry was pressed, whether a **retry** or a background sync (**auto**)
+resolved it, `navigator.onLine` at the start — which separates "the phone knew
+it had no network" from "the server could not be reached" — and whether the
+app was installed or in a browser.
+
+An episode that fails to send goes back in the queue. The network was
+unreliable a moment ago; the send can fail too.
+
+### Why a new table and not `system_events`
+
+`ante_core.system_events` is the founder dashboard's health panel, and
+`read_ante_core_system_events` takes the most recent rows **with no filter on
+`event_type`**. Client outages are many-per-member; rollover failures are a
+handful a month. Sharing the table would push the one alarm it exists for off
+the bottom of the list. It already holds **862 rows**. So:
+`ante_core.client_sync_events`, migration `20261106020000`, with its own
+`record_` and `read_` RPCs shaped like the system-events pair.
+
+### Applied to production, and verified
+
+| Check | Result |
+| --- | --- |
+| Table created, RLS enabled | ✅ |
+| Both RPCs `service_role` only (`anon` and `authenticated` revoked) | ✅ |
+| Attribution resolves through `profiles.auth_user_id` | ✅ — the same trap as `read_ante_core_member_bloc_keys`; a wrong id loses attribution but keeps the row, because `profile_id` is nullable |
+| Clamps hold | ✅ — 999999999 ms → 86400000, 99999 retries → 1000 |
+| A timestamp 5 days in the future | ✅ refused, no row |
+| `system_events` untouched | ✅ still 862 |
+| Test rows removed | ✅ table is empty |
+| `record-sync-outage` unauthenticated | ✅ 401 |
+| `record-sync-outage` as the review account | ✅ `{ok:true, recorded:0}` — routed, authenticated, and the reviewer correctly dropped, no row written |
+
+### What is NOT proven
+
+**The full path from a real member's phone to a row.** Every account available
+for testing is analytics-excluded, and creating a throwaway production account
+to prove it was not worth the junk data. The two halves are each verified and
+the code between them is six lines. **Check `ante_core.client_sync_events`
+after the founder next sees the notice** — that is the real confirmation.
+
+### Found, not fixed
+
+`api/lift-log.js:11794` still answers failures with `"Anté sync proxy failed"`.
+Same old product name as the sign-in email, but in a JSON error body rather
+than in front of a member. Left alone: not asked for.
