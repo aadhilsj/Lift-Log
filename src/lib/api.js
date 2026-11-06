@@ -395,6 +395,14 @@ function trackUsageEvent(eventName) {
   return postApi("usage-event", { eventName }).catch(() => null);
 }
 
+// Fire-and-forget, like trackUsageEvent, with one difference: the caller is
+// told whether it landed, because an unsent episode goes back in the queue
+// rather than being lost -- these are sent precisely because the network was
+// unreliable a moment ago.
+function reportSyncOutages(episodes) {
+  return postApi("record-sync-outage", { episodes }).catch(() => null);
+}
+
 async function fetchData() {
   try {
     const session = await getCurrentAuthSession();
@@ -1150,6 +1158,7 @@ export {
   postApi,
   fetchFounderDashboardData,
   trackUsageEvent,
+  reportSyncOutages,
   fetchData,
   fetchRevision,
   getLatestServerBuild,

@@ -6071,6 +6071,62 @@ async function supabaseFetch(path, options = {}) {
 // matches on either FOUNDER_DASHBOARD_USER_IDS or FOUNDER_DASHBOARD_EMAILS. An
 // id alone only matches the first, which would fail silently if the deployment
 // ever configured just the email.
+// Client sync outages: episodes where a member's app could not reach Fero,
+// sent once the app CAN reach it again -- an app that is offline cannot report
+// being offline, so the client holds the episode and flushes it on the other
+// side. Diagnostics only: nothing here may fail a member's request, and the
+// review account is dropped so Apple's reviewer never appears in the data.
+//
+// Added 6 November 2026 after the founder saw the notice stay red with a fully
+// loaded feed. The notice having no success state explained what he saw; this
+// is for working out why the app could not reach the server at all.
+const MAX_SYNC_OUTAGES_PER_REQUEST = 10;
+
+function readOutageNumber(value, max) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return null;
+  return Math.max(0, Math.min(Math.round(parsed), max));
+}
+
+function readOutageTimestamp(value) {
+  const parsed = new Date(String(value || ""));
+  return Number.isFinite(parsed.getTime()) ? parsed.toISOString() : null;
+}
+
+async function recordClientSyncOutages(authUser, episodes) {
+  if (isAnalyticsExcludedUser(authUser)) return 0;
+  const authUserId = typeof authUser === "object" && authUser ? authUser.id : authUser;
+  const list = Array.isArray(episodes) ? episodes.slice(0, MAX_SYNC_OUTAGES_PER_REQUEST) : [];
+  let recorded = 0;
+  for (const episode of list) {
+    const startedAt = readOutageTimestamp(episode?.startedAt);
+    if (!startedAt) continue;
+    try {
+      await supabaseFetch("/rest/v1/rpc/record_ante_core_client_sync_event", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({
+          p_auth_user_id: authUserId ? String(authUserId) : null,
+          p_started_at: startedAt,
+          p_ended_at: readOutageTimestamp(episode?.endedAt),
+          p_duration_ms: readOutageNumber(episode?.durationMs, 86400000),
+          p_retries: readOutageNumber(episode?.retries, 1000) ?? 0,
+          p_resolved_by: String(episode?.resolvedBy || "").slice(0, 16) || null,
+          p_was_online: typeof episode?.wasOnline === "boolean" ? episode.wasOnline : null,
+          p_platform: String(episode?.platform || "").slice(0, 16) || null,
+          p_app_version: String(episode?.appVersion || "").slice(0, 32) || null,
+          p_detail: String(episode?.detail || "").slice(0, 1000) || null
+        })
+      });
+      recorded += 1;
+    } catch {
+      // Swallowed on purpose. A diagnostic that takes the app down with it
+      // would be worse than the bug it exists to find.
+    }
+  }
+  return recorded;
+}
+
 async function recordCanonicalDailyAppActivity(authUser, openedAt = new Date().toISOString()) {
   const authUserId = typeof authUser === "object" && authUser ? authUser.id : authUser;
   if (!authUserId) return;
@@ -11718,6 +11774,14 @@ export default async function handler(req, res) {
         }
         const persisted = await persistState(updated, `repair-display-name:${payload.groupId}:${payload.oldName}:${payload.newName}`);
         return res.status(200).json({ ok: true, state: persisted });
+      }
+
+      if (payload?.action === "record-sync-outage") {
+        // Diagnostics, so it deliberately does NOT return state: the client is
+        // flushing a queue it already holds and has nothing to re-render.
+        const auth = await requireAuthenticatedContext(req, payload, current);
+        const recorded = await recordClientSyncOutages(auth.user, payload?.episodes);
+        return res.status(200).json({ ok: true, recorded });
       }
 
       return res.status(400).json({ error: "Unsupported POST action" });

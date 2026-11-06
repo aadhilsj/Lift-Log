@@ -83,8 +83,16 @@ import {
   readPersistedAuthSession,
   persistAuthSessionHint,
   getRevision,
-  trackUsageEvent
+  trackUsageEvent,
+  reportSyncOutages
 } from "./lib/api.js";
+import {
+  openSyncOutage,
+  noteSyncRetry,
+  closeSyncOutage,
+  takeQueuedSyncOutages,
+  restoreQueuedSyncOutages
+} from "./lib/syncOutages.js";
 import {
   isMobile,
   isStandalone,
@@ -1099,6 +1107,10 @@ const App = () => {
   },[applyData, flashJustSynced]);
 
   useEffect(()=>{ syncErrorRef.current = syncError; },[syncError]);
+  // One episode per outage: openSyncOutage is idempotent, so the repeated
+  // failures of a long outage extend the open episode instead of each
+  // becoming a row.
+  useEffect(()=>{ if (syncError) openSyncOutage(); },[syncError]);
   useEffect(()=>{ retryStateRef.current = retryState; },[retryState]);
   useEffect(()=>() => { retryTimersRef.current.forEach(clearTimeout); },[]);
 
@@ -1110,6 +1122,16 @@ const App = () => {
   // which is the same "did that do anything?" the Retry spinner was added to
   // answer. Reaching the server turns the dot green, says Connected, and then
   // takes the notice away on its own.
+  // Sent only once the app can reach Fero again, which is the only time it
+  // can be sent at all. An episode that does not land goes back in the queue:
+  // the network was unreliable a moment ago, so the send can fail too.
+  const flushSyncOutages = useCallback(() => {
+    const episodes = takeQueuedSyncOutages();
+    if (episodes.length === 0) return;
+    void reportSyncOutages(episodes).then(result => {
+      if (!result?.ok) restoreQueuedSyncOutages(episodes);
+    });
+  },[]);
   const flashConnected = useCallback(() => {
     setRetryState("connected");
     retryTimersRef.current.push(setTimeout(() => {
@@ -1118,6 +1140,7 @@ const App = () => {
   },[]);
   const handleSyncRetry = useCallback(() => {
     if (retryStateRef.current === "retrying") return;
+    noteSyncRetry();
     retryTimersRef.current.forEach(clearTimeout);
     retryTimersRef.current = [];
     retryStateRef.current = "retrying";
@@ -1160,8 +1183,13 @@ const App = () => {
   // that fixed itself without the member pressing anything still tells them.
   useEffect(()=>{
     if (!lastSyncedAt) return;
+    // Both no-ops when there is nothing open and nothing queued, so this is
+    // safe on every successful poll, not only after a visible failure. It is
+    // also what closes an episode left open by an app that was shut mid-outage.
+    closeSyncOutage(retryStateRef.current === "retrying" ? "retry" : "auto");
+    flushSyncOutages();
     if (retryStateRef.current === "failed") flashConnected();
-  },[lastSyncedAt, flashConnected]);
+  },[lastSyncedAt, flashConnected, flushSyncOutages]);
 
   useEffect(()=>{
     const syncStandalone = () => setStandalone(isStandalone());
