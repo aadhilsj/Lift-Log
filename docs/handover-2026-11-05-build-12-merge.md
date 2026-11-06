@@ -382,8 +382,15 @@ to prove it was not worth the junk data. The two halves are each verified and
 the code between them is six lines. **Check `ante_core.client_sync_events`
 after the founder next sees the notice** — that is the real confirmation.
 
-### Found, not fixed
+### The last Anté string — fixed
 
-`api/lift-log.js:11794` still answers failures with `"Anté sync proxy failed"`.
-Same old product name as the sign-in email, but in a JSON error body rather
-than in front of a member. Left alone: not asked for.
+`api/lift-log.js` answered failures with `"Anté sync proxy failed"`. Fixed on
+the founder's go-ahead, `fb1feef`, live and confirmed by calling the endpoint
+unauthenticated: it now returns `"Fero sync proxy failed"`. Nothing matched on
+the old string — the client reads `details`, not `error` — so there was no
+caller to update.
+
+**`grep -rI "Anté" api/ src/` now returns nothing.** With the sign-in email
+fixed earlier today, the old product name is gone from shipped code and from
+the only email Fero sends. It survives only in `ante_core` schema and file
+names, which are internal and deliberately left alone.
