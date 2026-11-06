@@ -1,5 +1,6 @@
 import React from "react";
 import { syncPushRegistration } from "./lib/pushNotifications.js";
+import { hideKeyboardAccessoryBar } from "./lib/keyboardAccessoryBar.js";
 const { useState, useEffect, useMemo, useCallback, useRef } = React;
 import {
   MIN_TARGET,
@@ -589,6 +590,9 @@ const App = () => {
     canvas.style.setProperty("--composer-bottom-pad", "28px");
     return () => { canvas.style.removeProperty("--composer-bottom-pad"); };
   }, [standalone]);
+  // The keyboard's previous/next/Done bar is iOS's, not ours, and its chevrons
+  // are always dead because Fero has one field per screen. Once, on mount.
+  useEffect(() => { void hideKeyboardAccessoryBar(); }, []);
   const [syncing,setSyncing]=useState(false);
   const [syncError,setSyncError]=useState(false);
   // The offline notice's Retry needs to look like it did something. A refresh
