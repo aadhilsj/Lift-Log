@@ -23,7 +23,7 @@ merge `main`. Do not change `ios/`.
 | Branch | `claude/testflight-build-12-2026-10-21` |
 | Head when this was written | `bdee799` |
 | Relative to `main` | **68 ahead, 5 behind** |
-| Build number already set | `CURRENT_PROJECT_VERSION = 12` |
+| Build number already set | `CURRENT_PROJECT_VERSION = 12` — **bump it to 13 before the next upload**, see below |
 | Version | `MARKETING_VERSION = 1.0` |
 | Bundle id | `com.aadhilsj.fero` |
 | Team | `SMR55A2M96` |
@@ -175,6 +175,31 @@ the shot cannot be taken. Apple gets those URLs from App Store Connect.
 
 Upload it anywhere Apple can open without a login and put the URL in **App
 Review Information → Notes**, alongside the review account.
+
+## 7a. Build 13 — read this before cutting another build
+
+**Build 12 is already uploaded to App Store Connect.** Apple refuses a second
+upload with the same build number, so the next one must set
+`CURRENT_PROJECT_VERSION = 13` in `ios/App/App.xcodeproj/project.pbxproj`.
+Leave `MARKETING_VERSION` at 1.0. That is the one hand-edit under `ios/` this
+document allows, and only at build time.
+
+### What has landed on the branch since build 12 was cut
+
+| Commit | Change |
+| --- | --- |
+| `11ee2c2` | Hides iOS's keyboard accessory bar — the previous/next/Done strip above the keyboard. Adds `@capacitor/keyboard` 8.0.6 and calls `setAccessoryBarVisible(false)` once on mount. Lint and build clean; **not yet seen on a device** |
+
+**Check this one on the device before submitting.** Installing
+`@capacitor/keyboard` also brings that plugin's keyboard resize handling,
+which this wrapper did not have before. It should be invisible, but the
+screens where it would show are the **comment composer** and the **Bloc Stream
+message box**: open each, raise the keyboard, and confirm the field still sits
+where it did and nothing is cut off. Then confirm the accessory bar is
+actually gone from the sign-in code field.
+
+The founder has more tweaks coming before this build is cut, so expect more
+commits here.
 
 ## 8. Still open after this
 
