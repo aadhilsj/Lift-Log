@@ -665,3 +665,93 @@ Read-only SQL against production for every figure (project
 points. **No code, no schema, no environment variable and no production data was
 changed.** `main` is docs-only on this session. Nothing was built: the founder
 asked for the design, and build is a separate turn.
+
+---
+
+## §15. The founder overruled the digest, and he was right — 6 November 2026
+
+Same day, immediately after §14. **He pushed back on the one thing §14 dropped,
+and the pushback was correct.** His words:
+
+> *"it is important to be notified when your blocmates log a workout. That's the
+> whole like motivation and accountability factor. It's like when you're being
+> lazy on a Sunday and you get notification saying three of your buddies have
+> logged a workout. That's what pushes you to go do your own workout."*
+
+He also supplied the fix himself — a threshold, "maybe two people, maybe three,
+or maybe a certain percentage, depending on if one person is in a block with
+only three people" — and asked whether it should be per Bloc or across all of
+them.
+
+**My error in §14 was treating "too many" as "do not send".** The 135-a-month
+figure was right; the conclusion was not. The problem was *one per event*, never
+the subject. An off-by-default daily digest was the timid answer to a correct
+measurement, and it would have cut out the loop the app exists for.
+
+### What the data said once the right rule was tested
+
+The condition that changes everything is **"and you have not logged today"**.
+It removes every notification that could not change anything. Per member per
+month, October 2026, every Bloc of three or more:
+
+| Rule, with "you have not logged" | Per member / month |
+| --- | --- |
+| ≥1 other logged | 19.2 |
+| ≥2 others logged | 14.5 |
+| ≥3 others logged | 8.8 |
+| **a third of the others** | **11.3** |
+| half of the others | 5.9 |
+
+**His percentage instinct was right, and Curke proves it.** In the 3-member
+Bloc: a flat "3 people" fires **0.0** times a month — it *cannot*, there are
+only two other people — and a flat "2 people" fires 1.3. A third of the others
+fires 8.0. Meanwhile in 10-member Go To Da Gym a flat "2 people" is 17.5 and a
+third is 11.1. **A flat count is either dead in small Blocs or too loud in large
+ones; a third is neither.**
+
+**The rule: a third of the other members, rounded up, minimum one** — 1 of 2,
+2 of 6, 3 of 7, 7 of 19. No special case.
+
+### 17:00, chosen from when people actually log
+
+Share of a day's workouts already logged, by hour, October 2026: 09:00 23%,
+12:00 37%, 15:00 55%, **17:00 65%**, 19:00 80%, 21:00 97%.
+
+So at 17:00 two-thirds of the Bloc's day has happened — the number in the
+message is real rather than premature — and **a third of all logging is still
+ahead**, so it can still be acted on. Earlier reports nothing; later is a
+reproach. 17:00 in the member's own time zone (`ante_core.blocs.time_zone`).
+
+### Per Bloc, with one cap across all of them
+
+Per Bloc, because the message names people. But **at most one a day per
+member**: two qualifying Blocs merge into "5 of your blocmates have logged
+today." On October's data the cap trims 519 fires to 468 — small at 1.2 Blocs a
+member (8 of 51 are in more than one), and the thing that stops it compounding.
+
+### The copy
+
+> **Sarandawgs**
+> Hana, Noah and Tariq have logged today.
+> You're on 7 of 12.
+
+One person: *"Hana has logged today. You're on 7 of 12."* Two Blocs: *"5 of your
+blocmates have logged today."* Already at target: **nothing sent**.
+
+The names are the social proof; the "7 of 12" is the stake. Both halves are
+needed — names alone are gossip, the number alone is a spreadsheet.
+
+### Decided
+
+- It is **type 1 of seven**, and **the only one on by default**: an
+  accountability app whose accountability is opt-in does not work. It keeps its
+  own switch.
+- **Types 1, 6 and 7 are one scheduled job**, not three. Where type 1 and the
+  pace nudge would both fire on a day, **type 6 wins** — "3 days left" is the
+  more urgent fact.
+- `docs/push-notification-design-2026-11-06.md` is revised in place (§1A is new
+  and carries the whole rule) and the mockup canvas has a new artboard for it.
+
+**Still a proposal. No code, no schema, no env var, no production data changed.**
+Every figure is read-only SQL against project `bpvvvqjsfwmmfjvvijkd`; the
+queries are in §1A of the design doc in prose form.

@@ -1,13 +1,27 @@
 # Push notifications — the design — 6 November 2026
 
+> **Revised the same day, after the founder pushed back, and he was right.**
+> The first version of this doc dropped "notify me when my blocmates work out"
+> down to an off-by-default daily digest. His answer:
+> *"it is important to be notified when your blocmates log a workout. That's
+> the whole like motivation and accountability factor. It's like when you're
+> being lazy on a Sunday and you get notification saying three of your buddies
+> have logged a workout. That's what pushes you to go do your own workout."*
+> He also supplied the fix — a threshold, possibly a percentage, because a flat
+> count breaks a three-person Bloc. Measured, that works: it is now **type 1,
+> on by default**, at **11 notifications a month**. §1A is the whole design.
+> My original mistake was treating "too many" as "do not send", when the real
+> problem was only *one per event*.
+
 **Status: a proposal, nothing built.** The founder asked which moments deserve a
 notification, how they bundle, what the types are, and when to ask permission.
 This answers all four. It does **not** change code. The APNs key is deliberately
 last: it needs his personal laptop and he asked to leave it until the end.
 
 Mockup of every notification below, in Fero's own styling, with the exact copy:
-the Design canvas titled **Fero push notifications** (four artboards — the six
-types, bundling, the permission moment, and the measured volume).
+the Design canvas titled **Fero push notifications** (five artboards — the seven
+types, type 1 in full, bundling, the permission moment, and the measured
+volume).
 
 Read first, both already existing and both read for this:
 - `docs/push-notifications-order-of-operations-2026-09-30.md` (on
@@ -43,7 +57,9 @@ estimate.
 
 **135 a month is four or five buzzes a day, and not one of them is about you.**
 That is the shape of notification people switch off — and iOS never asks again.
-The whole design follows from that single number.
+
+**But the conclusion is not "do not send it".** The problem is *one per event*,
+not the subject. §1A is the rule that keeps the motivation and loses the volume.
 
 **Caveat that belongs on every Fero number:** the app has not launched. October
 is six real Blocs of friends, not a market. The *ratio* between the two columns
@@ -52,7 +68,86 @@ holds at any size; the absolute figures will move.
 
 ---
 
-## 2. The six types
+## 1A. Type 1 — "your Bloc is moving and you haven't"
+
+The founder's lazy-Sunday case. **Not one push per workout — one a day at
+17:00, and only if you have not logged yet.** That condition does all the work:
+it removes every notification that could not change anything, and it is what
+takes the rule from unusable to 11 a month.
+
+> **Sarandawgs**
+> Hana, Noah and Tariq have logged today.
+> You're on 7 of 12.
+
+One person: *"Hana has logged today. You're on 7 of 12."*
+Two Blocs at once: *"5 of your blocmates have logged today."*
+Already hit your target: **nothing**.
+
+It names people, and it names your own standing, because the standing is the
+stake. Both halves matter: the names are the social proof, the "7 of 12" is why
+you care.
+
+### The threshold is a third of the others, not a flat count
+
+The founder raised this himself and the data settles it. Notifications per
+member per month, October 2026, with the "and you have not logged today"
+condition applied:
+
+| Bloc | Size | "2+ people" | "3+ people" | A third of the others |
+| --- | --- | --- | --- | --- |
+| Go To Da Gym | 10 | 17.5 | 11.1 | 11.1 |
+| Ctrl Alt De-feat | 8 | 13.9 | 9.4 | 9.4 |
+| Sarandawgs | 8 | 13.8 | 5.5 | 5.5 |
+| OSI H3 | 7 | 10.4 | 8.3 | 10.4 |
+| StavanGang | 7 | 11.0 | 6.7 | 11.0 |
+| Sweat Equity | 7 | 14.3 | 7.9 | 14.3 |
+| Sunday Warriors | 6 | 2.5 | 2.5 | 2.5 |
+| **Curke** | **3** | **1.3** | **0.0** | **8.0** |
+
+**Curke is the whole argument.** A flat "3 people" can **never** fire in a
+three-member Bloc — there are only two other people in it. A flat "2 people"
+fires 1.3 times a month, which is also nothing. A third of the others fires 8
+times, which is the point of the feature.
+
+**The rule: a third of the other members, rounded up, minimum one.** 1 of 2,
+2 of 6, 3 of 7, 7 of 19. It self-adjusts and needs no special case.
+
+Across every Bloc of three or more, the measured totals were: ≥1 other 19.2 a
+month, ≥2 others 14.5, ≥3 others 8.8, a third 11.3, half 5.9. **A third is the
+one that is generous in a small Bloc and restrained in a large one.**
+
+### 17:00, and why that exact hour
+
+From when workouts are actually logged — the share of a day's workouts already
+in by each hour, October 2026:
+
+| 09:00 | 12:00 | 15:00 | **17:00** | 19:00 | 21:00 |
+| --- | --- | --- | --- | --- | --- |
+| 23% | 37% | 55% | **65%** | 80% | 97% |
+
+By 17:00 two-thirds of your Bloc's day has happened, so the number in the
+message is real rather than premature — **and a third of all logging is still
+ahead of you**, so you can act on it. Earlier and it has nothing to report;
+later and it is a reproach rather than a nudge. 17:00 in the member's own time
+zone, which `ante_core.blocs.time_zone` already stores.
+
+### Per-Bloc, with one hard cap across all of them
+
+The message names people, so it is built per Bloc. But **at most one of these a
+day per member**: where two Blocs both qualify, they merge into the "5 of your
+blocmates" form. On October's data the cap trims 519 fires to 468 — small today,
+because members average 1.2 Blocs and only 8 of 51 are in more than one, and the
+thing that stops this compounding as people join more.
+
+### On by default
+
+Alone among the seven. This is the accountability loop rather than a courtesy,
+and an accountability app whose accountability is opt-in does not work. It still
+gets its own switch.
+
+---
+
+## 2. The seven types
 
 The Bloc name is always the iOS **title**, because members belong to more than
 one and "who reacted" is useless without "where". The **body** is the same
@@ -60,35 +155,35 @@ sentence the bell already writes, so the two can never disagree — including
 `describeWorkout`'s "your Gym Log" capitalisation and `nameList`'s
 "Hana, Noah and 2 others".
 
-| # | Type | Title | Body | Timing |
-| --- | --- | --- | --- | --- |
-| 1 | Reaction on your workout | Sarandawgs | `Hana and Noah reacted to your Run Log 🔥` | instant, bundled |
-| 2 | Comment on your workout | Sarandawgs | `Noah commented on your Gym Log` + the comment | instant, bundled |
-| 3 | Reply in a thread you are in | Sarandawgs | `Tariq replied on Leo's Run Log` + the comment | instant, bundled |
-| 4 | Mentioned in the Bloc Stream | Sarandawgs | `Eli mentioned you in the Bloc Stream` + the message | instant |
-| 5 | Pace nudge | Sarandawgs | `3 days left. You're 2 workouts off 12.` | scheduled, once a month |
-| 6 | Month closed | Sarandawgs | `October closed. You owe Leo £10.` | scheduled, once a month |
+| # | Type | Title | Body | Timing | Default |
+| --- | --- | --- | --- | --- | --- |
+| 1 | **Your Bloc is moving** | Sarandawgs | `Hana, Noah and Tariq have logged today. You're on 7 of 12.` | 17:00, only if you have not logged | **on** |
+| 2 | Reaction on your workout | Sarandawgs | `Hana and Noah reacted to your Run Log 🔥` | instant, bundled | on |
+| 3 | Comment on your workout | Sarandawgs | `Noah commented on your Gym Log` + the comment | instant, bundled | on |
+| 4 | Reply in a thread you are in | Sarandawgs | `Tariq replied on Leo's Run Log` + the comment | instant, bundled | on |
+| 5 | Mentioned in the Bloc Stream | Sarandawgs | `Eli mentioned you in the Bloc Stream` + the message | instant | on |
+| 6 | Pace nudge | Sarandawgs | `3 days left. You're 2 workouts off 12.` | scheduled, once a month | on |
+| 7 | Month closed | Sarandawgs | `October closed. You owe Leo £10.` | scheduled, once a month | on |
 
-Types 1 to 4 are exactly the four kinds the "For you" centre already builds
+Types 2 to 5 are exactly the four kinds the "For you" centre already builds
 (`reaction`, `comment`, thread `comment`, `mention` in
 `src/lib/notificationCentre.js`). Nothing new is invented, which is the point:
 the bell's wording has already been through the founder.
 
-**Two deliberate omissions.**
+**One deliberate omission.**
 
-- **"Someone logged a workout" is not a push.** It becomes **one daily digest**,
-  **off by default**: *"5 workouts in Sarandawgs today. You're 3rd on 7."* One
-  notification instead of 135, and it still carries the competitive bit that
-  made the idea attractive.
 - **Being owed money is not a push.** You cannot act on it. The bell already
   draws this line: `alwaysUnread` is true only for money you owe, with the
   comment *"a badge you cannot clear is just nagging"*. Push inherits it.
 
-**Type 5 does not exist anywhere yet.** The pace nudge is the only genuinely new
-thing here, and for an accountability app it is probably the most valuable
-notification of the six — it is the only one that can change the outcome rather
-than report it. It needs a scheduled job and the member's own time zone, which
-`ante_core.blocs.time_zone` already stores.
+**Types 1, 6 and 7 do not exist anywhere yet**, and types 1 and 6 are the two
+that can change the month's outcome rather than report it. Both need a scheduled
+job and the member's own time zone, which `ante_core.blocs.time_zone` already
+stores — so they are one piece of work, not two.
+
+Type 1 and type 6 must not both land on the same day: where they would, type 6
+wins, because "3 days left" is the more urgent fact. One scheduled job, one
+notification.
 
 ---
 
@@ -105,7 +200,7 @@ than report it. It needs a scheduled job and the member's own time zone, which
    `name !== currentUser` and the comment count excludes your own.
 4. **Quiet from 22:00 to 07:00**, in the member's own time zone, held and sent at
    07:00. Nothing in an accountability app is worth waking someone for.
-5. **Each type switchable off**, six switches on the account screen. A member who
+5. **Each type switchable off**, seven switches on the account screen. A member who
    wants only the month nudge can have only that. The order-of-operations doc
    already requires this.
 
@@ -151,9 +246,9 @@ the App ID and the distribution profile was regenerated on 5 November.
 | 1 | **Deferred at the founder's request:** the APNs key, and `APNS_PRIVATE_KEY` / `APNS_KEY_ID` / `APNS_TEAM_ID` in Vercel (team `SMR55A2M96`). The `.p8` downloads **once**, never into the repo or a chat | his personal laptop |
 | 2 | Give `buildApnsRequest` a message argument — it hardcodes `title: "Fero test"` today | code |
 | 3 | The permission card above, wired to `requestPushPermissionFromUserAction({ userInitiated: true })`, which has no caller | code |
-| 4 | The six switches, and a `notification_prefs` store | code + schema |
+| 4 | The seven switches, and a `notification_prefs` store | code + schema |
 | 5 | Send on `add-log`, `reaction`, `log-comment-create`, `stream-send` in `api/lift-log.js`, with the collapse key and the quiet window | code |
-| 6 | A scheduled job for types 5 and 6 | code |
+| 6 | **One scheduled job** for types 1, 6 and 7 — the threshold, the 17:00 local send, the one-a-day cap, and type 6 winning a collision | code |
 | 7 | `PUSH_REGISTRATION_ENABLED=true`, build 13+, then one real notification to his own phone before anything is switched on for anyone else | both |
 
 **2, 3 and 4 can all be built before the key exists**, which is what the founder
