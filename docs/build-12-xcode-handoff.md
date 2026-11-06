@@ -39,7 +39,16 @@ Verified then: lint clean, build clean, 29 of 31 `test:*` scripts pass (the 2
 failures are a stale sandbox seed and fail identically on `main`), and `ios/`
 was byte-identical before and after the merge.
 
-### Do NOT merge `main` again
+### Merging `main` — this changed on 6 November
+
+**For build 13 you MUST merge `main` first.** It now carries app code the phone
+needs: `a9c1547`, the offline notice's green "Connected" state. The rule below
+was written when the only thing on `main` was the static Terms pages, and it no
+longer applies.
+
+<details><summary>The old rule, kept for the record</summary>
+
+#### Do NOT merge `main` again (superseded)
 
 The branch is 5 commits behind `main` as of writing. All five are the Terms of
 Use work from 5 November: two touch `public/` (the `/terms/` page and a footer
@@ -53,6 +62,8 @@ metadata, not from inside the binary.
 
 So merging would change the bundled assets without changing anything reachable,
 and would throw away the verification already done. **Leave it 5 behind.**
+
+</details>
 
 ## 3. Before you build
 

@@ -282,3 +282,49 @@ submission.
 
 Account deletion. Apple requires it to exist, not to be filmed, and it is on
 the Support page, so this is not a gap for submission.
+
+## 10. The offline notice now says when it reconnects
+
+Founder hit this on his phone on the night of 5–6 November, in Sarandawgs: the
+Activity Feed's images were slow, the notice appeared, he pressed Retry, the
+content loaded — **and the notice still read "Still can't reach Fero".** He
+left the Bloc and came back; it loaded, and the notice was still red.
+
+### What was wrong
+
+The notice had three states and all three were bad news: `Can't reach Fero`,
+`Reconnecting`, `Still can't reach Fero`. **There was no success state at
+all.** The dot was hardcoded `#FF5B5B`. So a retry that worked and a retry that
+did nothing looked identical, which is the same "did that do anything?" the
+Retry spinner was added in `40d1190` to answer.
+
+Shipped `a9c1547`, live on the website: reaching the server turns the dot
+green (`--track-green`), says **Connected**, drops the Retry button and removes
+the notice after 1.4 s. The path that heals a stuck failure without anyone
+pressing anything — the `lastSyncedAt` effect — goes through the same green
+moment instead of vanishing silently. A fresh failure during that moment wins
+and puts the notice back to red.
+
+### What is NOT explained yet
+
+**Why it got stuck in the first place.** Two things are certain from the code:
+
+1. A retry is judged failed by `const failed = !ok || syncErrorRef.current`.
+   That ORs in a flag **every other request also writes**, so a retry that
+   genuinely succeeded is still marked failed if any concurrent poll set
+   `syncError` inside the same window.
+2. Once `failed`, the only thing that clears it is `lastSyncedAt` changing.
+
+That is a plausible route to what he saw, but it is **not proven** and the
+exact sequence is unknown. Guessing further without evidence is how sessions
+get wasted here — which is exactly why the founder asked for the failures to be
+tracked. Nothing records them today: there is no client-side error reporting
+anywhere in `src/`, and `ante_core.system_events` is written only by the
+server, by the rollover.
+
+### For build 13
+
+`main` must be merged into `claude/testflight-build-12-2026-10-21` before the
+next build is cut, or the phone app will not have this. That reverses the
+earlier "do not merge main" instruction, which was written when the only thing
+on `main` was the static Terms pages.
