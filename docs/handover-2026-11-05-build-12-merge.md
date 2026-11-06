@@ -583,3 +583,85 @@ two branches, `vercel env ls production`, and read-only SQL against project
 count. **No code, no schema, no environment variable and no production data was
 changed in this section.** No plan was executed — the founder asked how it
 would work, and that is a separate turn from building it.
+
+---
+
+## §14. The push notification design — 6 November 2026
+
+The founder asked to leave the APNs key until last, because it needs his
+personal laptop, and to do the design work now: which moments deserve a
+notification, how they bundle, what the types are, and when to ask permission.
+
+**All four are answered in `docs/push-notification-design-2026-11-06.md`**, with
+a mockup of every notification in Fero's styling on the Design canvas titled
+*Fero push notifications* (the six types, bundling, the permission moment, the
+measured volume). **It is a proposal; no code was changed.**
+
+### The finding that shaped it
+
+His own example — "when somebody has logged a workout" — is the one rule that
+must not be built, and the number says so. Counted from production for October
+2026 (730 workouts, 512 reactions, 84 comments, 124 Stream messages, every
+Bloc), per member per month:
+
+| Bloc | People | Workouts | "Someone logged a workout" | "Reacted to yours", bundled |
+| --- | --- | --- | --- | --- |
+| OSI H3 | 7 | 157 | **135** | 9.7 |
+| Go To Da Gym | 10 | 110 | **99** | 5.5 |
+| Sweat Equity | 7 | 93 | **80** | 8.4 |
+| Ctrl Alt De-feat | 8 | 92 | **81** | 9.9 |
+| StavanGang | 7 | 90 | **77** | 9.6 |
+| Sarandawgs | 8 | 63 | **55** | 4.6 |
+
+**135 a month is four or five buzzes a day and not one is about you.** The
+bundled column is exact, not estimated: distinct logs that got a reaction from
+someone other than the owner, divided by members.
+
+**I first wrote "30 a day" in the mockup from a rough multiplication and
+corrected it to 135 a month once it was measured.** The right order is measure
+then state; the artboard was fixed before this was committed.
+
+### What was decided, and on what grounds
+
+- **Six types.** Four of them are exactly the kinds the bell already builds —
+  `reaction`, `comment`, thread `comment`, `mention` — reusing `describeWorkout`
+  and `nameList` so the push and the bell can never word the same event two
+  ways. Two are new and scheduled: a **pace nudge** ("3 days left. You're 2
+  workouts off 12.") and **month closed**.
+- **The pace nudge is the only genuinely new notification**, and for an
+  accountability app probably the most valuable of the six: it is the only one
+  that can change the outcome rather than report it. `ante_core.blocs.time_zone`
+  already has what it needs.
+- **The Bloc name is the iOS title**, every type, because members are in more
+  than one Bloc and "who reacted" is useless without "where".
+- **Two deliberate omissions.** The workout feed becomes **one daily digest, off
+  by default**. Being owed money sends nothing — the bell already draws that
+  line with `alwaysUnread`, whose comment reads *"a badge you cannot clear is
+  just nagging"*.
+- **Bundling reuses the bell's own rule**, in the code's words: *"five reactions
+  on one workout is one thing that happened, not five."* Plus collapsing names,
+  never your own action, a 22:00–07:00 quiet window in the member's time zone,
+  and six individual switches.
+- **The permission moment: right after the first workout is logged**, as Fero's
+  own card with "Turn on notifications" and "Not now". Apple is only called by
+  the green button, so a "Not now" leaves the single system prompt unspent and
+  Fero can ask again. This is the question the 28 September handover left open
+  and nobody answered; it is now one recommendation, not a menu.
+
+### What can be built before the key, and what cannot
+
+Buildable now: the message argument on `buildApnsRequest` (it hardcodes
+`title: "Fero test"`), the permission card, and the six switches with their
+store. **None of it can be tested end to end without the key** — no device token
+is stored until registration is switched on, and nothing can be sent at all
+without `APNS_PRIVATE_KEY`. That limit is stated in the design doc rather than
+left to be discovered.
+
+### Verified, and what was not changed
+
+Read-only SQL against production for every figure (project
+`bpvvvqjsfwmmfjvvijkd`), and `src/lib/notificationCentre.js`,
+`api/lift-log.js` and `server/push.js` read for the existing rules and hook
+points. **No code, no schema, no environment variable and no production data was
+changed.** `main` is docs-only on this session. Nothing was built: the founder
+asked for the design, and build is a separate turn.
