@@ -444,7 +444,10 @@ workout posted everywhere closes the deficit in every Bloc at once.
 | --- | --- |
 | Behind in one | `Curke 🫡` / `3 days left. You're 1 workout off 8.` |
 | Behind in several, same gap | `3 days left` / `1 more workout clears both your Blocs.` |
-| Behind in several, different gaps | `3 days left` / `9 more workouts clears all 3. Sarandawgs needs 9, the others 4.` |
+| Behind in several, different gaps | `3 days left` / `9 more workouts clears all 3.` |
+
+The per-Bloc breakdown was cut by the founder: naming each Bloc and its gap
+read as a puzzle. One number, one action; the detail is on the screen.
 
 **This needs no cross-Bloc screen.** It is one number and one action, so it
 opens the log sheet. Type 6 is unblocked; only types 7 (and 1, 2, 9 when

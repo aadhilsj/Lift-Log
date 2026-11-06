@@ -1009,3 +1009,48 @@ cross-Bloc screen. Type 6 no longer depends on the answer.
 ### Not changed
 
 No code, schema, environment variable or production data.
+
+---
+
+## 21. The cross-Bloc mockup was wrong; redrawn from the real component
+
+He said "that's different tho", and he was right. I had written that the
+mockup was "the same rows, same order, same wording as the screen you have"
+without ever opening `src/components/NotificationCentre.jsx`. It was not.
+
+What I had drawn wrong: the title (it is **"For you"** in Raleway 800, not
+"Notifications"), the close affordance (**✕**, which I had replaced with a
+"Mark read" button that does not exist), the avatars (real member faces, 38px,
+two overlapping at 26px when more than one person — I had drawn emoji in
+rounded squares), the workout thumbnail on the right (40px, radius 8 — I had
+left it out entirely), and the timestamp, which sits in a small grey meta line
+at the bottom of the row, not top-right.
+
+Redrawn faithfully in artifact `SiGivnD85RCPqpjayZp1k1` v13: the real tones
+(`#173332` edge on `#0C1716`, red wash for money owed, green for owed to you),
+the real type sizes, the real PAY / OWED labels, the real section labels at
+8.5px / .14em.
+
+**The cross-Bloc change is now one thing:** the Bloc name joins the existing
+grey meta line, beside the timestamp — `Sarandawgs · 2h`. No chips, no new
+colours, no new furniture. That is the whole visual delta.
+
+**Where it is reached from**, which he also asked: the same **For you** bell in
+`Nav.jsx:188`, present in the top nav on every screen. Not the Bloc switcher —
+that adds a tap in front of the thing that should be instant.
+
+### Also this turn
+
+Type 6's multi-gap copy loses the breakdown at his instruction: just
+`9 more workouts clears all 3.` Design doc §2F updated.
+
+### Lesson worth keeping
+
+Two corrections in two turns, both the same mistake: describing existing app
+behaviour from memory instead of reading it. The notification centre's scope
+(§19) and now its appearance. Read the component before drawing or claiming
+anything about a shipped screen.
+
+### Not changed
+
+No code, schema, environment variable or production data.
