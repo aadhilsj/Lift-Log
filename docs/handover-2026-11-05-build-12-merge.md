@@ -253,8 +253,21 @@ ever signed in has seen it — this is not a review-only problem. Apple's
 reviewer will see an app called Fero asking them to open an email titled
 "Your Anté sign-in code".
 
-Not applied. It is a production auth-config change affecting every sign-in, and
-the founder had not asked for it; raised with him instead.
+**Fixed, 6 November, on the founder's go-ahead.** `Anté` → `Fero` in both keys
+via the Management API; `smtp_sender_name` was already `Fero` and was not
+touched. Verified by diffing the entire auth config before and after: those two
+keys are the only ones that moved, and no `Ant` string survives anywhere in it.
+Rollback is a single PATCH, recorded at
+`docs/rollback/20261106-magic-link-email-wording-PROD-BEFORE.md`.
+
+The new wording is `Your Fero sign-in code`, in both the subject and the body
+heading. Everything else in the template — the sentence, the code styling,
+`{{ .Token }}`, the expiry line — is byte-identical to before.
+
+**The video still shows the old wording**, since it was recorded before the
+fix. That does not matter and is not a reason to re-record: the video is a
+demonstration, and a reviewer comparing it to a live email finds the live one
+better branded, not worse.
 
 ### Measured, from frames sampled every 2 seconds
 
