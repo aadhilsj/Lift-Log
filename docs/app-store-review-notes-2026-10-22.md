@@ -2,9 +2,15 @@
 
 Fills the template in `app-store-submission-runbook.md`. **Everything here is
 established from the code, the production database or the Vercel environment
-and is stated as fact. The four items in §3 are NOT yet known and must be
-filled before submission** — the runbook is explicit that this must not be
-pasted with placeholders.
+and is stated as fact.**
+
+**Revised 6 November 2026.** §1 is now complete and paste-ready — the review
+account, the Bloc and the invite code are filled in and there are no
+placeholders left, which the runbook requires. Three things in it were also
+*wrong* and are corrected: the daily cap (it is two per activity since 22
+October, not two per day), the promise that a reviewer would see the settlement
+buttons (nothing is owed in the review Bloc, so they are not on screen), and
+the `bank` option in §4, which the app never offered. What remains is §5.
 
 ---
 
@@ -16,19 +22,22 @@ Members choose a monthly workout target and an accountability penalty. Fero
 records workouts, works out the month's result, and records who owes what and
 whether it has been settled.
 
-Review video: [URL]
-
 Review account:
-- Email: [SUPPLIED IN APP STORE CONNECT]
-- Sign-in: Fero has no passwords. You enter an email address and we email a
-  six-digit code. The review account's inbox is monitored for the whole review
-  window; if a code does not arrive, contact us and we will re-send.
+- Email: feroappreview@gmail.com
+- Password for that mailbox: supplied in the Sign-In Information fields above.
+- Sign-in: Fero has no passwords of its own. You enter an email address and we
+  email a six-digit code to it. Open the mailbox above to read the code. That
+  inbox is monitored for the whole review window; if a code does not arrive,
+  contact us and we will re-send.
 
 Seeded Bloc:
-- Name: [NAME]
-- Invite method: [CODE OR LINK]
+- Name: Sunday Warriors
 - The review account is already a member, so no second person is needed to
-  evaluate the social features.
+  evaluate the social features. If you ever need to re-join it, the invite
+  code is FQ1GXF.
+- Six members. Monthly target 12 workouts. Penalty GBP 10.
+- October 2026 is a finished month in this Bloc and all five members met the
+  target, so no penalty is outstanding. November is in progress.
 
 Recommended test path:
 1. Sign in with the review email and the emailed code.
@@ -37,36 +46,44 @@ Recommended test path:
 3. Tap the centre + button to log a workout. The count and your status update
    immediately. A photo is optional.
 4. Activity shows the Bloc's recent workouts, with reactions and comments.
-5. Month shows the Bloc's progress ring for the current month.
+5. Month shows the Bloc's progress ring for the current month, and October
+   behind it as a closed month.
 6. Profile shows your own history and a calendar of your workouts.
 7. The speech-bubble icon opens the Bloc Stream, a private group chat.
-8. The bell opens "For you" — reactions, comments and mentions aimed at you.
-9. Profile -> account screen has Privacy, Support, Blocked members, sign out
-   and permanent account deletion.
+8. The bell opens "For you" - reactions, comments and mentions aimed at you.
+9. Profile -> account screen has Privacy, Terms of Use, Support, Blocked
+   members, sign out and permanent account deletion.
 
-PENALTY AND SETTLEMENT — WHAT THE BUILD ACTUALLY DOES
+PENALTY AND SETTLEMENT - WHAT THE BUILD ACTUALLY DOES
 
 Fero never holds, transfers, routes or processes money, and there is no
 payment provider in the app. There is no in-app purchase, no subscription, no
-wagering credit and no pool.
+wagering credit and no pool. Fero has no payment processing of any kind.
 
 A Bloc agrees a penalty amount among themselves. When a member misses their
 monthly target, Fero records that they owe that amount to the other members.
 That record is all Fero has.
 
-Settlement confirmations are ENABLED in this build, so you will see:
+Settlement confirmations are enabled in this build. Where a member has missed
+a target, three controls appear:
 - "Claim paid"  - the person who owes marks that they have paid, by hand.
 - "Confirm"     - the recipient confirms they received it, by hand.
 - "Dispute"     - the recipient says they did not.
 None of these move money or check anything. They are three people pressing
-buttons about something that happened outside the app.
+buttons about something that happened outside the app. In the review Bloc
+every member met October's target, so nothing is owed and these controls are
+not currently on screen. To see them, log fewer than 12 workouts in a month.
 
 A member may optionally save their own payment handle (for example a
 revolut.me or paypal.me link). Where one exists, Fero can show a "Pay" button
 that OPENS THAT THIRD-PARTY APP OR PAGE. Fero does not process the payment,
 does not see whether it happened, and never changes settlement status as a
 result. Only revolut.me, paypal.me and qr.vipps.no are ever turned into a
-link; anything else is shown as plain text to copy.
+link; anything else is shown as plain text to copy. Fero does not ask for or
+store bank account details, card numbers or any other financial credential.
+
+Age rating: Fero is 18+. The Terms of Use set 18 as the minimum age, because
+the penalty is a real financial commitment between adults.
 
 External services required during review:
 - Supabase - database, authentication and image storage
@@ -93,11 +110,28 @@ Profile -> account screen -> Delete account removes the account and the
 member's own content, including uploaded photos.
 
 Non-obvious behaviour:
-- Two workouts per day is a deliberate cap, enforced in the database. It is
-  not a bug; Fero rewards consistency rather than single long sessions.
+- Two workouts of the SAME activity per day is a deliberate cap, enforced in
+  the database. There is no cap on how many workouts you log in a day: two
+  runs plus a gym session plus a padel game is allowed; a third run on the
+  same day is not. It is not a bug; Fero rewards consistency rather than
+  single long sessions.
 - Workout photos are deleted automatically 72 hours after posting, so older
   entries show an activity icon instead of a picture.
 ```
+
+**If a demo video is uploaded**, add one line under the first paragraph:
+`Review video: <URL>`. Apple's guideline 2.1 asks for a demo *account*, not a
+video, so the notes are complete without it.
+
+**Legal URLs for the App Information page:**
+
+| Field | Value |
+| --- | --- |
+| Privacy Policy URL | `https://www.joinfero.app/privacy/` |
+| Terms of Use (EULA) | `https://www.joinfero.app/terms/` |
+| Support URL | `https://www.joinfero.app/support/` |
+
+All three returned **200** on 6 November 2026.
 
 ---
 
@@ -105,19 +139,34 @@ Non-obvious behaviour:
 
 | Claim | Evidence |
 | --- | --- |
-| No payment processing | No payment SDK in `package.json`; `ante_core.settlement_transfers` has **0 rows** on production; `payment_methods` has **0 rows** |
+| No payment processing | No payment SDK in `package.json`; `ante_core.settlement_transfers` **0 rows**, `ante_core.payment_methods` **0 rows**, both re-checked 6 Nov; of 54 profiles, 53 have a blank `payment_provider` and one is `revolut` |
 | Settlement confirmations are on | `ENABLE_SETTLEMENT_CONFIRMATIONS = true`, Production and Preview, checked in Vercel 22 Oct |
 | The fake demo cards are off | `ENABLE_SETTLEMENT_CONFIRMATIONS_PREVIEW = false`, same check |
 | Only three hosts become links | `ALLOWED_LINK_HOSTS`, `src/lib/paymentLinks.js:105` |
+| Only three providers accepted | `SUPPORTED_PAYMENT_PROVIDERS`, `api/lift-log.js:9332` — revolut, paypal, vipps |
+| Legal URLs live | `/privacy/`, `/terms/`, `/support/` on `www.joinfero.app` all **200**, 6 Nov |
 | Camera / photo wording | `ios/App/App/Info.plist`, quoted as written |
 | Push | `aps-environment: production`, `Release.entitlements` |
 | No tracking | No `NSUserTrackingUsageDescription`; no analytics SDK |
-| Two-a-day cap | `CLAUDE.md` §8 — deliberate, enforced atomically |
+| Per-activity cap | `CLAUDE.md` §8 and `handover-2026-10-23-per-activity-cap.md` — two of the *same activity* per day since 22 Oct, enforced atomically in the database |
 | 72-hour photo deletion | `shouldKeepLogPhoto`, `api/lift-log.js` |
 
 ---
 
 ## 3. STILL NEEDED before this can be submitted
+
+**Status, 6 November 2026.** Items 1, 2, 3 and 4 are CLOSED; the history of each
+is kept below because the reasoning still matters. What is left is item 5 (the
+build) plus the four App Store Connect fields listed in §5.
+
+| | |
+| --- | --- |
+| 1. Review account | **Closed** — `feroappreview@gmail.com`, a member of Sunday Warriors |
+| 2. Seeded Bloc | **Closed** — Sunday Warriors, invite `FQ1GXF`, 6 active members, October closed with no fines, November in progress |
+| 3. Review video URL | **Closed as not required** — guideline 2.1 asks for a demo account, not a video. §1 says where to add a URL if one is uploaded |
+| 4. `support@joinfero.app` receives mail | **Closed 5 November** — see below |
+| 5. Build re-cut from `main` | **Open** — the only remaining code-side item |
+
 
 1. **The review account** — a real email whose inbox is monitored for the
    whole review window. Fero signs in by emailed code, so if that inbox is
@@ -143,8 +192,10 @@ Non-obvious behaviour:
    manager."* It also survives every future release, which a bypass only does
    by staying in the binary.
 
-   **Open:** the founder creates the mailbox and supplies the address. The
-   account is then created and joined to Sunday Warriors with invite `FQ1GXF`.
+   **DONE, 6 November 2026.** The mailbox is `feroappreview@gmail.com`. The
+   profile exists in production as display name **Fero Review** and is an
+   active member of Sunday Warriors (`left_at` is null), with one November
+   workout logged so the account does not read as dormant.
 
    **TIMING — add it AFTER the 1 November close, not before.** Noticed 30
    October, two days out. Three things collide:
@@ -175,8 +226,27 @@ Non-obvious behaviour:
    count as a real account.
 2. **The seeded Bloc** — name, invite route, and realistic non-personal
    members, with the review account already a member.
-   **Blocked on a decision, 29 October — see §3.1.**
-3. **The review video URL.**
+   **DONE, 6 November 2026**, verified against production:
+
+   | | |
+   | --- | --- |
+   | Name | Sunday Warriors |
+   | Invite code | `FQ1GXF` |
+   | Target / penalty | 12 workouts, GBP 10 |
+   | Members | 6 active — Tariq, Hana, Noah, Eli, Leo, Fero Review |
+   | October 2026 | **closed** 1 November; 14/13/13/12/12 workouts, so all five met the target of 12 |
+   | Fines outstanding | **none** — every `settlement_status` on the October season is null |
+   | November 2026 | **open**; Tariq 4, Hana 3, Eli 2, Leo 2, Noah 2, Fero Review 1 |
+
+   **One consequence to be aware of, found 6 November:** because nobody missed
+   October's target, the settlement controls are **not on screen anywhere in
+   this Bloc**. The §1 notes used to promise a reviewer would see them. They
+   now describe the mechanic and say plainly that nothing is currently owed,
+   and how to produce one. That is the honest version; a reviewer who follows
+   the old wording and finds no buttons is the worse outcome.
+3. ~~**The review video URL.**~~ **Closed as not required, 6 November.**
+   Guideline 2.1 requires a demo account for an app with a login and does not
+   ask for a video. §1 carries the one line to add if a URL ever exists.
 4. ~~**Confirmation that `support@joinfero.app` receives mail.**~~
    **DONE, 5 November 2026.** Closed end to end, in three parts:
    - The address is a **configured route, not a catch-all**. An SMTP probe of
@@ -299,23 +369,78 @@ from the existing branch. It needs the Xcode laptop either way.
 | PWA manifest name / short name | `Fero` / `Fero` |
 | Page title | `Fero` |
 
-### One thing that is NOT a blocker, but is on the runbook
+### The Terms/EULA URL the runbook asks for now exists
 
-The runbook asks for a **Terms/EULA URL**. There is **no Terms page** —
-`public/` holds only `privacy` and `support`, and `/terms`, `/eula` and
-`/legal` all return 404.
+Written and shipped 5 November 2026; the paragraph that used to sit here said
+there was no Terms page, which was true then and is not now.
 
-**Nothing links to it**, in the app or on either legal page, so there is no
-broken link for a reviewer to find. Apple requires a Privacy Policy URL and
-applies its own standard EULA when a custom one is not supplied, so this does
-not block submission. Worth a decision rather than a scramble — Fero's penalty
-and settlement mechanic is the kind of thing a custom Terms page would cover.
+`https://www.joinfero.app/terms/` returns **200** (re-checked 6 November), and
+so do `/privacy/` and `/support/`. It matches the other two legal pages
+exactly — same stylesheet, wordmark and footer — and both of those now link to
+it, so there is no orphan page.
+
+Two things in it bear on the submission:
+
+- It states **"Fero does not process, hold, transfer, collect or refund any
+  payment"** in those words, which is the same claim the review notes make.
+- It sets the minimum age at **18**, which is why the App Store Connect age
+  questionnaire must be answered **18+**. DietBet and HealthyWage, the two
+  closest comparables with a money-at-stake mechanic, are both 18+.
 
 ---
 
-## 4. One thing to decide
+## 4. The `bank` option — corrected, 6 November 2026
 
-`payment_methods.method_type` allows a **`bank`** option, stored as free text,
-so a member could save bank account details. **Zero rows today.** Either the
-privacy labels and Privacy Policy should cover financial handles, or the
-`bank` option should be reconsidered before launch. Not changed.
+**The entry that used to sit here was wrong and is withdrawn.** It said
+`payment_methods.method_type` allowed a `bank` option "stored as free text, so
+a member could save bank account details". That is not what the code does, and
+the error was repeated out of this file into a conversation with the founder
+before it was checked.
+
+What is actually true, each line checked on 6 November:
+
+| Claim | Reality |
+| --- | --- |
+| "stored as free text" | It is a Postgres **enum**, `ante_core.payment_method_type`, values `revolut, wise, paypal, bank, other`. Free text cannot be stored in it at all |
+| "a member could save bank account details" | **No.** The app offers exactly three providers — `PAYMENT_PROVIDERS` in `src/lib/paymentLinks.js` is Revolut, PayPal, Vipps — and the API rejects anything else: `SUPPORTED_PAYMENT_PROVIDERS = new Set(["revolut", "paypal", "vipps"])`, `api/lift-log.js:9332`. There is no UI, and no API path, that accepts `bank` |
+| Which tables use the enum | `payment_methods.method_type` and `settlement_transfers.recipient_payment_method_type`. **Both tables hold 0 rows**, and nothing in `api/` writes to either — they are dormant from the canonical-schema plan |
+| Where handles really live | `ante_core.profiles.payment_provider` / `payment_handle`. Of 54 profiles, **53 are blank and one is `revolut`** |
+
+**So there is nothing to remove, and the database type is being left alone.**
+Dropping a value from a Postgres enum means recreating the type and re-pointing
+two live columns at it; the rollback is not one statement. Spending that risk
+on a value no code path can produce, in two empty tables, is not a trade worth
+making. Apple's privacy questionnaire asks what the app **collects**, and the
+app collects no financial data, so the labels are correct as they stand and
+this was never a rejection risk.
+
+Two unused enum values, `wise` and `bank`, remain defined and unreachable. That
+is a tidy-up for whenever `payment_methods` is actually brought into use, not a
+pre-launch task.
+
+---
+
+## 5. What is actually left before submission
+
+Four fields to type into App Store Connect, and one build decision.
+
+| | Where | Value |
+| --- | --- | --- |
+| 1 | App Information → Privacy Policy URL | `https://www.joinfero.app/privacy/` |
+| 2 | App Information → **Terms of Use (EULA)** | `https://www.joinfero.app/terms/` |
+| 3 | Age rating questionnaire | answer so it lands on **18+** |
+| 4 | App Review Information → Notes, plus Sign-In Information | the §1 block; email `feroappreview@gmail.com`, mailbox password typed straight into Apple, never into a chat |
+
+**The build decision.** Build 12 is uploaded and installed on the founder's
+phone. Three changes have landed on `main` since it was cut and are live on the
+web app but not in that binary:
+
+- the sign-in email says Fero, not the old product name
+- the offline notice turns green and says "Connected" when it recovers, and
+  every outage is recorded
+- the iOS keyboard accessory bar is removed *(on the branch, not yet merged)*
+
+None of these is a rejection risk. Cutting build 13 is a judgement call about
+what the reviewer should see, not a blocker. If build 13 is cut, it must carry
+`CURRENT_PROJECT_VERSION = 13` and `main` must be merged into the branch first
+— see `docs/build-12-xcode-handoff.md` §7a.

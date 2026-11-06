@@ -394,3 +394,88 @@ caller to update.
 fixed earlier today, the old product name is gone from shipped code and from
 the only email Fero sends. It survives only in `ante_core` schema and file
 names, which are internal and deliberately left alone.
+
+---
+
+## §12. The `bank` option, and the App Review notes filled in — 6 November 2026
+
+The founder asked two things: should the `bank` payment option be removed, and
+which of the four remaining submission items could be handled without him.
+
+### The `bank` option: nothing to remove, and I had it wrong
+
+I told the founder the app lets a member type bank details into their profile,
+and that keeping it meant declaring financial data to Apple. **That was wrong.**
+I took it from §4 of `docs/app-store-review-notes-2026-10-22.md`, which claimed
+the value was "stored as free text", and repeated it without checking. He said
+"yes, remove it" on the strength of that. Checking it first would have saved him
+the decision.
+
+What is actually there, each line checked on 6 November:
+
+| | |
+| --- | --- |
+| Not free text | It is a Postgres enum, `ante_core.payment_method_type` = `revolut, wise, paypal, bank, other` |
+| No way to reach it | `PAYMENT_PROVIDERS` (`src/lib/paymentLinks.js`) offers Revolut, PayPal, Vipps. The API rejects the rest: `SUPPORTED_PAYMENT_PROVIDERS = new Set(["revolut","paypal","vipps"])`, `api/lift-log.js:9332` |
+| The tables are empty | `payment_methods` **0 rows**, `settlement_transfers` **0 rows**; nothing in `api/` writes to either. Dormant from the canonical-schema plan |
+| Where handles actually live | `ante_core.profiles.payment_provider` / `payment_handle`. 54 profiles: **53 blank, 1 `revolut`** |
+
+**Decision: the database type is left alone, and I told the founder why rather
+than carrying out the change he had approved.** Dropping a value from a Postgres
+enum means recreating the type and re-pointing two live columns; the rollback is
+not one statement. That is real risk for a value no code path can produce, in
+two empty tables. Apple's privacy questionnaire asks what the app *collects* —
+it collects no financial data — so the labels are already right and this was
+never a rejection risk. `wise` and `bank` stay defined and unreachable; a
+tidy-up for whenever `payment_methods` is brought into use.
+
+### The App Review notes are now paste-ready
+
+`docs/app-store-review-notes-2026-10-22.md`, §1. Every placeholder is gone —
+`grep '\[URL\]\|\[NAME\]\|\[CODE'` returns nothing, which the runbook requires
+before submission.
+
+Filled in from production, not from memory:
+
+| | |
+| --- | --- |
+| Review account | `feroappreview@gmail.com`, display name **Fero Review**, active member, 1 November workout logged so it does not read as dormant |
+| Bloc | **Sunday Warriors**, invite `FQ1GXF`, target 12, penalty GBP 10 |
+| Members | 6 active — Tariq, Hana, Noah, Eli, Leo, Fero Review |
+| October | **closed** 1 Nov. 14/13/13/12/12 — all five met the target |
+| November | **open**. Tariq 4, Hana 3, Eli 2, Leo 2, Noah 2, Fero Review 1 |
+
+**Three things in the notes were wrong and are corrected:**
+
+1. **The cap.** They said "two workouts per day". It has been two of the *same
+   activity* per day since 22 October. A reviewer logging a run and a gym
+   session would have been told the notes were wrong about the app's own rule.
+2. **The settlement buttons.** The notes promised a reviewer "will see" Claim
+   paid / Confirm / Dispute. **Every October member met the target, so nothing
+   is owed and those controls are not on screen anywhere in this Bloc** — all
+   five `settlement_status` values on the October season are null. The notes now
+   describe the mechanic, say plainly that nothing is currently owed, and say
+   how to produce one. A reviewer following the old wording and finding no
+   buttons was the worse outcome.
+3. **The `bank` line**, as above.
+
+**Also closed in the notes:** the review video is marked *not required* —
+guideline 2.1 asks for a demo account, not a video, and §1 carries the single
+line to add if a URL ever exists. The section claiming there is no Terms page is
+replaced; `/terms/`, `/privacy/` and `/support/` on `www.joinfero.app` all
+returned **200** on 6 November. The notes now state the 18+ minimum and that
+Fero asks for no bank or card details.
+
+### What is left, now in §5 of the notes
+
+Four fields the founder types into App Store Connect — Privacy Policy URL, Terms
+of Use URL, the age questionnaire answered **18+**, and the §1 notes block plus
+the mailbox password, which goes straight into Apple and never into a chat — and
+one judgement call: submit build 12, or cut build 13 so the three changes that
+landed today are in the binary. None of the three is a rejection risk.
+
+### Verified
+
+Read-only SQL against production (project `bpvvvqjsfwmmfjvvijkd`) for every
+number above; `curl` for the three legal URLs. **Docs only — no code, no schema
+and no production data was changed in this section.**
