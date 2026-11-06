@@ -886,3 +886,50 @@ rejected, so it should be first-to-target only, if at all.
 No code, schema, environment variable or production data. The design doc was
 not edited — it stays the engineering reference; the new doc is the founder's
 copy-review surface, and anything he changes gets folded back in afterwards.
+
+---
+
+## 18. Founder's copy review — four decisions and two blockers found
+
+He went through every variation in the doc, edited the copy himself (30 edits,
+kept) and settled most of it. Written up as **§2E of
+`docs/push-notification-design-2026-11-06.md`**, which supersedes §1A.
+
+**Happy as written:** types 2, 3, 4, 5, 8, 9. Also approved mentions inside
+comments, which does not exist as a feature yet.
+
+### What he changed
+
+1. **Type 1 loses the threshold.** Fixed **18:00** daily, however many logged,
+   no "a third of the others". Measured cost 21/month against 11.3 — accepted;
+   every one still lands on a day he has not trained.
+2. **The "7 of 12" count is dropped** — targets differ per Bloc.
+3. **It no longer stops when you hit target** — he wants it anyway.
+4. **Three new types** (10 sit-out/Solo requested, 11 approved/declined,
+   12 the last workout of a perfect Bloc month — his own idea). Rejected
+   `target_hit`, `member_joined`, `settings_changed`, `member_removed`.
+
+### Two things that have to be built before push ships
+
+Both found by his questions, both real:
+
+- **There is no member time zone.** `time_zone` exists on `blocs` and
+  `seasons` only. 11 Blocs are `Europe/Oslo`, 1 `Europe/Berlin`, 1
+  `Asia/Colombo`, so a Bloc-timed 18:00 fires at 14:00 for Oslo members of the
+  Colombo Bloc — exactly what he suspected. Needs `profiles.time_zone` from
+  the device. Blocks types 1, 6, 7, 9.
+- **Tapping a notification opens the wrong Bloc.** `handleNotificationAct`
+  (`src/App.jsx:2704`) resolves everything against `currentGroup` and never
+  calls `setSelectedGroupId`. Harmless for the bell, wrong for push.
+
+Both added to the build order as steps 0a and 0b.
+
+### Still open with him
+
+- Quiet hours 22:00–07:00 — too early for StavanGang?
+- Type 7 merge threshold: from four Blocs, or from two?
+- Type 12 second-person variant for whoever logged the completing workout.
+
+### Not changed
+
+No code, schema, environment variable or production data.

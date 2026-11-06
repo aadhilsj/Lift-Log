@@ -70,6 +70,9 @@ holds at any size; the absolute figures will move.
 
 ## 1A. Type 1 — "your Bloc is moving and you haven't"
 
+> **Superseded 7 November by §2E.** The founder dropped the threshold and the
+> workout count. The measurement below stands; the rule it argued for does not.
+
 The founder's lazy-Sunday case. **Not one push per workout — one a day at
 17:00, and only if you have not logged yet.** That condition does all the work:
 it removes every notification that could not change anything, and it is what
@@ -147,7 +150,9 @@ gets its own switch.
 
 ---
 
-## 2. The nine types
+## 2. The types
+
+> **Twelve since 7 November** — see §2E for 10, 11 and 12.
 
 The Bloc name is always the iOS **title**, because members belong to more than
 one and "who reacted" is useless without "where". The **body** is the same
@@ -312,6 +317,96 @@ behind in**, since that is the one the nudge is for.
 
 ---
 
+## 2E. Founder decisions, 7 November 2026
+
+He reviewed every variation and changed four things. **These supersede §1A and
+parts of §2 above** — they are not open questions any more.
+
+### Type 1 loses the threshold and the count
+
+The "a third of the others" rule is **dropped**. His words: a fixed time is a
+promise you can explain, a fraction is not. The rule is now:
+
+> Every day at **18:00**, however many blocmates have logged by then.
+> Only if **you** have not logged today. One a day across all Blocs.
+
+- **The "7 of 12" count is gone.** Targets differ between Blocs (12, 15, 10),
+  so the number is meaningless once merged and misleading before that.
+- **The "already hit target" filter is gone.** He wants it anyway: *"it would
+  still be cool to get a notification when your blocmates have logged, even
+  after you've hit your target."*
+- Measured cost: **21 a month**, against 11.3 for the threshold version.
+  Accepted knowingly — every one of the 21 still lands on a day he has not
+  trained, and the rule fits in a sentence.
+
+### Time zone: per member, not per Bloc — a new column
+
+He asked whose 18:00 it is, and he was right to. **`ante_core` has a
+`time_zone` on `blocs` and `seasons` and nowhere else** — there is no member
+time zone at all. Production: 11 Blocs on `Europe/Oslo`, 1 `Europe/Berlin`,
+1 `Asia/Colombo`, so 18:00 in the Colombo Bloc is 14:00 for its Oslo members.
+
+`profiles` needs a `time_zone` column, filled from the device. The app already
+reads `Intl.DateTimeFormat().resolvedOptions().timeZone` at `App.jsx:3918`, but
+only as the default when creating a Bloc — it is never saved for a person.
+
+**This blocks types 1, 6, 7 and 9**, all four being scheduled. It ships first.
+
+Note the split: *who logged today* is still counted on the **Bloc's** day
+(a Fero day ends at 3am Bloc time); only the **delivery hour** is the member's.
+
+### Tapping a notification — the app cannot do this today
+
+`handleNotificationAct` (`src/App.jsx:2704`) resolves every row against
+`currentGroup` and **never switches Bloc**. That is safe for the bell, which
+only ever shows the Bloc already open. It is wrong for push, which arrives
+cold and may concern any of six Blocs.
+
+**Fix before shipping:** `setSelectedGroupId` (available, `App.jsx:752`) must
+run before the screen change. Then:
+
+| Notification | Opens |
+| --- | --- |
+| About one Bloc | switch to that Bloc, then its screen |
+| Reaction / comment | the workout in the feed, highlighted |
+| Mention | the Bloc Stream, on the message |
+| Money | that Bloc's settlement screen |
+| Streak / Bloc moving | that Bloc's Today screen |
+| **Merged across Blocs** | **the notification centre** |
+
+The bell is the answer for anything merged: it already splits into one row per
+Bloc and each row already knows its own destination.
+
+### Merging types 6 and 7
+
+- **Type 6 does not merge below four Blocs** — the message *is* the number, and
+  six Blocs means six targets and six deadlines. It only goes to Blocs he is
+  behind in. From four: `3 Blocs need 2 more workouts each. 1 needs 5.`
+- **Type 7 merges from four**: `Hit 4 of 6 targets. You owe £20 in two Blocs.`,
+  or `All 6 targets hit. Nothing owed anywhere.`
+
+### Three new types, taking the set to twelve
+
+Approved from the "no notification yet" list:
+
+| # | Type | Note |
+| --- | --- | --- |
+| 10 | Sit-out or Solo **requested** | to the admin; `sitout-review` / `solo-review` blocks the member until they act |
+| 11 | Sit-out or Solo **approved or declined** | to the member |
+| 12 | **The last workout of a perfect Bloc month** | his idea; does not exist as an event yet |
+
+Rejected: `target_hit` (112 rows — recreates the per-workout volume already
+rejected), `member_joined`, `settings_changed`, `member_removed`.
+
+Type 12 needs its own detection and a second-person variant for the member who
+logged the workout that completed it.
+
+**Mentions inside comments** he also approved; the feature does not exist yet
+(`notificationCentre.js:18` says so), so it is a dependency of type 5's second
+form, not of the other eleven.
+
+---
+
 ## 3. Bundling — five rules
 
 1. **One notification per workout, not per reaction.** Keyed on the workout, via
@@ -368,6 +463,8 @@ the App ID and the distribution profile was regenerated on 5 November.
 
 | | | Whose |
 | --- | --- | --- |
+| 0a | **`profiles.time_zone`**, filled from the device — blocks every scheduled type (§2E) | code + schema |
+| 0b | **Switch Bloc on notification tap** in `handleNotificationAct` — wrong Bloc opens today (§2E) | code |
 | 1 | **Deferred at the founder's request:** the APNs key, and `APNS_PRIVATE_KEY` / `APNS_KEY_ID` / `APNS_TEAM_ID` in Vercel (team `SMR55A2M96`). The `.p8` downloads **once**, never into the repo or a chat | his personal laptop |
 | 2 | Give `buildApnsRequest` a message argument — it hardcodes `title: "Fero test"` today | code |
 | 3 | The permission card above, wired to `requestPushPermissionFromUserAction({ userInitiated: true })`, which has no caller | code |
