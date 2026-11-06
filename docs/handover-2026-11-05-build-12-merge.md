@@ -829,3 +829,60 @@ in to claude.ai, so the boards were not eyeballed rendered.
 
 He has not yet approved building any of it. The APNs key is still deferred to
 his personal laptop, and the review notes still claim push is in build 12.
+
+---
+
+## 17. Every notification variation, written out for the founder to edit
+
+He asked for **every single variation** of all nine types, sectioned, in plain
+English, so he can work on the copy himself before anything is built.
+
+Delivered as a Claude doc he can edit directly:
+**https://claude.ai/artifact/WbTnWELCvCdiQfEdNBpxEb**
+
+Twelve sections: one per type (1–9), then what changes across several Blocs,
+then the deliberate silences, then events that have no notification yet.
+
+Copy marked *already in the app* is lifted verbatim from
+`notificationCentre.js` and `SettlementScreen.jsx`, so changing it means
+changing a screen too — flagged in the doc.
+
+### Section 12 is new information
+
+Queried `ante_core.bloc_messages` for system moments that actually fire in
+production. All of these already happen and appear in the Bloc Stream, and
+**none is in the nine types**:
+
+| system_kind | rows |
+| --- | --- |
+| `target_hit` | 112 |
+| `member_joined` | 30 |
+| `sit_out_approved` | 13 |
+| `solo_started` | 13 |
+| `sit_out_requested` | 6 |
+| `settings_changed` | 5 |
+| `settlement_confirmed` / `settlement_paid` | 3 / 3 |
+| `member_removed` | 1 |
+
+Listed as candidates with proposed copy, not added to the design. My
+recommendation in the doc: **`sit_out_requested` is the strongest case on the
+list** — an admin must tap `sitout-review` before the member is unblocked, and
+today they only find out by opening the app. `settings_changed` second.
+`target_hit` at 112 rows would recreate the per-workout volume we already
+rejected, so it should be first-to-target only, if at all.
+
+### Open questions put to him in the doc
+
+1. Merged type 1 across Blocs — keep "7 of 12" (furthest-behind Bloc) or drop it?
+2. Should comment text appear on the lock screen at all?
+3. Wording for "3 days left and it's now mathematically impossible".
+4. Is the dispute line too blunt?
+5. Cap types 6 and 7 across Blocs, or let six Blocs send six?
+6. Quiet hours 22:00–07:00 — too early for StavanGang?
+7. Yes/no on each of the seven events in section 12.
+
+### Not changed
+
+No code, schema, environment variable or production data. The design doc was
+not edited — it stays the engineering reference; the new doc is the founder's
+copy-review surface, and anything he changes gets folded back in afterwards.
