@@ -389,9 +389,8 @@ the largest item on the list and he decides whether push waits for it.
 
 ### Merging types 6 and 7
 
-- **Type 6 does not merge below four Blocs** — the message *is* the number, and
-  six Blocs means six targets and six deadlines. It only goes to Blocs he is
-  behind in. From four: `3 Blocs need 2 more workouts each. 1 needs 5.`
+- **Type 6 — superseded by §2F.** I first said it could not merge. Looking at
+  real months shows it merges better than anything else in the set.
 - **Type 7 merges from four**: `Hit 4 of 6 targets. You owe £20 in two Blocs.`,
   or `All 6 targets hit. Nothing owed anywhere.`
 
@@ -414,6 +413,52 @@ logged the workout that completed it.
 **Mentions inside comments** he also approved; the feature does not exist yet
 (`notificationCentre.js:18` says so), so it is a dependency of type 5's second
 form, not of the other eleven.
+
+---
+
+## 2F. Type 6 across Blocs — one workout clears several
+
+The founder pushed back on my claim that being behind in several Blocs was
+rare enough to ignore. He was right, and checking the real months turned up
+something that changes the notification itself.
+
+**Because one workout is posted to several Blocs, the counts move together.**
+Every multi-Bloc member three days before September closed:
+
+| Member | Blocs | Logged | Targets | Behind in |
+| --- | --- | --- | --- | --- |
+| Aadhil | 6 | 17 in all six | 10–12 | none |
+| Isira | 2 | 19 in both | 10, 12 | none |
+| Kisal | 2 | 11 in both | 12, 12 | **both** |
+| Rishane | 2 | 3 in both | 12, 12 | **both** |
+| Bianković | 2 | 7 in both | 6, 8 | **one** |
+
+The `Logged` column is identical across a member's Blocs. Only the **targets**
+differ, and that alone decides where you are behind. Bianković is fine on 7
+against 6 and behind on the same 7 against 8.
+
+**So the useful number is the biggest gap, not the number of Blocs** — one
+workout posted everywhere closes the deficit in every Bloc at once.
+
+| Situation | Body |
+| --- | --- |
+| Behind in one | `Curke 🫡` / `3 days left. You're 1 workout off 8.` |
+| Behind in several, same gap | `3 days left` / `1 more workout clears both your Blocs.` |
+| Behind in several, different gaps | `3 days left` / `9 more workouts clears all 3. Sarandawgs needs 9, the others 4.` |
+
+**This needs no cross-Bloc screen.** It is one number and one action, so it
+opens the log sheet. Type 6 is unblocked; only types 7 (and 1, 2, 9 when
+merged) wait on the notification centre.
+
+**Caveat recorded honestly:** eight multi-Bloc members over two months is thin.
+The arithmetic holds regardless — shared workouts mean shared counts — but the
+frequency will move as Fero grows.
+
+### Measured
+
+At three days left: October, 2 members behind, each in one Bloc. September,
+16 behind in one Bloc and 2 behind in two. Nobody has yet been behind in three
+or more, but only one person is in more than two Blocs.
 
 ---
 

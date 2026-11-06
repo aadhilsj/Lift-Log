@@ -958,3 +958,54 @@ are genuinely in tension and the decision is his.
 
 §2E of the design doc has been corrected in the same commit. Nothing else
 changed; still no code, schema, env var or production data touched.
+
+---
+
+## 20. Type 6 across Blocs, and the cross-Bloc screen drawn
+
+He rejected my claim that being behind in several Blocs was rare enough to
+skip, and asked to see what a cross-Bloc notification screen would look like.
+
+### The finding — §2F of the design doc
+
+**One workout posted to several Blocs makes the counts identical across them.**
+Three days before September closed, every multi-Bloc member had the same
+`Logged` figure in each of their Blocs — Aadhil 17 six times, Kisal 11 twice,
+Rishane 3 twice. Only the **targets** differ (6, 8, 10, 12), and that alone
+decides where someone is behind.
+
+So type 6's useful number is **the biggest gap**, not the Bloc count: one
+workout posted everywhere closes every deficit at once. Kisal, 11 of 12 in two
+Blocs, needs one session, not two.
+
+Copy now: one Bloc → named as before; several with the same gap → *"1 more
+workout clears both your Blocs"*; several with different gaps → *"9 more
+workouts clears all 3"* plus the breakdown.
+
+**Type 6 therefore needs no cross-Bloc screen** — one number, one action, opens
+the log sheet. Only type 7 (and 1, 2, 9 when merged) wait on the notification
+centre. That narrows the blocker considerably.
+
+Measured at three days left: October 2 members behind, each in one Bloc;
+September 16 in one Bloc, 2 in two. Nobody yet behind in three or more, but
+only one person is in more than two Blocs — recorded as thin evidence.
+
+### The mockup
+
+Artifact `SiGivnD85RCPqpjayZp1k1` v12, two new boards:
+
+- **Notifications across Blocs** — the existing screen with every Bloc in one
+  list, each row wearing a coloured Bloc chip. Same sections ("Needs you",
+  Today, This week), same wording, same ordering. The only changes are the
+  data source and the chip.
+- **Type 6 — behind in several Blocs** — the September table above and the
+  three copy variants.
+
+### Open with him
+
+Whether six month-close notifications on the 1st justify building the
+cross-Bloc screen. Type 6 no longer depends on the answer.
+
+### Not changed
+
+No code, schema, environment variable or production data.
