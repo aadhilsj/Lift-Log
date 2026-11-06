@@ -479,3 +479,107 @@ landed today are in the binary. None of the three is a rejection risk.
 Read-only SQL against production (project `bpvvvqjsfwmmfjvvijkd`) for every
 number above; `curl` for the three legal URLs. **Docs only — no code, no schema
 and no production data was changed in this section.**
+
+---
+
+## §13. App Store items parked, and where push notifications actually stand — 6 November 2026
+
+### Parked, at the founder's request
+
+He has **not** done these yet and asked that they be written down so they are not
+lost. Nothing here is blocked on anyone else; it is typing into App Store
+Connect, and §5 of `docs/app-store-review-notes-2026-10-22.md` holds the exact
+values.
+
+| | Where | Value |
+| --- | --- | --- |
+| 1 | App Information → Privacy Policy URL | `https://www.joinfero.app/privacy/` |
+| 2 | App Information → Terms of Use (EULA) | `https://www.joinfero.app/terms/` |
+| 3 | Age rating questionnaire | answer so it lands on **18+** |
+| 4 | App Review Information → Notes | the §1 block, paste-ready |
+| 5 | App Review Information → Sign-In | `feroappreview@gmail.com` + mailbox password, typed straight into Apple |
+
+**One thing found while looking at push, which changes item 4.** The notes claim
+Apple Push Notification service is an external service the app uses, and that
+the Notifications permission is requested for "workout and settlement
+reminders". **On build 12 that is not true** — see below, no permission prompt
+can appear and nothing is ever sent. Either push ships before submission, or
+those two lines come out of the notes. **Do not submit with them as they are.**
+
+### Push notifications: the foundation is built and secure; nothing is wired up
+
+The founder asked how notifications would be made to pop up when someone logs a
+workout or reacts. He thought push was "already activated". Half right, and the
+half that is done is the hard half.
+
+**This was not re-derived.** Two documents already cover it and both were read:
+
+- `docs/handover-2026-09-28-push-foundation.md` — on
+  `origin/claude/testflight-build-12-2026-10-21`, not on `main`
+- `docs/push-notifications-order-of-operations-2026-09-30.md` — on
+  `origin/claude/push-notifications-plan-2026-09-30`, documentation only
+
+**Everything push lives on the iOS branch. `main` has no push files at all** —
+`git ls-tree origin/main | grep push` returns nothing. The nine files are
+`api/push-devices.js`, `server/push.js`, `src/lib/pushNotifications.js`,
+`scripts/send-test-push.mjs`, `scripts/test-push-foundation.mjs`,
+`scripts/test-push-foundation-db.sql`, two migrations and the 28 Sept handover.
+
+**Built and verified in production on 6 November:**
+
+| | |
+| --- | --- |
+| `ante_core.push_devices` | exists, **RLS on, 0 policies, grants only to `postgres` and `service_role`** |
+| The four RPCs | `register_fero_push_device`, `revoke_fero_push_device`, `list_fero_push_devices`, `record_fero_push_result` — all present |
+| Device rows | **0** |
+| Capacitor plugin | `@capacitor/push-notifications` **8.1.2**, on the iOS branch only |
+| iOS entitlements | `Release.entitlements` = `aps-environment: production`, `Debug` = `development`, both wired via `CODE_SIGN_ENTITLEMENTS` in `project.pbxproj` |
+| `AppDelegate.swift` | has both Capacitor remote-notification forwarding hooks |
+| Apple App ID | Push **enabled** 5 November, and the distribution profile regenerated — steps 1 and 3 of the order of operations |
+| The sender | `server/push.js`, 129 lines: ES256 JWT signing, production/sandbox routing, 410-vs-BadDeviceToken handling, `record_fero_push_result` |
+
+**The five things missing, in the order they have to happen:**
+
+1. **No APNs key.** `vercel env ls production` lists 14 variables and **none** is
+   `APNS_PRIVATE_KEY`, `APNS_KEY_ID` or `APNS_TEAM_ID`. Without the key nothing
+   can ever be sent. Team ID is already known: `SMR55A2M96`. The `.p8`
+   downloads **once only** and must never reach the repo or a chat.
+2. **`PUSH_REGISTRATION_ENABLED` is not set**, so `api/push-devices.js` refuses
+   every registration. That is why `push_devices` has 0 rows.
+3. **Nothing asks the member for permission.**
+   `requestPushPermissionFromUserAction({ userInitiated: true })` exists in
+   `src/lib/pushNotifications.js` and **has no caller anywhere in `src/`**.
+   `syncPushRegistration()` deliberately only checks existing permission and
+   never prompts. iOS asks **once, ever** — this is the founder's decision and
+   has been open since 28 September.
+4. **No app event sends anything.** This is what he actually asked for. The
+   server already has the exact hook points, all in `api/lift-log.js`:
+   `add-log` / `multi-log` (:11135, :11059), `reaction` (:11544),
+   `log-comment-create` (:10394), `stream-send` (:10297), `stream-reaction`
+   (:10333). Not one of them sends a push.
+5. **The message text is hardcoded.** `buildApnsRequest` always sends
+   `title: "Fero test"`, `body: "Push notifications are connected."` It needs a
+   message argument before it can carry a real event. Small change; the signing,
+   routing and token lifecycle around it are done.
+
+**One thing to be clear about for the "For you" centre.** It is **not** a
+server-side notification feed. `buildNotifications` in
+`src/lib/notificationCentre.js` computes every row **in the client** from state
+the app already holds. So push cannot simply mirror it — a push has to be sent
+from the server at the moment the action is written. The two will need to agree,
+which is work in its own right, not a side effect.
+
+**Environment trap, worth repeating because it has cost a session before.**
+TestFlight and App Store builds use **production** APNs. A sandbox token sent to
+production APNs returns `BadDeviceToken`, which reads like an expired token and
+is not. A physical Debug build needs
+`VITE_APNS_ENVIRONMENT=sandbox npm run build` before `npx cap sync ios`.
+
+### Verified, and what was not changed
+
+Read-only throughout: `git ls-tree` / `git show` against `origin/main` and the
+two branches, `vercel env ls production`, and read-only SQL against project
+`bpvvvqjsfwmmfjvvijkd` for the table, its RLS, its grants, its RPCs and its row
+count. **No code, no schema, no environment variable and no production data was
+changed in this section.** No plan was executed — the founder asked how it
+would work, and that is a separate turn from building it.
