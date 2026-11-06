@@ -755,3 +755,77 @@ needed — names alone are gossip, the number alone is a spreadsheet.
 **Still a proposal. No code, no schema, no env var, no production data changed.**
 Every figure is read-only SQL against project `bpvvvqjsfwmmfjvvijkd`; the
 queries are in §1A of the design doc in prose form.
+
+---
+
+## 16. Nine notification types, and a bug the founder's question found
+
+Design only. **No code, schema, environment variable or production data was
+changed.** Still a proposal awaiting his go-ahead.
+
+### What he asked
+
+He approved the comment, mention and month-close types, then asked three
+things: how types 1 and 2 behave for someone in several Blocs, to see every
+variation of the money and month-close notifications, and for a new
+notification when the **Bloc streak** is at risk.
+
+### A correction I had to make first
+
+My chat summary of the seven types did not match the design doc's seven. I
+dropped "reply in a thread" and added "money" as a type of its own. The
+numbering was wrong; the instinct was right — money does need its own type,
+because the settlement handshake happens days after month close. The doc now
+has **nine types**, and nothing he had already approved was renumbered.
+
+### The bug, which is the important part
+
+**One workout can be posted to several Blocs at once** — one row per Bloc
+sharing a session key (`getWorkoutSessionKey`, `appState.js:1412`). The "For
+you" bell keys a reaction row on `log.id`, which is per-Bloc.
+
+If push copies that, **one gym session buzzes you once per Bloc.** Measured on
+October production: 103 of 547 workouts went to more than one Bloc, 19 to all
+six. The founder himself would have had **51 reaction pushes for 17 workouts**.
+
+Fix: key reactions and comments on `getWorkoutSessionKey` + owner, and use that
+as the APNs `apns-collapse-id`. Written up as §2D.
+
+### Type 9 — the streak
+
+The rule already exists and must not be re-derived: `src/lib/blocStreak.js`
+(`BLOC_STREAK_MIN_DAYS = 10`, `BLOC_STREAK_WARN_HOUR = 19`, 3am day end). The
+notification calls `blocStreakView` so the card and the push cannot disagree.
+It needs no "only if you haven't logged" filter — if the streak is at risk,
+nobody has. It can never collide with type 1, whose condition is the opposite.
+
+Volume, Sept–Oct, per member per month: 3.6–5.0 in four Blocs, 8.6 in
+Sarandawgs, **14.1 in StavanGang** — who are not fragile, they just train late.
+Recommended: keep 19:00 for v1, revisit with a per-Bloc hour if it annoys.
+
+### Also written up
+
+- **§2A, type 8 — money.** Five pushes across claim / confirm / dispute / a
+  single 7-day reminder / pot settled. Never "X still owes you", inheriting the
+  bell's `alwaysUnread` rule.
+- **§2B, type 7 — the seven month-close outcomes**, lifted from
+  `SettlementScreen.jsx` in its own check order so the two cannot disagree.
+
+### Verified
+
+Structure of all five changed artboards (tag balance, every `sc-for` alias and
+list key resolving). **Not** verified visually: the browser pane is not signed
+in to claude.ai, so the boards were not eyeballed rendered.
+
+### Files
+
+| File | What |
+| --- | --- |
+| `docs/push-notification-design-2026-11-06.md` | §2 now nine types; new §2A, §2B, §2C, §2D; build order updated |
+| `docs/handover-2026-11-05-build-12-merge.md` | this section |
+| Artifact `SiGivnD85RCPqpjayZp1k1` | v10 — four new boards, overview updated |
+
+### Open
+
+He has not yet approved building any of it. The APNs key is still deferred to
+his personal laptop, and the review notes still claim push is in build 12.

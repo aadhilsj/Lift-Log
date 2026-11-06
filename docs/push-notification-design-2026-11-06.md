@@ -147,7 +147,7 @@ gets its own switch.
 
 ---
 
-## 2. The seven types
+## 2. The nine types
 
 The Bloc name is always the iOS **title**, because members belong to more than
 one and "who reacted" is useless without "where". The **body** is the same
@@ -163,7 +163,9 @@ sentence the bell already writes, so the two can never disagree — including
 | 4 | Reply in a thread you are in | Sarandawgs | `Tariq replied on Leo's Run Log` + the comment | instant, bundled | on |
 | 5 | Mentioned in the Bloc Stream | Sarandawgs | `Eli mentioned you in the Bloc Stream` + the message | instant | on |
 | 6 | Pace nudge | Sarandawgs | `3 days left. You're 2 workouts off 12.` | scheduled, once a month | on |
-| 7 | Month closed | Sarandawgs | `October closed. You owe Leo £10.` | scheduled, once a month | on |
+| 7 | Month closed | Sarandawgs | one of seven outcomes, §2B | scheduled, once a month | on |
+| 8 | **Money claimed or confirmed** | Sarandawgs | `Tariq says he's sent you £10. Confirm it arrived.` | when the other person taps | **on** |
+| 9 | **Bloc streak at risk** | Sarandawgs | `23-day Bloc streak at risk. One workout keeps it going.` | 19:00, only if nobody has logged | **on** |
 
 Types 2 to 5 are exactly the four kinds the "For you" centre already builds
 (`reaction`, `comment`, thread `comment`, `mention` in
@@ -185,6 +187,129 @@ Type 1 and type 6 must not both land on the same day: where they would, type 6
 wins, because "3 days left" is the more urgent fact. One scheduled job, one
 notification.
 
+**Correction, same day.** This table said *seven* types and I summarised it to
+the founder in chat with a different seven — I dropped "reply in a thread" and
+added "money" as a type of its own. The chat list was wrong about the numbering
+and right about the gap: **money does need its own type**, because the
+settlement handshake happens days after the month-close notification and has
+states of its own. Types 8 and 9 are the result. Nothing the founder approved
+has been renumbered.
+
+---
+
+## 2A. Type 8 — money is a handshake, not an announcement
+
+A debt closes with two taps that already exist on the settlement screen: the
+payer taps **Claim paid**, the receiver taps **Confirm** or disputes it
+(`payerClaimedAt` / `confirmedAt` in `appState.js`). Each tap leaves the other
+person waiting, so each tap is a push.
+
+| To | When | Body |
+| --- | --- | --- |
+| Receiver | payer claims paid | `Tariq says he's sent you £10. Confirm it arrived.` |
+| Payer | receiver confirms | `Leo confirmed your £10. Settled.` |
+| Payer | receiver disputes | `Leo says the £10 hasn't arrived.` |
+| Payer | 7 days after close, **once** | `You still owe Leo £10 for October.` |
+| Receiver | last debt of the month closes | `Everyone's settled for October. £30 in.` |
+
+**Never sent: "Leo still owes you £10."** You cannot act on being owed. The bell
+already draws exactly this line — `alwaysUnread` is true only for money you owe,
+with the comment *"a badge you cannot clear is just nagging"*. Push inherits it.
+
+The dispute copy is blunt on purpose. A dispute is a real problem between two
+friends, and softening it hides it.
+
+---
+
+## 2B. Type 7 — the seven month-close outcomes
+
+Not new words. `SettlementScreen.jsx` already sorts every member into exactly
+one result, checked in this order, first match wins. The push says the same
+thing in one line so the two can never disagree.
+
+| Result | Body |
+| --- | --- |
+| Sat out | `October closed. You sat it out — back in it next month.` |
+| First month | `October closed. Target was 12. No penalty yet — those start next month.` |
+| Perfect Bloc month | `October closed. Everyone hit the target — perfect Bloc month.` |
+| Winner, pot | `October closed. Top of the Bloc — £30 coming your way.` |
+| Winner, no pot | `October closed. Top of the Bloc with 18 workouts.` |
+| Target hit | `October closed. Target hit — 14 workouts.` (+ `3 months cleared in a row.` from two) |
+| Tough month | `October closed. You needed 12. You owe Leo £10.` |
+
+The order matters and is the screen's own: "sat out" is asked before any money
+question, because someone exempt used to fall through and be congratulated for
+a month they sat out. The push never names who came last.
+
+---
+
+## 2C. Type 9 — the Bloc streak at risk
+
+The founder asked for this. **The rule is already written**:
+`src/lib/blocStreak.js` counts the days in a row somebody in the Bloc logged,
+shows a card from `BLOC_STREAK_MIN_DAYS = 10`, and marks it at risk when nobody
+has logged and the Bloc's clock is past `BLOC_STREAK_WARN_HOUR = 19`. **The
+notification must call `blocStreakView` itself**, not re-derive the rule — the
+same reason `moneyItems` reuses the reminder cards.
+
+- Between 00:00 and 03:00 the card names **3am**, not midnight, because a Fero
+  day ends at 3am. The push has to match or it lies about the deadline.
+- **It goes to the whole Bloc, and no filter is needed.** If the streak is at
+  risk then by definition nobody has logged, so every member is eligible.
+- **It can never collide with type 1.** Type 1 fires when a third of the Bloc
+  *has* logged; this fires when *nobody* has. Opposite conditions, no tie-break.
+- It *can* collide with the pace nudge, and the pace nudge wins.
+
+Measured over September–October, per member per month:
+
+| Bloc | Days broken in 66 | At 19:00 | At 21:00 |
+| --- | --- | --- | --- |
+| Go To Da Gym | 1 | 3.6 | 2.7 |
+| OSI H3 | 1 | 4.1 | 1.8 |
+| Sweat Equity | 2 | 4.5 | 2.7 |
+| Ctrl Alt De-feat | 2 | 5.0 | 3.2 |
+| Sarandawgs | 6 | 8.6 | 6.8 |
+| **StavanGang** | 2 | **14.1** | 9.1 |
+
+StavanGang is the outlier, and not because their streak is fragile — they train
+late, so a 19:00 warning is often simply wrong about them. Moving the hour to
+21:00 only takes them to 9 and costs every other Bloc the time to act. The
+better fix is a per-Bloc hour, later. **Keep 19:00 for v1**, matching the card.
+
+---
+
+## 2D. Members in more than one Bloc
+
+**One workout can be posted to several Blocs at once.** It becomes one row per
+Bloc sharing a session key (`getWorkoutSessionKey`, `appState.js:1412`).
+Measured for October:
+
+| | |
+| --- | --- |
+| Workouts posted to >1 Bloc | **103 of 547** — nearly one in five; 19 went to all six |
+| Members in >1 Bloc | 8 of 51 — seven in two, one in six |
+
+**This breaks type 2 if push copies the bell.** The bell keys a reaction row on
+`log.id`, which is per-Bloc. Keyed that way, the founder's own October would
+have been **51 reaction pushes for 17 workouts**. Keyed on the session: 17.
+
+| Owner | Keyed on the row | Keyed on the session |
+| --- | --- | --- |
+| Aadhil | 51 | 17 |
+| Isira | 23 | 16 |
+| Kisal | 16 | 9 |
+
+So **push keys reactions and comments on `getWorkoutSessionKey` + owner**, not
+on the log id, and uses that as the APNs `apns-collapse-id`. When a workout
+spans Blocs the title becomes the count — `6 Blocs` — because no single Bloc
+owns it.
+
+**Type 1** is judged per Bloc (a third of Curke's two others is not a third of
+Go To Da Gym's nine) but delivered once: the existing one-a-day cap merges two
+qualifying Blocs into `2 Blocs are moving / 5 of your blocmates have logged
+today.` The "you're on 7 of 12" line then shows **the Bloc you are furthest
+behind in**, since that is the one the nudge is for.
+
 ---
 
 ## 3. Bundling — five rules
@@ -200,7 +325,7 @@ notification.
    `name !== currentUser` and the comment count excludes your own.
 4. **Quiet from 22:00 to 07:00**, in the member's own time zone, held and sent at
    07:00. Nothing in an accountability app is worth waking someone for.
-5. **Each type switchable off**, seven switches on the account screen. A member who
+5. **Each type switchable off**, nine switches on the account screen. A member who
    wants only the month nudge can have only that. The order-of-operations doc
    already requires this.
 
@@ -246,9 +371,9 @@ the App ID and the distribution profile was regenerated on 5 November.
 | 1 | **Deferred at the founder's request:** the APNs key, and `APNS_PRIVATE_KEY` / `APNS_KEY_ID` / `APNS_TEAM_ID` in Vercel (team `SMR55A2M96`). The `.p8` downloads **once**, never into the repo or a chat | his personal laptop |
 | 2 | Give `buildApnsRequest` a message argument — it hardcodes `title: "Fero test"` today | code |
 | 3 | The permission card above, wired to `requestPushPermissionFromUserAction({ userInitiated: true })`, which has no caller | code |
-| 4 | The seven switches, and a `notification_prefs` store | code + schema |
-| 5 | Send on `add-log`, `reaction`, `log-comment-create`, `stream-send` in `api/lift-log.js`, with the collapse key and the quiet window | code |
-| 6 | **One scheduled job** for types 1, 6 and 7 — the threshold, the 17:00 local send, the one-a-day cap, and type 6 winning a collision | code |
+| 4 | The nine switches, and a `notification_prefs` store | code + schema |
+| 5 | Send on `add-log`, `reaction`, `log-comment-create`, `stream-send` and the settlement claim/confirm/dispute handlers in `api/lift-log.js`, keyed on **`getWorkoutSessionKey` + owner**, not `log.id` (§2D) | code |
+| 6 | **One scheduled job** for types 1, 6, 7 and 9 — the threshold, the 17:00 and 19:00 local sends, the one-a-day cap, and the pace nudge winning a collision. `ante_core.notification_jobs` already exists for exactly this: `job_type`, `scheduled_for`, `status`, `payload` | code |
 | 7 | `PUSH_REGISTRATION_ENABLED=true`, build 13+, then one real notification to his own phone before anything is switched on for anyone else | both |
 
 **2, 3 and 4 can all be built before the key exists**, which is what the founder
