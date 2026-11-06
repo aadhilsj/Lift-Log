@@ -1104,6 +1104,18 @@ const App = () => {
 
   const RETRY_MIN_SPIN_MS = 650;
   const RETRY_TIMEOUT_MS = 15000;
+  const RETRY_CONNECTED_MS = 1400;
+  // The notice could only ever say something was wrong. A member who pressed
+  // Retry had no way to tell a retry that worked from one that did nothing,
+  // which is the same "did that do anything?" the Retry spinner was added to
+  // answer. Reaching the server turns the dot green, says Connected, and then
+  // takes the notice away on its own.
+  const flashConnected = useCallback(() => {
+    setRetryState("connected");
+    retryTimersRef.current.push(setTimeout(() => {
+      if (retryStateRef.current === "connected") setRetryState("idle");
+    }, RETRY_CONNECTED_MS));
+  },[]);
   const handleSyncRetry = useCallback(() => {
     if (retryStateRef.current === "retrying") return;
     retryTimersRef.current.forEach(clearTimeout);
@@ -1120,7 +1132,7 @@ const App = () => {
       // after a beat, which read as the failure quietly going away -- the exact
       // thing this whole notice exists to stop. It clears only when a sync
       // actually succeeds, which is what the effect below watches for.
-      setRetryState(failed ? "failed" : "idle");
+      if (failed) setRetryState("failed"); else flashConnected();
     };
     // A request that hangs rather than failing would leave the spinner turning
     // for as long as the phone's own network stack takes to give up, which is
@@ -1136,7 +1148,7 @@ const App = () => {
     };
     retryTimersRef.current.push(setTimeout(() => finish(false), RETRY_TIMEOUT_MS));
     Promise.resolve(refreshNow()).catch(() => false).then(finish);
-  },[refreshNow]);
+  },[refreshNow, flashConnected]);
 
   // The only thing that clears a stuck "Still can't reach Fero" is a sync that
   // actually succeeded, and lastSyncedAt is the one signal that means exactly
@@ -1144,10 +1156,12 @@ const App = () => {
   // including the one the app fires when the window regains focus, clears
   // syncError on its way in, so tabbing back to the app reset the failure to
   // the plain notice before failing again. Caught on screen, not in review.
+  // It clears through "Connected" rather than straight to idle, so a notice
+  // that fixed itself without the member pressing anything still tells them.
   useEffect(()=>{
     if (!lastSyncedAt) return;
-    if (retryStateRef.current === "failed") setRetryState("idle");
-  },[lastSyncedAt]);
+    if (retryStateRef.current === "failed") flashConnected();
+  },[lastSyncedAt, flashConnected]);
 
   useEffect(()=>{
     const syncStandalone = () => setStandalone(isStandalone());
@@ -3623,6 +3637,11 @@ const App = () => {
     // the notice would blink out and back on each poll. retryState holds it.
     if ((!syncError && retryState === "idle") || loading || !authSession?.userId) return null;
     if (showSettings || showStream || logCommentScreen) return null;
+    // A fresh failure during the green moment wins: the notice goes back to
+    // red and offers Retry again rather than sitting there saying Connected.
+    const connected = retryState === "connected" && !syncError;
+    const tone = connected ? "90,191,90" : "255,91,91";
+    const toneSolid = connected ? "var(--track-green)" : "#FF5B5B";
     const bottomOffset = inviteDownloadPrompt
       ? "calc(228px + env(safe-area-inset-bottom))"
       : "calc(106px + env(safe-area-inset-bottom))";
@@ -3645,7 +3664,7 @@ const App = () => {
           gap:10,
           maxWidth:360,
           width:"fit-content",
-          border:"0.5px solid rgba(255,91,91,.24)",
+          border:`0.5px solid rgba(${tone},.24)`,
           borderRadius:16,
           padding:"10px 10px 10px 14px",
           background:"rgba(8,15,15,.95)",
@@ -3658,7 +3677,7 @@ const App = () => {
             width:6,
             height:6,
             borderRadius:999,
-            background:"#FF5B5B",
+            background:toneSolid,
             flexShrink:0
           }
         }),
@@ -3671,8 +3690,8 @@ const App = () => {
             lineHeight:1.25,
             whiteSpace:"nowrap"
           }
-        },retryState==="retrying"?"Reconnecting":retryState==="failed"?"Still can't reach Fero":"Can't reach Fero"),
-        React.createElement('button',{
+        },connected?"Connected":retryState==="retrying"?"Reconnecting":retryState==="failed"?"Still can't reach Fero":"Can't reach Fero"),
+        connected?null:React.createElement('button',{
           type:"button",
           onClick:handleSyncRetry,
           disabled:retryState==="retrying",
