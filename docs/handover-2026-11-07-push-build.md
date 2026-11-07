@@ -190,6 +190,68 @@ Three ways forward, put to the founder:
 
 ---
 
+## 5. The permission card — built, on the TestFlight branch
+
+His answer to §4 was option 1. Built on
+`claude/testflight-build-12-2026-10-21`, now at **`e6895ab`** (a clean
+fast-forward from `11ee2c2`; also pushed as
+`claude/push-permission-card-2026-11-07`).
+
+**It is not on `main`** and cannot be until push comes with it.
+
+### The copy, settled after several rounds
+
+> **Accountable both ways.**
+> You'll know when your Bloc logs. They'll know when you don't.
+
+Nine headers were rejected before this. What every rejected one had in common
+was "each other", which blurs the Bloc into one blob; the founder wanted his
+accountability and theirs named apart. He also asked for one line, so the
+22-character version won over the 36-character one that said it in full.
+
+### What was built
+
+| File | What |
+| --- | --- |
+| `src/modals/modals.jsx` | `PushPermissionModal` — Fero's own `.overlay.center-mobile` modal, the one "Your first month" and the proration question use, with the same button pair in the same order |
+| `src/App.jsx` | the trigger, the two handlers, `PUSH_ASK_KEY` / `PUSH_ASK_COOLDOWN_MS`, and the render guard |
+
+- Fires after the member's **first logged workout in any Bloc**, never at
+  sign-up.
+- Only on **Today**, and never stacked on settings, the Stream, a profile, a
+  comment screen, the proration question or the log sheet.
+- `getPushPermissionStatus()` **reads** permission without prompting, and
+  answers `"unsupported"` on the web — so the card is native-only by
+  construction. Correct: there is no APNs on a website.
+- "Not now" never reaches Apple. Only "Turn on" calls
+  `requestPushPermissionFromUserAction`, **which had no caller anywhere in the
+  app before this**.
+- Either answer writes `fero_push_ask_v1`; the next ask is 30 days away.
+- It deliberately does **not** imitate the iOS alert.
+
+### Verified
+
+Temporarily let `"unsupported"` through so the card could be driven in a
+browser at 375x812, then reverted that one line and rebuilt:
+
+- renders centred, title on one line, in the app's real modal;
+- **"Not now"** dismisses it and writes `fero_push_ask_v1`;
+- the dismissal **survives a reload**;
+- **clearing the key brings it back**, so only the cooldown was suppressing it;
+- no console errors; lint and build clean after the revert.
+
+**Not verified:** Apple's own prompt and the registration behind it. Both need
+the APNs key and a real device.
+
+### A caution for whoever cuts the next build
+
+That branch now has one commit it did not have when
+`build-12-xcode-handoff.md` was written. Everything in that doc still holds —
+this changes no Capacitor config and adds no dependency — but the build number
+and `npx cap sync ios` steps are unchanged and still required.
+
+---
+
 ## What is NOT done
 
 Nothing else. No sender, no permission card, no switches, no scheduled job,
@@ -214,4 +276,6 @@ build-12 handover.
 | Commit | What |
 | --- | --- |
 | `0b13a25` | `profiles.time_zone`, the migration, and the device reporting its zone |
-| (this one) | tapping a notification opens the right Bloc |
+| `c689691` | tapping a notification opens the right Bloc |
+| `c5d22bd` | why the card could not be built on `main` |
+| `e6895ab` | **the permission card — on the TestFlight branch, not `main`** |
