@@ -1,5 +1,5 @@
 import React from "react";
-import { syncPushRegistration } from "./lib/pushNotifications.js";
+import { syncPushRegistration, getPushPermissionStatus, requestPushPermissionFromUserAction } from "./lib/pushNotifications.js";
 import { hideKeyboardAccessoryBar } from "./lib/keyboardAccessoryBar.js";
 const { useState, useEffect, useMemo, useCallback, useRef } = React;
 import {
@@ -100,7 +100,7 @@ import {
 } from "./lib/swipeRelease.js";
 import { Spinner, TodayScreenSkeleton, BlocSwitcherSkeleton, InstallBanner, TodayPageErrorBoundary, InBlocPageErrorBoundary } from "./components/primitives.jsx";
 import { PreviewLanding, InvalidInviteScreen, SignedOutLanding, ProfileModal, JoinGroupModal, AuthFlowModal, DisplayNameSetupScreen, IdentitySetup, CreatedBlocInviteScreen, GroupHome, GroupAccessNotice, LocalDevImpersonationBar } from "./components/authShell.jsx";
-import { GroupCreateModal, ProrationChoiceModal, TrainingChoiceModal } from "./modals/modals.jsx";
+import { GroupCreateModal, ProrationChoiceModal, TrainingChoiceModal, PushPermissionModal } from "./modals/modals.jsx";
 import { Nav, MOBILE_PAGE_SLOTS } from "./pages/Nav.jsx";
 import { TodayPage } from "./pages/TodayPage.jsx";
 import { ActivityPage } from "./pages/ActivityPage.jsx";
@@ -196,6 +196,11 @@ const describeOtpSendFailure = (result, intentType) => {
 // How long the bell waits for its two fetches before showing whatever has
 // arrived. Long enough that a normal connection always arrives finished,
 // short enough that a dead one does not hold the member in a skeleton.
+// When Fero last asked about notifications, so a "Not now" is not re-asked
+// tomorrow. Apple's own prompt is one-shot; ours is not, and a month is long
+// enough that the second ask reads as a new thought rather than nagging.
+const PUSH_ASK_KEY = "fero_push_ask_v1";
+const PUSH_ASK_COOLDOWN_MS = 30 * 24 * 60 * 60 * 1000;
 const NOTIFICATION_FETCH_CAP_MS = 2500;
 const BUILD_RELOAD_SESSION_KEY = "fero-build-reload-attempted";
 const BUILD_RELOAD_IDLE_MS = 20000;
@@ -607,6 +612,8 @@ const App = () => {
   const retryStateRef=useRef("idle");
   const retryTimersRef=useRef([]);
   const [lastSyncedAt,setLastSyncedAt]=useState(null);
+  const [pushAskOpen,setPushAskOpen]=useState(false);
+  const [pushAskBusy,setPushAskBusy]=useState(false);
   const [showJustSynced,setShowJustSynced]=useState(false);
   const [reactionOverrides,setReactionOverrides]=useState({});
   const [isMobileView,setIsMobileView]=useState(()=>isMobile());
@@ -934,6 +941,56 @@ const App = () => {
     });
     return nextState;
   }, [appState]);
+
+  // The one moment Fero asks for notifications: after the member's FIRST
+  // logged workout, anywhere. They have just succeeded at the thing the app is
+  // for, which is the only second worth spending Apple's single prompt on.
+  //
+  // getPushPermissionStatus never prompts — it reads. On the website it
+  // answers "unsupported", so this card exists only in the native build, which
+  // is correct: there is no APNs on the web.
+  useEffect(() => {
+    if (!authReady || !effectiveAuthSession?.userId || pushAskOpen) return;
+    const uid = effectiveAuthSession.userId;
+    let logged = 0;
+    for (const group of Object.values(appState.groups || {})) {
+      const name = group?.memberships?.[uid]?.displayName;
+      if (!name) continue;
+      logged += (Array.isArray(group.logs?.[name]) ? group.logs[name] : []).length;
+      if (logged) break;
+    }
+    if (!logged) return;
+    let asked = 0;
+    try { asked = Number(localStorage.getItem(PUSH_ASK_KEY) || 0) || 0; } catch {}
+    if (Date.now() - asked < PUSH_ASK_COOLDOWN_MS) return;
+    let cancelled = false;
+    void getPushPermissionStatus().then(status => {
+      if (cancelled) return;
+      // Only the states where Apple has not been spent yet.
+      if (status === "prompt" || status === "prompt-with-rationale") setPushAskOpen(true);
+    });
+    return () => { cancelled = true; };
+  }, [authReady, effectiveAuthSession?.userId, appState.groups, pushAskOpen]);
+
+  // Remembered whichever way they answer: a "Not now" must not come back
+  // tomorrow, and a "Turn on" has spent Apple's prompt either way.
+  const rememberPushAsk = () => {
+    try { localStorage.setItem(PUSH_ASK_KEY, String(Date.now())); } catch {}
+  };
+  const handlePushAskDismiss = useCallback(() => {
+    rememberPushAsk();
+    setPushAskOpen(false);
+  }, []);
+  const handlePushAskEnable = useCallback(async () => {
+    setPushAskBusy(true);
+    try {
+      await requestPushPermissionFromUserAction({ userInitiated:true });
+    } finally {
+      rememberPushAsk();
+      setPushAskBusy(false);
+      setPushAskOpen(false);
+    }
+  }, []);
 
   const beginOptimisticMutation = useCallback(() => {
     optimisticMutationRef.current = {
@@ -4175,6 +4232,16 @@ const App = () => {
       onConfirm: handleTrainingChoice,
       saving: trainingChoiceSaving
     }),
+    // Only on Today, and never stacked on another sheet: this is the one ask
+    // Fero gets, and it must not land on top of something the member is in
+    // the middle of.
+    pushAskOpen && page==="today" && !showSettings && !showStream && !showProfile
+      && !logCommentScreen && !prorationGroup && !showTodayLog
+      && React.createElement(PushPermissionModal,{
+        busy: pushAskBusy,
+        onEnable: handlePushAskEnable,
+        onDismiss: handlePushAskDismiss
+      }),
     prorationGroup && React.createElement(ProrationChoiceModal,{
       monthName: getCurrentMonthSummary(prorationGroup).monthName,
       fullMas: prorationGroup.settings?.minTarget || MIN_TARGET,

@@ -1278,6 +1278,29 @@ const TrainingChoiceModal = ({blocName, defaultTraining = true, onConfirm, savin
   );
 };
 
+// Asked once, after the member's first logged workout, and never at sign-up —
+// at sign-up there is no Bloc and no workout, so the ask is about nothing.
+//
+// It exists because Apple's own prompt can be shown ONCE, ever: a "Don't
+// Allow" there is permanent short of Settings, which nobody visits. "Not now"
+// here never reaches Apple, so it costs nothing and Fero can ask again a month
+// later. Only "Turn on" calls requestPushPermissionFromUserAction.
+//
+// Deliberately does NOT imitate the iOS alert — Fero's own modal, Fero's own
+// buttons, cyan primary. A card pretending to be the system reads as a trick,
+// and somebody who feels tricked declines the real prompt behind it.
+const PushPermissionModal = ({ busy=false, onEnable, onDismiss }) => React.createElement('div',{className:"overlay center-mobile"},
+  React.createElement('div',{className:"modal",onClick:e=>e.stopPropagation(),style:{maxWidth:340,padding:"20px 18px 16px",fontFamily:UI_FONT}},
+    React.createElement('div',{style:{fontFamily:DISPLAY_FONT,fontWeight:800,fontSize:19,lineHeight:1.1,marginBottom:6}},"Accountable both ways."),
+    React.createElement('div',{style:{color:"var(--muted)",fontSize:12.5,lineHeight:1.45,marginBottom:16}},
+      "You\u2019ll know when your Bloc logs. They\u2019ll know when you don\u2019t."),
+    React.createElement('div',{style:{display:"flex",gap:9}},
+      React.createElement('button',{onClick:onDismiss,disabled:busy,style:{flex:1,background:"var(--s2)",border:"1px solid var(--border)",color:"var(--text)",padding:"14px",borderRadius:10,fontSize:15,fontWeight:700,opacity:busy?.6:1}},"Not now"),
+      React.createElement('button',{onClick:onEnable,disabled:busy,style:{flex:1,background:"#4ECDC4",color:"#050909",padding:"14px",borderRadius:10,fontSize:15,fontWeight:800,opacity:busy?.6:1}},busy?"Asking\u2026":"Turn on")
+    )
+  )
+);
+
 const ProrationChoiceModal = ({monthName,fullMas,daysRemaining,daysInMonth,proratedMas,onKeep,onProrate,savingChoice}) => React.createElement('div',{className:"overlay center-mobile"},
   React.createElement('div',{className:"modal pi",style:{maxWidth:430}},
     React.createElement('div',{style:{fontWeight:800,fontSize:20,marginBottom:10}},"You're starting mid-month."),
@@ -1357,4 +1380,4 @@ const PinModal = ({prompt, onConfirm, onClose}) => {
 
 // ─── SETTLEMENT SCREEN ───────────────────────────────────────────────────────
 
-export { SETTINGS_DEFAULTS, TIME_ZONE_OPTIONS, GroupSettingsFields, GroupCreateModal, GroupSettingsModal, CropModal, LogModal, DeleteModal, SitOutModal, SoloModal, AllowanceUsedModal, SittingOutNotice, ProrationChoiceModal, TrainingChoiceModal, TextEntryModal, NoticeModal, ImageLightbox, PinModal };
+export { SETTINGS_DEFAULTS, TIME_ZONE_OPTIONS, GroupSettingsFields, GroupCreateModal, GroupSettingsModal, CropModal, LogModal, DeleteModal, SitOutModal, SoloModal, AllowanceUsedModal, SittingOutNotice, ProrationChoiceModal, TrainingChoiceModal, PushPermissionModal, TextEntryModal, NoticeModal, ImageLightbox, PinModal };
