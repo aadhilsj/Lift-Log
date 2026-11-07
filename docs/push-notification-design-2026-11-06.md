@@ -516,7 +516,7 @@ list.
 | # | Notification | Destination | Exists? |
 | --- | --- | --- | --- |
 | 1 | Bloc is training | Today, log sheet open | `setPage("today")` + `setShowTodayLog(true)` |
-| 1 | Two Blocs moving | Bloc with most logged, as above | — |
+| 1 | Several Blocs moving | **the log sheet, every Bloc pre-ticked** | `modals.jsx:707` already ticks all eligible Blocs |
 | 2 | Reaction | Activity feed, highlighted | `opens:"activity"` + `activityHighlightLogId` |
 | 2 | Reaction, multi-Bloc workout | Bloc of the newest reaction | new resolution |
 | 3 | Comment | the comment thread | `opens:"comments"` → `handleOpenLogComments` |
@@ -525,13 +525,43 @@ list.
 | 5 | Mention in Stream | Bloc Stream, on the message | `opens:"stream"` + `streamFocusMessageId` |
 | 5 | Mention in a comment | the comment thread, on the comment | needs the feature first |
 | 6 | 3 days left | Today, log sheet open | as type 1 |
-| 6 | 3 days left, several Blocs | Bloc furthest behind | — |
+| 6 | 3 days left, several Blocs | the log sheet, those Blocs ticked | as above |
 | 7 | Month closed | the month screen | `opens:"settlement"` → `setPage("month")` |
 | 8 | Money, all five | the month screen | as above |
 | 9 | Streak at risk | Today, log sheet open | as type 1 |
 | 10 | Sit-out / Solo requested | **Bloc settings → Members** | `renderMembers()` at `BlocSettingsScreen.jsx:501`; `initialTab` needs a `"members"` value — today it only accepts `"rules"` or `"invite"` (line 129) |
 | 11 | Request approved / declined | Today | — |
-| 12 | Perfect Bloc month | Bloc Stream, on the moment | `systemKind: "perfect_month"` |
+| 12 | Perfect Bloc month | **the month screen, on the Loop** | needs `perfect: false` lifted on the live dial (`MonthPage.jsx:302`) |
+
+### A merged type 1 opens the log sheet, not a Bloc
+
+The founder asked where `3 Blocs are moving / 6 of your blocmates have logged`
+lands. **The log sheet**, and it resolves the mismatch every other answer had.
+
+`AddWorkoutModal` holds a Bloc picker (`selectedGroupIds`) and, on choosing a
+workout type, **pre-ticks every eligible Bloc** (`modals.jsx:707`). So a
+notification about three Blocs opens the one screen that writes to all three.
+Nothing to choose, no Bloc to land in arbitrarily, and the message and the
+destination finally agree.
+
+The same applies to type 6 across Blocs: `9 more workouts clears all 3` opens
+the sheet with those three ticked, which is exactly the §2F arithmetic made
+tappable.
+
+### Type 12 goes to the month screen, on the Loop
+
+His correction, and right: the Stream carries a system moment but the **Loop**
+is the thing that just closed, and it lives on the month screen. Two caveats
+recorded:
+
+- The live dial is drawn with `perfect: false` hardcoded
+  (`MonthPage.jsx:302–303`), so the celebration is currently reserved for a
+  closed month. Showing a perfect Loop mid-month means lifting that.
+- **A mid-month perfect Loop is provisional.** `loopTotals` computes `perfect`
+  from `eligible && !anySolo && allClear`, so a new member who has not cleared,
+  or anyone going Solo, reopens it. The notification would be celebrating
+  something that can technically be taken back. Recommended anyway: it is rare
+  and real, and a Bloc that loses it to a late joiner will understand.
 
 **Only one new route is genuinely new:** type 10 needs
 `BlocSettingsScreen`'s `initialTab` to accept `"members"`. Line 129 currently

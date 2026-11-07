@@ -1150,3 +1150,42 @@ nothing else on the in-Bloc screens mentions one."*
 ### Not changed
 
 No code, schema, environment variable or production data.
+
+---
+
+## 24. The merged type 1 opens the log sheet; type 12 moves to the month screen
+
+### "3 Blocs are moving" — answered properly
+
+He asked where that tap lands. Earlier answers picked a Bloc arbitrarily
+(busiest, furthest behind), which never matched a message about three Blocs.
+
+**It opens the log sheet.** `AddWorkoutModal` has a Bloc picker
+(`selectedGroupIds`) that **pre-ticks every eligible Bloc** once a workout type
+is chosen (`src/modals/modals.jsx:707`). So the notification about three Blocs
+opens the one screen in Fero that writes to all three. Nothing to choose, and
+the message and destination agree for the first time.
+
+Same for type 6 across Blocs: `9 more workouts clears all 3` opens the sheet
+with those three ticked — the §2F arithmetic made tappable.
+
+### Type 12 → the month screen, on the Loop
+
+His correction, and right. Two caveats found and recorded in §2H:
+
+- The **live dial hardcodes `perfect: false`** (`MonthPage.jsx:302–303`); the
+  celebration is reserved for closed months today. Showing a perfect Loop
+  mid-month means lifting that.
+- **A mid-month perfect Loop is provisional.** `loopTotals` derives `perfect`
+  from `eligible && !anySolo && allClear` (`MonthLoop.jsx:175`), so a joiner
+  who has not cleared, or anyone going Solo, reopens it. Recommended to send
+  anyway — rare, real, and understandable if it is lost.
+
+The Loop's rule, for the record, is the one agreed 2026-09-22 and quoted in
+`SettlementScreen.jsx:62`: every member clears their own target; sitting out
+removes you from the loop; any Solo means it cannot close; at least 75% of the
+Bloc must be in the month.
+
+### Not changed
+
+No code, schema, environment variable or production data.
