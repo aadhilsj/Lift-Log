@@ -3579,6 +3579,65 @@ async function readBlockersOfFromCanonical(authUserId) {
   return Array.isArray(blockers) ? blockers.map(String) : [];
 }
 
+// Which kinds of push a member wants. Five switches, not twelve - the grouping
+// and the founder's reasons are in
+// docs/handover-2026-11-07-notification-switches.md section 3.
+//
+// A member with no row has every type on, and the RPC answers all-true for
+// them, so there is nothing to backfill and no row is written until someone
+// actually turns something off.
+const NOTIFICATION_PREF_KEYS = [
+  "trainingNudges",
+  "reactionsComments",
+  "mentions",
+  "monthClose",
+  "requests"
+];
+
+const ALL_NOTIFICATION_PREFS_ON = Object.freeze(
+  NOTIFICATION_PREF_KEYS.reduce((all, key) => ({ ...all, [key]: true }), {})
+);
+
+// Normalises whatever came back into the full set of five booleans. A missing
+// key means on, because that is what no row means.
+function readableNotificationPrefs(raw) {
+  const source = raw && typeof raw === "object" ? raw : {};
+  return NOTIFICATION_PREF_KEYS.reduce(
+    (prefs, key) => ({ ...prefs, [key]: source[key] !== false }),
+    {}
+  );
+}
+
+// Only real booleans are forwarded. A client sending a partial object changes
+// only the switches it names; anything else it sends is dropped here rather
+// than being argued about in SQL.
+function sanitiseNotificationPrefsInput(raw) {
+  const source = raw && typeof raw === "object" ? raw : {};
+  const prefs = {};
+  for (const key of NOTIFICATION_PREF_KEYS) {
+    if (typeof source[key] === "boolean") prefs[key] = source[key];
+  }
+  return prefs;
+}
+
+async function readNotificationPrefsFromCanonical(authUserId) {
+  const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_notification_prefs", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ p_auth_user_id: authUserId })
+  });
+  return readableNotificationPrefs(await response.json());
+}
+
+async function setNotificationPrefsInCanonical(authUserId, prefs) {
+  const response = await supabaseFetch("/rest/v1/rpc/set_ante_core_notification_prefs", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ p_auth_user_id: authUserId, p_prefs: prefs })
+  });
+  return readableNotificationPrefs(await response.json());
+}
+
 async function readWorkoutLogCommentAuthorFromCanonical(commentId) {
   const response = await supabaseFetch("/rest/v1/rpc/read_ante_core_workout_log_comment_author", {
     method: "POST",
@@ -10202,6 +10261,30 @@ export default async function handler(req, res) {
           };
         });
         return res.status(200).json({ ok: true, members });
+      }
+
+      // The five notification switches behind Account -> Notifications.
+      //
+      // Scoped to the caller by the RPC, never by anything the client sends:
+      // there is no user id in either payload, so one member cannot read or
+      // change another's. Nothing here can fail a sign-in or a sync - these
+      // are their own actions, called only by that screen.
+      if (payload?.action === "notification-prefs") {
+        const authUser = await fetchAuthenticatedUser(readBearerToken(req, payload));
+        const prefs = await readNotificationPrefsFromCanonical(authUser.id);
+        return res.status(200).json({ ok: true, prefs });
+      }
+
+      // Partial on purpose: the screen sends the one switch that moved, and
+      // the RPC leaves every switch it was not told about exactly as it was.
+      if (payload?.action === "set-notification-prefs") {
+        const authUser = await fetchAuthenticatedUser(readBearerToken(req, payload));
+        const requested = sanitiseNotificationPrefsInput(payload?.prefs);
+        if (!Object.keys(requested).length) {
+          return res.status(400).json({ ok: false, error: "No notification switch was named" });
+        }
+        const prefs = await setNotificationPrefsInCanonical(authUser.id, requested);
+        return res.status(200).json({ ok: true, prefs });
       }
 
       if (payload?.action === "report-content") {
