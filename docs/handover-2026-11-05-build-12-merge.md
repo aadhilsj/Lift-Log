@@ -1189,3 +1189,45 @@ Bloc must be in the month.
 ### Not changed
 
 No code, schema, environment variable or production data.
+
+---
+
+## 25. Merged type 1 opens the Activity feed; switcher redesign parked
+
+### The log sheet was wrong
+
+He rejected it: *"why would it open the log sheet? thats dumb"*. Correct — the
+notification fires **because the member has not trained**, so opening a form to
+record a workout they have not done is backwards, and it skips past the news
+the notification carried.
+
+**Decided: the Activity feed of the Bloc with the most recent workout.**
+
+Of his two suggestions, not the Bloc switcher, because of what that screen
+actually shows per Bloc (`authShell.jsx:586` onward): **Status, Logged, Left** —
+the member's *own* numbers. It answers "where do I stand", while the
+notification just said *six other people trained* and the switcher cannot show
+one of them. The Activity feed shows the workouts themselves.
+
+Landing in one Bloc is not a dead end: Blocs are swipeable (`BLOC_SWIPE_*`,
+`App.jsx:380`), so the member arrives where the newest workout landed and
+swipes for the rest.
+
+**Type 6 keeps the log sheet** — `9 more workouts clears all 3` is a job with a
+number on it, not news about other people, and the sheet pre-ticks every Bloc.
+
+### Parked at his request: the Bloc switcher redesign
+
+> *"I think the bloc switcher screen is due for a redesign. By the way, when we
+> designed it, we had the workout types and all those things are irrelevant
+> now. We can do that later. Let's just get the notifications out first."*
+
+The card currently shows Bloc name, target/month, **a row of workout-type
+icons**, member count, and Status / Logged / Left. The workout-type icons are
+the part he considers dead weight.
+
+**Not started. Not in scope for push.** Recorded here so it is not lost.
+
+### Not changed
+
+No code, schema, environment variable or production data.
