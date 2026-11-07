@@ -1292,11 +1292,11 @@ const TrainingChoiceModal = ({blocName, defaultTraining = true, onConfirm, savin
 const PushPermissionModal = ({ busy=false, onEnable, onDismiss }) => React.createElement('div',{className:"overlay center-mobile"},
   React.createElement('div',{className:"modal",onClick:e=>e.stopPropagation(),style:{maxWidth:340,padding:"20px 18px 16px",fontFamily:UI_FONT}},
     React.createElement('div',{style:{fontFamily:DISPLAY_FONT,fontWeight:800,fontSize:19,lineHeight:1.1,marginBottom:6}},"Accountable both ways."),
-    React.createElement('div',{style:{color:"var(--muted)",fontSize:12.5,lineHeight:1.45,marginBottom:16}},
+    React.createElement('div',{style:{color:"var(--muted)",fontSize:11,lineHeight:1.45,marginBottom:16}},
       "You\u2019ll know when your Bloc logs. They\u2019ll know when you don\u2019t."),
     React.createElement('div',{style:{display:"flex",gap:9}},
-      React.createElement('button',{onClick:onDismiss,disabled:busy,style:{flex:1,background:"var(--s2)",border:"1px solid var(--border)",color:"var(--text)",padding:"14px",borderRadius:10,fontSize:15,fontWeight:700,opacity:busy?.6:1}},"Not now"),
-      React.createElement('button',{onClick:onEnable,disabled:busy,style:{flex:1,background:"#4ECDC4",color:"#050909",padding:"14px",borderRadius:10,fontSize:15,fontWeight:800,opacity:busy?.6:1}},busy?"Asking\u2026":"Turn on")
+      React.createElement('button',{onClick:onDismiss,disabled:busy,style:{flex:"0 0 auto",whiteSpace:"nowrap",background:"var(--s2)",border:"1px solid var(--border)",color:"var(--text)",padding:"14px",borderRadius:10,fontSize:15,fontWeight:700,opacity:busy?.6:1}},"Not now"),
+      React.createElement('button',{onClick:onEnable,disabled:busy,style:{flex:1,background:"#4ECDC4",color:"#050909",padding:"14px",borderRadius:10,fontSize:15,fontWeight:800,opacity:busy?.6:1}},busy?"Asking\u2026":"Turn on notifications")
     )
   )
 );

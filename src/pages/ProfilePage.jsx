@@ -5,6 +5,7 @@ import {
 import { PaymentHandleSection } from "../components/PaymentHandleSection.jsx";
 import { ProfileStatsPanel } from "../components/ProfileStatsPanel.jsx";
 import { BlockedMembersPanel, useBlockedMembers } from "../components/BlockedMembers.jsx";
+import { NotificationPrefsPanel, useNotificationPrefs, summariseNotificationPrefs } from "../components/NotificationPrefs.jsx";
 import { Avatar, Card, AppIcon, WorkoutTypeIcon } from "../components/primitives.jsx";
 import {
   cancelSwipeFrame,
@@ -194,6 +195,8 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [showBlocked, setShowBlocked] = useState(false);
   const blocked = useBlockedMembers();
+  const [showNotifications, setShowNotifications] = useState(false);
+  const notifications = useNotificationPrefs();
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
   const [photoBusy, setPhotoBusy] = useState(false);
@@ -217,6 +220,15 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
   // sibling of a harmless one.
   const accountRows = [
     { label: "Email", value: email || "—", kind: "display" },
+    // What the phone is allowed to interrupt you with. Here rather than in a
+    // Bloc's settings because it is one choice for the person, not per Bloc.
+    {
+      label: "Notifications",
+      kind: "action",
+      chevron: true,
+      value: summariseNotificationPrefs(notifications.prefs),
+      onClick: () => setShowNotifications(true)
+    },
     // Founder-only. It lives here rather than on the Bloc switcher so that
     // header looks the same for everyone.
     ...(showFounderDashboard ? [{ label: "Dashboard", kind: "action", onClick: onOpenFounderDashboard }] : []),
@@ -333,6 +345,16 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
           onUnblocked: blocked.removeMember,
           onBack: () => setShowBlocked(false)
         })
+      : showNotifications
+      ? React.createElement(NotificationPrefsPanel, {
+          prefs: notifications.prefs,
+          setPrefs: notifications.setPrefs,
+          loaded: notifications.loaded,
+          error: notifications.error,
+          setError: notifications.setError,
+          reload: notifications.reload,
+          onBack: () => setShowNotifications(false)
+        })
       : React.createElement(React.Fragment, null,
     cropSource ? React.createElement(ProfilePhotoCropModal, { imageSrc:cropSource, onCancel:()=>setCropSource(""), onConfirm:handleCroppedPhoto }) : null,
     React.createElement('div', { "aria-hidden": true, style: { position: "fixed", inset: 0, zIndex: -1, pointerEvents: "none", background: "var(--bg-gradient)", backgroundImage: "var(--bg-radial-hint), var(--bg-gradient)" } }),
@@ -396,7 +418,13 @@ const ProfilePage = ({ visibleGroups = [], currentUserId, displayName, email, ac
                 );
               }
               return React.createElement('button', { key: row.label, type: "button", onClick: row.onClick, style: { width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "13px 15px", borderBottom: border, background: "transparent", border: "none", cursor: "pointer", textAlign: "left" } },
-                React.createElement('span', { style: { fontSize: 13, color: valueColor, fontWeight: MED } }, row.label)
+                React.createElement('span', { style: { fontSize: 13, color: valueColor, fontWeight: MED } }, row.label),
+                row.chevron
+                  ? React.createElement('span', { style: { display: "flex", alignItems: "center", gap: 8, flexShrink: 0 } },
+                      row.value ? React.createElement('span', { style: { fontSize: 11, fontWeight: REG, color: "var(--muted2)" } }, row.value) : null,
+                      React.createElement('span', { style: { fontSize: 11, color: "var(--muted2)" } }, "\u203A")
+                    )
+                  : null
               );
             })
       )

@@ -1008,6 +1008,22 @@ async function getBlockedMembersData() {
   return { ok:true, members:Array.isArray(result.body?.members) ? result.body.members : [] };
 }
 
+// The five notification switches. Scoped to the caller by the server - there
+// is no user id in either call, so one member cannot read or change another's.
+async function getNotificationPrefsData() {
+  const result = await postApi("notification-prefs");
+  if (!result.ok) return { ok:false, error:result.error || "Unable to load your notification settings", prefs:null };
+  return { ok:true, prefs:result.body?.prefs || null };
+}
+
+// Sends only the switch that moved. Everything it does not name is left as it
+// was, so two screens open at once cannot overwrite each other's switches.
+async function setNotificationPrefData(key, enabled) {
+  const result = await postApi("set-notification-prefs", { prefs:{ [key]: !!enabled } });
+  if (!result.ok) return { ok:false, error:result.error || "That did not save. Try again.", prefs:null };
+  return { ok:true, prefs:result.body?.prefs || null };
+}
+
 async function createContentReportData(payload) {
   const result = await postApi("report-content", payload);
   if (!result.ok) return { ok:false, error:result.error || "Unable to submit report" };
@@ -1197,6 +1213,8 @@ export {
   getSafetyStatusData,
   setUserBlockData,
   getBlockedMembersData,
+  getNotificationPrefsData,
+  setNotificationPrefData,
   createContentReportData,
   listFounderModerationReportsData,
   reviewFounderModerationReportData,
