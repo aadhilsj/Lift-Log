@@ -146,6 +146,50 @@ badge, the workout thumbnail on the right, SETTLING UP / TODAY section labels.
 
 ---
 
+## 4. STOPPED — the permission card cannot be built on `main`
+
+Copy settled with the founder after several rounds:
+
+> **Accountable both ways.**
+> You'll know when your Bloc logs. They'll know when you don't.
+
+Centred, in Fero's own `.overlay.center-mobile` modal — the one "Your first
+month" and the proration question already use. Buttons **Not now** / **Turn on**.
+
+**Then the build stopped, on purpose.** The card's only job is to call
+`requestPushPermissionFromUserAction`, and **none of the push code is on
+`main`**:
+
+| | `main` | `claude/testflight-build-12-2026-10-21` |
+| --- | --- | --- |
+| `src/lib/pushNotifications.js` | — | yes |
+| `api/push-devices.js` | — | yes |
+| `server/push.js` | — | yes |
+| `@capacitor/push-notifications` | **not a dependency** | yes |
+| `ios/` | — | yes |
+
+So on `main` the card would be a button with nothing behind it, and a static
+import of the missing module fails the build. It is also **native-only** by
+nature — there is no APNs on the website — so even built, it could not be
+loaded in a browser to check.
+
+Three ways forward, put to the founder:
+
+1. **Build it on the iOS branch**, where push lives, the button can be wired
+   to something real, and it can be tested on a phone. Reaches TestFlight
+   soonest. `main` gets it when the branches next merge.
+2. **Port the push foundation to `main`** first — three files plus the
+   dependency. Unifies the trunk, but it is lifting part of that branch's 67
+   commits, and `build-12-xcode-handoff.md` says not to merge `main` into
+   build 12 again.
+3. Build the card on `main` behind a dynamic import that no-ops when the
+   module is absent. Safe, invisible on web, but untestable and ships a dead
+   button until the branches meet.
+
+**Nothing was written for the card.** Recommendation given: option 1.
+
+---
+
 ## What is NOT done
 
 Nothing else. No sender, no permission card, no switches, no scheduled job,
