@@ -285,10 +285,124 @@ Two things worth keeping:
 pages render their body with JavaScript, so a plain fetch returns only the
 page title — the first attempt came back empty and proved nothing.
 
+## 8. Built — 7 November
+
+He said start building. Everything below is written, linted, built, driven in
+the sandbox and pushed to a branch. **Nothing is live and nothing is on `main`.**
+
+### The one thing that is blocked, and it is not code
+
+**This session has no Supabase access.** Every `execute_sql` and
+`list_migrations` call returns *"You do not have permission to perform this
+action"*, so unlike session 1 I could neither read production nor apply the
+migration. The table does not exist yet.
+
+That inverts the usual order — AGENTS.md section 12 says schema goes first —
+so the server half is deliberately **held back from `main`** until the
+migration is applied. It is one commit, ready to push.
+
+### Where each piece went, and why they are not in the same place
+
+The split matters and is easy to get wrong: **the phone runs the branch's UI
+but calls `main`'s API.** `src/lib/apiOrigin.js` points the native build at
+`https://lift-log-nu.vercel.app`, and Vercel builds that from `main`. So an
+API action only on the TestFlight branch would never run.
+
+| Piece | Branch | Live? |
+| --- | --- | --- |
+| `supabase/migrations/20261107120000_notification_prefs.sql` | both | **no — not applied** |
+| `api/lift-log.js` — two actions | `claude/notification-switches-2026-11-07`, cherry-picked onto the build branch | **no — held off `main`** |
+| The panel, the row, the card changes | `claude/notification-switches-build-2026-11-07` | no |
+
+Both branches are pushed. The server commit is the **same commit** on both
+(cherry-picked, clean), so the eventual merge has nothing to resolve.
+
+### The table
+
+`ante_core.notification_prefs`, one row per member who has changed something,
+five booleans, `profile_id` referencing `profiles(id)`. Plus
+`public.read_ante_core_notification_prefs(uuid)` and
+`public.set_ante_core_notification_prefs(uuid, jsonb)`, both security definer,
+both revoked from `anon` and `authenticated` and granted only to
+`service_role` — the same shape as session 1's time-zone function.
+
+No row means every type is on, so there is nothing to backfill. The setter is
+partial: it changes only the switches actually named, and a key that is
+missing, null or not a JSON boolean is ignored rather than read as `false`.
+
+**Quiet hours are not columns**, deliberately — 23:30 to 06:00 is a rule for
+everyone, and two columns would imply it is configurable.
+
+**Rollback is the three statements in the migration header.**
+
+### Decisions I made while building that he did not specify
+
+- **A failed load shows "Try again", not all-on.** All-on is a real state;
+  showing it when the server has not answered would tell someone they are
+  covered when they may not be.
+- **A toggle is optimistic, then put back if the server refuses**, with the
+  reason shown. A switch that looks saved and is not is the worse failure.
+- **Denied dims the switches rather than hiding them**, so re-allowing returns
+  the member's choices untouched.
+- **No "Open Settings" button, though the mockup drew one.** Opening iOS
+  Settings needs a native call this app does not have — `@capacitor/app` is
+  not a dependency and `App-Prefs:` URL schemes are unreliable and have been
+  rejected by Apple. Rather than ship a button that does nothing, the notice
+  tells the member where to go in words. **This is a visible difference from
+  the approved mockup** and is his to overrule; the honest alternatives are a
+  new Capacitor dependency or leaving it as text.
+
+### Verified
+
+- `npm run lint` clean, `npm run build` clean, on both branches.
+- **29 of 31 `test:*` scripts pass.** The two that fail — `test:auth-edge-flows`
+  and `test:mobile-navigation` — **also fail at `e6895ab`**, checked by
+  detaching to that commit and running them, so they are pre-existing and not
+  from this work. That matches the 5 November handover's 29/31.
+- **Driven in the sandbox at 375x812 as Riley.** The row appears in Account
+  between Email and Sign out reading `All on >`; the panel opens with the five
+  switches, the web notice and the quiet-hours line; back returns to Account;
+  **no console errors anywhere**.
+- The round trip is real, not assumed: the POST to `/api/lift-log` returned
+  **200** with
+  `{"ok":true,"prefs":{"trainingNudges":true,...}}`.
+
+### NOT verified, and why
+
+- **Persistence.** The sandbox answers every canonical RPC with `[]`, so the
+  setter echoes all-true and a switch springs back on immediately after being
+  turned off. That is the sandbox, not the code — but it means **no switch has
+  ever actually been saved and read back.** First real proof is after the
+  migration is applied.
+- **The denied and not-yet-asked states.** Both need a real device; the web
+  reports `unsupported`, which is the third branch and is the one seen above.
+- Apple's prompt behind the "Turn on notifications" button in the panel.
+
+### A caution before build 13 is cut
+
+The TestFlight branch has **not** been fast-forwarded to this work, on purpose.
+Until the migration is applied, the Notifications screen would open and show
+"Try again" — a visibly broken screen. Once the table exists, the branch moves
+with one fast-forward.
+
+Also still true from session 1: the TestFlight branch does **not** carry
+`profiles.time_zone` or the device reporting it. Those are on `main` only.
+
+### Commits
+
+| Commit | Branch | What |
+| --- | --- | --- |
+| `d6a34e1` | `claude/notification-switches-2026-11-07` | the table, the two RPCs, two API actions — **held off `main`** |
+| `bbfe0c5` | `claude/notification-switches-build-2026-11-07` | the same commit, cherry-picked |
+| `9070a9c` | `claude/notification-switches-build-2026-11-07` | the five switches, the row, the three card changes |
+
+**No production SQL was run this session — this session cannot run any.**
+
 ## Still open
 
-- **Approved.** Nothing is built yet — the next step is the code, on the
-  TestFlight branch, in a worktree with its own `npm install`.
+- **Built, not applied and not live.** The migration needs running against
+  production by someone with Supabase access; then the server commit goes to
+  `main` and the TestFlight branch fast-forwards. See §8.
 
 ### Carried over from session 1, unchanged
 
