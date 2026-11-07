@@ -442,11 +442,95 @@ further production deploys — one to take it out, one to put it back — agains
 code nothing can reach. The founder was told immediately and it is his call;
 the revert is `git revert d6a34e1` if he wants it.
 
+## 10. Unblocked, applied, and live — 7 November
+
+The founder reconnected the Supabase connector to the account that owns Fero.
+`list_projects` now returns **Lift Log** (`bpvvvqjsfwmmfjvvijkd`), and
+everything section 8 was waiting on is done.
+
+### Found on the way in: the time zone column is filling
+
+| | Session 1 | Now |
+| --- | --- | --- |
+| `profiles` rows | 54 | 54 |
+| rows with a `time_zone` | **0** | **14** |
+
+That closes one of session 1's unverified items: `profiles.time_zone` **is**
+being written from real phones. Nobody did anything to make it happen; people
+simply opened the app.
+
+### The migration is applied to production
+
+Applied as `notification_prefs`. Announced here rather than beforehand only
+because the access appeared mid-conversation; AGENTS.md section 4 allows
+either.
+
+| | Before | After |
+| --- | --- | --- |
+| `ante_core.notification_prefs` | absent | **present, 0 rows** |
+| the two RPCs | absent | **present** |
+| `anon` / `authenticated` can execute either | — | **no** |
+| `service_role` can execute both | — | yes |
+| `profiles` rows | 54 | 54 |
+| `workout_logs` rows | 2783 | 2783 |
+
+**Rollback is the three statements in the migration header.**
+
+### Proved, not assumed
+
+Inside a transaction that was then rolled back, against a real profile:
+
+| Call | Result |
+| --- | --- |
+| read, member with no row | all five **true** |
+| set `{"mentions": false}` | mentions **false**, the other four untouched |
+| set `{"requests": "banana"}` | **ignored** — requests stays true, and mentions stays false |
+| set `{"mentions": true}` | back to all five true |
+| read, unknown member id | `null` |
+
+After the rollback: `notification_prefs` **0 rows**, `profiles` 54,
+`workout_logs` 2783. Production was read and reasoned about, never written.
+
+### The live API
+
+The two actions are deployed and gated. Unauthenticated:
+
+| Request | Status |
+| --- | --- |
+| `notification-prefs` | **401** |
+| `set-notification-prefs` | **401** |
+| a made-up action, for comparison | 400 |
+
+A 401 rather than a 400 is the proof they are recognised; a 400 is what an
+unknown action gets.
+
+**So section 9's accidental push turned out to be harmless and is now
+correct.** The code that was briefly ahead of its schema has its schema. No
+revert is needed and none was made.
+
+### The TestFlight branch now carries it
+
+`claude/testflight-build-12-2026-10-21` fast-forwarded **`e6895ab` ->
+`9070a9c`**, checked as a true fast-forward first and pushed with
+`--force-with-lease` pinned to the sha that was read. It now has the permission
+card, the five switches and the three card changes.
+
+**Cutting a build in Xcode is what puts it on a phone.** Everything in
+`build-12-xcode-handoff.md` still applies, and `npx cap sync ios` is still
+mandatory.
+
+### Still not verified, and now verifiable
+
+A switch has still never been saved and read back **through the app** — the
+sandbox stubs every canonical RPC, so that needs the real app against
+production. The first real proof is turning a switch off on a phone from
+build 13 and seeing it survive a restart.
+
 ## Still open
 
-- **Built, not applied and not live.** The migration needs running against
-  production by someone with Supabase access; then the server commit goes to
-  `main` and the TestFlight branch fast-forwards. See §8.
+- **Done and on the TestFlight branch.** The table is applied, the API is
+  live, the branch is fast-forwarded. What is left is cutting build 13 and
+  turning a switch off on a real phone. See §10.
 
 ### Carried over from session 1, unchanged
 
