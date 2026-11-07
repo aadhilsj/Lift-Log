@@ -1103,3 +1103,50 @@ that completes a perfect Bloc month.
 ### Not changed
 
 No code, schema, environment variable or production data. Nothing is built.
+
+---
+
+## 23. Tap destinations for all twelve types, and the permission question
+
+He asked where every variation lands on tap, and whether the permission ask
+should be Fero's card or Apple's. Written up as **§2H** and **§2I**.
+
+### Tap destinations
+
+Every notification belongs to one Bloc, so every tap switches Bloc then opens
+a screen. Nothing opens a list — the bell is per-Bloc (§2G), so there is no
+list worth landing on.
+
+Most routes already exist: `opens:"activity"`, `"comments"`, `"stream"` and
+`"settlement"` cover types 2 to 8. Types 1, 6 and 9 open **Today with the log
+sheet already up** — all three say "go and train", so making the member find
+the button afterwards wastes it.
+
+**One genuinely new route:** type 10 must open **Bloc settings → Members**,
+where `renderMembers()` draws the approve/decline buttons
+(`BlocSettingsScreen.jsx:501`). `initialTab` cannot express that today — line
+129 collapses anything that is not `"rules"` to `"invite"` — so the admin
+would land on the wrong tab. Small fix, noted in the build order.
+
+Also new: resolving which Bloc to open when a workout was posted to several
+(the newest reaction's Bloc) and when several Blocs qualify for type 1 (the
+one with most people logged) or type 6 (furthest behind).
+
+### Permission: Fero's card, then Apple's
+
+They are not alternatives. Apple's prompt is the only thing that grants
+permission. The case for asking first is the asymmetry: a "no" on Fero's card
+costs nothing and can be re-asked next month, a "no" on Apple's prompt is
+permanent short of Settings. One extra tap buys unlimited retries.
+
+Recorded constraint: Fero's card must not imitate Apple's.
+
+### Worth noting
+
+`App.jsx:857` carries a comment confirming type 10 independently: *"A dot on
+the settings icon is the only way an admin learns a request is waiting:
+nothing else on the in-Bloc screens mentions one."*
+
+### Not changed
+
+No code, schema, environment variable or production data.

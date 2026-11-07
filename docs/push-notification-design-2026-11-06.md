@@ -507,6 +507,73 @@ The mockup board `AllBlocs.dc.html` is kept, marked rejected, as the record.
 
 ---
 
+## 2H. Where every tap lands
+
+Every notification belongs to exactly one Bloc, so every tap does the same two
+things: **switch to that Bloc** (step 0b), then open a screen. Nothing opens a
+list.
+
+| # | Notification | Destination | Exists? |
+| --- | --- | --- | --- |
+| 1 | Bloc is training | Today, log sheet open | `setPage("today")` + `setShowTodayLog(true)` |
+| 1 | Two Blocs moving | Bloc with most logged, as above | — |
+| 2 | Reaction | Activity feed, highlighted | `opens:"activity"` + `activityHighlightLogId` |
+| 2 | Reaction, multi-Bloc workout | Bloc of the newest reaction | new resolution |
+| 3 | Comment | the comment thread | `opens:"comments"` → `handleOpenLogComments` |
+| 3 | Comment, multi-Bloc workout | thread in Bloc of newest comment | new resolution |
+| 4 | Thread reply | the comment thread | as above |
+| 5 | Mention in Stream | Bloc Stream, on the message | `opens:"stream"` + `streamFocusMessageId` |
+| 5 | Mention in a comment | the comment thread, on the comment | needs the feature first |
+| 6 | 3 days left | Today, log sheet open | as type 1 |
+| 6 | 3 days left, several Blocs | Bloc furthest behind | — |
+| 7 | Month closed | the month screen | `opens:"settlement"` → `setPage("month")` |
+| 8 | Money, all five | the month screen | as above |
+| 9 | Streak at risk | Today, log sheet open | as type 1 |
+| 10 | Sit-out / Solo requested | **Bloc settings → Members** | `renderMembers()` at `BlocSettingsScreen.jsx:501`; `initialTab` needs a `"members"` value — today it only accepts `"rules"` or `"invite"` (line 129) |
+| 11 | Request approved / declined | Today | — |
+| 12 | Perfect Bloc month | Bloc Stream, on the moment | `systemKind: "perfect_month"` |
+
+**Only one new route is genuinely new:** type 10 needs
+`BlocSettingsScreen`'s `initialTab` to accept `"members"`. Line 129 currently
+collapses anything that is not `"rules"` to `"invite"`, so the admin would land
+on the invite tab instead of the requests.
+
+**The log sheet opens itself** for types 1, 6 and 9 — all three say "go and
+train", and making the member find the button afterwards wastes the moment.
+
+**Type 10 is confirmed as the strongest case in the set** by a comment in
+`App.jsx:857`: *"A dot on the settings icon is the only way an admin learns a
+request is waiting: nothing else on the in-Bloc screens mentions one."*
+
+---
+
+## 2I. The permission card stands — Fero's, then Apple's
+
+The founder asked whether the ask should be Fero's own card or Apple's iOS
+prompt. They are not alternatives: Apple's is the only thing that grants
+permission and cannot be skipped. The question is only whether Fero asks first,
+and it should.
+
+**Apple's prompt is one-shot.** Declined, it never returns; only
+Settings → Notifications → Fero can undo it. So:
+
+| A "no" on | costs |
+| --- | --- |
+| Fero's card | nothing — ask again next month |
+| Apple's prompt | the permission, permanently |
+
+Fero's card is a cheap filter in front of a one-way door. Only a tap on **Turn
+on notifications** calls `requestPushPermissionFromUserAction`, so the only
+people who reach Apple's prompt are already inclined to accept.
+
+**Cost:** one extra tap for someone who would have said yes anyway.
+
+**Constraint:** Fero's card must not imitate Apple's — same shape, same buttons
+and same grey reads as a trick, and a member who feels tricked declines the
+real one. The board in the mockup keeps Fero's card in Fero's own style.
+
+---
+
 ## 3. Bundling — five rules
 
 1. **One notification per workout, not per reaction.** Keyed on the workout, via
