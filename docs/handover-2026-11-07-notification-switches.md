@@ -130,10 +130,38 @@ other eleven artboards. Nothing existing was moved or resized.
 - **Permission-off state:** the switches stay on and visible, dimmed, under an
   amber notice. Not reset, not hidden, so re-allowing returns the member's
   choices untouched.
-- Quiet hours drawn as 22:00-07:00 **because the design says so**, with the
-  board noting he has not settled it.
-
 **Nothing was built.** No code on either branch.
+
+### His verdict, 7 November — approved with two changes
+
+> *"i think you can remove the copy under the notifications header other than
+> that we ok"*
+
+**1. The explainer under the header is cut.** The line read *"What Fero sends
+to your phone. Turning one off changes nothing inside the app - For you still
+shows everything."* Removed from both phones; the title's bottom margin goes
+3 -> 14 so the first card is not jammed against it. The point it made is still
+true and still worth knowing when the senders are built: these switches govern
+**push only**, because "For you" is computed in the client.
+
+**2. Quiet hours are settled: 23:30 to 06:00, in each member's OWN time zone.**
+His words: *"change quiet hours to 23:30 to 06:00 / in your individual
+timezone"*.
+
+This **supersedes the design's 22:00-07:00** (§3 rule 4), which was the open
+question about StavanGang training late. Note what it leans on: the member's
+zone, not the Bloc's, which is exactly what `ante_core.profiles.time_zone`
+was added for in session 1 — and that column is still **0 rows filled** until
+people open the app. Until a member has a zone, the only honest fallback is
+the Bloc's, the same fallback the column was written with.
+
+`push-notification-design-2026-11-06.md` §3 still says 22:00-07:00. Not
+edited — that document is the signed-off design and its founder decisions are
+recorded in §2E as supersessions rather than by rewriting the original. This
+handover is the record of this one.
+
+**Everything else in the mockup he approved as drawn**: five switches, the
+grouping, all five on by default, and the permission-off state.
 
 ## 5. A correction to the permission board, at his request
 
@@ -156,18 +184,17 @@ No code changed. The built card was already correct.
 
 ## Still open
 
-- **His verdict on the mockup** — five switches or twelve, the copy, the
-  defaults, and the permission-off state. Nothing is built until he says.
-- Nothing built. No code touched on either branch.
+- **Approved.** Nothing is built yet — the next step is the code, on the
+  TestFlight branch, in a worktree with its own `npm install`.
 
 ### Carried over from session 1, unchanged
 
 - **Needs his laptop:** the APNs key, then `APNS_PRIVATE_KEY`, `APNS_KEY_ID`,
   `APNS_TEAM_ID` (team `SMR55A2M96`) and `PUSH_REGISTRATION_ENABLED=true` in
   Vercel. The `.p8` downloads once and must never reach the repo or a chat.
-- **Still undecided by him:** quiet hours 22:00–07:00, possibly too early for
-  StavanGang; and what the member who logged the completing workout sees for
-  type 12.
+- **Still undecided by him:** what the member who logged the completing workout
+  sees for type 12. Quiet hours are now settled — 23:30–06:00, member's own
+  zone — see §4 above.
 - **Unverified until push is real:** the Bloc-switching branch of
   `openNotificationTarget`, `profiles.time_zone` filling from a real phone,
   Apple's prompt and the registration behind it.
