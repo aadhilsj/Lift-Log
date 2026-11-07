@@ -97,6 +97,55 @@ after this deploys and people open the app.
 
 ---
 
+## 3. Tapping a notification can now open the right Bloc — code
+
+`handleNotificationAct` resolved every row against `currentGroup` and never
+switched Bloc. Harmless for the bell, which only ever lists the Bloc already
+open. Wrong for a push, which arrives with the app closed and can be about any
+of the member's Blocs: tapping one would have opened whichever Bloc happened
+to be open last and shown the wrong thing.
+
+Replaced by `openNotificationTarget(item)` in `src/App.jsx`, with
+`handleNotificationAct` now an alias so every existing caller is untouched.
+
+| | |
+| --- | --- |
+| Bloc chosen | `item.groupId`, falling back to the open Bloc |
+| Switching | `persistGroupSelection()` — the same function the Bloc switcher uses |
+| Resolution | everything looks up in the **target** group, not `currentGroup`, because switching is a state update and `currentGroup` is still the old Bloc for the rest of the function |
+| Guard | a `groupId` not in state (left, removed, not loaded) falls back to the open Bloc rather than blanking the screen |
+| On switch | settings, Stream and the comment screen are closed, or the member lands on the new Bloc underneath the old Bloc's screen |
+
+**The bell leaves `groupId` off**, so every row on that screen takes exactly
+the path it took before. No UI change.
+
+### Verified in the sandbox, as Riley, at 375x812
+
+Seeded a real workout and a real reaction through the API, then drove the app:
+
+- **Reaction row** → panel closed, Activity Feed opened, Riley's Gym log on
+  screen and highlighted. 
+- **Money row** → Month screen, on the Loop ring.
+- No console errors on either.
+
+Lint and build clean.
+
+**Not verified: the switching branch itself.** It cannot be reached yet — the
+bell never sets `groupId`, and push does not exist. The sandbox cannot produce
+a notification from a Bloc you are not in. The switch calls
+`persistGroupSelection`, which is the shipped Bloc switcher's own function, and
+the rest is an object lookup; but it is untested, and the first thing to check
+when push sends its first real notification is that tapping it lands in the
+right Bloc.
+
+### Incidentally confirmed
+
+The live "For you" panel matches the corrected mockup from §21 of the build-12
+handover: "For you" title, a close cross, bordered rows, avatar with an emoji
+badge, the workout thumbnail on the right, SETTLING UP / TODAY section labels.
+
+---
+
 ## What is NOT done
 
 Nothing else. No sender, no permission card, no switches, no scheduled job,
@@ -120,4 +169,5 @@ build-12 handover.
 
 | Commit | What |
 | --- | --- |
-| (this one) | the migration, the two code changes, this handover |
+| `0b13a25` | `profiles.time_zone`, the migration, and the device reporting its zone |
+| (this one) | tapping a notification opens the right Bloc |

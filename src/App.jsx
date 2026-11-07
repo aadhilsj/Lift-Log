@@ -2701,8 +2701,39 @@ const App = () => {
       .catch(() => setNotificationsLoading(false));
   };
   // Every row lands somewhere real rather than being a dead end.
-  const handleNotificationAct = item => {
+  // Opening whatever a notification points at, in whichever Bloc it belongs to.
+  //
+  // `item.groupId` is the Bloc the notification came from. The bell leaves it
+  // off, because the bell only ever lists the Bloc already open — so for every
+  // row on that screen this behaves exactly as it did before.
+  //
+  // A PUSH notification is the reason this takes a Bloc at all. It arrives with
+  // the app closed and can be about any of the member's Blocs, so the Bloc has
+  // to be switched before the screen is chosen. Without that, tapping one
+  // opened whichever Bloc happened to be open last and showed the wrong thing.
+  //
+  // Everything is resolved against the TARGET group rather than `currentGroup`,
+  // because switching is a state update: `currentGroup` is still the old Bloc
+  // for the rest of this function.
+  const openNotificationTarget = useCallback(item => {
+    if (!item) return;
     setShowNotifications(false);
+
+    // Fall back to the open Bloc, which is what every bell row wants. A Bloc
+    // that is not in state — left, removed, or not loaded yet — is not worth
+    // switching to: stay put rather than blanking the screen.
+    const requested = String(item.groupId || "").trim();
+    const targetGroup = (requested && appState.groups?.[requested]) || currentGroup;
+    if (!targetGroup?.id) return;
+    if (targetGroup.id !== selectedGroupId) {
+      persistGroupSelection(targetGroup.id);
+      // Leave anything stacked over the Bloc behind, or the member lands on
+      // the new Bloc underneath the old Bloc's screen.
+      setShowSettings(false);
+      setShowStream(false);
+      setLogCommentScreen(null);
+    }
+
     if (item.opens === "comments") {
       // A comment row opens the thread itself, not the workout it hangs off.
       // The thread needs the whole log, and these are always the signed-in
@@ -2711,12 +2742,12 @@ const App = () => {
       // member's logs rather than only this member's. Own-log rows still match
       // on the first list they appear in, so nothing changes for them.
       let log = null;
-      for (const entries of Object.values(currentGroup?.logs || {})) {
+      for (const entries of Object.values(targetGroup?.logs || {})) {
         const match = (Array.isArray(entries) ? entries : []).find(entry => String(entry?.id) === String(item.logId));
         if (match) { log = match; break; }
       }
       if (log) {
-        handleOpenLogComments({ groupId: currentGroup.id, log, source: "activity" });
+        handleOpenLogComments({ groupId: targetGroup.id, log, source: "activity" });
         return;
       }
       // The log has gone (deleted, or the month rolled). Falling through to the
@@ -2736,7 +2767,9 @@ const App = () => {
       return;
     }
     if (item.opens === "settlement") { setMonthInitialIdx(null); setPage("month"); }
-  };
+  }, [appState.groups, currentGroup, selectedGroupId, persistGroupSelection, handleOpenLogComments, handleOpenStream]);
+
+  const handleNotificationAct = openNotificationTarget;
   const renderGroupSwitcherSurface = ({ inert=false, suppressIntro=false } = {}) => React.createElement('div',{
     ref:el=>{
       if (!el) {
