@@ -292,10 +292,23 @@ the sandbox and pushed to a branch. **Nothing is live and nothing is on `main`.*
 
 ### The one thing that is blocked, and it is not code
 
-**This session has no Supabase access.** Every `execute_sql` and
-`list_migrations` call returns *"You do not have permission to perform this
-action"*, so unlike session 1 I could neither read production nor apply the
-migration. The table does not exist yet.
+**The Supabase connector is signed in to the wrong account.** Every call
+against project `bpvvvqjsfwmmfjvvijkd` returns *"You do not have permission to
+perform this action"*, so unlike session 1 I could neither read production nor
+apply the migration. The table does not exist yet.
+
+**Diagnosed properly rather than left as "no access".** The connector is not
+broken and not disconnected: it reports `connected` with 31 tools, and
+`list_projects` answers happily. It just lists **Runway** and **LifeOS**, both
+in organisation `nkdiocffmnmnydcpavwk`. **Fero's project is not in that list
+at all.** So the token behind the connector belongs to an account that is not
+a member of the organisation that owns Fero, and the permission error is
+accurate rather than a glitch.
+
+**The fix is the founder's, and it is not a code change:** sign the Supabase
+connector in to the account that owns Fero, from `/mcp` in a session or from
+Connectors on claude.ai. Nothing should be pasted into the chat to do it --
+see AGENTS.md section 9.
 
 That inverts the usual order — AGENTS.md section 12 says schema goes first —
 so the server half is deliberately **held back from `main`** until the
@@ -396,7 +409,8 @@ Also still true from session 1: the TestFlight branch does **not** carry
 | `bbfe0c5` | `claude/notification-switches-build-2026-11-07` | the same commit, cherry-picked |
 | `9070a9c` | `claude/notification-switches-build-2026-11-07` | the five switches, the row, the three card changes |
 
-**No production SQL was run this session — this session cannot run any.**
+**No production SQL was run this session — the connected Supabase account
+cannot see Fero's project.**
 
 ## 9. A mistake: the server commit reached `main` after all
 
