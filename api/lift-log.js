@@ -6158,6 +6158,31 @@ async function recordCanonicalDailyAppActivity(authUser, openedAt = new Date().t
   }
 }
 
+// Stores the zone the member's phone reported, so a scheduled notification
+// fires at their own 18:00 rather than their Bloc's.
+//
+// ante_core keeps a time zone on `blocs` and `seasons` and never on a person,
+// which is right for the Fero day but wrong for a push: 11 Blocs are on
+// Europe/Oslo, one on Asia/Colombo, and a member can be in both.
+//
+// Best-effort on purpose. The RPC validates the zone against pg_timezone_names
+// and quietly ignores anything else, and a failure here must never stop
+// someone signing in: with no stored zone every caller falls back to the
+// Bloc's, which is exactly the behaviour before this existed.
+async function recordCanonicalProfileTimeZone(authUserId, timeZone) {
+  const zone = String(timeZone || "").trim();
+  if (!authUserId || !zone || zone.length > 64) return;
+  try {
+    await supabaseFetch("/rest/v1/rpc/set_ante_core_profile_time_zone", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ p_auth_user_id: String(authUserId), p_time_zone: zone })
+    });
+  } catch (error) {
+    console.error("Profile time zone record failed:", error?.message || error);
+  }
+}
+
 // Marks someone active for the day without counting an app open.
 //
 // Active-user tracking used to fire only on auth-sync and upsert-profile, so a
@@ -10518,6 +10543,7 @@ export default async function handler(req, res) {
           }
         }
         await recordCanonicalDailyAppActivity(authUser);
+        await recordCanonicalProfileTimeZone(authUser.id, payload?.timeZone);
         return res.status(200).json({
           ok: true,
           state: await scopeAndSignReadableStateForUser(state, authUser.id),

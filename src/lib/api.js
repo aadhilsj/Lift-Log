@@ -235,6 +235,24 @@ async function signOutAuthSession() {
   if (error) throw error;
 }
 
+// The zone the phone is in, sent with auth-sync so a scheduled notification
+// can fire at this member's own 18:00 rather than their Bloc's.
+//
+// ante_core stores a time zone per Bloc, never per person, so a member of a
+// Colombo Bloc living in Oslo would otherwise be nudged at 14:00. Only the
+// delivery hour uses this; which day a workout counts for is still the Bloc's.
+//
+// Wrapped because Intl can throw on an exotic or locked-down device, and a
+// missing zone must never stop someone signing in — the server falls back to
+// the Bloc's own zone, which is exactly today's behaviour.
+function deviceTimeZone() {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || "";
+  } catch {
+    return "";
+  }
+}
+
 // Retried once on a dropped connection or a server-side blip, because the cost
 // of the first failure is high: whoever calls this straight after an OTP has a
 // valid session and no account data, and every caller has to decide what to do
@@ -256,7 +274,7 @@ async function syncAuthSessionData(sessionOverride, options = {}) {
           "Content-Type":"application/json",
           "Authorization": `Bearer ${session.accessToken}`
         },
-        body: JSON.stringify({ action:"auth-sync" })
+        body: JSON.stringify({ action:"auth-sync", timeZone: deviceTimeZone() })
       });
       const body = await res.json().catch(()=>null);
       if (res.ok) {
