@@ -193,8 +193,30 @@ Both done on the board. **Measured, not eyeballed** — a one-line claim about a
 
 ### The button
 
-`Turn on` -> `Turn on notifs`. At 15px/800 Outfit it measures **95.9px** in
-**119.5px** of room, so nothing else moves: same size, same pair, same order.
+`Turn on` -> `Turn on notifs` -> **`Turn on notifications`**, spelled out in
+full at his second instruction: *"not notifs, notifications. spell the whoole
+thing"*.
+
+The full word does **not** fit the button pair as it was. Measured at 15px/800
+Outfit it is **143.5px** against **119.5px** of room on the board and 127.0px
+on a real phone. The shortened `Turn on notifs` fitted at 95.9px; the full one
+does not.
+
+So one of two things had to give, and this is a layout change he did not ask
+for either way:
+
+| | |
+| --- | --- |
+| Shrink the type | the full word needs **12px** for equal buttons, against the secondary's 15px. The primary action would be the smaller text on the screen |
+| **Give the primary the room (chosen)** | `Not now` sizes to its own text (**85.2px**), the primary takes the rest (**181.8px** of text room). Both stay at 15px, and 143.5px fits with 38px spare |
+
+Chosen the second: the buttons are **no longer equal width**. That is the one
+visible consequence, and it also reads correctly — the primary action is the
+wider of the two. `.mbtn` loses `flex: 1`; `.mprimary` gains it, `.msecondary`
+gets `flex: 0 0 auto` and `white-space: nowrap`.
+
+**If he would rather they stayed equal**, it is the first row of that table:
+equal widths, 12px primary text. One line to change.
 
 ### The body line, on one line, copy untouched
 
@@ -224,8 +246,9 @@ the code is how a mockup and a screen drift apart.
 ### Both are still only on the board
 
 `PushPermissionModal` on the TestFlight branch at `e6895ab` still says
-**`Turn on`** and still sets the body at the old size. Neither change is in
-code. They go in with the switches work, on the same branch.
+**`Turn on`**, still sets the body at the old size, and still has equal-width
+buttons. **None** of the three changes is in code. They go in with the switches
+work, on the same branch.
 
 ## Still open
 
