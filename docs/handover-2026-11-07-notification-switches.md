@@ -97,9 +97,67 @@ a real cost and that split is a hypothetical one.
 
 ---
 
+## 4. The mockup — on his design canvas, awaiting his word
+
+Added to the existing canvas `SiGivnD85RCPqpjayZp1k1` ("Fero push
+notifications") rather than a new one, in the same 900x844 house style as its
+other eleven artboards. Nothing existing was moved or resized.
+
+| Artboard | What |
+| --- | --- |
+| `Switches.dc.html` | The panel: five switches, **interactive** — the toggles really move, and the line under the phone shows what the Account row would then read. Rationale column carries the grouping, the trade-off and four notes |
+| `SwitchesEntry.dc.html` | Two phones: the Account screen with the one new row, and the **iOS-permission-off state** |
+
+### Drawn from the real code, not invented
+
+| Element | Source |
+| --- | --- |
+| The toggle | `BlocSettingsScreen.jsx:457` — 38x22 track, radius 999, `#4ECDC4` on / `#2A2E39` off, knob 16x16 at `top:3` sliding `left` 3 to 19, `#050909` on / `#767C88` off, `.18s` |
+| Panel chrome | `BlockedMembers.jsx:52-61` — `< Account` back at 13px/700 `--muted`, title 18px/800, 12px `--muted` explainer. A panel, not a modal |
+| Rows | `ProfilePage.jsx:387-399` — `13px 15px`, label 13px/500, divider `1px solid rgba(255,255,255,.055)`, last row none |
+| Section labels | `ProfilePage.jsx:374` — 10px/500, uppercase, `.1em` |
+| Account rows | `ProfilePage.jsx:218` — really only Email, (Dashboard, founder-only) and Sign out. The new row is drawn between Email and Sign out |
+| Colours | `src/styles/app.css` `:root` |
+
+### Decisions inside the mockup, for him to accept or reject
+
+- **Five switches**, per §3 above.
+- **All five default ON.** A member who has just allowed notifications has
+  said yes once; making them say it five more times wastes the permission.
+- **The switches govern push only.** The explainer says so in as many words,
+  because "For you" is computed in the client and cannot be switched off from
+  here — §6 of the design.
+- **Permission-off state:** the switches stay on and visible, dimmed, under an
+  amber notice. Not reset, not hidden, so re-allowing returns the member's
+  choices untouched.
+- Quiet hours drawn as 22:00-07:00 **because the design says so**, with the
+  board noting he has not settled it.
+
+**Nothing was built.** No code on either branch.
+
+## 5. A correction to the permission board, at his request
+
+Mid-session, looking at `Permission.dc.html`, he asked for the header on one
+line.
+
+The board was **stale**: it still showed option A, `You're accountable, and so
+are they.`, as the pick, which wraps to two lines at 19px in a 340 modal. The
+copy he actually settled on, and the copy **already built** into
+`PushPermissionModal` on the TestFlight branch at `e6895ab`, is option B,
+`Accountable both ways.` — §5 of the first session's handover records exactly
+that, and records the reason as his asking for one line.
+
+So the board disagreed with the shipped card. Changed `pick` from `options[0]`
+to `options[1]`, and moved the green "recommended" treatment from A to B,
+relabelled `B - built` so the board now says which one exists. **The three
+options and their reasoning are untouched** — that is his copy-review record.
+
+No code changed. The built card was already correct.
+
 ## Still open
 
-- The mockup itself — being drawn now, not yet shown to him.
+- **His verdict on the mockup** — five switches or twelve, the copy, the
+  defaults, and the permission-off state. Nothing is built until he says.
 - Nothing built. No code touched on either branch.
 
 ### Carried over from session 1, unchanged
