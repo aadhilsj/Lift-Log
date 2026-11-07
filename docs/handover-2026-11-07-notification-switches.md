@@ -250,6 +250,41 @@ the code is how a mockup and a screen drift apart.
 buttons. **None** of the three changes is in code. They go in with the switches
 work, on the same branch.
 
+## 7. Which side Apple puts Allow on — checked, nothing to change
+
+He asked which side Apple's notification alert puts its accept button on, and
+for Fero's card to match.
+
+**Apple's Human Interface Guidelines, the Alerts page, Buttons section:**
+
+> *"Place buttons where people expect."*
+
+It then says to put the button people are most likely to choose on the
+**trailing** side of a row — and always to put the default button there —
+with Cancel buttons on the **leading** side. Trailing is the right, in a
+left-to-right language. So Apple's own prompt is `Don't Allow` left,
+`Allow` right.
+
+**Fero's card already matches.** `Not now` is on the left, `Turn on
+notifications` on the right. No change was made, to the board or anywhere
+else.
+
+Two things worth keeping:
+
+- If the titles are long enough that iOS stacks the buttons vertically
+  instead, the preferred one goes to the **top**, not the bottom. Fero's card
+  is always a row, so this does not arise for it.
+- This does **not** contradict §2I of the design, which says Fero's card must
+  not imitate Apple's. That warning is about copying the look — same shape,
+  same grey — so that the card reads as a system dialog and the member feels
+  tricked. Matching which side the accept button sits on is the opposite: it
+  is muscle memory, and it means the member taps right on Fero's card and
+  then right again on Apple's.
+
+**How this was checked:** fetched in the browser, not recalled. Apple's HIG
+pages render their body with JavaScript, so a plain fetch returns only the
+page title — the first attempt came back empty and proved nothing.
+
 ## Still open
 
 - **Approved.** Nothing is built yet — the next step is the code, on the
