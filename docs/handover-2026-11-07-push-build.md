@@ -252,30 +252,82 @@ and `npx cap sync ios` steps are unchanged and still required.
 
 ---
 
-## What is NOT done
+## Closed out
 
-Nothing else. No sender, no permission card, no switches, no scheduled job,
-and the APNs key is still waiting on his personal laptop.
+### What is LIVE on the website
 
-**Next:** switching Bloc when a notification is tapped — `handleNotificationAct`
-(`src/App.jsx:2704`) resolves every row against `currentGroup` and never calls
-`setSelectedGroupId`. Invisible, so it needs no mockup.
-
----
-
-## Also parked this session, at his request
-
-The **Bloc switcher redesign**. His words: the workout-type icons on each card
-are irrelevant now. Not started, not in scope for push. Recorded in §25 of the
-build-12 handover.
-
----
-
-## Commits
-
-| Commit | What |
+| | |
 | --- | --- |
-| `0b13a25` | `profiles.time_zone`, the migration, and the device reporting its zone |
-| `c689691` | tapping a notification opens the right Bloc |
-| `c5d22bd` | why the card could not be built on `main` |
-| `e6895ab` | **the permission card — on the TestFlight branch, not `main`** |
+| `ante_core.profiles.time_zone` | applied to production. 54 rows, **0 carry a zone yet** — they fill as people open the app |
+| The device reporting its zone | shipped in the bundle, invisible |
+| A notification tap opening the right Bloc | shipped, invisible |
+
+Nothing on screen changed. The live site was loaded after each deploy with no
+console errors.
+
+### What is on the TestFlight branch, NOT live and NOT on `main`
+
+| | |
+| --- | --- |
+| The permission card | `claude/testflight-build-12-2026-10-21` at `e6895ab` |
+
+It is in no build yet. Cutting a build in Xcode is what puts it on a phone.
+
+### What is still open
+
+**Needs the founder's laptop**
+
+- The APNs key, then `APNS_PRIVATE_KEY`, `APNS_KEY_ID`, `APNS_TEAM_ID`
+  (team `SMR55A2M96`) and `PUSH_REGISTRATION_ENABLED=true` in Vercel. The
+  `.p8` downloads **once** and must never reach the repo or a chat.
+
+**Next pieces of work, in order**
+
+| | | Where |
+| --- | --- | --- |
+| 1 | The per-type switches and a `notification_prefs` store — **adds UI, mock it up first** | TestFlight branch |
+| 2 | A message argument on `buildApnsRequest` — it hardcodes `title: "Fero test"` | TestFlight branch |
+| 3 | The event senders, keyed on `getWorkoutSessionKey` + owner, not `log.id` | TestFlight branch |
+| 4 | One scheduled job for types 1, 6, 7 and 9, reading `profiles.time_zone` | needs `main` and the branch together |
+| 5 | Type 10's route: `BlocSettingsScreen` `initialTab` cannot express `"members"` (line 129) | TestFlight branch |
+
+**Still undecided by the founder**
+
+- Quiet hours 22:00–07:00 — too early for StavanGang, who train late?
+- What the member who logged the completing workout sees for type 12.
+
+**Unverified, and the first thing to check when push is real**
+
+- The Bloc-switching branch of `openNotificationTarget`. Unreachable until a
+  push arrives naming a Bloc the member is not currently in.
+- `profiles.time_zone` actually filling from a real phone.
+- Apple's prompt and the registration behind it.
+
+**Parked at his request**
+
+- The Bloc switcher redesign — the workout-type icons on each card are dead
+  weight. Not started.
+
+### Worktrees
+
+Both scratch worktrees were removed at the end of the session.
+`claude/push-permission-card-2026-11-07` was left in place as the reviewable
+record of the card; it is identical to the TestFlight branch tip.
+
+**A worktree for the TestFlight branch needs its own `npm install`** — it
+carries `@capacitor/push-notifications`, `@capacitor/ios` and
+`@capacitor/keyboard`, none of which are in `main`'s `node_modules`, so the
+usual symlink does not work for it.
+
+### Commits
+
+| Commit | Branch | What |
+| --- | --- | --- |
+| `0b13a25` | main | `profiles.time_zone`, the migration, and the device reporting its zone |
+| `c689691` | main | tapping a notification opens the right Bloc |
+| `c5d22bd` | main | why the card could not be built on `main` |
+| `e6895ab` | **TestFlight** | **the permission card** |
+| `86e55d8` | main | this handover |
+
+Production SQL run this session: the one migration in §1, announced before it
+ran and verified after. No other production data was touched.
