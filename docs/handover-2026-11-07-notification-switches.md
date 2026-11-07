@@ -398,6 +398,36 @@ Also still true from session 1: the TestFlight branch does **not** carry
 
 **No production SQL was run this session — this session cannot run any.**
 
+## 9. A mistake: the server commit reached `main` after all
+
+Recorded because it contradicts section 8, which was written minutes earlier
+and says the server half is held back.
+
+**What happened.** The handover commit was pushed with `git push ... HEAD:main`
+from a branch that already carried `d6a34e1` on top of `main`. Pushing `HEAD`
+took the whole branch, so the commit meant to wait went with it. The push was
+checked for ancestry and force-with-lease, as always — neither of those catches
+sending one commit more than intended.
+
+**What is now on production**, at `6b6ef3f`, deploy `success`, live site 200:
+
+| | |
+| --- | --- |
+| `supabase/migrations/20261107120000_notification_prefs.sql` | a file only. **Vercel does not run migrations. The database is unchanged.** |
+| `api/lift-log.js`, two added actions | live, and **unreachable** — no web UI calls them and no iOS build carries the screen |
+
+**The real effect** is two dormant endpoints. Called, they would 500, because
+the RPCs they invoke do not exist. Nothing existing was touched; the rest of
+the file is byte-identical, lint and build were clean before the push.
+
+**What it breaks is the rule, not the app:** AGENTS.md section 12 says schema
+goes first, and this is code landing ahead of its schema.
+
+**Recommendation: leave it, and apply the migration next.** A revert is two
+further production deploys — one to take it out, one to put it back — against
+code nothing can reach. The founder was told immediately and it is his call;
+the revert is `git revert d6a34e1` if he wants it.
+
 ## Still open
 
 - **Built, not applied and not live.** The migration needs running against
