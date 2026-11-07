@@ -182,6 +182,51 @@ options and their reasoning are untouched** — that is his copy-review record.
 
 No code changed. The built card was already correct.
 
+## 6. The permission card, two more changes — 7 November
+
+> *"this copy doesnt say we are turning on notifications, change the turn on
+> button to say turn on notifs and the copy under the header, wrap so its on
+> one line - don't change the copy tho"*
+
+Both done on the board. **Measured, not eyeballed** — a one-line claim about a
+340px modal is exactly the kind that has been wrong before.
+
+### The button
+
+`Turn on` -> `Turn on notifs`. At 15px/800 Outfit it measures **95.9px** in
+**119.5px** of room, so nothing else moves: same size, same pair, same order.
+
+### The body line, on one line, copy untouched
+
+`You'll know when your Bloc logs. They'll know when you don't.` at the current
+12.5px measures **334.3px** against **304px** of content width — which is why
+it wrapped.
+
+| Size | Width | At 304px |
+| --- | --- | --- |
+| 12.5px (was) | 334.3px | wraps |
+| 12px | 321.0px | wraps |
+| 11.5px | 307.6px | wraps |
+| **11px (now)** | **294.2px** | **fits, 9.8px spare** |
+
+**A correction found while measuring.** The board draws the modal as
+`max-width: 340px` in a 360px phone. The real one is **not** 340: `app.css:202`
+gives `.modal` `max-width:100%` with `padding:18px 16px 16px` under 769px, and
+`.overlay.center-mobile` adds `padding:16px 12px` (line 200). On a 375px phone
+that is **319px** of content, 15px more than the board assumes.
+
+So 11.5px would in fact fit the real screen (307.6 <= 319) but would still wrap
+in the 360px board. **11px is used in both**, deliberately: one number that
+holds from 360px up, and 11px is already a Fero size — it is what the row
+explainers on the switches panel use. Two different numbers in the board and
+the code is how a mockup and a screen drift apart.
+
+### Both are still only on the board
+
+`PushPermissionModal` on the TestFlight branch at `e6895ab` still says
+**`Turn on`** and still sets the body at the old size. Neither change is in
+code. They go in with the switches work, on the same branch.
+
 ## Still open
 
 - **Approved.** Nothing is built yet — the next step is the code, on the
